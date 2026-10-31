@@ -323,5 +323,127 @@
       else{x.dif=Math.round((x.cobrado-x.rac)*1e6)/1e6;x.difPct=x.rac>0?Math.round(x.dif/x.rac*1000)/10:null;
         x.difTxt=Math.abs(x.dif)<0.00005?"igual ao RAC":"Console "+iaUsd(Math.abs(x.dif))+(x.dif>0?" acima":" abaixo")+(x.difPct==null?"":" ("+(x.dif>0?"+":"−")+iaNum(Math.abs(x.difPct),1)+"%)")}
       return x})}
-  raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses};
+  /* ===== Newsletter (newsletter.json, coletado por scripts/atualizar_newsletter.py; docs/newsletter.md) =====
+     A relevância é a mesma fórmula do coletor (relevancia() no Python), com os pesos e as palavras do dono. */
+  var NL_CATS=[
+    {k:"ia",n:"Inteligência Artificial",cor:"#7C3AED"},{k:"tec",n:"Tecnologia",cor:"#2563EB"},
+    {k:"cie",n:"Ciência e inovação",cor:"#0E8A6A"},{k:"eco",n:"Economia e negócios",cor:"#B45309"},
+    {k:"pol",n:"Política e atualidades",cor:"#C8102E"},{k:"dados",n:"Ciência de Dados e Analytics",cor:"#0891B2"},
+    {k:"games",n:"Games e entretenimento tecnológico",cor:"#DB2777"},{k:"soro",n:"Sorocaba e região",cor:"#4B5D73"}];
+  var NL_TIPOS={noticia:"Notícia",analise:"Análise",opiniao:"Opinião"};
+  var NL_PESOS=[[0,"Esconder"],[0.5,"Menos"],[1,"Normal"],[1.5,"Mais"],[2,"Muito mais"]];
+  var NL_LIM={destaqueH:30,fontesRepercute:3,janelaH:48,destMax:10,destMin:5,porCat:3,secao:8};
+  function nlCat(k){for(var i=0;i<NL_CATS.length;i++)if(NL_CATS[i].k===k)return NL_CATS[i];return {k:k,n:String(k||"Outros"),cor:"#7B8CA3"}}
+  /* configuração do dono (PESSOAL.newsletter): peso por categoria (0 esconde, até 3), palavras de interesse e para esconder, avisos */
+  function nlConfig(c){c=c&&typeof c==="object"?c:{};var pe=c.pesos&&typeof c.pesos==="object"?c.pesos:{},p={};
+    NL_CATS.forEach(function(x){var v=pe[x.k];p[x.k]=typeof v==="number"&&isFinite(v)?Math.max(0,Math.min(3,v)):1});
+    function lista(l){return (Array.isArray(l)?l:String(l||"").split(/[,;\n]/)).map(function(s){return String(s==null?"":s).trim()}).filter(function(s){return s.length>=2}).slice(0,30)}
+    return {pesos:p,interesse:lista(c.interesse),ocultar:lista(c.ocultar),avisos:c.avisos!==false}}
+  function nlOculto(g,cfg){if(!(cfg.pesos[g.c]>0))return true;var t=norm(g.t+" "+(g.r||""));
+    return cfg.ocultar.some(function(p){return t.indexOf(norm(p))>=0})}
+  /* peso × (atualidade + fontes + tipo + imagem + interesse); destaque só se recente ou ainda repercutindo, e nunca opinião */
+  function nlRelevancia(g,agoraMs,cfg){cfg=cfg||nlConfig();
+    var idade=Math.max(0,(agoraMs-Date.parse(g.d))/3.6e6),n=+g.n||1,peso=cfg.pesos[g.c]==null?1:cfg.pesos[g.c];
+    var t=norm(g.t+" "+(g.r||"")),acertos=cfg.interesse.filter(function(p){return t.indexOf(norm(p))>=0}),bonus=Math.min(3,acertos.length*1.5);
+    var base=4*Math.max(0,1-idade/36)+2*Math.log(1+n)+(g.tipo==="noticia"?0.5:g.tipo==="analise"?0.3:0)+(g.img?0.2:0);
+    var s=Math.round(peso*(base+bonus)*1e4)/1e4,recente=idade<=NL_LIM.destaqueH,repercute=n>=NL_LIM.fontesRepercute&&idade<=NL_LIM.janelaH;
+    var porque=[];
+    if(n>1)porque.push(n+" veículos cobriram");
+    if(!recente&&repercute)porque.push("ainda repercute, publicado há "+Math.round(idade)+" h");else if(idade<6)porque.push("das últimas horas");
+    if(acertos.length)porque.push("fala de "+acertos.slice(0,2).join(" e "));
+    if(peso>1)porque.push("categoria com peso maior");
+    return {s:s,idade:idade,destaque:g.tipo!=="opiniao"&&peso>0&&(recente||repercute),porque:porque.join(" · ")}}
+  function nlDataBRT(ms){return new Date(ms-3*3600e3).toISOString().slice(0,10)}
+  /* FNV-1a de 32 bits: a mesma lista de notícias dá sempre a mesma chave */
+  function nlHash(s){s=String(s);var h=0x811c9dc5;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0}return ("0000000"+h.toString(16)).slice(-8)}
+  /* chave de idempotência do resumo com IA: data + conjunto de notícias (a mesma edição nunca é paga duas vezes) */
+  function nlChaveIA(data,ids){return "nl-"+String(data)+"-"+nlHash((ids||[]).slice().sort().join(","))}
+  function nlFontes(g){return (g.itens&&g.itens.length?g.itens:(g.fontes&&g.fontes.length?g.fontes:[{t:g.t,u:g.u,f:g.f,d:g.d}])).map(function(i){return {f:i.f,u:i.u,t:i.t,d:i.d}})}
+  function nlSnap(g,r){return {id:g.id,c:g.c,tags:(g.tags||[]).slice(0,3),tipo:g.tipo||"noticia",t:g.t,r:g.r||"",u:g.u,f:g.f,d:g.d,n:+g.n||1,img:g.img||null,s:r?r.s:+g.s||0,porque:r?r.porque:"",fontes:nlFontes(g)}}
+  function nlTodos(c){return (c.destaques||[]).concat.apply(c.destaques||[],(c.categorias||[]).map(function(k){return k.grupos||[]}))}
+  function nlIds(c){var v={},l=[];nlTodos(c).forEach(function(g){if(g&&!v[g.id]){v[g.id]=1;l.push(g.id)}});return l}
+  /* a edição do dia com os pesos do dono: 5 a 10 destaques (no máximo 3 por categoria) e as seções */
+  function nlEdicao(dados,cfgBruta,agoraMs){var cfg=nlConfig(cfgBruta);dados=dados||{};agoraMs=agoraMs||Date.now();
+    var gs=(dados.grupos||[]).filter(function(g){return g&&g.id&&g.t&&g.u&&!nlOculto(g,cfg)}).map(function(g){return {g:g,r:nlRelevancia(g,agoraMs,cfg)}})
+      .sort(function(a,b){return b.r.s-a.r.s||(a.g.id<b.g.id?-1:1)});
+    var dest=[],porCat={};
+    gs.forEach(function(x){if(dest.length<NL_LIM.destMax&&x.r.destaque&&dest.filter(function(y){return y.g.c===x.g.c}).length<NL_LIM.porCat)dest.push(x)});
+    /* poucas notícias recentes: completa até 5 com as melhores que sobraram (nunca opinião), dizendo por quê */
+    gs.forEach(function(x){if(dest.length<NL_LIM.destMin&&dest.indexOf(x)<0&&x.g.tipo!=="opiniao"){x.r.porque=(x.r.porque?x.r.porque+" · ":"")+"entre as mais recentes disponíveis";dest.push(x)}});
+    gs.forEach(function(x){var l=porCat[x.g.c]=porCat[x.g.c]||[];if(l.length<NL_LIM.secao)l.push(x)});
+    var ordem=NL_CATS.map(function(c,i){return {c:c,i:i}}).filter(function(o){return porCat[o.c.k]}).sort(function(a,b){return cfg.pesos[b.c.k]-cfg.pesos[a.c.k]||a.i-b.i});
+    var fontes=dados.fontes||[],falhas=fontes.filter(function(f){return !f.ok});
+    var c={versao:1,data:(dados.edicao&&dados.edicao.data)||nlDataBRT(agoraMs),coletado:dados.coletado||null,origem:"regras",
+      destaques:dest.map(function(x){return nlSnap(x.g,x.r)}),
+      categorias:ordem.map(function(o){return {k:o.c.k,sintese:"",grupos:porCat[o.c.k].map(function(x){return nlSnap(x.g,x.r)})}}),
+      fontes:{total:fontes.length,ok:fontes.length-falhas.length,falhas:falhas.map(function(f){return f.n+(f.erro?" ("+f.erro+")":"")})}};
+    c.resumo_dia=nlResumoRegras(c);c.chave=nlChaveIA(c.data,nlIds(c));
+    return c}
+  /* resumo do dia sem IA: só números e a manchete mais coberta, sem inventar nada */
+  function nlResumoRegras(c){var d=c.destaques||[];if(!d.length)return "Ainda não há notícias nesta edição.";
+    var top=d.slice().sort(function(a,b){return b.n-a.n||b.s-a.s})[0],cats={};d.forEach(function(g){cats[g.c]=1});var nc=Object.keys(cats).length;
+    return d.length+" destaques em "+nc+(nc===1?" categoria":" categorias")+". "+
+      (top.n>1?"O assunto mais coberto: “"+top.t+"” ("+top.n+" veículos).":"Primeiro destaque: “"+d[0].t+"” ("+d[0].f+").")}
+  /* o que vai para a IA: só manchete, trecho, veículos e categoria de cada grupo, com o id; sem links e sem "<" ou ">" */
+  function nlEntradaIA(c,max){max=max||14000;var vistos={},grupos=[];
+    (c.destaques||[]).forEach(function(g){if(!vistos[g.id]){vistos[g.id]=1;grupos.push({g:g,dest:true})}});
+    (c.categorias||[]).forEach(function(k){(k.grupos||[]).slice(0,3).forEach(function(g){if(!vistos[g.id]){vistos[g.id]=1;grupos.push({g:g,dest:false})}})});
+    function limpo(t){return String(t==null?"":t).replace(/[<>]/g,"").replace(/\s+/g," ").trim()}
+    var txt="Edição de "+c.data+". Cada grupo é um acontecimento; use só o que está escrito aqui.\n",ids=[];
+    for(var i=0;i<grupos.length&&ids.length<30;i++){var g=grupos[i].g;
+      var b="<grupo id=\""+g.id+"\" categoria=\""+nlCat(g.c).n+"\" tipo=\""+(NL_TIPOS[g.tipo]||"Notícia")+"\" fontes=\""+g.n+"\" destaque=\""+(grupos[i].dest?"sim":"não")+"\">\n"+
+        "Título: "+limpo(g.t)+"\n"+(g.r?"Trecho: "+limpo(g.r)+"\n":"")+"Veículos: "+limpo(nlFontes(g).map(function(f){return f.f}).filter(function(f,j,l){return l.indexOf(f)===j}).join(", "))+"\n</grupo>\n";
+      if(txt.length+b.length>max)break;txt+=b;ids.push(g.id)}
+    return {texto:txt,ids:ids}}
+  /* junta a resposta da IA (já validada no servidor) com a edição: links, veículos e datas continuam vindo do coletor */
+  function nlAplicarIA(c,res,ids){res=res||{};var mapa={},ok={},desconhecidos=[];
+    (ids||nlIds(c)).forEach(function(id){ok[id]=1});
+    nlTodos(c).forEach(function(g){mapa[g.id]=g});
+    (res.destaques||[]).forEach(function(d){if(!ok[d.id]||!mapa[d.id])desconhecidos.push(d.id)});
+    (res.categorias||[]).forEach(function(k){(k.ids||[]).forEach(function(id){if(!ok[id]||!mapa[id])desconhecidos.push(id)})});
+    if(desconhecidos.length)return {ok:false,motivo:"a IA citou notícias que não estão na edição: "+desconhecidos.slice(0,3).join(", ")};
+    if(!(res.destaques||[]).length||!String(res.resumo_dia||"").trim())return {ok:false,motivo:"a resposta veio sem resumo ou sem destaques"};
+    var n=JSON.parse(JSON.stringify(c));n.origem="ia";n.resumo_dia=String(res.resumo_dia);
+    n.destaques=res.destaques.map(function(d){var g=JSON.parse(JSON.stringify(mapa[d.id]));g.resumo_ia=String(d.resumo||"");g.relevancia_ia=String(d.relevancia||"");if(d.titulo)g.titulo_pt=String(d.titulo);return g});
+    var sint={};(res.categorias||[]).forEach(function(k){sint[k.categoria]=String(k.sintese||"")});
+    n.categorias.forEach(function(k){k.sintese=sint[k.k]||""});
+    return {ok:true,conteudo:n}}
+  /* confere o formato de uma edição guardada (do banco ou da rotina do servidor) antes de mostrar; "" = tudo certo */
+  function nlConteudoOk(c){
+    if(!c||typeof c!=="object")return "não é um objeto";
+    if(c.versao!==1)return "versão desconhecida";
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||""))return "data inválida";
+    if(c.origem!=="regras"&&c.origem!=="ia")return "origem inválida";
+    if(!Array.isArray(c.destaques)||!Array.isArray(c.categorias))return "sem destaques ou categorias";
+    if(c.categorias.some(function(k){return !k||!Array.isArray(k.grupos)}))return "categoria sem grupos";
+    var gs=nlTodos(c);
+    for(var i=0;i<gs.length;i++){var g=gs[i];
+      if(!g||!/^g[0-9a-f]{10}$/.test(g.id||""))return "grupo sem id válido";
+      if(!/^https?:\/\//.test(g.u||"")||typeof g.t!=="string"||!g.t)return "grupo "+g.id+" sem link ou manchete";
+      if(!Array.isArray(g.fontes)||!g.fontes.length||g.fontes.some(function(f){return !f||!/^https?:\/\//.test(f.u||"")}))return "grupo "+g.id+" sem fontes"}
+    if(c.categorias.some(function(k){return !NL_CATS.some(function(x){return x.k===k.k})}))return "categoria desconhecida";
+    return ""}
+  /* busca e filtros: todas as palavras precisam aparecer (manchete, trecho, veículos ou categoria); mais novas primeiro */
+  function nlFiltrar(grupos,f){f=f||{};var ps=norm(f.q||"").split(/\s+/).filter(Boolean);
+    return (grupos||[]).filter(function(g){
+      if(f.c&&g.c!==f.c&&(g.tags||[]).indexOf(f.c)<0)return false;
+      if(f.tipo&&g.tipo!==f.tipo)return false;
+      var fs=nlFontes(g);if(f.fonte&&!fs.some(function(x){return x.f===f.fonte}))return false;
+      if(!ps.length)return true;
+      var t=norm([g.t,g.r,nlCat(g.c).n,(g.tags||[]).map(function(k){return nlCat(k).n}).join(" ")].concat(fs.map(function(x){return x.f+" "+x.t})).join(" "));
+      return ps.every(function(p){return t.indexOf(p)>=0})})
+      .sort(function(a,b){return f.ordem==="relevancia"?(b.s||0)-(a.s||0):Date.parse(b.d)-Date.parse(a.d)})}
+  /* resumo da semana a partir das edições guardadas: dias, destaques por categoria e o que mais foi coberto */
+  function nlSemana(edicoes){var dias={},cats={},vistos={},top=[],ia=0;
+    (edicoes||[]).forEach(function(e){var c=e&&e.conteudo;if(!c||nlConteudoOk(c))return;if(!dias[c.data]&&c.origem==="ia")ia++;dias[c.data]=1;
+      c.destaques.forEach(function(g){cats[g.c]=(cats[g.c]||0)+1;if(!vistos[g.id]){vistos[g.id]=1;top.push(g)}})});
+    top.sort(function(a,b){return b.n-a.n||Date.parse(b.d)-Date.parse(a.d)});
+    return {dias:Object.keys(dias).sort(),ia:ia,destaques:top.length,
+      porCategoria:NL_CATS.filter(function(c){return cats[c.k]}).map(function(c){return {k:c.k,n:cats[c.k]}}).sort(function(a,b){return b.n-a.n}),
+      maisCobertos:top.slice(0,5)}}
+  /* item de "Guardados" (PESSOAL.salvos): o mesmo formato que as Conexões já usam (tipo, t, u, f, tema), mais categoria e grupo */
+  function nlSalvo(g,hoje){return {tipo:"noticia",t:g.titulo_pt||g.t,u:g.u,f:g.f,tema:nlCat(g.c).n,c:g.c,gid:g.id,d:g.d,quando:hoje}}
+  raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+    NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
+    nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo};
 })(typeof window!=="undefined"?window:globalThis);

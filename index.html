@@ -195,6 +195,15 @@ a.nllink{color:var(--ink);text-decoration:none}a.nllink:hover{text-decoration:un
 .nlchk{display:flex;gap:8px;align-items:flex-start;font-size:calc(13.5px + var(--fz))}
 .nlguard .grow a{white-space:normal}
 .nlwres{margin:0 0 6px}
+/* cabeçalho só da Newsletter no celular: Voltar e Início ficam só com o ícone (o texto continua no botão para leitores de
+   tela) e o título encolhe sem passar por baixo deles; as outras páginas mantêm o cabeçalho de sempre */
+@media(max-width:480px){
+  :root[data-sec="newsletter"] .ptitle{gap:10px}
+  :root[data-sec="newsletter"] .ptitle h1{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  :root[data-sec="newsletter"] .ptitle .homebtn{flex:none;width:36px;height:36px;padding:0;justify-content:center;gap:0;font-size:0}
+  :root[data-sec="newsletter"] .ptitle .homebtn svg{width:18px;height:18px}
+  :root[data-sec="newsletter"] .ptitle #voltarbtn:not([hidden])+.homebtn{margin-left:6px}
+}
 @media(max-width:480px){.nlimg{width:72px;height:72px}.nlcard{gap:10px}.nltit{font-size:calc(16px + var(--fz))}}
 .iabox{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}.iabox input[type=file]{max-width:100%}.iaprevia{margin-top:8px;border-radius:10px;padding:8px 10px;background:repeating-linear-gradient(45deg,var(--hover),var(--hover) 10px,transparent 10px,transparent 20px)}.iademo{margin:0 0 6px;font-weight:800;color:var(--warn)}.iaprevia .wl .grow .sub{white-space:normal}
 .mbavivo .vfil{margin-top:8px}.mbavivo.on{box-shadow:inset 4px 0 0 #E5484D,var(--shadow)}

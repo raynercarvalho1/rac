@@ -504,6 +504,14 @@ test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema
   assert.match(sis, /\["newsletter\.json","Newsletter \(fontes RSS\)","grupos",14\]/, "o painel de robôs mostra a coleta e as fontes fora do ar");
   const css = /\.nltabs\{[^}]*\}/.exec(html)[0]; assert.match(css, /overflow-x:auto/, "abas roláveis em 375 px");
   assert.match(html, /@media\(max-width:480px\)\{\.nlimg/);
+  /* cabeçalho em 375 px: só na Newsletter, Voltar e Início ficam só com o ícone e o título não passa por baixo deles */
+  const cab = /\/\* cabeçalho só da Newsletter[\s\S]*?\n\}\n/.exec(html)[0];
+  assert.match(cab, /@media\(max-width:480px\)/);
+  assert.match(cab, /:root\[data-sec="newsletter"\] \.ptitle \.homebtn\{[^}]*font-size:0/);
+  assert.match(cab, /:root\[data-sec="newsletter"\] \.ptitle h1\{[^}]*text-overflow:ellipsis/);
+  assert.ok(cab.split("\n").filter((l) => /\{/.test(l) && !/^@media|^\/\*/.test(l.trim())).every((l) => /^\s*:root\[data-sec="newsletter"\] /.test(l)), "nenhuma regra do cabeçalho vale para as outras páginas");
+  assert.match(html, /\.ptitle \.homebtn\{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font:600 calc\(13px \+ var\(--fz\)\) var\(--f-ui\)/, "o padrão das outras páginas continua igual");
+  assert.match(app, /document\.documentElement\.setAttribute\("data-sec",top\)/, "a seção aberta marca o data-sec");
 });
 test("robô: o workflow de notícias coleta a Newsletter às 6h, 12h e 18h, sem derrubar as outras coletas e sem commit à toa", () => {
   const w = ler(".github/workflows/noticias.yml");

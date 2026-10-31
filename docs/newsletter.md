@@ -98,7 +98,8 @@ Abas: **Hoje** (resumo do dia, destaques com manchete, veículo, data e hora, qu
 relevantes), **Guardadas**, **Edições** (histórico), **Semana** e **Ajustes**. Estado vazio, coleta atrasada (mais de
 26 h), fontes fora do ar e "sem internet" aparecem na própria página. No Início, o cartão "Newsletter" mostra o resumo e
 os 4 primeiros destaques; a busca geral do site acha as notícias. Pensada para 375 px (abas roláveis, imagem pequena à
-direita, sem rolagem lateral).
+direita, sem rolagem lateral). No celular, só nesta página, Voltar e Início ficam só com o ícone (o nome continua
+para leitores de tela) para o título "Newsletter" caber inteiro; as outras páginas mantêm o cabeçalho de sempre.
 
 Ao abrir a página, a edição de hoje (com os pesos do dono) entra no histórico como `regras`; ela é atualizada se a
 coleta mudar durante o dia. Uma edição salva com IA nunca é trocada por ela.

@@ -211,6 +211,19 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     assert.deepEqual(hoje.abas, ["Hoje", "Buscar", "Guardadas", "Edições", "Semana", "Ajustes"]);
     assert.ok(hoje.secoes >= 7, "seções por categoria"); assert.match(hoje.resumo, /destaques em \d+ categorias/); assert.ok(hoje.menu, "item no menu");
     assert.match(hoje.atual, /12 de 14 fontes/);
+    /* cabeçalho em 375 px: o título inteiro, sem passar por baixo de Voltar e Início (que ficam só com o ícone nesta página) */
+    const cabecalho = () => pag.evaluate(() => {
+      const r = (el) => el.getBoundingClientRect(), t = document.getElementById("ptitle"), v = document.getElementById("voltarbtn"), i = document.getElementById("homebtn");
+      const vis = [v, i].filter((b) => !b.hidden);
+      return { titulo: t.textContent, cortado: t.scrollWidth > t.clientWidth + 1, direita: r(t).right, botoes: vis.map((b) => ({ esq: r(b).left, dir: r(b).right, texto: b.textContent.trim(), fonte: parseFloat(getComputedStyle(b).fontSize) })),
+        largura: document.documentElement.scrollWidth };
+    });
+    const cab = await cabecalho();
+    assert.equal(cab.titulo, "Newsletter"); assert.equal(cab.cortado, false, "título inteiro");
+    assert.equal(cab.botoes.length, 2, "Voltar e Início continuam na tela");
+    for (const b of cab.botoes) { assert.ok(b.esq >= cab.direita, `o botão ${b.texto} não cobre o título (${b.esq} < ${cab.direita})`); assert.ok(b.dir <= 375, "dentro da tela"); }
+    assert.deepEqual(cab.botoes.map((b) => b.texto), ["Voltar", "Início"], "o nome dos botões continua para leitores de tela");
+    assert.ok(cab.largura <= 375);
     const grav = await pag.evaluate(() => window.__nl.gravacoes.filter((g) => g.nome === "newsletter_edicoes"));
     assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do dia vai para o histórico");
 
@@ -272,6 +285,11 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     await foto("5-ajustes");
     assert.equal(await pag.evaluate(() => document.querySelectorAll(".nlpesos select").length), 8);
     assert.ok(await pag.evaluate(() => document.documentElement.scrollWidth <= 375));
+
+    /* as outras páginas mantêm o cabeçalho de sempre (Voltar e Início com o texto à mostra) */
+    await abrir("#estudos"); await pag.waitForTimeout(200);
+    const outra = await cabecalho();
+    assert.ok(outra.botoes.length >= 1 && outra.botoes.every((b) => b.fonte >= 12), "texto dos botões visível fora da Newsletter: " + JSON.stringify(outra.botoes));
 
     /* Início: cartão com os destaques */
     await abrir("#inicio");

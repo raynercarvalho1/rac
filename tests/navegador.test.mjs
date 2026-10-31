@@ -15,6 +15,8 @@ try { pw = await import("playwright"); } catch (_) { /* sem Playwright: pula */ 
 const pular = !pw ? "Playwright não instalado (roda no GitHub)" : false;
 /* no GitHub o Playwright tem que estar lá: se faltar, o teste falha em vez de ser pulado sem ninguém ver */
 test("no GitHub, o navegador do teste está instalado", { skip: !process.env.CI }, () => assert.ok(pw, "Playwright não foi instalado no testes.yml"));
+/* no computador, onde o Chromium do Playwright pode ser bloqueado pelo Windows: RAC_CHROMIUM=<caminho de um Chrome ou Edge> */
+const abrirNavegador = () => pw.chromium.launch(process.env.RAC_CHROMIUM ? { executablePath: process.env.RAC_CHROMIUM } : {});
 const TIPOS = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json", ".css": "text/css", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 
 test("o site abre no navegador, todos os módulos carregam e nada dá erro", { skip: pular, timeout: 90000 }, async () => {
@@ -28,7 +30,7 @@ test("o site abre no navegador, todos os módulos carregam e nada dá erro", { s
   });
   await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
   const base = `http://127.0.0.1:${servidor.address().port}`;
-  const nav = await pw.chromium.launch();
+  const nav = await abrirNavegador();
   try {
     const pag = await nav.newPage(), erros = [];
     pag.on("pageerror", (e) => erros.push("erro: " + e.message));
@@ -60,7 +62,7 @@ test("IA: DEMO só na prévia, REAL vai à conferência com o texto certo, e o S
   });
   await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
   const base = `http://127.0.0.1:${servidor.address().port}`;
-  const nav = await pw.chromium.launch();
+  const nav = await abrirNavegador();
   try {
     const pag = await nav.newPage(), erros = [];
     pag.on("pageerror", (e) => erros.push("erro: " + e.message));
@@ -126,6 +128,167 @@ test("IA: DEMO só na prévia, REAL vai à conferência com o texto certo, e o S
     assert.equal(r.custosAntes, 0, "custos só carregam quando a seção é aberta"); assert.equal(r.barras, 2, "um mês: barra do RAC e barra do Console"); assert.match(r.custosTexto, /não conferido/); assert.match(r.painel, /Nota do mercado DEMO \(fixo nesta fase\)/);
     assert.ok(!r.botoesPainel.some((b) => /modo REAL|Voltar para DEMO/i.test(b)) && !/Ligar o modo REAL/.test(r.painel), "nenhum botão de trocar o modo: " + r.botoesPainel.join(", "));
     assert.deepEqual(erros, [], "nenhum erro no navegador");
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});
+
+// Newsletter num navegador de verdade, na tela do iPhone (375 px), com as notícias FICTÍCIAS de tests/fixtures/newsletter
+// (datas trazidas para agora). Sem login e sem rede de fora: o banco e a IA são simulados dentro da página.
+// Confere: destaques, link original, fonte e hora, guardar, busca e filtros, prévia DEMO sem salvar, conferência REAL
+// simulada (só o toque em Salvar grava, e a mesma edição não chama a IA de novo), sem rolagem lateral e sem internet.
+// Com NL_PRINTS=<pasta>, guarda as telas (evidência visual).
+test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO só na prévia, REAL só salva no toque e funciona sem internet", { skip: pular, timeout: 120000 }, async () => {
+  const fixt = JSON.parse(fs.readFileSync(path.join(raiz, "tests/fixtures/newsletter/newsletter.json"), "utf8"));
+  const desloc = Date.now() - 20 * 60e3 - Date.parse(fixt.coletado), mover = (iso) => iso && new Date(Date.parse(iso) + desloc).toISOString();
+  const dadosNl = { ...fixt, coletado: mover(fixt.coletado), edicao: { ...fixt.edicao, data: new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10) },
+    grupos: fixt.grupos.map((g) => ({ ...g, d: mover(g.d), d0: mover(g.d0), itens: g.itens && g.itens.map((i) => ({ ...i, d: mover(i.d) })) })) };
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p === "/newsletter.json") { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(dadosNl)); return; }
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, ok));
+  /* "localhost" para o service worker registrar (ele exige https ou localhost) */
+  const base = `http://localhost:${servidor.address().port}`, prints = process.env.NL_PRINTS;
+  const nav = await abrirNavegador();
+  try {
+    const ctx = await nav.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const pag = await ctx.newPage(), erros = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+    pag.on("dialog", (d) => d.dismiss());
+    const foto = async (nome) => { if (prints) await pag.screenshot({ path: path.join(prints, nome + ".png"), fullPage: false }); };
+    /* banco e IA de mentira, dentro da página (o site chama SB.from(...) e SB.functions.invoke) */
+    const preparar = () => pag.evaluate(() => {
+      const reg = (window.__nl = window.__nl || { chamadas: [], gravacoes: [], modo: "DEMO" });
+      const tabela = (nome) => { const q = { _op: "select", select: () => q, eq: () => q, order: () => q, limit: () => q, gte: () => q, lte: () => q,
+        maybeSingle: () => q, insert: (v) => { q._op = "insert"; reg.gravacoes.push({ nome, op: "insert", v }); return q; },
+        update: (v) => { q._op = "update"; reg.gravacoes.push({ nome, op: "update", v }); return q; },
+        upsert: (v, o) => { q._op = "upsert"; reg.gravacoes.push({ nome, op: "upsert", v, o }); return q; },
+        then: (ok, no) => Promise.resolve({ data: q._op === "select" ? (nome === "pessoal" ? [] : null) : [{}], error: null }).then(ok, no) }; return q; };
+      SB = { from: tabela, functions: { invoke: (n, o) => { const b = o.body, ids = [...b.entrada.texto.matchAll(/<grupo id="(g[0-9a-f]{10})"/g)].map((m) => m[1]);
+        reg.chamadas.push(b);
+        const resultado = { resumo_dia: (reg.modo === "DEMO" ? "DEMONSTRAÇÃO: " : "") + "Resumo de teste do dia.", destaques: ids.slice(0, 5).map((id, i) => ({ id, titulo: "Destaque " + (i + 1), resumo: "Resumo do destaque " + (i + 1) + ".", relevancia: "Teste." })), categorias: [] };
+        if (reg.modo === "DEMO") resultado._demo = true;
+        return Promise.resolve({ error: null, data: { ok: true, versao: 1, id: reg.modo === "DEMO" ? null : "uso-teste-1", modo: reg.modo, estado: reg.modo === "DEMO" ? "demo" : "concluido", mensagem: "", avisos: [], resultado,
+          consumo: { modelo: reg.modo === "DEMO" ? "nenhum (demonstração)" : "claude-haiku-5-5", mes: { percentual: 1, alerta: 0 } } } }); } } };
+      PAPEL = "dono"; EU = { id: "dono-teste" }; PESSOAL = {};
+      document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true;
+    });
+    /* troca o endereço (o site redesenha pelo hashchange); se já estiver nele, redesenha direto */
+    const abrir = async (hash) => { await pag.evaluate((h) => { if (location.hash === h) route(); else location.hash = h; }, hash); await pag.waitForTimeout(150); };
+    const botaoIA = () => pag.evaluate(() => [...document.querySelectorAll("#newsletter-view button")].find((x) => /Resumir com IA/.test(x.textContent)).click());
+    await pag.goto(base + "/");
+    await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await pag.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+    await pag.reload(); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await preparar();
+
+    /* Hoje */
+    await abrir("#newsletter");
+    await pag.waitForSelector("#newsletter-view .nlcard", { timeout: 20000 });
+    await foto("1-hoje");
+    const hoje = await pag.evaluate(() => {
+      const pd = [...document.querySelectorAll("#newsletter-view .panel")].find((p) => p.querySelector("h2")?.textContent === "Destaques");
+      const cards = [...pd.querySelectorAll(".nlcard")];
+      return { n: cards.length, links: cards.map((c) => c.querySelector(".nltit a")).map((a) => [a.href, a.target, a.rel]),
+        metas: cards.map((c) => c.querySelector(".nlmeta").textContent), fontes: [...document.querySelectorAll("#newsletter-view .vp.hib")].map((x) => x.textContent),
+        largura: document.documentElement.scrollWidth, tela: innerWidth, abas: [...document.querySelectorAll(".nltabs a")].map((a) => a.textContent),
+        secoes: document.querySelectorAll("#newsletter-view details.nlsec").length, resumo: document.querySelector(".nlresumo").textContent,
+        menu: !!document.querySelector('.side a.it[data-k="newsletter"]'), atual: document.querySelector(".nlatual").textContent };
+    });
+    assert.ok(hoje.n >= 5 && hoje.n <= 10, "destaques: " + hoje.n);
+    for (const [href, alvo, rel] of hoje.links) { assert.match(href, /^https:\/\//); assert.equal(alvo, "_blank"); assert.match(rel, /noopener/); }
+    for (const m of hoje.metas) assert.match(m, /^.+ · \d{2}\/\d{2} · \d{2}:\d{2}$/, "veículo, data e hora: " + m);
+    assert.ok(hoje.fontes.some((t) => /^\d+ fontes$/.test(t)), "quantas fontes cobriram");
+    assert.ok(hoje.largura <= hoje.tela, `sem rolagem lateral em 375 px (${hoje.largura} > ${hoje.tela})`);
+    assert.deepEqual(hoje.abas, ["Hoje", "Buscar", "Guardadas", "Edições", "Semana", "Ajustes"]);
+    assert.ok(hoje.secoes >= 7, "seções por categoria"); assert.match(hoje.resumo, /destaques em \d+ categorias/); assert.ok(hoje.menu, "item no menu");
+    assert.match(hoje.atual, /12 de 14 fontes/);
+    const grav = await pag.evaluate(() => window.__nl.gravacoes.filter((g) => g.nome === "newsletter_edicoes"));
+    assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do dia vai para o histórico");
+
+    /* Guardar e tirar (PESSOAL.salvos) */
+    const guard = await pag.evaluate(() => {
+      const b = [...document.querySelectorAll("#newsletter-view .nlcard button")].find((x) => x.textContent === "Guardar");
+      b.click(); const depois = { texto: b.textContent, salvos: JSON.parse(JSON.stringify(PESSOAL.salvos)) };
+      b.click(); return { ...depois, fim: PESSOAL.salvos.length, texto2: b.textContent };
+    });
+    assert.equal(guard.texto, "✓ Guardada"); assert.equal(guard.salvos.length, 1); assert.equal(guard.salvos[0].tipo, "noticia");
+    assert.match(guard.salvos[0].u, /^https:\/\//); assert.ok(guard.salvos[0].tema && guard.salvos[0].f);
+    assert.equal(guard.fim, 0); assert.equal(guard.texto2, "Guardar");
+
+    /* IA em DEMO: só prévia, sem botão de salvar e sem gravar */
+    await botaoIA();
+    await pag.waitForSelector(".nlprevia", { timeout: 5000 });
+    await pag.evaluate(() => document.querySelector(".iabox").scrollIntoView());
+    await foto("2-ia-demo");
+    const demo = await pag.evaluate(() => ({ previa: document.querySelector(".nlprevia").textContent, botoes: [...document.querySelectorAll(".nlprevia button")].map((b) => b.textContent),
+      status: document.querySelector(".iabox [role=status]").textContent, gravIa: window.__nl.gravacoes.filter((g) => g.v && g.v.origem === "ia").length, chave: window.__nl.chamadas[0].idempotencia }));
+    assert.match(demo.previa, /DEMONSTRAÇÃO · resumo simulado/); assert.match(demo.previa, /Fontes usadas: /);
+    assert.ok(!demo.botoes.includes("Salvar edição"), "DEMO não tem salvar"); assert.equal(demo.gravIa, 0);
+    assert.match(demo.status, /^DEMONSTRAÇÃO: resumo simulado, nada foi cobrado nem salvo/);
+    assert.match(demo.chave, /^nl-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/, "chave da edição");
+
+    /* REAL (simulado): prévia com Salvar; só o toque grava; tocar de novo não chama a IA */
+    await pag.evaluate(() => { window.__nl.modo = "REAL"; });
+    await botaoIA();
+    await pag.waitForFunction(() => [...document.querySelectorAll(".nlprevia button")].some((b) => b.textContent === "Salvar edição"), null, { timeout: 5000 });
+    await pag.evaluate(() => document.querySelector(".iabox").scrollIntoView());
+    await foto("3-ia-real-conferencia");
+    assert.equal(await pag.evaluate(() => window.__nl.gravacoes.filter((g) => g.v && g.v.origem === "ia").length), 0, "nada gravado antes do toque em Salvar");
+    await pag.evaluate(() => [...document.querySelectorAll(".nlprevia button")].find((b) => b.textContent === "Salvar edição").click());
+    await pag.waitForFunction(() => /Edição salva/.test(document.querySelector(".nlprevia").textContent), null, { timeout: 5000 });
+    const real = await pag.evaluate(() => { const g = window.__nl.gravacoes.find((x) => x.v && x.v.origem === "ia"), ch = window.__nl.chamadas;
+      return { tabela: g.nome, op: g.op, uso: g.v.ia_uso_id, chave: g.v.chave, chamada: ch[ch.length - 1].idempotencia, modelo: g.v.modelo, o: g.o, n: ch.length, links: g.v.conteudo.destaques.map((d) => d.u) }; });
+    assert.equal(real.tabela, "newsletter_edicoes"); assert.equal(real.op, "upsert"); assert.equal(real.uso, "uso-teste-1");
+    assert.equal(real.chave, real.chamada, "a chave salva é a da chamada (o banco confere em ia_uso)"); assert.equal(real.modelo, "claude-haiku-5-5");
+    assert.deepEqual(real.o, { onConflict: "dono,data" }); assert.ok(real.links.every((u) => /^https:\/\//.test(u)));
+    await botaoIA();
+    assert.equal(await pag.evaluate(() => window.__nl.chamadas.length), real.n, "a mesma edição não chama a IA de novo (resultado guardado no aparelho)");
+
+    /* Busca e filtros */
+    await abrir("#newsletter/busca");
+    await pag.waitForSelector("#newsletter-view input[type=search]");
+    await pag.fill("#newsletter-view input[type=search]", "bicicletas");
+    await pag.waitForFunction(() => /^1 notícia$/.test(document.querySelector("#newsletter-view [role=status]").textContent), null, { timeout: 5000 });
+    await foto("4-busca");
+    const status = () => pag.evaluate(() => document.querySelector("#newsletter-view [role=status]").textContent);
+    await pag.selectOption("#newsletter-view select[aria-label=Tipo]", "opiniao");
+    assert.match(await status(), /Nada encontrado/, "bicicletas + opinião: nada");
+    await pag.fill("#newsletter-view input[type=search]", "");
+    await pag.waitForFunction(() => document.querySelector("#newsletter-view [role=status]").textContent === "2 notícias", null, { timeout: 5000 }).catch(() => {});
+    assert.equal(await status(), "2 notícias", "só as opiniões");
+    assert.ok(await pag.evaluate(() => document.documentElement.scrollWidth <= 375));
+
+    /* Ajustes */
+    await abrir("#newsletter/ajustes"); await pag.waitForSelector(".nlpesos select");
+    await foto("5-ajustes");
+    assert.equal(await pag.evaluate(() => document.querySelectorAll(".nlpesos select").length), 8);
+    assert.ok(await pag.evaluate(() => document.documentElement.scrollWidth <= 375));
+
+    /* Início: cartão com os destaques */
+    await abrir("#inicio");
+    await pag.waitForFunction(() => { const p = [...document.querySelectorAll(".hgrid .panel")].find((x) => x.querySelector("h2")?.textContent === "Newsletter"); return p && p.querySelectorAll(".wl li").length >= 1; }, null, { timeout: 10000 });
+
+    /* sem internet: a página e a edição abrem do que o service worker guardou */
+    await ctx.setOffline(true);
+    await pag.reload(); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await preparar();
+    await abrir("#newsletter");
+    await pag.waitForSelector("#newsletter-view .nlcard", { timeout: 20000 });
+    await foto("6-sem-internet");
+    const off = await pag.evaluate(() => ({ online: navigator.onLine, atual: document.querySelector(".nlatual").textContent, n: document.querySelectorAll("#newsletter-view .nlcard").length }));
+    assert.equal(off.online, false); assert.match(off.atual, /sem internet: esta é a edição guardada neste aparelho/); assert.ok(off.n >= 5);
+    await ctx.setOffline(false);
+    /* falha de rede de serviços de fora (ESPN, MLB, tempo: o Início abre os cartões deles) não é defeito do site */
+    assert.deepEqual(erros.filter((e) => !/Failed to load resource|ERR_INTERNET_DISCONNECTED|net::|Access to fetch at 'https:\/\/(?!localhost)/.test(e)), [], "nenhum erro no navegador");
   } finally {
     await nav.close();
     servidor.close();

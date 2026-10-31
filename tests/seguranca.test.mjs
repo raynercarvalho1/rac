@@ -8,7 +8,7 @@ const URL_SB = "https://hofnhbxnfebfnncwxrds.supabase.co", CHAVE = "sb_publishab
 const H = { apikey: CHAVE, Authorization: "Bearer " + CHAVE };
 const pular = process.env.SEM_REDE === "1";
 
-for (const t of ["pessoal", "registros", "garmin_dia", "garmin_ativ", "erros", "rotina_log", "notas", "itens", "produtos", "mercados", "membros", "lista", "bebe", "push_inscricoes", "rac_segredos"]) {
+for (const t of ["pessoal", "registros", "garmin_dia", "garmin_ativ", "erros", "rotina_log", "notas", "itens", "produtos", "mercados", "membros", "lista", "bebe", "push_inscricoes", "rac_segredos", "newsletter_edicoes", "newsletter_avisos"]) {
   test(`sem login não lê a tabela ${t}`, { skip: pular }, async () => {
     const r = await fetch(`${URL_SB}/rest/v1/${t}?select=*&limit=1`, { headers: H });
     const corpo = await r.json().catch(() => null);
@@ -59,4 +59,18 @@ test("rac-ia só libera o navegador do próprio site (CORS)", opIa, async () => 
   const origem = async (o) => (await fetch(`${URL_SB}/functions/v1/rac-ia`, { method: "OPTIONS", headers: { Origin: o, "Access-Control-Request-Method": "POST" } })).headers.get("access-control-allow-origin");
   assert.notEqual(await origem("https://site-estranho.example"), "https://site-estranho.example");
   assert.equal(await origem("https://raynercarvalho.com.br"), "https://raynercarvalho.com.br");
+});
+
+// Newsletter: a função rac-newsletter só é chamada pelo agendamento do banco, com a senha da rotina. Ainda não foi
+// publicada (docs/newsletter.md): depois de publicar, troque para true e estes testes passam a valer.
+const RAC_NEWSLETTER_PUBLICADA = false;
+const opNl = { skip: pular, todo: RAC_NEWSLETTER_PUBLICADA ? false : "publicar a função rac-newsletter" };
+test("rac-newsletter recusa quem não manda a senha da rotina", opNl, async () => {
+  const r = await fetch(`${URL_SB}/functions/v1/rac-newsletter`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: '{"tipo":"rotina"}' });
+  assert.equal(r.status, 401);
+});
+test("rac-newsletter recusa senha errada, sem mandar aviso", opNl, async () => {
+  const r = await fetch(`${URL_SB}/functions/v1/rac-newsletter`, { method: "POST", headers: { "Content-Type": "application/json", "x-rac-rotina": "senha-errada" }, body: '{"tipo":"rotina"}' });
+  assert.ok(r.status === 401 || r.status === 500, "não rodou (" + r.status + ")");
+  assert.ok(!(await r.json().catch(() => ({}))).ok);
 });

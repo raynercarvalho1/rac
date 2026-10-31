@@ -45,8 +45,10 @@ test("o service worker guarda todos os arquivos do site para uso sem internet", 
 test("nenhum dado pessoal no código público", () => {
   const proibidos = [/@gmail\.com/i, /@icloud\.com/i, /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/, /class\.mbx\.academy\/\?t=/, /AIza[\w-]{30,}/];
   const todos = ["index.html", "nucleo.js", "mercado.js", "sw.js", ...arquivos, ...fs.readdirSync(new URL("supabase/", raiz)).filter((f) => f.endsWith(".sql")).map((f) => "supabase/" + f),
-    "README.md", "CLAUDE.md", "supabase/functions/garmin/index.ts", "docs/rac-intelligence.md",
+    "README.md", "CLAUDE.md", "supabase/functions/garmin/index.ts", "docs/rac-intelligence.md", "docs/newsletter.md",
     ...fs.readdirSync(new URL("supabase/functions/rac-ia/", raiz)).map((f) => "supabase/functions/rac-ia/" + f),
+    ...fs.readdirSync(new URL("supabase/functions/rac-newsletter/", raiz)).map((f) => "supabase/functions/rac-newsletter/" + f),
+    ...fs.readdirSync(new URL("tests/fixtures/newsletter/", raiz)).map((f) => "tests/fixtures/newsletter/" + f),
     ...fs.readdirSync(new URL("scripts/", raiz)).map((f) => "scripts/" + f), ...fs.readdirSync(new URL(".github/workflows/", raiz)).map((f) => ".github/workflows/" + f)];
   for (const a of todos) {
     const t = fs.readFileSync(new URL(a, raiz), "utf8");
@@ -81,7 +83,7 @@ test("todo arquivo de código do site e a Edge Function têm sintaxe válida", a
   }
   const mod = await import("node:module");
   if (typeof mod.stripTypeScriptTypes === "function") {
-    const funcoes = ["supabase/functions/garmin/index.ts", ...fs.readdirSync(new URL("supabase/functions/rac-ia/", raiz)).map((f) => "supabase/functions/rac-ia/" + f)];
+    const funcoes = ["supabase/functions/garmin/index.ts", ...["rac-ia", "rac-newsletter"].flatMap((d) => fs.readdirSync(new URL(`supabase/functions/${d}/`, raiz)).map((f) => `supabase/functions/${d}/` + f))];
     for (const f of funcoes) {
       const ts = fs.readFileSync(new URL(f, raiz), "utf8");
       const js = mod.stripTypeScriptTypes(ts).replace(/^import\b[\s\S]*?from\s*["'][^"']+["'];?/gm, "").replace(/^export /gm, "");

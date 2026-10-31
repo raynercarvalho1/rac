@@ -20,6 +20,7 @@ o modo da casa nunca esteve em REAL, e em DEMO a função responde antes de qual
 | Anthropic | Workspace **`RAC`**; chave **`rac-ia`** nesse workspace, **sem expiração**; **US$ 10 em créditos pré-pagos comprados**; **recarga automática desligada** | Dono, no Console |
 | Secret `ANTHROPIC_API_KEY` | Cadastrado no Supabase (o valor nunca foi lido nem impresso) | Dono; Claude conferiu só o nome |
 | Modo | **DEMO**; listas de ações vazias | Dono, no SQL Editor |
+| Newsletter (`newsletter.resumo`) | Código pronto em DEMO (`real: false`), **falta republicar a `rac-ia`**; SQL 018/019 pendentes, 020 só para o futuro (`docs/newsletter.md`) | — |
 | Primeiro teste REAL | **Aguardando** uma nota fiscal (cupom do posto) verdadeira para a leitura de abastecimento; roteiro em "Fase F: ligar e desligar" | — |
 
 ## Princípios
@@ -62,8 +63,12 @@ o modo da casa nunca esteve em REAL, e em DEMO a função responde antes de qual
 |---|---|---|---|---|---|---|
 | `abastecimento.interpretar` | abastecimento | `claude-haiku-5-5` | dono, casa | sim, se liberada | 3.000 tokens | até 4 fotos + texto (2.000 caracteres); contexto `veiculo_sugerido`, `ultima_km` |
 | `mercado.nota` | mercado | `claude-sonnet-5-5` | dono, casa | **não (DEMO fixo)** | 12.000 tokens | até 4 fotos + texto (4.000 caracteres) |
+| `newsletter.resumo` | newsletter | `claude-haiku-5-5` | só dono | **não nesta fase (DEMO no código)**; o 020 só prepara | 4.000 tokens | só texto (15.000 caracteres, grupos com id, sem links); contexto `data` |
 
-Sem Opus. Sem troca automática de modelo na recusa (`fallbacks` não é enviado). Esforço `low` nas duas.
+Sem Opus. Sem troca automática de modelo na recusa (`fallbacks` não é enviado). Esforço `low` em todas.
+A Newsletter (`docs/newsletter.md`) confere na validação que a resposta só cita ids que vieram na entrada (`validar`
+recebe a entrada) e usa uma chave de idempotência por edição (data + notícias), então a mesma edição nunca é paga duas
+vezes; a edição com IA só entra no banco ligada a uma chamada REAL concluída (gatilho do `018_newsletter.sql`).
 Quem é da casa (papel `casa`) só usa as ações listadas em `ia_config.acoes_casa`.
 
 ## Liberação por ação e por papel (016)

@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo e notificações no celular.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter e notificações no celular.
 
 ## Como funciona
 
@@ -12,10 +12,11 @@ saúde (relógio Garmin), MBA, agenda, resumo e notificações no celular.
 - **Os módulos conversam por nomes globais** (sem import/export). Por isso um teste proíbe nome repetido entre arquivos.
 - **Dados no Supabase** (Postgres + Auth + Storage). O site usa só a chave pública; quem protege os dados é o RLS
   (cada linha é do dono; a casa compartilhada usa `dono_da_casa()`).
-- **Servidor:** uma Edge Function, `supabase/functions/garmin/index.ts` (Garmin, rotina diária, push, atalhos do iPhone).
-  Os segredos ficam em Edge Functions → Secrets e no Vault, nunca no repositório.
+- **Servidor:** Edge Functions. `garmin` (Garmin, rotina diária, push, atalhos do iPhone), `rac-ia` (IA, abaixo) e
+  `rac-newsletter` (avisos da Newsletter, chamada só pelo agendamento do banco). Os segredos ficam em Edge Functions →
+  Secrets e no Vault, nunca no repositório.
 - **Robôs** (`scripts/*.py`, só biblioteca padrão) rodam no GitHub Actions e gravam `noticias.json`, `tecdados.json`,
-  `rumores.json` e `vagas.json`.
+  `rumores.json`, `newsletter.json` (Newsletter: 52 fontes RSS oficiais, [docs/newsletter.md](docs/newsletter.md)) e `vagas.json`.
 - **PWA:** `manifest.webmanifest` + `sw.js` (rede primeiro para o site, cópia guardada para os JSON, push).
 
 ## RAC Intelligence (IA)
@@ -29,12 +30,14 @@ Tudo em [docs/rac-intelligence.md](docs/rac-intelligence.md). A função `rac-ia
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
 2. Mudar juntas `VERSAO` em `sw.js` e `MOD_VERSAO` em `js/app.js` (o teste confere).
 3. Se tiver SQL novo: rodar no Supabase (SQL Editor) **antes** de publicar o site.
-4. Se mexeu na Edge Function: publicar a função (Edge Functions → garmin → Code → Deploy) **antes** do site.
+4. Se mexeu numa Edge Function: publicar a função **antes** do site (garmin: Edge Functions → garmin → Code → Deploy;
+   `rac-ia` e `rac-newsletter`: pela CLI, como em docs/rac-intelligence.md e docs/newsletter.md).
 5. `git push` no `main`. O Pages publica em cerca de 1 minuto; a página Sistema mostra a versão em uso no aparelho.
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `014`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+`schema.sql` e depois `002` a `020`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (o 020 só quando o REAL da Newsletter for autorizado).
 
 ## Testes (`tests/`)
 
@@ -45,6 +48,7 @@ Tudo em [docs/rac-intelligence.md](docs/rac-intelligence.md). A função `rac-ia
 | `seguranca.test.mjs` | sem login nada é lido nem gravado; a função recusa quem não entrou |
 | `banco.test.mjs` | o banco real tem as tabelas, views e funções que os arquivos SQL criam |
 | `ia.test.mjs` | RAC Intelligence sem rede e sem custo: orçamento, reserva, concorrência, DEMO, contrato, segurança do SQL |
+| `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 
 `SEM_REDE=1` pula os testes que acessam o Supabase. Os testes rodam a cada publicação e toda segunda (`.github/workflows/testes.yml`).

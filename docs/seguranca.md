@@ -3,6 +3,9 @@
 Página `#seguranca` (menu → Segurança), código em `js/seguranca.js`, funções puras em `nucleo.js` (`NUCLEO.seg*`) e o banco em
 `supabase/022_seguranca.sql`. Feita em 31/10/2026.
 
+**Estado (31/10/2026):** em produção. Passkeys ligadas no Supabase (RP ID `raynercarvalho.com.br`), 022 aplicado (21 travas "mfa" + "mfa cofres";
+nenhum dado alterado; nenhuma conta com TOTP no dia), site na versão `2026-10-31.6`. Falta só o primeiro cadastro de Face ID num iPhone.
+
 ## O que a página tem
 
 | Quadro | Quem vê | O que faz |

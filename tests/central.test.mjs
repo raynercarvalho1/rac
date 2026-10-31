@@ -15,8 +15,8 @@ const todasSql = fs.readdirSync(new URL("supabase/", raiz)).filter((f) => /^\d{3
 const tabelas = [...new Set([...todasSql.matchAll(/create table if not exists public\.([a-z_]+)/g)].map((m) => m[1]))].filter((t) => !["ia_precos", "rac_segredos"].includes(t));
 const listaMfa = (txt) => [...(/foreach t in array array\[([\s\S]*?)\] loop/.exec(txt) || [, ""])[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 
-test("022: arquivo marcado como pendente (o dono roda no SQL Editor) e pode rodar de novo", () => {
-  assert.match(sql, /^-- status: pendente/);
+test("022: aplicado em produção em 31/10/2026 (sem a marca de pendente) e pode rodar de novo", () => {
+  assert.ok(!/^-- status: pendente/.test(sql), "o 022 já rodou: tests/banco.test.mjs confere as funções e a tabela no banco");
   for (const m of sql.matchAll(/create policy "([^"]+)" on ([a-z_.]+\.[a-z_]+) /g)) assert.ok(sql.includes(`drop policy if exists "${m[1]}" on ${m[2]};`), `política ${m[1]} sem drop antes`);
   assert.match(sql, /drop policy if exists "mfa" on public\.%I/);
   assert.match(sql, /create table if not exists public\.seguranca_eventos/);

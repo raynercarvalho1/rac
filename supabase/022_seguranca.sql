@@ -1,4 +1,3 @@
--- status: pendente
 -- Central de Segurança (docs/seguranca.md): a 2ª etapa do login (MFA/TOTP) passa a valer também no banco, o histórico de
 -- segurança (backups, restaurações, MFA) e a auditoria das permissões vista de dentro do banco.
 -- Rode uma vez no SQL Editor, depois do 021. Pode rodar de novo sem estragar nada. Não liga MFA para ninguém:

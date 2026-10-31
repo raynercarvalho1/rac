@@ -44,7 +44,7 @@ Tudo em [docs/seguranca.md](docs/seguranca.md).
 ## Banco (pasta `supabase/`)
 
 `schema.sql` e depois `002` a `022`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (o 022 até o dono rodar a Central de Segurança no SQL Editor).
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 022 foi aplicado em 31/10/2026).
 
 ## Testes (`tests/`)
 

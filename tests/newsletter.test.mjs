@@ -45,7 +45,9 @@ const grupo = (re) => dados().grupos.find((g) => re.test(g.t));
 test("coleta RSS e Atom: grava o arquivo, igual ao newsletter.json das fixtures (o mesmo que o navegador usa nos testes)", { skip: semPython }, () => {
   const saida = path.join(tmp, "a.json"), r = coletar(saida);
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  assert.equal(fs.readFileSync(saida, "utf8"), fs.readFileSync(path.join(FIXT, "newsletter.json"), "utf8"), "rode o coletor nas fixtures e atualize tests/fixtures/newsletter/newsletter.json");
+  /* \r\n: no Windows o git pode trocar as quebras de linha da fixture no checkout */
+  const lf = (t) => t.replace(/\r\n/g, "\n");
+  assert.equal(lf(fs.readFileSync(saida, "utf8")), lf(fs.readFileSync(path.join(FIXT, "newsletter.json"), "utf8")), "rode o coletor nas fixtures e atualize tests/fixtures/newsletter/newsletter.json");
   const d = JSON.parse(fs.readFileSync(saida, "utf8"));
   assert.equal(d.versao, 1); assert.equal(d.coletado, AGORA); assert.equal(d.edicao.data, "2026-11-01");
   assert.ok(d.grupos.length >= 12, "títulos, veículos, links, datas");

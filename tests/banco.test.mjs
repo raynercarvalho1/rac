@@ -21,7 +21,8 @@ const sql = arquivosSql.filter((t) => !/^-- status: pendente/.test(t)).join("\n"
 const sqlPendente = arquivosSql.filter((t) => /^-- status: pendente/.test(t)).join("\n");
 const achar = (re) => [...new Set([...sql.matchAll(re)].map((m) => m[1]))];
 const tabelas = achar(/create (?:or replace )?(?:table|view)(?: if not exists)? public\.([a-z_]+)/gi);
-const funcoes = achar(/create or replace function public\.([a-z_]+)/gi);
+/* funções de gatilho (returns trigger) não são chamadas pela API: ficam de fora da conferência por RPC */
+const funcoes = achar(/create or replace function public\.([a-z_]+)/gi).filter((n) => !new RegExp("function public\\." + n + "\\(\\)\\s+returns trigger", "i").test(sql));
 const pendentes = [...new Set([...sqlPendente.matchAll(/create (?:or replace )?(?:table|view|function)(?: if not exists)? public\.([a-z_]+)/gi)].map((m) => m[1]))]
   .filter((n) => !tabelas.includes(n) && !funcoes.includes(n));
 /* parâmetros declarados de cada função (pelo .sql) → um valor de mentira do tipo certo */

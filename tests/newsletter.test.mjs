@@ -464,7 +464,7 @@ test("função rac-newsletter: só a rotina com a senha chama; lê as chaves VAP
 const semComent = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "");
 test("SQL 018: edições e avisos com RLS, só o dono (a casa fica de fora), nada para anon, numa transação e idempotente", () => {
   const s = semComent(ler("supabase/018_newsletter.sql"));
-  assert.match(ler("supabase/018_newsletter.sql"), /^-- status: pendente/);
+  assert.ok(!/^-- status: pendente/.test(ler("supabase/018_newsletter.sql")), "aplicado em produção em 31/10/2026");
   assert.match(s, /^\s*begin;/m); assert.match(s, /commit;/);
   for (const t of ["newsletter_edicoes", "newsletter_avisos"]) {
     assert.match(s, new RegExp(`create table if not exists public\\.${t}`));

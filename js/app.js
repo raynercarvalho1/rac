@@ -9,7 +9,7 @@
 
   /* Rotas por hash: #esportes/beisebol/liga, #esportes/beisebol/time-119, #esportes/beisebol/jogo-849805,
      #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
-  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos"];
+  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","newsletter"];
   var DA_CASA=["mercado","lista","eddie","olivia","veiculos","documentos","rede"];
   var sports=["beisebol","basquete","futebol-americano"];
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
@@ -24,10 +24,10 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-10-31.3",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-10-31.4",MODULOS={},MOD_OK={};
   var MOD_DEPS={conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"]};
   var ROTA_MODS={esportes:["esportes"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
-    conexoes:["conexoes"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"]};
+    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
     MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
@@ -112,6 +112,7 @@
     if(top==="busca"){sideMark("busca","busca");$("#ptitle").textContent="Busca";renderBusca(decodeURIComponent(parts.slice(1).join("/")||""));return}
     if(top==="sistema"){sideMark("sistema","sistema");renderSistema();return}
     if(top==="conexoes"){sideMark("conexoes","conexoes");renderConexoes(parts[1],decodeURIComponent(parts[2]||""));return}
+    if(top==="newsletter"){sideMark("newsletter","newsletter");renderNewsletter(parts[1],decodeURIComponent(parts.slice(2).join("/")||""));return}
     if(top==="saude"){sideMark("saude","saude");renderSaude(parts[1]==="treino"?parts[2]:null);return}
     if(top==="eddie"||top==="olivia"){sideMark(top,top);renderFamilia(top);return}
     if(top==="veiculos"){sideMark("veiculos","veiculos");renderVeiculos(parts[1]);return}
@@ -875,9 +876,10 @@
   var IA_LIGADA=true;
   function iaLigada(){return IA_LIGADA}
   function iaNovaChave(){try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID()}catch(e){}return "k"+Date.now().toString(36)+Math.random().toString(36).slice(2,14)}
-  /* uma chamada = uma chave de idempotência nova; quem chama nunca repete sozinho */
-  function racIA(modulo,acao,entrada,contexto){
-    var corpo={versao:1,modulo:modulo,acao:acao,idempotencia:iaNovaChave(),entrada:entrada,contexto:contexto||{}};
+  /* uma chamada = uma chave de idempotência nova; quem chama nunca repete sozinho. A Newsletter manda a chave da edição
+     (data + notícias): o servidor recusa a mesma chave de novo, então a mesma edição nunca é paga duas vezes */
+  function racIA(modulo,acao,entrada,contexto,chave){
+    var corpo={versao:1,modulo:modulo,acao:acao,idempotencia:chave||iaNovaChave(),entrada:entrada,contexto:contexto||{}};
     return SB.functions.invoke("rac-ia",{body:corpo}).then(function(r){
       if(!r.error)return r.data;
       var c=r.error.context;
@@ -958,7 +960,7 @@
     tick();clearInterval(relogio);relogio=setInterval(tick,15000);
     root.appendChild(h("div",{class:"home"},
       h("div",{class:"hi"},h("div",null,h("h2",{text:saudacao()+", Rayner"}),briefingBtn(),h("p",{class:"sub",text:new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})})),h("div",null,clock,wx)),
-      h("div",{class:"hgrid"},wLazy(["sistema"],"wProxima"),wEmail(),wLazy(["sistema"],"wAgenda"),wLazy(["conexoes"],"wConexoes"),wLazy(["esportes"],"wEsportes"),wNoticias(),wX(),wMercado(),wLazy(["mba"],"wMba"),wAniv(),wVagas(),wEstudos())));
+      h("div",{class:"hgrid"},wLazy(["sistema"],"wProxima"),wEmail(),wLazy(["sistema"],"wAgenda"),wLazy(["newsletter"],"wNewsletter"),wLazy(["conexoes"],"wConexoes"),wLazy(["esportes"],"wEsportes"),wNoticias(),wX(),wMercado(),wLazy(["mba"],"wMba"),wAniv(),wVagas(),wEstudos())));
     /* dia de aula do MBA: aviso no topo, que vira "ao vivo agora" 15 minutos antes (confere a cada minuto enquanto o Início está aberto) */
     if(isOwner())precisa(["mba"]).then(function(){var g=root.querySelector(".hgrid"),atual=null;
       function olhar(){if(!g.isConnected){clearInterval(t);return}var n=mbaAvisoAula();if(atual)atual.remove();atual=n;if(n)g.parentNode.insertBefore(n,g)}

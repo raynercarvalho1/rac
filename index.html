@@ -61,6 +61,7 @@
 :root[data-sec="em-breve"]{--accent:var(--c-embreve)}
 :root[data-sec="x"]{--accent:var(--c-x);--accent-ink:var(--side)}
 :root[data-sec="mercado"]{--accent:var(--c-mercado)}
+:root[data-sec="newsletter"]{--accent:var(--c-inicio)}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -160,6 +161,41 @@ img.ico{background:#fff;object-fit:contain;padding:2px;box-shadow:0 0 0 1px var(
 .star{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}.star dt{font-weight:700;color:var(--accent)}.star dd{margin:0}
 .omsg circle{cursor:pointer}
 .wprox li.top b{font-size:1.06em}
+/* Newsletter: cartões de leitura (manchete, fonte, hora, resumo), pensados primeiro para a tela do iPhone (375 px) */
+.nltabs{position:sticky;top:0;z-index:5;margin:0 0 14px;overflow-x:auto;scrollbar-width:none;box-shadow:var(--shadow)}.nltabs::-webkit-scrollbar{display:none}
+.nltabs a{min-width:max-content;padding:8px 10px;font-size:calc(13px + var(--fz))}
+.nlcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:14px 0;border-top:1px solid var(--line);align-items:start}
+.panel>h2+.nlcard,.panel>.sub+.nlcard,.nlsec>summary+.nlcard,.nlprevia>.nlresumo+.nlcard{border-top:0}
+.nlcard.curto{padding:10px 0}
+.nlimg{width:96px;height:96px;object-fit:cover;border-radius:10px;background:var(--hover)}
+.nlcard.curto .nlimg{width:64px;height:64px}
+.nltopo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:4px}
+.nlcat{font:700 calc(11.5px + var(--fz)) var(--f-ui);text-transform:uppercase;letter-spacing:.04em;color:var(--cc,var(--accent))}
+.nltit{font:700 calc(17px + var(--fz))/1.3 var(--f-ui);margin:0;text-wrap:pretty;overflow-wrap:anywhere}
+.nlcard.curto .nltit{font-size:calc(15px + var(--fz))}
+a.nllink{color:var(--ink);text-decoration:none}a.nllink:hover{text-decoration:underline;color:var(--accent)}
+.nlmeta{margin:4px 0 0;color:var(--muted);font:500 calc(12.5px + var(--fz)) var(--f-ui)}
+.nlorig{margin:2px 0 0;font-size:calc(12px + var(--fz))}
+.nlres{margin:6px 0 0;font:400 calc(14.5px + var(--fz))/1.5 var(--f-body);overflow-wrap:anywhere}
+.nlporq{margin:4px 0 0;color:var(--muted);font-size:calc(12.5px + var(--fz))}
+.nlacts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.nlfontes>summary{cursor:pointer;color:var(--accent);font:600 calc(13px + var(--fz)) var(--f-ui);padding:6px 2px;list-style:none}
+.nlfontes>summary::-webkit-details-marker{display:none}
+.nlfontes[open]{flex-basis:100%}.nlfontes .wl a{white-space:normal}
+.nlresumo{margin:4px 0 8px;font:500 calc(16px + var(--fz))/1.55 var(--f-body)}
+.nlatual{margin-top:-4px}.nlaviso{color:var(--warn);font-weight:600}
+.nlsec>summary{display:flex;justify-content:space-between;align-items:baseline;gap:10px;cursor:pointer;list-style:none;padding-left:10px;border-left:4px solid var(--cc)}
+.nlsec>summary::-webkit-details-marker{display:none}
+.nlsect{font:700 calc(18px + var(--fz)) var(--f-ui)}
+.nlsint{padding:8px 10px;border-radius:10px;background:var(--hover)}
+.nlprevia{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line)}
+.vfil.nlsel select{flex:1 1 140px;min-width:0}
+.chips.nlchips{flex-wrap:nowrap;overflow-x:auto;margin:10px 0 0;padding-bottom:4px;scrollbar-width:thin}.chips.nlchips .chipb{flex:none}
+.nlpesos select{flex:none;max-width:42%}
+.nlchk{display:flex;gap:8px;align-items:flex-start;font-size:calc(13.5px + var(--fz))}
+.nlguard .grow a{white-space:normal}
+.nlwres{margin:0 0 6px}
+@media(max-width:480px){.nlimg{width:72px;height:72px}.nlcard{gap:10px}.nltit{font-size:calc(16px + var(--fz))}}
 .iabox{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}.iabox input[type=file]{max-width:100%}.iaprevia{margin-top:8px;border-radius:10px;padding:8px 10px;background:repeating-linear-gradient(45deg,var(--hover),var(--hover) 10px,transparent 10px,transparent 20px)}.iademo{margin:0 0 6px;font-weight:800;color:var(--warn)}.iaprevia .wl .grow .sub{white-space:normal}
 .mbavivo .vfil{margin-top:8px}.mbavivo.on{box-shadow:inset 4px 0 0 #E5484D,var(--shadow)}
 .wl.agl li{align-items:flex-start}.wl.agl .agico{flex:none;width:1.6em;font-size:1.15em;line-height:1.35;text-align:center}.wl.agl .grow b{white-space:normal;overflow:visible;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.wl.agl .grow .sub{white-space:normal;overflow:visible}
@@ -913,6 +949,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
     <nav class="grp" id="navgrp" aria-label="Seções">
       <h4>Painel</h4>
       <a class="it" href="#inicio" data-k="inicio"><span class="ico" style="--ic:var(--c-inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg></span><span class="t">Início</span></a>
+      <a class="it" href="#newsletter" data-k="newsletter"><span class="ico" style="--ic:var(--c-inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5M8 16h3"/></svg></span><span class="t">Newsletter</span></a>
       <a class="it" href="#conexoes" data-k="conexoes"><span class="ico" style="--ic:var(--c-mercado)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span><span class="t">Conexões do dia</span></a>
       <a class="it" href="#agenda" data-k="agenda"><span class="ico" style="--ic:var(--c-vagas)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="t">Agenda</span></a>
       <a class="it" href="#resumo" data-k="resumo"><span class="ico" style="--ic:var(--c-saude)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="t">Resumo</span></a>
@@ -974,6 +1011,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   <section id="busca" hidden><div id="busca-view" class="stack"></div></section>
   <section id="sistema" hidden><div id="sistema-view" class="stack"></div></section>
   <section id="conexoes" hidden><div id="conexoes-view" class="stack"></div></section>
+  <section id="newsletter" hidden><div id="newsletter-view"></div></section>
   <section id="saude" hidden><div id="saude-view" class="stack"></div></section>
   <section id="eddie" hidden><div id="eddie-view" class="stack"></div></section>
   <section id="olivia" hidden><div id="olivia-view" class="stack"></div></section>

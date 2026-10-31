@@ -193,7 +193,9 @@
       (PESSOAL.lembretes||[]).forEach(function(l){add("Lembrete",l.t,dataBR(l.data),datas(l.data),{href:"#agenda"})});
       ps.push(tenta(function(){return getJson("vagas.json").then(function(v){(v.vagas||[]).forEach(function(x){add("Vaga",x.t,[x.e,x.m,x.nv].filter(Boolean).join(" · "),x.cidade,{href:x.ap||x.pl,ext:true})})}).catch(function(){})}));
       ps.push(tenta(function(){return getJson("tecdados.json").then(function(v){(v.noticias||[]).forEach(function(x){add("Notícia",x.t,x.f,datas(x.d),{href:x.u,ext:true})})}).catch(function(){})}));
-      ps.push(tenta(function(){return getJson("noticias.json").then(function(v){(v.noticias||[]).forEach(function(x){add("Notícia",x.t,x.f,datas(x.d),{href:x.u,ext:true})})}).catch(function(){})}))}
+      ps.push(tenta(function(){return getJson("noticias.json").then(function(v){(v.noticias||[]).forEach(function(x){add("Notícia",x.t,x.f,datas(x.d),{href:x.u,ext:true})})}).catch(function(){})}));
+      /* Newsletter: cada acontecimento uma vez (com a categoria e quantos veículos cobriram), link original */
+      ps.push(tenta(function(){return getJson("newsletter.json").then(function(v){(v.grupos||[]).forEach(function(x){add("Notícia",x.t,x.f+" · "+NUCLEO.nlCat(x.c).n+(x.n>1?" · "+x.n+" veículos":""),[x.r,datas(x.d)].join(" "),{href:x.u,ext:true})})}).catch(function(){})}))}
     /* Mercado: produtos (todo mundo da casa vê) */
     ps.push(tenta(function(){return SB.from("produtos").select("nome,categoria").then(sbOk).then(function(l){l.forEach(function(p){add("Mercado",p.nome,p.categoria||"produto","",{produto:p.nome})})}).catch(function(){})}));
     BUSCA.carregando=Promise.all(ps).then(function(){BUSCA.idx=idx;BUSCA.carregando=null;setTimeout(function(){BUSCA.idx=null},10*60e3);return idx});
@@ -258,10 +260,10 @@
     l1(SIS.falhaSinc||Object.keys(SIS.conflitos).length?"erro":np||fila?"aviso":"ok",(SIS.ultimaSinc?"Última sincronização bem-sucedida "+sisHa(SIS.ultimaSinc):"Ainda não sincronizou nesta sessão")+(np?" · "+np+" alterações esperando":"")+(fila?" · "+fila+" itens na fila sem internet":"")+(SIS.falhaSinc?" · ⚠ "+SIS.falhaSinc:""));
     /* 2. coletas */
     var l2=linha("Coletas (vagas, notícias, relógio e rotina)");
-    Promise.all([["vagas.json",30],["noticias.json",8],["tecdados.json",8],["rumores.json",8]].map(function(x){return getJson(x[0]+"?v="+Date.now()).then(function(d){return [x[0],d.coletado,x[1]]},function(){return [x[0],null,x[1]]})})
+    Promise.all([["vagas.json",30],["noticias.json",8],["tecdados.json",8],["rumores.json",8],["newsletter.json",14]].map(function(x){return getJson(x[0]+"?v="+Date.now()).then(function(d){return [x[0],d.coletado,x[1]]},function(){return [x[0],null,x[1]]})})
       .concat([sisQ(function(){return SB.from("garmin_dia").select("atualizado").order("atualizado",{ascending:false}).limit(1)}).then(sbOk).then(function(l){return ["relógio",l[0]&&l[0].atualizado,30]},function(){return ["relógio",null,30]}),
         sisQ(function(){return SB.from("rotina_log").select("quando,ok").order("quando",{ascending:false}).limit(1)}).then(sbOk).then(function(l){return ["rotina das 6h",l[0]&&l[0].quando,26,l[0]&&l[0].ok]},function(){return ["rotina das 6h",null,26]})])).then(function(r){
-      var NOME={"vagas.json":"vagas","noticias.json":"notícias de Sorocaba","tecdados.json":"notícias de tecnologia","rumores.json":"rumores da MLB"},velhas=r.filter(function(x){return !x[1]||(Date.now()-new Date(x[1]))/36e5>x[2]||x[3]===false});
+      var NOME={"vagas.json":"vagas","noticias.json":"notícias de Sorocaba","tecdados.json":"notícias de tecnologia","rumores.json":"rumores da MLB","newsletter.json":"newsletter"},velhas=r.filter(function(x){return !x[1]||(Date.now()-new Date(x[1]))/36e5>x[2]||x[3]===false});
       l2(velhas.length?"aviso":"ok",r.map(function(x){return (NOME[x[0]]||x[0])+" "+sisHa(x[1])+(x[3]===false?" (com falha)":"")}).join(" · "))});
     /* 3. fontes que falharam */
     var l3=linha("Fontes que falharam (30 dias)");
@@ -557,10 +559,12 @@
       l.forEach(function(x){lf.appendChild(h("li",null,h("span",{class:"grow"},h("b",{text:x.origem+": "+x.mensagem}),h("span",{class:"sub",text:new Date(x.quando).toLocaleString("pt-BR")+" · "+x.onde}))))});
       if(!r.error){var lim=h("button",{type:"button",class:"ghostbtn",text:"Limpar as falhas"});lim.onclick=function(){SB.from("erros").delete().gte("id",0).then(function(){SIS.erros=[];try{localStorage.removeItem("rac-erros")}catch(e){}renderSistema()})};pf.appendChild(lim)}});
     /* robôs do GitHub: se um parar (fonte quebrou ou veio vazia), aparece aqui; o GitHub também manda e-mail */
-    var pg=panel("Robôs de coleta","Vagas (todo dia às 7h) e notícias de Sorocaba e de tecnologia (a cada 3 horas). Se a fonte quebrar ou vier vazia, o robô falha de propósito e o GitHub avisa por e-mail."),lg=h("ul",{class:"wl"});pg.appendChild(lg);root.appendChild(pg);
-    [["vagas.json","Vagas","vagas",30],["noticias.json","Notícias de Sorocaba","noticias",8],["tecdados.json","Notícias de dados e tecnologia","noticias",8],["rumores.json","Rumores da MLB","liga",8]].forEach(function(r){
+    var pg=panel("Robôs de coleta","Vagas (todo dia às 7h), notícias de Sorocaba e de tecnologia (a cada 3 horas) e a Newsletter (6h, 12h e 18h). Se a fonte quebrar ou vier vazia, o robô falha de propósito e o GitHub avisa por e-mail."),lg=h("ul",{class:"wl"});pg.appendChild(lg);root.appendChild(pg);
+    [["vagas.json","Vagas","vagas",30],["noticias.json","Notícias de Sorocaba","noticias",8],["tecdados.json","Notícias de dados e tecnologia","noticias",8],["rumores.json","Rumores da MLB","liga",8],["newsletter.json","Newsletter (fontes RSS)","grupos",14]].forEach(function(r){
       getJson(r[0]+"?v="+Date.now()).then(function(d){var q=new Date(d.coletado),horas=(Date.now()-q)/36e5,n=(d[r[2]]||[]).length,velho=horas>r[3]||!n;
-        lg.appendChild(h("li",{class:velho?"alerta":null},h("span",{class:"grow"},h("b",{text:(velho?"⚠ ":"✓ ")+r[1]}),h("span",{class:"sub",text:n+" itens · coletado "+q.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(velho?" · parado há "+Math.round(horas)+" h":"")}))))})
+        /* a Newsletter diz também quantas fontes RSS falharam na última coleta */
+        var fal=(d.fontes||[]).filter(function(x){return !x.ok}),ff=d.fontes?" · "+(d.fontes.length-fal.length)+" de "+d.fontes.length+" fontes"+(fal.length?" (fora do ar: "+fal.map(function(x){return x.n}).join(", ")+")":""):"";
+        lg.appendChild(h("li",{class:velho||fal.length>3?"alerta":null},h("span",{class:"grow"},h("b",{text:(velho?"⚠ ":"✓ ")+r[1]}),h("span",{class:"sub",text:n+" itens · coletado "+q.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(velho?" · parado há "+Math.round(horas)+" h":"")+ff}))))})
       .catch(function(e){lg.appendChild(h("li",{class:"alerta"},h("span",{class:"grow"},h("b",{text:"⚠ "+r[1]}),h("span",{class:"sub",text:"não consegui ler ("+e.message+")"}))))})});
     pg.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
     /* testes automáticos */

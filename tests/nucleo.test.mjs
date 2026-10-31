@@ -448,3 +448,72 @@ test("segurança: linha de hoje com segredo não vira 'mudada' só por isso, e a
   assert.equal(pe.iguais, 1);
   assert.deepEqual(pe.diferentes[0].linha.valor, { lista: [1, 2], token: "t" }, "a troca mantém o token de hoje");
 });
+
+/* ---------- Painel de Produtividade ---------- */
+test("painel: meses do período e soma por mês e por fonte, ignorando o que está fora ou não é número", () => {
+  assert.deepEqual(N.pnMeses("2026-10-31", 3), ["2026-08", "2026-09", "2026-10"]);
+  assert.deepEqual(N.pnMeses("2026-02-10", 4), ["2025-11", "2025-12", "2026-01", "2026-02"]);
+  const r = N.pnPorMes([{ d: "2026-09-02", v: 100, f: "Mercado" }, { d: "2026-09-20", v: 50.5, f: "Veículos" }, { d: "2026-10-01", v: 10, f: "Mercado" },
+    { d: "2026-07-01", v: 999, f: "Mercado" }, { d: "2026-10-03", v: NaN, f: "Mercado" }, { d: "2026-10-03", v: "12", f: "Mercado" }, null], ["2026-09", "2026-10"]);
+  assert.deepEqual(r["2026-09"], { total: 150.5, por: { Mercado: 100, "Veículos": 50.5 }, n: 2 });
+  assert.deepEqual(r["2026-10"], { total: 10, por: { Mercado: 10 }, n: 1 });
+  assert.equal(r["2026-07"], undefined, "fora do período não entra");
+});
+
+test("painel: variação só existe com base de comparação", () => {
+  assert.deepEqual(N.pnVariacao(150, 100), { dif: 50, pct: 50 });
+  assert.equal(N.pnVariacao(150, 0), null); assert.equal(N.pnVariacao(150, null), null); assert.equal(N.pnVariacao(null, 10), null);
+  assert.equal(Math.round(N.pnVariacao(80, 100).pct), -20);
+});
+
+test("painel: orçamento × gasto por categoria, com estado e totais; sem orçamento cadastrado não inventa nenhum", () => {
+  const o = N.pnOrcamento({ Mercearia: 450, Limpeza: 90, Bebidas: 40 }, [{ categoria: "Mercearia", valor: 400 }, { categoria: "Limpeza", valor: 100 }, { categoria: "Carnes", valor: 300 }]);
+  assert.deepEqual(o.linhas.map((x) => [x.categoria, x.estado]), [["Mercearia", "acima"], ["Limpeza", "perto"], ["Bebidas", "sem"], ["Carnes", "ok"]]);
+  assert.equal(o.orcado, 800); assert.equal(o.gastoOrcado, 540); assert.equal(o.acima, 1); assert.equal(o.dentro, 2); assert.equal(o.temOrcamento, true);
+  assert.equal(Math.round(o.linhas[0].pct), 113);
+  const vazio = N.pnOrcamento({ Mercearia: 10 }, []);
+  assert.equal(vazio.temOrcamento, false); assert.equal(vazio.linhas[0].orcado, null); assert.equal(vazio.linhas[0].pct, null);
+});
+
+test("painel: projeção do mês só depois do 5º dia e com gasto", () => {
+  assert.equal(N.pnProjecao(300, "2026-10-03"), null);
+  assert.equal(N.pnProjecao(0, "2026-10-20"), null);
+  assert.equal(N.pnProjecao(310, "2026-10-10"), 961);
+  assert.equal(N.pnProjecao(280, "2026-02-14"), 560);
+});
+
+test("painel: consistência de treinos (semanas ativas, média e sequências; a semana corrente vazia não quebra a sequência)", () => {
+  assert.equal(N.pnSemana("2026-10-31"), "2026-10-26"); assert.equal(N.pnSemana("2026-10-26"), "2026-10-26"); assert.equal(N.pnSemana("2026-11-01"), "2026-10-26");
+  const datas = ["2026-10-01T07:00:00", "2026-10-02", "2026-10-08", "2026-10-15", "2026-10-15T18:00:00", "2026-09-01"];
+  const c = N.pnConsistencia(datas, "2026-09-28", "2026-10-31");
+  assert.equal(c.treinos, 5); assert.equal(c.diasAtivos, 4);
+  assert.equal(c.semanas, 5); assert.equal(c.semanasAtivas, 3);
+  assert.equal(c.maiorSequencia, 3); assert.equal(c.sequenciaAtual, 0, "a semana de 19/10 ficou sem treino");
+  const c2 = N.pnConsistencia(["2026-10-20", "2026-10-13"], "2026-10-12", "2026-10-28");
+  assert.equal(c2.sequenciaAtual, 2, "semana corrente (26/10) ainda sem treino não quebra");
+  assert.deepEqual(N.pnConsistencia([], "2026-10-01", "2026-10-31").semanasAtivas, 0);
+});
+
+test("painel: média mensal de uma métrica diária; mês sem dado fica null (não vira zero)", () => {
+  const dias = [{ data: "2026-09-01", dados: { passos: 8000 } }, { data: "2026-09-02", dados: { passos: 10000 } }, { data: "2026-10-01", dados: {} }, { data: "2026-10-02", dados: { passos: "x" } }];
+  assert.deepEqual(N.pnMediaMes(dias, (d) => d.passos, ["2026-09", "2026-10"]), [{ mes: "2026-09", media: 9000, dias: 2 }, { mes: "2026-10", media: null, dias: 0 }]);
+});
+
+test("painel: competências ligam estudos concluídos às habilidades das vagas, com a data mais recente", () => {
+  const c = N.pnCompetencias([{ t: "Joins e subconsultas em SQL", d: "2026-10-01" }, { t: "qualquer", d: "2026-10-20", skill: "sql" }, { t: "Kaggle Learn: Pandas", d: "2026-09-10" },
+    { t: "Testes de hipótese", d: "2026-10-05" }, { t: "Sem data em SQL" }], ["sql", "powerbi"]);
+  const k = Object.fromEntries(c.map((x) => [x.k, x]));
+  assert.deepEqual([k.sql.estudos, k.sql.ultima, k.sql.declarada], [2, "2026-10-20", true]);
+  assert.deepEqual([k.python.estudos, k.estat.estudos, k.powerbi.estudos, k.powerbi.declarada], [1, 1, 0, true]);
+  assert.equal(c.length, N.SKILLS.length);
+});
+
+test("painel: despesas das três fontes, sem contar duas vezes a lata de fórmula que veio do Mercado", () => {
+  const L = N.pnDespesas(
+    [{ data: "2026-10-23", valor_total: "189.90", categoria: "Bebê" }, { data: "2026-10-24", valor_total: "x" }],
+    [{ quem: "olivia", tipo: "outro", data: "2026-10-29", dados: { custo: 189.9, compra: { id: "abc" } } }, { quem: "civic", tipo: "abastecimento", data: "2026-10-20", dados: { custo: 250 } },
+      { quem: "eddie", tipo: "consulta", data: "2026-10-05", dados: { custo: "180" } }, { quem: "eddie", tipo: "vacina", data: "2026-10-06", dados: {} }],
+    [{ venc: "2026-10-10", v: 626.85, paga: true }, { venc: "2026-11-10", v: 626.85, paga: false }],
+    (q) => (q === "civic" ? "Veículos" : q));
+  assert.deepEqual(L.map((x) => [x.d, x.v, x.f]), [["2026-10-23", 189.9, "Mercado"], ["2026-10-20", 250, "Veículos"], ["2026-10-10", 626.85, "MBA"]]);
+});

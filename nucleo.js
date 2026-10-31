@@ -559,8 +559,61 @@
       ["backupManual",c.diasBackup!=null&&c.diasBackup<=30,15],["backupServidor",c.diasServidor!=null&&c.diasServidor<=9,10],["auditoria",!!c.auditoria,10]],
       n=0;itens.forEach(function(x){if(x[1])n+=x[2]});
     return {nota:n,nivel:n>=85?"forte":n>=55?"média":"fraca",faltam:itens.filter(function(x){return !x[1]}).map(function(x){return x[0]})}}
+  /* ===== Painel de Produtividade: contas sobre dados reais (nada é inventado; sem dado, devolve vazio ou null) ===== */
+  /* os n meses que terminam no mês de fimISO, do mais antigo ao mais novo: ["2026-05", …, "2026-10"] */
+  function pnMeses(fimISO,n){var y=+fimISO.slice(0,4),m=+fimISO.slice(5,7),L=[];
+    for(var i=0;i<n;i++){L.unshift(y+"-"+(m<10?"0":"")+m);if(--m<1){m=12;y--}}return L}
+  /* soma por mês e por fonte: itens [{d:"AAAA-MM-DD", v:número, f:"fonte"}] → {mes:{total, por:{fonte:v}, n}} só dos meses pedidos */
+  function pnPorMes(itens,meses){var o={};meses.forEach(function(m){o[m]={total:0,por:{},n:0}});
+    (itens||[]).forEach(function(x){if(!x||typeof x.v!=="number"||!isFinite(x.v)||!x.d)return;var m=String(x.d).slice(0,7);if(!o[m])return;
+      o[m].total+=x.v;o[m].n++;var f=x.f||"outros";o[m].por[f]=(o[m].por[f]||0)+x.v});
+    return o}
+  /* todas as despesas com data, de três fontes reais: itens do Mercado (view compras), registros com dados.custo (veículos, Eddie, Olivia,
+     documentos) e parcelas do MBA marcadas como pagas (no mês do vencimento). O registro que veio de uma compra do Mercado
+     (dados.compra, ex.: "Lata N aberta") fica de fora: o preço já está no Mercado. fonteDe(quem) dá o nome da fonte do registro. */
+  function pnDespesas(compras,registros,parcelas,fonteDe){var L=[];
+    (compras||[]).forEach(function(x){var v=+x.valor_total;if(x.data&&isFinite(v))L.push({d:x.data,v:v,f:"Mercado",cat:x.categoria||"Outros"})});
+    (registros||[]).forEach(function(r){var d=r.dados||{};if(typeof d.custo!=="number"||!isFinite(d.custo)||d.compra||!r.data)return;L.push({d:r.data,v:d.custo,f:fonteDe?fonteDe(r.quem):r.quem,cat:r.tipo})});
+    (parcelas||[]).forEach(function(p){if(p&&p.paga&&p.venc&&typeof p.v==="number")L.push({d:p.venc,v:p.v,f:"MBA",cat:"mensalidade"})});
+    return L}
+  /* variação entre dois valores; null quando não há base de comparação (anterior ausente ou zero) */
+  function pnVariacao(atual,anterior){if(atual==null||anterior==null||!isFinite(atual)||!isFinite(anterior)||anterior===0)return null;
+    return {dif:atual-anterior,pct:(atual-anterior)/Math.abs(anterior)*100}}
+  /* orçamento × gasto do mês: gastos {categoria:valor}, orcamentos [{categoria, valor}] → linhas e totais (só categorias com orçamento ou gasto) */
+  function pnOrcamento(gastos,orcamentos){var orc={},cats={};(orcamentos||[]).forEach(function(o){if(o&&o.categoria&&+o.valor>=0){orc[o.categoria]=+o.valor;cats[o.categoria]=1}});
+    Object.keys(gastos||{}).forEach(function(c){cats[c]=1});
+    var L=Object.keys(cats).map(function(c){var g=+(gastos||{})[c]||0,v=orc[c];
+      return {categoria:c,gasto:g,orcado:v==null?null:v,pct:v?g/v*100:null,estado:v==null?"sem":g>v?"acima":g>=v*0.8?"perto":"ok"}})
+      .sort(function(a,b){return b.gasto-a.gasto||a.categoria.localeCompare(b.categoria)});
+    var com=L.filter(function(x){return x.orcado!=null});
+    return {linhas:L,temOrcamento:com.length>0,orcado:com.reduce(function(s,x){return s+x.orcado},0),gastoOrcado:com.reduce(function(s,x){return s+x.gasto},0),
+      acima:com.filter(function(x){return x.estado==="acima"}).length,dentro:com.filter(function(x){return x.estado!=="acima"}).length}}
+  /* projeção simples do mês (ritmo até hoje × dias do mês); só depois do 5º dia, para não exagerar começo de mês */
+  function pnProjecao(gastoAteHoje,hojeISO){var d=+hojeISO.slice(8,10),y=+hojeISO.slice(0,4),m=+hojeISO.slice(5,7),dm=new Date(Date.UTC(y,m,0)).getUTCDate();
+    return d<5||!(gastoAteHoje>0)?null:gastoAteHoje/d*dm}
+  /* segunda-feira (ISO) da semana de uma data */
+  function pnSemana(iso){var t=new Date(iso.slice(0,10)+"T12:00:00Z"),w=(t.getUTCDay()+6)%7;t.setUTCDate(t.getUTCDate()-w);return t.toISOString().slice(0,10)}
+  /* consistência de treinos no período [ini, fim]: dias e semanas com treino, média por semana e sequências de semanas seguidas */
+  function pnConsistencia(datas,ini,fim){var dias={},sem={};(datas||[]).forEach(function(d){d=String(d).slice(0,10);if(d>=ini&&d<=fim){dias[d]=1;sem[pnSemana(d)]=1}});
+    var semanas=[];for(var s=pnSemana(ini);s<=fim;){semanas.push(s);var t=new Date(s+"T12:00:00Z");t.setUTCDate(t.getUTCDate()+7);s=t.toISOString().slice(0,10)}
+    var maior=0,cur=0;semanas.forEach(function(s){if(sem[s]){cur++;if(cur>maior)maior=cur}else cur=0});
+    /* sequência atual: conta para trás; a semana corrente sem treino ainda não quebra a sequência */
+    var atual=0,i=semanas.length-1;if(i>=0&&!sem[semanas[i]])i--;for(;i>=0&&sem[semanas[i]];i--)atual++;
+    var n=(datas||[]).filter(function(d){d=String(d).slice(0,10);return d>=ini&&d<=fim}).length;
+    return {treinos:n,diasAtivos:Object.keys(dias).length,semanas:semanas.length,semanasAtivas:semanas.filter(function(s){return sem[s]}).length,
+      porSemana:semanas.length?n/semanas.length:0,sequenciaAtual:atual,maiorSequencia:maior}}
+  /* média mensal de uma métrica diária: dias [{data, dados}], f(dados) → número ou null; meses sem nenhum valor ficam null */
+  function pnMediaMes(dias,f,meses){var s={},c={};(dias||[]).forEach(function(d){var v=f(d.dados||{}),m=String(d.data).slice(0,7);if(typeof v==="number"&&isFinite(v)){s[m]=(s[m]||0)+v;c[m]=(c[m]||0)+1}});
+    return meses.map(function(m){return c[m]?{mes:m,media:s[m]/c[m],dias:c[m]}:{mes:m,media:null,dias:0}})}
+  /* competências: para cada habilidade de SKILLS, se o dono declarou e quantos estudos concluídos (com data) apontam para ela.
+     evid: [{t:"título", d:"AAAA-MM-DD", skill?:"chave forçada"}]; a ligação vem do mesmo reconhecimento de texto das vagas */
+  function pnCompetencias(evid,declaradas){var dec={};(declaradas||[]).forEach(function(k){dec[k]=1});
+    return SKILLS.map(function(s){var l=(evid||[]).filter(function(e){return e&&e.d&&(e.skill===s[0]||(!e.skill&&s[2].test(e.t||"")))});
+      var ult=l.reduce(function(m,e){return !m||e.d>m?e.d:m},null);
+      return {k:s[0],n:s[1],declarada:!!dec[s[0]],estudos:l.length,ultima:ult}})}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
-    SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota};
+    SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
+    pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias};
 })(typeof window!=="undefined"?window:globalThis);

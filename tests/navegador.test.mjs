@@ -471,3 +471,99 @@ test("Face ID: entrar com passkey no login, cadastrar, listar e remover na Centr
     servidor.close();
   }
 });
+
+// Painel de Produtividade num iPhone (375 px), com dados de teste simulados dentro da página (o banco não é tocado).
+// Confere as quatro abas, a fonte e o período em todo quadro, rótulo fixo em toda coluna, a lata de fórmula que não conta duas vezes,
+// os estados vazios e o orçamento, que só grava no botão Salvar.
+test("Painel de Produtividade: 375 px, quatro abas, fontes, sem contar em dobro, vazios claros e orçamento só no Salvar", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`;
+  const nav = await abrirNavegador();
+  try {
+    const ctx = await nav.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const pag = await ctx.newPage(), erros = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+    await pag.goto(base + "/");
+    await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await pag.evaluate(() => precisa(["painel"]));
+    await pag.evaluate(() => {
+      const hoje = hojeISO(), d = (n) => maisDias(hoje, -n), ant = maisDias(hoje.slice(0, 8) + "01", -10);
+      const reg = (window.__pn = { gravacoes: [], banco: {
+        compras: [{ data: d(1), categoria: "Mercearia", valor_total: 100, mercado: "Mercado A", numero: "1" }, { data: d(1), categoria: "Bebê", valor_total: 189.9, mercado: "Mercado A", numero: "1" },
+          { data: ant, categoria: "Mercearia", valor_total: 80, mercado: "Mercado B", numero: "2" }],
+        registros: [{ id: "r1", quem: "olivia", tipo: "outro", data: d(0), titulo: "Lata 7 aberta", dados: { custo: 189.9, compra: { id: "x" } }, criado_em: d(0) },
+          { id: "r2", quem: "civic", tipo: "abastecimento", data: d(2), titulo: "Etanol", dados: { custo: 200, km: 104300 }, criado_em: d(2) }],
+        lista: [{ id: "t1", item: "Trocar lâmpada", feito: true, feito_em: d(1) + "T10:00:00Z", criado: d(3) }, { id: "t2", item: "Ligar no banco", feito: false, feito_em: null, criado: d(3) }],
+        orcamentos: [],
+        garmin_dia: [{ data: d(1), dados: { passos: 9000, sono: { total: 25200, nota: 80 } }, atualizado: d(1) }, { data: d(2), dados: { passos: 11000 }, atualizado: d(2) }],
+        garmin_ativ: [{ id: 1, inicio: d(1) + "T07:00:00", tipo: "running", dados: { distancia: 5000, duracao: 1800, nome: "Corrida" } }, { id: 2, inicio: d(9) + "T07:00:00", tipo: "walking", dados: { distancia: 3000, duracao: 2400 } }] } });
+      const tabela = (nome) => { const q = { _op: "select", select: () => q, eq: (c, v) => { q._eq = [c, v]; return q; }, gte: () => q, lte: () => q, lt: () => q, in: () => q, order: () => q, limit: () => q, range: () => q, maybeSingle: () => q,
+        upsert: (v, o) => { q._op = "upsert"; reg.gravacoes.push({ nome, v, o }); return q; }, insert: (v) => { q._op = "insert"; return q; }, delete: () => { q._op = "delete"; return q; },
+        then: (ok, no) => Promise.resolve({ data: q._op === "select" ? (reg.banco[nome] || []).filter((r) => !q._eq || r[q._eq[0]] === q._eq[1] || nome === "lista" && q._eq[0] === "tipo").map((x) => ({ ...x })) : [], error: null }).then(ok, no) }; return q; };
+      SB = { from: tabela, storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) }, rpc: () => Promise.resolve({ data: null, error: null }) };
+      PAPEL = "dono"; EU = { id: "dono-teste", email: "teste@exemplo.invalid" };
+      PESSOAL = { exercicios: { "kaggle-py": d(4) }, sqlFeitos: { "1": d(5) }, perfilCarreira: { skills: ["sql", "powerbi"] }, projetos: [{ id: "p1", t: "Painel de vendas", atualizado: d(6) }],
+        mba: { disciplinas: [{ id: "est", n: "Estatística", status: "andamento", roteiro: [{ k: "a", t: "Testes de hipótese" }, { k: "b", t: "Regressão" }], exercicios: [{ n: 1 }] }],
+          aulas: [{ id: "a1", data: d(10), hora: "19:00" }, { id: "a2", data: maisDias(hoje, 20), hora: "19:00" }] },
+        mbaFeito: { "est:a": d(3) } };
+      document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true;
+    });
+    const abrir = async (hash) => { await pag.evaluate((h) => { if (location.hash === h) route(); else location.hash = h; }, hash); await pag.waitForFunction(() => document.querySelectorAll("#painel-view .panel").length >= 2 && !/Carregando/.test(document.querySelector("#painel-view").innerText), null, { timeout: 15000 }); await pag.waitForTimeout(200); };
+    const estado = () => pag.evaluate(() => {
+      const ps = [...document.querySelectorAll("#painel-view .panel")].slice(1);
+      return { titulos: ps.map((p) => p.querySelector("h2")?.textContent), semFonte: ps.filter((p) => !p.querySelector(".pnfonte")).map((p) => p.querySelector("h2")?.textContent),
+        colunasSemRotulo: [...document.querySelectorAll("#painel-view .vb")].filter((b) => !b.querySelector(".vbv")?.textContent || !b.querySelector(".vbl b")?.textContent).length,
+        colunas: document.querySelectorAll("#painel-view .vb").length, largura: document.documentElement.scrollWidth,
+        texto: document.querySelector("#painel-view").innerText };
+    });
+    for (const [hash, titulos] of [["#painel", ["Este mês", "Evolução mensal", "Comparação entre períodos", "Atividades recentes", "Pendências e compromissos"]],
+      ["#painel/financas", ["Indicadores de controle", "Gastos por mês", "Evolução das compras", "Categorias de despesas"]],
+      ["#painel/saude", ["Frequência e consistência", "Evolução das atividades", "Histórico das métricas"]],
+      ["#painel/estudos", ["MBA", "Evolução do aprendizado", "Competências", "Projetos e tarefas"]]]) {
+      await abrir(hash);
+      const e = await estado();
+      for (const t of titulos) assert.ok(e.titulos.includes(t), `${hash}: falta o quadro ${t} (${e.titulos.join(", ")})`);
+      assert.deepEqual(e.semFonte, [], `${hash}: todo quadro diz a fonte`);
+      assert.ok(e.colunas > 0 && e.colunasSemRotulo === 0, `${hash}: toda coluna com valor e rótulo fixos`);
+      assert.ok(e.largura <= 375, `${hash}: sem rolagem lateral (${e.largura} px)`);
+      if (hash === "#painel/financas") {
+        /* a lata (R$ 189,90) já está no Mercado: no período entram Mercado 369,90 (100 + 189,90 + 80) e Veículos 200, e não Olivia */
+        assert.match(e.texto, /Mercado[\s\S]*R\$\s?369,90/); assert.match(e.texto, /Veículos[\s\S]*R\$\s?200,00/); assert.ok(!(await pag.evaluate(() => [...document.querySelectorAll("#painel-view .hbl")].some((x) => /Olivia/.test(x.textContent)))), "a lata não conta duas vezes (nenhuma barra da Olivia)");
+        assert.match(e.texto, /Nenhum orçamento cadastrado ainda/);
+      }
+      if (hash === "#painel/estudos") { assert.match(e.texto, /Estatística/); assert.match(e.texto, /SQL/); assert.match(e.texto, /Painel de vendas/); }
+    }
+    /* toque numa coluna: o cartão destacado (racDica) aparece com o mês */
+    await abrir("#painel/financas");
+    await pag.evaluate(() => [...document.querySelectorAll("#painel-view .vb")].pop().click());
+    const dica = await pag.evaluate(() => { const d = document.querySelector(".racdica"); return d && !d.hidden ? d.textContent : ""; });
+    assert.match(dica, / de 20\d\d/);
+    /* orçamento: abrir o ajuste não grava; Salvar grava só o que foi digitado */
+    await pag.evaluate(() => document.querySelector("#painel-view details.famvals summary").click());
+    assert.equal(await pag.evaluate(() => __pn.gravacoes.length), 0);
+    await pag.fill('#painel-view input[aria-label="Orçamento de Mercearia"]', "400");
+    await pag.evaluate(() => [...document.querySelectorAll("#painel-view button")].find((b) => b.textContent === "Salvar orçamentos").click());
+    await pag.waitForFunction(() => __pn.gravacoes.length === 1, null, { timeout: 5000 });
+    const g = await pag.evaluate(() => __pn.gravacoes[0]);
+    assert.deepEqual(g, { nome: "orcamentos", v: [{ categoria: "Mercearia", valor: 400 }], o: { onConflict: "user_id,categoria" } });
+    /* sem dado nenhum, os quadros avisam em vez de mostrar zero inventado */
+    await pag.evaluate(() => { for (const k of Object.keys(__pn.banco)) __pn.banco[k] = []; PAINEL.cache = {}; SAUDE.dias = null; PESSOAL = {}; });
+    await abrir("#painel/saude");
+    assert.match((await estado()).texto, /Nenhum dado do relógio Garmin no período/);
+    await abrir("#painel/financas");
+    assert.match((await estado()).texto, /Nenhum gasto registrado no período/);
+    assert.deepEqual(erros, [], "nenhum erro no navegador");
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

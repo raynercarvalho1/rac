@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular e a Central de Segurança.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança e o Painel de Produtividade.
 
 ## Como funciona
 
@@ -32,6 +32,11 @@ backup em JSON com assinatura por tabela, histórico, restauração com prévia 
 auditoria das permissões. O `supabase/022_seguranca.sql` faz o banco exigir o código de quem ativou a 2ª etapa.
 Tudo em [docs/seguranca.md](docs/seguranca.md).
 
+## Painel de Produtividade
+
+Página `#painel` (`js/painel.js`): a evolução mês a mês de gastos, treinos, estudos, tarefas e competências, com a fonte e o período
+de cada número, só com dados que já existem no site. Tudo em [docs/painel.md](docs/painel.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -56,6 +61,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `banco.test.mjs` | o banco real tem as tabelas, views e funções que os arquivos SQL criam |
 | `ia.test.mjs` | RAC Intelligence sem rede e sem custo: orçamento, reserva, concorrência, DEMO, contrato, segurança do SQL |
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
+| `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 

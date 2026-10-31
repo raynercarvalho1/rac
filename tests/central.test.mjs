@@ -1,0 +1,111 @@
+// Central de Segurança sem rede e sem banco: o SQL 022 (trava da 2ª etapa, histórico, auditoria), a página e a integração
+// com o login, as rotas e o service worker, e as regras de produção (nada apagado, nada sobrescrito sem pedir, garmin intocada).
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { createRequire } from "node:module";
+
+const raiz = new URL("../", import.meta.url);
+const ler = (a) => fs.readFileSync(new URL(a, raiz), "utf8");
+createRequire(import.meta.url)("../nucleo.js");
+const N = globalThis.RACnucleo;
+const sql = ler("supabase/022_seguranca.sql"), seg = ler("js/seguranca.js"), app = ler("js/app.js"), sis = ler("js/sistema.js");
+/* tabelas que os .sql criam, menos as que não são de ninguém (preços da IA) ou que o site nem enxerga (segredos do servidor) */
+const todasSql = fs.readdirSync(new URL("supabase/", raiz)).filter((f) => /^\d{3}_.*\.sql$|^schema\.sql$/.test(f)).map((f) => ler("supabase/" + f)).join("\n");
+const tabelas = [...new Set([...todasSql.matchAll(/create table if not exists public\.([a-z_]+)/g)].map((m) => m[1]))].filter((t) => !["ia_precos", "rac_segredos"].includes(t));
+const listaMfa = (txt) => [...(/foreach t in array array\[([\s\S]*?)\] loop/.exec(txt) || [, ""])[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+
+test("022: arquivo marcado como pendente (o dono roda no SQL Editor) e pode rodar de novo", () => {
+  assert.match(sql, /^-- status: pendente/);
+  for (const m of sql.matchAll(/create policy "([^"]+)" on ([a-z_.]+\.[a-z_]+) /g)) assert.ok(sql.includes(`drop policy if exists "${m[1]}" on ${m[2]};`), `política ${m[1]} sem drop antes`);
+  assert.match(sql, /drop policy if exists "mfa" on public\.%I/);
+  assert.match(sql, /create table if not exists public\.seguranca_eventos/);
+  assert.ok(!/^\s*(delete|update|truncate|drop table|alter table [^\n]* drop column)\b/im.test(sql), "não apaga nem altera dado existente");
+  assert.ok(!/insert into auth\.|auth\.mfa_factors\s*\(|mfa\.enroll/i.test(sql), "não liga MFA para ninguém");
+});
+
+test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, como política restritiva", () => {
+  const cobertas = listaMfa(sql);
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t), `${t} sem a trava da 2ª etapa no 022`);
+  assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
+  assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
+  assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);
+  /* a conferência de dentro do banco olha a mesma lista (mais o histórico) */
+  const audit = [...(/pessoais text\[\] := array\[([\s\S]*?)\];/.exec(sql)[1].matchAll(/'([a-z_]+)'/g))].map((m) => m[1]);
+  assert.deepEqual(audit, [...cobertas, "seguranca_eventos"]);
+});
+
+test("022: rac_aal_ok só deixa sem código quem não tem fator confirmado; funções fechadas para quem não entrou", () => {
+  const f = /create or replace function public\.rac_aal_ok\(\)[\s\S]*?\$\$;/.exec(sql)[0];
+  assert.match(f, /security definer set search_path = ''/);
+  assert.match(f, /auth\.jwt\(\)->>'aal'\), 'aal1'\) = 'aal2'/);
+  assert.match(f, /not exists \(select 1 from auth\.mfa_factors f where f\.user_id = \(select auth\.uid\(\)\) and f\.status = 'verified'\)/);
+  for (const fn of ["rac_aal_ok", "seguranca_estado"]) {
+    assert.match(sql, new RegExp(`revoke all on function public\\.${fn}\\(\\) from public, anon;`));
+    assert.match(sql, new RegExp(`grant execute on function public\\.${fn}\\(\\) to authenticated;`));
+  }
+  assert.match(/create or replace function public\.seguranca_estado\(\)[\s\S]*?end \$\$;/.exec(sql)[0], /if \(select auth\.uid\(\)\) is null then raise exception/);
+});
+
+test("022: o histórico de segurança só acrescenta, só a própria conta lê, e o visitante não vê nada", () => {
+  assert.match(sql, /alter table public\.seguranca_eventos enable row level security/);
+  assert.match(sql, /revoke all on public\.seguranca_eventos from anon, authenticated;\ngrant select, insert on public\.seguranca_eventos to authenticated;/);
+  assert.ok(!/grant[^;]*(update|delete)[^;]*seguranca_eventos/i.test(sql), "ninguém altera nem apaga o histórico pelo site");
+  assert.match(sql, /for select to authenticated using \(user_id = auth\.uid\(\)\)/);
+  assert.match(sql, /for insert to authenticated\s+with check \(user_id = auth\.uid\(\)/);
+  assert.match(ler("tests/seguranca.test.mjs"), /"seguranca_eventos"/, "a tabela nova está no teste de segurança com o banco");
+});
+
+test("backup: as tabelas do site são as do núcleo e cobrem o backup do servidor; o que é segredo ou interno fica fora", () => {
+  const nomes = N.SEG_TABELAS.map((d) => d.t);
+  assert.match(sis, /var BKP_TABELAS=NUCLEO\.SEG_TABELAS\.map/);
+  const servidor = JSON.parse(/for \(const t of (\[[^\]]+\])\)/.exec(ler("supabase/functions/garmin/index.ts"))[1].replace(/'/g, '"'));
+  for (const t of servidor) assert.ok(nomes.includes(t), `${t} está no backup do servidor e falta no do site`);
+  for (const t of ["push_inscricoes", "rac_segredos", "membros", "erros", "rotina_log", "ia_uso", "ia_config", "ia_cobranca", "newsletter_avisos", "seguranca_eventos"]) assert.ok(!nomes.includes(t), `${t} não entra no backup`);
+  assert.deepEqual(Object.keys(N.SEG_CHAVES_FORA).sort(), ["atalho", "googleMaps"]);
+  assert.match(sis, /NUCLEO\.segLimpar\(t,l0\)/, "o .zip também sai sem segredos");
+});
+
+test("restauração: só depois da prévia e do confirm; novas por insert, troca só se pedir; anexos sem sobrescrever; nada apagado", () => {
+  assert.ok(!/function restaurarBackup/.test(sis), "a restauração antiga (que sobrescrevia) saiu");
+  assert.ok(!/upsert:true/.test(sis + seg), "nenhum envio de arquivo sobrescreve");
+  assert.match(seg, /\.upload\(path,new Blob\(\[a\.dados\]\),\{upsert:false\}\)/);
+  assert.ok(!/\.delete\(|\.remove\(|\.truncate|\.update\(/.test(seg), "a Central não apaga nem altera linhas por fora do plano");
+  assert.match(seg, /op\.op==="insert"\?SB\.from\(op\.t\)\.insert\(/);
+  assert.match(seg, /NUCLEO\.segEscrita\(plano,cSub\.checked\)/, "troca só com a caixa marcada");
+  const clique = /grava\.onclick=function\(\)\{([\s\S]*?)\n    area\.appendChild/.exec(seg)[1];
+  assert.ok(clique.indexOf("confirm(") >= 0 && clique.indexOf("confirm(") < clique.indexOf("segGravar("), "confirmação antes de gravar");
+  assert.match(seg, /grava\.disabled=[^;]*plano\.outraConta&&!cConta\.checked/, "outra conta exige marcar a caixa");
+  assert.match(seg, /cCopia=h\("input",\{type:"checkbox",checked:""\}\)/, "cópia do que existe hoje, marcada por padrão");
+  assert.match(seg, /if\(!H\.ok\)\{erro\(H\.problemas/, "assinatura errada para tudo antes de comparar");
+});
+
+test("MFA: o login pede o código antes de ler qualquer tabela, e nada liga MFA sozinho", () => {
+  const ent = /function entrar\(\)\{([\s\S]*?)\n  function iniciar/.exec(app)[1];
+  assert.ok(ent.indexOf("mfaPrecisa()") >= 0 && ent.indexOf("mfaPrecisa()") < ent.indexOf('SB.from("membros")'), "o código vem antes da primeira leitura");
+  assert.match(app, /d\.nextLevel==="aal2"&&d\.currentLevel!=="aal2"/);
+  assert.match(app, /challengeAndVerify\(\{factorId:sel\.value,code:c\}\)/);
+  /* enroll só no clique de ativar; desativar pede um código atual antes */
+  assert.equal((seg.match(/mfa\.enroll\(/g) || []).length, 1);
+  assert.match(seg, /at\.onclick=function\(\)\{at\.disabled=true;segAtivar\(/);
+  assert.match(seg, /challengeAndVerify\(\{factorId:fator\.id,code:c\}\)\.then\(function\(r\)\{if\(r\.error\)throw r\.error;return SB\.auth\.mfa\.unenroll/);
+  assert.ok(!/mfa\.enroll|unenroll/.test(app), "o login nunca cadastra nem remove fator");
+});
+
+test("Central: rota, menu, seção, papel casa, service worker e versão", () => {
+  const html = ler("index.html"), sw = ler("sw.js");
+  assert.match(app, /var tabs=\[[^\]]*"seguranca"/); assert.match(app, /DA_CASA=\[[^\]]*"seguranca"/);
+  assert.match(app, /seguranca:\["seguranca"\]/); assert.match(app, /seguranca:\["sistema"\]/);
+  assert.match(app, /if\(top==="seguranca"\)\{sideMark\("seguranca","seguranca"\);renderSeguranca\(parts\[1\]\);return\}/);
+  assert.match(html, /<a class="it" href="#seguranca" data-k="seguranca">/); assert.match(html, /<section id="seguranca" hidden><div id="seguranca-view" class="stack"><\/div><\/section>/);
+  assert.match(html, /:not\(\[data-k="seguranca"\]\)/, "quem é da casa vê a Central (só MFA e recuperação)");
+  assert.match(sw, /"\.\/js\/seguranca\.js"/);
+  assert.match(seg, /if\(isOwner\(\)\)\{root\.appendChild\(segBackupPainel\(\)\)/, "backup, restauração, histórico e auditoria só para o dono");
+  assert.match(sis, /href:"#seguranca",text:"Abrir a Central de Segurança"/, "o Sistema aponta para a Central em vez de repetir o backup");
+});
+
+test("restrições de produção: a função garmin e as outras Edge Functions não mudam, e a IA não entra na Central", () => {
+  assert.ok(!/functions\/v1\/garmin|cron\.(un)?schedule/.test(sql), "o 022 não mexe na função nem na rotina da garmin");
+  assert.ok(!/racIA\(|anthropic/i.test(seg));
+  assert.ok(!/functions\.invoke/.test(seg), "a Central não chama Edge Function");
+});

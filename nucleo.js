@@ -449,7 +449,118 @@
       maisCobertos:top.slice(0,5)}}
   /* item de "Guardados" (PESSOAL.salvos): o mesmo formato que as Conexões já usam (tipo, t, u, f, tema), mais categoria e grupo */
   function nlSalvo(g,hoje){return {tipo:"noticia",t:g.titulo_pt||g.t,u:g.u,f:g.f,tema:nlCat(g.c).n,c:g.c,gid:g.id,d:g.d,quando:hoje}}
+  /* ===== Central de Segurança: backup em JSON, limpeza de segredos e plano de restauração (nada de tela nem de banco) =====
+     Tabelas pessoais na ordem de gravação (pai antes do filho). pk: o que identifica a linha dentro da conta (sem a coluna do dono);
+     nat: as chaves únicas do banco além do id (mesmo nome com outro id é o mesmo registro); fk: coluna → tabela pai (opc: pode ficar vazia);
+     dono: coluna do dono quando não é user_id; so:"exportar" = vai no backup, mas não volta pela restauração (as edições com IA
+     dependem do registro da chamada no banco, que não se recria). */
+  var SEG_TABELAS=[{t:"mercados",pk:["id"],nat:[["nome"]]},{t:"produtos",pk:["id"],nat:[["nome"]]},
+    {t:"notas",pk:["id"],nat:[["chave_nfce"],["mercado_id","numero","data"]],fk:{mercado_id:"mercados"}},{t:"itens",pk:["id"],fk:{nota_id:"notas",produto_id:"produtos"},opc:{produto_id:1}},
+    {t:"orcamentos",pk:["categoria"]},{t:"registros",pk:["id"]},{t:"lista",pk:["id"]},{t:"bebe",pk:["id"],nat:[["chave"]]},
+    {t:"pessoal",pk:["chave"]},{t:"garmin_dia",pk:["data"]},{t:"garmin_ativ",pk:["id"]},
+    {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
+  /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
+  var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
+  var SEG_SEGREDO=/senha|password|passwd|token|secret|segredo|api_?key|apikey|chave_?api|private_?key|access_?key|p256dh|vapid/i;
+  /* não comparam: dono e carimbos de hora que mudam sozinhos */
+  var SEG_IGNORA={user_id:1,dono:1,atualizado:1,atualizado_em:1};
+  function segDef(t){for(var i=0;i<SEG_TABELAS.length;i++)if(SEG_TABELAS[i].t===t)return SEG_TABELAS[i];return null}
+  function segChave(d,r){var ok=true,k=d.pk.map(function(c){if(r[c]==null||r[c]==="")ok=false;return String(r[c])}).join("|");return ok?k:null}
+  function segNat(cols,r){var ok=true,k=cols.map(function(c){if(r[c]==null||r[c]==="")ok=false;return String(r[c]).trim().toLowerCase()}).join("|");return ok?cols.join("+")+"="+k:null}
+  /* JSON com as chaves em ordem: o mesmo conteúdo dá sempre o mesmo texto (e o mesmo SHA-256) */
+  function segCanon(v){if(Array.isArray(v))return "["+v.map(segCanon).join(",")+"]";
+    if(v&&typeof v==="object")return "{"+Object.keys(v).sort().filter(function(k){return v[k]!==undefined}).map(function(k){return JSON.stringify(k)+":"+segCanon(v[k])}).join(",")+"}";
+    return JSON.stringify(v===undefined?null:v)}
+  /* tira o que é segredo antes de sair do banco: as chaves proibidas do "pessoal" e qualquer campo com nome de senha/token, em qualquer nível */
+  function segLimpar(t,linhas){var fora=[];
+    function limpa(v,cam){if(Array.isArray(v))return v.map(function(x,i){return limpa(x,cam+"["+i+"]")});
+      if(v&&typeof v==="object"){var o={};Object.keys(v).forEach(function(k){if(SEG_SEGREDO.test(k)){fora.push(cam+"."+k);return}o[k]=limpa(v[k],cam+"."+k)});return o}
+      return v}
+    var l=(linhas||[]).filter(function(r){if(t==="pessoal"&&r&&SEG_CHAVES_FORA[r.chave]){fora.push("pessoal."+r.chave);return false}return true})
+      .map(function(r,i){return limpa(r,t+"#"+(i+1))});
+    return {linhas:l,fora:fora}}
+  /* o arquivo de backup (formato 2): tabelas + resumo com a quantidade e o SHA-256 de cada uma (hashes calculados por quem chama) */
+  function segBackup(conta,criado,tabelas,hashes,fora,falhas){var resumo={};
+    Object.keys(tabelas).forEach(function(t){resumo[t]={linhas:tabelas[t].length,sha256:hashes[t]||null}});
+    return {formato:"rac-backup",versao:2,site:"Dia a Dia RAC",criado:criado,conta:conta,tabelas:tabelas,resumo:resumo,
+      relacoes:[["notas.mercado_id","mercados.id"],["itens.nota_id","notas.id"],["itens.produto_id","produtos.id"]],
+      fora:(fora||[]).slice(0,200),falhas:falhas||[]}}
+  /* lê e confere um backup (formato 2, ou o 1: do servidor e do .zip): estrutura, identificadores e repetidos. Não confere o SHA-256 (segHashes) */
+  function segLer(j){var p=[],av=[],tab={};
+    if(!j||typeof j!=="object"||!j.tabelas||typeof j.tabelas!=="object"||Array.isArray(j.tabelas))return {ok:false,problemas:["o arquivo não tem a lista de tabelas: não parece um backup do RAC"],avisos:[],tabelas:{}};
+    var v2=j.formato==="rac-backup";
+    if(v2&&j.versao!==2)return {ok:false,problemas:["backup na versão "+j.versao+", que este site não conhece"],avisos:[],tabelas:{}};
+    Object.keys(j.tabelas).forEach(function(t){var l=j.tabelas[t],d=segDef(t);
+      if(!d){av.push(t+": tabela que não entra na restauração");return}
+      if(!Array.isArray(l)){p.push(t+": não é uma lista de linhas");return}
+      var visto={},ruins=0,rep=0;
+      l.forEach(function(r){if(!r||typeof r!=="object"||Array.isArray(r)){ruins++;return}var k=segChave(d,r);if(k==null){ruins++;return}if(visto[k])rep++;visto[k]=1});
+      if(ruins)p.push(t+": "+ruins+(ruins===1?" linha sem identificador":" linhas sem identificador"));
+      if(rep)p.push(t+": "+rep+(rep===1?" linha repetida":" linhas repetidas")+" dentro do próprio backup");
+      if(v2&&j.resumo&&j.resumo[t]&&j.resumo[t].linhas!==l.length)p.push(t+": o resumo diz "+j.resumo[t].linhas+" linhas e o arquivo tem "+l.length);
+      tab[t]=l});
+    if(v2&&j.resumo)Object.keys(j.resumo).forEach(function(t){if(segDef(t)&&!tab[t]&&!p.some(function(x){return x.indexOf(t+":")===0}))p.push(t+": está no resumo, mas falta no arquivo")});
+    if(!Object.keys(tab).length&&!p.length)p.push("nenhuma tabela do RAC no arquivo");
+    return {ok:!p.length,versao:v2?2:1,conta:(v2?j.conta:j.dono)||null,criado:j.criado||null,tabelas:tab,resumo:v2?(j.resumo||{}):null,problemas:p,avisos:av}}
+  /* confere o SHA-256 de cada tabela com o do resumo (formato 1 não tem: vira aviso) */
+  function segHashes(B,hashes){var p=[];if(!B.resumo)return {ok:true,problemas:[],aviso:"backup antigo, sem assinatura das tabelas: a integridade foi conferida só pela estrutura"};
+    Object.keys(B.tabelas).forEach(function(t){var r=B.resumo[t];if(!r||!r.sha256)p.push(t+": sem assinatura no resumo");else if(r.sha256!==hashes[t])p.push(t+": o conteúdo não bate com a assinatura (arquivo alterado ou corrompido)")});
+    return {ok:!p.length,problemas:p,aviso:""}}
+  /* prepara a linha para a conta de destino: dono, caminhos dos anexos e "criado por" (de outra conta não existe aqui) */
+  function segAjustar(d,r0,conta,velha){var r={},col=d.dono||"user_id";Object.keys(r0).forEach(function(k){r[k]=r0[k]});
+    if(conta)r[col]=conta;
+    if(velha&&conta&&velha!==conta){if(Array.isArray(r.arquivos))r.arquivos=r.arquivos.map(function(a){var b={};Object.keys(a||{}).forEach(function(k){b[k]=a[k]});if(b.path)b.path=String(b.path).replace(velha+"/",conta+"/");return b});
+      if(r.criado_por!=null&&r.criado_por!==conta)r.criado_por=null}
+    return r}
+  /* devolve à linha do backup os campos secretos que a linha de hoje tem (em qualquer nível), para a troca não apagá-los */
+  function segRepor(r,ex){if(Array.isArray(r)&&Array.isArray(ex))return r.map(function(x,i){return segRepor(x,ex[i])});
+    if(!r||!ex||typeof r!=="object"||typeof ex!=="object"||Array.isArray(r)||Array.isArray(ex))return r;
+    var o={};Object.keys(r).forEach(function(k){o[k]=segRepor(r[k],ex[k])});Object.keys(ex).forEach(function(k){if(SEG_SEGREDO.test(k)&&!(k in o))o[k]=ex[k]});return o}
+  /* compara o backup com o que a conta tem hoje e monta o plano (nada é gravado aqui). Cada linha do backup vira:
+     nova (não existe), igual (existe idêntica), diferente (existe com outro conteúdo: só muda se o dono pedir) ou inválida (aponta para
+     um pai que não existe). Mesmo nome com outro id conta como o mesmo registro, e os filhos passam a apontar para o id de hoje. */
+  function segPlano(B,atual,o){o=o||{};var conta=o.conta||null,velha=B.conta||null,mapas={},validos={},
+    res={outraConta:!!(velha&&conta&&velha!==conta),tabelas:[],total:{novas:0,iguais:0,diferentes:0,invalidas:0,fora:0,soExportar:0}};
+    SEG_TABELAS.forEach(function(d){var l=B.tabelas[d.t],hoje=(atual&&atual[d.t])||[],porPk={},porNat={},mapa={},val={};
+      mapas[d.t]=mapa;validos[d.t]=val;
+      /* o que existe hoje vale como pai mesmo quando a tabela não está no backup */
+      hoje.forEach(function(r){var k=segChave(d,r);if(k!=null){porPk[k]=r;if(d.pk.length===1)val[k]=1}(d.nat||[]).forEach(function(c){var n=segNat(c,r);if(n)porNat[n]=r})});
+      if(!l)return;
+      var it={t:d.t,so:d.so||"",novas:[],iguais:0,diferentes:[],invalidas:[],remapeadas:0,fora:0,semPai:0};
+      if(d.so){it.soExportar=l.length;res.total.soExportar+=l.length;res.tabelas.push(it);return}
+      var vistos={};
+      l.forEach(function(r0){if(!r0||typeof r0!=="object")return;var k=segChave(d,r0);if(k==null||vistos[k])return;vistos[k]=1;
+        if(d.t==="pessoal"&&SEG_CHAVES_FORA[r0.chave]){it.fora++;return}
+        var r=segAjustar(d,segLimpar(d.t,[r0]).linhas[0],conta,velha),bad=null;
+        /* filhos primeiro apontam para o id do pai de hoje (o pai pode ter sido reconhecido pelo nome) */
+        if(d.fk)Object.keys(d.fk).forEach(function(c){if(r[c]==null||bad)return;var pai=d.fk[c],v=(mapas[pai]||{})[r[c]]||r[c];
+          if((validos[pai]||{})[v])r[c]=v;else if(d.opc&&d.opc[c]){r[c]=null;it.semPai++}else bad=c+" aponta para "+pai+" que não existe"});
+        if(bad){it.invalidas.push({linha:r0,motivo:bad});return}
+        var ex=porPk[k];
+        if(!ex&&d.nat&&d.pk[0]==="id")d.nat.some(function(c){var n=segNat(c,r);if(n&&porNat[n]){ex=porNat[n];mapa[r.id]=ex.id;r.id=ex.id;it.remapeadas++;return true}return false});
+        if(d.pk.length===1)val[String(r[d.pk[0]])]=1;
+        /* duas linhas do backup que caem no mesmo registro por nome: a segunda não entra de novo */
+        (d.nat||[]).forEach(function(c){var n=segNat(c,r);if(n&&!porNat[n])porNat[n]=r});
+        if(!ex){it.novas.push(r);porPk[segChave(d,r)]=r;return}
+        /* compara sem os segredos (o backup não os tem) e, se trocar, os segredos de hoje continuam na linha */
+        var exL=segLimpar(d.t,[ex]).linhas[0]||{},campos=Object.keys(r).filter(function(c){return !SEG_IGNORA[c]&&segCanon(r[c])!==segCanon(exL[c]===undefined?null:exL[c])});
+        if(!campos.length)it.iguais++;else it.diferentes.push({linha:segRepor(r,ex),atual:ex,campos:campos})});
+      ["novas","diferentes","invalidas"].forEach(function(c){res.total[c]+=it[c].length});res.total.iguais+=it.iguais;res.total.fora+=it.fora;
+      res.tabelas.push(it)});
+    return res}
+  /* o que será gravado, na ordem: novas sempre entram (insert, nunca sobrescreve); diferentes só com "substituir" (upsert) */
+  function segEscrita(plano,substituir){var l=[];
+    plano.tabelas.forEach(function(it){if(it.so)return;
+      if(it.novas.length)l.push({t:it.t,op:"insert",linhas:it.novas});
+      if(substituir&&it.diferentes.length)l.push({t:it.t,op:"upsert",linhas:it.diferentes.map(function(x){return x.linha})})});
+    return l}
+  /* nota da proteção da conta (0 a 100) a partir das conferências da Central */
+  function segNota(c){var itens=[["senha",c.senha!==false,15],["mfa",!!c.mfa,25],["bancoMfa",!!c.bancoMfa,15],["reserva",!!c.reserva,10],
+      ["backupManual",c.diasBackup!=null&&c.diasBackup<=30,15],["backupServidor",c.diasServidor!=null&&c.diasServidor<=9,10],["auditoria",!!c.auditoria,10]],
+      n=0;itens.forEach(function(x){if(x[1])n+=x[2]});
+    return {nota:n,nivel:n>=85?"forte":n>=55?"média":"fraca",faltam:itens.filter(function(x){return !x[1]}).map(function(x){return x[0]})}}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
-    nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo};
+    nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
+    SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota};
 })(typeof window!=="undefined"?window:globalThis);

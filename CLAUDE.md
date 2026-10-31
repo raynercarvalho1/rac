@@ -15,6 +15,8 @@ Leia o README.md para a arquitetura. Estas são as regras de trabalho.
 - Sempre: `node --test tests/*.test.mjs` passando, e `VERSAO` (sw.js) e `MOD_VERSAO` (js/app.js) trocadas juntas.
 - SQL novo: arquivo numerado em `supabase/` (pode rodar de novo sem erro), com RLS ligado, `revoke all ... from anon`
   e a tabela incluída em `tests/seguranca.test.mjs`. O dono roda no SQL Editor antes do site ir ao ar.
+- Tabela pessoal nova: entra no backup (`NUCLEO.SEG_TABELAS`, com pk/fk) e ganha a trava restritiva "mfa" do 022 (há teste).
+  Restauração nunca grava sem prévia e confirmação, e nunca sobrescreve sem o dono marcar (docs/seguranca.md).
 - Edge Function: o dono republica a função antes do site ir ao ar.
 - Commits no `main` como `github-actions[bot]`; `git pull --rebase` antes do push (os robôs também publicam).
 

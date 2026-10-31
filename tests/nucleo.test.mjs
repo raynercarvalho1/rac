@@ -324,3 +324,127 @@ test("IA: mês da cobrança e validação em reais", () => {
   assert.match(N.iaValorUsd("", 100000, true).motivo, /reais/);
   assert.match(N.iaValorUsd("2000", 1000, true).motivo, /acima de R\$ 1\.000,00/);
 });
+
+/* ---------- Central de Segurança: backup, integridade e plano de restauração ---------- */
+const CONTA = "11111111-1111-1111-1111-111111111111", OUTRA = "22222222-2222-2222-2222-222222222222";
+const sha = async (t) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))).toString("hex");
+async function backupDe(tabelas, conta = CONTA) {
+  const limpas = {}, hashes = {}, fora = [];
+  for (const [t, l] of Object.entries(tabelas)) { const c = N.segLimpar(t, l); limpas[t] = c.linhas; fora.push(...c.fora); hashes[t] = await sha(N.segCanon(c.linhas)); }
+  return N.segBackup(conta, "2026-10-31T12:00:00.000Z", limpas, hashes, fora, []);
+}
+const hashesDe = async (B) => Object.fromEntries(await Promise.all(Object.keys(B.tabelas).map(async (t) => [t, await sha(N.segCanon(B.tabelas[t]))])));
+
+test("segurança: o backup não leva segredos (chave dos atalhos, Google Maps, campos de senha/token em qualquer nível)", () => {
+  const c = N.segLimpar("pessoal", [
+    { user_id: CONTA, chave: "atalho", valor: { hash: "abc" } }, { user_id: CONTA, chave: "googleMaps", valor: "chave-de-teste" },
+    { user_id: CONTA, chave: "mba", valor: { aulas: [{ t: "Aula", senha: "x", link: "https://a" }], api_key: "k", token_acesso: "t" } }]);
+  assert.deepEqual(c.linhas.map((r) => r.chave), ["mba"]);
+  assert.deepEqual(c.linhas[0].valor, { aulas: [{ t: "Aula", link: "https://a" }] });
+  assert.equal(c.fora.length, 5);
+  assert.ok(!/senha|token|api_key|chave-de-teste|atalho/.test(JSON.stringify(c.linhas)));
+  /* nomes parecidos que não são segredo continuam (chave_nfce, chave do bebê) */
+  assert.deepEqual(N.segLimpar("notas", [{ id: "n1", chave_nfce: "3526" }]).linhas, [{ id: "n1", chave_nfce: "3526" }]);
+});
+
+test("segurança: o backup em JSON tem formato, conta, quantidade e SHA-256 de cada tabela e volta lido igual", async () => {
+  const B = await backupDe({ mercados: [{ id: "m1", user_id: CONTA, nome: "Mercado A" }], pessoal: [{ user_id: CONTA, chave: "mba", valor: {} }, { user_id: CONTA, chave: "atalho", valor: {} }] });
+  assert.equal(B.formato, "rac-backup"); assert.equal(B.versao, 2); assert.equal(B.conta, CONTA);
+  assert.equal(B.resumo.pessoal.linhas, 1); assert.match(B.resumo.mercados.sha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(B.relacoes[1], ["itens.nota_id", "notas.id"]);
+  const L = N.segLer(JSON.parse(JSON.stringify(B)));
+  assert.ok(L.ok, L.problemas.join("; ")); assert.equal(L.conta, CONTA); assert.equal(L.versao, 2);
+  assert.ok(N.segHashes(L, await hashesDe(L)).ok);
+  /* a ordem das chaves não muda a assinatura */
+  assert.equal(N.segCanon({ b: 1, a: [2, { d: 3, c: 4 }] }), N.segCanon({ a: [2, { c: 4, d: 3 }], b: 1 }));
+});
+
+test("segurança: a conferência recusa arquivo estranho, linha sem id, repetida, resumo errado e conteúdo alterado", async () => {
+  assert.equal(N.segLer(null).ok, false); assert.equal(N.segLer({ tabelas: [] }).ok, false); assert.equal(N.segLer({ a: 1 }).ok, false);
+  assert.match(N.segLer({ formato: "rac-backup", versao: 9, tabelas: {} }).problemas[0], /versão 9/);
+  const r = N.segLer({ versao: 1, tabelas: { notas: [{ id: "n1" }, { id: "n1" }, { data: "2026-01-01" }], esquisita: [] } });
+  assert.equal(r.ok, false);
+  assert.ok(r.problemas.some((p) => /sem identificador/.test(p)) && r.problemas.some((p) => /repetida/.test(p)));
+  assert.ok(r.avisos.some((a) => /esquisita/.test(a)));
+  const B = await backupDe({ lista: [{ id: "l1", user_id: CONTA, item: "Arroz" }] });
+  const resumoErrado = JSON.parse(JSON.stringify(B)); resumoErrado.resumo.lista.linhas = 5;
+  assert.match(N.segLer(resumoErrado).problemas[0], /o resumo diz 5/);
+  const alterado = JSON.parse(JSON.stringify(B)); alterado.tabelas.lista[0].item = "Feijão";
+  const La = N.segLer(alterado); assert.ok(La.ok);
+  const H = N.segHashes(La, await hashesDe(La)); assert.equal(H.ok, false); assert.match(H.problemas[0], /não bate com a assinatura/);
+  /* backup antigo (servidor/.zip) não tem assinatura: só aviso */
+  const v1 = N.segLer({ versao: 1, dono: CONTA, tabelas: { lista: [{ id: "l1" }] } });
+  assert.ok(v1.ok && N.segHashes(v1, {}).ok && /sem assinatura/.test(N.segHashes(v1, {}).aviso));
+});
+
+test("segurança: plano de restauração separa novas, iguais e mudadas e nunca troca o que existe sem pedir", () => {
+  const B = N.segLer({ versao: 1, dono: CONTA, tabelas: {
+    lista: [{ id: "l1", user_id: CONTA, item: "Arroz", feito: false }, { id: "l2", user_id: CONTA, item: "Café", feito: true }, { id: "l3", user_id: CONTA, item: "Pão", feito: false }],
+    pessoal: [{ user_id: CONTA, chave: "mba", valor: { a: 1 }, atualizado: "2026-01-01" }, { user_id: CONTA, chave: "atalho", valor: { hash: "velho" } }],
+    newsletter_edicoes: [{ id: "e1", dono: CONTA, data: "2026-10-31", turno: "manha" }] } });
+  const atual = { lista: [{ id: "l1", user_id: CONTA, item: "Arroz", feito: false }, { id: "l2", user_id: CONTA, item: "Café", feito: false }],
+    pessoal: [{ user_id: CONTA, chave: "mba", valor: { a: 1 }, atualizado: "2026-10-30" }] };
+  const p = N.segPlano(B, atual, { conta: CONTA });
+  const li = p.tabelas.find((t) => t.t === "lista"), pe = p.tabelas.find((t) => t.t === "pessoal"), nl = p.tabelas.find((t) => t.t === "newsletter_edicoes");
+  assert.deepEqual([li.novas.map((r) => r.id), li.iguais, li.diferentes.map((d) => d.campos)], [["l3"], 1, [["feito"]]]);
+  assert.equal(pe.iguais, 1, "só o carimbo de hora mudou: é igual"); assert.equal(pe.fora, 1, "a chave antiga dos atalhos não volta");
+  assert.equal(nl.so, "exportar"); assert.equal(nl.soExportar, 1);
+  assert.deepEqual(p.total, { novas: 1, iguais: 2, diferentes: 1, invalidas: 0, fora: 1, soExportar: 1 });
+  const sem = N.segEscrita(p, false), com = N.segEscrita(p, true);
+  assert.deepEqual(sem.map((o) => [o.t, o.op, o.linhas.length]), [["lista", "insert", 1]], "sem pedir: só insere");
+  assert.deepEqual(com.map((o) => [o.t, o.op, o.linhas.length]), [["lista", "insert", 1], ["lista", "upsert", 1]]);
+  assert.ok(!com.some((o) => o.t === "newsletter_edicoes" || o.t === "pessoal"));
+});
+
+test("segurança: restauração preserva as relações (mesmo mercado pelo nome, item órfão não entra, produto sumido fica vazio)", () => {
+  const B = N.segLer({ versao: 1, dono: CONTA, tabelas: {
+    mercados: [{ id: "mB", user_id: CONTA, nome: "Mercado A" }, { id: "mN", user_id: CONTA, nome: "Mercado Novo" }],
+    produtos: [{ id: "pB", user_id: CONTA, nome: "Café 500g", categoria: "Mercearia" }],
+    notas: [{ id: "n1", user_id: CONTA, mercado_id: "mB", data: "2026-10-01" }, { id: "n2", user_id: CONTA, mercado_id: "mN", data: "2026-10-02" }, { id: "n3", user_id: CONTA, mercado_id: "mX", data: "2026-10-03" }],
+    itens: [{ id: "i1", user_id: CONTA, nota_id: "n1", produto_id: "pB", descricao: "CAFE" }, { id: "i2", user_id: CONTA, nota_id: "n9", descricao: "ORFAO" },
+      { id: "i3", user_id: CONTA, nota_id: "n2", produto_id: "pSumiu", descricao: "X" }, { id: "i4", user_id: CONTA, nota_id: "nHoje", descricao: "Y" }] } });
+  const atual = { mercados: [{ id: "mHoje", user_id: CONTA, nome: "mercado a" }], produtos: [{ id: "pHoje", user_id: CONTA, nome: "Café 500g", categoria: "Mercearia" }], notas: [{ id: "nHoje", user_id: CONTA, mercado_id: "mHoje", data: "2026-09-01" }] };
+  const p = N.segPlano(B, atual, { conta: CONTA }), T = (t) => p.tabelas.find((x) => x.t === t);
+  assert.equal(T("mercados").remapeadas, 1); assert.deepEqual(T("mercados").diferentes.map((d) => d.campos), [["nome"]], "só a caixa do nome mudou");
+  assert.deepEqual(T("mercados").novas.map((r) => r.id), ["mN"]);
+  assert.equal(T("produtos").iguais, 1);
+  const n1 = T("notas").novas.find((r) => r.id === "n1");
+  assert.equal(n1.mercado_id, "mHoje", "a nota aponta para o mercado de hoje");
+  assert.deepEqual(T("notas").invalidas.map((x) => x.linha.id), ["n3"]);
+  const it = T("itens");
+  assert.equal(it.novas.find((r) => r.id === "i1").produto_id, "pHoje", "o item aponta para o produto de hoje");
+  assert.equal(it.novas.find((r) => r.id === "i3").produto_id, null); assert.equal(it.semPai, 1);
+  assert.ok(it.novas.some((r) => r.id === "i4"), "pode apontar para uma nota que já existe");
+  assert.deepEqual(it.invalidas.map((x) => x.linha.id), ["i2"]);
+  /* nota repetida pelo número no mesmo mercado e dia vira a mesma nota */
+  const B2 = N.segLer({ versao: 1, tabelas: { notas: [{ id: "nZ", mercado_id: "mHoje", numero: "77", data: "2026-09-01" }] } });
+  const p2 = N.segPlano(B2, { mercados: atual.mercados, notas: [{ id: "nHoje", user_id: CONTA, mercado_id: "mHoje", numero: "77", data: "2026-09-01" }] }, { conta: CONTA });
+  const n2 = p2.tabelas.find((x) => x.t === "notas");
+  assert.equal(n2.remapeadas, 1); assert.equal(p2.total.novas, 0); assert.equal(n2.iguais, 1);
+});
+
+test("segurança: backup de outra conta troca o dono, o caminho dos anexos e tira o criado_por de quem não existe aqui", () => {
+  const B = N.segLer({ versao: 1, dono: OUTRA, tabelas: {
+    registros: [{ id: "r1", user_id: OUTRA, quem: "eddie", tipo: "vacina", data: "2026-01-01", titulo: "V10", criado_por: OUTRA, arquivos: [{ path: OUTRA + "/eddie/a.jpg", nome: "a.jpg" }] }] } });
+  const p = N.segPlano(B, {}, { conta: CONTA }), r = p.tabelas[0].novas[0];
+  assert.equal(p.outraConta, true);
+  assert.equal(r.user_id, CONTA); assert.equal(r.arquivos[0].path, CONTA + "/eddie/a.jpg"); assert.equal(r.criado_por, null);
+  assert.equal(B.tabelas.registros[0].user_id, OUTRA, "não mexe no objeto lido do arquivo");
+  const mesma = N.segPlano(N.segLer({ formato: "rac-backup", versao: 2, conta: CONTA, tabelas: { garmin_dia: [{ user_id: CONTA, data: "2026-10-01", dados: {} }] }, resumo: {} }), {}, { conta: CONTA });
+  assert.equal(mesma.outraConta, false); assert.equal(mesma.total.novas, 1);
+});
+
+test("segurança: nota da proteção da conta", () => {
+  assert.deepEqual(N.segNota({ mfa: true, bancoMfa: true, reserva: true, diasBackup: 3, diasServidor: 2, auditoria: true }), { nota: 100, nivel: "forte", faltam: [] });
+  const s = N.segNota({ mfa: false, diasBackup: null, diasServidor: 20, auditoria: false });
+  assert.equal(s.nivel, "fraca"); assert.equal(s.nota, 15); assert.deepEqual(s.faltam, ["mfa", "bancoMfa", "reserva", "backupManual", "backupServidor", "auditoria"]);
+  assert.deepEqual(N.segNota({ mfa: true, bancoMfa: true, diasBackup: 10, diasServidor: 3, auditoria: false }), { nota: 80, nivel: "média", faltam: ["reserva", "auditoria"] });
+});
+
+test("segurança: linha de hoje com segredo não vira 'mudada' só por isso, e a troca não apaga o segredo", () => {
+  const B = N.segLer({ versao: 1, dono: CONTA, tabelas: { pessoal: [{ user_id: CONTA, chave: "mba", valor: { a: 1 } }, { user_id: CONTA, chave: "emails", valor: { lista: [1, 2] } }] } });
+  const atual = { pessoal: [{ user_id: CONTA, chave: "mba", valor: { a: 1, senha: "s" } }, { user_id: CONTA, chave: "emails", valor: { lista: [1], token: "t" } }] };
+  const pe = N.segPlano(B, atual, { conta: CONTA }).tabelas[0];
+  assert.equal(pe.iguais, 1);
+  assert.deepEqual(pe.diferentes[0].linha.valor, { lista: [1, 2], token: "t" }, "a troca mantém o token de hoje");
+});

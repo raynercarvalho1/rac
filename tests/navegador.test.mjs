@@ -313,3 +313,95 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     servidor.close();
   }
 });
+
+// Central de Segurança num iPhone (375 px), sem login: o banco e o Auth são simulados dentro da página.
+// Confere os quadros, o backup em JSON sem segredos, a prévia da restauração sem gravar nada, a gravação só depois
+// do confirm (e só com insert), o cadastro do app autenticador e o código pedido no login.
+test("Segurança: 375 px, backup sem segredos, restauração com prévia e confirmação, MFA e o código no login", { skip: pular, timeout: 90000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`;
+  const nav = await abrirNavegador();
+  try {
+    const ctx = await nav.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const pag = await ctx.newPage(), erros = [], dialogos = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+    pag.on("dialog", (d) => { dialogos.push(d.message()); d.accept(); });
+    await pag.goto(base + "/");
+    await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await pag.evaluate(() => {
+      const reg = (window.__seg = { gravacoes: [], mfa: [], baixados: [], fatores: [],
+        banco: { lista: [{ id: "l1", user_id: "dono-teste", item: "Arroz", feito: false }, { id: "l2", user_id: "dono-teste", item: "Café", feito: false }],
+          pessoal: [{ user_id: "dono-teste", chave: "mba", valor: { a: 1 } }, { user_id: "dono-teste", chave: "atalho", valor: { hash: "segredo" } }] } });
+      const tabela = (nome) => { const q = { _op: "select", select: () => q, eq: () => q, order: () => q, limit: () => q, range: () => q,
+        insert: (v) => { q._op = "insert"; reg.gravacoes.push({ nome, op: "insert", v }); return q; },
+        upsert: (v) => { q._op = "upsert"; reg.gravacoes.push({ nome, op: "upsert", v }); return q; },
+        then: (ok, no) => Promise.resolve(q._op === "select" ? { data: (reg.banco[nome] || []).map((x) => ({ ...x })), error: null } : { data: null, error: null }).then(ok, no) }; return q; };
+      SB = { from: tabela, rpc: () => Promise.resolve({ data: { aal: "aal1", fatores: 0, sem_rls: [], anon_le: [], sem_trava_mfa: [], cofres_publicos: [], funcoes_abertas: [], conferido: new Date().toISOString() }, error: null }),
+        auth: { mfa: { listFactors: () => Promise.resolve({ data: { all: reg.fatores, totp: reg.fatores } }),
+          getAuthenticatorAssuranceLevel: () => Promise.resolve({ data: { currentLevel: "aal1", nextLevel: reg.fatores.length ? "aal2" : "aal1" } }),
+          enroll: (o) => { reg.mfa.push(["enroll", o]); return Promise.resolve({ data: { id: "f1", totp: { qr_code: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>", secret: "JBSWY3DPEHPK3PXP" } } }); },
+          challengeAndVerify: (o) => { reg.mfa.push(["verify", o]); reg.fatores = [{ id: o.factorId, factor_type: "totp", status: "verified", friendly_name: "Celular 1", created_at: new Date().toISOString() }]; return Promise.resolve({ data: {}, error: null }); },
+          unenroll: (o) => { reg.mfa.push(["unenroll", o]); return Promise.resolve({ data: {}, error: null }); } } },
+        storage: { from: () => ({ list: () => Promise.resolve({ data: [{ name: "2026-10-25.json", metadata: { size: 52000 } }], error: null }) }) } };
+      PAPEL = "dono"; EU = { id: "dono-teste", email: "teste@exemplo.invalid" }; PESSOAL = {};
+      document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true;
+      location.hash = "#seguranca";
+    });
+    await pag.waitForSelector("#seguranca-view h2", { timeout: 20000 });
+    const paineis = await pag.evaluate(() => [...document.querySelectorAll("#seguranca-view h2")].map((x) => x.textContent));
+    assert.deepEqual(paineis, ["Proteção da conta", "Verificação em duas etapas", "Backup e exportação", "Restaurar um backup", "Histórico de backups", "Auditoria", "Se perder o acesso"]);
+    const largura = await pag.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(largura <= 375, "sem rolagem para o lado no iPhone (" + largura + " px)");
+
+    /* backup em JSON: formato 2, sem a chave dos atalhos */
+    await pag.evaluate(() => { baixarArquivo = (b, n) => { __seg.baixados.push({ n, b }); }; [...document.querySelectorAll("#seguranca-view button")].find((b) => /Baixar backup \(JSON\)/.test(b.textContent)).click(); });
+    await pag.waitForFunction(() => __seg.baixados.length === 1, null, { timeout: 5000 });
+    const bk = await pag.evaluate(async () => ({ nome: __seg.baixados[0].n, txt: await __seg.baixados[0].b.text() }));
+    const j = JSON.parse(bk.txt);
+    assert.match(bk.nome, /^rac-backup-\d{4}-\d{2}-\d{2}\.json$/);
+    assert.equal(j.formato, "rac-backup"); assert.deepEqual(j.tabelas.pessoal.map((r) => r.chave), ["mba"]); assert.ok(!/segredo/.test(bk.txt));
+    assert.match(j.resumo.lista.sha256, /^[0-9a-f]{64}$/);
+
+    /* restauração: o Arroz sumiu e o Café mudou. A prévia não grava nada; depois do confirm, só o insert do Arroz */
+    await pag.evaluate(() => { __seg.banco.lista = [{ id: "l2", user_id: "dono-teste", item: "Café", feito: true }]; __seg.gravacoes.length = 0; });
+    await pag.setInputFiles("#seguranca-view input[type=file]", { name: "backup.json", mimeType: "application/json", buffer: Buffer.from(bk.txt) });
+    await pag.waitForSelector(".segprev table", { timeout: 5000 });
+    const prev = await pag.evaluate(() => ({ txt: document.querySelector(".segprev").innerText, n: __seg.gravacoes.length,
+      botao: [...document.querySelectorAll(".segprev button")].map((b) => b.textContent) }));
+    assert.equal(prev.n, 0, "a prévia não grava nada");
+    assert.match(prev.txt, /estrutura e assinaturas conferidas/); assert.ok(prev.botao.includes("Gravar 1 linha"));
+    await pag.evaluate(() => { document.querySelector(".segprev input[type=checkbox]").click(); [...document.querySelectorAll(".segprev button")].find((b) => /^Gravar/.test(b.textContent)).click(); });
+    await pag.waitForFunction(() => /Restaurado/.test(document.querySelector(".segprev [role=status]").textContent), null, { timeout: 5000 });
+    const grav = await pag.evaluate(() => __seg.gravacoes.map((g) => [g.nome, g.op, Array.isArray(g.v) ? g.v.map((x) => x.id) : g.v.tipo]));
+    assert.ok(dialogos.some((d) => /nada é apagado/.test(d) && /nenhuma linha de hoje é alterada/.test(d)), "pediu confirmação");
+    assert.deepEqual(grav, [["lista", "insert", ["l1"]], ["seguranca_eventos", "insert", "restauracao"]]);
+
+    /* MFA: cadastrar o app (QR code + código) e, no login, o código antes de entrar */
+    await pag.evaluate(() => renderSeguranca());
+    await pag.waitForSelector("#seguranca-view h2");
+    await pag.evaluate(() => [...document.querySelectorAll("#seguranca-view button")].find((b) => /Ativar a verificação/.test(b.textContent)).click());
+    await pag.waitForSelector(".segqr img");
+    await pag.fill("#seguranca-view form.iabox input", "123456");
+    await pag.evaluate(() => document.querySelector("#seguranca-view form.iabox").requestSubmit());
+    await pag.waitForFunction(() => __seg.fatores.length === 1, null, { timeout: 5000 });
+    const login = await pag.evaluate(async () => { const precisa = await mfaPrecisa(); entrar = () => { window.__entrou = true; }; mfaPedir(); return precisa; });
+    assert.equal(login, true, "com app cadastrado, a sessão só com senha precisa do código");
+    await pag.fill(".mfabox input", "654321"); await pag.evaluate(() => document.querySelector(".mfabox").requestSubmit());
+    await pag.waitForFunction(() => window.__entrou === true, null, { timeout: 5000 });
+    const mfa = await pag.evaluate(() => __seg.mfa.map((x) => x[0]));
+    assert.deepEqual(mfa, ["enroll", "verify", "verify"], "nunca remove fator sozinho");
+    assert.deepEqual(erros, [], "nenhum erro no navegador");
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

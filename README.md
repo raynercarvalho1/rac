@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo, Newsletter e notificações no celular.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular e a Central de Segurança.
 
 ## Como funciona
 
@@ -25,6 +25,13 @@ Camada única de IA: `supabase/functions/rac-ia` (Claude, da Anthropic), usada p
 Começa em DEMO, com orçamento travado no banco (`supabase/015_ia.sql`) e confirmação humana antes de salvar.
 Tudo em [docs/rac-intelligence.md](docs/rac-intelligence.md). A função `rac-ia` é publicada pela CLI, não pelo painel.
 
+## Central de Segurança
+
+Página `#seguranca` (`js/seguranca.js`): proteção da conta, verificação em duas etapas (TOTP do Supabase Auth, opcional),
+backup em JSON com assinatura por tabela, histórico, restauração com prévia e confirmação (nada é sobrescrito sem pedir) e a
+auditoria das permissões. O `supabase/022_seguranca.sql` faz o banco exigir o código de quem ativou a 2ª etapa.
+Tudo em [docs/seguranca.md](docs/seguranca.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -36,8 +43,8 @@ Tudo em [docs/rac-intelligence.md](docs/rac-intelligence.md). A função `rac-ia
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `020`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (o 020 só quando o REAL da Newsletter for autorizado).
+`schema.sql` e depois `002` a `022`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (o 022 até o dono rodar a Central de Segurança no SQL Editor).
 
 ## Testes (`tests/`)
 
@@ -49,6 +56,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (o 020 s�
 | `banco.test.mjs` | o banco real tem as tabelas, views e funções que os arquivos SQL criam |
 | `ia.test.mjs` | RAC Intelligence sem rede e sem custo: orçamento, reserva, concorrência, DEMO, contrato, segurança do SQL |
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
+| `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 
 `SEM_REDE=1` pula os testes que acessam o Supabase. Os testes rodam a cada publicação e toda segunda (`.github/workflows/testes.yml`).

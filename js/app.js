@@ -9,8 +9,8 @@
 
   /* Rotas por hash: #esportes/beisebol/liga, #esportes/beisebol/time-119, #esportes/beisebol/jogo-849805,
      #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
-  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","newsletter"];
-  var DA_CASA=["mercado","lista","eddie","olivia","veiculos","documentos","rede"];
+  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","newsletter"];
+  var DA_CASA=["mercado","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
   var sports=["beisebol","basquete","futebol-americano"];
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
     if(a.dataset[attr]===val)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
@@ -24,10 +24,10 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-10-31.4",MODULOS={},MOD_OK={};
-  var MOD_DEPS={conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"]};
+  var MOD_VERSAO="2026-10-31.5",MODULOS={},MOD_OK={};
+  var MOD_DEPS={conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"]};
   var ROTA_MODS={esportes:["esportes"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
-    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"]};
+    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
     MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
@@ -111,6 +111,7 @@
     if(top==="resumo"){sideMark("resumo","resumo");renderResumo(parts[1],parts[2]);return}
     if(top==="busca"){sideMark("busca","busca");$("#ptitle").textContent="Busca";renderBusca(decodeURIComponent(parts.slice(1).join("/")||""));return}
     if(top==="sistema"){sideMark("sistema","sistema");renderSistema();return}
+    if(top==="seguranca"){sideMark("seguranca","seguranca");renderSeguranca(parts[1]);return}
     if(top==="conexoes"){sideMark("conexoes","conexoes");renderConexoes(parts[1],decodeURIComponent(parts[2]||""));return}
     if(top==="newsletter"){sideMark("newsletter","newsletter");renderNewsletter(parts[1],decodeURIComponent(parts.slice(2).join("/")||""));return}
     if(top==="saude"){sideMark("saude","saude");renderSaude(parts[1]==="treino"?parts[2]:null);return}
@@ -537,13 +538,36 @@
       if(!ses){mostrarGate(RECUPERAR?"O link expirou ou já foi usado. Peça outro em Esqueci a senha.":"");return}
       EU=ses.user;
       if(RECUPERAR){novaSenha();return}
+      /* 2ª etapa: quem cadastrou um app autenticador digita o código antes de qualquer leitura (o banco, com o 022, exige isso) */
+      return mfaPrecisa().then(function(falta){if(falta){mfaPedir();return}
       return SB.from("membros").select("dono").eq("membro",EU.id).then(function(m){
         PAPEL=m.data&&m.data.length?"casa":"dono";
         DONO=PAPEL==="casa"?m.data[0].dono:EU.id;
         if(PAPEL!=="dono")return;
         return pessoalCarregar().catch(function(e){SEM_TABELA=true;SIS.falhaSinc="Não consegui ler a conta ("+e.message+").";logErro("sincronização",e);pessoalDaCopia()}).then(migrarDoNavegador)
-      }).then(iniciar)
+      }).then(iniciar)})
     }).catch(function(e){mostrarGate("Não consegui conectar agora ("+(e.message||e)+"). Tente de novo.")})}
+  /* a sessão tem fator confirmado e ainda não passou pelo código? (sem MFA cadastrado, responde não e nada muda) */
+  function mfaPrecisa(){return Promise.resolve().then(function(){return SB.auth.mfa.getAuthenticatorAssuranceLevel()}).then(function(r){
+    var d=r&&r.data;return !!(d&&d.nextLevel==="aal2"&&d.currentLevel!=="aal2")},function(){return false})}
+  function mfaPedir(){
+    document.documentElement.classList.remove("logado");$("#gate").hidden=false;$("#gate-form").hidden=true;
+    var velho=$("#gate .mfabox");if(velho)velho.remove();
+    var cod=h("input",{type:"text",inputmode:"numeric",autocomplete:"one-time-code",pattern:"[0-9]{6}",maxlength:"6",placeholder:"000000","aria-label":"Código de 6 dígitos"}),
+      sel=h("select",{"aria-label":"App autenticador",hidden:""}),b=h("button",{type:"submit",text:"Confirmar"}),m=h("p",{class:"sub",role:"status"}),
+      sair=h("button",{type:"button",class:"ghostbtn",text:"Sair e entrar com outra conta"});
+    var f=h("form",{class:"panel lockbox mfabox"},h("h2",{text:"Código de verificação"}),h("p",{class:"sub",text:"Abra o app autenticador e digite o código de 6 dígitos do Dia a Dia RAC."}),sel,cod,b,m,
+      h("p",{class:"sub",text:"Perdeu o celular? Use o app reserva, se cadastrou um. Sem nenhum, o dono do site remove o app da sua conta no painel do Supabase e você entra só com a senha."}),sair);
+    SB.auth.mfa.listFactors().then(function(r){var l=((r.data&&r.data.totp)||[]).filter(function(x){return x.status==="verified"});
+      l.forEach(function(x){sel.appendChild(h("option",{value:x.id,text:x.friendly_name||"App autenticador"}))});sel.hidden=l.length<2;
+      if(!l.length)m.textContent="Não achei o app autenticador desta conta.";});
+    f.onsubmit=function(e){e.preventDefault();var c=cod.value.replace(/\D/g,"");if(c.length!==6){m.textContent="O código tem 6 dígitos.";return}
+      if(!sel.value){m.textContent="Não achei o app autenticador desta conta.";return}
+      b.disabled=true;m.textContent="Conferindo…";
+      SB.auth.mfa.challengeAndVerify({factorId:sel.value,code:c}).then(function(r){if(r.error)throw r.error;f.remove();$("#gate-form").hidden=false;entrar()})
+        .catch(function(e){b.disabled=false;cod.value="";cod.focus();m.textContent=/invalid|expired/i.test(e.message||"")?"Código errado ou vencido. Espere o próximo e tente de novo.":"Não consegui conferir: "+(e.message||e)})};
+    sair.onclick=function(){SB.auth.signOut().then(function(){location.reload()})};
+    $("#gate").appendChild(f);setTimeout(function(){cod.focus()},50)}
   function iniciar(){
     var html=document.documentElement;
     html.classList.add("logado");html.classList.toggle("casa",PAPEL==="casa");

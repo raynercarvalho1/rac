@@ -220,6 +220,10 @@ a.nllink{color:var(--ink);text-decoration:none}a.nllink:hover{text-decoration:un
 .cadpags img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;box-shadow:var(--shadow)}.cadpags span{font:600 calc(11px + var(--fz)) var(--f-ui);line-height:1.2}
 @keyframes pisca{0%,100%{box-shadow:var(--shadow)}30%{box-shadow:0 0 0 4px var(--accent)}}.panel.pisca{animation:pisca 1.6s ease}
 .xchips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}.xchip{display:inline-flex;align-items:center;gap:4px;background:var(--hover);border-radius:999px;padding:4px 4px 4px 10px;font:600 calc(13px + var(--fz)) var(--f-ui)}.xchip button{background:none;border:0;box-shadow:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 6px;border-radius:999px;cursor:pointer}.xchip button:hover{background:var(--surface);color:var(--bad)}
+.segnota{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.segnota b.n{font:800 calc(34px + var(--fz)) var(--f-ui);line-height:1}.segnota .barra{flex:1 1 180px;height:10px;border-radius:99px;background:var(--hover);overflow:hidden}.segnota .barra i{display:block;height:100%;border-radius:99px;background:var(--good)}.segnota.media .barra i{background:var(--warn)}.segnota.fraca .barra i{background:var(--bad)}
+#seguranca-view .wl .grow b,#seguranca-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip}#seguranca-view ul.clean li{margin:3px 0}
+.segqr{display:grid;justify-items:center;gap:8px;margin:10px 0}.segqr img{width:200px;height:200px;max-width:100%;background:#fff;border-radius:12px;padding:8px}.segqr code{font-size:calc(12px + var(--fz));word-break:break-all;text-align:center;user-select:all}
+.segprev .tblwrap{margin-top:8px}.segprev label{display:flex;gap:8px;align-items:flex-start;margin-top:10px;line-height:1.35}.segprev label input{margin-top:3px;flex:none}.segprev .alerta{color:var(--warn);font-weight:700}.segprev details{margin-top:6px}.segprev details .wl .grow,.segprev details .wl .sub{white-space:normal}
 .sissaude li{align-items:flex-start}.sisdot{width:22px;flex:none;font-weight:800;text-align:center}.sissaude li.alerta .sisdot{color:var(--warn)}.sissaude .clean{margin:4px 0 0;padding-left:0}
 #impressao{position:absolute;inset:0;z-index:200;background:#fff;color:#111;padding:16px;min-height:100vh}
 html.imprimindo .app,html.imprimindo .capbtn,html.imprimindo .menuflut{display:none}
@@ -754,7 +758,7 @@ html:not(.logado) .app{display:none}
 .gate input{width:100%}
 .whoami{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .whoami .sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html.casa .side .search,html.casa .side .results,html.casa .side .grp:not(#navgrp),html.casa #navgrp a.it:not([data-k="mercado"]):not([data-k="eddie"]):not([data-k="olivia"]):not([data-k="veiculos"]):not([data-k="lista"]):not([data-k="documentos"]):not([data-k="rede"]),html.casa #bdalert,html.casa .syncst{display:none}
+html.casa .side .search,html.casa .side .results,html.casa .side .grp:not(#navgrp),html.casa #navgrp a.it:not([data-k="mercado"]):not([data-k="eddie"]):not([data-k="olivia"]):not([data-k="veiculos"]):not([data-k="lista"]):not([data-k="documentos"]):not([data-k="rede"]):not([data-k="seguranca"]),html.casa #bdalert,html.casa .syncst{display:none}
 /* Tela inicial */
 .home{display:grid;gap:18px}
 .hi{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding:6px 2px}
@@ -979,6 +983,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
       <a class="it" href="#estudos" data-k="estudos"><span class="ico" style="--ic:var(--c-estudos)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4z"/><path d="M7 9.5V15c0 1.4 2.2 3 5 3s5-1.6 5-3V9.5"/></svg></span><span class="t">Estudos</span><span class="cnt" id="cnt-estudos"></span></a>
       <a class="it" href="#em-breve" data-k="em-breve"><span class="ico" style="--ic:var(--c-embreve)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3l2.7 5.6 6.2.9-4.5 4.4 1 6.1L12 17.1 6.6 20l1-6.1L3.1 9.5l6.2-.9z"/></svg></span><span class="t">Em breve</span><span class="cnt" id="cnt-breve"></span></a>
       <a class="it" href="#sistema" data-k="sistema"><span class="ico" style="--ic:var(--c-embreve)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></span><span class="t">Sistema</span></a>
+      <a class="it" href="#seguranca" data-k="seguranca"><span class="ico" style="--ic:var(--c-veic)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span><span class="t">Segurança</span></a>
     </nav>
     <div class="grp">
       <h4>Times</h4>
@@ -1019,6 +1024,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   <section id="agenda" hidden><div id="agenda-view" class="stack"></div></section>
   <section id="busca" hidden><div id="busca-view" class="stack"></div></section>
   <section id="sistema" hidden><div id="sistema-view" class="stack"></div></section>
+  <section id="seguranca" hidden><div id="seguranca-view" class="stack"></div></section>
   <section id="conexoes" hidden><div id="conexoes-view" class="stack"></div></section>
   <section id="newsletter" hidden><div id="newsletter-view"></div></section>
   <section id="saude" hidden><div id="saude-view" class="stack"></div></section>

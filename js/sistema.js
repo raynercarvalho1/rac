@@ -23,14 +23,17 @@
   function baixarArquivo(blob,nome){var u=URL.createObjectURL(blob),a=h("a",{href:u,download:nome});document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(u);a.remove()},4000)}
 
   /* ---------- backup: exportar e restaurar ---------- */
-  var BKP_TABELAS=["mercados","produtos","notas","itens","orcamentos","registros","pessoal","garmin_dia","garmin_ativ"];
+  /* as tabelas pessoais vêm do núcleo (NUCLEO.SEG_TABELAS), as mesmas da Central de Segurança */
+  var BKP_TABELAS=NUCLEO.SEG_TABELAS.map(function(d){return d.t});
   function lerTabela(t){var acc=[];function pag(de){return SB.from(t).select("*").range(de,de+999).then(function(r){if(r.error)throw new Error(t+": "+r.error.message);acc=acc.concat(r.data||[]);return (r.data||[]).length===1000?pag(de+1000):acc})}return Promise.resolve().then(function(){return pag(0)})}
   function paraCsv(l){if(!l.length)return "";var cols=[];l.forEach(function(r){Object.keys(r).forEach(function(k){if(cols.indexOf(k)<0)cols.push(k)})});
     function cel(v){if(v==null)return "";if(typeof v==="object")v=JSON.stringify(v);v=String(v);return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
     return "﻿"+cols.join(";")+"\n"+l.map(function(r){return cols.map(function(c){return cel(r[c])}).join(";")}).join("\n")}
+  /* pacote .zip (JSON + CSV e, se pedir, as fotos e PDFs). Os segredos saem antes (NUCLEO.segLimpar). */
   function exportarTudo(comAnexos,st){
-    var enc=new TextEncoder(),arqs=[],man={versao:1,criado:new Date().toISOString(),dono:EU.id,site:"Dia a Dia RAC",tabelas:{}},regs=[];
-    return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");return lerTabela(t).then(function(l){
+    var enc=new TextEncoder(),arqs=[],man={versao:1,criado:new Date().toISOString(),dono:EU.id,site:"Dia a Dia RAC",tabelas:{},fora:[]},regs=[];
+    return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");return lerTabela(t).then(function(l0){
+      var c=NUCLEO.segLimpar(t,l0),l=c.linhas;man.fora=man.fora.concat(c.fora);
       man.tabelas[t]=l.length;if(t==="registros")regs=l;
       arqs.push({nome:"dados/"+t+".json",dados:enc.encode(JSON.stringify(l))},{nome:"dados/"+t+".csv",dados:enc.encode(paraCsv(l))})}).catch(function(e){man.tabelas[t]="não lida: "+e.message})})},Promise.resolve())
     .then(function(){
@@ -43,28 +46,19 @@
     .then(function(){
       arqs.unshift({nome:"manifesto.json",dados:enc.encode(JSON.stringify(man,null,1))},{nome:"LEIAME.txt",dados:enc.encode(
         "Backup do Dia a Dia RAC ("+man.criado+")\n\nCada tabela está em dados/ duas vezes: .json (para restaurar no site ou levar para outro banco) e .csv (abre no Excel).\n"+
-        "anexos/ tem as fotos e PDFs dos registros, no mesmo caminho do cofre do Supabase.\nPara restaurar: Sistema → Restaurar um backup, e escolha este .zip.\n")});
+        "anexos/ tem as fotos e PDFs dos registros, no mesmo caminho do cofre do Supabase.\nSenhas, chaves e tokens não entram no backup.\nPara restaurar: Segurança → Restaurar um backup, e escolha este .zip (nada é gravado sem a sua confirmação).\n")});
       st("Montando o arquivo…");
       baixarArquivo(zipCriar(arqs),"rac-backup-"+hojeISO()+(comAnexos?"-completo":"")+".zip");
       pessoalGravar("ultimoBackup",hojeISO());
       return man})}
-  /* restaurar mescla (não apaga nada): linhas com o mesmo id são atualizadas, as outras entram.
-     Num banco novo (outra conta), troca o dono antigo pelo atual nas linhas e nos caminhos dos anexos. */
-  function restaurarBackup(arquivo,st){
+  /* lê um backup (.json do formato 2 ou do servidor, ou o .zip) sem gravar nada: devolve o JSON no formato que NUCLEO.segLer entende
+     e os anexos do .zip. Quem confere e grava é a Central de Segurança (js/seguranca.js), sempre depois da prévia e da confirmação. */
+  function bkpLerArquivo(arquivo){
     return arquivo.arrayBuffer().then(function(b){var u=new Uint8Array(b);
-      if(/\.json$/i.test(arquivo.name)){var j=JSON.parse(new TextDecoder().decode(u));return {man:{dono:j.dono},tab:j.tabelas||{},anexos:[]}}
+      if(/\.json$/i.test(arquivo.name)||u[0]===123){var j;try{j=JSON.parse(new TextDecoder().decode(u))}catch(e){throw new Error("o arquivo não é um JSON válido")}return {json:j,anexos:[]}}
       return zipLer(u).then(function(l){var dec=new TextDecoder(),man=null,tab={},anexos=[];
         l.forEach(function(a){if(a.nome==="manifesto.json")man=JSON.parse(dec.decode(a.dados));else if(/^dados\/[\w-]+\.json$/.test(a.nome))tab[a.nome.slice(6,-5)]=JSON.parse(dec.decode(a.dados));else if(/^anexos\/.+[^/]$/.test(a.nome))anexos.push(a)});
-        if(!man)throw new Error("esse .zip não é um backup do site (falta o manifesto.json)");return {man:man,tab:tab,anexos:anexos}})})
-    .then(function(B){
-      var velho=B.man.dono,novo=EU.id,res={};
-      function troca(r){if(velho&&velho!==novo){if(r.user_id===velho)r.user_id=novo;if(r.arquivos)r.arquivos=r.arquivos.map(function(a){return Object.assign({},a,{path:String(a.path||"").replace(velho+"/",novo+"/")})})}return r}
-      return BKP_TABELAS.filter(function(t){return B.tab[t]&&B.tab[t].length}).reduce(function(p,t){return p.then(function(){
-        var l=B.tab[t].map(troca),feitos=0;st("Restaurando "+t+"…");
-        function lote(i){if(i>=l.length)return Promise.resolve();return SB.from(t).upsert(l.slice(i,i+500)).then(function(r){if(r.error)throw new Error(t+": "+r.error.message);feitos+=Math.min(500,l.length-i);return lote(i+500)})}
-        return lote(0).then(function(){res[t]=feitos})})},Promise.resolve())
-      .then(function(){var n=0;return B.anexos.reduce(function(p,a){return p.then(function(){var path=a.nome.slice(7).replace(velho+"/",novo+"/");n++;st("Enviando anexos… "+n+" de "+B.anexos.length);
-        return SB.storage.from("familia").upload(path,new Blob([a.dados]),{upsert:true})})},Promise.resolve()).then(function(){res.anexos=B.anexos.length;return res})})})}
+        if(!man)throw new Error("esse .zip não é um backup do site (falta o manifesto.json)");return {json:{versao:1,dono:man.dono,criado:man.criado,tabelas:tab},anexos:anexos}})})}
 
   /* ---------- agenda única: tudo que tem data no site ---------- */
   var AGENDA_TIPOS={familia:["🐾","Família"],veiculo:["🚗","Veículos"],mba:["🎓","MBA"],niver:["🎂","Aniversário"],lembrete:["📌","Lembrete"],sistema:["🛟","Sistema"],carreira:["💼","Carreira"],docs:["📄","Documentos"],saude:["❤️","Saúde"]};
@@ -522,24 +516,10 @@
         h("p",{class:"sub",text:"Neste aparelho: "+resumoValor(c.local)+" (mudou em "+new Date(c.tLocal).toLocaleString("pt-BR")+") · Na conta: "+resumoValor(c.conta)+" (mudou em "+new Date(c.tConta).toLocaleString("pt-BR")+")"}),h("div",{class:"vfil"},b1,b2)))});
     var sinc=h("button",{type:"button",class:"ghostbtn",text:"Sincronizar agora"});sinc.onclick=function(){sinc.disabled=true;pessoalCarregar().then(function(){SIS.falhaSinc=null}).catch(function(e){SIS.falhaSinc=e.message;logErro("sincronização",e)}).then(function(){reenviarPendentes();renderSistema()})};
     ps.appendChild(h("div",{class:"vfil"},sinc));root.appendChild(ps);
-    /* backup */
-    var pb=panel("Backup e portabilidade","Um arquivo .zip com todas as tabelas em JSON (para restaurar ou levar para outro banco) e CSV (abre no Excel). Guarde no seu Google Drive.");
-    var stb=h("p",{class:"sub",role:"status"}),ex=h("button",{type:"button",text:"Exportar tudo (só dados)"}),exa=h("button",{type:"button",class:"ghostbtn",text:"Exportar com fotos e PDFs"});
+    /* backup e restauração ficam na Central de Segurança */
+    var pb=panel("Backup e segurança","Exportar, restaurar com prévia, histórico dos backups, verificação em duas etapas e a auditoria das permissões.");
     pb.appendChild(h("p",null,h("b",{text:"Último backup baixado: "}),PESSOAL.ultimoBackup?dataBR(PESSOAL.ultimoBackup):"nunca"));
-    function exp(c,b){b.disabled=true;exportarTudo(c,function(t){stb.textContent=t}).then(function(m){stb.textContent="✓ Backup baixado: "+Object.keys(m.tabelas).map(function(k){return k+" "+m.tabelas[k]}).join(", ")+(m.anexos!=null?", anexos "+m.anexos:"")+".";b.disabled=false})
-      .catch(function(e){stb.textContent="Não consegui exportar: "+e.message;logErro("backup",e);b.disabled=false})}
-    ex.onclick=function(){exp(false,ex)};exa.onclick=function(){exp(true,exa)};
-    var rin=h("input",{type:"file",accept:".zip,.json",hidden:""}),rb=h("button",{type:"button",class:"ghostbtn",text:"Restaurar um backup"});rb.onclick=function(){rin.click()};
-    rin.onchange=function(){var f=rin.files[0];if(!f)return;if(!confirm("Restaurar “"+f.name+"”? O que está no backup é mesclado com o que já existe (nada é apagado)."))return;
-      restaurarBackup(f,function(t){stb.textContent=t}).then(function(r){stb.textContent="✓ Restaurado: "+Object.keys(r).map(function(k){return k+" "+r[k]}).join(", ")+". Recarregando…";setTimeout(function(){location.reload()},2500)})
-        .catch(function(e){stb.textContent="Não consegui restaurar: "+e.message;logErro("restaurar",e)})};
-    pb.appendChild(h("div",{class:"vfil"},ex,exa,rb,rin));pb.appendChild(stb);
-    var lb=h("ul",{class:"wl"});pb.appendChild(h("h3",{class:"mbag",text:"Backups automáticos (todo domingo, no servidor)"}));pb.appendChild(lb);
-    /* cada quadro carrega por conta própria: se um falhar, os outros aparecem */
-    Promise.resolve().then(function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"}})}).catch(function(e){return {error:e}}).then(function(r){
-      if(r.error||!(r.data||[]).length){lb.appendChild(h("li",null,h("span",{class:"sub",text:"Ainda nenhum. O primeiro sai no domingo depois que a rotina estiver ligada."})));return}
-      r.data.forEach(function(f){var b=h("button",{type:"button",class:"ghostbtn",text:"Baixar"});b.onclick=function(){SB.storage.from("backups").download(EU.id+"/"+f.name).then(function(x){if(x.data)baixarArquivo(x.data,"rac-backup-servidor-"+f.name)})};
-        lb.appendChild(h("li",null,h("span",{class:"grow",text:f.name.replace(".json","").split("-").reverse().join("/")}),b))})});
+    pb.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#seguranca",text:"Abrir a Central de Segurança"})));
     root.appendChild(pb);
     root.appendChild(pushPainel());
     /* rotina automática */

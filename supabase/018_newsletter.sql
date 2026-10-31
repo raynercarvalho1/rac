@@ -2,26 +2,29 @@
 -- Newsletter Inteligente: as edições do dia de cada dono e o registro dos avisos enviados (docs/newsletter.md).
 -- Rode este arquivo inteiro no SQL Editor, depois do 015 (usa ia_uso e membros); pode rodar de novo sem estragar nada.
 --
--- O que fica aqui: só a edição de cada dia (um retrato compacto dos destaques e das seções, com os links originais,
+-- O que fica aqui: só as edições de cada dia, uma por turno (manhã 6h, tarde 12h, noite 18h): um retrato compacto dos
+-- destaques e das seções, com os links originais,
 -- para o histórico continuar legível depois que newsletter.json mudar) e, quando houver, o resumo com IA que o dono
 -- conferiu e salvou. As notícias públicas continuam em newsletter.json, no repositório; nada delas é copiado à toa.
 --
 -- Quem grava:
---   o site (dono logado)    a edição "regras" do dia (com os pesos dele) e, ao tocar em Salvar, a edição "ia";
---   a função rac-newsletter a edição "regras" do dia, se ainda não existir, e o registro de cada aviso (019).
+--   o site (dono logado)    a edição "regras" do turno (com os pesos dele) e, ao tocar em Salvar, a edição "ia";
+--   a função rac-newsletter a edição "regras" do turno, se ainda não existir, a edição "ia" quando o resumo automático
+--                           (REAL, autorizado pelo dono) volta válido, e o registro de cada aviso (019).
 -- Proteções (no próprio banco, não só no site):
 --   - só o dono lê e grava as próprias edições; quem é da casa (membros) não vê a Newsletter;
 --   - edição "ia" só entra ligada a uma chamada REAL concluída de newsletter.resumo desta casa, com a mesma chave de
 --     idempotência (uma resposta DEMO não tem chamada, então nunca chega aqui);
---   - uma edição "ia" não volta a ser "regras", e nenhuma edição muda de dono ou de data;
+--   - uma edição "ia" não volta a ser "regras", e nenhuma edição muda de dono, de data ou de turno;
 --   - avisos: no máximo um por dono e por chave ("dia:2026-11-01", "semana:2026-W44"), pela chave primária.
 begin;
 
--- 1) Edições (uma por dono e por dia)
+-- 1) Edições (uma por dono, por dia e por turno)
 create table if not exists public.newsletter_edicoes (
   id            uuid primary key default gen_random_uuid(),
   dono          uuid not null default auth.uid() references auth.users(id) on delete cascade,
   data          date not null,
+  turno         text not null check (turno in ('manha', 'tarde', 'noite')),
   conteudo      jsonb not null check (jsonb_typeof(conteudo) = 'object' and pg_column_size(conteudo) <= 300000),
   origem        text not null check (origem in ('regras', 'ia')),
   modelo        text check (modelo is null or modelo ~ '^[a-z0-9.-]{3,60}$'),
@@ -29,20 +32,21 @@ create table if not exists public.newsletter_edicoes (
   chave         text check (chave is null or chave ~ '^[A-Za-z0-9_-]{8,80}$'),
   criado_em     timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
-  unique (dono, data),
+  unique (dono, data, turno),
   constraint newsletter_origem_coerente check (
     (origem = 'regras' and modelo is null and ia_uso_id is null) or (origem = 'ia' and modelo is not null and chave is not null))
 );
-create index if not exists newsletter_edicoes_dono_data on public.newsletter_edicoes (dono, data desc);
+create index if not exists newsletter_edicoes_dono_data on public.newsletter_edicoes (dono, data desc, turno);
 
 create or replace function public.newsletter_edicao_conferir() returns trigger
   language plpgsql set search_path = '' as $$
 begin
-  if tg_op = 'UPDATE' and (new.dono is distinct from old.dono or new.data is distinct from old.data) then
-    raise exception 'a edição não muda de dono nem de data' using errcode = '42501';
+  if tg_op = 'UPDATE' and (new.dono is distinct from old.dono or new.data is distinct from old.data or new.turno is distinct from old.turno) then
+    raise exception 'a edição não muda de dono, de data nem de turno' using errcode = '42501';
   end if;
-  if new.conteudo->>'origem' is distinct from new.origem or new.conteudo->>'data' is distinct from new.data::text then
-    raise exception 'o conteúdo não corresponde à edição (origem ou data)' using errcode = '23514';
+  if new.conteudo->>'origem' is distinct from new.origem or new.conteudo->>'data' is distinct from new.data::text
+     or new.conteudo->>'turno' is distinct from new.turno then
+    raise exception 'o conteúdo não corresponde à edição (origem, data ou turno)' using errcode = '23514';
   end if;
   if tg_op = 'UPDATE' and old.origem = 'ia' and new.origem = 'regras' then
     raise exception 'a edição com resumo de IA não é substituída pela de regras' using errcode = '42501';

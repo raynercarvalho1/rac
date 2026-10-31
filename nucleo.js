@@ -280,7 +280,7 @@
   /* os últimos n meses (competências), do atual para trás: "2026-10-01", "2026-09-01"… */
   function iaCompetencias(mes,n){var m=/^(\d{4})-(\d{2})/.exec(String(mes||"")),l=[];if(!m)return l;var a=+m[1],k=+m[2];
     for(var i=0;i<(n||12);i++){l.push(a+"-"+(k<10?"0":"")+k+"-01");k--;if(!k){k=12;a--}}return l}
-  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado"};
+  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter"};
   function iaModulo(m){return IA_MODULOS[m]||String(m||"")}
   var IA_ERROS={recusado:"a IA não quis ler este conteúdo",resposta_invalida:"resposta fora do formato",provedor_recusou_pedido:"a Anthropic recusou o pedido",
     provedor_ocupado:"serviço ocupado",provedor_indisponivel:"serviço fora do ar",tempo_esgotado:"tempo esgotado",rede:"falha de rede",registro_falhou:"a resposta não foi registrada",interno:"erro interno"};
@@ -333,12 +333,17 @@
   var NL_TIPOS={noticia:"Notícia",analise:"Análise",opiniao:"Opinião"};
   var NL_PESOS=[[0,"Esconder"],[0.5,"Menos"],[1,"Normal"],[1.5,"Mais"],[2,"Muito mais"]];
   var NL_LIM={destaqueH:30,fontesRepercute:3,janelaH:48,destMax:10,destMin:5,porCat:3,secao:8};
+  /* turnos das edições (coletas das 6h, 12h e 18h de Brasília): o mesmo turnoBRT da rotina do servidor */
+  var NL_TURNOS={manha:"6h",tarde:"12h",noite:"18h"};
+  function nlTurno(ms){var hr=new Date(ms-3*3600e3).getUTCHours();return hr<12?"manha":hr<18?"tarde":"noite"}
+  /* a data da edição pela chave da chamada de IA (nl-AAAA-MM-DD-xxxxxxxx), para o painel de custos */
+  function nlDataDaChave(k){var m=/^nl-(\d{4}-\d{2}-\d{2})-[0-9a-f]{8}/.exec(String(k||""));return m?m[1]:""}
   function nlCat(k){for(var i=0;i<NL_CATS.length;i++)if(NL_CATS[i].k===k)return NL_CATS[i];return {k:k,n:String(k||"Outros"),cor:"#7B8CA3"}}
   /* configuração do dono (PESSOAL.newsletter): peso por categoria (0 esconde, até 3), palavras de interesse e para esconder, avisos */
   function nlConfig(c){c=c&&typeof c==="object"?c:{};var pe=c.pesos&&typeof c.pesos==="object"?c.pesos:{},p={};
     NL_CATS.forEach(function(x){var v=pe[x.k];p[x.k]=typeof v==="number"&&isFinite(v)?Math.max(0,Math.min(3,v)):1});
     function lista(l){return (Array.isArray(l)?l:String(l||"").split(/[,;\n]/)).map(function(s){return String(s==null?"":s).trim()}).filter(function(s){return s.length>=2}).slice(0,30)}
-    return {pesos:p,interesse:lista(c.interesse),ocultar:lista(c.ocultar),avisos:c.avisos!==false}}
+    return {pesos:p,interesse:lista(c.interesse),ocultar:lista(c.ocultar),avisos:c.avisos!==false,resumo_ia:c.resumo_ia!==false}}
   function nlOculto(g,cfg){if(!(cfg.pesos[g.c]>0))return true;var t=norm(g.t+" "+(g.r||""));
     return cfg.ocultar.some(function(p){return t.indexOf(norm(p))>=0})}
   /* peso × (atualidade + fontes + tipo + imagem + interesse); destaque só se recente ou ainda repercutindo, e nunca opinião */
@@ -373,7 +378,7 @@
     gs.forEach(function(x){var l=porCat[x.g.c]=porCat[x.g.c]||[];if(l.length<NL_LIM.secao)l.push(x)});
     var ordem=NL_CATS.map(function(c,i){return {c:c,i:i}}).filter(function(o){return porCat[o.c.k]}).sort(function(a,b){return cfg.pesos[b.c.k]-cfg.pesos[a.c.k]||a.i-b.i});
     var fontes=dados.fontes||[],falhas=fontes.filter(function(f){return !f.ok});
-    var c={versao:1,data:(dados.edicao&&dados.edicao.data)||nlDataBRT(agoraMs),coletado:dados.coletado||null,origem:"regras",
+    var c={versao:1,data:(dados.edicao&&dados.edicao.data)||nlDataBRT(agoraMs),turno:nlTurno(Date.parse(dados.coletado)||agoraMs),coletado:dados.coletado||null,origem:"regras",
       destaques:dest.map(function(x){return nlSnap(x.g,x.r)}),
       categorias:ordem.map(function(o){return {k:o.c.k,sintese:"",grupos:porCat[o.c.k].map(function(x){return nlSnap(x.g,x.r)})}}),
       fontes:{total:fontes.length,ok:fontes.length-falhas.length,falhas:falhas.map(function(f){return f.n+(f.erro?" ("+f.erro+")":"")})}};
@@ -414,6 +419,7 @@
     if(c.versao!==1)return "versão desconhecida";
     if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||""))return "data inválida";
     if(c.origem!=="regras"&&c.origem!=="ia")return "origem inválida";
+    if(c.turno!=null&&!NL_TURNOS[c.turno])return "turno inválido";
     if(!Array.isArray(c.destaques)||!Array.isArray(c.categorias))return "sem destaques ou categorias";
     if(c.categorias.some(function(k){return !k||!Array.isArray(k.grupos)}))return "categoria sem grupos";
     var gs=nlTodos(c);
@@ -444,6 +450,6 @@
   /* item de "Guardados" (PESSOAL.salvos): o mesmo formato que as Conexões já usam (tipo, t, u, f, tema), mais categoria e grupo */
   function nlSalvo(g,hoje){return {tipo:"noticia",t:g.titulo_pt||g.t,u:g.u,f:g.f,tema:nlCat(g.c).n,c:g.c,gid:g.id,d:g.d,quando:hoje}}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
-    NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
+    NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo};
 })(typeof window!=="undefined"?window:globalThis);

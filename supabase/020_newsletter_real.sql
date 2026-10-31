@@ -1,11 +1,9 @@
--- status: pendente
--- Newsletter: PERMITE (não liga) o resumo com IA em REAL no futuro. Não rode agora: só quando o dono autorizar o
--- primeiro uso REAL da Newsletter (docs/newsletter.md, "Ligar o REAL"). Pode rodar de novo sem estragar nada.
+-- Newsletter: PERMITE (não liga) o resumo com IA em REAL. Autorizado pelo dono em 31/10/2026 (consumo de créditos da
+-- Anthropic na Newsletter). Pode rodar de novo sem estragar nada. Ligar de verdade é o 021 (docs/newsletter.md).
 --
 -- Este arquivo só alarga a lista do que o banco aceita em acoes_reais: 'newsletter.resumo' passa a ser aceito, mas a
--- lista continua como está (vazia hoje), o modo da casa continua DEMO e o código da função ainda tem real: false.
--- Ligar de verdade exige, nesta ordem e com autorização específica: real: true em acoes.ts e nova publicação da rac-ia;
--- depois, no SQL Editor, acrescentar 'newsletter.resumo' em acoes_reais (e o modo da casa em REAL).
+-- lista continua como está e o modo da casa também. 'abastecimento.interpretar' já era aceito desde o 016 (continua,
+-- sem ser ligado); nenhuma outra ação entra.
 -- O Mercado continua proibido em REAL, e a Newsletter nunca vale para quem é da casa (acoes_reais_casa).
 -- Se o 016 for rodado de novo, rode este arquivo logo depois (o 016 volta a aceitar só o abastecimento).
 begin;

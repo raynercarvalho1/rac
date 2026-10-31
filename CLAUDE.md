@@ -22,6 +22,10 @@ Leia o README.md para a arquitetura. Estas são as regras de trabalho.
 - Toda IA passa pela função `rac-ia` e, no site, só por `racIA()`. Nenhum outro arquivo chama a Anthropic (há teste).
 - Ação nova = entrada em `acoes.ts` (modelo, papéis, limites, JSON obrigatório, validação) + demonstração em `demo.ts` + testes.
 - A IA nunca grava: o resultado vai para a conferência existente e só o clique em Salvar grava. Resposta DEMO nunca chega ao que salva.
+- Única exceção (autorizada pelo dono em 31/10/2026): o resumo da Newsletter (`newsletter.resumo`, sempre Haiku) é feito
+  sozinho às 6h, 12h e 18h pela `rac-newsletter`, que pede à `rac-ia` pela porta da rotina e salva a edição "ia" só com
+  resposta REAL validada (o banco confere a chamada). Uma chamada por edição, no máximo 3 por dia, sem repetir depois de
+  erro (docs/newsletter.md).
 - Nada de repetição paga automática, de troca de modelo na recusa nem de liberar reserva incerta por prazo.
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
 

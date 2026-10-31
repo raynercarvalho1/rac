@@ -1,10 +1,12 @@
 // Newsletter Inteligente: a rotina diária do servidor (docs/newsletter.md). Só o agendamento do banco chama esta função
 // (019, com a senha da rotina no cabeçalho x-rac-rotina, conferida por rac_rotina_ok do 008); o site não chama.
-// Guarda a edição base do dia de cada dono, se ainda não existir, e manda no máximo um aviso por dia (e o resumo da
-// semana no domingo). Não usa IA e não tem segredo novo: as chaves VAPID são as que a função garmin já criou em
-// rac_segredos (aqui só lidas; sem elas, nenhum aviso sai). A lógica fica em rotina.ts (testada sem rede).
+// Guarda a edição base de cada turno (6h, 12h e 18h) de cada dono, pede o resumo à rac-ia (a única porta da IA: esta
+// função não fala com a Anthropic) e guarda a edição com IA só quando a resposta é REAL e válida; manda no máximo um
+// aviso por dia (e o resumo da semana no domingo). Nenhum segredo novo: a senha da rotina que chegou do agendamento é
+// repassada à rac-ia, que confere de novo no banco; as chaves VAPID são as que a função garmin já criou em rac_segredos
+// (aqui só lidas; sem elas, nenhum aviso sai). A lógica fica em rotina.ts (testada sem rede).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { rodarRotina, type Cfg, type Conteudo, type Dados, type Mensagem } from "./rotina.ts";
+import { rodarRotina, type Cfg, type Conteudo, type Dados, type Mensagem, type RespostaIA } from "./rotina.ts";
 
 const SITE = "https://raynercarvalho.com.br/newsletter.json";
 /* chaves do próprio Supabase: o formato novo é um JSON por nome ({"default": "sb_..."}); o antigo, um texto só */
@@ -68,7 +70,10 @@ async function pushPara(adm: Sb, uid: string, msg: Mensagem) {
   return `${res.filter((c) => c >= 200 && c < 300).length} de ${l.length} aparelhos`;
 }
 
-function deps(adm: Sb) {
+/* início do dia em Brasília, em UTC (para contar os resumos de hoje) */
+const inicioDoDia = (data: string) => new Date(Date.parse(data + "T00:00:00Z") + 3 * 3600e3).toISOString();
+
+function deps(adm: Sb, senhaRotina: string) {
   return {
     agora: () => Date.now(),
     async dados(): Promise<Dados> {
@@ -91,9 +96,31 @@ function deps(adm: Sb) {
     },
     async salvarEdicao(dono: string, c: Conteudo): Promise<"nova" | "existia"> {
       const { data, error } = await adm.from("newsletter_edicoes")
-        .upsert({ dono, data: c.data, conteudo: c, origem: "regras", chave: c.chave }, { onConflict: "dono,data", ignoreDuplicates: true }).select("id");
+        .upsert({ dono, data: c.data, turno: c.turno, conteudo: c, origem: "regras", chave: c.chave }, { onConflict: "dono,data,turno", ignoreDuplicates: true }).select("id");
       if (error) throw new Error("newsletter_edicoes: " + error.code);
       return data?.length ? "nova" : "existia";
+    },
+    async jaTentou(dono: string, chave: string): Promise<boolean> {
+      const { data, error } = await adm.from("ia_uso").select("id").eq("user_id", dono).eq("idempotencia", chave).limit(1);
+      if (error) throw new Error("ia_uso: " + error.code);
+      return !!data?.length;
+    },
+    async chamadasHoje(dono: string, data: string): Promise<number> {
+      const { count, error } = await adm.from("ia_uso").select("id", { count: "exact", head: true })
+        .eq("user_id", dono).eq("acao", "newsletter.resumo").gte("criado_em", inicioDoDia(data));
+      if (error) throw new Error("ia_uso: " + error.code);
+      return count ?? 0;
+    },
+    /* uma chamada só, sem repetição: a rac-ia decide DEMO ou REAL e faz reserva, idempotência e orçamento */
+    async resumirIA(dono: string, pedido: Record<string, unknown>): Promise<RespostaIA> {
+      const r = await fetch(Deno.env.get("SUPABASE_URL") + "/functions/v1/rac-ia", {
+        method: "POST", headers: { "Content-Type": "application/json", "x-rac-rotina": senhaRotina }, body: JSON.stringify({ dono, pedido }), signal: AbortSignal.timeout(90_000) });
+      return await r.json().catch(() => ({ ok: false, modo: "DEMO", erro: { codigo: "resposta_ilegivel_" + r.status } }));
+    },
+    async salvarEdicaoIA(dono: string, c: Conteudo, ia: { modelo: string; ia_uso_id: string; chave: string }) {
+      const { error } = await adm.from("newsletter_edicoes")
+        .upsert({ dono, data: c.data, turno: c.turno, conteudo: c, origem: "ia", modelo: ia.modelo, ia_uso_id: ia.ia_uso_id, chave: ia.chave }, { onConflict: "dono,data,turno" });
+      if (error) throw new Error("newsletter_edicoes (ia): " + error.code);
     },
     async registrarAviso(dono: string, chave: string): Promise<boolean> {
       const { data, error } = await adm.from("newsletter_avisos").upsert({ dono, chave }, { onConflict: "dono,chave", ignoreDuplicates: true }).select("chave");
@@ -104,7 +131,7 @@ function deps(adm: Sb) {
       await adm.from("newsletter_avisos").update({ resultado: resultado.slice(0, 200) }).eq("dono", dono).eq("chave", chave);
     },
     async edicoesDaSemana(dono: string, de: string, ate: string) {
-      const { data } = await adm.from("newsletter_edicoes").select("data,conteudo").eq("dono", dono).gte("data", de).lte("data", ate).order("data");
+      const { data } = await adm.from("newsletter_edicoes").select("data,conteudo").eq("dono", dono).gte("data", de).lte("data", ate).order("data").order("turno");
       return (data ?? []) as { data: string; conteudo: Partial<Conteudo> | null }[];
     },
     push: (dono: string, m: Mensagem) => pushPara(adm, dono, m),
@@ -116,9 +143,10 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return responder({ ok: false, erro: "use POST" }, 405);
   try {
     const adm = createClient(Deno.env.get("SUPABASE_URL")!, chaveServidor(), { auth: { persistSession: false } });
-    const { data: autorizado } = await adm.rpc("rac_rotina_ok", { segredo: req.headers.get("x-rac-rotina") ?? "" });
+    const senha = req.headers.get("x-rac-rotina") ?? "";
+    const { data: autorizado } = await adm.rpc("rac_rotina_ok", { segredo: senha });
     if (!autorizado) return responder({ ok: false, erro: "não autorizado" }, 401);
-    const r = await rodarRotina(deps(adm));
+    const r = await rodarRotina(deps(adm, senha));
     console.log("rac-newsletter", JSON.stringify(r));
     return responder(r);
   } catch (e) {

@@ -14,6 +14,7 @@ import { validarPedido } from "../supabase/functions/rac-ia/contrato.ts";
 import { respostaDemo } from "../supabase/functions/rac-ia/demo.ts";
 import * as O from "../supabase/functions/rac-ia/orcamento.ts";
 import { atenderPedido } from "../supabase/functions/rac-ia/servico.ts";
+import { pedidoDaRotina, ACOES_ROTINA } from "../supabase/functions/rac-ia/rotina.ts";
 import * as R from "../supabase/functions/rac-newsletter/rotina.ts";
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
@@ -246,8 +247,8 @@ function respostaIA(ids, extra = {}) {
     categorias: [{ categoria: "pol", sintese: "Síntese de teste.", ids: ids.slice(0, 1) }], ...extra };
 }
 
-test("ação newsletter.resumo: Haiku 5.5, só o dono, DEMO no código, JSON obrigatório e só texto (sem imagens)", () => {
-  assert.equal(NL.modelo, "claude-haiku-5-5"); assert.deepEqual(NL.papeis, ["dono"]); assert.equal(NL.real, false);
+test("ação newsletter.resumo: sempre Haiku 5.5 (nunca Sonnet), só o dono, pode ser REAL, JSON obrigatório e só texto (sem imagens)", () => {
+  assert.equal(NL.modelo, "claude-haiku-5-5"); assert.ok(!/sonnet|opus/i.test(NL.modelo)); assert.deepEqual(NL.papeis, ["dono"]); assert.equal(NL.real, true);
   assert.equal(NL.modulo, "newsletter"); assert.equal(NL.imagensMax, 0); assert.ok(NL.maxTokens <= 4000);
   assert.deepEqual(NL.esquema.required, ["resumo_dia", "destaques", "categorias"]); assert.equal(NL.esquema.additionalProperties, false);
   assert.match(NL.sistema, /português do Brasil/); assert.match(NL.sistema, /não acrescente fatos/); assert.match(NL.sistema, /Cite somente ids que aparecem na entrada/);
@@ -338,8 +339,8 @@ function provedor(resp) { const p = { contagens: 0, chamadas: 0, async contarTok
 const pedidoNL = (chave) => { const e = entradaIA(); return { versao: 1, modulo: "newsletter", acao: "newsletter.resumo", idempotencia: chave ?? N.nlChaveIA("2026-11-01", e.ids), entrada: { texto: e.texto }, contexto: { data: "2026-11-01" } }; };
 const CASA_REAL_TUDO = { modo: "REAL", acoes_reais: ["abastecimento.interpretar", "newsletter.resumo"], acoes_reais_casa: [] };
 
-test("DEMO: sem nenhuma chamada nem reserva, mesmo com a casa em REAL e a ação liberada no banco (o código ainda é DEMO)", async () => {
-  const b = bancoFalso(CASA_REAL_TUDO), pv = provedor(respostaIA(entradaIA().ids));
+test("DEMO enquanto o banco não liberar (o estado de hoje: casa em DEMO e listas vazias): nenhuma chamada nem reserva", async () => {
+  const b = bancoFalso({ modo: "DEMO", acoes_reais: [], acoes_reais_casa: [] }), pv = provedor(respostaIA(entradaIA().ids));
   const r = await atenderPedido("rayner", pedidoNL(), { banco: b, provedor: pv });
   assert.equal(r.status, 200); assert.equal(r.corpo.modo, "DEMO"); assert.equal(r.corpo.resultado._demo, true);
   assert.equal(pv.contagens + pv.chamadas, 0, "nenhuma chamada à Anthropic"); assert.deepEqual(b.log, [], "nada reservado");
@@ -356,8 +357,7 @@ test("DEMO: sem nenhuma chamada nem reserva, mesmo com a casa em REAL e a ação
   assert.equal(casa.corpo.erro.codigo, "sem_permissao");
 });
 
-test("REAL (simulado no teste, com a ação ligada só aqui): uma geração, reserva dentro do teto e a mesma edição nunca é paga duas vezes", async (t) => {
-  NL.real = true; t.after(() => { NL.real = false; });
+test("REAL (banco e Anthropic falsos): uma geração, reserva dentro do teto e a mesma edição nunca é paga duas vezes", async () => {
   const e = entradaIA(), b = bancoFalso(CASA_REAL_TUDO), pv = provedor(respostaIA(e.ids));
   const r1 = await atenderPedido("rayner", pedidoNL(), { banco: b, provedor: pv });
   assert.equal(r1.corpo.modo, "REAL", r1.corpo.mensagem); assert.equal(pv.chamadas, 1);
@@ -371,8 +371,7 @@ test("REAL (simulado no teste, com a ação ligada só aqui): uma geração, res
   assert.equal(r3.corpo.erro.codigo, "resposta_invalida"); assert.equal(r3.corpo.resultado, undefined); assert.match(r3.corpo.mensagem, /id desconhecido/);
 });
 
-test("controle de orçamento: com o teto esgotado a geração não acontece (só a contagem gratuita)", async (t) => {
-  NL.real = true; t.after(() => { NL.real = false; });
+test("controle de orçamento: com o teto esgotado a geração não acontece (só a contagem gratuita)", async () => {
   const b = bancoFalso(CASA_REAL_TUDO, 0.0001), pv = provedor(respostaIA(entradaIA().ids));
   const r = await atenderPedido("rayner", pedidoNL(), { banco: b, provedor: pv });
   assert.equal(r.corpo.erro.codigo, "orcamento_esgotado"); assert.equal(pv.chamadas, 0);
@@ -382,26 +381,39 @@ test("controle de orçamento: com o teto esgotado a geração não acontece (só
   assert.equal(r2.corpo.modo, "DEMO"); assert.equal(pv3.chamadas + pv3.contagens, 0);
 });
 
-test("sem chamadas pagas: a ação está em DEMO no código, nada liga sozinho e o site nunca repete uma geração sozinho", () => {
-  assert.equal(ACOES["newsletter.resumo"].real, false);
-  assert.equal(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).join(), "abastecimento.interpretar");
+test("só a Newsletter ganha o REAL automático: o Mercado continua DEMO fixo, a rotina só pede newsletter.resumo e o site nunca repete sozinho", async () => {
+  assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "newsletter.resumo"]);
+  assert.equal(ACOES["mercado.nota"].real, false);
+  /* o abastecimento só é REAL se o banco liberar, e a liberação desta fase é só da Newsletter */
+  const soNl = bancoFalso({ modo: "REAL", acoes_reais: ["newsletter.resumo"], acoes_reais_casa: [] }), pa = provedor({});
+  const ab = await atenderPedido("rayner", { versao: 1, modulo: "abastecimento", acao: "abastecimento.interpretar", idempotencia: "teste-abast-1", entrada: { texto: "6 litros" }, contexto: {} }, { banco: soNl, provedor: pa });
+  assert.equal(ab.corpo.modo, "DEMO"); assert.equal(pa.chamadas + pa.contagens, 0, "nenhuma chamada paga de outra ação");
+  assert.deepEqual(ACOES_ROTINA, ["newsletter.resumo"]);
   const nl = ler("js/newsletter.js");
   assert.equal((nl.match(/racIA\(/g) || []).length, 1, "uma só chamada, no botão");
   assert.match(nl, /confirm\("Isto faz uma NOVA chamada paga/, "repetir é um toque a mais, com confirmação");
   assert.match(nl, /if\(cc\)\{st\.textContent="Este resumo já foi feito/, "o resultado guardado no aparelho é mostrado sem chamar de novo");
   assert.ok(!/setInterval|setTimeout\([^)]*racIA/.test(nl.replace(/setTimeout\(aoSalvar,700\)|setTimeout\(function\(\)\{F\.q=q\.value;lim=30;rodar\(\)\},180\)/g, "")), "nada agendado chama a IA");
-  for (const f of fs.readdirSync(path.join(raiz, "supabase/functions/rac-newsletter"))) assert.ok(!/anthropic|rac-ia|racIA/i.test(ler("supabase/functions/rac-newsletter/" + f)), f + " não fala com a IA");
+  for (const f of fs.readdirSync(path.join(raiz, "supabase/functions/rac-newsletter"))) assert.ok(!/ANTHROPIC_API_KEY|npm:@anthropic|api\.anthropic\.com|new Anthropic/i.test(ler("supabase/functions/rac-newsletter/" + f)), f + " não fala com a Anthropic (só pela rac-ia)");
+  const rot = ler("supabase/functions/rac-newsletter/rotina.ts");
+  assert.equal((rot.match(/x\.resumirIA\(/g) || []).length, 1, "um só pedido por edição, sem laço de repetição");
+  assert.equal((ler("supabase/functions/rac-newsletter/index.ts").match(/functions\/v1\/rac-ia/g) || []).length, 1);
   assert.ok(!/anthropic/i.test(ler("scripts/atualizar_newsletter.py")) || /anthropic\|/.test(ler("scripts/atualizar_newsletter.py")), "o coletor não chama a IA (só tem a palavra na lista de assuntos)");
   assert.ok(!/urllib\.request\.urlopen\([^)]*anthropic/i.test(ler("scripts/atualizar_newsletter.py")));
 });
 
 /* ---------- rotina do servidor: avisos sem repetição ---------- */
 function depsFalsas(agoraIso, extra = {}) {
-  const avisos = new Set(), pushes = [], edicoes = new Map();
-  const d = { ...dados(), edicao: { ...dados().edicao, data: R.dataBRT(Date.parse(agoraIso)) } };
-  const x = { pushes, edicoes, avisos,
+  const avisos = new Set(), pushes = [], edicoes = new Map(), pedidos = [], salvasIA = [], tentadas = new Set();
+  /* a coleta do mesmo turno, 45 minutos antes da chamada */
+  const d = { ...dados(), coletado: new Date(Date.parse(agoraIso) - 45 * 60e3).toISOString(), edicao: { ...dados().edicao, data: R.dataBRT(Date.parse(agoraIso)) } };
+  const x = { pushes, edicoes, avisos, pedidos, salvasIA, tentadas,
     agora: () => Date.parse(agoraIso), dados: async () => d, donos: async () => ["rayner"], config: async () => extra.cfg ?? null,
-    async salvarEdicao(dono, c) { const k = dono + c.data; if (edicoes.has(k)) return "existia"; edicoes.set(k, c); return "nova"; },
+    async salvarEdicao(dono, c) { const k = dono + c.data + c.turno; if (edicoes.has(k)) return "existia"; edicoes.set(k, c); return "nova"; },
+    /* IA: por padrão, como em produção hoje (DEMO, sem linha em ia_uso) */
+    async jaTentou(_d, k) { return tentadas.has(k); }, async chamadasHoje() { return pedidos.filter((p) => p.real).length; },
+    async resumirIA(_d, p) { pedidos.push(p); return { ok: true, modo: "DEMO", resultado: { _demo: true } }; },
+    async salvarEdicaoIA(dono, c, ia) { salvasIA.push({ c, ia }); edicoes.set(dono + c.data + c.turno, c); },
     async registrarAviso(dono, chave) { const k = dono + "|" + chave; if (avisos.has(k)) return false; avisos.add(k); return true; },
     async anotarAviso() {}, async edicoesDaSemana() { return [...edicoes.values()].map((c) => ({ data: c.data, conteudo: c })); },
     async push(dono, m) { pushes.push(m); return "1 de 1 aparelhos"; }, ...extra.x };
@@ -435,7 +447,9 @@ test("avisos: respeitam quem desligou, não saem antes da edição do dia e o re
 });
 test("função rac-newsletter: só a rotina com a senha chama; lê as chaves VAPID sem criar; quem é da casa fica de fora", () => {
   const idx = ler("supabase/functions/rac-newsletter/index.ts");
-  assert.match(idx, /rpc\("rac_rotina_ok", \{ segredo: req\.headers\.get\("x-rac-rotina"\) \?\? "" \}\)/);
+  assert.match(idx, /const senha = req\.headers\.get\("x-rac-rotina"\) \?\? "";\n\s*const \{ data: autorizado \} = await adm\.rpc\("rac_rotina_ok", \{ segredo: senha \}\)/);
+  assert.match(idx, /"x-rac-rotina": senhaRotina/, "repassa à rac-ia a mesma senha que recebeu (nenhum segredo novo)");
+  assert.match(idx, /eq\("user_id", dono\)\.eq\("idempotencia", chave\)/, "confere em ia_uso se a edição já foi tentada");
   assert.match(idx, /if \(!autorizado\) return responder\(\{ ok: false, erro: "não autorizado" \}, 401\)/);
   assert.ok(!/insert\(\{ chave: "vapid"/.test(idx), "não cria chaves VAPID (seriam diferentes das inscrições)");
   assert.match(idx, /from\("membros"\)\.select\("membro"\)/); assert.match(idx, /filter\(\(u\) => !casa\.has\(u\)\)/);
@@ -460,7 +474,7 @@ test("SQL 018: edições e avisos com RLS, só o dono (a casa fica de fora), nad
   assert.match(s, /create policy "so o dono" on public\.newsletter_edicoes for all to authenticated\s+using \(dono = auth\.uid\(\) and not exists \(select 1 from public\.membros m where m\.membro = auth\.uid\(\)\)\)\s+with check \(dono = auth\.uid\(\) and not exists/);
   assert.match(s, /create policy "dono le os seus" on public\.newsletter_avisos for select to authenticated using \(dono = auth\.uid\(\)\)/);
   assert.ok(!/grant[^;]*(insert|update|delete)[^;]*newsletter_avisos[^;]*authenticated/.test(s), "o site não grava avisos");
-  assert.ok(!/to anon/.test(s)); assert.match(s, /unique \(dono, data\)/); assert.match(s, /primary key \(dono, chave\)/);
+  assert.ok(!/to anon/.test(s)); assert.match(s, /unique \(dono, data, turno\)/); assert.match(s, /turno\s+text not null check \(turno in \('manha', 'tarde', 'noite'\)\)/); assert.match(s, /primary key \(dono, chave\)/);
   assert.match(s, /drop policy if exists "so o dono" on public\.newsletter_edicoes/); assert.match(s, /drop trigger if exists/);
   assert.ok(!/ia_config|acoes_reais|garmin|cron\.|vault/.test(s), "não mexe em IA, garmin, agendamento nem segredos");
 });
@@ -475,16 +489,20 @@ test("SQL 018: edição com IA só com chamada REAL concluída da mesma chave; I
   assert.match(s, /origem = 'regras' and modelo is null and ia_uso_id is null\) or \(origem = 'ia' and modelo is not null and chave is not null/);
   assert.match(s, /pg_column_size\(conteudo\) <= 300000/);
 });
-test("SQL 019: agenda a rac-newsletter com a senha da rotina que já existe (nenhum segredo novo); três tentativas", () => {
+test("SQL 019: agenda a rac-newsletter depois das coletas das 6h, 12h e 18h, com a senha da rotina que já existe (nenhum segredo novo)", () => {
   const s = semComent(ler("supabase/019_newsletter_avisos.sql"));
   assert.match(ler("supabase/019_newsletter_avisos.sql"), /^-- status: pendente/);
-  assert.match(s, /cron\.unschedule\('rac-newsletter'\) where exists/); assert.match(s, /cron\.schedule\('rac-newsletter', '45 9,11,13 \* \* \*'/);
+  assert.match(s, /cron\.unschedule\('rac-newsletter'\) where exists/); assert.match(s, /cron\.schedule\('rac-newsletter', '45 9,10,11,15,16,21,22 \* \* \*'/);
   assert.match(s, /functions\/v1\/rac-newsletter/); assert.match(s, /name = 'rac_rotina'/);
   assert.ok(!/create_secret|vault\.create|garmin|rac-ia/.test(s));
 });
-test("SQL 020 (preparado, não rodar agora): só permite a Newsletter em REAL no futuro; não liga nada, Mercado continua proibido", () => {
+test("SQL 020: só permite a Newsletter em REAL; não liga nada, não acrescenta outra ação, Mercado continua proibido", () => {
   const bruto = ler("supabase/020_newsletter_real.sql"), s = semComent(bruto);
-  assert.match(bruto, /^-- status: pendente/); assert.match(bruto, /Não rode agora/);
+  assert.match(bruto, /Autorizado pelo dono em 31\/10\/2026/);
+  assert.ok(!/^-- status: pendente/.test(bruto), "aplicado e conferido no banco em 31/10/2026 (listas continuaram vazias, modo DEMO)");
+  /* a lista aceita é a do 016 mais newsletter.resumo, e nada além */
+  const antes = /array\[([^\]]*)\]::text\[\]/.exec(semComent(ler("supabase/016_ia_acoes.sql")))[1], depois = /array\[([^\]]*)\]::text\[\]/.exec(s)[1];
+  assert.deepEqual(depois.split(",").map((x) => x.trim()), [...antes.split(",").map((x) => x.trim()), "'newsletter.resumo'"]);
   assert.match(s, /check \(acoes_reais <@ array\['abastecimento\.interpretar', 'newsletter\.resumo'\]::text\[\]\)/);
   assert.ok(!/mercado/.test(s), "o Mercado continua fora da lista");
   assert.match(s, /check \(not \('newsletter\.resumo' = any \(acoes_reais_casa\)\)\)/, "nunca para quem é da casa");
@@ -525,4 +543,122 @@ test("robô: o workflow de notícias coleta a Newsletter às 6h, 12h e 18h, sem 
   assert.ok(!/firecrawl|BeautifulSoup|selenium|playwright/i.test(py), "sem raspagem");
   assert.ok(!/news\.google\.com\/rss/.test(py), "nenhuma fonte do Google Notícias");
   assert.ok((py.match(/^    \("[\w-]+", "/gm) || []).length >= 40, "fontes brasileiras e internacionais");
+});
+
+/* ---------- resumo automático (6h, 12h e 18h): rac-newsletter → rac-ia, sem nenhuma chamada paga de verdade ---------- */
+const BASE_TURNO = (c) => R.edicaoBase({ ...dados(), coletado: c }, null);
+test("turnos: manhã, tarde e noite pelo horário de Brasília, iguais no servidor e no site; uma edição por turno", () => {
+  for (const [iso, t] of [["2026-11-01T09:15:00Z", "manha"], ["2026-11-01T14:59:00Z", "manha"], ["2026-11-01T15:15:00Z", "tarde"], ["2026-11-01T21:15:00Z", "noite"], ["2026-11-02T02:30:00Z", "noite"]]) {
+    assert.equal(R.turnoBRT(Date.parse(iso)), t, iso); assert.equal(N.nlTurno(Date.parse(iso)), t, iso);
+  }
+  assert.equal(BASE_TURNO("2026-11-01T15:20:00Z").turno, "tarde");
+  assert.equal(N.nlEdicao({ ...dados(), coletado: "2026-11-01T21:20:00Z" }, {}, AGORA_MS).turno, "noite");
+  assert.equal(N.nlConteudoOk({ ...edicao(), turno: "madrugada" }), "turno inválido");
+});
+test("servidor e site montam a MESMA entrada da IA e aplicam a resposta do mesmo jeito (mesma chave, mesmos links)", () => {
+  const cS = R.edicaoBase(dados(), null), cJ = edicao();
+  assert.deepEqual(cS.destaques.map((g) => g.id), cJ.destaques.map((g) => g.id));
+  const eS = R.entradaIA(cS), eJ = N.nlEntradaIA(cJ);
+  assert.equal(eS.texto, eJ.texto); assert.deepEqual(eS.ids, eJ.ids);
+  assert.equal(R.chave(cS.data, eS.ids), N.nlChaveIA(cJ.data, eJ.ids));
+  const res = respostaIA(eS.ids), aS = R.aplicarIA(cS, res, eS.ids), aJ = N.nlAplicarIA(cJ, res, eJ.ids);
+  assert.ok(aS.ok && aJ.ok);
+  assert.deepEqual(aS.conteudo.destaques.map((g) => [g.id, g.u, g.f, g.resumo_ia, g.titulo_pt]), aJ.conteudo.destaques.map((g) => [g.id, g.u, g.f, g.resumo_ia, g.titulo_pt]));
+  assert.equal(N.nlConteudoOk(aS.conteudo), ""); assert.equal(aS.conteudo.origem, "ia");
+  assert.equal(R.aplicarIA(cS, respostaIA(["g9999999999"]), eS.ids).ok, false, "id de fora é recusado também no servidor");
+});
+test("rac-ia, porta da rotina: só newsletter.resumo, em nome de um dono (uuid); o resto do caminho é o mesmo do site", () => {
+  const dono = "0f1e2d3c-4b5a-4968-8776-655443322110", pedido = pedidoNL();
+  assert.deepEqual(pedidoDaRotina({ dono, pedido }), { ok: true, dono, pedido });
+  assert.equal(pedidoDaRotina({ dono, pedido: { ...pedido, acao: "abastecimento.interpretar" } }).codigo, "sem_permissao");
+  assert.equal(pedidoDaRotina({ dono, pedido: { ...pedido, acao: "mercado.nota" } }).codigo, "sem_permissao");
+  assert.equal(pedidoDaRotina({ dono: "rayner", pedido }).codigo, "entrada_invalida");
+  assert.equal(pedidoDaRotina([]).codigo, "entrada_invalida"); assert.equal(pedidoDaRotina({ dono }).codigo, "entrada_invalida");
+  const idx = ler("supabase/functions/rac-ia/index.ts");
+  assert.match(idx, /const senhaRotina = req\.headers\.get\("x-rac-rotina"\);\n\s*if \(senhaRotina !== null\) \{\n\s*const \{ data: ok \} = await admin\.rpc\("rac_rotina_ok", \{ segredo: senhaRotina \}\);\n\s*if \(ok !== true\) return json\(respostaErro\("nao_autenticado", \{\}\)\);/);
+  assert.match(idx, /const p = pedidoDaRotina\(c\.corpo\);/); assert.match(idx, /atenderPedido\(userId, corpo,/);
+  assert.match(idx, /publico\.auth\.getUser\(jwt\)/, "o site continua entrando só pelo login");
+  assert.ok(!/maxRetries: [1-9]/.test(idx), "sem repetição automática do SDK");
+});
+
+/* a rotina chamando a rac-ia de verdade (atenderPedido), com banco e Anthropic falsos */
+function rotinaComIA(agoraIso, cfgBanco, opcoes = {}) {
+  const b = bancoFalso(cfgBanco, opcoes.teto), pv = provedor(opcoes.resposta ?? null), x = depsFalsas(agoraIso, { cfg: opcoes.cfgDono });
+  if (!opcoes.resposta) pv.gerar = async (_p) => { pv.chamadas++; const ids = [...(_p.conteudo.at(-1).text.matchAll(/<grupo id="(g[0-9a-f]{10})"/g))].map((m) => m[1]);
+    return { tipo: "ok", texto: JSON.stringify(respostaIA(ids)), uso: { entrada: 3300, saida: 900 }, modelo: "claude-haiku-5-5" }; };
+  x.resumirIA = async (_dono, pedido) => { x.pedidos.push(pedido); const r = await atenderPedido("rayner", pedido, { banco: b, provedor: pv }); return r.corpo; };
+  x.jaTentou = async (_d, k) => b.linhas.some((l) => l.idem === k);
+  x.chamadasHoje = async () => b.linhas.length;
+  return { x, b, pv };
+}
+const LIBERADA = { modo: "REAL", acoes_reais: ["newsletter.resumo"], acoes_reais_casa: [] };
+test("automático: com a Newsletter liberada, cada turno gera UM resumo, salvo no histórico como edição \"ia\", sem ninguém abrir o site", async () => {
+  const { x, b, pv } = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA);
+  const r1 = await R.rodarRotina(x), r2 = await R.rodarRotina(x), r3 = await R.rodarRotina(x); // as três tentativas da manhã
+  assert.equal(pv.chamadas, 1, "uma geração paga"); assert.equal(b.linhas.length, 1); assert.equal(b.linhas[0].estado, "concluido");
+  assert.equal(r1.donos[0].ia, "resumo salvo"); assert.match(r2.donos[0].ia, /já foi resumida ou tentada/); assert.match(r3.donos[0].ia, /não repete/);
+  assert.equal(x.salvasIA.length, 1);
+  const s = x.salvasIA[0];
+  assert.equal(s.c.origem, "ia"); assert.equal(s.c.turno, "manha"); assert.equal(N.nlConteudoOk(s.c), "");
+  assert.equal(s.ia.ia_uso_id, b.linhas[0].id, "a edição aponta para a chamada (o banco confere)"); assert.equal(s.ia.chave, b.linhas[0].idem); assert.equal(s.ia.modelo, "claude-haiku-5-5");
+  assert.match(s.ia.chave, /^nl-2026-11-02-[0-9a-f]{8}$/);
+  assert.match(x.pushes[0].titulo, /\(com resumo\)$/); assert.equal(x.pushes[0].corpo, "Resumo de teste.", "o aviso traz o resumo do dia");
+  /* à tarde, a nova coleta é outra edição: outro resumo, e o aviso do dia não se repete */
+  const t = rotinaComIA("2026-11-02T15:45:00Z", LIBERADA); t.b.linhas.push(...b.linhas); t.x.avisos.add("rayner|dia:2026-11-02");
+  t.x.dados = async () => ({ ...dados(), grupos: dados().grupos.slice(1), coletado: "2026-11-02T15:20:00Z", edicao: { ...dados().edicao, data: "2026-11-02" } });
+  const rt = await R.rodarRotina(t.x);
+  assert.equal(rt.turno, "tarde"); assert.equal(t.pv.chamadas, 1); assert.equal(t.x.salvasIA[0].c.turno, "tarde"); assert.equal(t.x.pushes.length, 0);
+});
+test("automático: erro pago não se repete; DEMO, falta de saldo ou orçamento esgotado deixam a edição sem IA (e o site segue oferecendo a DEMO)", async () => {
+  /* resposta inválida (com id de fora): a chamada aconteceu, nada é salvo e as próximas tentativas não pedem de novo */
+  const inv = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA, { resposta: { resumo_dia: "x", destaques: [{ id: "g9999999999", titulo: "", resumo: "r", relevancia: "" }], categorias: [] } });
+  await R.rodarRotina(inv.x); await R.rodarRotina(inv.x); await R.rodarRotina(inv.x);
+  assert.equal(inv.pv.chamadas, 1); assert.equal(inv.x.salvasIA.length, 0); assert.equal(inv.x.pushes.length, 1, "o aviso sai com a edição sem IA");
+  assert.ok(!/com resumo/.test(inv.x.pushes[0].titulo));
+  /* sem liberação no banco (o estado de hoje): DEMO, nenhuma chamada, nada salvo como IA */
+  const demo = rotinaComIA("2026-11-02T09:45:00Z", { modo: "DEMO", acoes_reais: [], acoes_reais_casa: [] });
+  const rd = await R.rodarRotina(demo.x);
+  assert.equal(demo.pv.chamadas + demo.pv.contagens, 0); assert.equal(demo.x.salvasIA.length, 0); assert.match(rd.donos[0].ia, /^DEMO/); assert.equal(demo.x.edicoes.size, 1);
+  /* orçamento do mês esgotado (teto interno): nenhuma geração */
+  const esg = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA, { teto: 0.0001 });
+  const re = await R.rodarRotina(esg.x); assert.equal(esg.pv.chamadas, 0); assert.match(re.donos[0].ia, /orcamento_esgotado/);
+  /* sem saldo na Anthropic (a API recusa com 400): concluída sem custo, nada salvo, e não repete */
+  const saldo = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA); saldo.pv.gerar = async () => { saldo.pv.chamadas++; throw { tipo: "http", status: 400 }; };
+  await R.rodarRotina(saldo.x); await R.rodarRotina(saldo.x);
+  assert.equal(saldo.pv.chamadas, 1); assert.equal(saldo.x.salvasIA.length, 0); assert.equal(saldo.b.linhas[0].estado, "concluido");
+  /* a rac-ia fora do ar: a edição e o aviso continuam */
+  const fora = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA); fora.x.resumirIA = async () => { throw new Error("rede"); };
+  const rf = await R.rodarRotina(fora.x); assert.match(rf.donos[0].ia, /erro no resumo/); assert.equal(fora.x.pushes.length, 1); assert.equal(fora.x.edicoes.size, 1);
+});
+test("automático: limite de 3 por dia, o dono pode desligar, e a coleta atrasada espera a próxima tentativa", async () => {
+  const lim = rotinaComIA("2026-11-02T21:45:00Z", LIBERADA); lim.x.chamadasHoje = async () => 3;
+  const rl = await R.rodarRotina(lim.x); assert.equal(lim.pv.chamadas, 0); assert.match(rl.donos[0].ia, /limite de 3/);
+  const off = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA, { cfgDono: { resumo_ia: false } });
+  const ro = await R.rodarRotina(off.x); assert.equal(off.pv.chamadas, 0); assert.equal(ro.donos[0].ia, "resumo automático desligado");
+  /* às 12h45 a coleta das 12h ainda não chegou (o arquivo ainda é o da manhã): nada acontece até a próxima tentativa */
+  const atr = rotinaComIA("2026-11-02T15:45:00Z", LIBERADA); atr.x.dados = async () => ({ ...dados(), coletado: "2026-11-02T09:20:00Z", edicao: { ...dados().edicao, data: "2026-11-02" } });
+  const ra = await R.rodarRotina(atr.x); assert.match(ra.motivo, /deste turno ainda não saiu/); assert.equal(atr.pv.chamadas, 0); assert.equal(atr.x.edicoes.size, 0);
+  assert.equal(R.LIMITE_IA_DIA, 3);
+});
+test("custo real por edição e por módulo: painel do Sistema (filtro e edição de cada chamada) e Edições da Newsletter", () => {
+  assert.equal(N.iaModulo("newsletter"), "Newsletter"); assert.equal(N.nlDataDaChave("nl-2026-11-02-0a3fc419"), "2026-11-02"); assert.equal(N.nlDataDaChave("teste-1"), "");
+  const sis = ler("js/sistema.js");
+  assert.match(sis, /\["newsletter","Newsletter"\]/, "filtro por módulo no histórico de chamadas");
+  assert.match(sis, /HIST_COLS="id,criado_em,enviado_em,modulo,acao,idempotencia,/);
+  assert.match(sis, /"edição de "\+dataBR\(ed\)\.slice\(0,5\)\+" das "\+NUCLEO\.NL_TURNOS\[NUCLEO\.nlTurno\(Date\.parse\(u\.criado_em\)\)\]/);
+  assert.match(sis, /Newsletter "\+\(reais\.indexOf\("newsletter\.resumo"\)>=0\?"REAL \(resumo automático às 6h, 12h e 18h; só o dono\)":"DEMO"\)/);
+  const nl = ler("js/newsletter.js");
+  assert.match(nl, /SB\.from\("ia_uso"\)\.select\("id,estado,estimado_usd,reconciliado_cobrado,reconciliado_usd"\)\.in\("id",ids\)/, "o custo de cada edição vem de ia_uso");
+  assert.match(nl, /resumo_ia:ria\.checked/, "o dono pode desligar o resumo automático");
+  /* por módulo: ia_totais_mes (017) já soma por módulo; newsletter aparece com o rótulo certo */
+  assert.match(ler("supabase/017_ia_por_modulo.sql"), /group by u\.modulo/);
+});
+test("SQL 021: liga só a Newsletter (casa em REAL, lista só com newsletter.resumo, casa sem REAL); exige o 020; não mexe em limite nem preço", () => {
+  const bruto = ler("supabase/021_newsletter_ligar.sql"), s = semComent(bruto);
+  assert.match(bruto, /^-- status: pendente/); assert.match(s, /^\s*begin;/m); assert.match(s, /commit;\s*$/);
+  const up = /update public\.ia_config\s+set ([\s\S]*?);/.exec(s)[1];
+  assert.equal(up.replace(/\s+/g, " ").trim(), "modo = 'REAL', acoes_reais = array['newsletter.resumo']::text[], acoes_reais_casa = '{}'::text[], atualizado_em = now()");
+  assert.ok(!/abastecimento|mercado|limite_brl|cambio|margem|fator_correcao|ia_precos|insert|delete|drop|grant|policy/i.test(s), "nada além da Newsletter");
+  assert.match(s, /conname = 'ia_config_newsletter_so_dono'/, "só depois do 020"); assert.match(s, /count\(\*\) from public\.ia_config\) <> 1/);
+  assert.equal((s.match(/\bupdate\b/gi) || []).length, 1);
 });

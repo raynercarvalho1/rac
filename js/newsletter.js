@@ -1,8 +1,9 @@
 /* Dia a Dia RAC — módulo carregado quando a seção abre. Newsletter: a edição do dia (newsletter.json, coletado pelo robô),
    busca e filtros, guardadas, edições anteriores (newsletter_edicoes), resumo da semana, ajustes e o resumo com IA
    (RAC Intelligence, ação newsletter.resumo). Usa as funções do núcleo (js/app.js e nucleo.js), que ficam no escopo global.
-   Regras da IA: a resposta DEMO só aparece numa prévia sem botão de salvar; a REAL vai para a prévia com "Salvar edição",
-   e só esse toque grava. Links, veículos e datas vêm sempre do coletor, nunca da IA (docs/newsletter.md). */
+   Regras da IA: o resumo automático (6h, 12h e 18h) é feito no servidor (rac-newsletter → rac-ia) e já chega salvo no
+   histórico; aqui, a resposta DEMO só aparece numa prévia sem botão de salvar e a REAL vai para a prévia com "Salvar
+   edição", e só esse toque grava. Links, veículos e datas vêm sempre do coletor, nunca da IA (docs/newsletter.md). */
   var NLS={dados:null,quando:0};
   var NL_IA_CACHE="rac-nl-ia",NL_IA_TENT="rac-nl-ia-tent",NL_HIST_CACHE="rac-nl-hist";
   function nlLer(k,padrao){try{var v=JSON.parse(localStorage.getItem(k)||"null");return v==null?padrao:v}catch(e){return padrao}}
@@ -14,6 +15,8 @@
       if(!d||!Array.isArray(d.grupos))throw new Error("newsletter.json sem grupos");NLS.dados=d;NLS.quando=Date.now();return d})}
   function nlQuando(iso){var d=new Date(iso);return isNaN(d)?"":d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"}).replace(","," ·")}
   function nlDataLonga(data){return new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
+  function nlTurnoTxt(t){return NUCLEO.NL_TURNOS[t]?"edição das "+NUCLEO.NL_TURNOS[t]:""}
+  var NL_ORDEM_TURNO={manha:0,tarde:1,noite:2};
   function nlEdicaoAtual(){return NUCLEO.nlEdicao(NLS.dados,PESSOAL.newsletter,Date.now())}
 
   /* ----- peças da tela ----- */
@@ -67,7 +70,7 @@
   /* ----- Hoje: resumo do dia, destaques e seções por categoria ----- */
   function nlHojeView(corpo){
     var c=nlEdicaoAtual(),d=NLS.dados,horas=(Date.now()-Date.parse(d.coletado))/36e5;
-    var cab=panel("Newsletter · "+nlDataLonga(c.data));
+    var cab=panel("Newsletter · "+nlDataLonga(c.data)+" · "+NUCLEO.NL_TURNOS[c.turno]);
     cab.appendChild(h("p",{class:"sub nlatual",text:"Atualizada em "+nlQuando(d.coletado)+" · "+c.fontes.ok+" de "+c.fontes.total+" fontes"+(navigator.onLine===false?" · sem internet: esta é a edição guardada neste aparelho":"")}));
     if(horas>26)cab.appendChild(h("p",{class:"nlaviso",role:"status",text:"⚠ A coleta está atrasada: a última foi há "+Math.round(horas)+" horas."}));
     if(c.fontes.falhas.length){var df=h("details",{class:"nlfontes"},h("summary",{text:c.fontes.falhas.length+(c.fontes.falhas.length===1?" fonte fora do ar":" fontes fora do ar")+" na última coleta"}));
@@ -76,7 +79,7 @@
     var area=h("div",{class:"stack"});corpo.appendChild(area);
     function desenhar(ed,salva){area.innerHTML="";
       var pr=panel(ed.origem==="ia"?"Resumo do dia (com IA)":"Resumo do dia");
-      if(salva)pr.appendChild(h("p",{class:"sub",text:"Edição com resumo da IA salva em "+nlQuando(salva.atualizado_em)+(salva.modelo?" ("+salva.modelo+")":"")+". Links e veículos vêm do coletor."}));
+      if(salva)pr.appendChild(h("p",{class:"sub",text:"Resumo da IA desta edição, salvo em "+nlQuando(salva.atualizado_em)+(salva.modelo?" ("+salva.modelo+")":"")+". Links, veículos e horários vêm do coletor."}));
       pr.appendChild(h("p",{class:"nlresumo",text:ed.resumo_dia}));
       if(salva){var vv=h("button",{type:"button",class:"ghostbtn",text:"Ver a edição atualizada, sem IA"});vv.onclick=function(){desenhar(c,null)};pr.appendChild(h("div",{class:"nlacts"},vv))}
       /* depois de salvar, redesenha só se a pessoa ainda estiver em "Hoje" (não troca a aba que ela abriu nesse meio-tempo) */
@@ -91,16 +94,16 @@
         k.grupos.forEach(function(g){det.appendChild(nlCartao(g,{curto:true}))});area.appendChild(det)})}
     desenhar(c,null);
     if(!isOwner()||!SB)return;
-    nlEdicaoSalva(c.data).then(function(row){
+    nlEdicaoSalva(c.data,c.turno).then(function(row){
       if(row&&row.origem==="ia"&&!NUCLEO.nlConteudoOk(row.conteudo))desenhar(row.conteudo,row);
       nlSincronizarHoje(c,row)}).catch(function(){})}
-  function nlEdicaoSalva(data){return SB.from("newsletter_edicoes").select("data,origem,modelo,conteudo,chave,atualizado_em").eq("data",data).maybeSingle().then(function(r){if(r.error)throw r.error;return r.data})}
-  /* a edição de regras do dia vai para o histórico (com os pesos do dono); uma edição com IA nunca é trocada por ela */
+  function nlEdicaoSalva(data,turno){return SB.from("newsletter_edicoes").select("data,turno,origem,modelo,conteudo,chave,atualizado_em").eq("data",data).eq("turno",turno).maybeSingle().then(function(r){if(r.error)throw r.error;return r.data})}
+  /* a edição de regras do turno vai para o histórico (com os pesos do dono); uma edição com IA nunca é trocada por ela */
   function nlSincronizarHoje(c,row){
     if(!isOwner()||!SB||!EU||!c.destaques.length)return;
     if(row&&(row.origem==="ia"||(row.conteudo&&row.conteudo.chave===c.chave)))return;
-    var q=row?SB.from("newsletter_edicoes").update({conteudo:c,chave:c.chave}).eq("data",c.data).eq("origem","regras")
-             :SB.from("newsletter_edicoes").insert({dono:EU.id,data:c.data,conteudo:c,origem:"regras",chave:c.chave});
+    var q=row?SB.from("newsletter_edicoes").update({conteudo:c,chave:c.chave}).eq("data",c.data).eq("turno",c.turno).eq("origem","regras")
+             :SB.from("newsletter_edicoes").insert({dono:EU.id,data:c.data,turno:c.turno,conteudo:c,origem:"regras",chave:c.chave});
     q.then(function(r){if(r&&r.error&&!/PGRST205|42P01|23505/.test(String(r.error.code)))logErro("newsletter",new Error(r.error.message))},function(){})}
 
   /* ----- Resumo com IA (RAC Intelligence): uma chave por edição; a mesma edição nunca é paga duas vezes ----- */
@@ -113,7 +116,7 @@
       if(!ap.ok){st.textContent="A resposta não pôde ser usada ("+ap.motivo+"). Nada foi salvo.";return}
       prev.appendChild(nlPreviaIA(ap.conteudo,demo,demo?null:function(btn,msg){
         btn.disabled=true;msg.textContent="Salvando…";
-        SB.from("newsletter_edicoes").upsert({dono:EU.id,data:c.data,conteudo:ap.conteudo,origem:"ia",modelo:guardado.modelo||"claude",ia_uso_id:guardado.id,chave:guardado.chave},{onConflict:"dono,data"})
+        SB.from("newsletter_edicoes").upsert({dono:EU.id,data:c.data,turno:c.turno,conteudo:ap.conteudo,origem:"ia",modelo:guardado.modelo||"claude",ia_uso_id:guardado.id,chave:guardado.chave},{onConflict:"dono,data,turno"})
           .then(function(r){if(r.error)throw new Error(r.error.message);msg.textContent="✓ Edição salva no histórico.";setTimeout(aoSalvar,700)})
           .catch(function(er){btn.disabled=false;msg.textContent="Não salvou: "+er.message+". O resumo continua guardado neste aparelho; tente de novo.";logErro("newsletter",er)})},
         function(){prev.innerHTML="";st.textContent="Resumo descartado. Ele continua guardado neste aparelho: tocar de novo mostra o mesmo, sem nova cobrança."}))}
@@ -140,7 +143,7 @@
           de.onclick=function(){if(!confirm("Isto faz uma NOVA chamada paga à IA para a mesma edição. Continuar?"))return;var t=nlLer(NL_IA_TENT,{});t[base]=(t[base]||0)+1;nlGuardarLocal(NL_IA_TENT,t);b.click()};
           mais.appendChild(de)}
       }).catch(function(er){b.disabled=false;st.textContent="Não consegui resumir: "+er.message;logErro("rac-ia",er)})};
-    return h("div",{class:"iabox"},h("p",{class:"sub",text:"Resumo com IA (RAC Intelligence): o Claude escreve o resumo do dia, os destaques e uma síntese por categoria, só com o que as fontes publicaram. O modo é decidido pelo servidor: DEMONSTRAÇÃO é simulada, não custa nada e não pode ser salva; REAL usa o orçamento de IA da casa (o custo aparece no painel do Sistema) e você confere antes de salvar."}),
+    return h("div",{class:"iabox"},h("p",{class:"sub",text:"Resumo com IA (RAC Intelligence): o Claude escreve o resumo do dia, os destaques e uma síntese por categoria, só com o que as fontes publicaram. Com a IA liberada, o servidor faz isso sozinho depois das coletas das 6h, 12h e 18h e a edição já aparece aqui com o resumo. Este botão é para pedir na hora: o modo é decidido pelo servidor; DEMONSTRAÇÃO é simulada, não custa nada e não pode ser salva; REAL usa o orçamento de IA da casa (o custo aparece no painel do Sistema e em Edições) e você confere antes de salvar. A mesma edição nunca é paga duas vezes."}),
       h("div",{class:"vfil"},b),st,mais,prev)}
   function nlPreviaIA(c,demo,salvar,descartar){
     var box=h("div",{class:demo?"iaprevia nlprevia":"nlprevia",role:"region","aria-label":"Prévia do resumo"});
@@ -191,27 +194,36 @@
   /* ----- Edições anteriores (newsletter_edicoes; sem internet, as últimas 14 guardadas neste aparelho) ----- */
   function nlHistorico(){
     if(!SB||!isOwner())return Promise.reject(new Error("só o dono vê o histórico"));
-    return SB.from("newsletter_edicoes").select("data,origem,modelo,atualizado_em,conteudo").order("data",{ascending:false}).limit(60).then(function(r){
+    return SB.from("newsletter_edicoes").select("data,turno,origem,modelo,ia_uso_id,atualizado_em,conteudo").order("data",{ascending:false}).limit(90).then(function(r){
       if(r.error){var er=new Error(r.error.message);er.code=r.error.code;throw er}
-      var l=(r.data||[]).filter(function(x){return !NUCLEO.nlConteudoOk(x.conteudo)});nlGuardarLocal(NL_HIST_CACHE,l.slice(0,14));return {l:l,offline:false}})
+      var l=(r.data||[]).filter(function(x){return !NUCLEO.nlConteudoOk(x.conteudo)}).sort(function(a,b){return a.data<b.data?1:a.data>b.data?-1:(NL_ORDEM_TURNO[b.turno]||0)-(NL_ORDEM_TURNO[a.turno]||0)});
+      /* custo real de cada edição com IA: a chamada em ia_uso (estimado pelo RAC ou o valor conferido) */
+      var ids=l.map(function(x){return x.ia_uso_id}).filter(Boolean);
+      return (ids.length?SB.from("ia_uso").select("id,estado,estimado_usd,reconciliado_cobrado,reconciliado_usd").in("id",ids).then(function(u){var m={};((u&&u.data)||[]).forEach(function(x){m[x.id]=x});return m},function(){return {}}):Promise.resolve({})).then(function(m){
+        l.forEach(function(x){var u=m[x.ia_uso_id];if(u)x.custo=u.estado==="reconciliado"?(u.reconciliado_cobrado?+u.reconciliado_usd||0:0):+u.estimado_usd||0});
+        nlGuardarLocal(NL_HIST_CACHE,l.slice(0,21));return {l:l,offline:false}})})
       .catch(function(e){var c=nlLer(NL_HIST_CACHE,null);if(c&&!/PGRST205|42P01/.test(String(e.code)))return {l:c,offline:true};throw e})}
   function nlHistFalha(corpo,e){corpo.innerHTML="";var p=panel("Edições anteriores");
     p.appendChild(h("p",{class:"empty",text:/PGRST205|42P01/.test(String(e.code))||/newsletter_edicoes/.test(e.message)?"O histórico começa a ser guardado quando o SQL 018 for rodado no Supabase.":"Não consegui abrir o histórico agora ("+e.message+")."}));
     corpo.appendChild(p)}
   function nlHistoricoView(corpo,data){
     nlHistorico().then(function(r){corpo.innerHTML="";
-      if(data){var e=r.l.filter(function(x){return x.data===data})[0];if(!e){corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Essa edição não está guardada."}),h("a",{class:"ghostbtn",href:"#newsletter/historico",text:"Ver todas"})));return}
-        var c=e.conteudo,p=panel("Edição de "+nlDataLonga(c.data),(c.origem==="ia"?"Com resumo da IA"+(e.modelo?" ("+e.modelo+")":""):"Montada pelas regras")+" · coletada em "+nlQuando(c.coletado));
+      if(data){var pd=data.split("/"),e=r.l.filter(function(x){return x.data===pd[0]&&(!pd[1]||x.turno===pd[1])})[0];if(!e){corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Essa edição não está guardada."}),h("a",{class:"ghostbtn",href:"#newsletter/historico",text:"Ver todas"})));return}
+        var c=e.conteudo,p=panel("Edição de "+nlDataLonga(c.data)+(e.turno?" · "+NUCLEO.NL_TURNOS[e.turno]:""),(c.origem==="ia"?"Com resumo da IA"+(e.modelo?" ("+e.modelo+")":"")+(e.custo!=null?" · custo "+nlUsd(e.custo):""):"Montada pelas regras")+" · coletada em "+nlQuando(c.coletado));
         p.appendChild(h("p",{class:"nlresumo",text:c.resumo_dia}));p.appendChild(h("a",{class:"ghostbtn",href:"#newsletter/historico",text:"← Todas as edições"}));corpo.appendChild(p);
         var pd=panel("Destaques");c.destaques.forEach(function(g){pd.appendChild(nlCartao(g))});corpo.appendChild(pd);
         c.categorias.forEach(function(k){var cat=NUCLEO.nlCat(k.k),det=h("details",{class:"panel nlsec",style:"--cc:"+cat.cor},h("summary",null,h("span",{class:"nlsect",text:cat.n}),h("span",{class:"sub",text:k.grupos.length+" notícias"})));
           if(k.sintese)det.appendChild(h("p",{class:"nlres nlsint",text:k.sintese}));k.grupos.forEach(function(g){det.appendChild(nlCartao(g,{curto:true}))});corpo.appendChild(det)});
         return}
-      var p=panel("Edições anteriores",r.offline?"Sem conexão com a conta: estas são as últimas edições guardadas neste aparelho.":"Uma edição por dia. A de regras é guardada sozinha; a com IA, só quando você salva o resumo.");
+      var p=panel("Edições anteriores",r.offline?"Sem conexão com a conta: estas são as últimas edições guardadas neste aparelho.":"Até três por dia (6h, 12h e 18h). Com a IA liberada, o resumo de cada edição é feito e salvo sozinho; o custo real de cada uma aparece ao lado.");
       if(!r.l.length)p.appendChild(h("p",{class:"empty",text:"Nenhuma edição guardada ainda. A de hoje entra no histórico quando você abre a Newsletter."}));
       p.appendChild(h("ul",{class:"wl"},r.l.map(function(e){var c=e.conteudo;
-        return h("li",null,h("span",{class:"grow"},h("a",{href:"#newsletter/historico/"+c.data,text:nlDataLonga(c.data)}),h("span",{class:"sub",text:c.destaques.length+" destaques"+(c.destaques[0]?" · "+c.destaques[0].t:"")})),h("span",{class:"vp"+(c.origem==="ia"?" hib":""),text:c.origem==="ia"?"✨ IA":"Regras"}))})));
+        return h("li",null,h("span",{class:"grow"},h("a",{href:"#newsletter/historico/"+c.data+(e.turno?"/"+e.turno:""),text:nlDataLonga(c.data)+(e.turno?" · "+NUCLEO.NL_TURNOS[e.turno]:"")}),h("span",{class:"sub",text:c.destaques.length+" destaques"+(c.destaques[0]?" · "+(c.destaques[0].titulo_pt||c.destaques[0].t):"")})),
+          h("span",{class:"vp"+(c.origem==="ia"?" hib":""),text:c.origem==="ia"?"✨ IA"+(e.custo!=null?" · "+nlUsd(e.custo):""):"Regras"}))})));
       corpo.appendChild(p)},function(e){nlHistFalha(corpo,e)})}
+
+  /* custo em dólar com até 4 casas (os resumos custam frações de centavo) */
+  function nlUsd(v){return "US$ "+(+v||0).toLocaleString("pt-BR",{minimumFractionDigits:4,maximumFractionDigits:4})}
 
   /* ----- Semana: as edições dos últimos 7 dias ----- */
   function nlSemanaView(corpo){
@@ -234,14 +246,16 @@
     var inter=h("textarea",{rows:"2",placeholder:"Ex.: Python, Power BI, Dodgers, Sorocaba","aria-label":"Assuntos de interesse"}),ocu=h("textarea",{rows:"2",placeholder:"Ex.: horóscopo, BBB","aria-label":"Palavras para esconder"});
     inter.value=cfg.interesse.join(", ");ocu.value=cfg.ocultar.join(", ");
     var av=h("input",{type:"checkbox",id:"nl-avisos"});av.checked=cfg.avisos;
+    var ria=h("input",{type:"checkbox",id:"nl-resumo-ia"});ria.checked=cfg.resumo_ia;
     var st=h("p",{class:"sub",role:"status"}),ok=h("button",{type:"button",class:"ghostbtn pri",text:"Salvar ajustes"});
     ok.onclick=function(){var pesos={};Object.keys(sels).forEach(function(k){pesos[k]=parseFloat(sels[k].value)});
-      var v=NUCLEO.nlConfig({pesos:pesos,interesse:inter.value,ocultar:ocu.value,avisos:av.checked});
+      var v=NUCLEO.nlConfig({pesos:pesos,interesse:inter.value,ocultar:ocu.value,avisos:av.checked,resumo_ia:ria.checked});
       st.textContent="Salvando…";pessoalGravar("newsletter",v,function(m){st.textContent=m||"✓ Ajustes salvos. A edição de hoje já usa os novos pesos."});NLS.dados&&(NLS.quando=0)};
     p.appendChild(h("div",{class:"wform"},
       h("label",{class:"sub",text:"Assuntos de interesse (sobem na edição; separe por vírgula)"}),inter,
       h("label",{class:"sub",text:"Palavras para esconder (a notícia sai da edição)"}),ocu,
       h("label",{class:"nlchk"},av," Avisar no celular quando a edição do dia sair (uma vez por dia, e o resumo da semana no domingo). Precisa das notificações ativas em Sistema → Notificações."),
+      h("label",{class:"nlchk"},ria," Resumo automático com IA às 6h, 12h e 18h (Claude Haiku, usa o orçamento de IA da casa; só funciona com a Newsletter liberada em REAL, senão fica a edição sem IA)."),
       ok,st));
     if(isOwner()&&SB){var ua=h("p",{class:"sub"});p.appendChild(ua);
       SB.from("newsletter_avisos").select("chave,enviado_em,resultado").order("enviado_em",{ascending:false}).limit(3).then(function(r){

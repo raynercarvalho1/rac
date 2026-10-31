@@ -203,7 +203,9 @@ const newsletterResumo: Acao = {
   modulo: "newsletter",
   modelo: "claude-haiku-5-5",
   papeis: ["dono"],
-  real: false, // começa em DEMO: o REAL exige nova publicação, o SQL 020 e a liberação do dono (docs/newsletter.md)
+  /* pode ser REAL (autorizado pelo dono em 31/10/2026): só vale se o banco liberar (020 + acoes_reais) e a casa estiver
+     em REAL; sem isso, DEMO. Sempre Haiku: a Newsletter nunca usa Sonnet (docs/newsletter.md) */
+  real: true,
   maxTokens: 4000,
   esforco: "low",
   imagensMax: 0,

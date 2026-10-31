@@ -225,7 +225,8 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     assert.deepEqual(cab.botoes.map((b) => b.texto), ["Voltar", "Início"], "o nome dos botões continua para leitores de tela");
     assert.ok(cab.largura <= 375);
     const grav = await pag.evaluate(() => window.__nl.gravacoes.filter((g) => g.nome === "newsletter_edicoes"));
-    assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do dia vai para o histórico");
+    assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do turno vai para o histórico");
+    assert.ok(["manha", "tarde", "noite"].includes(grav[0].v.turno) && grav[0].v.conteudo.turno === grav[0].v.turno, "com o turno da edição");
 
     /* Guardar e tirar (PESSOAL.salvos) */
     const guard = await pag.evaluate(() => {
@@ -262,7 +263,7 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
       return { tabela: g.nome, op: g.op, uso: g.v.ia_uso_id, chave: g.v.chave, chamada: ch[ch.length - 1].idempotencia, modelo: g.v.modelo, o: g.o, n: ch.length, links: g.v.conteudo.destaques.map((d) => d.u) }; });
     assert.equal(real.tabela, "newsletter_edicoes"); assert.equal(real.op, "upsert"); assert.equal(real.uso, "uso-teste-1");
     assert.equal(real.chave, real.chamada, "a chave salva é a da chamada (o banco confere em ia_uso)"); assert.equal(real.modelo, "claude-haiku-5-5");
-    assert.deepEqual(real.o, { onConflict: "dono,data" }); assert.ok(real.links.every((u) => /^https:\/\//.test(u)));
+    assert.deepEqual(real.o, { onConflict: "dono,data,turno" }); assert.ok(real.links.every((u) => /^https:\/\//.test(u)));
     await botaoIA();
     assert.equal(await pag.evaluate(() => window.__nl.chamadas.length), real.n, "a mesma edição não chama a IA de novo (resultado guardado no aparelho)");
 

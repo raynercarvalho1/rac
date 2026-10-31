@@ -2,7 +2,7 @@
 
 A edição diária do Dia a Dia RAC: notícias de fontes RSS oficiais, em oito categorias, sem repetidas, com os
 acontecimentos agrupados, uma ordem de relevância que o dono ajusta, busca, guardadas, histórico, resumo da semana,
-aviso no celular e, opcionalmente, um resumo em português feito pela RAC Intelligence (com conferência antes de salvar).
+aviso no celular e um resumo em português feito pela RAC Intelligence (Claude Haiku), automático às 6h, 12h e 18h.
 
 ## Estado (31/10/2026)
 
@@ -11,13 +11,14 @@ aviso no celular e, opcionalmente, um resumo em português feito pela RAC Intell
 | Coletor `scripts/atualizar_newsletter.py` + `noticias.yml` | Pronto, testado (local) | Publica junto com o site |
 | Página `#newsletter`, cartão no Início, busca do site, Sistema | Pronto, testado (local), versão `2026-10-31.4` | Push no `main` |
 | SQL `018_newsletter.sql` (edições e avisos) | **Pendente**: preparado, não executado | Dono, no SQL Editor, **antes** do site |
-| Função `rac-newsletter` (avisos) | **Pendente**: código pronto, não publicada | Dono, pela CLI |
-| SQL `019_newsletter_avisos.sql` (agendamento) | **Pendente**: rodar **depois** de publicar a função | Dono, no SQL Editor |
-| Ação `newsletter.resumo` na `rac-ia` | Pronta em **DEMO** (`real: false`); a `rac-ia` precisa ser republicada | Dono, pela CLI |
-| SQL `020_newsletter_real.sql` | **Preparado para o futuro. Não rodar agora** | Só com autorização do primeiro uso REAL |
+| Função `rac-newsletter` (edições, resumo automático e avisos) | **Pendente**: código pronto, não publicada | Pela CLI |
+| SQL `019_newsletter_avisos.sql` (agendamento dos turnos) | **Pendente**: rodar **depois** de publicar a função | SQL Editor |
+| Ação `newsletter.resumo` na `rac-ia` (+ porta da rotina) | Código pronto com `real: true` (só vale com o banco liberando); a `rac-ia` precisa ser republicada | Pela CLI |
+| SQL `020_newsletter_real.sql` | **Aplicado e conferido em 31/10/2026**: o banco aceita `newsletter.resumo` em `acoes_reais`; listas continuaram vazias, modo DEMO, 0 chamadas | Claude, pela CLI, com autorização do dono |
+| SQL `021_newsletter_ligar.sql` (casa em REAL, lista só com `newsletter.resumo`) | **Pendente**: rodar por último, depois do resto publicado | SQL Editor ou CLI |
 
-Nada disso liga o modo REAL, mexe nas listas `acoes_reais`/`acoes_reais_casa`, no Mercado, no orçamento, nos Secrets ou
-na função `garmin`.
+O abastecimento continua em DEMO (fora de `acoes_reais`), o Mercado continua DEMO fixo no código, e nada disto mexe no
+orçamento (teto interno de R$ 50 por mês), na recarga automática da Anthropic (desligada), nos Secrets ou na `garmin`.
 
 ## Como funciona
 
@@ -78,7 +79,8 @@ texto completo fica no site do veículo.
 
 - **Público (repositório):** `newsletter.json`, um grupo por linha (o histórico do git fica pequeno). Cerca de 100 KB.
 - **Conta do dono (Supabase):**
-  - `newsletter_edicoes` (018): uma edição por dono e por dia (`unique (dono, data)`), com um retrato compacto dos
+  - `newsletter_edicoes` (018): uma edição por dono, por dia e por turno (`manha` 6h, `tarde` 12h, `noite` 18h;
+    `unique (dono, data, turno)`), com um retrato compacto dos
     destaques e das seções (os links originais ficam junto, para o histórico continuar legível), `origem` (`regras` ou
     `ia`), `modelo`, `ia_uso_id`, `chave`, criação e atualização. RLS: só o dono (quem é da casa fica de fora), nada
     para anon. Um gatilho garante: edição `ia` só com uma chamada REAL **concluída** de `newsletter.resumo` desta casa e
@@ -101,14 +103,15 @@ os 4 primeiros destaques; a busca geral do site acha as notícias. Pensada para 
 direita, sem rolagem lateral). No celular, só nesta página, Voltar e Início ficam só com o ícone (o nome continua
 para leitores de tela) para o título "Newsletter" caber inteiro; as outras páginas mantêm o cabeçalho de sempre.
 
-Ao abrir a página, a edição de hoje (com os pesos do dono) entra no histórico como `regras`; ela é atualizada se a
-coleta mudar durante o dia. Uma edição salva com IA nunca é trocada por ela.
+Ao abrir a página, a edição do turno (com os pesos do dono) entra no histórico como `regras`, se a rotina ainda não
+tiver guardado. Uma edição salva com IA nunca é trocada por ela; quando há resumo da IA do turno, a página abre nele.
+Em Edições, cada edição com IA mostra o custo real da chamada (de `ia_uso`).
 
 ## Resumo com IA (`newsletter.resumo`)
 
 - Ação da `rac-ia` (`supabase/functions/rac-ia/acoes.ts`): Claude Haiku 5.5 (`claude-haiku-5-5`, o mesmo do
-  abastecimento; preço em `ia_precos`, conferido em 30/10/2026), só o dono, sem imagens, até 15.000 caracteres,
-  `maxTokens` 4.000, **`real: false`** (DEMO no código).
+  abastecimento; preço em `ia_precos`, conferido em 30/10/2026), **nunca Sonnet**, só o dono, sem imagens, até 15.000
+  caracteres, `maxTokens` 4.000, `real: true` no código: só é REAL quando o banco libera (020 + 021); sem isso, DEMO.
 - Entrada: até 30 grupos (os destaques e os 3 primeiros de cada seção), com id, categoria, tipo, número de veículos,
   título, trecho e nomes dos veículos. **Sem links**, e sem "<" ou ">" (não dá para fechar o bloco de dados).
 - Saída JSON obrigatória: `resumo_dia`, `destaques[{id, titulo, resumo, relevancia}]` (5 a 10),
@@ -124,6 +127,25 @@ coleta mudar durante o dia. Uma edição salva com IA nunca é trocada por ela.
   resumo, "Gerar de novo (nova chamada paga)" pede confirmação e usa outra chave.
 - Reserva, orçamento, estados e reconciliação: os mesmos de sempre (`docs/rac-intelligence.md`).
 
+### Resumo automático (autorizado pelo dono em 31/10/2026)
+
+- Depois de cada coleta, a `rac-newsletter` (agendada pelo 019) guarda a edição do turno e pede o resumo à `rac-ia`,
+  em nome do dono, pela **porta da rotina**: cabeçalho `x-rac-rotina` (a senha da rotina que o agendamento mandou,
+  conferida de novo no banco por `rac_rotina_ok`) e corpo `{ dono, pedido }`. Só `newsletter.resumo` entra por aí
+  (`rac-ia/rotina.ts`); o resto é o caminho de sempre: papel, modo da casa, `acoes_reais`, contagem, reserva,
+  idempotência, orçamento e validação. A `rac-newsletter` não fala com a Anthropic.
+- Uma chamada por edição: antes de pedir, a rotina confere em `ia_uso` se a chave da edição já foi tentada (em qualquer
+  estado, inclusive erro ou incerta) e, se foi, **não pede de novo**. No máximo **3 por dia** (um por turno). As três ou
+  duas tentativas agendadas de cada turno não geram cobrança duplicada.
+- Só uma resposta **REAL e válida** vira edição `ia` (o gatilho do 018 confere a chamada concluída com a mesma chave).
+  DEMO (sem liberação), falta de saldo na Anthropic (a API recusa: concluída sem custo), orçamento esgotado, resposta
+  inválida ou a `rac-ia` fora do ar: fica a edição sem IA, o aviso sai do mesmo jeito e o botão do site continua
+  oferecendo a DEMO. Nada se repete sozinho.
+- O dono pode desligar em Newsletter → Ajustes ("Resumo automático com IA"). O aviso do dia, quando há resumo, traz o
+  resumo do dia.
+- Custo: cada chamada fica em `ia_uso` (módulo `newsletter`): "Por módulo" no painel do Sistema, o histórico de chamadas
+  com o filtro Newsletter e a edição de cada chamada, e o custo de cada edição em Newsletter → Edições.
+
 ### Custo estimado (Haiku 5.5, preços de `ia_precos`)
 
 Medido com a edição real de 31/10/2026 (24 grupos, ~11.600 caracteres, ~3.300 tokens de entrada):
@@ -134,36 +156,43 @@ Medido com a edição real de 31/10/2026 (24 grupos, ~11.600 caracteres, ~3.300 
 | Máximo (contagem por excesso e 4.000 de saída) | ~US$ 0,0027 | ~US$ 0,08 |
 | Reserva travada antes da chamada | ~US$ 0,003 | — |
 
-Muito abaixo do teto interno de US$ 6,70 por mês. O valor real aparece no painel do Sistema e no Console.
+Com o automático, são até 3 edições por dia: ~90 por mês, cerca de **US$ 0,08 típico** e no máximo ~US$ 0,25 (≈ R$ 1,50
+no câmbio de 6,00), muito abaixo do teto interno de US$ 6,70 (R$ 50). O valor real aparece no painel do Sistema e no Console.
 
-### Ligar o REAL (só com autorização específica; nada disto foi feito)
+### Ligar e desligar o REAL da Newsletter
 
-1. Em `acoes.ts`, `real: true` em `newsletter.resumo`; testes; republicar a `rac-ia` pela CLI.
-2. SQL `020_newsletter_real.sql` no SQL Editor (só permite; a lista continua vazia).
-3. No SQL Editor: acrescentar `'newsletter.resumo'` em `acoes_reais` (e a casa em REAL, se ainda não estiver).
-4. Uma edição de teste, conferida e salva; depois comparar com o Console.
+1. `020_newsletter_real.sql`: o banco passa a aceitar `newsletter.resumo` em `acoes_reais` (não liga nada sozinho).
+2. Republicar a `rac-ia` e a `rac-newsletter`, push do site, 018 e 019 (ordem em "Publicação").
+3. `021_newsletter_ligar.sql`: a casa em REAL e `acoes_reais` = só `newsletter.resumo` (abastecimento continua DEMO;
+   `acoes_reais_casa` vazia).
+4. Desligar (volta tudo para DEMO, sem apagar nada): no SQL Editor,
+   `update public.ia_config set modo = 'DEMO', acoes_reais = '{}', acoes_reais_casa = '{}', atualizado_em = now();`
 
-## Avisos no celular (`rac-newsletter` + 019)
+## Rotina e avisos no celular (`rac-newsletter` + 019)
 
-- O agendamento (019) chama a função às 6h45, 8h45 e 10h45 de Brasília, com a senha da rotina que já existe no Vault
-  (`rac_rotina`, do 008). A função só segue se a edição de hoje já saiu.
+- O agendamento (019) chama a função às 6h45, 7h45, 8h45, 12h45, 13h45, 18h45 e 19h45 de Brasília, com a senha da
+  rotina que já existe no Vault (`rac_rotina`, do 008). A função só trabalha se a edição **deste turno** já saiu (o
+  GitHub às vezes atrasa a coleta; a tentativa seguinte pega).
 - Para cada dono (quem tem notificações ativas ou configurou a Newsletter; quem é da casa fica de fora): guarda a
-  edição base do dia, se ainda não existir, e manda **um** aviso ("📰 Newsletter de hoje: N destaques"). No domingo, o
-  resumo da semana. O registro em `newsletter_avisos` vem antes do envio: nada chega duas vezes.
+  edição base do turno, se ainda não existir, faz o resumo automático (acima) e manda **um** aviso por dia ("📰 Newsletter
+  de hoje: N destaques"). No domingo, o resumo da semana. O registro em `newsletter_avisos` vem antes do envio: nada
+  chega duas vezes.
 - Respeita a permissão: só aparelhos que ativaram as notificações (Sistema → Notificações) têm inscrição, e o dono pode
-  desligar em Newsletter → Ajustes. Usa as chaves VAPID que a `garmin` criou (só lê; não cria outras). Não usa IA.
+  desligar em Newsletter → Ajustes. Usa as chaves VAPID que a `garmin` criou (só lê; não cria outras).
 
 ## Publicação (ordem)
 
 1. `node --test tests/*.test.mjs` passando.
-2. SQL `018_newsletter.sql` no SQL Editor (antes do site). Tirar a linha `-- status: pendente` do 018.
-3. Republicar a `rac-ia` (a ação nova, em DEMO): `npx supabase@2.121.0 functions deploy rac-ia --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt`.
-4. Push no `main` (site `2026-10-31.4`). Rodar o robô "Atualizar notícias" na mão uma vez, para a primeira edição.
-5. Publicar a `rac-newsletter`: `npx supabase@2.121.0 functions deploy rac-newsletter --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt`
+2. SQL `018_newsletter.sql` (antes do site). Tirar a linha `-- status: pendente` do 018.
+3. SQL `020_newsletter_real.sql`: **feito em 31/10/2026**.
+4. Republicar a `rac-ia`: `npx supabase@2.121.0 functions deploy rac-ia --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt`.
+5. `git pull --rebase` e push no `main` (site `2026-10-31.4`). Rodar o robô "Atualizar notícias" na mão uma vez.
+6. Publicar a `rac-newsletter`: `npx supabase@2.121.0 functions deploy rac-newsletter --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt`
    (o gateway não confere login; a função recusa quem não tem a senha da rotina). Trocar `RAC_NEWSLETTER_PUBLICADA` em
    `tests/seguranca.test.mjs`.
-6. SQL `019_newsletter_avisos.sql` no SQL Editor. Tirar a linha `-- status: pendente` do 019.
-7. Não rodar o 020.
+7. SQL `019_newsletter_avisos.sql`. Tirar a linha `-- status: pendente` do 019.
+8. SQL `021_newsletter_ligar.sql` (por último: a partir daí os resumos são REAIS). Conferir a primeira edição e o
+   custo no painel; no dia seguinte, comparar com o Console.
 
 ## Testes
 

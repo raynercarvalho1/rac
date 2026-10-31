@@ -10,6 +10,7 @@ import { LIMITES, type ErroProvedor } from "./orcamento.ts";
 import { classificarPorFormato, provedorAnthropic, type ClienteMensagens } from "./provedores.ts";
 import { atenderPedido, type Banco } from "./servico.ts";
 import { chavePublica, chaveServidor } from "./chaves.ts";
+import { pedidoDaRotina } from "./rotina.ts";
 
 /* CORS: mesma lista da função garmin (copiada, para não mexer nela) */
 const ORIGENS = ["https://raynercarvalho.com.br", "https://www.raynercarvalho.com.br", "https://raynercarvalho1.github.io"];
@@ -75,27 +76,42 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json(respostaErro("metodo", {}));
   try {
     if (Number(req.headers.get("content-length") ?? 0) > LIMITES.corpoMaxBytes) return json(respostaErro("muito_grande", {}));
-    /* quem chama: só do login (nunca do corpo) */
-    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    if (!jwt) return json(respostaErro("nao_autenticado", {}));
     const url = Deno.env.get("SUPABASE_URL")!;
-    const publico = createClient(url, chavePublica(ambiente), { auth: { persistSession: false } });
-    const { data: u, error: eu } = await publico.auth.getUser(jwt);
-    if (eu || !u?.user?.id) return json(respostaErro("nao_autenticado", {}));
-
-    const texto = await req.text();
-    if (texto.length > LIMITES.corpoMaxBytes) return json(respostaErro("muito_grande", {}));
-    let corpo: unknown;
-    try { corpo = JSON.parse(texto); } catch (_) { return json(respostaErro("entrada_invalida", { detalhe: "O corpo não é JSON." })); }
-
     const admin = createClient(url, chaveServidor(ambiente), { auth: { persistSession: false } });
+    const lerCorpo = async (): Promise<{ ok: true; corpo: unknown } | { ok: false; r: Response }> => {
+      const texto = await req.text();
+      if (texto.length > LIMITES.corpoMaxBytes) return { ok: false, r: json(respostaErro("muito_grande", {})) };
+      try { return { ok: true, corpo: JSON.parse(texto) }; } catch (_) { return { ok: false, r: json(respostaErro("entrada_invalida", { detalhe: "O corpo não é JSON." })) }; }
+    };
+
+    /* quem chama: o login do site ou, só para as ações de ACOES_ROTINA (resumo da Newsletter), a rotina do servidor
+       com a senha conferida no banco; nunca o corpo sozinho */
+    let userId: string, corpo: unknown;
+    const senhaRotina = req.headers.get("x-rac-rotina");
+    if (senhaRotina !== null) {
+      const { data: ok } = await admin.rpc("rac_rotina_ok", { segredo: senhaRotina });
+      if (ok !== true) return json(respostaErro("nao_autenticado", {}));
+      const c = await lerCorpo(); if (!c.ok) return c.r;
+      const p = pedidoDaRotina(c.corpo);
+      if (!p.ok) return json(respostaErro(p.codigo, {}));
+      userId = p.dono; corpo = p.pedido;
+    } else {
+      const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      if (!jwt) return json(respostaErro("nao_autenticado", {}));
+      const publico = createClient(url, chavePublica(ambiente), { auth: { persistSession: false } });
+      const { data: u, error: eu } = await publico.auth.getUser(jwt);
+      if (eu || !u?.user?.id) return json(respostaErro("nao_autenticado", {}));
+      const c = await lerCorpo(); if (!c.ok) return c.r;
+      userId = u.user.id; corpo = c.corpo;
+    }
+
     const chave = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim();
     /* uma tentativa só: sem repetição automática do SDK; o tempo máximo também vale aqui */
     const cliente = chave ? new Anthropic({ apiKey: chave, maxRetries: 0, timeout: LIMITES.tempoChamadaMs }) : null;
     const provedor = cliente ? provedorAnthropic(cliente as unknown as ClienteMensagens, classificar) : null;
     /* registro técnico sem conteúdo: id, ação, estado, código, tempo e modelo */
     const log = (o: Record<string, unknown>) => console.log("rac-ia", JSON.stringify(o));
-    return json(await atenderPedido(u.user.id, corpo, { banco: bancoSupabase(admin), provedor, log }));
+    return json(await atenderPedido(userId, corpo, { banco: bancoSupabase(admin), provedor, log }));
   } catch (e) {
     console.error("rac-ia interno", (e as Error)?.name ?? "erro");
     return json(respostaErro("interno", {}));

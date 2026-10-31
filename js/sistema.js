@@ -327,15 +327,17 @@
     function iaQuando(iso){return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}
     /* histórico das chamadas pagas (o DEMO não grava): só leitura de ia_uso. O banco limita o que cada um vê: o dono, a casa
        toda; quem é da casa, só as próprias chamadas. O filtro e a contagem ficam entre um desenho e outro */
-    var HIST={mes:"",modulo:"",n:20},HIST_COLS="id,criado_em,enviado_em,modulo,acao,modelo,estado,reservado_usd,estimado_usd,tokens_entrada,tokens_saida,ms,erro_codigo,reconciliado_cobrado,reconciliado_usd,reconciliado_em";
+    var HIST={mes:"",modulo:"",n:20},HIST_COLS="id,criado_em,enviado_em,modulo,acao,idempotencia,modelo,estado,reservado_usd,estimado_usd,tokens_entrada,tokens_saida,ms,erro_codigo,reconciliado_cobrado,reconciliado_usd,reconciliado_em";
     function historico(mesAtual){
       if(!HIST.mes)HIST.mes=mesAtual;
       function opc(v,t,sel){var o=h("option",{value:v,text:t});if(v===sel)o.selected=true;return o}
       var sm=h("select",{"aria-label":"Mês do histórico"},NUCLEO.iaCompetencias(mesAtual,12).map(function(m){return opc(m,NUCLEO.iaNomeMes(m),HIST.mes)})),
-        sd=h("select",{"aria-label":"Módulo do histórico"},[["","Todos os módulos"],["abastecimento","Abastecimento"],["mercado","Nota do mercado"]].map(function(x){return opc(x[0],x[1],HIST.modulo)})),
+        sd=h("select",{"aria-label":"Módulo do histórico"},[["","Todos os módulos"],["abastecimento","Abastecimento"],["mercado","Nota do mercado"],["newsletter","Newsletter"]].map(function(x){return opc(x[0],x[1],HIST.modulo)})),
         lista=h("div",null,h("p",{class:"sub",text:"Carregando…"}));
       sm.onchange=function(){HIST.mes=sm.value;HIST.n=20;carregar()};sd.onchange=function(){HIST.modulo=sd.value;HIST.n=20;carregar()};
-      function item(u){var x=NUCLEO.iaUsoLinha(u,Date.now()),det=[iaQuando(u.criado_em),u.modelo||""];
+      /* a Newsletter diz de qual edição é a chamada (data da chave e turno pela hora), para o custo por edição */
+      function item(u){var x=NUCLEO.iaUsoLinha(u,Date.now()),ed=u.acao==="newsletter.resumo"?NUCLEO.nlDataDaChave(u.idempotencia):"",
+          det=[ed?"edição de "+dataBR(ed).slice(0,5)+" das "+NUCLEO.NL_TURNOS[NUCLEO.nlTurno(Date.parse(u.criado_em))]:"",iaQuando(u.criado_em),u.modelo||""];
         if(u.tokens_entrada!=null)det.push(NUCLEO.iaNum(u.tokens_entrada,0)+" → "+NUCLEO.iaNum(u.tokens_saida||0,0)+" tokens");
         if(u.reconciliado_em)det.push("conferida em "+new Date(u.reconciliado_em).toLocaleDateString("pt-BR"));
         return h("li",null,h("span",{class:"grow"},h("b",{text:NUCLEO.iaModulo(u.modulo)+" · "+x.estado}),h("span",{class:"sub",text:det.filter(Boolean).join(" · ")})),
@@ -465,7 +467,7 @@
         corpo.appendChild(h("p",{class:"sub",text:NUCLEO.iaEstados(t.por_estado)}));
         corpo.appendChild(h("p",{class:"sub",text:"Estimado pelo RAC "+usd(s.estimado)+" (leituras concluídas) · reservado em aberto "+usd(s.aberto)+" · cobrado no Console: "+
           (cobMes&&cobMes.valor_usd!=null?usd(cobMes.valor_usd)+(cobMes.valor_brl!=null?" ("+NUCLEO.iaReais(cobMes.valor_brl)+")":""):"não conferido")+"."}));
-        corpo.appendChild(h("p",{class:"sub",text:"Por leitura: Abastecimento "+(reais.indexOf("abastecimento.interpretar")>=0?"REAL ("+(reaisCasa.indexOf("abastecimento.interpretar")>=0?"dono e casa":"só o dono; a casa em DEMO")+")":"DEMO")+" · Nota do mercado DEMO (fixo nesta fase)."}));
+        corpo.appendChild(h("p",{class:"sub",text:"Por leitura: Abastecimento "+(reais.indexOf("abastecimento.interpretar")>=0?"REAL ("+(reaisCasa.indexOf("abastecimento.interpretar")>=0?"dono e casa":"só o dono; a casa em DEMO")+")":"DEMO")+" · Nota do mercado DEMO (fixo nesta fase) · Newsletter "+(reais.indexOf("newsletter.resumo")>=0?"REAL (resumo automático às 6h, 12h e 18h; só o dono)":"DEMO")+"."}));
         var pm=t.por_modulo||{};if(Object.keys(pm).length)corpo.appendChild(h("p",{class:"sub",text:"Usado por módulo: "+Object.keys(pm).map(function(k){return NUCLEO.iaModulo(k)+" "+usd(pm[k])}).join(" · ")}));
         /* 3) o que o dono precisa decidir: chamadas incertas (quem confere de verdade é o banco, ia_reconciliar) */
         if(isOwner()&&r[3].length)corpo.appendChild(conferir(r[3]));

@@ -53,7 +53,7 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
   if (!a.papeis.includes(papel) || (papel === "casa" && !cfg.acoes_casa.includes(a.id))) return respostaErro("sem_permissao", base);
 
   const { modo, motivo } = temConfig ? decidirModo(cfg, !!d.provedor, a, papel) : { modo: "DEMO" as const, motivo: "A configuração da IA desta casa ainda não foi criada." };
-  if (modo === "DEMO" || !d.provedor) return ok(respostaDemo(a.id, p.contexto, motivo, v.avisos));
+  if (modo === "DEMO" || !d.provedor) return ok(respostaDemo(a.id, p.contexto, motivo, v.avisos, p.entrada));
 
   /* ---------- REAL ---------- */
   const preco = await d.banco.preco(a.modelo).catch(() => null);
@@ -113,7 +113,7 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
 
   let bruto: unknown;
   try { bruto = JSON.parse(resp.texto); } catch (_) { return respostaErro("resposta_invalida", { ...base, modo, id, estado: "concluido", consumo }); }
-  const val = a.validar(bruto, p.contexto);
+  const val = a.validar(bruto, p.contexto, p.entrada);
   if (!val.ok) return respostaErro("resposta_invalida", { ...base, modo, id, estado: "concluido", consumo, detalhe: val.motivo + "." });
   return ok({
     ok: true, versao: 1, id, modulo: a.modulo, acao: a.id, modo: "REAL", estado: "concluido",

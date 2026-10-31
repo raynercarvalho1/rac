@@ -154,8 +154,10 @@ test("instruções: conteúdo do usuário entra só como dado e não consegue fe
 
 /* ---------- DEMO ---------- */
 test("DEMO: resposta simulada marcada em três lugares e válida pelo mesmo contrato", () => {
+  /* a Newsletter precisa de grupos na entrada (a demonstração só cita ids que vieram); as outras ações ignoram */
+  const entrada = { texto: ["a", "b", "c", "d", "e", "f"].map((x) => `<grupo id="g${x.repeat(10)}">\nTítulo: teste\n</grupo>`).join("\n"), imagens: [] };
   for (const acao of Object.keys(ACOES)) {
-    const r = respostaDemo(acao, {}, "", []);
+    const r = respostaDemo(acao, {}, "", [], entrada);
     assert.equal(r.modo, "DEMO"); assert.equal(r.resultado._demo, true); assert.match(r.mensagem, /DEMONSTRAÇÃO/);
     assert.equal(r.consumo.uso_api, null); assert.equal(r.consumo.cobranca_efetiva, null);
     assert.ok(JSON.stringify(r.resultado).includes("DEMONSTRAÇÃO"), "valores obviamente falsos");

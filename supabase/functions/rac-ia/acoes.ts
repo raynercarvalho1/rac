@@ -22,7 +22,8 @@ export type Acao = {
   contexto: Record<string, "texto" | "numero">;
   sistema: string;
   esquema: Record<string, unknown>;
-  validar: (r: unknown, ctx: Record<string, unknown>) => Validado;
+  /* entrada: o que foi enviado (a Newsletter confere que a IA só citou ids que estavam nela) */
+  validar: (r: unknown, ctx: Record<string, unknown>, entrada?: Entrada) => Validado;
 };
 
 const nulo = (t: string, extra: Record<string, unknown> = {}) => ({ anyOf: [{ type: t, ...extra }, { type: "null" }] });
@@ -190,7 +191,91 @@ const mercadoNota: Acao = {
   },
 };
 
-export const ACOES: Record<string, Acao> = { [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota };
+/* ---------- Newsletter: resumo da edição do dia (Haiku 5.5) ---------- */
+export const NL_CATEGORIAS = ["ia", "tec", "cie", "eco", "pol", "dados", "games", "soro"];
+/* os ids de grupo que o site mandou (<grupo id="g0123456789">): a resposta só pode citar estes */
+export function idsDaEntrada(entrada?: Entrada): string[] {
+  return [...new Set([...(entrada?.texto ?? "").matchAll(/<grupo id="(g[0-9a-f]{10})"/g)].map((m) => m[1]))];
+}
+const semLinks = (t: string) => t.replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi, "").replace(/\s{2,}/g, " ").trim();
+const newsletterResumo: Acao = {
+  id: "newsletter.resumo",
+  modulo: "newsletter",
+  modelo: "claude-haiku-5-5",
+  papeis: ["dono"],
+  real: false, // começa em DEMO: o REAL exige nova publicação, o SQL 020 e a liberação do dono (docs/newsletter.md)
+  maxTokens: 4000,
+  esforco: "low",
+  imagensMax: 0,
+  textoMax: 15000,
+  contexto: { data: "texto" },
+  sistema: REGRAS_GERAIS + "\n\n" +
+    "Você recebe a edição do dia de uma newsletter pessoal: grupos de notícias, cada um com id, categoria, tipo, número de veículos, título, trecho e veículos. " +
+    "Escreva SEMPRE em português do Brasil, de forma objetiva e neutra, mesmo quando o título estiver em inglês.\n" +
+    "Regras: use apenas o que está escrito nos grupos; não acrescente fatos, números, nomes, datas, causas ou consequências que não estejam ali. " +
+    "Se o grupo só tem a manchete, resuma só a manchete. Não dê opinião nem conselho. Não escreva links nem endereços. " +
+    "Cite somente ids que aparecem na entrada, exatamente como estão.\n" +
+    "resumo_dia: 2 a 4 frases sobre o conjunto do dia. destaques: de 5 a 10 grupos (prefira os marcados destaque=\"sim\"), na ordem de importância, cada um com " +
+    "titulo (a manchete em português, curta), resumo (1 ou 2 frases) e relevancia (1 frase dizendo por que importa, com base só no que foi escrito, por exemplo quantos veículos cobriram). " +
+    "categorias: para cada categoria que aparece, uma sintese de 1 ou 2 frases e os ids usados.",
+  esquema: {
+    type: "object",
+    properties: {
+      resumo_dia: { type: "string" },
+      destaques: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { id: { type: "string" }, titulo: { type: "string" }, resumo: { type: "string" }, relevancia: { type: "string" } },
+          required: ["id", "titulo", "resumo", "relevancia"],
+          additionalProperties: false,
+        },
+      },
+      categorias: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { categoria: { type: "string", enum: NL_CATEGORIAS }, sintese: { type: "string" }, ids: { type: "array", items: { type: "string" } } },
+          required: ["categoria", "sintese", "ids"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["resumo_dia", "destaques", "categorias"],
+    additionalProperties: false,
+  },
+  validar(r, _ctx, entrada) {
+    const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+    const conhecidos = new Set(idsDaEntrada(entrada));
+    if (!conhecidos.size) return { ok: false, motivo: "a entrada não tinha grupos de notícias" };
+    const avisos: string[] = [];
+    const resumoDia = semLinks(txt(o.resumo_dia, 900));
+    if (!resumoDia) return { ok: false, motivo: "sem o resumo do dia" };
+    if (!Array.isArray(o.destaques) || !o.destaques.length) return { ok: false, motivo: "sem destaques" };
+    if (!Array.isArray(o.categorias)) return { ok: false, motivo: "sem categorias" };
+    /* qualquer id que não veio na entrada invalida a resposta inteira: a IA não pode trazer notícia de fora */
+    const citados = [...o.destaques.map((d) => objeto(d)?.id), ...o.categorias.flatMap((k) => { const ids = objeto(k)?.ids; return Array.isArray(ids) ? ids : [null]; })];
+    const fora = citados.filter((id) => typeof id !== "string" || !conhecidos.has(id));
+    if (fora.length) return { ok: false, motivo: "id desconhecido: " + fora.slice(0, 3).map((x) => String(x).slice(0, 20)).join(", ") };
+    const vistos = new Set<string>(), destaques: Record<string, string>[] = [];
+    for (const x of o.destaques) {
+      const d = objeto(x)!, id = d.id as string;
+      if (vistos.has(id)) { avisos.push("Um destaque repetido foi ignorado."); continue; }
+      vistos.add(id);
+      const resumo = semLinks(txt(d.resumo, 420));
+      if (!resumo) return { ok: false, motivo: "destaque sem resumo" };
+      destaques.push({ id, titulo: semLinks(txt(d.titulo, 160)), resumo, relevancia: semLinks(txt(d.relevancia, 260)) });
+    }
+    if (destaques.length > 10) { destaques.length = 10; avisos.push("A IA mandou mais de 10 destaques; ficaram os 10 primeiros."); }
+    if (destaques.length < 5 && conhecidos.size >= 5) avisos.push("A IA escolheu menos de 5 destaques.");
+    const categorias = o.categorias.map((x) => objeto(x)!).filter((k) => NL_CATEGORIAS.includes(k.categoria as string))
+      .map((k) => ({ categoria: k.categoria as string, sintese: semLinks(txt(k.sintese, 420)), ids: [...new Set(k.ids as string[])].slice(0, 12) }));
+    if (categorias.length < o.categorias.length) avisos.push("Uma categoria desconhecida foi ignorada.");
+    return { ok: true, avisos, resultado: { resumo_dia: resumoDia, destaques, categorias } };
+  },
+};
+
+export const ACOES: Record<string, Acao> = { [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo };
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */
 export type Bloco = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };

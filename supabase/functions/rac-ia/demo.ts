@@ -2,10 +2,10 @@
 // não contam no orçamento e são marcadas em três lugares (modo "DEMO", resultado._demo e valores obviamente falsos).
 // No site, uma resposta DEMO só aparece numa prévia de leitura: nunca entra nas telas que salvam (docs/rac-intelligence.md).
 
-import { ACOES } from "./acoes.ts";
+import { ACOES, idsDaEntrada, type Entrada } from "./acoes.ts";
 import type { Resposta } from "./contrato.ts";
 
-const FIXTURES: Record<string, (ctx: Record<string, unknown>) => Record<string, unknown>> = {
+const FIXTURES: Record<string, (ctx: Record<string, unknown>, entrada?: Entrada) => Record<string, unknown>> = {
   "abastecimento.interpretar": (ctx) => ({
     veiculo: ctx.veiculo_sugerido === "carro" ? "carro" : "moto", data: null, km: 0, litros: 1, preco_litro: 1, total: 1,
     combustivel: "gasolina", posto: "POSTO DEMONSTRAÇÃO", alertas: [],
@@ -18,15 +18,24 @@ const FIXTURES: Record<string, (ctx: Record<string, unknown>) => Record<string, 
       { descricao: "ITEM DE DEMONSTRAÇÃO 2", qtd: 2, un: "un", unitario: 1, total: 2, desconto: 0 },
     ],
   }),
+  /* usa os ids que vieram na entrada (senão a validação recusaria); os textos são obviamente simulados */
+  "newsletter.resumo": (_ctx, entrada) => {
+    const ids = idsDaEntrada(entrada).slice(0, 5);
+    return {
+      resumo_dia: "DEMONSTRAÇÃO: este é um resumo simulado. Nenhuma notícia foi lida pela IA.",
+      destaques: ids.map((id, i) => ({ id, titulo: "Destaque de demonstração " + (i + 1), resumo: "Resumo simulado, sem relação com a notícia.", relevancia: "Texto de demonstração." })),
+      categorias: [],
+    };
+  },
 };
 
 export const AVISO_DEMO = "DEMONSTRAÇÃO: resposta simulada, não veio do Claude. Não pode ser salva.";
 
-export function respostaDemo(acao: string, contexto: Record<string, unknown>, motivo: string, avisos: string[]): Resposta {
+export function respostaDemo(acao: string, contexto: Record<string, unknown>, motivo: string, avisos: string[], entrada?: Entrada): Resposta {
   const a = ACOES[acao], f = FIXTURES[acao];
   if (!a || !f) throw new Error("ação sem demonstração: " + acao);
   /* passa pela mesma validação do modo REAL, para testar o contrato de verdade */
-  const v = a.validar(f(contexto), contexto);
+  const v = a.validar(f(contexto, entrada), contexto, entrada);
   if (!v.ok) throw new Error("demonstração inválida para " + acao + ": " + v.motivo);
   return {
     ok: true, versao: 1, id: null, modulo: a.modulo, acao: a.id, modo: "DEMO", estado: "demo",

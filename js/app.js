@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-10-31.5",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-10-31.6",MODULOS={},MOD_OK={};
   var MOD_DEPS={conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"]};
   var ROTA_MODS={esportes:["esportes"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"]};
@@ -589,6 +589,26 @@
       if(res.error){m.textContent=/invalid/i.test(res.error.message)?"E-mail ou senha incorretos.":"Não consegui entrar: "+res.error.message;return}
       $("#gate-pw").value="";m.textContent="";entrar()
     }).catch(function(err){b.disabled=false;m.textContent="Não consegui entrar agora ("+(err.message||err)+")."})});
+  /* ===== Entrar com Face ID (passkey do Supabase Auth, docs/seguranca.md) =====
+     A passkey fica no aparelho (Chaves do iCloud) e é de uma conta só: o iPhone mostra as contas que têm passkey ali.
+     A sessão que ela abre é aal1, como a da senha: quem também ativou o código (TOTP) digita o código uma vez por sessão. */
+  function passkeyOk(){return !!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get)}
+  function passkeyMsg(e){var c=(e&&(e.code||e.name))||"",t=(e&&e.message)||String(e||"");
+    if(c==="NotAllowedError"||/NotAllowed|cancel|abort|timed out/i.test(t))return "Cancelado. Tente de novo ou entre com a senha.";
+    if(c==="passkey_disabled"||/passkey.*(disabled|not enabled)/i.test(t))return "O Face ID ainda não foi ligado no Supabase (Authentication → Passkeys). Entre com a senha.";
+    if(c==="webauthn_credential_not_found")return "Esse Face ID não está ligado a nenhuma conta. Entre com a senha e cadastre o Face ID em Segurança.";
+    if(c==="webauthn_credential_exists")return "Este aparelho já tem um Face ID cadastrado nesta conta.";
+    if(c==="insufficient_aal")return "Como esta conta usa o código do app autenticador, saia e entre de novo digitando o código para mexer no Face ID.";
+    if(c==="too_many_passkeys")return "A conta já tem o máximo de passkeys (10). Remova uma antiga em Segurança.";
+    if(c==="webauthn_challenge_expired"||c==="webauthn_challenge_not_found")return "Demorou demais. Tente de novo.";
+    return "Não consegui usar o Face ID ("+t+"). Entre com a senha."}
+  if(passkeyOk()){$("#gate-passkey").hidden=false;$("#gate-ou").hidden=false}
+  $("#gate-passkey").addEventListener("click",function(){
+    var b=$("#gate-passkey"),m=$("#gate-msg");b.disabled=true;m.textContent="Esperando o Face ID…";
+    window.RACmercado.client().then(function(sb){return sb.auth.signInWithPasskey()}).then(function(res){
+      b.disabled=false;if(res.error)throw res.error;
+      m.textContent="";entrar()
+    }).catch(function(err){b.disabled=false;m.textContent=passkeyMsg(err)})});
   /* ao sair, apaga deste aparelho as cópias que já estão salvas na conta */
   $("#sair").addEventListener("click",function(){
     Object.keys(localStorage).forEach(function(k){if(k.indexOf("rac-p-")===0){var cp=copiaLer(k.slice(6));if(cp&&cp.ok)localStorage.removeItem(k)}});

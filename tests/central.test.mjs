@@ -49,7 +49,7 @@ test("022: rac_aal_ok só deixa sem código quem não tem fator confirmado; fun�
 
 test("022: o histórico de segurança só acrescenta, só a própria conta lê, e o visitante não vê nada", () => {
   assert.match(sql, /alter table public\.seguranca_eventos enable row level security/);
-  assert.match(sql, /revoke all on public\.seguranca_eventos from anon, authenticated;\ngrant select, insert on public\.seguranca_eventos to authenticated;/);
+  assert.match(sql, /revoke all on public\.seguranca_eventos from anon, authenticated;\r?\ngrant select, insert on public\.seguranca_eventos to authenticated;/);
   assert.ok(!/grant[^;]*(update|delete)[^;]*seguranca_eventos/i.test(sql), "ninguém altera nem apaga o histórico pelo site");
   assert.match(sql, /for select to authenticated using \(user_id = auth\.uid\(\)\)/);
   assert.match(sql, /for insert to authenticated\s+with check \(user_id = auth\.uid\(\)/);
@@ -70,7 +70,8 @@ test("restauração: só depois da prévia e do confirm; novas por insert, troca
   assert.ok(!/function restaurarBackup/.test(sis), "a restauração antiga (que sobrescrevia) saiu");
   assert.ok(!/upsert:true/.test(sis + seg), "nenhum envio de arquivo sobrescreve");
   assert.match(seg, /\.upload\(path,new Blob\(\[a\.dados\]\),\{upsert:false\}\)/);
-  assert.ok(!/\.delete\(|\.remove\(|\.truncate|\.update\(/.test(seg), "a Central não apaga nem altera linhas por fora do plano");
+  assert.ok(!/SB\.from\([^)]*\)\.(delete|update)\(|\.remove\(|\.truncate/.test(seg), "a Central não apaga nem altera linhas por fora do plano");
+  assert.deepEqual([...seg.matchAll(/\.(delete|update)\(\{passkeyId/g)].length, 2, "só a passkey da própria conta é removida ou renomeada");
   assert.match(seg, /op\.op==="insert"\?SB\.from\(op\.t\)\.insert\(/);
   assert.match(seg, /NUCLEO\.segEscrita\(plano,cSub\.checked\)/, "troca só com a caixa marcada");
   const clique = /grava\.onclick=function\(\)\{([\s\S]*?)\n    area\.appendChild/.exec(seg)[1];
@@ -108,4 +109,36 @@ test("restrições de produção: a função garmin e as outras Edge Functions n
   assert.ok(!/functions\/v1\/garmin|cron\.(un)?schedule/.test(sql), "o 022 não mexe na função nem na rotina da garmin");
   assert.ok(!/racIA\(|anthropic/i.test(seg));
   assert.ok(!/functions\.invoke/.test(seg), "a Central não chama Edge Function");
+});
+
+test("Face ID: botão no login só com suporte do navegador, senha continua igual, e a sessão passa pelo mesmo entrar()", () => {
+  const html = ler("index.html"), merc = ler("mercado.js");
+  assert.match(html, /<button type="button" id="gate-passkey" hidden>Entrar com Face ID<\/button>/);
+  for (const id of ["gate-email", "gate-pw", "gate-enter", "gate-esqueci"]) assert.match(html, new RegExp(`id="${id}"`), `${id} continua na tela de entrar`);
+  assert.match(app, /signInWithPassword\(/, "a senha continua como alternativa");
+  assert.match(app, /if\(passkeyOk\(\)\)\{\$\("#gate-passkey"\)\.hidden=false/);
+  const clique = /\$\("#gate-passkey"\)\.addEventListener\("click",function\(\)\{([\s\S]*?)\}\)\}\);/.exec(app)[1];
+  assert.match(clique, /sb\.auth\.signInWithPasskey\(\)/);
+  assert.match(clique, /entrar\(\)/, "depois do Face ID, o mesmo caminho da senha (papel, código se a conta usa TOTP)");
+  assert.equal((app.match(/signInWithPasskey\(/g) || []).length, 1, "o Face ID só é pedido no toque do botão");
+  assert.match(merc, /experimental: \{ passkey: true \}/, "opção do SDK para as passkeys");
+});
+
+test("Face ID na Central: cada conta vê e cadastra só as suas; remover pede confirmação; nada de API de administrador", () => {
+  assert.match(seg, /SB\.auth\.passkey\.list\(\)/);
+  assert.ok(!/auth\.admin/.test(seg + app), "o site não usa a API de administrador (lista de outra conta)");
+  assert.equal((seg.match(/registerPasskey\(/g) || []).length, 1);
+  assert.match(seg, /cad\.onclick=function\(\)\{[^]*?SB\.auth\.registerPasskey\(\)/, "cadastro só no toque");
+  const rm = /rm\.onclick=function\(\)\{([\s\S]*?)\};\n/.exec(seg)[1];
+  assert.ok(rm.indexOf("confirm(") >= 0 && rm.indexOf("confirm(") < rm.indexOf("passkey.delete("), "confirma antes de remover");
+  assert.match(seg, /root\.appendChild\(segProtecao\(\)\);root\.appendChild\(segPasskeys\(\)\);root\.appendChild\(segMfa\(\)\);/, "quem é da casa também cadastra o seu Face ID");
+  assert.match(sql, /'passkey_cadastrada', 'passkey_removida'/);
+});
+
+test("Face ID não enfraquece o banco: a sessão da passkey é aal1 e a trava do 022 continua exigindo aal2 de quem usa TOTP", () => {
+  const f = /create or replace function public\.rac_aal_ok\(\)[\s\S]*?\$\$;/.exec(sql)[0];
+  assert.ok(!/amr|passkey/i.test(f), "a trava não aceita a passkey no lugar do código");
+  assert.ok(!/disable row level security|no force row level security/i.test(sql));
+  assert.match(app, /d\.nextLevel==="aal2"&&d\.currentLevel!=="aal2"/, "o código continua sendo pedido uma vez por sessão para quem tem TOTP");
+  assert.ok(!/mfa\.enroll|mfa\.unenroll|registerPasskey/.test(app), "o login não cadastra nada sozinho");
 });

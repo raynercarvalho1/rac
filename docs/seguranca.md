@@ -88,6 +88,43 @@ A restauração antiga (Sistema → Restaurar) fazia `upsert` direto, sobrescrev
 - Nada liga MFA sozinho e nenhuma conta é bloqueada: vale só para quem cadastrar.
 - As Edge Functions usam a chave do servidor (sem RLS): rotina, Garmin, atalhos do iPhone, IA e Newsletter não mudam.
 
+## Entrar com Face ID (passkeys)
+
+**Auditoria (31/10/2026):**
+- SDK do site (`@supabase/supabase-js@2.117.3`): tem `auth.signInWithPasskey()`, `auth.registerPasskey()` e
+  `auth.passkey.list/update/delete`. Ele mesmo faz a cerimônia WebAuthn (`navigator.credentials`), com credenciais
+  *discoverable* (o iPhone mostra as contas que têm passkey ali; não precisa digitar o e-mail). O recurso é **experimental**
+  no Supabase (a API pode mudar); o cliente liga a opção `experimental: { passkey: true }` em `mercado.js`.
+- Projeto: `/auth/v1/settings` respondeu `passkeys_enabled: false` → hoje o servidor recusa com `passkey_disabled`
+  (conferido no navegador; o site mostra "ainda não foi ligado"). A documentação não cita custo.
+- **AAL**: no código do Supabase Auth (`internal/models/amr.go`), a entrada por passkey gera `amr: passkey` e sessão **aal1**,
+  igual à senha; só TOTP, telefone, WebAuthn-MFA e código de recuperação dão aal2. Com o 022:
+  - conta **sem** código (TOTP): Face ID entra direto e lê tudo (o 022 aceita aal1 de quem não tem fator);
+  - conta **com** código: depois do Face ID o site pede o código **uma vez por entrada**; a sessão fica salva e renova sozinha
+    (não pede ao abrir o app nem ao navegar). Cadastrar ou remover passkey também exige a sessão com código (regra do Supabase).
+- Cada passkey é ligada à conta que estava logada quando foi cadastrada; `passkey.list()` só devolve as da própria conta.
+  O site não usa a API de administrador.
+
+**No site:** botão "Entrar com Face ID" na tela de entrar (só aparece se o navegador tem passkey), com a senha embaixo como
+alternativa; na Central, o quadro "Entrar com Face ID" lista (nome, criada, último uso), cadastra ("Cadastrar o Face ID deste
+aparelho", com o nome do aparelho e a data) e remove (com confirmação). A Fernanda vê e cadastra a dela. O Face ID não entra na
+nota da proteção: ele facilita a entrada, mas a senha continua abrindo a conta.
+
+**Decisão pendente (não implementada):** para quem tiver o código **e** o Face ID entrar sem digitar o código, a trava do 022
+teria que aceitar `amr = passkey` como equivalente ao código. A passkey com Face ID é forte (aparelho + biometria, à prova de
+phishing), mas o Supabase pede a verificação do usuário como "preferida", não "obrigatória": uma chave física sem PIN também
+passaria. Por isso a trava ficou como está. Caminho recomendado hoje: usar **Face ID sem código**; quem quiser o código aceita
+digitá-lo uma vez por entrada.
+
+**Ligar (o dono, no painel):** Authentication → Passkeys → *Enable Passkey authentication*, com Relying Party Display Name
+`Dia a Dia RAC`, Relying Party ID `raynercarvalho.com.br` e Origins `https://raynercarvalho.com.br,https://www.raynercarvalho.com.br`.
+Não troque o RP ID depois: as passkeys cadastradas param de funcionar. O endereço `github.io` e o `localhost` não podem usar
+passkeys desse RP ID (por isso o teste real só acontece no domínio, no iPhone).
+
+**Teste no iPhone (depois de publicar):** Safari → entrar com a senha → Segurança → Cadastrar o Face ID → sair → Entrar com Face ID.
+Repetir no app instalado na tela de início (ele tem a sessão separada do Safari, mas usa as mesmas passkeys do iCloud).
+A Fernanda faz o mesmo no iPhone dela, com a conta dela.
+
 ## Recuperação de acesso
 
 - **Senha esquecida**: Esqueci a senha (e-mail). Com MFA, o código continua sendo pedido.
@@ -118,10 +155,11 @@ cofres públicos e funções privilegiadas abertas a `anon`. Só nomes, nenhum d
 
 1. `node --test tests/*.test.mjs` passando.
 2. SQL Editor: rodar `supabase/022_seguranca.sql` inteiro (pode rodar de novo). Depois, tirar a linha `-- status: pendente` do arquivo.
-3. Conferir em Authentication → Multi-Factor que o TOTP está ligado (vem ligado).
-4. `git push` (versão `2026-10-31.5`).
+3. Conferir em Authentication → Multi-Factor que o TOTP está ligado (vem ligado) e ligar as Passkeys (seção Face ID acima).
+4. `git push` (versão `2026-10-31.6`).
 5. No site: Segurança → conferir a Auditoria (tudo ✓), baixar um backup, abrir a prévia da restauração com ele (deve dar tudo "igual").
-6. Opcional: ativar a 2ª etapa na própria conta, cadastrar um app reserva e testar sair/entrar.
+6. Cadastrar o Face ID no iPhone (Safari e app instalado) e testar sair/entrar; a Fernanda faz o mesmo na conta dela.
+7. Opcional: ativar o código (TOTP) e cadastrar um app reserva (com ele, o Face ID pede o código uma vez por entrada).
 
 Não há Edge Function nova nem alterada. Desfazer o 022: `drop policy "mfa" on public.<tabela>` em cada tabela e `drop policy "mfa cofres" on storage.objects`
 (o site continua funcionando, só o banco deixa de exigir o código).

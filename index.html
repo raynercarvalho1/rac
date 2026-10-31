@@ -221,7 +221,7 @@ a.nllink{color:var(--ink);text-decoration:none}a.nllink:hover{text-decoration:un
 @keyframes pisca{0%,100%{box-shadow:var(--shadow)}30%{box-shadow:0 0 0 4px var(--accent)}}.panel.pisca{animation:pisca 1.6s ease}
 .xchips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}.xchip{display:inline-flex;align-items:center;gap:4px;background:var(--hover);border-radius:999px;padding:4px 4px 4px 10px;font:600 calc(13px + var(--fz)) var(--f-ui)}.xchip button{background:none;border:0;box-shadow:none;color:var(--muted);font-size:16px;line-height:1;padding:2px 6px;border-radius:999px;cursor:pointer}.xchip button:hover{background:var(--surface);color:var(--bad)}
 .segnota{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.segnota b.n{font:800 calc(34px + var(--fz)) var(--f-ui);line-height:1}.segnota .barra{flex:1 1 180px;height:10px;border-radius:99px;background:var(--hover);overflow:hidden}.segnota .barra i{display:block;height:100%;border-radius:99px;background:var(--good)}.segnota.media .barra i{background:var(--warn)}.segnota.fraca .barra i{background:var(--bad)}
-#seguranca-view .wl .grow b,#seguranca-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip}#seguranca-view ul.clean li{margin:3px 0}
+#seguranca-view .wl .grow b,#seguranca-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip}#seguranca-view ul.clean li{margin:3px 0}#seguranca-view p.alerta{color:var(--warn);font-weight:700}.gate .gateou{margin:4px 0 -2px}
 .segqr{display:grid;justify-items:center;gap:8px;margin:10px 0}.segqr img{width:200px;height:200px;max-width:100%;background:#fff;border-radius:12px;padding:8px}.segqr code{font-size:calc(12px + var(--fz));word-break:break-all;text-align:center;user-select:all}
 .segprev .tblwrap{margin-top:8px}.segprev label{display:flex;gap:8px;align-items:flex-start;margin-top:10px;line-height:1.35}.segprev label input{margin-top:3px;flex:none}.segprev .alerta{color:var(--warn);font-weight:700}.segprev details{margin-top:6px}.segprev details .wl .grow,.segprev details .wl .sub{white-space:normal}
 .sissaude li{align-items:flex-start}.sisdot{width:22px;flex:none;font-weight:800;text-align:center}.sissaude li.alerta .sisdot{color:var(--warn)}.sissaude .clean{margin:4px 0 0;padding-left:0}
@@ -941,6 +941,8 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
     <div class="lockic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
     <h2>Dia a Dia RAC</h2>
     <p class="sub">Site pessoal. Entre com a sua conta.</p>
+    <button type="button" id="gate-passkey" hidden>Entrar com Face ID</button>
+    <p class="sub gateou" id="gate-ou" hidden>ou com e-mail e senha</p>
     <input type="email" id="gate-email" placeholder="E-mail" aria-label="E-mail" autocomplete="username" required>
     <input type="password" id="gate-pw" placeholder="Senha" aria-label="Senha" autocomplete="current-password" required>
     <button type="submit" id="gate-enter">Entrar</button>

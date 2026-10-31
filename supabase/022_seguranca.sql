@@ -41,7 +41,8 @@ create table if not exists public.seguranca_eventos (
   id      bigint generated always as identity primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   quando  timestamptz not null default now(),
-  tipo    text not null check (tipo in ('exportacao', 'restauracao', 'teste_restauracao', 'mfa_ativado', 'mfa_desativado', 'auditoria')),
+  tipo    text not null check (tipo in ('exportacao', 'restauracao', 'teste_restauracao', 'mfa_ativado', 'mfa_desativado',
+                                       'passkey_cadastrada', 'passkey_removida', 'auditoria')),
   resumo  jsonb not null default '{}'::jsonb check (jsonb_typeof(resumo) = 'object' and pg_column_size(resumo) <= 20000)
 );
 create index if not exists seguranca_eventos_quando on public.seguranca_eventos (user_id, quando desc);

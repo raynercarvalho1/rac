@@ -358,7 +358,7 @@ test("Segurança: 375 px, backup sem segredos, restauração com prévia e confi
     });
     await pag.waitForSelector("#seguranca-view h2", { timeout: 20000 });
     const paineis = await pag.evaluate(() => [...document.querySelectorAll("#seguranca-view h2")].map((x) => x.textContent));
-    assert.deepEqual(paineis, ["Proteção da conta", "Verificação em duas etapas", "Backup e exportação", "Restaurar um backup", "Histórico de backups", "Auditoria", "Se perder o acesso"]);
+    assert.deepEqual(paineis, ["Proteção da conta", "Entrar com Face ID", "Verificação em duas etapas", "Backup e exportação", "Restaurar um backup", "Histórico de backups", "Auditoria", "Se perder o acesso"]);
     const largura = await pag.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(largura <= 375, "sem rolagem para o lado no iPhone (" + largura + " px)");
 
@@ -399,6 +399,72 @@ test("Segurança: 375 px, backup sem segredos, restauração com prévia e confi
     await pag.waitForFunction(() => window.__entrou === true, null, { timeout: 5000 });
     const mfa = await pag.evaluate(() => __seg.mfa.map((x) => x[0]));
     assert.deepEqual(mfa, ["enroll", "verify", "verify"], "nunca remove fator sozinho");
+    assert.deepEqual(erros, [], "nenhum erro no navegador");
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});
+
+// Face ID (passkey) num iPhone simulado: o botão no login entra pelo mesmo caminho da senha, e na Central cada conta
+// vê, cadastra e remove só as suas passkeys. O servidor do Supabase é simulado (a cerimônia real exige o domínio do site).
+test("Face ID: entrar com passkey no login, cadastrar, listar e remover na Central (375 px)", { skip: pular, timeout: 90000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`;
+  const nav = await abrirNavegador();
+  try {
+    const ctx = await nav.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const pag = await ctx.newPage(), erros = [], dialogos = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+    pag.on("dialog", (d) => { dialogos.push(d.message()); d.accept(); });
+    await pag.goto(base + "/");
+    await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    const login = await pag.evaluate(() => ({ botao: !document.getElementById("gate-passkey").hidden, senha: !!document.getElementById("gate-pw") }));
+    assert.deepEqual(login, { botao: true, senha: true }, "o Chromium tem passkey: botão aparece, e a senha continua");
+    /* login: o botão chama signInWithPasskey e segue pelo entrar() de sempre */
+    await pag.evaluate(() => {
+      const reg = (window.__pk = { chamadas: [], lista: [{ id: "p1", friendly_name: "iPhone · 30/10/2026", created_at: "2026-10-30T12:00:00Z", last_used_at: "2026-10-31T09:00:00Z" }] });
+      const auth = { signInWithPasskey: () => { reg.chamadas.push("signIn"); return Promise.resolve({ data: { session: {} }, error: null }); },
+        registerPasskey: () => { reg.chamadas.push("register"); reg.lista.push({ id: "p2", friendly_name: "iCloud Keychain", created_at: new Date().toISOString() }); return Promise.resolve({ data: { id: "p2" }, error: null }); },
+        passkey: { list: () => Promise.resolve({ data: reg.lista.map((x) => ({ ...x })), error: null }),
+          update: (o) => { reg.chamadas.push("update " + o.passkeyId + " " + o.friendlyName.split(" ·")[0]); return Promise.resolve({ data: {}, error: null }); },
+          delete: (o) => { reg.chamadas.push("delete " + o.passkeyId); reg.lista = reg.lista.filter((x) => x.id !== o.passkeyId); return Promise.resolve({ data: {}, error: null }); } },
+        mfa: { listFactors: () => Promise.resolve({ data: { all: [], totp: [] } }), getAuthenticatorAssuranceLevel: () => Promise.resolve({ data: { currentLevel: "aal1", nextLevel: "aal1" } }) } };
+      const tabela = () => { const q = { select: () => q, order: () => q, limit: () => q, insert: () => q, then: (ok, no) => Promise.resolve({ data: [], error: null }).then(ok, no) }; return q; };
+      window.__sbFalso = { auth, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "Could not find the function" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) } };
+      window.RACmercado.client = () => Promise.resolve(window.__sbFalso);
+      entrar = () => { reg.chamadas.push("entrar"); };
+    });
+    await pag.click("#gate-passkey");
+    await pag.waitForFunction(() => __pk.chamadas.includes("entrar"), null, { timeout: 5000 });
+    assert.deepEqual(await pag.evaluate(() => __pk.chamadas), ["signIn", "entrar"]);
+    /* Central de quem é da casa: vê o Face ID e cadastra o seu */
+    await pag.evaluate(() => { __pk.chamadas.length = 0; SB = __sbFalso; PAPEL = "casa"; EU = { id: "membro-teste", email: "casa@exemplo.invalid" }; PESSOAL = {};
+      document.documentElement.classList.add("logado", "casa"); document.getElementById("gate").hidden = true; location.hash = "#seguranca"; });
+    await pag.waitForSelector("#seguranca-view h2", { timeout: 20000 });
+    const tela = await pag.evaluate(() => { const p = [...document.querySelectorAll("#seguranca-view .panel")].find((x) => x.querySelector("h2").textContent === "Entrar com Face ID");
+      return { paineis: [...document.querySelectorAll("#seguranca-view h2")].map((x) => x.textContent), itens: [...p.querySelectorAll("li b")].map((b) => b.textContent),
+        largura: document.documentElement.scrollWidth }; });
+    assert.deepEqual(tela.paineis, ["Proteção da conta", "Entrar com Face ID", "Verificação em duas etapas", "Se perder o acesso"]);
+    assert.deepEqual(tela.itens, ["iPhone · 30/10/2026"]); assert.ok(tela.largura <= 375);
+    await pag.evaluate(() => [...document.querySelectorAll("#seguranca-view button")].find((b) => b.textContent === "Cadastrar o Face ID deste aparelho").click());
+    await pag.waitForFunction(() => __pk.chamadas.some((c) => c.startsWith("update")), null, { timeout: 5000 });
+    await pag.waitForFunction(() => [...document.querySelectorAll("#seguranca-view li b")].some((b) => b.textContent === "iCloud Keychain"), null, { timeout: 6000 });
+    /* remover pede confirmação e só mexe na passkey escolhida */
+    await pag.evaluate(() => { const li = [...document.querySelectorAll("#seguranca-view li")].find((x) => /iPhone · 30\/10/.test(x.textContent)); li.querySelector("button").click(); });
+    await pag.waitForFunction(() => __pk.chamadas.some((c) => c.startsWith("delete")), null, { timeout: 5000 });
+    const ch = await pag.evaluate(() => __pk.chamadas);
+    assert.equal(ch[0], "register"); assert.match(ch[1], /^update p2 (iPhone|Android|Windows|Mac|iPad|Este aparelho)$/); assert.equal(ch[2], "delete p1");
+    assert.ok(dialogos.some((d) => /Remover “iPhone · 30\/10\/2026”/.test(d) && /senha continua valendo/.test(d)));
     assert.deepEqual(erros, [], "nenhum erro no navegador");
   } finally {
     await nav.close();

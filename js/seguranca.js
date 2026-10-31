@@ -1,7 +1,7 @@
 /* Dia a Dia RAC — módulo carregado quando a seção abre. Central de Segurança: proteção da conta, verificação em duas etapas (TOTP),
    backup em JSON, histórico, restauração com prévia e confirmação, auditoria das permissões e como recuperar o acesso (docs/seguranca.md).
    Usa as funções globais de js/app.js e o zip/backup de js/sistema.js. Nada é gravado sem o clique de confirmação. */
-  var SEG={fatores:[],pendentes:[],aal:null,estado:null,semSql:false,eventos:null,servidor:null};
+  var SEG={fatores:[],pendentes:[],passkeys:null,pkErro:null,aal:null,estado:null,semSql:false,eventos:null,servidor:null};
   function segSha(txt){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(txt)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ("0"+x.toString(16)).slice(-2)}).join("")})}
   function segDias(iso){return iso?Math.floor((Date.now()-Date.parse(String(iso).slice(0,10)+"T12:00:00"))/864e5):null}
   function segN(n,um,varios){return n+" "+(n===1?um:varios)}
@@ -13,6 +13,7 @@
     return Promise.all([
       q(function(){return SB.auth.mfa.listFactors()}).then(function(r){var d=(r&&r.data)||{},todos=d.all||d.totp||[];
         SEG.fatores=todos.filter(function(f){return f.factor_type==="totp"&&f.status==="verified"});SEG.pendentes=todos.filter(function(f){return f.status!=="verified"})},function(){SEG.fatores=[]}),
+      q(function(){return SB.auth.passkey.list()}).then(function(r){SEG.pkErro=r.error||null;SEG.passkeys=r.error?null:r.data||[]},function(e){SEG.pkErro=e;SEG.passkeys=null}),
       q(function(){return SB.auth.mfa.getAuthenticatorAssuranceLevel()}).then(function(r){SEG.aal=r&&r.data?r.data.currentLevel:null},function(){}),
       q(function(){return SB.rpc("seguranca_estado")}).then(function(r){SEG.semSql=!!r.error;SEG.estado=r.error?null:r.data},function(){SEG.semSql=true;SEG.estado=null}),
       isOwner()?q(function(){return SB.from("seguranca_eventos").select("id,quando,tipo,resumo").order("quando",{ascending:false}).limit(40)}).then(function(r){SEG.eventos=r.error?null:r.data||[]},function(){SEG.eventos=null}):null,
@@ -20,7 +21,7 @@
   function renderSeguranca(sub){
     var root=$("#seguranca-view");root.innerHTML="";root.appendChild(loading());
     segCarregar().then(function(){root.innerHTML="";
-      root.appendChild(segProtecao());root.appendChild(segMfa());
+      root.appendChild(segProtecao());root.appendChild(segPasskeys());root.appendChild(segMfa());
       if(isOwner()){root.appendChild(segBackupPainel());var pr=segRestaurarPainel();root.appendChild(pr);root.appendChild(segHistorico());root.appendChild(segAuditoria());
         if(sub==="restaurar")setTimeout(function(){pr.scrollIntoView({behavior:"smooth",block:"start"})},80)}
       root.appendChild(segRecuperacao())})
@@ -45,6 +46,9 @@
     var ul=h("ul",{class:"wl sissaude"});p.appendChild(ul);
     function li(ok,rot,txt,aviso){ul.appendChild(h("li",{class:ok?null:"alerta"},h("span",{class:"sisdot",text:ok?"✓":aviso?"⚠":"✗"}),h("span",{class:"grow"},h("b",{text:rot}),h("span",{class:"sub",text:txt}))))}
     li(true,"Senha","Entrada com e-mail e senha; sem senha nenhum dado é lido (RLS em todas as tabelas).");
+    /* o Face ID facilita a entrada, mas não fecha a porta da senha: fica fora da nota */
+    var npk=(SEG.passkeys||[]).length;
+    li(npk>0,"Entrar com Face ID",npk?segN(npk,"passkey cadastrada","passkeys cadastradas")+". A senha continua valendo como alternativa.":SEG.passkeys?"Nenhuma passkey ainda: cadastre o Face ID abaixo.":"Ainda não disponível (veja o quadro Entrar com Face ID).",true);
     li(c.mfa,"Verificação em duas etapas",c.mfa?SEG.fatores.length+(SEG.fatores.length===1?" app autenticador cadastrado":" apps autenticadores cadastrados")+(SEG.aal==="aal2"?" · esta sessão passou pelo código":""):"Desligada: quem souber a senha entra. Ative abaixo (é opcional).",!c.mfa);
     if(c.mfa)li(c.reserva,"App reserva",c.reserva?"Há um segundo app para entrar se perder o celular.":"Só um app: se perder o celular, só o dono do site libera a conta. Cadastre um reserva.",true);
     li(c.bancoMfa,"Banco exige a 2ª etapa",SEG.semSql?"Falta rodar o supabase/022_seguranca.sql: hoje o código é pedido pelo site, mas o banco ainda aceita só a senha.":c.bancoMfa?"Com um app cadastrado, o banco recusa a sessão que não passou pelo código.":"Algumas tabelas estão sem a trava: veja a Auditoria.",true);
@@ -54,7 +58,38 @@
       li(c.auditoria,"Auditoria das permissões",!pb?"Falta rodar o 022 para conferir de dentro do banco.":pb.length?pb.length+(pb.length===1?" ponto para corrigir":" pontos para corrigir")+" (veja a Auditoria).":"Nada aberto além do necessário (conferido "+segQuando(SEG.estado.conferido)+").",true)}
     return p}
 
-  /* ---------- 2. verificação em duas etapas (TOTP) ---------- */
+  /* ---------- 2. entrar com Face ID (passkeys do Supabase Auth) ---------- */
+  function segAparelho(){var u=navigator.userAgent||"";return /iPhone/.test(u)?"iPhone":/iPad/.test(u)?"iPad":/Macintosh/.test(u)?"Mac":/Android/.test(u)?"Android":/Windows/.test(u)?"Windows":"Este aparelho"}
+  function segPasskeys(){
+    var p=panel("Entrar com Face ID","Uma passkey guardada nas Chaves do iCloud: o iPhone confirma com o Face ID e o site entra sem digitar a senha. É só desta conta: cada pessoa cadastra a sua, no próprio aparelho. A senha continua valendo como alternativa."),
+      st=h("p",{class:"sub",role:"status"}),ul=h("ul",{class:"wl"});
+    var desligado=SEG.pkErro&&(SEG.pkErro.code==="passkey_disabled"||/passkey/i.test(SEG.pkErro.message||""));
+    if(!passkeyOk())p.appendChild(h("p",{class:"sub",text:"Este navegador não aceita passkeys. No iPhone, use o Safari ou o app instalado na tela de início (iOS 16 ou mais novo)."}));
+    if(desligado)p.appendChild(h("p",{class:"sub alerta",text:"⚠ Ainda não ligado no Supabase: o dono liga em Authentication → Passkeys (veja docs/seguranca.md). Até lá, entre com a senha."}));
+    else if(SEG.pkErro)p.appendChild(h("p",{class:"sub",text:"Não consegui ver as passkeys agora ("+(SEG.pkErro.message||SEG.pkErro)+")."}));
+    (SEG.passkeys||[]).forEach(function(k){var rm=h("button",{type:"button",class:"ghostbtn",text:"Remover"});
+      rm.onclick=function(){if(!confirm("Remover “"+(k.friendly_name||"passkey")+"”? Esse aparelho deixa de entrar com Face ID nesta conta (a senha continua valendo)."))return;
+        rm.disabled=true;st.textContent="Removendo…";
+        Promise.resolve().then(function(){return SB.auth.passkey.delete({passkeyId:k.id})}).then(function(r){if(r&&r.error)throw r.error;
+          return segEvento("passkey_removida",{nome:k.friendly_name||""})}).then(function(){st.textContent="✓ Removida.";setTimeout(function(){renderSeguranca()},1200)})
+        .catch(function(e){rm.disabled=false;st.textContent=passkeyMsg(e)})};
+      ul.appendChild(h("li",null,h("span",{class:"grow"},h("b",{text:k.friendly_name||"Passkey"}),h("span",{class:"sub",text:"cadastrada em "+segQuando(k.created_at)+(k.last_used_at?" · usada por último em "+segQuando(k.last_used_at):" · ainda não usada para entrar")})),rm))});
+    if(SEG.passkeys&&!SEG.passkeys.length)ul.appendChild(h("li",null,h("span",{class:"grow"},h("b",{text:"Nenhuma passkey"}),h("span",{class:"sub",text:"Hoje esta conta entra com e-mail e senha."}))));
+    p.appendChild(ul);
+    if(SEG.passkeys&&passkeyOk()&&SEG.passkeys.length<10){
+      var cad=h("button",{type:"button",text:"Cadastrar o Face ID deste aparelho"});
+      cad.onclick=function(){cad.disabled=true;st.textContent="Esperando o Face ID…";var nome=segAparelho()+" · "+dataBR(hojeISO());
+        Promise.resolve().then(function(){return SB.auth.registerPasskey()}).then(function(r){if(r.error)throw r.error;
+          /* o nome que o aparelho manda é genérico ("iCloud Keychain"): troca por um que diga qual é */
+          return Promise.resolve().then(function(){return SB.auth.passkey.update({passkeyId:r.data.id,friendlyName:nome})}).catch(function(){})})
+        .then(function(){return segEvento("passkey_cadastrada",{nome:nome,total:SEG.passkeys.length+1})})
+        .then(function(){st.textContent="✓ Pronto. Na próxima vez, toque em Entrar com Face ID na tela de entrada.";setTimeout(function(){renderSeguranca()},1800)})
+        .catch(function(e){cad.disabled=false;st.textContent=passkeyMsg(e)})};
+      p.appendChild(h("div",{class:"vfil"},cad))}
+    if(SEG.fatores.length)p.appendChild(h("p",{class:"sub",text:"Esta conta também usa o código do app autenticador: depois do Face ID o site pede o código uma vez, ao entrar; depois a sessão continua aberta (não pede de novo ao abrir o app). Para entrar só com o Face ID, desative o código abaixo."}));
+    p.appendChild(st);return p}
+
+  /* ---------- 3. verificação em duas etapas (TOTP) ---------- */
   function segMfa(){
     var p=panel("Verificação em duas etapas","Além da senha, um código de 6 dígitos de um app autenticador (Google Authenticator, Microsoft Authenticator, 1Password, Apple Senhas…). É opcional e vale só para esta conta."),
       st=h("p",{class:"sub",role:"status"}),caixa=h("div");
@@ -220,7 +255,7 @@
         if(/exist|duplicate|409/i.test(r.error.message||"")||r.error.statusCode==="409"){feito.anexosExistentes++;return}throw new Error("anexo "+path+": "+r.error.message)})})},Promise.resolve())}
 
   /* ---------- 5. histórico ---------- */
-  var SEG_TIPOS={exportacao:"Backup baixado",restauracao:"Restauração",teste_restauracao:"Teste de restauração",mfa_ativado:"Verificação em duas etapas ativada",mfa_desativado:"Verificação em duas etapas desativada",auditoria:"Auditoria"};
+  var SEG_TIPOS={exportacao:"Backup baixado",passkey_cadastrada:"Face ID cadastrado",passkey_removida:"Face ID removido",restauracao:"Restauração",teste_restauracao:"Teste de restauração",mfa_ativado:"Verificação em duas etapas ativada",mfa_desativado:"Verificação em duas etapas desativada",auditoria:"Auditoria"};
   function segResumoEvento(e){var r=e.resumo||{},p=[];
     if(r.formato)p.push(r.formato);if(r.motivo&&r.motivo!=="manual")p.push(r.motivo);
     if(r.tabelas)p.push(Object.keys(r.tabelas).reduce(function(s,k){return s+(+r.tabelas[k]||0)},0)+" linhas");
@@ -274,7 +309,8 @@
   /* ---------- 7. recuperação ---------- */
   function segRecuperacao(){
     var p=panel("Se perder o acesso","Guarde estas orientações. Elas valem para a senha e para o app autenticador."),ul=h("ul",{class:"clean"});p.appendChild(ul);
-    ["Esqueceu a senha: na tela de entrar, digite o e-mail e toque em Esqueci a senha. O link chega por e-mail; com a verificação em duas etapas ligada, o código continua sendo pedido.",
+    ["Face ID: se o aparelho for perdido, remova a passkey dele aqui (de outro aparelho) ou entre com a senha. As passkeys ficam nas Chaves do iCloud e voltam num iPhone novo com o mesmo Apple ID.",
+     "Esqueceu a senha: na tela de entrar, digite o e-mail e toque em Esqueci a senha. O link chega por e-mail; com a verificação em duas etapas ligada, o código continua sendo pedido.",
      "Perdeu o celular do app: entre com o app reserva (cadastre um noutro aparelho, como o tablet ou o 1Password) e desative o app perdido aqui.",
      "Sem nenhum app: o dono do site abre o painel do Supabase → Authentication → Users → a conta → remove o fator (MFA). A conta volta a entrar só com a senha; depois cadastre de novo.",
      "Se o dono perder os dois apps: o acesso ao painel do Supabase (com a verificação da própria conta do Supabase) é a recuperação. Guarde esse acesso com cuidado.",

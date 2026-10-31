@@ -55,7 +55,7 @@
   function client() {
     if (sb) return Promise.resolve(sb);
     return (window.supabase ? Promise.resolve() : loadScript(SUPA_JS)).then(function () {
-      sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth" } });
+      sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth", experimental: { passkey: true } } });
       return sb;
     });
   }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel><title>g1 Tecnologia (teste, dados fictícios)</title>
+<item><title>Empresa Fictícia lança assistente de inteligência artificial para celulares</title><link>https://g1.globo.com/tecnologia/noticia/2026/11/01/empresa-ficticia-lanca-assistente.ghtml?utm_source=rss&amp;utm_medium=feed&amp;id=7</link><description>&lt;img src=&quot;https://s2.glbimg.com/exemplo-descricao.jpg&quot; /&gt;&lt;br /&gt;A Empresa Fictícia apresentou um assistente de IA generativa que funciona sem internet.</description><pubDate>Sun, 01 Nov 2026 05:30:00 -0300</pubDate><media:content url="https://s2.glbimg.com/exemplo-capa.jpg" medium="image" /></item>
+<item><title>Celular dobrável da Marca Exemplo chega ao Brasil</title><link>https://g1.globo.com/tecnologia/noticia/2026/10/31/dobravel-exemplo.ghtml</link><description>&lt;img src=&quot;https://s2.glbimg.com/exemplo-dobravel.jpg&quot; /&gt; O aparelho fictício custa R$ 9 mil.</description><pubDate>Sat, 31 Oct 2026 20:00:00 -0300</pubDate></item>
+<item><title>Notícia antiga demais</title><link>https://g1.globo.com/tecnologia/noticia/2026/10/26/antiga.ghtml</link><description></description><pubDate>Mon, 26 Oct 2026 10:00:00 -0300</pubDate></item>
+<item><title>Link do Google não serve</title><link>https://news.google.com/rss/articles/CBMiExemplo?oc=5</link><description></description><pubDate>Sun, 01 Nov 2026 05:00:00 -0300</pubDate></item>
+<item><title>Evento fictício de tecnologia anuncia datas</title><link>https://g1.globo.com/tecnologia/noticia/2026/11/01/evento-ficticio.ghtml</link><description>Data no futuro: vale a hora da coleta.</description><pubDate>Sun, 01 Nov 2026 12:00:00 -0300</pubDate></item>
+</channel></rss>

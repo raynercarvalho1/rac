@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>The Verge (teste, dados fictícios)</title>
+<entry><title>Fictional Corp unveils generative AI model that runs offline on phones</title>
+<link rel="alternate" href="https://www.theverge.com/2026/11/1/fictional-corp-ai-model#comments"/>
+<published>2026-11-01T07:00:00Z</published><summary type="html">The new AI model from Fictional Corp is generative and small.</summary></entry>
+<entry><title>Opinion: gadgets keep getting pricier</title><link rel="alternate" href="https://www.theverge.com/opinion/2026/11/1/gadgets-pricier"/>
+<updated>2026-11-01T08:00:00Z</updated><summary>An opinion piece.</summary></entry>
+</feed>

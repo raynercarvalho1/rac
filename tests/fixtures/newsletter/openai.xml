@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel><title>OpenAI (teste, dados fictícios)</title>
+<item><title>Introducing Exemplo-1, a fictional reasoning model</title><link>https://openai.com/index/exemplo-1/?utm_source=rss</link><description>A fictional model.</description><pubDate>Sun, 01 Nov 2026 06:00:00 GMT</pubDate></item>
+<item><title>Introducing Exemplo-1, a fictional reasoning model (repost)</title><link>https://openai.com/index/exemplo-1/?utm_campaign=x</link><description>Same link: dropped.</description><pubDate>Sun, 01 Nov 2026 06:05:00 GMT</pubDate></item>
+</channel></rss>

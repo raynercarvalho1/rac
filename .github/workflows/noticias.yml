@@ -1,4 +1,5 @@
 # A cada 3 horas: atualiza noticias.json (Sorocaba, tela inicial), tecdados.json (dados e tecnologia, Conexões do dia) e rumores.json (MLB, Esportes).
+# Às 6h, 12h e 18h de Brasília (e na mão, pela aba Actions): newsletter.json (Newsletter, fontes RSS oficiais).
 name: Atualizar notícias
 
 on:
@@ -35,16 +36,28 @@ jobs:
         continue-on-error: true    # se falhar, as notícias ainda são salvas; o último passo marca a falha
         run: python scripts/atualizar_rumores.py
 
+      # o agendamento acima roda a cada 3 horas; a Newsletter só nas rodadas das 9h, 15h e 21h UTC (6h, 12h e 18h de
+      # Brasília), contando os atrasos de até uma hora do GitHub. Na mão (workflow_dispatch), roda sempre.
+      - name: Coletar a Newsletter (fontes RSS oficiais)
+        id: newsletter
+        continue-on-error: true    # se falhar, as outras coletas ainda são salvas; o último passo marca a falha
+        run: |
+          HORA=$(date -u +%H)
+          case "${{ github.event_name }}:$HORA" in
+            workflow_dispatch:*|*:09|*:10|*:15|*:16|*:21|*:22) python scripts/atualizar_newsletter.py ;;
+            *) echo "Fora do horário da Newsletter ($HORA h UTC)." ;;
+          esac
+
       - name: Salvar se mudou
         run: |
-          git add -N tecdados.json rumores.json 2>/dev/null || true
-          if git diff --quiet -- noticias.json tecdados.json rumores.json; then
+          git add -N tecdados.json rumores.json newsletter.json 2>/dev/null || true
+          if git diff --quiet -- noticias.json tecdados.json rumores.json newsletter.json; then
             echo "Nenhuma notícia nova."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add noticias.json tecdados.json rumores.json
+          git add noticias.json tecdados.json rumores.json newsletter.json
           git commit -m "Notícias atualizadas"
           git pull --rebase --autostash
           git push
@@ -53,4 +66,10 @@ jobs:
         if: steps.rumores.outcome == 'failure'
         run: |
           echo "O robô de rumores da MLB falhou (veja o passo acima)."
+          exit 1
+
+      - name: Avisar se a Newsletter falhou
+        if: steps.newsletter.outcome == 'failure'
+        run: |
+          echo "A coleta da Newsletter falhou: mais da metade das fontes fora do ar ou nenhuma notícia (veja o passo acima)."
           exit 1

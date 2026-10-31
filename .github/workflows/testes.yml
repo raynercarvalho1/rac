@@ -4,7 +4,7 @@ name: Testes
 on:
   push:
     branches: [main]
-    paths-ignore: ["noticias.json", "tecdados.json", "vagas.json"]
+    paths-ignore: ["noticias.json", "tecdados.json", "vagas.json", "rumores.json", "newsletter.json"]
   workflow_dispatch: {}
   schedule:
     - cron: "30 10 * * 1"   # toda segunda, para pegar mudanças no Supabase mesmo sem publicação

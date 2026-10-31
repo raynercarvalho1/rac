@@ -1,4 +1,3 @@
--- status: pendente
 -- Newsletter Inteligente: as edições do dia de cada dono e o registro dos avisos enviados (docs/newsletter.md).
 -- Rode este arquivo inteiro no SQL Editor, depois do 015 (usa ia_uso e membros); pode rodar de novo sem estragar nada.
 --

@@ -63,7 +63,7 @@ test("rac-ia só libera o navegador do próprio site (CORS)", opIa, async () => 
 
 // Newsletter: a função rac-newsletter só é chamada pelo agendamento do banco, com a senha da rotina. Ainda não foi
 // publicada (docs/newsletter.md): depois de publicar, troque para true e estes testes passam a valer.
-const RAC_NEWSLETTER_PUBLICADA = false;
+const RAC_NEWSLETTER_PUBLICADA = true;
 const opNl = { skip: pular, todo: RAC_NEWSLETTER_PUBLICADA ? false : "publicar a função rac-newsletter" };
 test("rac-newsletter recusa quem não manda a senha da rotina", opNl, async () => {
   const r = await fetch(`${URL_SB}/functions/v1/rac-newsletter`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: '{"tipo":"rotina"}' });

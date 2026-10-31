@@ -1,4 +1,3 @@
--- status: pendente
 -- Newsletter: agenda a função rac-newsletter (docs/newsletter.md). Rode DEPOIS de publicar a função e depois do 018.
 -- Pode rodar de novo sem estragar nada (troca o agendamento pelo mesmo).
 --

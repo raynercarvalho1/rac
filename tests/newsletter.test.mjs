@@ -491,7 +491,7 @@ test("SQL 018: edição com IA só com chamada REAL concluída da mesma chave; I
 });
 test("SQL 019: agenda a rac-newsletter depois das coletas das 6h, 12h e 18h, com a senha da rotina que já existe (nenhum segredo novo)", () => {
   const s = semComent(ler("supabase/019_newsletter_avisos.sql"));
-  assert.match(ler("supabase/019_newsletter_avisos.sql"), /^-- status: pendente/);
+  assert.ok(!/^-- status: pendente/.test(ler("supabase/019_newsletter_avisos.sql")), "aplicado em produção em 31/10/2026");
   assert.match(s, /cron\.unschedule\('rac-newsletter'\) where exists/); assert.match(s, /cron\.schedule\('rac-newsletter', '45 9,10,11,15,16,21,22 \* \* \*'/);
   assert.match(s, /functions\/v1\/rac-newsletter/); assert.match(s, /name = 'rac_rotina'/);
   assert.ok(!/create_secret|vault\.create|garmin|rac-ia/.test(s));
@@ -655,7 +655,7 @@ test("custo real por edição e por módulo: painel do Sistema (filtro e ediçã
 });
 test("SQL 021: liga só a Newsletter (casa em REAL, lista só com newsletter.resumo, casa sem REAL); exige o 020; não mexe em limite nem preço", () => {
   const bruto = ler("supabase/021_newsletter_ligar.sql"), s = semComent(bruto);
-  assert.match(bruto, /^-- status: pendente/); assert.match(s, /^\s*begin;/m); assert.match(s, /commit;\s*$/);
+  assert.ok(!/^-- status: pendente/.test(bruto), "aplicado em produção em 31/10/2026"); assert.match(s, /^\s*begin;/m); assert.match(s, /commit;\s*$/);
   const up = /update public\.ia_config\s+set ([\s\S]*?);/.exec(s)[1];
   assert.equal(up.replace(/\s+/g, " ").trim(), "modo = 'REAL', acoes_reais = array['newsletter.resumo']::text[], acoes_reais_casa = '{}'::text[], atualizado_em = now()");
   assert.ok(!/abastecimento|mercado|limite_brl|cambio|margem|fator_correcao|ia_precos|insert|delete|drop|grant|policy/i.test(s), "nada além da Newsletter");

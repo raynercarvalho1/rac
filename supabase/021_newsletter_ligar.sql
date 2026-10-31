@@ -1,4 +1,3 @@
--- status: pendente
 -- Newsletter: LIGA o resumo com IA em REAL (autorizado pelo dono em 31/10/2026: consumo de créditos da Anthropic na
 -- Newsletter, só com Claude Haiku). Rode por ÚLTIMO, depois do 018, do 020, da rac-ia e da rac-newsletter publicadas e do
 -- 019 (docs/newsletter.md, "Publicação"). Pode rodar de novo sem estragar nada.

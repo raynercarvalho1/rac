@@ -8,14 +8,15 @@ aviso no celular e um resumo em português feito pela RAC Intelligence (Claude H
 
 | Peça | Estado | Quem faz |
 |---|---|---|
-| Coletor `scripts/atualizar_newsletter.py` + `noticias.yml` | Pronto, testado (local) | Publica junto com o site |
-| Página `#newsletter`, cartão no Início, busca do site, Sistema | Pronto, testado (local), versão `2026-10-31.4` | Push no `main` |
-| SQL `018_newsletter.sql` (edições e avisos) | **Pendente**: preparado, não executado | Dono, no SQL Editor, **antes** do site |
-| Função `rac-newsletter` (edições, resumo automático e avisos) | **Pendente**: código pronto, não publicada | Pela CLI |
-| SQL `019_newsletter_avisos.sql` (agendamento dos turnos) | **Pendente**: rodar **depois** de publicar a função | SQL Editor |
-| Ação `newsletter.resumo` na `rac-ia` (+ porta da rotina) | Código pronto com `real: true` (só vale com o banco liberando); a `rac-ia` precisa ser republicada | Pela CLI |
+| Coletor `scripts/atualizar_newsletter.py` + `noticias.yml` | **No ar**; primeira coleta em 31/10/2026 às 14h59 (52 de 52 fontes) | GitHub Actions (6h, 12h e 18h) |
+| Página `#newsletter`, cartão no Início, busca do site, Sistema | **No ar**, versão `2026-10-31.4` | Push no `main` |
+| SQL `018_newsletter.sql` (edições e avisos) | **Aplicado e conferido** (RLS, políticas, unicidade por turno, gatilho) | Claude, pela CLI, com autorização do dono |
+| Função `rac-newsletter` (edições, resumo automático e avisos) | **Publicada** (versão 1, `--no-verify-jwt`; recusa quem não tem a senha da rotina) | Claude, pela CLI |
+| SQL `019_newsletter_avisos.sql` (agendamento dos turnos) | **Aplicado**: `45 9,10,11,15,16,21,22 * * *` (UTC), ativo | Claude, pela CLI |
+| Ação `newsletter.resumo` na `rac-ia` (+ porta da rotina) | **Publicada** (`rac-ia` versão 4) | Claude, pela CLI |
 | SQL `020_newsletter_real.sql` | **Aplicado e conferido em 31/10/2026**: o banco aceita `newsletter.resumo` em `acoes_reais`; listas continuaram vazias, modo DEMO, 0 chamadas | Claude, pela CLI, com autorização do dono |
-| SQL `021_newsletter_ligar.sql` (casa em REAL, lista só com `newsletter.resumo`) | **Pendente**: rodar por último, depois do resto publicado | SQL Editor ou CLI |
+| SQL `021_newsletter_ligar.sql` (casa em REAL, lista só com `newsletter.resumo`) | **Aplicado em 31/10/2026**: modo REAL, `acoes_reais` = só `newsletter.resumo`, `acoes_reais_casa` vazia | Claude, pela CLI, com autorização do dono |
+| Primeira edição com IA | 31/10/2026, turno da tarde: 9 destaques, Haiku, 5.720 → 2.419 tokens, **US$ 0,001782** estimados (reserva US$ 0,002958); segunda execução não repetiu a chamada nem o aviso | Rotina (disparo manual igual ao agendado) |
 
 O abastecimento continua em DEMO (fora de `acoes_reais`), o Mercado continua DEMO fixo no código, e nada disto mexe no
 orçamento (teto interno de R$ 50 por mês), na recarga automática da Anthropic (desligada), nos Secrets ou na `garmin`.

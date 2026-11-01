@@ -8,11 +8,12 @@ aviso no celular e um resumo em português feito pela RAC Intelligence (Claude H
 
 | Peça | Estado | Quem faz |
 |---|---|---|
-| Coletor `scripts/atualizar_newsletter.py` + `noticias.yml` | **No ar**; primeira coleta em 31/10/2026 às 14h59 (52 de 52 fontes) | GitHub Actions (6h, 12h e 18h) |
-| Página `#newsletter`, cartão no Início, busca do site, Sistema | **No ar**, versão `2026-10-31.4` | Push no `main` |
+| Coletor `scripts/atualizar_newsletter.py` + `noticias.yml` | **No ar**; primeira coleta em 31/10/2026 às 14h59 (52 de 52 fontes) | GitHub Actions (uma coleta por turno: 6h, 12h e 18h; ver "Coleta por turno") |
+| Página `#newsletter`, cartão no Início, busca do site, Sistema | **No ar**, versão `2026-11-01.4` (aviso de atraso de 8 h) | Push no `main` |
 | SQL `018_newsletter.sql` (edições e avisos) | **Aplicado e conferido** (RLS, políticas, unicidade por turno, gatilho) | Claude, pela CLI, com autorização do dono |
-| Função `rac-newsletter` (edições, resumo automático e avisos) | **Publicada** (versão 1, `--no-verify-jwt`; recusa quem não tem a senha da rotina) | Claude, pela CLI |
-| SQL `019_newsletter_avisos.sql` (agendamento dos turnos) | **Aplicado**: `45 9,10,11,15,16,21,22 * * *` (UTC), ativo | Claude, pela CLI |
+| Função `rac-newsletter` (edições, resumo automático e avisos) | **Publicada** (versão 2 em 01/11/2026: uma cobrança por data e turno; `--no-verify-jwt`; recusa quem não tem a senha da rotina) | Claude, pela CLI |
+| SQL `019_newsletter_avisos.sql` (agendamento dos turnos) | Substituído pelo 023 em 01/11/2026 (era `45 9,10,11,15,16,21,22 * * *` UTC) | Claude, pela CLI |
+| SQL `023_newsletter_turnos.sql` (tentativas de hora em hora) | **Aplicado em 01/11/2026**: `50 0-2,9-23 * * *` (UTC = 6h50 às 23h50 de Brasília), um só job, ativo; `rac-rotina` intacta | Claude, pela CLI, com autorização do dono |
 | Ação `newsletter.resumo` na `rac-ia` (+ porta da rotina) | **Publicada** (`rac-ia` versão 4) | Claude, pela CLI |
 | SQL `020_newsletter_real.sql` | **Aplicado e conferido em 31/10/2026**: o banco aceita `newsletter.resumo` em `acoes_reais`; listas continuaram vazias, modo DEMO, 0 chamadas | Claude, pela CLI, com autorização do dono |
 | SQL `021_newsletter_ligar.sql` (casa em REAL, lista só com `newsletter.resumo`) | **Aplicado em 31/10/2026**: modo REAL, `acoes_reais` = só `newsletter.resumo`, `acoes_reais_casa` vazia | Claude, pela CLI, com autorização do dono |
@@ -54,9 +55,36 @@ GitHub Actions (noticias.yml, 6h/12h/18h)          Supabase                     
 7. **Destaques:** 5 a 10, no máximo 3 por categoria, nunca opinião. Só entra o que tem até 30 horas, ou até 48 horas se
    ainda repercute (3 fontes ou mais); o motivo aparece no cartão ("ainda repercute, publicado há 40 h"). Se houver
    menos de 5, completa com os melhores restantes e diz "entre as mais recentes disponíveis".
-8. **Sem mudança, sem commit:** o arquivo só é regravado quando o conteúdo muda; uma fonte fora do ar fica registrada em
+8. **Sem mudança, sem commit:** no mesmo turno, o arquivo só é regravado quando o conteúdo muda; num turno novo é
+   regravado sempre (a hora da coleta, `coletado`, é o que marca o turno). Uma fonte fora do ar fica registrada em
    `fontes` com o erro e `falha_desde`. Mais da metade das fontes fora (ou nenhuma notícia): o robô falha de propósito,
-   mantém o arquivo anterior e o GitHub avisa por e-mail. O Sistema mostra a coleta e as fontes fora do ar.
+   mantém o arquivo anterior (o turno continua sem coleta, e a próxima rodada tenta de novo) e o GitHub avisa por e-mail.
+   O Sistema mostra a coleta e as fontes fora do ar.
+
+### Coleta por turno (desde 01/11/2026)
+
+O GitHub atrasa (até ~3 horas) e pula rodadas agendadas (em 31/10–01/11 rodou ~3 de 8 por dia). Antes, a Newsletter só
+coletava se a **hora UTC da rodada** fosse 9, 10, 15, 16, 21 ou 22, e nenhuma rodada caiu nessas horas entre 31/10 14h59
+e 01/11 de manhã. Agora a decisão é pelo **turno de Brasília** (`America/Sao_Paulo`):
+
+- Turnos: manhã das 6h, tarde das 12h, noite das 18h (até 23h59). De 0h a 5h59 não há coleta de turno.
+- O `noticias.yml` roda a Newsletter de hora em hora (`40 * * * *`, só ela) além das rodadas de 3 em 3 horas (todas as
+  coletas). O coletor recebe `--se-preciso` e só coleta se o arquivo ainda não tem coleta do turno vigente; as outras
+  rodadas do turno saem sem fazer nada (sem arquivo e sem commit). Na mão (aba Actions), coleta sempre.
+- Rodada atrasada recupera o turno vigente (ex.: às 11h40 ainda é a manhã). Um turno que passou inteiro sem rodada não é
+  refeito depois: a coleta seguinte já traz as últimas 48 horas, e nada é inventado para o turno perdido.
+- A rodada usa o `main` de agora (`ref: main`), então uma rodada que esperou na fila vê a coleta da anterior.
+- Coleta e resumo são separados: o GitHub só coleta; a edição e o resumo com IA são da `rac-newsletter` (Supabase), que
+  só trabalha quando chega a coleta do turno. As tentativas de hora em hora do Supabase e a chave de cobrança por data e
+  turno estão no ar desde 01/11/2026 (SQL 023 e `rac-newsletter` versão 2):
+  - a função só trabalha com a coleta da data e do turno de Brasília (de madrugada não há turno);
+  - não pede resumo se o turno já tem edição com IA, nem se já existe em `ia_uso` qualquer linha com a chave do turno
+    (`nl-AAAA-MM-DD-xxxxxxxx`, igual para todas as coletas do turno) ou com a chave da edição (a do botão do site), em
+    qualquer estado: reservado, enviando, incerto, com erro ou concluído. Reconciliar continua explícito (Sistema);
+  - duas execuções ao mesmo tempo usam a mesma chave, e o banco (`ia_reservar`, com a trava da casa, e o unique de
+    `ia_uso`) só aceita uma reserva: a outra recebe `em_andamento`/`repetida` e não chama a IA;
+  - continuam o limite de 3 por dia (contando o botão do site), o Haiku, o orçamento e só `newsletter.resumo` em REAL;
+  - cada execução deixa uma linha no log da função (data, turno, motivo, edição, IA e aviso; nada sensível).
 
 ## Fontes (52, todas por RSS/Atom oficial)
 
@@ -99,7 +127,8 @@ texto completo fica no site do veículo.
 Abas: **Hoje** (resumo do dia, destaques com manchete, veículo, data e hora, quantas fontes, link original, "Guardar" e
 "As N fontes"; seções por categoria), **Buscar** (palavras, categoria, tipo, veículo, mais recentes ou mais
 relevantes), **Guardadas**, **Edições** (histórico), **Semana** e **Ajustes**. Estado vazio, coleta atrasada (mais de
-26 h), fontes fora do ar e "sem internet" aparecem na própria página. No Início, o cartão "Newsletter" mostra o resumo e
+8 h sem coleta e já passou, com 1 h de folga, o início de um turno que não teve coleta; de madrugada não avisa; conta pela
+hora da coleta, não pela data da edição: `NUCLEO.nlAtraso`), fontes fora do ar e "sem internet" aparecem na própria página. No Início, o cartão "Newsletter" mostra o resumo e
 os 4 primeiros destaques; a busca geral do site acha as notícias. Pensada para 375 px (abas roláveis, imagem pequena à
 direita, sem rolagem lateral). No celular, só nesta página, Voltar e Início ficam só com o ícone (o nome continua
 para leitores de tela) para o título "Newsletter" caber inteiro; as outras páginas mantêm o cabeçalho de sempre.
@@ -209,5 +238,6 @@ conferência REAL simulada e funcionamento sem internet. `tests/seguranca.test.m
 - O resumo (com ou sem IA) vem do título e do trecho do RSS: não há texto completo (de propósito, sem raspagem).
 - O agrupamento não junta matérias em línguas diferentes (o mesmo fato em inglês e em português fica em dois grupos).
 - Categorias por palavras-chave erram às vezes; as etiquetas secundárias e os pesos ajudam a compensar.
-- O GitHub pode atrasar o agendamento; o aviso tenta três vezes e só sai quando a edição do dia já existe.
+- O GitHub pode atrasar ou pular o agendamento; a coleta tenta de hora em hora dentro do turno (ver "Coleta por turno") e o
+  aviso só sai quando a edição do dia já existe. Se o turno inteiro passar sem rodada, ele fica sem edição.
 - Imagens vêm do site do veículo; sem internet, o cartão aparece sem a imagem.

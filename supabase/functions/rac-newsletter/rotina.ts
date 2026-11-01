@@ -29,6 +29,7 @@ export function dataBRT(ms: number): string { return new Date(ms - 3 * 3600e3).t
 /* o turno da edição pelo horário de Brasília (o mesmo nlTurno do site): antes das 12h manhã, antes das 18h tarde */
 export function turnoBRT(ms: number): Turno { const h = new Date(ms - 3 * 3600e3).getUTCHours(); return h < 12 ? "manha" : h < 18 ? "tarde" : "noite"; }
 export const LIMITE_IA_DIA = 3; // um resumo por turno, no máximo
+export const INICIO_TURNOS = 6; // o primeiro turno começa às 6h de Brasília (o mesmo do coletor)
 export function diaDaSemanaBRT(ms: number): number { return new Date(ms - 3 * 3600e3).getUTCDay(); }
 /* semana ISO 8601 ("2026-W44"), a mesma numeração do calendário */
 export function semanaISO(data: string): string {
@@ -159,6 +160,7 @@ export type Deps = {
   config(dono: string): Promise<Cfg | null>;
   salvarEdicao(dono: string, c: Conteudo): Promise<"nova" | "existia">;
   /* resumo com IA */
+  edicaoComIA(dono: string, data: string, turno: Turno): Promise<boolean>; // newsletter_edicoes já tem a edição "ia" deste turno
   jaTentou(dono: string, chave: string): Promise<boolean>; // há linha em ia_uso com esta chave (qualquer estado)
   chamadasHoje(dono: string, data: string): Promise<number>; // resumos da Newsletter pedidos hoje (ia_uso)
   resumirIA(dono: string, pedido: Record<string, unknown>): Promise<RespostaIA>; // POST na rac-ia, uma vez
@@ -170,13 +172,23 @@ export type Deps = {
 };
 export type Resultado = { ok: boolean; data: string; turno?: Turno; motivo?: string; donos: { edicao: string; ia: string; aviso: string; semana: string }[] };
 
-/* o resumo com IA de uma edição: no máximo UMA chamada, e só se ninguém tentou esta chave antes */
+/* chave de cobrança do resumo automático: uma por data e turno (não pelo conjunto de notícias). Duas coletas no mesmo turno
+   ou duas execuções ao mesmo tempo usam a MESMA chave, e o banco (ia_reservar, com a trava da casa, e o unique de ia_uso)
+   só deixa reservar uma vez: a segunda recebe "em_andamento" ou "repetida" e não chama a IA. Formato nl-AAAA-MM-DD-xxxxxxxx,
+   o mesmo das outras chaves da Newsletter (o painel de custos acha a data por nlDataDaChave). */
+export function chaveTurno(data: string, turno: Turno): string { return "nl-" + data + "-" + hash("turno:" + turno); }
+
+/* o resumo com IA de um turno: no máximo UMA chamada paga por data e turno, nunca repetida sozinha (nem depois de erro,
+   reserva aberta, envio em andamento ou estado incerto: qualquer linha em ia_uso com a chave bloqueia; reconciliar é
+   explícito, no painel do Sistema) */
 async function resumir(x: Deps, dono: string, cfg: Cfg | null, c: Conteudo): Promise<{ texto: string; conteudo?: Conteudo }> {
   if (cfg && (cfg as Record<string, unknown>).resumo_ia === false) return { texto: "resumo automático desligado" };
   const e = entradaIA(c);
   if (e.ids.length < 3) return { texto: "notícias de menos para resumir" };
-  const k = chave(c.data, e.ids);
-  if (await x.jaTentou(dono, k)) return { texto: "esta edição já foi resumida ou tentada (não repete)" };
+  if (await x.edicaoComIA(dono, c.data, c.turno)) return { texto: "este turno já tem resumo com IA (não repete)" };
+  const k = chaveTurno(c.data, c.turno);
+  /* a chave do turno e a da edição (a do botão do site, pelo conjunto de notícias): qualquer tentativa bloqueia */
+  if (await x.jaTentou(dono, k) || await x.jaTentou(dono, chave(c.data, e.ids))) return { texto: "este turno já foi resumido ou tentado (não repete)" };
   if (await x.chamadasHoje(dono, c.data) >= LIMITE_IA_DIA) return { texto: "limite de " + LIMITE_IA_DIA + " resumos por dia" };
   const r = await x.resumirIA(dono, { versao: 1, modulo: "newsletter", acao: "newsletter.resumo", idempotencia: k, entrada: { texto: e.texto }, contexto: { data: c.data } });
   if (!r?.ok) return { texto: "sem resumo (" + (r?.erro?.codigo ?? "erro") + "); fica a edição sem IA" };
@@ -189,10 +201,14 @@ async function resumir(x: Deps, dono: string, cfg: Cfg | null, c: Conteudo): Pro
 
 export async function rodarRotina(x: Deps): Promise<Resultado> {
   const agora = x.agora(), hoje = dataBRT(agora), turno = turnoBRT(agora);
+  /* de madrugada (0h às 5h59) não há turno: o coletor também não coleta */
+  if (new Date(agora - 3 * 3600e3).getUTCHours() < INICIO_TURNOS) return { ok: true, data: hoje, turno, motivo: "madrugada: fora dos turnos", donos: [] };
   const d = await x.dados();
   if (!d?.edicao || d.edicao.data !== hoje) return { ok: true, data: hoje, turno, motivo: "a edição de hoje ainda não saiu", donos: [] };
-  /* a coleta deste turno ainda não chegou (o GitHub atrasou): a próxima tentativa agendada pega */
-  if (!d.coletado || turnoBRT(Date.parse(d.coletado)) !== turno) return { ok: true, data: hoje, turno, motivo: "a edição deste turno ainda não saiu", donos: [] };
+  /* a coleta deste turno (data e turno de Brasília) ainda não chegou (o GitHub atrasou): a próxima tentativa, de hora em
+     hora (023), pega */
+  const col = Date.parse(d.coletado ?? "");
+  if (!isFinite(col) || dataBRT(col) !== hoje || turnoBRT(col) !== turno) return { ok: true, data: hoje, turno, motivo: "a edição deste turno ainda não saiu", donos: [] };
   const out: Resultado["donos"] = [];
   for (const dono of await x.donos()) {
     const cfg = await x.config(dono), c = edicaoBase(d, cfg);

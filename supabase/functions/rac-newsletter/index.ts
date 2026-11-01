@@ -100,6 +100,11 @@ function deps(adm: Sb, senhaRotina: string) {
       if (error) throw new Error("newsletter_edicoes: " + error.code);
       return data?.length ? "nova" : "existia";
     },
+    async edicaoComIA(dono: string, data: string, turno: string): Promise<boolean> {
+      const { data: l, error } = await adm.from("newsletter_edicoes").select("id").eq("dono", dono).eq("data", data).eq("turno", turno).eq("origem", "ia").limit(1);
+      if (error) throw new Error("newsletter_edicoes: " + error.code);
+      return !!l?.length;
+    },
     async jaTentou(dono: string, chave: string): Promise<boolean> {
       const { data, error } = await adm.from("ia_uso").select("id").eq("user_id", dono).eq("idempotencia", chave).limit(1);
       if (error) throw new Error("ia_uso: " + error.code);

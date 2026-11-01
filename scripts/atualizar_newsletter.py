@@ -9,8 +9,14 @@ curto da descrição e a imagem, quando o feed traz. Depois:
 - calcula a relevância base (atualidade, número de fontes, tipo) e monta a edição do dia com os pesos padrão.
 O site refaz a ordem com os pesos que o dono escolheu (nucleo.js, nlRelevancia), com a mesma fórmula.
 
-Uma fonte fora do ar não derruba as outras: o erro fica registrado em "fontes". Sem mudança de conteúdo, o arquivo
-não é regravado (o robô não faz commit à toa). Usa apenas a biblioteca padrão do Python.
+Uma fonte fora do ar não derruba as outras: o erro fica registrado em "fontes". Sem mudança de conteúdo no mesmo
+turno, o arquivo não é regravado (o robô não faz commit à toa). Usa apenas a biblioteca padrão do Python.
+
+Turnos (horário de Brasília, America/Sao_Paulo): manhã das 6h, tarde das 12h e noite das 18h. Com --se-preciso (o
+agendamento do GitHub, que atrasa e às vezes pula rodadas), só coleta se o turno vigente ainda não tem coleta: qualquer
+rodada dentro do turno recupera o atraso, e as seguintes não fazem nada. Na madrugada (0h às 5h59) não coleta. Um turno
+que passou inteiro sem rodada não é refeito depois: a coleta seguinte já traz as notícias das últimas 48 horas.
+Só a coleta é feita aqui; a edição e o resumo com IA ficam com a rac-newsletter (Supabase), no máximo um por turno.
 
 Testes (tests/newsletter.test.mjs): NL_FIXTURES=<pasta> lê <id>.xml da pasta em vez da rede (arquivo ausente = fonte
 fora do ar), NL_AGORA fixa o horário e NL_SAIDA troca o arquivo gravado.
@@ -32,6 +38,13 @@ from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree
 
 BRT = timezone(timedelta(hours=-3))
+try:  # o fuso oficial; sem a base de fusos no aparelho (ex.: Windows sem tzdata), Brasília sem horário de verão
+    from zoneinfo import ZoneInfo
+    FUSO = ZoneInfo("America/Sao_Paulo")
+except Exception:
+    FUSO = BRT
+# turnos da Newsletter no horário de Brasília: manhã 6h, tarde 12h, noite 18h; de 0h às 5h59 não há coleta de turno
+INICIO_TURNOS = 6
 ARQ = os.environ.get("NL_SAIDA") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "newsletter.json")
 UA = "Mozilla/5.0 (Dia a Dia RAC; leitor RSS pessoal; https://raynercarvalho.com.br)"
 
@@ -390,7 +403,7 @@ def edicao(grupos, idades, agora):
         por_cat.setdefault(g["c"], [])
         if len(por_cat[g["c"]]) < SECAO_MAX:
             por_cat[g["c"]].append(g["id"])
-    return {"data": agora.astimezone(BRT).date().isoformat(), "destaques": [g["id"] for g in destaques],
+    return {"data": agora.astimezone(FUSO).date().isoformat(), "destaques": [g["id"] for g in destaques],
             "por_categoria": {c: por_cat[c] for c in CATEGORIAS if c in por_cat}}
 
 
@@ -463,6 +476,21 @@ def gravar(dados, caminho):
         f.write(txt)
 
 
+def turno_de(quando):
+    """(data, turno) de Brasília para um horário com fuso (ou o texto ISO de "coletado"); None de madrugada ou sem data."""
+    if isinstance(quando, str):
+        try:
+            quando = datetime.fromisoformat(quando)
+        except ValueError:
+            return None
+    if not isinstance(quando, datetime) or quando.tzinfo is None:
+        return None
+    local = quando.astimezone(FUSO)
+    if local.hour < INICIO_TURNOS:
+        return None
+    return (local.date().isoformat(), "manha" if local.hour < 12 else "tarde" if local.hour < 18 else "noite")
+
+
 def main():
     agora = datetime.fromisoformat(os.environ["NL_AGORA"]) if os.environ.get("NL_AGORA") else datetime.now(timezone.utc)
     try:
@@ -470,6 +498,18 @@ def main():
             anterior = json.load(f)
     except (OSError, ValueError):
         anterior = None
+    # o turno vigente e o da última coleta gravada (o arquivo só é regravado por coleta bem-sucedida)
+    atual = turno_de(agora)
+    ultimo = turno_de(anterior.get("coletado")) if isinstance(anterior, dict) else None
+    # --se-preciso (agendamento): coleta só quando o turno vigente ainda não tem coleta; na mão, coleta sempre
+    if "--se-preciso" in sys.argv[1:]:
+        if atual is None:
+            print("madrugada: sem coleta de turno antes das %dh de Brasília" % INICIO_TURNOS)
+            return
+        if ultimo == atual:
+            print("turno já coletado (%s, %s): nada a fazer" % atual)
+            return
+        print("coletando o turno %s de %s" % (atual[1], atual[0]))
     # testes: NL_FONTES="id1,id2" limita as fontes (as que não têm arquivo em NL_FIXTURES contam como fora do ar)
     so = set(filter(None, os.environ.get("NL_FONTES", "").split(",")))
     fontes = [f for f in FONTES if not so or f[0] in so]
@@ -483,7 +523,9 @@ def main():
     if len(falhas) > len(fontes) // 2 or not dados["grupos"]:
         print("ALERTA: newsletter com problema (%d de %d fontes falharam, %d grupos)" % (len(falhas), len(fontes), len(dados["grupos"])), file=sys.stderr)
         sys.exit(1)
-    if anterior and {k: v for k, v in anterior.items() if k != "coletado"} == {k: v for k, v in json.loads(json.dumps(dados)).items() if k != "coletado"}:
+    # sem notícia nova no mesmo turno, o arquivo não muda; num turno novo é regravado (a hora da coleta marca o turno)
+    turno_novo = atual is not None and ultimo != atual
+    if not turno_novo and anterior and {k: v for k, v in anterior.items() if k != "coletado"} == {k: v for k, v in json.loads(json.dumps(dados)).items() if k != "coletado"}:
         print("sem notícias novas")
         return
     gravar(dados, ARQ)

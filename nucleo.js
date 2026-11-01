@@ -336,6 +336,16 @@
   /* turnos das edições (coletas das 6h, 12h e 18h de Brasília): o mesmo turnoBRT da rotina do servidor */
   var NL_TURNOS={manha:"6h",tarde:"12h",noite:"18h"};
   function nlTurno(ms){var hr=new Date(ms-3*3600e3).getUTCHours();return hr<12?"manha":hr<18?"tarde":"noite"}
+  /* aviso de coleta atrasada: mais de NL_ATRASO_H horas desde a última coleta E já passou (com 1 hora de folga) o início de
+     um turno que não teve coleta. De madrugada o último turno esperado é o das 18h, então a noite sem coleta não é atraso.
+     Conta pela hora da coleta (coletado), nunca pela data da edição. → null ou {horas, turno pendente, coletado} */
+  var NL_ATRASO_H=8,NL_ATRASO_FOLGA_H=1;
+  function nlAtraso(coletadoIso,agoraMs){var c=Date.parse(coletadoIso||"");if(!isFinite(c)||!isFinite(agoraMs))return null;
+    var horas=(agoraMs-c)/36e5;if(!(horas>NL_ATRASO_H))return null;
+    var b=new Date(agoraMs-NL_ATRASO_FOLGA_H*36e5-3*3600e3),hr=b.getUTCHours(),ini=hr>=18?18:hr>=12?12:hr>=6?6:-6;
+    var esperado=Date.UTC(b.getUTCFullYear(),b.getUTCMonth(),b.getUTCDate())+ini*36e5+3*3600e3;
+    if(c>=esperado)return null;
+    return {horas:Math.floor(horas),turno:ini===6?"manha":ini===12?"tarde":"noite",coletado:coletadoIso}}
   /* a data da edição pela chave da chamada de IA (nl-AAAA-MM-DD-xxxxxxxx), para o painel de custos */
   function nlDataDaChave(k){var m=/^nl-(\d{4}-\d{2}-\d{2})-[0-9a-f]{8}/.exec(String(k||""));return m?m[1]:""}
   function nlCat(k){for(var i=0;i<NL_CATS.length;i++)if(NL_CATS[i].k===k)return NL_CATS[i];return {k:k,n:String(k||"Outros"),cor:"#7B8CA3"}}
@@ -774,7 +784,7 @@
   /* as despesas dos veículos em categorias separadas: combustível não se mistura com manutenção */
   function pnVeicCat(tipo){return tipo==="abastecimento"?"Combustível":/^(revisao|oleo|manutencao|bateria|pneu)$/.test(tipo)?"Manutenção":tipo==="seguro"?"Seguro":tipo==="documento"?"Impostos e licenciamento":"Outros"}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
-    NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
+    NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
     pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias,

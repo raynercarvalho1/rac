@@ -1,10 +1,11 @@
 # A cada 3 horas: atualiza noticias.json (Sorocaba, tela inicial), tecdados.json (dados e tecnologia, Conexões do dia) e rumores.json (MLB, Esportes).
-# Às 6h, 12h e 18h de Brasília (e na mão, pela aba Actions): newsletter.json (Newsletter, fontes RSS oficiais).
+# De hora em hora (e na mão, pela aba Actions): newsletter.json (Newsletter, fontes RSS oficiais), uma coleta por turno de Brasília.
 name: Atualizar notícias
 
 on:
   schedule:
-    - cron: "15 */3 * * *"
+    - cron: "15 */3 * * *"   # todas as coletas
+    - cron: "40 * * * *"     # só a Newsletter: o GitHub atrasa e pula rodadas, então há várias chances em cada turno
   workflow_dispatch: {}    # permite rodar na mão pela aba Actions
 
 permissions:
@@ -19,34 +20,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # o main de agora (não o da hora do agendamento): uma rodada que esperou na fila vê a coleta da anterior
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Buscar notícias
+        if: github.event.schedule != '40 * * * *'
         run: python scripts/atualizar_noticias.py
 
       - name: Buscar notícias de dados e tecnologia (Conexões do dia)
+        if: github.event.schedule != '40 * * * *'
         run: python scripts/atualizar_tecdados.py
 
       - name: Buscar rumores da MLB (Esportes)
         id: rumores
+        if: github.event.schedule != '40 * * * *'
         continue-on-error: true    # se falhar, as notícias ainda são salvas; o último passo marca a falha
         run: python scripts/atualizar_rumores.py
 
-      # o agendamento acima roda a cada 3 horas; a Newsletter só nas rodadas das 9h, 15h e 21h UTC (6h, 12h e 18h de
-      # Brasília), contando os atrasos de até uma hora do GitHub. Na mão (workflow_dispatch), roda sempre.
+      # pelo turno de Brasília, não pela hora da rodada: o coletor (--se-preciso) só coleta se o turno vigente (manhã 6h,
+      # tarde 12h, noite 18h) ainda não tem coleta, então rodadas atrasadas recuperam o turno e as repetidas não fazem nada.
+      # Na mão (workflow_dispatch), coleta sempre.
       - name: Coletar a Newsletter (fontes RSS oficiais)
         id: newsletter
         continue-on-error: true    # se falhar, as outras coletas ainda são salvas; o último passo marca a falha
         run: |
-          HORA=$(date -u +%H)
-          case "${{ github.event_name }}:$HORA" in
-            workflow_dispatch:*|*:09|*:10|*:15|*:16|*:21|*:22) python scripts/atualizar_newsletter.py ;;
-            *) echo "Fora do horário da Newsletter ($HORA h UTC)." ;;
-          esac
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/atualizar_newsletter.py
+          else
+            python scripts/atualizar_newsletter.py --se-preciso
+          fi
 
       - name: Salvar se mudou
         run: |

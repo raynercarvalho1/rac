@@ -28,8 +28,8 @@ const AGORA = "2026-11-01T09:00:00+00:00", AGORA_MS = Date.parse(AGORA);
 const FONTES_TESTE = "g1-tec,verge,openai,g1-politica,folha-poder,abr-politica,valor,infomoney,ign-br,g1-sorocaba,kdnuggets,jornal-usp,bbc-brasil,nature";
 const PY = ["python3", "python"].find((p) => { const r = spawnSync(p, ["-c", "import sys; print(sys.version_info[0])"], { encoding: "utf8" }); return r.status === 0 && r.stdout.trim() === "3"; });
 const semPython = PY ? false : "Python 3 não encontrado";
-function coletar(saida, env = {}) {
-  return spawnSync(PY, [path.join(raiz, "scripts/atualizar_newsletter.py")], {
+function coletar(saida, env = {}, args = []) {
+  return spawnSync(PY, [path.join(raiz, "scripts/atualizar_newsletter.py"), ...args], {
     encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8", NL_FIXTURES: FIXT, NL_AGORA: AGORA, NL_SAIDA: saida, NL_FONTES: FONTES_TESTE, ...env },
   });
 }
@@ -83,6 +83,93 @@ test("sem notícia nova o arquivo não muda (o robô não faz commit à toa) e a
   assert.equal(coletar(saida, { NL_AGORA: "2026-11-01T10:00:00+00:00" }).status, 0);
   const d = JSON.parse(fs.readFileSync(saida, "utf8"));
   assert.equal(d.fontes.find((f) => f.id === "nature").falha_desde, AGORA);
+});
+
+/* ---------- turnos de Brasília: o agendamento (--se-preciso) coleta uma vez por turno, mesmo com o GitHub atrasado ---------- */
+const lerJson = (a) => JSON.parse(fs.readFileSync(a, "utf8"));
+const SE_PRECISO = ["--se-preciso"];
+test("turno de Brasília: manhã das 6h, tarde das 12h, noite das 18h; de madrugada não há turno; horário sem fuso não vale", { skip: semPython }, () => {
+  const t = py(`print(json.dumps([N.turno_de(x) for x in ["2026-11-01T08:59:00+00:00", "2026-11-01T09:00:00+00:00", "2026-11-01T14:59:59+00:00",
+    "2026-11-01T15:00:00+00:00", "2026-11-01T21:00:00+00:00", "2026-11-02T02:59:00+00:00", "2026-11-02T03:00:00+00:00", "2026-11-01T09:00:00", "x", None]]))`);
+  assert.deepEqual(t, [null, ["2026-11-01", "manha"], ["2026-11-01", "manha"], ["2026-11-01", "tarde"], ["2026-11-01", "noite"],
+    ["2026-11-01", "noite"], null, null, null, null], "23h59 ainda é a noite do mesmo dia; 0h já é madrugada do dia seguinte");
+  assert.deepEqual(py(`print(json.dumps([N.INICIO_TURNOS, str(N.FUSO) in ("America/Sao_Paulo", "UTC-03:00")]))`), [6, true]);
+});
+test("agendamento: a primeira rodada do turno coleta; as seguintes do mesmo turno não fazem nada (nem arquivo, nem commit)", { skip: semPython }, () => {
+  const saida = path.join(tmp, "t1.json");
+  const r1 = coletar(saida, { NL_AGORA: "2026-11-01T09:40:00+00:00" }, SE_PRECISO);
+  assert.equal(r1.status, 0, r1.stderr); assert.match(r1.stdout, /coletando o turno manha de 2026-11-01/);
+  const antes = fs.readFileSync(saida, "utf8");
+  for (const h of ["10:40", "13:40", "14:59"]) {   // 7h40, 10h40 e 11h59 de Brasília: ainda é a manhã
+    const r = coletar(saida, { NL_AGORA: `2026-11-01T${h}:00+00:00` }, SE_PRECISO);
+    assert.equal(r.status, 0); assert.match(r.stdout, /turno já coletado \(2026-11-01, manha\)/); assert.equal(fs.readFileSync(saida, "utf8"), antes, h);
+  }
+  const r2 = coletar(saida, { NL_AGORA: "2026-11-01T15:40:00+00:00" }, SE_PRECISO);   // 12h40: tarde
+  assert.equal(r2.status, 0); assert.match(r2.stdout, /coletando o turno tarde/); assert.equal(lerJson(saida).coletado, "2026-11-01T15:40:00+00:00");
+});
+test("agendamento: de madrugada não coleta; um turno perdido não é refeito e a rodada atrasada recupera o turno vigente", { skip: semPython }, () => {
+  const saida = path.join(tmp, "t2.json");
+  assert.equal(coletar(saida, { NL_AGORA: "2026-10-31T17:59:00+00:00" }, SE_PRECISO).status, 0);   // tarde de 31/10 (14h59)
+  const tarde = fs.readFileSync(saida, "utf8");
+  for (const h of ["2026-11-01T03:15:00+00:00", "2026-11-01T05:57:00+00:00", "2026-11-01T08:59:00+00:00"]) {   // 0h15, 2h57, 5h59
+    const r = coletar(saida, { NL_AGORA: h }, SE_PRECISO);
+    assert.equal(r.status, 0); assert.match(r.stdout, /madrugada/); assert.equal(fs.readFileSync(saida, "utf8"), tarde, h);
+  }
+  /* a noite de 31/10 passou sem rodada: às 11h40 de 01/11 (GitHub atrasado) a coleta entra como manhã de 01/11 */
+  const r = coletar(saida, { NL_AGORA: "2026-11-01T14:40:00+00:00" }, SE_PRECISO);
+  assert.equal(r.status, 0); assert.match(r.stdout, /coletando o turno manha de 2026-11-01/);
+  const d = lerJson(saida); assert.equal(d.coletado, "2026-11-01T14:40:00+00:00"); assert.equal(d.edicao.data, "2026-11-01");
+  assert.equal(N.nlTurno(Date.parse(d.coletado)), "manha", "o site e a rac-newsletter leem o mesmo turno");
+  assert.equal(R.turnoBRT(Date.parse(d.coletado)), "manha");
+});
+test("agendamento: turno novo sem notícia nova regrava o arquivo (a hora da coleta marca o turno); na mão coleta sempre", { skip: semPython }, () => {
+  const saida = path.join(tmp, "t3.json");
+  assert.equal(coletar(saida, { NL_AGORA: "2026-11-01T15:40:00+00:00" }).status, 0);
+  /* o mesmo conteúdo, mas gravado no turno anterior: o turno novo precisa ganhar a sua coleta */
+  const velho = lerJson(saida); velho.coletado = "2026-11-01T09:40:00+00:00"; fs.writeFileSync(saida, JSON.stringify(velho));
+  const r = coletar(saida, { NL_AGORA: "2026-11-01T15:40:00+00:00" }, SE_PRECISO);
+  assert.equal(r.status, 0); assert.doesNotMatch(r.stdout, /sem notícias novas/); assert.equal(lerJson(saida).coletado, "2026-11-01T15:40:00+00:00");
+  /* na mão (sem --se-preciso), mesmo turno: coleta de novo; sem nada novo, o arquivo fica como está */
+  const antes = fs.readFileSync(saida, "utf8"), m = coletar(saida, { NL_AGORA: "2026-11-01T15:40:00+00:00" });
+  assert.equal(m.status, 0); assert.doesNotMatch(m.stdout, /turno já coletado/); assert.match(m.stdout, /sem notícias novas/);
+  assert.equal(fs.readFileSync(saida, "utf8"), antes);
+});
+test("agendamento: coleta que falha mantém o arquivo e não conta como coleta do turno (a próxima rodada tenta de novo)", { skip: semPython }, () => {
+  const saida = path.join(tmp, "t4.json");
+  assert.equal(coletar(saida, { NL_AGORA: "2026-11-01T09:40:00+00:00" }, SE_PRECISO).status, 0);
+  const manha = fs.readFileSync(saida, "utf8");
+  const f = coletar(saida, { NL_AGORA: "2026-11-01T15:40:00+00:00", NL_FONTES: "g1-tec,nature,bbc-brasil" }, SE_PRECISO);
+  assert.equal(f.status, 1); assert.match(f.stderr, /ALERTA/); assert.equal(fs.readFileSync(saida, "utf8"), manha);
+  const r = coletar(saida, { NL_AGORA: "2026-11-01T16:40:00+00:00" }, SE_PRECISO);
+  assert.equal(r.status, 0); assert.match(r.stdout, /coletando o turno tarde/); assert.equal(lerJson(saida).coletado, "2026-11-01T16:40:00+00:00");
+  /* arquivo ausente ou ilegível: coleta (não há coleta válida do turno) */
+  const novo = path.join(tmp, "t5.json"); fs.writeFileSync(novo, "ANTERIOR");
+  assert.match(coletar(novo, { NL_AGORA: "2026-11-01T09:40:00+00:00" }, SE_PRECISO).stdout, /coletando o turno manha/);
+});
+
+/* ---------- aviso de atraso na tela: mais de 8 horas sem coleta e um turno esperado sem coleta ---------- */
+const ms = (iso) => Date.parse(iso);
+test("aviso de atraso: o caso de 01/11 (8h45, última coleta 31/10 14h59) avisa, com as horas e o turno que faltou", () => {
+  assert.equal(N.NL_ATRASO_H, 8);
+  assert.deepEqual(N.nlAtraso("2026-10-31T17:59:41+00:00", ms("2026-11-01T11:45:00Z")), { horas: 17, turno: "manha", coletado: "2026-10-31T17:59:41+00:00" });
+  /* tarde coletada às 12h40; às 21h (8h20 depois) a noite não chegou */
+  assert.deepEqual(N.nlAtraso("2026-11-01T15:40:00Z", ms("2026-11-02T00:00:00Z")), { horas: 8, turno: "noite", coletado: "2026-11-01T15:40:00Z" });
+});
+test("aviso de atraso: sem alerta com coleta recente, de madrugada nem antes da folga de 1 hora do turno", () => {
+  assert.equal(N.nlAtraso("2026-11-01T15:40:00Z", ms("2026-11-01T17:40:00Z")), null, "2 horas: recente");
+  assert.equal(N.nlAtraso("2026-11-01T15:40:00Z", ms("2026-11-01T22:30:00Z")), null, "19h30: menos de 8 horas");
+  for (const h of ["2026-11-02T03:00:00Z", "2026-11-02T06:00:00Z", "2026-11-02T08:59:00Z", "2026-11-02T09:30:00Z"])   // 0h, 3h, 5h59, 6h30
+    assert.equal(N.nlAtraso("2026-11-01T21:40:00Z", ms(h)), null, h + ": a noite foi coletada às 18h40; a manhã ainda está na folga");
+  assert.equal(N.nlAtraso("2026-11-01T21:40:00Z", ms("2026-11-02T10:10:00Z")).turno, "manha", "7h10 sem a coleta da manhã: avisa");
+  /* mais de 8 horas, mas a coleta é do turno vigente (manhã coletada às 6h40, agora 11h59 do mesmo turno não passa de 8h) */
+  assert.equal(N.nlAtraso("2026-11-01T09:40:00Z", ms("2026-11-01T14:59:00Z")), null);
+  for (const x of [null, "", "x"]) assert.equal(N.nlAtraso(x, ms("2026-11-01T12:00:00Z")), null);
+});
+test("aviso de atraso na tela: usa a hora da coleta (não a data da edição) e o limite antigo de 26 horas saiu", () => {
+  const nl = ler("js/newsletter.js");
+  assert.match(nl, /var atr=NUCLEO\.nlAtraso\(d\.coletado,Date\.now\(\)\)/);
+  assert.match(nl, /"⚠ Sem atualização há "\+atr\.horas\+" horas: a última coleta foi em "\+nlQuando\(d\.coletado\)/);
+  assert.ok(!/horas>26/.test(nl));
 });
 
 test("deduplicação: o mesmo link (com outro rastreio) sai; a mesma manchete no mesmo veículo sai; em outro veículo vira mais uma fonte", { skip: semPython }, () => {
@@ -411,6 +498,7 @@ function depsFalsas(agoraIso, extra = {}) {
     agora: () => Date.parse(agoraIso), dados: async () => d, donos: async () => ["rayner"], config: async () => extra.cfg ?? null,
     async salvarEdicao(dono, c) { const k = dono + c.data + c.turno; if (edicoes.has(k)) return "existia"; edicoes.set(k, c); return "nova"; },
     /* IA: por padrão, como em produção hoje (DEMO, sem linha em ia_uso) */
+    async edicaoComIA(dono, data, turno) { return edicoes.get(dono + data + turno)?.origem === "ia"; },
     async jaTentou(_d, k) { return tentadas.has(k); }, async chamadasHoje() { return pedidos.filter((p) => p.real).length; },
     async resumirIA(_d, p) { pedidos.push(p); return { ok: true, modo: "DEMO", resultado: { _demo: true } }; },
     async salvarEdicaoIA(dono, c, ia) { salvasIA.push({ c, ia }); edicoes.set(dono + c.data + c.turno, c); },
@@ -531,13 +619,23 @@ test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema
   assert.match(html, /\.ptitle \.homebtn\{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font:600 calc\(13px \+ var\(--fz\)\) var\(--f-ui\)/, "o padrão das outras páginas continua igual");
   assert.match(app, /document\.documentElement\.setAttribute\("data-sec",top\)/, "a seção aberta marca o data-sec");
 });
-test("robô: o workflow de notícias coleta a Newsletter às 6h, 12h e 18h, sem derrubar as outras coletas e sem commit à toa", () => {
+test("robô: o workflow de notícias coleta a Newsletter uma vez por turno (6h, 12h e 18h), sem derrubar as outras coletas e sem commit à toa", () => {
   const w = ler(".github/workflows/noticias.yml");
   assert.match(w, /python scripts\/atualizar_newsletter\.py/);
   assert.match(w, /id: newsletter\n\s+continue-on-error: true/);
   assert.match(w, /git diff --quiet -- noticias\.json tecdados\.json rumores\.json newsletter\.json/);
   assert.match(w, /git add noticias\.json tecdados\.json rumores\.json newsletter\.json/);
   assert.match(w, /steps\.newsletter\.outcome == 'failure'/);
+  /* turnos de Brasília, não horas UTC fixas: o agendamento roda de hora em hora e o coletor decide se o turno já tem coleta */
+  assert.ok(!/date -u \+%H|\*:09\|\*:10|Fora do horário/.test(w), "nada de janela rígida de hora UTC");
+  assert.match(w, /- cron: "15 \*\/3 \* \* \*"/, "as outras coletas continuam a cada 3 horas");
+  assert.match(w, /- cron: "40 \* \* \* \*"/, "a Newsletter tem várias chances em cada turno");
+  assert.match(w, /python scripts\/atualizar_newsletter\.py --se-preciso/, "no agendamento, só coleta o turno que ainda não tem coleta");
+  assert.match(w, /if \[ "\$\{\{ github\.event_name \}\}" = "workflow_dispatch" \]; then\n\s+python scripts\/atualizar_newsletter\.py\n/, "na mão, coleta sempre");
+  assert.match(w, /uses: actions\/checkout@v4\n\s+with:\n\s+ref: main/, "a rodada que esperou na fila vê a coleta da anterior");
+  for (const s of ["atualizar_noticias", "atualizar_tecdados", "atualizar_rumores"])
+    assert.match(w, new RegExp(`if: github\\.event\\.schedule != '40 \\* \\* \\* \\*'\\n(\\s+continue-on-error: true.*\\n)?\\s+run: python scripts/${s}\\.py`), s + " fica fora da rodada só da Newsletter");
+  assert.match(w, /concurrency:\n\s+group: noticias\n\s+cancel-in-progress: false/, "uma rodada por vez");
   assert.match(ler(".github/workflows/testes.yml"), /paths-ignore: \["noticias\.json", "tecdados\.json", "vagas\.json", "rumores\.json", "newsletter\.json"\]/);
   const py = ler("scripts/atualizar_newsletter.py");
   assert.ok(!/firecrawl|BeautifulSoup|selenium|playwright/i.test(py), "sem raspagem");
@@ -596,12 +694,12 @@ test("automático: com a Newsletter liberada, cada turno gera UM resumo, salvo n
   const { x, b, pv } = rotinaComIA("2026-11-02T09:45:00Z", LIBERADA);
   const r1 = await R.rodarRotina(x), r2 = await R.rodarRotina(x), r3 = await R.rodarRotina(x); // as três tentativas da manhã
   assert.equal(pv.chamadas, 1, "uma geração paga"); assert.equal(b.linhas.length, 1); assert.equal(b.linhas[0].estado, "concluido");
-  assert.equal(r1.donos[0].ia, "resumo salvo"); assert.match(r2.donos[0].ia, /já foi resumida ou tentada/); assert.match(r3.donos[0].ia, /não repete/);
+  assert.equal(r1.donos[0].ia, "resumo salvo"); assert.match(r2.donos[0].ia, /já tem resumo com IA/); assert.match(r3.donos[0].ia, /não repete/);
   assert.equal(x.salvasIA.length, 1);
   const s = x.salvasIA[0];
   assert.equal(s.c.origem, "ia"); assert.equal(s.c.turno, "manha"); assert.equal(N.nlConteudoOk(s.c), "");
   assert.equal(s.ia.ia_uso_id, b.linhas[0].id, "a edição aponta para a chamada (o banco confere)"); assert.equal(s.ia.chave, b.linhas[0].idem); assert.equal(s.ia.modelo, "claude-haiku-5-5");
-  assert.match(s.ia.chave, /^nl-2026-11-02-[0-9a-f]{8}$/);
+  assert.match(s.ia.chave, /^nl-2026-11-02-[0-9a-f]{8}$/); assert.equal(s.ia.chave, R.chaveTurno("2026-11-02", "manha"), "a cobrança é pela data e pelo turno");
   assert.match(x.pushes[0].titulo, /\(com resumo\)$/); assert.equal(x.pushes[0].corpo, "Resumo de teste.", "o aviso traz o resumo do dia");
   /* à tarde, a nova coleta é outra edição: outro resumo, e o aviso do dia não se repete */
   const t = rotinaComIA("2026-11-02T15:45:00Z", LIBERADA); t.b.linhas.push(...b.linhas); t.x.avisos.add("rayner|dia:2026-11-02");
@@ -639,6 +737,91 @@ test("automático: limite de 3 por dia, o dono pode desligar, e a coleta atrasad
   const atr = rotinaComIA("2026-11-02T15:45:00Z", LIBERADA); atr.x.dados = async () => ({ ...dados(), coletado: "2026-11-02T09:20:00Z", edicao: { ...dados().edicao, data: "2026-11-02" } });
   const ra = await R.rodarRotina(atr.x); assert.match(ra.motivo, /deste turno ainda não saiu/); assert.equal(atr.pv.chamadas, 0); assert.equal(atr.x.edicoes.size, 0);
   assert.equal(R.LIMITE_IA_DIA, 3);
+});
+
+/* ---------- uma cobrança por data e turno (correção de 01/11/2026): chave do turno, concorrência e estados abertos ---------- */
+const OUTRA_COLETA = (iso) => async () => ({ ...dados(), grupos: dados().grupos.slice(2), coletado: iso, edicao: { ...dados().edicao, data: "2026-11-02" } });
+test("chave do turno: uma por data e turno, no formato das chaves da Newsletter; não depende das notícias", () => {
+  const k = R.chaveTurno("2026-11-02", "manha");
+  assert.match(k, /^nl-2026-11-02-[0-9a-f]{8}$/); assert.equal(N.nlDataDaChave(k), "2026-11-02", "o painel de custos acha a data");
+  assert.notEqual(k, R.chaveTurno("2026-11-02", "tarde")); assert.notEqual(k, R.chaveTurno("2026-11-03", "manha"));
+  assert.equal(k, R.chaveTurno("2026-11-02", "manha"));
+  const e = R.entradaIA(R.edicaoBase(dados(), null)); assert.notEqual(k, R.chave("2026-11-02", e.ids), "não se confunde com a chave da edição do site");
+});
+test("cron repetido e segunda coleta no mesmo turno: uma única chamada paga (pela edição com IA ou, sem ela, pela chave do turno)", async () => {
+  /* 18 tentativas no dia, com uma segunda coleta (outras notícias) no meio da manhã: continua uma chamada */
+  const a = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA);
+  await R.rodarRotina(a.x); a.x.agora = () => Date.parse("2026-11-02T10:50:00Z"); a.x.dados = OUTRA_COLETA("2026-11-02T10:40:00Z");
+  const r2 = await R.rodarRotina(a.x); await R.rodarRotina(a.x);
+  assert.equal(a.pv.chamadas, 1); assert.equal(a.b.linhas.length, 1); assert.match(r2.donos[0].ia, /já tem resumo com IA/);
+  /* a resposta da 1ª foi recusada (sem edição "ia"): a 2ª coleta do turno, com outras notícias, ainda NÃO paga de novo */
+  const b = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA, { resposta: { resumo_dia: "x", destaques: [{ id: "g9999999999", titulo: "", resumo: "r", relevancia: "" }], categorias: [] } });
+  await R.rodarRotina(b.x); b.x.agora = () => Date.parse("2026-11-02T10:50:00Z"); b.x.dados = OUTRA_COLETA("2026-11-02T10:40:00Z");
+  const rb = await R.rodarRotina(b.x);
+  assert.equal(b.pv.chamadas, 1); assert.equal(b.x.salvasIA.length, 0); assert.match(rb.donos[0].ia, /já foi resumido ou tentado/);
+  assert.equal(b.b.linhas[0].idem, R.chaveTurno("2026-11-02", "manha"));
+});
+test("duas execuções ao mesmo tempo: o banco (reserva por chave) deixa só uma chamar a IA", async () => {
+  const { x, b, pv } = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA);
+  const [r1, r2] = await Promise.all([R.rodarRotina(x), R.rodarRotina(x)]);   // as duas passam pela checagem prévia antes de reservar
+  assert.equal(pv.chamadas, 1, "uma geração paga"); assert.equal(b.linhas.length, 1);
+  const ias = [r1.donos[0].ia, r2.donos[0].ia].sort();
+  assert.ok(ias.includes("resumo salvo")); assert.ok(ias.some((t) => /sem resumo \(repetida|em_andamento/.test(t)), ias.join(" | "));
+  assert.equal(x.pushes.length, 1, "o aviso também sai uma vez");
+  /* no banco de verdade: ia_reservar trava a casa (advisory lock) e devolve em_andamento/repetida para a mesma chave */
+  const sql = semComent(ler("supabase/016_ia_acoes.sql"));
+  assert.match(sql, /pg_advisory_xact_lock\(pg_catalog\.hashtextextended\('rac-ia:' \|\| p_dono::text, 0\)\)/);
+  assert.match(sql, /where user_id = p_user and idempotencia = p_idempotencia;\n\s*if found then/);
+  assert.match(semComent(ler("supabase/015_ia.sql")), /unique \(user_id, idempotencia\)/);
+});
+test("reserva aberta, envio em andamento, incerta ou com erro: nada de nova chamada automática (reconciliar é explícito)", async () => {
+  for (const estado of ["reservado", "enviando", "incerto", "falhou_sem_envio", "concluido", "reconciliado"]) {
+    const { x, b, pv } = rotinaComIA("2026-11-02T15:50:00Z", LIBERADA);
+    x.dados = OUTRA_COLETA("2026-11-02T15:40:00Z");
+    b.linhas.push({ id: "id-x", user: "rayner", idem: R.chaveTurno("2026-11-02", "tarde"), estado, reservado: 0.003 });
+    const r = await R.rodarRotina(x);
+    assert.equal(pv.chamadas, 0, estado); assert.match(r.donos[0].ia, /já foi resumido ou tentado/, estado); assert.equal(x.edicoes.size, 1, "a edição de regras continua");
+  }
+  /* o botão do site já pediu esta edição (chave pelas notícias): a rotina não paga de novo */
+  const s = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA), e = R.entradaIA(R.edicaoBase({ ...dados(), coletado: "2026-11-02T09:05:00Z" }, null));
+  s.b.linhas.push({ id: "id-s", user: "rayner", idem: R.chave("2026-11-02", e.ids), estado: "concluido", reservado: 0.003 });
+  await R.rodarRotina(s.x); assert.equal(s.pv.chamadas, 0);
+});
+test("limite de 3 pagas por dia, contando o botão do site, e cada turno com a sua chave", async () => {
+  const { x, b, pv } = rotinaComIA("2026-11-02T21:50:00Z", LIBERADA);
+  for (const i of [1, 2, 3]) b.linhas.push({ id: "id-" + i, user: "rayner", idem: "nl-2026-11-02-0000000" + i, estado: "concluido", reservado: 0.003 });   // pedidas hoje (ex.: pelo botão do site)
+  const r = await R.rodarRotina(x); assert.equal(pv.chamadas, 0); assert.match(r.donos[0].ia, /limite de 3 resumos por dia/);
+  /* manhã, tarde e noite: três chamadas, uma por turno, chaves diferentes */
+  const d = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA);
+  await R.rodarRotina(d.x);
+  for (const [agora, col] of [["2026-11-02T15:50:00Z", "2026-11-02T15:40:00Z"], ["2026-11-02T21:50:00Z", "2026-11-02T21:40:00Z"]]) {
+    d.x.agora = () => Date.parse(agora); d.x.dados = OUTRA_COLETA(col); await R.rodarRotina(d.x); await R.rodarRotina(d.x);
+  }
+  assert.equal(d.pv.chamadas, 3); assert.deepEqual(d.b.linhas.map((l) => l.idem), ["manha", "tarde", "noite"].map((t) => R.chaveTurno("2026-11-02", t)));
+});
+test("coleta válida: madrugada não tem turno; coleta de ontem no mesmo turno não vale para hoje", async () => {
+  const m = rotinaComIA("2026-11-02T05:50:00Z", LIBERADA); let leu = 0; m.x.dados = async () => { leu++; return dados(); };
+  const rm = await R.rodarRotina(m.x); assert.match(rm.motivo, /madrugada/); assert.equal(leu, 0); assert.equal(R.INICIO_TURNOS, 6);
+  const o = rotinaComIA("2026-11-02T09:50:00Z", LIBERADA);
+  o.x.dados = async () => ({ ...dados(), coletado: "2026-11-01T09:40:00Z", edicao: { ...dados().edicao, data: "2026-11-02" } });
+  const ro = await R.rodarRotina(o.x); assert.match(ro.motivo, /deste turno ainda não saiu/); assert.equal(o.pv.chamadas, 0); assert.equal(o.x.edicoes.size, 0);
+  /* a função de verdade lê a edição "ia" do turno no banco antes de pedir */
+  const idx = ler("supabase/functions/rac-newsletter/index.ts");
+  assert.match(idx, /from\("newsletter_edicoes"\)\.select\("id"\)\.eq\("dono", dono\)\.eq\("data", data\)\.eq\("turno", turno\)\.eq\("origem", "ia"\)/);
+});
+test("SQL 023: tentativas de hora em hora das 6h50 às 23h50 de Brasília, sem job duplicado e sem mexer em mais nada", () => {
+  const bruto = ler("supabase/023_newsletter_turnos.sql"), s = semComent(bruto);
+  assert.match(s, /^\s*begin;/m); assert.match(s, /commit;\s*$/);
+  assert.match(s, /select cron\.unschedule\('rac-newsletter'\) where exists \(select 1 from cron\.job where jobname = 'rac-newsletter'\);/);
+  assert.equal((s.match(/cron\.schedule\(/g) || []).length, 1); assert.match(s, /cron\.schedule\('rac-newsletter', '50 0-2,9-23 \* \* \*'/);
+  assert.ok(!/unschedule\('rac-rotina'\)|create table|alter table|grant|revoke|policy|ia_config|acoes_reais|limite_brl|vault\.create_secret|drop/i.test(s), "só o agendamento");
+  /* o mesmo corpo do 019: mesma função, mesma senha da rotina (do Vault), mesmo tempo máximo */
+  const corpo = (t) => /\$\$([\s\S]*?)\$\$/.exec(t)[1].replace(/\s+/g, " ").trim();
+  assert.equal(corpo(s), corpo(semComent(ler("supabase/019_newsletter_avisos.sql"))));
+  /* as horas UTC cobrem exatamente 6h a 23h de Brasília */
+  const horas = [0, 1, 2, ...Array.from({ length: 15 }, (_, i) => 9 + i)].map((h) => (h + 21) % 24).sort((a, b) => a - b);
+  assert.deepEqual(horas, Array.from({ length: 18 }, (_, i) => 6 + i));
+  assert.match(s, /raise exception 'agendamento da Newsletter não ficou como esperado'/, "confere antes de confirmar");
 });
 test("custo real por edição e por módulo: painel do Sistema (filtro e edição de cada chamada) e Edições da Newsletter", () => {
   assert.equal(N.iaModulo("newsletter"), "Newsletter"); assert.equal(N.nlDataDaChave("nl-2026-11-02-0a3fc419"), "2026-11-02"); assert.equal(N.nlDataDaChave("teste-1"), "");

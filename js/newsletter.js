@@ -69,10 +69,12 @@
 
   /* ----- Hoje: resumo do dia, destaques e seções por categoria ----- */
   function nlHojeView(corpo){
-    var c=nlEdicaoAtual(),d=NLS.dados,horas=(Date.now()-Date.parse(d.coletado))/36e5;
+    var c=nlEdicaoAtual(),d=NLS.dados;
     var cab=panel("Newsletter · "+nlDataLonga(c.data)+" · "+NUCLEO.NL_TURNOS[c.turno]);
     cab.appendChild(h("p",{class:"sub nlatual",text:"Atualizada em "+nlQuando(d.coletado)+" · "+c.fontes.ok+" de "+c.fontes.total+" fontes"+(navigator.onLine===false?" · sem internet: esta é a edição guardada neste aparelho":"")}));
-    if(horas>26)cab.appendChild(h("p",{class:"nlaviso",role:"status",text:"⚠ A coleta está atrasada: a última foi há "+Math.round(horas)+" horas."}));
+    /* atraso pela hora da coleta (não pela data da edição); de madrugada não avisa (NUCLEO.nlAtraso) */
+    var atr=NUCLEO.nlAtraso(d.coletado,Date.now());
+    if(atr)cab.appendChild(h("p",{class:"nlaviso",role:"status",text:"⚠ Sem atualização há "+atr.horas+" horas: a última coleta foi em "+nlQuando(d.coletado)+" e a edição das "+NUCLEO.NL_TURNOS[atr.turno]+" ainda não chegou."}));
     if(c.fontes.falhas.length){var df=h("details",{class:"nlfontes"},h("summary",{text:c.fontes.falhas.length+(c.fontes.falhas.length===1?" fonte fora do ar":" fontes fora do ar")+" na última coleta"}));
       df.appendChild(h("ul",{class:"wl"},c.fontes.falhas.map(function(f){return h("li",null,h("span",{class:"grow sub",text:f}))})));cab.appendChild(df)}
     corpo.appendChild(cab);

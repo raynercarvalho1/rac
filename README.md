@@ -60,8 +60,8 @@ nova); as contas ficam em `NUCLEO.ab*`. Tudo em [docs/veiculos.md](docs/veiculos
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `022`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 022 foi aplicado em 31/10/2026).
+`schema.sql` e depois `002` a `023`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 023 foi aplicado em 01/11/2026).
 
 ## Testes (`tests/`)
 

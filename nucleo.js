@@ -970,7 +970,7 @@
     if(o.total_pago==null)o.total_pago=coLinhaValor(t,/\btotal\s*:?\s*R\$\s*([\d.,]+)/i);
     o.pagamento=coPagamento((/(?:forma de pagamento|pagamento|m[eé]todo de pagamento|pago com)[\s\S]{0,120}/i.exec(t)||[t])[0]);
     o.recorrencia=coRecorrencia(t);
-    o.tipo=/reembolso|estorno|refund/.test(n)?"email_reembolso":/foi cancelad|pedido cancelad|cancelamento d|item cancelad|cancelled/.test(n)?"email_cancelamento":/foi entregue|entregue em|seu pedido foi entregue/.test(n)?"email_entrega":/foi enviado|saiu para entrega|enviado em|a caminho/.test(n)?"email_envio":/obrigad[oa] pelo seu pedido|pedido confirmado|confirmacao do pedido/.test(n)?"email_confirmacao":/pagamento (?:aprovado|confirmado|recebido)|recebemos (?:o )?seu pagamento|problema com (?:o )?pagamento/.test(n)?"email_pagamento":"resumo";
+    o.tipo=/reembolso|estorno|refund/.test(n)?"email_reembolso":/foi cancelad|pedido cancelad|cancelamento d|item cancelad|cancelled/.test(n)?"email_cancelamento":/foi entregue|entregue em|seu pedido foi entregue/.test(n)?"email_entrega":/foi enviado|saiu para entrega|enviado em|a caminho/.test(n)?"email_envio":/obrigad[oa] pelo seu pedido|pedido confirmado|confirmacao do pedido/.test(n)?"email_confirmacao":/pagamento (?:aprovado|confirmado|recebido)|recebemos (?:o )?seu pagamento|problema com (?:o )?pagamento/.test(n)?"email_pagamento":/nota fiscal|nf-e|danfe/.test(n)?"email_nota_fiscal":"resumo";
     /* itens: "1 unidade de: X", "Quantidade: 2 X", "2 x X R$ 10,00", ou uma linha com descrição e preço */
     var ir=/(\d+)\s*(?:unidades?|un\.?|x)\s*(?:de:?\s*)?([^\n]{3,160}?)(?:\s+R\$\s*([\d.,]+))?(?:\n|$)/gi,im;
     while((im=ir.exec(t))){var dsc=im[2].replace(/\s*(?:vendido por|vendedor)\b.*$/i,"").trim();if(!dsc||/^r\$/i.test(dsc))continue;o.itens.push({descricao:dsc.slice(0,160),qtd:+im[1],total:coNum(im[3]),unitario:null})}
@@ -1044,7 +1044,7 @@
     if(!(o.itens||[]).length&&(novo.itens||[]).length)o.itens=novo.itens;
     else (novo.itens||[]).forEach(function(i){var p=(o.itens||[]).filter(function(j){return !j.codigo&&i.codigo&&alCompararProdutos(j.descricao,i.descricao).resultado!=="diferente"})[0];if(p)p.codigo=i.codigo});
     o.divergencias=div;return o}
-  var CO_DOC_NOME={resumo:"resumo do pedido",resumo_pdf:"PDF do pedido",email_confirmacao:"e-mail de confirmação",email_envio:"e-mail de envio",email_entrega:"e-mail de entrega",email_pagamento:"e-mail de pagamento",email_cancelamento:"e-mail de cancelamento",email_reembolso:"e-mail de reembolso",nfe_xml:"XML da nota fiscal",danfe:"DANFE",csv:"CSV de histórico",imagem:"print",foto_produto:"foto do produto",outro:"documento"};
+  var CO_DOC_NOME={resumo:"resumo do pedido",resumo_pdf:"PDF do pedido",email_confirmacao:"e-mail de confirmação",email_envio:"e-mail de envio",email_entrega:"e-mail de entrega",email_pagamento:"e-mail de pagamento",email_cancelamento:"e-mail de cancelamento",email_reembolso:"e-mail de reembolso",email_nota_fiscal:"e-mail da nota fiscal",nfe_xml:"XML da nota fiscal",danfe:"DANFE",csv:"CSV de histórico",imagem:"print",foto_produto:"foto do produto",outro:"documento"};
   /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido; fica fora o pedido marcado como "já contado em outro lugar"
      e o cancelamento que o dono confirmou (status "cancelado"; o e-mail de cancelamento sozinho só avisa) */
   function coDespesas(compras){var L=[];(compras||[]).forEach(function(c){var v=+c.total_pago;if(!c||!c.data||!isFinite(v)||c.fora_das_contas||c.status==="cancelado")return;

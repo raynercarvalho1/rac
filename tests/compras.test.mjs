@@ -145,21 +145,50 @@ test("e-mails de pagamento, cancelamento e reembolso; cancelamento só sai das d
   assert.match(js, /\["cancelado","Confirmar cancelamento \(sai das despesas\)"\]/);
   assert.match(js, /Recorrência \(separada da compra\)/); assert.match(js, /nenhuma compra nem despesa futura é criada/);
 });
-test("Outlook: OAuth com PKCE (sem segredo), só Mail.Read de contas pessoais, só leitura dos e-mails da Amazon, sem senha", () => {
-  const js = ler("js/compras.js"), ms = ler("ms.html");
-  assert.match(js, /var CC_MS_AUT="https:\/\/login\.microsoftonline\.com\/consumers\/oauth2\/v2\.0\/",CC_MS_ESCOPO="https:\/\/graph\.microsoft\.com\/Mail\.Read"/);
-  assert.equal((js.match(/graph\.microsoft\.com\/[A-Za-z.]+(?=")/g) || []).filter((s) => !/Mail\.Read$|v1\.0/.test(s)).length, 0, "nenhuma outra permissão");
-  assert.ok(!/offline_access|Mail\.Send|Mail\.ReadWrite|client_secret|User\.Read|Calendars|Files\./.test(js), "só leitura de e-mail, sem segredo e sem acesso offline");
-  assert.match(js, /"code_challenge_method=S256"/); assert.match(js, /"grant_type=authorization_code"/); assert.match(js, /"code_verifier="\+ver/);
-  assert.match(js, /if\(r\.state!==estado\)/, "confere o state");
-  assert.match(js, /var CC_MS_BUSCA="\\"from:amazon\.com\.br\\""/); assert.match(js, /cancel\|reembols\|estorno/);
-  assert.match(js, /"messages\/"\+encodeURIComponent\(m\.id\)\+"\/\$value"/, "o e-mail original (.eml)");
-  /* nada além de GET no Graph: nenhum envio, mudança ou exclusão */
-  const graph = js.slice(js.indexOf("function ccMsGet"), js.indexOf("function ccMsEmails"));
-  assert.ok(!/method:/.test(graph), "só GET no Graph");
-  assert.match(js, /var CC_MS_CLIENT_ID="";/, "nenhum Client ID inventado");
-  assert.match(js, /pessoalGravar\("outlook"/); assert.ok(!/type:"password"/.test(js));
-  assert.match(ms, /window\.opener\.postMessage\(d, location\.origin\)/); assert.ok(!/fetch\(|access_token|oauth2\/v2\.0\/token/.test(ms), "a página de retorno não troca o código");
-  assert.match(js, /if\(isOwner\(\)\)p\.appendChild\(ccOutlookBloco\(saida,st\)\)/);
-  assert.match(js, /typeof gmBuscar==="function"\?gm:null/, "o Gmail continua");
+test("Gmail: reaproveita o login do site (Client ID e gmail.readonly de js/app.js), token só na memória, conta da Amazon conferida", () => {
+  const js = ler("js/compras.js"), app = ler("js/app.js");
+  assert.match(app, /var GSI_JS="https:\/\/accounts\.google\.com\/gsi\/client",GM_SCOPE="https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly";/, "a permissão do site é só leitura");
+  assert.match(js, /initTokenClient\(\{client_id:GOOGLE_CLIENT_ID,scope:GM_SCOPE,login_hint:email,include_granted_scopes:false,/, "o mesmo Client ID e só gmail.readonly");
+  assert.ok(!/googleapis\.com\/auth\/(?!gmail\.readonly)/.test(js) && !/gmail\.(send|modify|compose|insert|labels)|mail\.google\.com\/?"/.test(js), "nenhuma permissão de escrita");
+  assert.ok(!/client_secret|refresh_token|access_type|offline/.test(js), "sem segredo e sem token de renovação");
+  /* token só na memória: nada de localStorage/sessionStorage no módulo (fora o comentário que explica) */
+  const codigo = js.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(!/localStorage|sessionStorage|indexedDB|document\.cookie/.test(codigo), "o módulo não guarda nada no navegador");
+  assert.ok(!/gmConectar\(|gmBuscar\(|gmToken\(/.test(codigo), "não usa as funções que gravam o token no navegador");
+  assert.ok(!/@gmail\.com/i.test(js), "nenhum endereço de e-mail no código público");
+  assert.match(js, /function ccGmPreferida\(\)\{return String\(\(PESSOAL\.compras\|\|\{\}\)\.gmail\|\|""\)\.toLowerCase\(\)\}/, "a conta vem da conta (PESSOAL), não do código");
+  assert.match(js, /pessoalGravar\("compras",Object\.assign\(\{\},PESSOAL\.compras\|\|\{\},\{gmail:conta\}\)\)/, "guarda só o endereço da conta usada");
+  assert.match(js, /if\(conta!==email\)throw new Error\("o Google conectou "/, "confere a conta conectada");
+  assert.match(js, /function ccGmSair\(\)\{CC_GM\.tk=null;CC_GM\.exp=0;CC_GM\.conta=null\}/, "desconectar apaga o token da memória");
+  assert.ok(!/logErro\("compras",[^)]*raw|console\.log/.test(codigo), "nenhum conteúdo de e-mail nos logs");
+  /* o resto do site continua igual: cartão de E-mail e alertas de vagas */
+  assert.match(app, /function gmConectar\(slot,email\)\{/); assert.match(app, /function gmBuscar\(q,max\)\{/);
+});
+test("Gmail: período (30/90/180/365, padrão 90), paginação até 200, só GET, erros tratados, sem importação automática", () => {
+  const js = ler("js/compras.js"), codigo = js.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(js, /CC_GM_PERIODOS=\[30,90,180,365\],CC_GM_MAX=200/); assert.match(js, /var CC_GM=\{tk:null,exp:0,conta:null,dias:90,email:null\};/);
+  assert.match(js, /var q="from:amazon\.com\.br after:"\+ccGmDataBusca\(dias\)/);
+  assert.match(js, /return r\.nextPageToken&&ids\.length<CC_GM_MAX\?pag\(r\.nextPageToken\)/, "segue as páginas até o limite");
+  assert.match(js, /"messages\/"\+encodeURIComponent\(id\)\+"\?format=raw"/, "o original do e-mail");
+  const api = codigo.slice(codigo.indexOf("function ccGmConectar"), codigo.indexOf("function ccGmailBloco"));
+  assert.ok(!/method:|fetch\(/.test(api), "só gmApi (GET): nada é enviado, alterado ou apagado");
+  assert.match(js, /if\(m==="expirou"\)\{ccGmSair\(\);/); assert.match(js, /respondeu \(429\|500\|502\|503\)/); assert.match(js, /respondeu 403/);
+  assert.ok(!/auto\.checked|salvarTodos\(\)\}|importar sozinho/.test(codigo), "nenhuma importação automática");
+  assert.match(js, /ccMostrarLote\(saida,r,st\)/, "tudo passa pela conferência em lote");
+  assert.match(js, /if\(isOwner\(\)&&typeof gmApi==="function"\)p\.appendChild\(ccGmailBloco\(saida,st\)\)/);
+});
+test("Gmail: anexos PDF e XML (DANFE, NF-e) no original, ligados ao pedido do e-mail; e-mail da nota fiscal; inválidos à parte", () => {
+  const js = ler("js/compras.js");
+  assert.match(js, /if\(nomeA&&\/base64\/i\.test\(enc\)&&\(\/pdf\|xml\/\.test\(ct\)\|\|\/\\.\(pdf\|xml\)\$\/i\.test\(nomeA\)\)\)/);
+  assert.match(js, /if\(an\.bytes\.length>CC_GM_ANEXO_MAX\)\{docs\.push\(\{nome:an\.nome,erro:"anexo grande demais"\}\)/);
+  assert.match(js, /d\.erro="XML que não é uma NF-e"/); assert.match(js, /if\(d\.ext&&!d\.ext\.numero&&!d\.ext\.chave_nfe&&e\.numero\)\{d\.ext\.numero=e\.numero/);
+  assert.match(js, /var bytes=t\.bytes\|\|new TextEncoder\(\)\.encode\(raw\)/, "os bytes exatos do Gmail vão para o cofre");
+  assert.match(js, /if\(CC_TIPOS_DB\.indexOf\(tipoDb\)<0\)\{ext\.tipo=ext\.tipo\|\|tipoDb;tipoDb="outro"\}/, "sem SQL novo");
+  assert.equal(N.coLerTexto("A nota fiscal do seu pedido 701-0000001-0000002 está disponível").tipo, "email_nota_fiscal");
+  assert.equal(N.coLerTexto("Obrigado pelo seu pedido 701-0000001-0000002. A nota fiscal será enviada").tipo, "email_confirmacao");
+  assert.equal(N.CO_DOC_NOME.email_nota_fiscal, "e-mail da nota fiscal");
+});
+test("Outlook removido: sem ms.html, sem Microsoft Graph, sem código ou documentação do Outlook", () => {
+  assert.ok(!fs.existsSync(new URL("../ms.html", import.meta.url)), "ms.html saiu");
+  for (const a of ["js/compras.js", "docs/compras.md", "README.md", "sw.js", "index.html"]) assert.ok(!/outlook|graph\.microsoft|login\.microsoftonline|ms\.html|CC_MS|ccMs/i.test(ler(a)), a);
 });

@@ -167,17 +167,21 @@
           if(s.length===im.width*im.height*4)dd.set(s);else if(s.length===im.width*im.height*3){for(var a=0,b=0;a<s.length;a+=3,b+=4){dd[b]=s[a];dd[b+1]=s[a+1];dd[b+2]=s[a+2];dd[b+3]=255}}else return null;cx.putImageData(id,0,0)}else return null;
         return new Promise(function(ok){cv.toBlob(function(bl){ok(bl?{blob:bl,w:im.width,h:im.height}:null)},"image/png")})})).then(function(l){return l.filter(Boolean).sort(function(a,b){return b.w*b.h-a.w*a.h}).slice(0,3)})})})}
   /* e-mail (.eml ou o "original" do Gmail): o texto das partes, decodificado (quoted-printable e base64) e sem HTML */
-  function ccEml(raw){var cab=raw.split(/\r?\n\r?\n/)[0],out=[],imgs=[];
+  function ccEml(raw){var cab=raw.split(/\r?\n\r?\n/)[0],out=[],imgs=[],anexos=[];
     function dec(corpo,enc,cs){if(/base64/i.test(enc)){try{var b=atob(corpo.replace(/\s+/g,"")),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return ccTexto(u,cs)}catch(e){return ""}}
       if(/quoted-printable/i.test(enc)){var bytes=[],s=corpo.replace(/=\r?\n/g,"");for(var j=0;j<s.length;j++){if(s[j]==="="&&/^[0-9A-F]{2}$/i.test(s.substr(j+1,2))){bytes.push(parseInt(s.substr(j+1,2),16));j+=2}else bytes.push(s.charCodeAt(j)&255)}return ccTexto(new Uint8Array(bytes),cs)}return corpo}
     function parte(txt){var i=txt.search(/\r?\n\r?\n/),h0=i<0?txt:txt.slice(0,i),corpo=i<0?"":txt.slice(i).replace(/^\r?\n\r?\n/,""),ct=(/content-type:\s*([^;\r\n]+)/i.exec(h0)||[,"text/plain"])[1].toLowerCase(),
         bd=/boundary="?([^";\r\n]+)"?/i.exec(h0),enc=(/content-transfer-encoding:\s*(\S+)/i.exec(h0)||[,""])[1],cs=(/charset="?([^";\s]+)"?/i.exec(h0)||[,"utf-8"])[1];
       if(/^multipart\//.test(ct)&&bd){corpo.split("--"+bd[1]).slice(1).forEach(function(s){if(!/^--/.test(s))parte(s.replace(/^\r?\n/,""))});return}
+      /* anexo PDF ou XML (DANFE, NF-e): os bytes originais, para a mesma leitura dos arquivos */
+      var nomeA=(/(?:file)?name\*?="?([^";\r\n]+)"?/i.exec(h0)||[])[1];
+      if(nomeA&&/base64/i.test(enc)&&(/pdf|xml/.test(ct)||/\.(pdf|xml)$/i.test(nomeA))){try{var bb=atob(corpo.replace(/\s+/g,"")),ua=new Uint8Array(bb.length);for(var q=0;q<bb.length;q++)ua[q]=bb.charCodeAt(q);
+        anexos.push({nome:nomeA.replace(/^.*[\\\/]/,"").slice(0,120),mime:/\.xml$/i.test(nomeA)||/xml/.test(ct)?"text/xml":"application/pdf",bytes:ua})}catch(e){anexos.push({nome:nomeA,erro:"anexo ilegível"})}return}
       if(ct==="text/html"){var html=dec(corpo,enc,cs);(html.match(/<img[^>]+src="(https:\/\/[^"]*(?:media-amazon|images-amazon|mlstatic)[^"]+)"/gi)||[]).forEach(function(m){imgs.push(/src="([^"]+)"/.exec(m)[1])});
         out.push(html.replace(/<(style|script)[\s\S]*?<\/\1>/gi," ").replace(/<br\s*\/?>|<\/(p|div|tr|td|li|h\d)>/gi,"\n").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&#(\d+);/g,function(_,n){return String.fromCharCode(+n)}))}
       else if(ct==="text/plain")out.push(dec(corpo,enc,cs))}
     parte(raw);var assunto=(/^subject:\s*(.+)$/im.exec(cab)||[,""])[1],data=(/^date:\s*(.+)$/im.exec(cab)||[,""])[1],de=(/^from:\s*(.+)$/im.exec(cab)||[,""])[1];
-    var d=new Date(data);return {texto:[assunto].concat(out).join("\n").replace(/[ \t]+/g," ").replace(/\n\s*\n+/g,"\n"),imagens:imgs,data:isNaN(d)?null:d.toISOString().slice(0,10),de:de}}
+    var d=new Date(data);return {texto:[assunto].concat(out).join("\n").replace(/[ \t]+/g," ").replace(/\n\s*\n+/g,"\n"),imagens:imgs,anexos:anexos,data:isNaN(d)?null:d.toISOString().slice(0,10),de:de}}
   /* OCR de prints, no próprio aparelho (Tesseract, português) */
   function ccOcr(blob){return carregarScript(CC_OCR).then(function(){return window.Tesseract.recognize(blob,"por")}).then(function(r){return (r&&r.data&&r.data.text)||""})}
   /* um arquivo → documento(s) {nome, tipo, mime, sha, blob, ext (o que foi lido), extras (pedidos do CSV), imagens} */
@@ -196,104 +200,121 @@
   /* vários arquivos (e textos colados / e-mails do Gmail) → candidatos: um por pedido, com todos os documentos dele */
   function ccProcessar(files,textos,st){var docs=[];
     return files.reduce(function(p,f){return p.then(function(){return ccLerArquivo(f,st).then(function(l){docs=docs.concat(l)},function(e){docs.push({nome:f.name,erro:e.message})})})},Promise.resolve())
-    .then(function(){(textos||[]).forEach(function(t){var raw=t.raw||t.texto,m=/^[\w-]+:\s/m.test(raw.slice(0,400))&&/\r?\n\r?\n/.test(raw)?ccEml(raw):{texto:raw,imagens:[]},e=NUCLEO.coLerTexto(m.texto);if(!e.data&&(m.data||t.data))e.data=m.data||t.data;
-      var tipo=/^email_/.test(e.tipo)?e.tipo:"email_confirmacao";e.tipo=tipo;var bytes=new TextEncoder().encode(raw);
-      docs.push({nome:t.nome||"email-"+(e.numero||Date.now())+".eml",mime:t.raw?"message/rfc822":"text/plain",blob:new Blob([bytes],{type:t.raw?"message/rfc822":"text/plain"}),tamanho:bytes.length,tipo:tipo,ext:e,imagens:[],imagensUrl:m.imagens||[],_bytes:bytes})});
-      return Promise.all(docs.map(function(d){return d.sha||!d._bytes?d:ccSha(d._bytes.buffer).then(function(s){d.sha=s;return d})}))})
+    .then(function(){var ignorados=0;
+      return (textos||[]).reduce(function(p,t){return p.then(function(){var raw=t.raw||t.texto,m=/^[\w-]+:\s/m.test(raw.slice(0,400))&&/\r?\n\r?\n/.test(raw)?ccEml(raw):{texto:raw,imagens:[],anexos:[]},e=NUCLEO.coLerTexto(m.texto);if(!e.data&&(m.data||t.data))e.data=m.data||t.data;
+        if(e.loja==="outra"&&/amazon\.com\.br/i.test(m.de||""))e.loja="amazon";
+        /* e-mail da loja sem pedido, total nem nota (propaganda, aviso geral): não entra */
+        if(t.soComPedido&&!e.numero&&!e.chave_nfe&&e.total_pago==null&&!(m.anexos||[]).length){ignorados++;return}
+        var tipo=/^email_/.test(e.tipo)?e.tipo:"email_confirmacao";e.tipo=tipo;var bytes=t.bytes||new TextEncoder().encode(raw);
+        docs.push({nome:t.nome||"email-"+(e.numero||Date.now())+".eml",mime:t.raw?"message/rfc822":"text/plain",blob:new Blob([bytes],{type:t.raw?"message/rfc822":"text/plain"}),tamanho:bytes.length,tipo:tipo,ext:e,imagens:[],imagensUrl:m.imagens||[],_bytes:bytes});
+        /* anexos: lidos como arquivo; sem número de pedido próprio, ficam no pedido do e-mail */
+        return (m.anexos||[]).slice(0,10).reduce(function(q,an){return q.then(function(){
+          if(an.erro||!an.bytes){docs.push({nome:an.nome||"anexo",erro:an.erro||"anexo inválido"});return}
+          if(an.bytes.length>CC_GM_ANEXO_MAX){docs.push({nome:an.nome,erro:"anexo grande demais"});return}
+          return ccLerArquivo({name:an.nome,type:an.mime,arrayBuffer:function(){return Promise.resolve(an.bytes.buffer.slice(an.bytes.byteOffset,an.bytes.byteOffset+an.bytes.byteLength))}},st).then(function(l){
+            l.forEach(function(d){if(!d.ext&&d.tipo==="nfe_xml"){d.erro="XML que não é uma NF-e";return}if(d.ext&&d.ext.loja==="outra"&&e.loja!=="outra")d.ext.loja=e.loja;if(d.ext&&!d.ext.numero&&!d.ext.chave_nfe&&e.numero){d.ext.numero=e.numero;d.ext.loja=e.loja}else if(!d.ext&&e.numero)d.ext={numero:e.numero,loja:e.loja,tipo:d.tipo}});
+            docs=docs.concat(l)},function(){docs.push({nome:an.nome,erro:"anexo inválido"})})})},Promise.resolve())})},Promise.resolve()).then(function(){docs.ignorados=ignorados})})
+    .then(function(){return Promise.all(docs.map(function(d){return d.sha||!d._bytes?d:ccSha(d._bytes.buffer.slice(d._bytes.byteOffset,d._bytes.byteOffset+d._bytes.byteLength)).then(function(s){d.sha=s;return d})}))})
     .then(function(){var grupos=[],porChave={};
-      function grupo(e){var k=e&&e.numero?"n:"+e.loja+":"+NUCLEO.coNumeroPedido(e.numero):e&&e.chave_nfe?"c:"+e.chave_nfe:null;
+      function grupo(e){var k=e&&e.numero?"n:"+NUCLEO.coNumeroPedido(e.numero):e&&e.chave_nfe?"c:"+e.chave_nfe:null;
         if(e&&e.chave_nfe&&porChave["c:"+e.chave_nfe])return porChave["c:"+e.chave_nfe];if(k&&porChave[k])return porChave[k];
-        var g={cand:null,docs:[],imagens:[],imagensUrl:[]};grupos.push(g);if(k)porChave[k]=g;if(e&&e.chave_nfe)porChave["c:"+e.chave_nfe]=g;if(e&&e.numero)porChave["n:"+e.loja+":"+NUCLEO.coNumeroPedido(e.numero)]=g;return g}
+        var g={cand:null,docs:[],imagens:[],imagensUrl:[]};grupos.push(g);if(k)porChave[k]=g;if(e&&e.chave_nfe)porChave["c:"+e.chave_nfe]=g;if(e&&e.numero)porChave["n:"+NUCLEO.coNumeroPedido(e.numero)]=g;return g}
       var soltos=[];
       docs.forEach(function(d){if(d.erro){soltos.push(d);return}
         if(d.extras&&d.extras.length){d.extras.forEach(function(e){var g=grupo(e);g.cand=NUCLEO.coMesclar(g.cand,e);g.docs.push(d)});return}
         if(!d.ext||(!d.ext.numero&&!d.ext.chave_nfe&&d.ext.total_pago==null)){if(d.tipo!=="zip")soltos.push(d);return}
         var g=grupo(d.ext);g.cand=NUCLEO.coMesclar(g.cand,d.ext);g.docs.push(d);g.imagens=g.imagens.concat(d.imagens||[]);g.imagensUrl=g.imagensUrl.concat(d.imagensUrl||[])});
-      return {grupos:grupos,soltos:soltos,docs:docs}})}
+      return {grupos:grupos,soltos:soltos,docs:docs,ignorados:docs.ignorados||0}})}
 
-  /* ---------- Outlook (Microsoft Graph): só leitura, com o login da própria Microsoft (OAuth 2.0 com PKCE, sem senha e sem segredo) ----------
-     Permissão única: Mail.Read (delegada). Nada é enviado, movido, marcado ou apagado; nenhum outro serviço Microsoft é usado. O token fica
-     só neste aparelho e vale cerca de 1 hora (não pedimos acesso offline). Precisa de um aplicativo registrado no Microsoft Entra
-     (docs/compras.md, "Outlook"): o Client ID dele é público e fica nos ajustes (PESSOAL.outlook.clientId), nunca uma senha. */
-  var CC_MS_CLIENT_ID="";   /* Client ID padrão (público). Vazio = configurar pela tela ou mandar o ID para entrar aqui. */
-  var CC_MS_AUT="https://login.microsoftonline.com/consumers/oauth2/v2.0/",CC_MS_ESCOPO="https://graph.microsoft.com/Mail.Read",CC_MS_GRAPH="https://graph.microsoft.com/v1.0/me/";
-  /* e-mails da Amazon.com.br sobre pedido, pagamento, envio, entrega, cancelamento e reembolso */
-  var CC_MS_BUSCA="\"from:amazon.com.br\"",CC_MS_ASSUNTO=/pedido|pagamento|pago|enviad|envio|entreg|a caminho|cancel|reembols|estorno|devolu|order|shipped|delivered|refund/i;
-  function ccMsClientId(){return ((PESSOAL.outlook||{}).clientId||CC_MS_CLIENT_ID||"").trim()}
-  function ccMsRetorno(){return location.origin+location.pathname.replace(/[^\/]*$/,"")+"ms.html"}
-  function ccB64url(bytes){var s="";bytes=new Uint8Array(bytes);for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
-  function ccMsToken(){try{var t=JSON.parse(localStorage.getItem("rac-ms")||"null");return t&&t.exp>Date.now()+60000?t.tk:null}catch(e){return null}}
-  function ccMsSair(){try{localStorage.removeItem("rac-ms")}catch(e){}}
-  /* abre a janela de login da Microsoft; volta com o código em ms.html, que é trocado aqui pelo token (PKCE: sem segredo) */
-  function ccMsConectar(){var id=ccMsClientId();if(!id)return Promise.reject(new Error("falta o Client ID do aplicativo Microsoft"));
-    var ver=ccB64url(crypto.getRandomValues(new Uint8Array(48))),estado=ccB64url(crypto.getRandomValues(new Uint8Array(16)));
-    return crypto.subtle.digest("SHA-256",new TextEncoder().encode(ver)).then(function(d){
-      var url=CC_MS_AUT+"authorize?"+["client_id="+encodeURIComponent(id),"response_type=code","redirect_uri="+encodeURIComponent(ccMsRetorno()),"response_mode=query",
-        "scope="+encodeURIComponent(CC_MS_ESCOPO),"state="+estado,"code_challenge="+ccB64url(d),"code_challenge_method=S256","prompt=select_account"].join("&");
-      try{localStorage.removeItem("rac-ms-cb")}catch(e){}
-      var jan=window.open(url,"rac-ms","width=520,height=700");if(!jan)throw new Error("o navegador bloqueou a janela de login; permita janelas deste site");
-      return new Promise(function(ok,nao){var feito=false;
-        function fim(r){if(feito||!r||r.tipo!=="rac-ms")return;feito=true;clearInterval(tm);window.removeEventListener("message",msg);window.removeEventListener("storage",sto);try{localStorage.removeItem("rac-ms-cb")}catch(e){}
-          if(r.erro||!r.code){nao(new Error(r.erro||"login cancelado"));return}if(r.state!==estado){nao(new Error("resposta de login não confere"));return}ok(r.code)}
-        function msg(e){if(e.origin===location.origin)fim(e.data)}
-        function sto(e){if(e.key==="rac-ms-cb"&&e.newValue)try{fim(JSON.parse(e.newValue))}catch(x){}}
-        window.addEventListener("message",msg);window.addEventListener("storage",sto);
-        var tm=setInterval(function(){try{var v=localStorage.getItem("rac-ms-cb");if(v){fim(JSON.parse(v));return}}catch(x){}if(jan.closed&&!feito){setTimeout(function(){if(!feito){feito=true;clearInterval(tm);nao(new Error("a janela de login foi fechada"))}},1500)}},500)})})
-    .then(function(code){return fetch(CC_MS_AUT+"token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},
-        body:["client_id="+encodeURIComponent(id),"grant_type=authorization_code","code="+encodeURIComponent(code),"redirect_uri="+encodeURIComponent(ccMsRetorno()),"code_verifier="+ver,"scope="+encodeURIComponent(CC_MS_ESCOPO)].join("&")})
-      .then(function(r){return r.json().then(function(j){if(!r.ok||!j.access_token)throw new Error(j.error_description?String(j.error_description).split("\n")[0].slice(0,160):"a Microsoft não entregou o acesso");
-        try{localStorage.setItem("rac-ms",JSON.stringify({tk:j.access_token,exp:Date.now()+(+j.expires_in||3600)*1000}))}catch(e){}return j.access_token})})})}
-  function ccMsGet(tk,caminho,texto){return fetch(CC_MS_GRAPH+caminho,{headers:{Authorization:"Bearer "+tk}}).then(function(r){
-    if(r.status===401){ccMsSair();throw new Error("o acesso ao Outlook expirou; conecte de novo")}if(!r.ok)throw new Error("o Outlook respondeu "+r.status);return texto?r.text():r.json()})}
-  /* os e-mails da Amazon dos últimos 90 dias sobre pedidos, cada um no original (.eml), para a mesma leitura dos arquivos */
-  function ccMsEmails(tk,st){var desde=new Date(Date.now()-90*864e5).toISOString(),acc=[];
-    function pag(url,n){return ccMsGet(tk,url).then(function(j){(j.value||[]).forEach(function(m){if(m.receivedDateTime>=desde&&CC_MS_ASSUNTO.test((m.subject||"")+" "+(m.bodyPreview||"")))acc.push(m)});
-      var prox=j["@odata.nextLink"];return prox&&n<4?pag(prox.replace(CC_MS_GRAPH,""),n+1):acc})}
-    return pag("messages?$search="+encodeURIComponent(CC_MS_BUSCA)+"&$top=50&$select=id,subject,receivedDateTime,bodyPreview",0).then(function(l){
-      if(st)st.textContent="Baixando "+l.length+(l.length===1?" e-mail da Amazon…":" e-mails da Amazon…");
-      return l.slice(0,120).reduce(function(p,m){return p.then(function(out){return ccMsGet(tk,"messages/"+encodeURIComponent(m.id)+"/$value",true).then(function(raw){
-        out.push({raw:raw,nome:"outlook-"+m.receivedDateTime.slice(0,10)+"-"+ccNomeSeguro(m.subject||"email").slice(0,40)+".eml",data:m.receivedDateTime.slice(0,10)});return out},function(){return out})})},Promise.resolve([]))})}
-  /* o bloco do Outlook na importação: configurar (Client ID), conectar, buscar e importar sozinho o que estiver completo */
-  function ccOutlookBloco(saida,st){var box=h("div",{class:"ccms"}),auto=h("input",{type:"checkbox",checked:""});
-    function desenhar(){box.innerHTML="";var id=ccMsClientId();
-      if(!id){var inp=h("input",{type:"text",placeholder:"Client ID (ex.: 00000000-0000-0000-0000-000000000000)",maxlength:"36","aria-label":"Client ID do aplicativo Microsoft"}),ok=h("button",{type:"button",class:"ghostbtn",text:"Salvar o Client ID"});
-        ok.onclick=function(){var v=inp.value.trim();if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)){st.textContent="O Client ID tem o formato 00000000-0000-0000-0000-000000000000.";return}
-          pessoalGravar("outlook",Object.assign({},PESSOAL.outlook||{},{clientId:v.toLowerCase()}),function(m){st.textContent=m||"Client ID salvo."});desenhar()};
-        box.appendChild(h("p",{class:"sub",text:"✉ Outlook: falta configurar a conexão com a Microsoft (um aplicativo registrado, só leitura, sem senha). O que fazer está em “Como trazer o histórico”. Depois cole aqui o Client ID:"}));
-        box.appendChild(h("div",{class:"vfil"},inp,ok));return}
-      var tk=ccMsToken(),b=h("button",{type:"button",class:"ghostbtn pri",text:tk?"✉ Buscar no Outlook (últimos 90 dias)":"✉ Conectar e buscar no Outlook"}),sair=h("button",{type:"button",class:"ghostbtn",text:"Desconectar"});
-      sair.onclick=function(){ccMsSair();desenhar();st.textContent="Outlook desconectado neste aparelho."};
-      b.onclick=function(){b.disabled=true;st.textContent=tk?"Procurando os e-mails da Amazon…":"Abrindo o login da Microsoft…";
-        (ccMsToken()?Promise.resolve(ccMsToken()):ccMsConectar()).then(function(k){st.textContent="Procurando os e-mails da Amazon…";return ccMsEmails(k,st)})
-        .then(function(l){if(!l.length){st.textContent="Nenhum e-mail da Amazon sobre pedidos nos últimos 90 dias.";return null}return ccProcessar([],l,st)})
-        .then(function(r){b.disabled=false;desenhar();if(!r)return;var q=ccMostrarLote(saida,r,st);if(auto.checked&&q)return q.salvarTodos()},function(e){b.disabled=false;desenhar();st.textContent="Outlook: "+e.message})};
-      box.appendChild(h("div",{class:"vfil"},b,tk?sair:null,h("label",{class:"ccauto"},auto," importar sozinho o que estiver completo")))}
+  /* ---------- Gmail (só leitura): os e-mails da Amazon, com o login do Google que o site já usa ----------
+     Reaproveita de js/app.js o Client ID público (GOOGLE_CLIENT_ID), a permissão gmail.readonly (GM_SCOPE), o script do login (GSI_JS),
+     a chamada à API (gmApi, que recebe o token) e a lista de contas (gmContas). O token desta tela fica SÓ na memória (CC_GM): não vai para o
+     navegador (localStorage/sessionStorage), o banco nem o GitHub, vale cerca de 1 hora e some ao desconectar ou fechar a página.
+     Nada é enviado, apagado, movido ou marcado no Gmail; nenhum e-mail entra sem a conferência. */
+  var CC_GM_PERIODOS=[30,90,180,365],CC_GM_MAX=200,CC_GM_ANEXO_MAX=15*1024*1024;
+  var CC_GM={tk:null,exp:0,conta:null,dias:90,email:null};
+  function ccGmToken(){return CC_GM.tk&&CC_GM.exp>Date.now()+60000?CC_GM.tk:null}
+  function ccGmSair(){CC_GM.tk=null;CC_GM.exp=0;CC_GM.conta=null}
+  /* as contas do Gmail do site (a lista fica na conta, em PESSOAL.emails: nenhum endereço no código público); a usada nas compras
+     (PESSOAL.compras.gmail, guardada na primeira conexão certa: só o endereço, nunca o acesso) vem primeiro */
+  function ccGmPreferida(){return String((PESSOAL.compras||{}).gmail||"").toLowerCase()}
+  function ccGmContas(){var l=[],pref=ccGmPreferida();(typeof gmContas==="function"?gmContas():[]).forEach(function(c){var e=String(c.e||"").trim().toLowerCase();if(e&&l.indexOf(e)<0)l.push(e)});
+    if(pref&&l.indexOf(pref)>0){l.splice(l.indexOf(pref),1);l.unshift(pref)}return l}
+  function ccEspera(ms){return new Promise(function(ok){setTimeout(ok,ms)})}
+  /* pede o token ao Google (janela do Google; precisa do toque do usuário), confere a permissão e a conta */
+  function ccGmConectar(email){
+    function pedir(){return new Promise(function(ok,nao){
+      var cli=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:GM_SCOPE,login_hint:email,include_granted_scopes:false,
+        callback:function(r){if(r.error){nao(new Error(r.error==="access_denied"?"o acesso não foi permitido":"o Google recusou ("+r.error+")"));return}
+          if(google.accounts.oauth2.hasGrantedAllScopes&&!google.accounts.oauth2.hasGrantedAllScopes(r,GM_SCOPE)){nao(new Error("a permissão de leitura do Gmail não foi concedida"));return}
+          ok({tk:r.access_token,exp:Date.now()+(+r.expires_in||3600)*1000})},
+        error_callback:function(e){nao(new Error(e&&e.type==="popup_closed"?"a janela do Google foi fechada":e&&e.type==="popup_failed_to_open"?"o navegador bloqueou a janela do Google":"a janela do Google não abriu"))}});
+      cli.requestAccessToken({prompt:""})})}
+    if(!GOOGLE_CLIENT_ID)return Promise.reject(new Error("o acesso do Google não está configurado no site"));
+    var ja=window.google&&google.accounts&&google.accounts.oauth2;
+    return (ja?pedir():carregarScript(GSI_JS).then(function(){throw new Error("o login do Google acabou de carregar; toque de novo")}))
+      .then(function(t0){return gmApi(t0.tk,"profile").then(function(pf){var conta=String(pf&&pf.emailAddress||"").toLowerCase();
+        if(conta!==email)throw new Error("o Google conectou "+(conta||"outra conta")+"; escolha "+email+" na janela do Google");
+        CC_GM.tk=t0.tk;CC_GM.exp=t0.exp;CC_GM.conta=conta;
+        if(ccGmPreferida()!==conta&&typeof pessoalGravar==="function")pessoalGravar("compras",Object.assign({},PESSOAL.compras||{},{gmail:conta}));return t0.tk})})}
+  /* uma chamada à API do Gmail com o token da memória: expirou → desconecta; limite de uso → espera e tenta de novo (até 2 vezes) */
+  function ccGmApi(caminho,n){var tk=ccGmToken();if(!tk)return Promise.reject(new Error("conecte o Gmail de novo"));n=n||0;
+    return gmApi(tk,caminho).catch(function(e){var m=String(e&&e.message||e);
+      if(m==="expirou"){ccGmSair();throw new Error("o acesso ao Gmail expirou; toque em Conectar de novo")}
+      if(/respondeu (429|500|502|503)/.test(m)&&n<2)return ccEspera(1500*(n+1)).then(function(){return ccGmApi(caminho,n+1)});
+      if(/respondeu 403/.test(m))throw new Error("o Google recusou a leitura (permissão ou limite de uso); tente mais tarde");
+      throw new Error(m.replace(/[^\w\sà-ú().,:-]/gi,"").slice(0,80))})}
+  function ccGmDataBusca(dias){var d=new Date(Date.now()-dias*864e5);return d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate()}
+  /* os ids dos e-mails da Amazon no período, página por página, até CC_GM_MAX */
+  function ccGmIds(dias,st){var q="from:amazon.com.br after:"+ccGmDataBusca(dias),ids=[];
+    function pag(pt){return ccGmApi("messages?maxResults=100&q="+encodeURIComponent(q)+(pt?"&pageToken="+encodeURIComponent(pt):"")).then(function(r){
+      (r.messages||[]).forEach(function(m){if(ids.length<CC_GM_MAX)ids.push(m.id)});if(st)st.textContent="Encontrados "+ids.length+" e-mails da Amazon…";
+      return r.nextPageToken&&ids.length<CC_GM_MAX?pag(r.nextPageToken):{ids:ids,mais:!!r.nextPageToken}})}
+    return pag(null)}
+  /* cada e-mail no original (formato raw do Gmail): os bytes exatos vão para o cofre como .eml */
+  function ccGmBaixar(ids,st){var out=[],falhas=0;
+    return ids.reduce(function(p,id,i){return p.then(function(){if(st)st.textContent="Baixando o e-mail "+(i+1)+" de "+ids.length+"…";
+      return ccGmApi("messages/"+encodeURIComponent(id)+"?format=raw").then(function(r){var b=atob(String(r.raw||"").replace(/-/g,"+").replace(/_/g,"/")),u=new Uint8Array(b.length);
+        for(var k=0;k<b.length;k++)u[k]=b.charCodeAt(k);var dt=r.internalDate?new Date(+r.internalDate).toISOString().slice(0,10):null;
+        out.push({raw:ccTexto(u),bytes:u,nome:"gmail-"+(dt||"email")+"-"+id+".eml",data:dt,soComPedido:true})},function(e){if(/expirou|conecte/.test(e.message))throw e;falhas++})})},Promise.resolve())
+      .then(function(){return {emails:out,falhas:falhas}})}
+  /* o quadro do Gmail na importação: conta, período, conectar/desconectar, buscar; o resultado vai para a conferência (nada é salvo sozinho) */
+  function ccGmailBloco(saida,st){var box=h("div",{class:"ccgm"});
+    function desenhar(){box.innerHTML="";var tk=ccGmToken(),contas=ccGmContas(),email=CC_GM.email&&contas.indexOf(CC_GM.email)>=0?CC_GM.email:contas[0];
+      if(!contas.length){box.appendChild(h("p",{class:"sub",text:"✉ Gmail: nenhuma conta do Gmail com endereço no cartão de E-mail. Cadastre a conta da Amazon lá (Início → E-mail) e volte aqui."}));return}
+      var selC=h("select",{"aria-label":"Conta do Gmail"},contas.map(function(c){return h("option",{value:c,selected:c===email?"":null,text:c})}));
+      var selP=h("select",{"aria-label":"Período"},CC_GM_PERIODOS.map(function(d){return h("option",{value:String(d),selected:d===CC_GM.dias?"":null,text:"Últimos "+d+" dias"})}));
+      selC.onchange=function(){CC_GM.email=selC.value;if(CC_GM.conta&&CC_GM.conta!==selC.value)ccGmSair();desenhar()};selP.onchange=function(){CC_GM.dias=+selP.value};
+      var b=h("button",{type:"button",class:"ghostbtn pri",text:tk?"✉ Buscar e-mails da Amazon":"✉ Conectar ao Gmail e buscar"}),sair=h("button",{type:"button",class:"ghostbtn",text:"Desconectar"});
+      sair.onclick=function(){ccGmSair();desenhar();st.textContent="Gmail desconectado nesta tela (o acesso não fica guardado)."};
+      b.onclick=function(){var em=selC.value;CC_GM.email=em;b.disabled=true;st.textContent=ccGmToken()?"Procurando os e-mails da Amazon…":"Abrindo o login do Google…";
+        (ccGmToken()&&CC_GM.conta===em?Promise.resolve():ccGmConectar(em)).then(function(){st.textContent="Procurando os e-mails da Amazon…";return ccGmIds(CC_GM.dias,st)})
+        .then(function(r){if(!r.ids.length){st.textContent="Nenhum e-mail da Amazon nos últimos "+CC_GM.dias+" dias.";return null}
+          return ccGmBaixar(r.ids,st).then(function(x){x.mais=r.mais;return x})})
+        .then(function(x){if(!x)return null;return ccProcessar([],x.emails,st).then(function(r){r.gmail={total:x.emails.length,falhas:x.falhas,mais:x.mais};return r})})
+        .then(function(r){b.disabled=false;desenhar();if(!r)return;ccMostrarLote(saida,r,st);
+          st.textContent+=" "+r.gmail.total+" e-mails lidos"+(r.ignorados?", "+r.ignorados+" sem pedido (propaganda ou aviso geral) ignorados":"")+(r.gmail.falhas?", "+r.gmail.falhas+" não baixaram":"")+(r.gmail.mais?"; limite de "+CC_GM_MAX+" e-mails: escolha um período menor para ver os mais antigos":"")+"."},
+          function(e){b.disabled=false;desenhar();st.textContent="Gmail: "+(e&&e.message||e)})};
+      box.appendChild(h("div",{class:"two"},h("label",null,"Conta do Gmail",selC),h("label",null,"Período",selP)));
+      box.appendChild(h("div",{class:"vfil"},b,tk?sair:null));
+      box.appendChild(h("p",{class:"sub",text:tk?"Conectado (só leitura): "+CC_GM.conta+". O acesso fica só nesta tela e vence em cerca de 1 hora.":"Só leitura: o site não envia, apaga nem altera e-mails, e não guarda o acesso. Nada é salvo antes da conferência."}))}
     desenhar();return box}
 
   function ccImportar(corpo){
     var p=panel("Importar compras","Escolha vários arquivos de uma vez: PDF do pedido, DANFE, XML da nota, CSV ou ZIP exportado pela loja, e-mail (.eml) ou print. Tudo é lido neste aparelho; nada é gravado antes do Salvar.");
     var arq=h("input",{type:"file",multiple:"",accept:".pdf,.xml,.csv,.zip,.eml,.txt,image/*","aria-label":"Arquivos das compras"}),txt=h("textarea",{rows:"4",placeholder:"Ou cole aqui o texto do e-mail de confirmação ou do pedido"});
-    var ler=h("button",{type:"button",class:"ghostbtn pri",text:"Ler os arquivos"}),gm=h("button",{type:"button",class:"ghostbtn",text:"✉ Buscar no Gmail (últimos 90 dias)"}),st=h("p",{class:"sub",role:"status"}),cx=h("div",{class:"vfil"}),saida=h("div",{class:"stack"});
-    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler,isOwner()&&typeof gmBuscar==="function"?gm:null));p.appendChild(cx);
-    if(isOwner())p.appendChild(ccOutlookBloco(saida,st));p.appendChild(st);
+    var ler=h("button",{type:"button",class:"ghostbtn pri",text:"Ler os arquivos"}),st=h("p",{class:"sub",role:"status"}),saida=h("div",{class:"stack"});
+    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler));
+    if(isOwner()&&typeof gmApi==="function")p.appendChild(ccGmailBloco(saida,st));p.appendChild(st);
     p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Como trazer o histórico da Amazon (oficial, sem senha)"}),h("ol",null,
       h("li",{text:"Na Amazon, abra Conta → Seus pedidos e baixe o PDF (Imprimir resumo do pedido) ou a nota fiscal (DANFE/XML) de cada pedido."}),
       h("li",{text:"Para o histórico completo: Central de Privacidade da Amazon → “Solicitar seus dados” → “Seus pedidos”. A Amazon manda um ZIP com o CSV do histórico; importe o ZIP aqui."}),
-      h("li",{text:"E-mails da Amazon no Outlook: o botão do Outlook lê só os e-mails da Amazon.com.br sobre pedido, pagamento, envio, entrega, cancelamento e reembolso (somente leitura). Também dá para usar o Gmail ou baixar o e-mail como .eml."}),
-      h("li",{text:"Para ligar o Outlook uma vez: no Microsoft Entra (portal.azure.com), registre um aplicativo para contas Microsoft pessoais, com a plataforma “Aplicativo de página única” e o endereço de retorno "+ccMsRetorno()+"; em Permissões de API, Microsoft Graph → Delegadas → Mail.Read. Sem segredo. Copie o Client ID e cole no quadro do Outlook."}),
+      h("li",{text:"E-mails da Amazon no Gmail: o quadro do Gmail lê só os e-mails de amazon.com.br do período escolhido (pedido, pagamento, envio, entrega, cancelamento, reembolso e nota fiscal, com os anexos PDF e XML), somente leitura. Também dá para baixar o e-mail como .eml e importar como arquivo."}),
       h("li",{text:"O site nunca pede nem guarda a senha da loja e não faz nenhuma ação na sua conta."}))));
     corpo.appendChild(p);corpo.appendChild(saida);
     ler.onclick=function(){var fs=[].slice.call(arq.files||[]),ts=txt.value.trim()?[{texto:txt.value}]:[];if(!fs.length&&!ts.length){st.textContent="Escolha arquivos ou cole um texto.";return}
       ler.disabled=true;st.textContent="Lendo…";ccProcessar(fs,ts,st).then(function(r){ler.disabled=false;ccMostrarLote(saida,r,st)},function(e){ler.disabled=false;st.textContent="Não consegui ler: "+e.message;logErro("compras",e)})};
-    gm.onclick=function(){gm.disabled=true;st.textContent="Procurando os e-mails das lojas…";cx.innerHTML="";
-      gmBuscar("newer_than:90d (from:amazon.com.br OR from:mercadolivre.com OR from:mercadolivre.com.br OR from:mercadopago.com) (pedido OR enviado OR entregue OR compra)",40).then(function(res){
-        gmBotoesConectar(res,function(){gm.click()}).forEach(function(b){cx.appendChild(b)});
-        var msgs=[];res.forEach(function(r){r.msgs.forEach(function(m){msgs.push(m)})});
-        if(!msgs.length){gm.disabled=false;st.textContent=res.some(function(r){return r.semAcesso})?"Conecte a conta do Gmail para ler os e-mails.":"Nenhum e-mail de loja nos últimos 90 dias.";return}
-        st.textContent="Baixando "+msgs.length+" e-mails…";
-        return Promise.all(msgs.map(function(m){var tk=gmToken("g"+m.u);if(!tk)return null;return gmApi(tk,"messages/"+m.id+"?format=raw").then(function(r){var b=atob(String(r.raw||"").replace(/-/g,"+").replace(/_/g,"/")),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
-          return {raw:ccTexto(u),nome:"gmail-"+m.data+"-"+m.id+".eml",data:m.data}},function(){return null})})).then(function(l){return ccProcessar([],l.filter(Boolean),st)}).then(function(r){gm.disabled=false;ccMostrarLote(saida,r,st)})
-      }).catch(function(e){gm.disabled=false;st.textContent="Não consegui ler o Gmail: "+e.message})}}
+  }
   /* a conferência do lote: um quadro por pedido, já marcado como novo, já existente (só anexa os documentos) ou possível repetido */
   function ccMostrarLote(saida,r,st){saida.innerHTML="";var n=r.grupos.length;
     st.textContent=n?n+(n===1?" pedido encontrado":" pedidos encontrados")+" em "+r.docs.filter(function(d){return d.tipo!=="zip"}).length+" documentos. Confira e salve.":"Nenhum pedido foi reconhecido nos documentos.";
@@ -373,12 +394,15 @@
       passo=SB.from("compras_online").insert(linha).then(sbOk).then(function(){return SB.from("compras_online_itens").insert(itens).then(function(r){if(r.error)return SB.from("compras_online").delete().eq("id",id).then(function(){throw new Error(r.error.message)})})})}
     return passo.then(function(){if(docs.length)st("Guardando os documentos originais…");return ccSubirDocs(id,docs)})
       .then(function(){return ccImagemProduto(id,itens,imagens,imagensUrl,st)}).then(function(){return id})}
+  /* os tipos de documento que o banco aceita (025 e 026) */
+  var CC_TIPOS_DB=["resumo_pdf","danfe","nfe_xml","csv","zip","email_confirmacao","email_envio","email_entrega","email_pagamento","email_cancelamento","email_reembolso","imagem","foto_produto","comprovante","outro"];
   function ccNomeSeguro(n){return NUCLEO.norm(n).replace(/[^a-z0-9.]+/g,"-").replace(/^-+|-+$/g,"").slice(-80)||"arquivo"}
   /* o arquivo original, como veio, no cofre; a linha em compras_online_docs com o que foi extraído (o mesmo arquivo não entra duas vezes) */
   function ccSubirDocs(id,docs){return docs.reduce(function(p,d){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+ccNomeSeguro(d.nome);
       return SB.storage.from("familia").upload(path,d.blob,{contentType:d.mime,upsert:false}).then(function(r){if(r.error)throw new Error(d.nome+": "+r.error.message);
         var ext=d.ext?JSON.parse(JSON.stringify(d.ext)):{};if(d.extras)ext={pedidos:d.extras.map(function(e){return e.numero})};if(d.texto)ext.texto=String(d.texto).slice(0,20000);
-        return SB.from("compras_online_docs").insert({compra_id:id,tipo:d.tipo==="resumo"?"resumo_pdf":d.tipo,nome:d.nome.slice(0,200),path:path,mime:d.mime,tamanho:d.tamanho||d.blob.size,sha256:d.sha,extraido:ext}).then(function(x){
+        var tipoDb=d.tipo==="resumo"?"resumo_pdf":d.tipo;if(CC_TIPOS_DB.indexOf(tipoDb)<0){ext.tipo=ext.tipo||tipoDb;tipoDb="outro"}
+        return SB.from("compras_online_docs").insert({compra_id:id,tipo:tipoDb,nome:d.nome.slice(0,200),path:path,mime:d.mime,tamanho:d.tamanho||d.blob.size,sha256:d.sha,extraido:ext}).then(function(x){
           if(x.error&&x.error.code==="23505")return SB.storage.from("familia").remove([path]).catch(function(){});if(x.error)throw new Error(x.error.message)})})})},Promise.resolve())}
   /* imagem do produto: a que veio no PDF (ou no e-mail, quando a loja deixa baixar) vira um documento "foto do produto" e aparece no item */
   function ccImagemProduto(id,itens,imagens,urls,st){var fontes=(imagens||[]).map(function(x){return Promise.resolve(x.blob)}).concat((urls||[]).slice(0,2).map(function(u){return fetch(u).then(function(r){return r.ok?r.blob():null},function(){return null})}));

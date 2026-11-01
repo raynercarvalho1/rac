@@ -1,4 +1,4 @@
--- Central de Compras (docs/compras.md): os e-mails de pagamento, cancelamento e reembolso (lidos do Outlook ou do Gmail) também viram
+-- Central de Compras (docs/compras.md): os e-mails de pagamento, cancelamento e reembolso (lidos do Gmail ou de um .eml) também viram
 -- documentos da compra. Rode depois do 025. Pode rodar de novo sem estragar nada. Só amplia a lista de tipos de documento: nenhuma
 -- tabela, política, permissão ou dado muda.
 begin;

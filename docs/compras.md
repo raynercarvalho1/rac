@@ -1,7 +1,7 @@
 # Central de Compras (compras online)
 
 Página `#compras` (menu → Compras online), código em `js/compras.js`, contas em `nucleo.js` (`NUCLEO.co*`, testes em
-`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.8`).
+`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`).
 
 ## O que faz
 
@@ -14,48 +14,48 @@ dos documentos da própria loja, guardando sempre o **arquivo original** e o que
 | XML da NF-e | `NUCLEO.coLerNFe`: chave, número, emitente, CNPJ, itens, totais, forma de pagamento e o nº do pedido em `infCpl` |
 | CSV de histórico (Amazon "Solicitar seus dados" → Retail.OrderHistory) | `NUCLEO.coLerCSV`: um pedido por número, cancelados fora |
 | ZIP exportado pela loja | JSZip 3.10.1 (cdnjs): lê os PDF, XML, CSV, e-mails e imagens de dentro |
-| E-mail (.eml, texto colado, Outlook ou Gmail) | MIME decodificado (quoted-printable/base64, HTML sem tags); confirmação, pagamento, envio, entrega, cancelamento e reembolso |
+| E-mail (Gmail, .eml ou texto colado) | MIME decodificado (quoted-printable/base64, HTML sem tags) e anexos PDF/XML; confirmação, pagamento, envio, entrega, cancelamento, reembolso e nota fiscal |
 | Print / foto do pedido | OCR local com Tesseract.js 5.1.1 (jsDelivr; dados do português baixados na primeira vez) |
 
-- **Gmail:** o botão "Buscar no Gmail" usa a mesma conexão do Gmail que o site já tinha (só leitura, no navegador do dono, com o
-  token do próprio Google). Procura e-mails da Amazon e do Mercado Livre dos últimos 90 dias, baixa o original (.eml) e lê.
 - **Histórico oficial da Amazon, sem senha:** Central de Privacidade → "Solicitar seus dados" → "Seus pedidos". A Amazon manda um
   ZIP com o CSV de todos os pedidos; importar o ZIP traz o histórico inteiro. O site nunca pede nem guarda a senha da loja, não
   faz raspagem do site da loja e não faz nenhuma ação na conta (comprar, cancelar, mudar).
 
-## Outlook (Microsoft Graph, só leitura)
+## Gmail (só leitura)
 
-O e-mail que recebe os pedidos da Amazon é Outlook. O botão **✉ Conectar e buscar no Outlook** (só para o dono):
+A Amazon está cadastrada numa das contas do Gmail do dono. O quadro do Gmail em Compras → Importar (só para o dono):
 
-- **Login:** abre a janela de login da própria Microsoft (OAuth 2.0 com PKCE, autoridade `consumers`, para contas pessoais). Volta em
-  `ms.html`, que só repassa o código; a troca pelo token é feita na página, sem segredo. O token fica só no aparelho, vale cerca de 1 hora
-  e não pede acesso offline. Desconectar apaga o token.
-- **Permissão única:** `Mail.Read` (delegada). Nada é enviado, movido, marcado ou apagado, e nenhum outro serviço Microsoft é usado.
-  A senha nunca passa pelo site.
-- **Busca:** `GET /me/messages?$search="from:amazon.com.br"`, últimos 90 dias, assuntos de pedido, pagamento, envio, entrega,
-  cancelamento ou reembolso.
-- **Importação:** cada e-mail é baixado no original (`GET /me/messages/{id}/$value`, .eml) e passa pela mesma leitura dos arquivos.
-  Com "importar sozinho o que estiver completo", os pedidos completos são salvos. O que já existe (mesmo número de pedido) só ganha o
-  e-mail como documento, e o que está incompleto fica na conferência.
-- **Cancelamento e reembolso:** o e-mail só marca "informado" e avisa na compra. A compra só sai das despesas quando o dono toca em
-  **Confirmar cancelamento**.
+- **Login:** usa o login do Google que o site já tinha: o Client ID público (`GOOGLE_CLIENT_ID`) e a permissão **`gmail.readonly`**
+  (`GM_SCOPE`), ambos em `js/app.js`, pelo Google Identity Services (modelo de token, sem segredo e sem token de renovação).
+  - O token da Central de Compras fica **só na memória da página** (`CC_GM`). Não vai para o localStorage, o sessionStorage, o banco
+    nem o GitHub; vale cerca de 1 hora e some ao tocar em Desconectar ou ao fechar a página.
+  - Os alertas de vagas e o cartão de E-mail continuam com a conexão deles, sem mudança.
+- **Conta certa:** a lista de contas vem do cartão de E-mail (`PESSOAL.emails`, na conta, nunca no código público). Depois do login,
+  a página confere o endereço (`/users/me/profile`); se o Google conectar outra conta, nada é lido. A conta usada fica lembrada em
+  `PESSOAL.compras.gmail` (só o endereço, nunca o acesso) e aparece primeiro na próxima vez.
+- **Só leitura:** só `gmail.readonly`, com `include_granted_scopes: false` (o token não carrega outras permissões). Só há leituras
+  (GET): nada é enviado, apagado, movido ou marcado, e a senha nunca passa pelo site.
+- **Busca:** `from:amazon.com.br after:AAAA/MM/DD`, com período de 30, **90 (padrão)**, 180 ou 365 dias. Segue para as páginas
+  seguintes até no máximo **200 e-mails**; se houver mais, avisa para escolher um período menor.
+- **Leitura:** cada e-mail é baixado no original (formato raw do Gmail; os bytes exatos vão para o cofre como `.eml`) e classificado:
+  pedido/confirmação, pagamento, envio, entrega, cancelamento, reembolso ou nota fiscal. E-mail sem pedido, sem total e sem anexo
+  (propaganda, aviso geral) é ignorado e só entra na contagem.
+- **Anexos PDF e XML** (DANFE, NF-e, resumo): lidos como arquivo e guardados no original. Sem número de pedido próprio, ficam no pedido
+  do e-mail. Anexo ilegível, grande demais (mais de 15 MB) ou XML que não é NF-e aparece em "Documentos sem pedido reconhecido".
+- **Conferência obrigatória:** tudo vai para a conferência em lote; nada é salvo sem o toque em Salvar (ou em "Salvar todos os que estão
+  prontos"). Não há importação automática.
+- **Deduplicação:** pedido que já existe (mesmo número ou mesma chave de NF-e) só recebe os documentos novos; o mesmo arquivo (mesmo
+  SHA-256) nunca é guardado duas vezes. Cancelamento e reembolso só avisam; a despesa só muda quando o dono confirma.
+- **Erros tratados:** janela do Google fechada ou bloqueada, acesso negado, permissão não concedida, conta errada, token vencido (pede
+  para conectar de novo), limite de uso (429/5xx: espera e tenta de novo até 2 vezes; 403: avisa) e anexo inválido. As mensagens de
+  erro não trazem conteúdo dos e-mails.
+- **E-mail da nota fiscal:** o banco guarda esse tipo como `outro`, com o tipo verdadeiro no extraído (sem SQL novo).
 
-### O que falta para ligar (uma vez, feito pelo dono; nenhum dado inventado)
+### Google Cloud (já configurado)
 
-1. Entrar em <https://entra.microsoft.com> (ou portal.azure.com) com a conta Microsoft. Uma conta pessoal precisa ter um diretório
-   (um tenant gratuito do Azure); se o portal pedir, é só criar o diretório gratuito.
-2. **Registros de aplicativo → Novo registro:** nome "Dia a Dia RAC"; tipos de conta: **"Somente contas Microsoft pessoais"** (ou
-   "qualquer diretório e contas pessoais").
-3. **Autenticação → Adicionar plataforma → Aplicativo de página única (SPA)**, com o URI de redirecionamento
-   `https://raynercarvalho.com.br/ms.html`. Não marcar "tokens de ID" nem "tokens de acesso" (fluxo implícito).
-4. **Permissões de API → Microsoft Graph → Permissões delegadas → `Mail.Read`.** Conta pessoal não precisa de consentimento do
-   administrador: o próprio dono consente no primeiro login.
-5. **Não criar segredo do cliente.**
-6. Copiar o **ID do aplicativo (cliente)** e colar no quadro do Outlook (Compras → Importar), ou mandar para entrar no código
-   (`CC_MS_CLIENT_ID`). Ele é público, como o Client ID do Google que o site já usa.
-
-**No iPhone:** o login abre em outra janela. Se o app da tela inicial não voltar sozinho, conecte pelo Safari (o token fica naquele
-navegador).
+No projeto do Client ID do site: a Gmail API ativada, a origem `https://raynercarvalho.com.br` autorizada, `gmail.readonly` na lista de
+acesso a dados, e o público Externo **em teste**, com a conta da Amazon como usuário de teste. Em teste não é preciso
+verificar o aplicativo: aparece o aviso de "app em teste" no consentimento, e o limite é de 100 usuários de teste.
 
 ## Processamento
 

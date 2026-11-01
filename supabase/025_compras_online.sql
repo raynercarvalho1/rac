@@ -20,7 +20,7 @@ create table if not exists public.compras_online (
   frete              numeric(12,2) not null default 0 check (frete >= 0),
   taxas              numeric(12,2) not null default 0 check (taxas >= 0),
   total_pago         numeric(12,2) not null check (total_pago >= 0),
-  pagamento          text check (pagamento is null or (length(pagamento) <= 60 and pagamento !~ '\d{5,}')),   -- "Mastercard final 3535"
+  pagamento          text check (pagamento is null or (length(pagamento) <= 60 and pagamento !~ '\d{5,}')),   -- "Mastercard final 1234"
   categoria          text check (categoria is null or length(categoria) <= 40),
   recorrencia_texto  text check (recorrencia_texto is null or length(recorrencia_texto) <= 120),
   recorrencia_meses  numeric(5,1) check (recorrencia_meses is null or recorrencia_meses > 0),

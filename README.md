@@ -58,7 +58,7 @@ Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo e
 ## Central de Compras
 
 Página `#compras` (`js/compras.js`): pedidos de lojas online (Amazon primeiro, Mercado Livre e outras no mesmo formato) importados de PDF,
-DANFE, XML, CSV/ZIP, e-mails (inclusive pelo Gmail já conectado) e prints com OCR local, com os arquivos originais no cofre, junção dos
+DANFE, XML, CSV/ZIP, e-mails (Outlook pelo Microsoft Graph, só leitura, ou Gmail) e prints com OCR local, com os arquivos originais no cofre, junção dos
 documentos do mesmo pedido, divergências, duplicidade, recorrências a confirmar e histórico de preços (SQL 025). Entra no Painel e no
 backup; é da casa. Sem IA paga e sem senha de loja. Tudo em [docs/compras.md](docs/compras.md).
 
@@ -73,8 +73,8 @@ backup; é da casa. Sem IA paga e sem senha de loja. Tudo em [docs/compras.md](d
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `025`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 025 foi aplicado em 01/11/2026).
+`schema.sql` e depois `002` a `026`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 026 foi aplicado em 01/11/2026).
 
 ## Testes (`tests/`)
 

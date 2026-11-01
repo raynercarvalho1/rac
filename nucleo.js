@@ -970,7 +970,7 @@
     if(o.total_pago==null)o.total_pago=coLinhaValor(t,/\btotal\s*:?\s*R\$\s*([\d.,]+)/i);
     o.pagamento=coPagamento((/(?:forma de pagamento|pagamento|m[eé]todo de pagamento|pago com)[\s\S]{0,120}/i.exec(t)||[t])[0]);
     o.recorrencia=coRecorrencia(t);
-    o.tipo=/foi entregue|entregue em|seu pedido foi entregue/.test(n)?"email_entrega":/foi enviado|saiu para entrega|enviado em|a caminho/.test(n)?"email_envio":/obrigad[oa] pelo seu pedido|pedido confirmado|confirmacao do pedido/.test(n)?"email_confirmacao":"resumo";
+    o.tipo=/reembolso|estorno|refund/.test(n)?"email_reembolso":/foi cancelad|pedido cancelad|cancelamento d|item cancelad|cancelled/.test(n)?"email_cancelamento":/foi entregue|entregue em|seu pedido foi entregue/.test(n)?"email_entrega":/foi enviado|saiu para entrega|enviado em|a caminho/.test(n)?"email_envio":/obrigad[oa] pelo seu pedido|pedido confirmado|confirmacao do pedido/.test(n)?"email_confirmacao":/pagamento (?:aprovado|confirmado|recebido)|recebemos (?:o )?seu pagamento|problema com (?:o )?pagamento/.test(n)?"email_pagamento":"resumo";
     /* itens: "1 unidade de: X", "Quantidade: 2 X", "2 x X R$ 10,00", ou uma linha com descrição e preço */
     var ir=/(\d+)\s*(?:unidades?|un\.?|x)\s*(?:de:?\s*)?([^\n]{3,160}?)(?:\s+R\$\s*([\d.,]+))?(?:\n|$)/gi,im;
     while((im=ir.exec(t))){var dsc=im[2].replace(/\s*(?:vendido por|vendedor)\b.*$/i,"").trim();if(!dsc||/^r\$/i.test(dsc))continue;o.itens.push({descricao:dsc.slice(0,160),qtd:+im[1],total:coNum(im[3]),unitario:null})}
@@ -979,6 +979,9 @@
     if(o.subtotal==null&&o.itens.length&&o.itens.every(function(i){return i.total!=null}))o.subtotal=Math.round(o.itens.reduce(function(s,i){return s+i.total},0)*100)/100;
     var chave=/\b(\d{4}\s?){10}\d{4}\b/.exec(t.replace(/(\d{4}) (?=\d{4})/g,"$1 "));o.chave_nfe=chave?chave[0].replace(/\s/g,""):null;
     if(o.chave_nfe&&o.chave_nfe.length!==44)o.chave_nfe=null;
+    /* DANFE em PDF: número e série da nota, CNPJ e nome do emitente (os valores da tabela ficam com o resumo/XML) */
+    if(/danfe|documento auxiliar da nota/.test(n)){var nn=/n[º°o.]*\s*(\d{3}\.\d{3}\.\d{3})/i.exec(t),se=/s[ée]rie\s*:?\s*(\d{1,3})\b/i.exec(t),cj=/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})\b/.exec(t),em=/recebemos de\s+(.+?)\s+os produtos/i.exec(t);
+      if(nn)o.numero_nf=nn[1].replace(/\D/g,"");if(se)o.serie=se[1];if(cj)o.cnpj=cj[1].replace(/\D/g,"");if(em){o.emitente=em[1].trim();if(!o.vendedor)o.vendedor=o.emitente}}
     return o}
   /* NF-e (XML da nota ou da SEFAZ): emitente, número, chave, itens, totais e forma de pagamento */
   function coTag(x,tag){var m=new RegExp("<(?:\\w+:)?"+tag+"(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?"+tag+">","i").exec(x);return m?m[1].replace(/<!\[CDATA\[|\]\]>/g,"").trim():null}
@@ -1041,9 +1044,10 @@
     if(!(o.itens||[]).length&&(novo.itens||[]).length)o.itens=novo.itens;
     else (novo.itens||[]).forEach(function(i){var p=(o.itens||[]).filter(function(j){return !j.codigo&&i.codigo&&alCompararProdutos(j.descricao,i.descricao).resultado!=="diferente"})[0];if(p)p.codigo=i.codigo});
     o.divergencias=div;return o}
-  var CO_DOC_NOME={resumo:"resumo do pedido",resumo_pdf:"PDF do pedido",email_confirmacao:"e-mail de confirmação",email_envio:"e-mail de envio",email_entrega:"e-mail de entrega",nfe_xml:"XML da nota fiscal",danfe:"DANFE",csv:"CSV de histórico",imagem:"print",foto_produto:"foto do produto",outro:"documento"};
-  /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido; pedido marcado como "já contado em outro lugar" fica fora */
-  function coDespesas(compras){var L=[];(compras||[]).forEach(function(c){var v=+c.total_pago;if(!c||!c.data||!isFinite(v)||c.fora_das_contas)return;
+  var CO_DOC_NOME={resumo:"resumo do pedido",resumo_pdf:"PDF do pedido",email_confirmacao:"e-mail de confirmação",email_envio:"e-mail de envio",email_entrega:"e-mail de entrega",email_pagamento:"e-mail de pagamento",email_cancelamento:"e-mail de cancelamento",email_reembolso:"e-mail de reembolso",nfe_xml:"XML da nota fiscal",danfe:"DANFE",csv:"CSV de histórico",imagem:"print",foto_produto:"foto do produto",outro:"documento"};
+  /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido; fica fora o pedido marcado como "já contado em outro lugar"
+     e o cancelamento que o dono confirmou (status "cancelado"; o e-mail de cancelamento sozinho só avisa) */
+  function coDespesas(compras){var L=[];(compras||[]).forEach(function(c){var v=+c.total_pago;if(!c||!c.data||!isFinite(v)||c.fora_das_contas||c.status==="cancelado")return;
     var cats={};(c.itens||[]).forEach(function(i){var k=i.categoria||"Outros";cats[k]=(cats[k]||0)+(+i.total||0)-(+i.desconto||0)});
     var ks=Object.keys(cats),cat=ks.length?ks.sort(function(a,b){return cats[b]-cats[a]})[0]:(c.categoria||"Outros");
     L.push({d:c.data,v:v,f:"Compras online",cat:c.categoria||cat,id:c.id||null})});return L}
@@ -1051,10 +1055,10 @@
      A próxima data é só uma estimativa para conferir: nenhuma compra é criada. */
   function coRecorrencias(compras,hoje){var por={},L=[];
     (compras||[]).forEach(function(c){(c.itens||[]).forEach(function(i){var k=alChaveProduto(i.descricao);if(!k)return;(por[k]=por[k]||{nome:i.descricao,datas:[],compras:[]}).datas.push(c.data);por[k].compras.push(c)})});
-    Object.keys(por).forEach(function(k){var p=por[k],d=p.datas.slice().sort(),inf=null;p.compras.forEach(function(c){if(c.recorrencia_texto&&!inf)inf={texto:c.recorrencia_texto,meses:c.recorrencia_meses,status:c.recorrencia_status||"a_confirmar"}});
+    Object.keys(por).forEach(function(k){var p=por[k],d=p.datas.slice().sort(),inf=null,dona=null;p.compras.forEach(function(c){if(c.recorrencia_texto&&!inf){inf={texto:c.recorrencia_texto,meses:c.recorrencia_meses,status:c.recorrencia_status||"a_confirmar"};dona=c}});
       var int=[];for(var i=1;i<d.length;i++)int.push(diasEntre(d[i-1],d[i]));var media=int.length?Math.round(int.reduce(function(a,b){return a+b},0)/int.length):null;
       if(!inf&&d.length<2)return;var ult=d[d.length-1],passo=inf&&inf.meses&&inf.meses%1?Math.round(inf.meses*30.44):media,meses=inf&&inf.meses&&!(inf.meses%1)?inf.meses:0;
-      L.push({produto:p.nome,vezes:d.length,ultima:ult,informada:inf,intervaloDias:media,proximaEstimada:inf&&inf.status==="descartada"?null:meses?coMaisMeses(ult,meses):passo?somaDiasISO(ult,passo):null})});
+      L.push({produto:p.nome,vezes:d.length,ultima:ult,informada:inf,compra:dona,intervaloDias:media,proximaEstimada:inf&&inf.status==="descartada"?null:meses?coMaisMeses(ult,meses):passo?somaDiasISO(ult,passo):null})});
     return L.sort(function(a,b){return (a.proximaEstimada||"9")<(b.proximaEstimada||"9")?-1:1})}
   /* soma meses de calendário (31/01 + 1 mês = 28 ou 29/02) */
   function coMaisMeses(iso,n){var y=+iso.slice(0,4),m=+iso.slice(5,7)-1+n,d=+iso.slice(8,10);y+=Math.floor(m/12);m=((m%12)+12)%12;var fim=new Date(Date.UTC(y,m+1,0)).getUTCDate();

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Conectando o Outlook</title>
+<style>body{margin:0;padding:24px;font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f5f7;color:#1c2430}@media (prefers-color-scheme:dark){body{background:#12161c;color:#e8edf3}}</style>
+</head>
+<body>
+<p id="m">Conectando o Outlook…</p>
+<script>
+/* Dia a Dia RAC — retorno do login da Microsoft (Central de Compras, docs/compras.md). Só repassa o código de autorização à página que
+   abriu esta janela (mesmo endereço) e fecha. Não troca o código por token, não guarda senha e não lê nenhum e-mail. */
+(function () {
+  var q = new URLSearchParams(location.search), d = { tipo: "rac-ms", code: q.get("code"), state: q.get("state"), erro: q.get("error_description") || q.get("error"), quando: Date.now() };
+  try { localStorage.setItem("rac-ms-cb", JSON.stringify(d)); } catch (e) {}
+  try { if (window.opener) window.opener.postMessage(d, location.origin); } catch (e) {}
+  history.replaceState(null, "", location.pathname);
+  document.getElementById("m").textContent = d.code ? "Pronto. Pode fechar esta janela e voltar ao Dia a Dia RAC." : "Não conectou: " + (d.erro || "a Microsoft não respondeu.");
+  setTimeout(function () { window.close(); }, 900);
+})();
+</script>
+</body>
+</html>

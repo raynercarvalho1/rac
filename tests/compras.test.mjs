@@ -39,8 +39,8 @@ test("texto do pedido (PDF de resumo ou e-mail): loja, número, data, produto, v
   assert.equal(N.coLerTexto("Seu pedido foi entregue. Pedido nº 701-0000001-0000002").tipo, "email_entrega");
 });
 test("pagamento: só bandeira e 4 últimos dígitos; número de cartão inteiro nunca é guardado", () => {
-  assert.equal(N.coPagamento("Mastercard terminado em 3535"), "Mastercard final 3535");
-  assert.equal(N.coPagamento("Mastercard - 3535"), "Mastercard final 3535"); assert.equal(N.coPagamento("Elo ****9876"), "Elo final 9876");
+  assert.equal(N.coPagamento("Mastercard terminado em 1234"), "Mastercard final 1234");
+  assert.equal(N.coPagamento("Mastercard - 1234"), "Mastercard final 1234"); assert.equal(N.coPagamento("Elo ****9876"), "Elo final 9876");
   assert.equal(N.coPagamento("Cartão 5555666677778888"), null); assert.equal(N.coPagamento("Pix"), "Pix");
   assert.match(semComent(ler("supabase/025_compras_online.sql")), /pagamento !~ '\\d\{5,\}'/, "o banco recusa números longos no pagamento");
 });
@@ -53,12 +53,12 @@ test("NF-e (XML): chave, número, emitente, itens, totais, forma de pagamento e 
 });
 test("CSV de histórico (Amazon Solicitar seus dados): um pedido por número, cancelados fora, pagamento sem número de cartão", () => {
   const csv = "Website,Order ID,Order Date,Unit Price,Total Owed,Shipping Charge,Total Discounts,Quantity,Payment Instrument Type,ASIN,Product Name,Order Status\n" +
-    "Amazon.com.br,701-1111111-2222222,2026-09-10T12:00:00Z,50.00,95.00,0,5.00,2,\"Mastercard - 3535\",B01,Produto A,Closed\n" +
-    "Amazon.com.br,701-1111111-2222222,2026-09-10T12:00:00Z,10.00,10.00,0,0,1,\"Mastercard - 3535\",B02,Produto B,Closed\n" +
+    "Amazon.com.br,701-1111111-2222222,2026-09-10T12:00:00Z,50.00,95.00,0,5.00,2,\"Mastercard - 1234\",B01,Produto A,Closed\n" +
+    "Amazon.com.br,701-1111111-2222222,2026-09-10T12:00:00Z,10.00,10.00,0,0,1,\"Mastercard - 1234\",B02,Produto B,Closed\n" +
     "Amazon.com.br,701-3333333-4444444,2026-09-12T12:00:00Z,30.00,30.00,0,0,1,Visa,B03,Produto C,Cancelled";
   const l = N.coLerCSV(csv);
   assert.equal(l.length, 1); assert.equal(l[0].numero, "701-1111111-2222222"); assert.equal(l[0].data, "2026-09-10");
-  assert.equal(l[0].itens.length, 2); assert.deepEqual([l[0].subtotal, l[0].desconto, l[0].total_pago], [110, 5, 105]); assert.equal(l[0].pagamento, "Mastercard final 3535");
+  assert.equal(l[0].itens.length, 2); assert.deepEqual([l[0].subtotal, l[0].desconto, l[0].total_pago], [110, 5, 105]); assert.equal(l[0].pagamento, "Mastercard final 1234");
 });
 test("conta: total pago = subtotal − desconto + frete + taxas; total ausente ou divergente impede; produtos que não somam é aviso", () => {
   const ok = { loja: "amazon", numero: "1", data: "2026-11-01", itens: [{ descricao: "X", qtd: 1, total: 136.42 }], subtotal: 136.42, desconto: 6.82, frete: 0, total_pago: 129.6 };
@@ -123,4 +123,43 @@ test("SQL 025: casa, RLS, trava da 2ª etapa, nada para anon, conta fechada, cof
   assert.match(js, /pdf\.js\/3\.11\.174\//); assert.match(js, /jszip\/3\.10\.1\//); assert.match(js, /tesseract\.js@5\.1\.1\//);
   assert.match(js, /upload\(path,d\.blob,\{contentType:d\.mime,upsert:false\}\)/, "o original vai como veio");
   assert.ok(!/racIA\(|rac-ia|anthropic|type:"password"/i.test(js), "sem IA paga e sem campo de senha da loja");
+});
+test("DANFE em PDF: número e série da nota, chave, CNPJ, emitente e o pedido nas informações complementares (dados fictícios)", () => {
+  const t = "NF-e N° 000.111.222 SÉRIE: 1\nRECEBEMOS DE LOJA EXEMPLO LTDA OS PRODUTOS CONSTANTES NA NOTA FISCAL\nDANFE DOCUMENTO AUXILIAR DA NOTA FISCAL ELETRÔNICA\n" +
+    "11.222.333/0001-81\n3526 1111 2223 3300 0181 5500 1000 1112 2210 0000 0009\nNumero do pedido da compra: 701-0000001-0000002";
+  const o = N.coLerTexto(t);
+  assert.equal(o.numero_nf, "000111222"); assert.equal(o.serie, "1"); assert.equal(o.cnpj, "11222333000181"); assert.equal(o.emitente, "LOJA EXEMPLO LTDA");
+  assert.equal(o.chave_nfe, "35261111222333000181550010001112221000000009"); assert.equal(o.numero, "701-0000001-0000002");
+  const m = N.coMesclar({ numero: "701-0000001-0000002", subtotal: 100, total_pago: 95, divergencias: [] }, o);
+  assert.equal(m.chave_nfe.length, 44); assert.equal(m.total_pago, 95, "os valores registrados não mudam");
+});
+test("e-mails de pagamento, cancelamento e reembolso; cancelamento só sai das despesas quando o dono confirma", () => {
+  assert.equal(N.coLerTexto("Seu pedido 702-1111111-2222222 foi cancelado").tipo, "email_cancelamento");
+  assert.equal(N.coLerTexto("Reembolso do pedido 702-1111111-2222222").tipo, "email_reembolso");
+  assert.equal(N.coLerTexto("Recebemos seu pagamento do pedido 702-1111111-2222222").tipo, "email_pagamento");
+  const c = (status) => ({ data: "2026-11-01", total_pago: 10, status, itens: [] });
+  assert.equal(N.coDespesas([c("cancelado"), c("cancelamento_informado"), c("reembolso_informado"), c(null)]).length, 3);
+  assert.match(ler("supabase/026_compras_emails.sql"), /'email_pagamento',\s+'email_cancelamento', 'email_reembolso'/);
+  const js = ler("js/compras.js");
+  assert.match(js, /o\.status=e\.tipo==="email_cancelamento"\?"cancelamento_informado":"reembolso_informado"/, "o e-mail só avisa");
+  assert.match(js, /\["cancelado","Confirmar cancelamento \(sai das despesas\)"\]/);
+  assert.match(js, /Recorrência \(separada da compra\)/); assert.match(js, /nenhuma compra nem despesa futura é criada/);
+});
+test("Outlook: OAuth com PKCE (sem segredo), só Mail.Read de contas pessoais, só leitura dos e-mails da Amazon, sem senha", () => {
+  const js = ler("js/compras.js"), ms = ler("ms.html");
+  assert.match(js, /var CC_MS_AUT="https:\/\/login\.microsoftonline\.com\/consumers\/oauth2\/v2\.0\/",CC_MS_ESCOPO="https:\/\/graph\.microsoft\.com\/Mail\.Read"/);
+  assert.equal((js.match(/graph\.microsoft\.com\/[A-Za-z.]+(?=")/g) || []).filter((s) => !/Mail\.Read$|v1\.0/.test(s)).length, 0, "nenhuma outra permissão");
+  assert.ok(!/offline_access|Mail\.Send|Mail\.ReadWrite|client_secret|User\.Read|Calendars|Files\./.test(js), "só leitura de e-mail, sem segredo e sem acesso offline");
+  assert.match(js, /"code_challenge_method=S256"/); assert.match(js, /"grant_type=authorization_code"/); assert.match(js, /"code_verifier="\+ver/);
+  assert.match(js, /if\(r\.state!==estado\)/, "confere o state");
+  assert.match(js, /var CC_MS_BUSCA="\\"from:amazon\.com\.br\\""/); assert.match(js, /cancel\|reembols\|estorno/);
+  assert.match(js, /"messages\/"\+encodeURIComponent\(m\.id\)\+"\/\$value"/, "o e-mail original (.eml)");
+  /* nada além de GET no Graph: nenhum envio, mudança ou exclusão */
+  const graph = js.slice(js.indexOf("function ccMsGet"), js.indexOf("function ccMsEmails"));
+  assert.ok(!/method:/.test(graph), "só GET no Graph");
+  assert.match(js, /var CC_MS_CLIENT_ID="";/, "nenhum Client ID inventado");
+  assert.match(js, /pessoalGravar\("outlook"/); assert.ok(!/type:"password"/.test(js));
+  assert.match(ms, /window\.opener\.postMessage\(d, location\.origin\)/); assert.ok(!/fetch\(|access_token|oauth2\/v2\.0\/token/.test(ms), "a página de retorno não troca o código");
+  assert.match(js, /if\(isOwner\(\)\)p\.appendChild\(ccOutlookBloco\(saida,st\)\)/);
+  assert.match(js, /typeof gmBuscar==="function"\?gm:null/, "o Gmail continua");
 });

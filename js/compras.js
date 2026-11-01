@@ -65,7 +65,10 @@
     p.appendChild(ccFonte("Central de Compras · "+dataBR(meses[0]+"-01")+" a "+dataBR(hojeISO())));L.push(p);
     var rec=NUCLEO.coRecorrencias(CC.dados).filter(function(r){return r.informada&&r.informada.status==="a_confirmar"});
     if(rec.length){var pr=panel("Recorrências a confirmar","A loja informou uma entrega automática. Nada foi criado para o futuro: confirme ou descarte na compra.");
-      pr.appendChild(h("ul",{class:"wl"},rec.map(function(r){return h("li",null,h("span",{class:"grow"},h("b",{text:r.produto}),h("span",{class:"sub",text:r.informada.texto+(r.proximaEstimada?" · próxima prevista (estimativa): "+dataBR(r.proximaEstimada):"")})))})));L.push(pr)}
+      pr.appendChild(h("ul",{class:"wl"},rec.map(function(r){var c=r.compra,bx=h("div",{class:"vfil"});
+        if(c)[["confirmada","Confirmar"],["descartada","Descartar"]].forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
+          b.onclick=function(){b.disabled=true;SB.from("compras_online").update({recorrencia_status:o[0],atualizado_em:new Date().toISOString()}).eq("id",c.id).then(sbOk).then(function(){ccEsquecer();renderCompras("resumo")},function(){b.disabled=false})};bx.appendChild(b)});
+        return h("li",{class:"ccli"},h("span",{class:"grow"},h("b",{text:r.produto}),h("span",{class:"sub",text:r.informada.texto+(r.proximaEstimada?" · próxima prevista (estimativa): "+dataBR(r.proximaEstimada):"")+" · a compra de "+dataBR(r.ultima)+" continua confirmada"})),bx)})));L.push(pr)}
     return L}
 
   /* ---------- Lista e detalhe ---------- */
@@ -90,10 +93,16 @@
           h("td",{class:"num",text:brl(i.total)+(i.desconto?" (−"+brl(i.desconto)+")":"")}))}))));d.appendChild(tab);
     var conta=[["Subtotal",c.subtotal],["Desconto",c.desconto?-c.desconto:0],["Frete",c.frete],["Taxas",c.taxas]].filter(function(l){return l[1]||l[0]==="Subtotal"}).map(function(l){return h("li",null,h("span",{class:"grow",text:l[0]}),h("span",{text:(l[1]<0?"−":"")+brl(Math.abs(l[1]))}))});
     conta.push(h("li",null,h("b",{class:"grow",text:"Total pago (despesa)"}),h("b",{text:brl(c.total_pago)})));d.appendChild(h("ul",{class:"wl ccconta"},conta));
+    d.appendChild(h("p",{class:"ccok",text:c.status==="cancelado"?"✕ Compra cancelada (confirmada por você): fora das despesas.":c.fora_das_contas?"Compra registrada, fora das despesas (já contada em outro lugar"+(c.motivo_fora?": "+c.motivo_fora:"")+").":"✓ Compra confirmada · despesa de "+brl(c.total_pago)+" em "+dataBR(c.data)}));
+    if(c.status==="cancelamento_informado"||c.status==="reembolso_informado"){var cb=h("div",{class:"vfil"}),canc=c.status==="cancelamento_informado";
+      d.appendChild(h("div",{class:"ccaviso"},h("b",{text:canc?"⚠ A loja informou um cancelamento":"⚠ A loja informou um reembolso"}),h("p",{class:"sub",text:canc?"Nada saiu das despesas sozinho. Se o pedido inteiro foi cancelado, confirme; se foi só uma parte, edite os valores.":"O valor não muda sozinho. Se o reembolso foi do pedido inteiro, confirme o cancelamento; se foi parcial, edite os valores."}),cb));
+      [["cancelado","Confirmar cancelamento (sai das despesas)"],[null,"Não foi cancelado"]].forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
+        b.onclick=function(){b.disabled=true;SB.from("compras_online").update({status:o[0],atualizado_em:new Date().toISOString()}).eq("id",c.id).then(sbOk).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){b.disabled=false;st.textContent="Não consegui salvar ("+e.message+")."})};cb.appendChild(b)})}
     var info=[c.vendedor?"Vendido por "+c.vendedor:"",c.pagamento||"",c.numero_nf?"NF "+c.numero_nf+(c.emitente?" · "+c.emitente:""):"",c.chave_nfe?"chave "+c.chave_nfe.replace(/(\d{4})(?=\d)/g,"$1 "):"",(c.versoes||[]).length?"editada "+c.versoes.length+(c.versoes.length===1?" vez":" vezes"):""].filter(Boolean);
     if(info.length)d.appendChild(h("p",{class:"sub",text:info.join(" · ")}));
     if((c.divergencias||[]).length)d.appendChild(h("div",{class:"ccaviso"},h("b",{text:"⚠ Divergências entre os documentos"}),h("ul",{class:"clean"},c.divergencias.map(function(x){return h("li",{text:x.texto||String(x)})}))));
-    if(c.recorrencia_texto){var rb=h("div",{class:"vfil"});d.appendChild(h("div",{class:"ccrec"},h("b",{text:"🔁 "+c.recorrencia_texto}),h("span",{class:"sub",text:c.recorrencia_status==="confirmada"?" · confirmada":c.recorrencia_status==="descartada"?" · descartada":" · informação a confirmar (nenhuma compra futura é criada)"}),rb));
+    if(c.recorrencia_texto){var rb=h("div",{class:"vfil"});d.appendChild(h("div",{class:"ccrec"},h("h3",{class:"mbag",text:"Recorrência (separada da compra)"}),h("b",{text:"🔁 "+c.recorrencia_texto}),
+        h("p",{class:"sub",text:(c.recorrencia_status==="confirmada"?"Confirmada por você.":c.recorrencia_status==="descartada"?"Descartada por você.":"Informada pela loja, a confirmar.")+" É só uma informação: nenhuma compra nem despesa futura é criada."}),rb));
       [["confirmada","Confirmar"],["descartada","Descartar"],["a_confirmar","Voltar para a confirmar"]].filter(function(o){return o[0]!==c.recorrencia_status}).forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
         b.onclick=function(){b.disabled=true;SB.from("compras_online").update({recorrencia_status:o[0],atualizado_em:new Date().toISOString()}).eq("id",c.id).then(sbOk).then(function(){c.recorrencia_status=o[0];ccEsquecer();renderCompras("lista")},function(e){b.disabled=false;st.textContent="Não consegui salvar ("+e.message+")."})};rb.appendChild(b)})}
     if(c.observacoes)d.appendChild(h("p",{text:c.observacoes}));
@@ -116,7 +125,8 @@
         .then(function(){CC.aberto=null;ccEsquecer();renderCompras("lista")},function(e){ap.disabled=false;st.textContent="Não consegui apagar ("+e.message+")."})};
     d.appendChild(h("div",{class:"vfil"},h("label",{class:"ghostbtn ccadd"},"📎 Adicionar documento",add),h("a",{class:"ghostbtn pri",href:"#compras/editar/"+c.id,text:"Editar"}),fora,ap));d.appendChild(st);return d}
   /* o que a nota fiscal traz e o pedido ainda não tem (chave, número, emitente, CNPJ): só preenche o que está vazio */
-  function ccCompletar(ex,fontes){var o={};(fontes||[]).forEach(function(e){if(!e)return;["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(!ex[k]&&!o[k]&&e[k])o[k]=e[k]})});return o}
+  function ccCompletar(ex,fontes){var o={};(fontes||[]).forEach(function(e){if(!e)return;["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(!ex[k]&&!o[k]&&e[k])o[k]=e[k]});
+      if(!ex.status&&!o.status&&(e.tipo==="email_cancelamento"||e.tipo==="email_reembolso"))o.status=e.tipo==="email_cancelamento"?"cancelamento_informado":"reembolso_informado"});return o}
   /* documentos novos de uma compra que já existe: só os que ainda não estão guardados (mesmo conteúdo = mesmo arquivo) */
   function ccAnexarDocs(c,docs,st){var ja={};c.docs.forEach(function(x){ja[x.sha256]=1});var novos=docs.filter(function(x){return !ja[x.sha]});
     if(!novos.length){st.textContent="Esses arquivos já estão guardados nesta compra.";return}
@@ -201,15 +211,76 @@
         var g=grupo(d.ext);g.cand=NUCLEO.coMesclar(g.cand,d.ext);g.docs.push(d);g.imagens=g.imagens.concat(d.imagens||[]);g.imagensUrl=g.imagensUrl.concat(d.imagensUrl||[])});
       return {grupos:grupos,soltos:soltos,docs:docs}})}
 
+  /* ---------- Outlook (Microsoft Graph): só leitura, com o login da própria Microsoft (OAuth 2.0 com PKCE, sem senha e sem segredo) ----------
+     Permissão única: Mail.Read (delegada). Nada é enviado, movido, marcado ou apagado; nenhum outro serviço Microsoft é usado. O token fica
+     só neste aparelho e vale cerca de 1 hora (não pedimos acesso offline). Precisa de um aplicativo registrado no Microsoft Entra
+     (docs/compras.md, "Outlook"): o Client ID dele é público e fica nos ajustes (PESSOAL.outlook.clientId), nunca uma senha. */
+  var CC_MS_CLIENT_ID="";   /* Client ID padrão (público). Vazio = configurar pela tela ou mandar o ID para entrar aqui. */
+  var CC_MS_AUT="https://login.microsoftonline.com/consumers/oauth2/v2.0/",CC_MS_ESCOPO="https://graph.microsoft.com/Mail.Read",CC_MS_GRAPH="https://graph.microsoft.com/v1.0/me/";
+  /* e-mails da Amazon.com.br sobre pedido, pagamento, envio, entrega, cancelamento e reembolso */
+  var CC_MS_BUSCA="\"from:amazon.com.br\"",CC_MS_ASSUNTO=/pedido|pagamento|pago|enviad|envio|entreg|a caminho|cancel|reembols|estorno|devolu|order|shipped|delivered|refund/i;
+  function ccMsClientId(){return ((PESSOAL.outlook||{}).clientId||CC_MS_CLIENT_ID||"").trim()}
+  function ccMsRetorno(){return location.origin+location.pathname.replace(/[^\/]*$/,"")+"ms.html"}
+  function ccB64url(bytes){var s="";bytes=new Uint8Array(bytes);for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+  function ccMsToken(){try{var t=JSON.parse(localStorage.getItem("rac-ms")||"null");return t&&t.exp>Date.now()+60000?t.tk:null}catch(e){return null}}
+  function ccMsSair(){try{localStorage.removeItem("rac-ms")}catch(e){}}
+  /* abre a janela de login da Microsoft; volta com o código em ms.html, que é trocado aqui pelo token (PKCE: sem segredo) */
+  function ccMsConectar(){var id=ccMsClientId();if(!id)return Promise.reject(new Error("falta o Client ID do aplicativo Microsoft"));
+    var ver=ccB64url(crypto.getRandomValues(new Uint8Array(48))),estado=ccB64url(crypto.getRandomValues(new Uint8Array(16)));
+    return crypto.subtle.digest("SHA-256",new TextEncoder().encode(ver)).then(function(d){
+      var url=CC_MS_AUT+"authorize?"+["client_id="+encodeURIComponent(id),"response_type=code","redirect_uri="+encodeURIComponent(ccMsRetorno()),"response_mode=query",
+        "scope="+encodeURIComponent(CC_MS_ESCOPO),"state="+estado,"code_challenge="+ccB64url(d),"code_challenge_method=S256","prompt=select_account"].join("&");
+      try{localStorage.removeItem("rac-ms-cb")}catch(e){}
+      var jan=window.open(url,"rac-ms","width=520,height=700");if(!jan)throw new Error("o navegador bloqueou a janela de login; permita janelas deste site");
+      return new Promise(function(ok,nao){var feito=false;
+        function fim(r){if(feito||!r||r.tipo!=="rac-ms")return;feito=true;clearInterval(tm);window.removeEventListener("message",msg);window.removeEventListener("storage",sto);try{localStorage.removeItem("rac-ms-cb")}catch(e){}
+          if(r.erro||!r.code){nao(new Error(r.erro||"login cancelado"));return}if(r.state!==estado){nao(new Error("resposta de login não confere"));return}ok(r.code)}
+        function msg(e){if(e.origin===location.origin)fim(e.data)}
+        function sto(e){if(e.key==="rac-ms-cb"&&e.newValue)try{fim(JSON.parse(e.newValue))}catch(x){}}
+        window.addEventListener("message",msg);window.addEventListener("storage",sto);
+        var tm=setInterval(function(){try{var v=localStorage.getItem("rac-ms-cb");if(v){fim(JSON.parse(v));return}}catch(x){}if(jan.closed&&!feito){setTimeout(function(){if(!feito){feito=true;clearInterval(tm);nao(new Error("a janela de login foi fechada"))}},1500)}},500)})})
+    .then(function(code){return fetch(CC_MS_AUT+"token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},
+        body:["client_id="+encodeURIComponent(id),"grant_type=authorization_code","code="+encodeURIComponent(code),"redirect_uri="+encodeURIComponent(ccMsRetorno()),"code_verifier="+ver,"scope="+encodeURIComponent(CC_MS_ESCOPO)].join("&")})
+      .then(function(r){return r.json().then(function(j){if(!r.ok||!j.access_token)throw new Error(j.error_description?String(j.error_description).split("\n")[0].slice(0,160):"a Microsoft não entregou o acesso");
+        try{localStorage.setItem("rac-ms",JSON.stringify({tk:j.access_token,exp:Date.now()+(+j.expires_in||3600)*1000}))}catch(e){}return j.access_token})})})}
+  function ccMsGet(tk,caminho,texto){return fetch(CC_MS_GRAPH+caminho,{headers:{Authorization:"Bearer "+tk}}).then(function(r){
+    if(r.status===401){ccMsSair();throw new Error("o acesso ao Outlook expirou; conecte de novo")}if(!r.ok)throw new Error("o Outlook respondeu "+r.status);return texto?r.text():r.json()})}
+  /* os e-mails da Amazon dos últimos 90 dias sobre pedidos, cada um no original (.eml), para a mesma leitura dos arquivos */
+  function ccMsEmails(tk,st){var desde=new Date(Date.now()-90*864e5).toISOString(),acc=[];
+    function pag(url,n){return ccMsGet(tk,url).then(function(j){(j.value||[]).forEach(function(m){if(m.receivedDateTime>=desde&&CC_MS_ASSUNTO.test((m.subject||"")+" "+(m.bodyPreview||"")))acc.push(m)});
+      var prox=j["@odata.nextLink"];return prox&&n<4?pag(prox.replace(CC_MS_GRAPH,""),n+1):acc})}
+    return pag("messages?$search="+encodeURIComponent(CC_MS_BUSCA)+"&$top=50&$select=id,subject,receivedDateTime,bodyPreview",0).then(function(l){
+      if(st)st.textContent="Baixando "+l.length+(l.length===1?" e-mail da Amazon…":" e-mails da Amazon…");
+      return l.slice(0,120).reduce(function(p,m){return p.then(function(out){return ccMsGet(tk,"messages/"+encodeURIComponent(m.id)+"/$value",true).then(function(raw){
+        out.push({raw:raw,nome:"outlook-"+m.receivedDateTime.slice(0,10)+"-"+ccNomeSeguro(m.subject||"email").slice(0,40)+".eml",data:m.receivedDateTime.slice(0,10)});return out},function(){return out})})},Promise.resolve([]))})}
+  /* o bloco do Outlook na importação: configurar (Client ID), conectar, buscar e importar sozinho o que estiver completo */
+  function ccOutlookBloco(saida,st){var box=h("div",{class:"ccms"}),auto=h("input",{type:"checkbox",checked:""});
+    function desenhar(){box.innerHTML="";var id=ccMsClientId();
+      if(!id){var inp=h("input",{type:"text",placeholder:"Client ID (ex.: 00000000-0000-0000-0000-000000000000)",maxlength:"36","aria-label":"Client ID do aplicativo Microsoft"}),ok=h("button",{type:"button",class:"ghostbtn",text:"Salvar o Client ID"});
+        ok.onclick=function(){var v=inp.value.trim();if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)){st.textContent="O Client ID tem o formato 00000000-0000-0000-0000-000000000000.";return}
+          pessoalGravar("outlook",Object.assign({},PESSOAL.outlook||{},{clientId:v.toLowerCase()}),function(m){st.textContent=m||"Client ID salvo."});desenhar()};
+        box.appendChild(h("p",{class:"sub",text:"✉ Outlook: falta configurar a conexão com a Microsoft (um aplicativo registrado, só leitura, sem senha). O que fazer está em “Como trazer o histórico”. Depois cole aqui o Client ID:"}));
+        box.appendChild(h("div",{class:"vfil"},inp,ok));return}
+      var tk=ccMsToken(),b=h("button",{type:"button",class:"ghostbtn pri",text:tk?"✉ Buscar no Outlook (últimos 90 dias)":"✉ Conectar e buscar no Outlook"}),sair=h("button",{type:"button",class:"ghostbtn",text:"Desconectar"});
+      sair.onclick=function(){ccMsSair();desenhar();st.textContent="Outlook desconectado neste aparelho."};
+      b.onclick=function(){b.disabled=true;st.textContent=tk?"Procurando os e-mails da Amazon…":"Abrindo o login da Microsoft…";
+        (ccMsToken()?Promise.resolve(ccMsToken()):ccMsConectar()).then(function(k){st.textContent="Procurando os e-mails da Amazon…";return ccMsEmails(k,st)})
+        .then(function(l){if(!l.length){st.textContent="Nenhum e-mail da Amazon sobre pedidos nos últimos 90 dias.";return null}return ccProcessar([],l,st)})
+        .then(function(r){b.disabled=false;desenhar();if(!r)return;var q=ccMostrarLote(saida,r,st);if(auto.checked&&q)return q.salvarTodos()},function(e){b.disabled=false;desenhar();st.textContent="Outlook: "+e.message})};
+      box.appendChild(h("div",{class:"vfil"},b,tk?sair:null,h("label",{class:"ccauto"},auto," importar sozinho o que estiver completo")))}
+    desenhar();return box}
+
   function ccImportar(corpo){
     var p=panel("Importar compras","Escolha vários arquivos de uma vez: PDF do pedido, DANFE, XML da nota, CSV ou ZIP exportado pela loja, e-mail (.eml) ou print. Tudo é lido neste aparelho; nada é gravado antes do Salvar.");
     var arq=h("input",{type:"file",multiple:"",accept:".pdf,.xml,.csv,.zip,.eml,.txt,image/*","aria-label":"Arquivos das compras"}),txt=h("textarea",{rows:"4",placeholder:"Ou cole aqui o texto do e-mail de confirmação ou do pedido"});
     var ler=h("button",{type:"button",class:"ghostbtn pri",text:"Ler os arquivos"}),gm=h("button",{type:"button",class:"ghostbtn",text:"✉ Buscar no Gmail (últimos 90 dias)"}),st=h("p",{class:"sub",role:"status"}),cx=h("div",{class:"vfil"}),saida=h("div",{class:"stack"});
-    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler,isOwner()&&typeof gmBuscar==="function"?gm:null));p.appendChild(cx);p.appendChild(st);
+    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler,isOwner()&&typeof gmBuscar==="function"?gm:null));p.appendChild(cx);
+    if(isOwner())p.appendChild(ccOutlookBloco(saida,st));p.appendChild(st);
     p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Como trazer o histórico da Amazon (oficial, sem senha)"}),h("ol",null,
       h("li",{text:"Na Amazon, abra Conta → Seus pedidos e baixe o PDF (Imprimir resumo do pedido) ou a nota fiscal (DANFE/XML) de cada pedido."}),
       h("li",{text:"Para o histórico completo: Central de Privacidade da Amazon → “Solicitar seus dados” → “Seus pedidos”. A Amazon manda um ZIP com o CSV do histórico; importe o ZIP aqui."}),
-      h("li",{text:"E-mails de confirmação, envio e entrega: o botão do Gmail lê só os e-mails das lojas (somente leitura), ou baixe o e-mail como .eml."}),
+      h("li",{text:"E-mails da Amazon no Outlook: o botão do Outlook lê só os e-mails da Amazon.com.br sobre pedido, pagamento, envio, entrega, cancelamento e reembolso (somente leitura). Também dá para usar o Gmail ou baixar o e-mail como .eml."}),
+      h("li",{text:"Para ligar o Outlook uma vez: no Microsoft Entra (portal.azure.com), registre um aplicativo para contas Microsoft pessoais, com a plataforma “Aplicativo de página única” e o endereço de retorno "+ccMsRetorno()+"; em Permissões de API, Microsoft Graph → Delegadas → Mail.Read. Sem segredo. Copie o Client ID e cole no quadro do Outlook."}),
       h("li",{text:"O site nunca pede nem guarda a senha da loja e não faz nenhuma ação na sua conta."}))));
     corpo.appendChild(p);corpo.appendChild(saida);
     ler.onclick=function(){var fs=[].slice.call(arq.files||[]),ts=txt.value.trim()?[{texto:txt.value}]:[];if(!fs.length&&!ts.length){st.textContent="Escolha arquivos ou cole um texto.";return}
@@ -226,13 +297,15 @@
   /* a conferência do lote: um quadro por pedido, já marcado como novo, já existente (só anexa os documentos) ou possível repetido */
   function ccMostrarLote(saida,r,st){saida.innerHTML="";var n=r.grupos.length;
     st.textContent=n?n+(n===1?" pedido encontrado":" pedidos encontrados")+" em "+r.docs.filter(function(d){return d.tipo!=="zip"}).length+" documentos. Confira e salve.":"Nenhum pedido foi reconhecido nos documentos.";
+    var salvarTodos=function(){return quadros.reduce(function(p,q){return p.then(function(){return q._salvar()}).catch(function(){})},Promise.resolve()).then(function(){st.textContent="Pronto: o que estava completo foi importado (pedidos que já existiam só ganharam os documentos novos). O que pede conferência continua aberto."})};
     var quadros=r.grupos.map(function(g){var dup=NUCLEO.coDuplicata(g.cand,CC.dados,[]);return ccConferencia({cand:g.cand,docs:g.docs,imagens:g.imagens,imagensUrl:g.imagensUrl,dup:dup,existente:dup&&dup.nivel==="confirmada"?dup.compra:null})});
     if(quadros.length>1){var todos=h("button",{type:"button",class:"ghostbtn pri",text:"Salvar todos os que estão prontos"});
-      todos.onclick=function(){todos.disabled=true;quadros.reduce(function(p,q){return p.then(function(){return q._salvar()}).catch(function(){})},Promise.resolve()).then(function(){todos.disabled=false;st.textContent="Pronto. Os quadros que ainda pedem conferência continuam abertos."})};
+      todos.onclick=function(){todos.disabled=true;salvarTodos().then(function(){todos.disabled=false})};
       saida.appendChild(h("div",{class:"panel"},h("div",{class:"vfil"},todos)))}
     quadros.forEach(function(q){saida.appendChild(q)});
     if(r.soltos.length)saida.appendChild(h("div",{class:"panel"},h("h2",{text:"Documentos sem pedido reconhecido"}),h("ul",{class:"wl"},r.soltos.map(function(d){
-      return h("li",null,h("span",{class:"grow"},h("b",{text:d.nome}),h("span",{class:"sub",text:d.erro?"não consegui ler ("+d.erro+")":d.ocrFalhou?"a leitura do print não carregou neste aparelho":"não achei número de pedido nem total; abra a compra e use “Adicionar documento”, ou lance em ＋ Manual"})))}))))}
+      return h("li",null,h("span",{class:"grow"},h("b",{text:d.nome}),h("span",{class:"sub",text:d.erro?"não consegui ler ("+d.erro+")":d.ocrFalhou?"a leitura do print não carregou neste aparelho":"não achei número de pedido nem total; abra a compra e use “Adicionar documento”, ou lance em ＋ Manual"})))}))));
+    return {salvarTodos:salvarTodos}}
   /* quadro de conferência: todos os campos editáveis; Salvar só com a conta fechada */
   function ccConferencia(o){var c=o.cand||{},ex=o.existente,novo=!ex,sal=false,p=panel(ex?(o.avulso?"Editar compra":"Pedido já registrado: "+ccLoja(ex)+" "+ex.numero):"Pedido "+(c.numero||"(sem número)"),
       ex&&!o.avulso?"Este pedido já existe. Só os documentos novos serão guardados nele; os valores registrados não mudam (diferenças viram divergências).":o.dup&&o.dup.nivel==="possivel"?"⚠ Parece repetido: "+o.dup.motivo+". Confira antes de salvar.":"Confira olhando os documentos. Nada é gravado antes do Salvar."),f=h("div",{class:"wform"});
@@ -276,7 +349,7 @@
     salvar.onclick=function(){if(sal)return;var r=conf();if(!r.ok)return;if(!navigator.onLine){falta.textContent="Sem internet: não salvei. Os dados continuam aqui.";return}
       if(!dupOk){dupOk=true;salvar.textContent="Salvar mesmo assim";falta.textContent="Parece repetido: "+o.dup.motivo+". Se for outra compra, toque de novo.";return}
       sal=true;salvar.disabled=true;falta.textContent="Salvando…";var x0=editavel?coletar():{};
-      var feito=!editavel?ccSubirDocs(ex.id,docsNovos).then(function(){var upd=ccCompletar(ex,[c]);if(divs.length)upd.divergencias=(ex.divergencias||[]).concat(divs.filter(function(x){return !(ex.divergencias||[]).some(function(y){return y.texto===x.texto})}));
+      var feito=!editavel?ccSubirDocs(ex.id,docsNovos).then(function(){var upd=ccCompletar(ex,[c].concat(docsNovos.map(function(x){return x.ext})));if(divs.length)upd.divergencias=(ex.divergencias||[]).concat(divs.filter(function(x){return !(ex.divergencias||[]).some(function(y){return y.texto===x.texto})}));
           if(!Object.keys(upd).length)return null;upd.atualizado_em=new Date().toISOString();return SB.from("compras_online").update(upd).eq("id",ex.id).then(sbOk)}).then(function(){return ex.id})
         :ccGravar(x0,ex&&o.avulso?ex:null,o.cand,docsNovos,o.imagens||[],o.imagensUrl||[],divs,function(t){falta.textContent=t});
       return feito.then(function(id){ccEsquecer();CC.aberto=id;

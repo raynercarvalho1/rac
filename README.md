@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança e o Painel de Produtividade.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança, o Painel de Produtividade e Alimentação e Delivery.
 
 ## Como funciona
 
@@ -49,6 +49,12 @@ Página `#veiculos` (`js/familia.js`): ⛽ Novo abastecimento pelas fotos do pai
 consumo de tanque cheio a tanque cheio, custo por km e os quadros de combustível no Painel. Usa a tabela `registros` (sem tabela
 nova); as contas ficam em `NUCLEO.ab*`. Tudo em [docs/veiculos.md](docs/veiculos.md).
 
+## Alimentação e Delivery
+
+Página `#alimentacao` (`js/alimentacao.js`): pedidos de iFood, 99Food e restaurantes (tabelas `pedidos` e `pedido_itens`, SQL 024), com
+itens, taxas, gorjeta, descontos, fotos e versões, e a comida do Mercado nas contas sem cópia (view `alimentacao_gastos`). Entra no
+Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo em [docs/alimentacao.md](docs/alimentacao.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -60,8 +66,8 @@ nova); as contas ficam em `NUCLEO.ab*`. Tudo em [docs/veiculos.md](docs/veiculos
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `023`, em ordem, no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 023 foi aplicado em 01/11/2026).
+`schema.sql` e depois `002` a `024`, em ordem (e o `022` de novo depois do `024`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 024 foi aplicado em 01/11/2026).
 
 ## Testes (`tests/`)
 
@@ -75,6 +81,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
+| `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |
 | `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 

@@ -18,6 +18,11 @@ const FIXTURES: Record<string, (ctx: Record<string, unknown>, entrada?: Entrada)
       { descricao: "ITEM DE DEMONSTRAÇÃO 2", qtd: 2, un: "un", unitario: 1, total: 2, desconto: 0 },
     ],
   }),
+  "alimentacao.pedido": () => ({
+    estabelecimento: "RESTAURANTE DEMONSTRAÇÃO", plataforma: "outro", modo: "delivery", data: null, numero: null, pagamento: "DEMONSTRAÇÃO",
+    subtotal: 2, taxa_entrega: 1, taxa_servico: 0, gorjeta: 0, desconto_loja: 0, desconto_plataforma: 0, total_pago: 3,
+    itens: [{ descricao: "PRATO DE DEMONSTRAÇÃO", qtd: 1, unitario: 2, total: 2, desconto: 0, observacao: null }],
+  }),
   /* usa os ids que vieram na entrada (senão a validação recusaria); os textos são obviamente simulados */
   "newsletter.resumo": (_ctx, entrada) => {
     const ids = idsDaEntrada(entrada).slice(0, 5);

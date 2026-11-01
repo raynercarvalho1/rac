@@ -191,6 +191,86 @@ const mercadoNota: Acao = {
   },
 };
 
+/* ---------- Alimentação e Delivery: pedido ou recibo (Sonnet 5.5, como a nota do Mercado) ---------- */
+const AL_PLAT = ["ifood", "99food", "direto", "outro"], AL_MODO = ["delivery", "retirada", "no_local"];
+const alimentacaoPedido: Acao = {
+  id: "alimentacao.pedido",
+  modulo: "alimentacao",
+  modelo: "claude-sonnet-5-5",
+  papeis: ["dono", "casa"],
+  real: false, // Alimentação obrigatoriamente em DEMO nesta fase
+  maxTokens: 6000,
+  esforco: "low",
+  imagensMax: 4,
+  textoMax: 4000,
+  contexto: {},
+  sistema: REGRAS_GERAIS + "\n\n" +
+    "Leia o pedido de delivery (print do iFood, 99Food ou do restaurante) ou o recibo do restaurante e devolva os dados.\n" +
+    "Regras: um item por linha, com a descrição como está escrita; total de cada item é o total da linha ANTES de desconto. " +
+    "taxa_entrega e taxa_servico separadas; gorjeta separada das taxas; desconto_loja é o da loja e desconto_plataforma o do app ou cupom. " +
+    "total_pago é o valor efetivamente pago. plataforma: ifood, 99food, direto ou outro. modo: delivery, retirada ou no_local. " +
+    "data no formato AAAA-MM-DD. Não inclua endereço, telefone, nome do entregador nem número de cartão. Se não conseguir ler um número, use null.",
+  esquema: {
+    type: "object",
+    properties: {
+      estabelecimento: { type: "string" },
+      plataforma: nulo("string", { enum: AL_PLAT }),
+      modo: nulo("string", { enum: AL_MODO }),
+      data: nulo("string"),
+      numero: nulo("string"),
+      pagamento: nulo("string"),
+      subtotal: nulo("number"),
+      taxa_entrega: nulo("number"),
+      taxa_servico: nulo("number"),
+      gorjeta: nulo("number"),
+      desconto_loja: nulo("number"),
+      desconto_plataforma: nulo("number"),
+      total_pago: nulo("number"),
+      itens: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { descricao: { type: "string" }, qtd: nulo("number"), unitario: nulo("number"), total: nulo("number"), desconto: nulo("number"), observacao: nulo("string") },
+          required: ["descricao", "qtd", "unitario", "total", "desconto", "observacao"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["estabelecimento", "plataforma", "modo", "data", "numero", "pagamento", "subtotal", "taxa_entrega", "taxa_servico", "gorjeta", "desconto_loja", "desconto_plataforma", "total_pago", "itens"],
+    additionalProperties: false,
+  },
+  validar(r) {
+    const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+    const erros: string[] = [], avisos: string[] = [];
+    if (!Array.isArray(o.itens) || !o.itens.length) return { ok: false, motivo: "nenhum item lido" };
+    if (o.itens.length > 100) return { ok: false, motivo: "itens demais (" + o.itens.length + ")" };
+    const itens = o.itens.map((x, i) => {
+      const it = objeto(x) ?? {};
+      return {
+        descricao: txt(it.descricao, 160) || "item " + (i + 1),
+        qtd: num(it.qtd, 0, 1000, "quantidade do item " + (i + 1), erros),
+        unitario: num(it.unitario, 0, 20000, "unitário do item " + (i + 1), erros),
+        total: num(it.total, 0, 20000, "total do item " + (i + 1), erros),
+        desconto: num(it.desconto, 0, 20000, "desconto do item " + (i + 1), erros) ?? 0,
+        observacao: txtOuNulo(it.observacao, 300),
+      };
+    });
+    const v = (k: string, nome: string) => num(o[k], 0, 100000, nome, erros);
+    const valores = { subtotal: v("subtotal", "subtotal"), taxa_entrega: v("taxa_entrega", "taxa de entrega") ?? 0, taxa_servico: v("taxa_servico", "taxa de serviço") ?? 0,
+      gorjeta: v("gorjeta", "gorjeta") ?? 0, desconto_loja: v("desconto_loja", "desconto da loja") ?? 0, desconto_plataforma: v("desconto_plataforma", "desconto da plataforma") ?? 0,
+      total_pago: v("total_pago", "total pago") };
+    if (erros.length) return { ok: false, motivo: erros.slice(0, 5).join("; ") };
+    const conta = itens.reduce((s, x) => s + (x.total ?? 0) - x.desconto, 0) + valores.taxa_entrega + valores.taxa_servico + valores.gorjeta - valores.desconto_loja - valores.desconto_plataforma;
+    if (valores.total_pago !== null && Math.abs(conta - valores.total_pago) > 0.05) avisos.push(`A conta dá ${conta.toFixed(2)} e o total pago é ${valores.total_pago.toFixed(2)}. Confira antes de salvar.`);
+    return {
+      ok: true, avisos, resultado: {
+        estabelecimento: txt(o.estabelecimento, 120), plataforma: AL_PLAT.includes(o.plataforma as string) ? o.plataforma : null,
+        modo: AL_MODO.includes(o.modo as string) ? o.modo : null, data: dataISO(o.data), numero: txtOuNulo(o.numero, 40), pagamento: txtOuNulo(o.pagamento, 60), ...valores, itens,
+      },
+    };
+  },
+};
+
 /* ---------- Newsletter: resumo da edição do dia (Haiku 5.5) ---------- */
 export const NL_CATEGORIAS = ["ia", "tec", "cie", "eco", "pol", "dados", "games", "soro"];
 /* os ids de grupo que o site mandou (<grupo id="g0123456789">): a resposta só pode citar estes */
@@ -397,7 +477,7 @@ const esportesGiro: Acao = {
 
 export const ACOES: Record<string, Acao> = {
   [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo,
-  [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro,
+  [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro, [alimentacaoPedido.id]: alimentacaoPedido,
 };
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */

@@ -19,6 +19,7 @@ Feita em 31/10/2026. Só para o dono (dados pessoais). Não há SQL novo, Edge F
 | Fonte | Tabela/estrutura | Usada em |
 |---|---|---|
 | Mercado | view `compras` (itens das notas: data, categoria, valor) | gastos, compras, ticket médio, categorias, orçamento |
+| Pedidos (Alimentação) | `pedidos` + `pedido_itens` (024): comida, taxas e gorjeta separadas (`NUCLEO.alPedidoDespesas`) | gastos, categorias, quadro Alimentação |
 | Gastos dos registros | `registros.dados.custo` (veículos, Eddie, Olivia, documentos) | gastos por mês e por fonte, categorias |
 | MBA (financeiro) | `PESSOAL.mba.financeiro` + `mbaFeito["pg:…"]` (parcelas pagas, no mês do vencimento) | gastos |
 | Orçamentos | tabela `orcamentos` (categoria, valor mensal) | orçamento × gasto |

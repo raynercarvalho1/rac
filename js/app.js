@@ -9,8 +9,8 @@
 
   /* Rotas por hash: #esportes/beisebol/liga, #esportes/beisebol/time-119, #esportes/beisebol/jogo-849805,
      #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
-  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","newsletter"];
-  var DA_CASA=["mercado","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
+  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","alimentacao","newsletter"];
+  var DA_CASA=["mercado","alimentacao","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
   /* #esportes abre a Central Esportiva; futebol e giro também moram na Central (js/esportes-central.js) */
   var sports=["central","beisebol","basquete","futebol-americano","futebol","giro"],SP_CENTRAL=["central","futebol","giro"];
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
@@ -25,10 +25,10 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-01.4",MODULOS={},MOD_OK={};
-  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"]};
+  var MOD_VERSAO="2026-11-01.5",MODULOS={},MOD_OK={};
+  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
-    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"]};
+    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
     MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
@@ -111,6 +111,7 @@
     if(top==="agenda"){sideMark("agenda","agenda");renderAgenda();return}
     if(top==="resumo"){sideMark("resumo","resumo");renderResumo(parts[1],parts[2]);return}
     if(top==="painel"){sideMark("painel","painel");renderPainel(parts[1]);return}
+    if(top==="alimentacao"){sideMark("alimentacao","alimentacao");renderAlimentacao(parts[1],parts[2]);return}
     if(top==="busca"){sideMark("busca","busca");$("#ptitle").textContent="Busca";renderBusca(decodeURIComponent(parts.slice(1).join("/")||""));return}
     if(top==="sistema"){sideMark("sistema","sistema");renderSistema();return}
     if(top==="seguranca"){sideMark("seguranca","seguranca");renderSeguranca(parts[1]);return}

@@ -280,7 +280,7 @@
   /* os últimos n meses (competências), do atual para trás: "2026-10-01", "2026-09-01"… */
   function iaCompetencias(mes,n){var m=/^(\d{4})-(\d{2})/.exec(String(mes||"")),l=[];if(!m)return l;var a=+m[1],k=+m[2];
     for(var i=0;i<(n||12);i++){l.push(a+"-"+(k<10?"0":"")+k+"-01");k--;if(!k){k=12;a--}}return l}
-  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva"};
+  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva",alimentacao:"Alimentação"};
   function iaModulo(m){return IA_MODULOS[m]||String(m||"")}
   var IA_ERROS={recusado:"a IA não quis ler este conteúdo",resposta_invalida:"resposta fora do formato",provedor_recusou_pedido:"a Anthropic recusou o pedido",
     provedor_ocupado:"serviço ocupado",provedor_indisponivel:"serviço fora do ar",tempo_esgotado:"tempo esgotado",rede:"falha de rede",registro_falhou:"a resposta não foi registrada",interno:"erro interno"};
@@ -468,6 +468,7 @@
     {t:"notas",pk:["id"],nat:[["chave_nfce"],["mercado_id","numero","data"]],fk:{mercado_id:"mercados"}},{t:"itens",pk:["id"],fk:{nota_id:"notas",produto_id:"produtos"},opc:{produto_id:1}},
     {t:"orcamentos",pk:["categoria"]},{t:"registros",pk:["id"]},{t:"lista",pk:["id"]},{t:"bebe",pk:["id"],nat:[["chave"]]},
     {t:"pessoal",pk:["chave"]},{t:"garmin_dia",pk:["data"]},{t:"garmin_ativ",pk:["id"]},
+    {t:"pedidos",pk:["id"]},{t:"pedido_itens",pk:["id"],fk:{pedido_id:"pedidos",produto_id:"produtos"},opc:{produto_id:1}},
     {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
@@ -581,7 +582,10 @@
   /* todas as despesas com data, de três fontes reais: itens do Mercado (view compras), registros com dados.custo (veículos, Eddie, Olivia,
      documentos) e parcelas do MBA marcadas como pagas (no mês do vencimento). O registro que veio de uma compra do Mercado
      (dados.compra, ex.: "Lata N aberta") fica de fora: o preço já está no Mercado. fonteDe(quem) dá o nome da fonte do registro. */
-  function pnDespesas(compras,registros,parcelas,fonteDe){var L=[];
+  /* pedidos (Alimentação e Delivery, tabela pedidos com os itens): uma quarta fonte, separada em comida, taxas e gorjeta
+     (alPedidoDespesas). Não se cruza com o Mercado: compra de mercado fica no Mercado, pedido fica em pedidos. */
+  function pnDespesas(compras,registros,parcelas,fonteDe,pedidos){var L=[];
+    (pedidos||[]).forEach(function(p){L=L.concat(alPedidoDespesas(p))});
     (compras||[]).forEach(function(x){var v=+x.valor_total;if(x.data&&isFinite(v))L.push({d:x.data,v:v,f:"Mercado",cat:x.categoria||"Outros"})});
     (registros||[]).forEach(function(r){var d=r.dados||{};if(typeof d.custo!=="number"||!isFinite(d.custo)||d.compra||!r.data)return;L.push({d:r.data,v:d.custo,f:fonteDe?fonteDe(r.quem):r.quem,cat:r.tipo})});
     (parcelas||[]).forEach(function(p){if(p&&p.paga&&p.venc&&typeof p.v==="number")L.push({d:p.venc,v:p.v,f:"MBA",cat:"mensalidade"})});
@@ -783,11 +787,148 @@
     return d}
   /* as despesas dos veículos em categorias separadas: combustível não se mistura com manutenção */
   function pnVeicCat(tipo){return tipo==="abastecimento"?"Combustível":/^(revisao|oleo|manutencao|bateria|pneu)$/.test(tipo)?"Manutenção":tipo==="seguro"?"Seguro":tipo==="documento"?"Impostos e licenciamento":"Outros"}
+  /* ===== Alimentação e Delivery (docs/alimentacao.md): contas dos pedidos, categorias, nomes de produtos e duplicidade.
+     Dinheiro em centavos inteiros por dentro (0,1 + 0,2 não vira 0,30000000000000004); a saída volta em reais. ===== */
+  var AL_TOL=2,AL_MAX=10000000; /* tolerância de 2 centavos; acima de R$ 100.000 o valor parece errado */
+  var AL_PLATAFORMAS={ifood:"iFood","99food":"99Food",direto:"Direto no estabelecimento",outro:"Outro"};
+  var AL_MODOS={delivery:"Entrega",retirada:"Retirada",no_local:"No local"};
+  /* reais (número ou texto "R$ 1.234,56") → centavos; vazio → null; negativo, infinito ou texto inválido → NaN */
+  function alCent(v){if(v==null||v==="")return null;var n=v;
+    if(typeof n==="string"){var s=n.replace(/R\$|\s/g,"");if(/,\d{1,2}$/.test(s))s=s.replace(/\./g,"").replace(",",".");if(!/^-?\d+(\.\d+)?$/.test(s))return NaN;n=parseFloat(s)}
+    if(typeof n!=="number"||!isFinite(n)||n<0)return NaN;return Math.round(n*100+1e-7)}
+  function alBRL(c){var s=(Math.abs(c)/100).toFixed(2).split("."),i=s[0].replace(/\B(?=(\d{3})+(?!\d))/g,".");return (c<0?"−":"")+"R$ "+i+","+s[1]}
+  /* um item: total da linha (ou quantidade × unitário) e desconto do item; com os dois valores, confere */
+  function alItem(it,i){it=it||{};var e=[],nome=String(it.descricao||"").trim(),rot=nome?"“"+nome.slice(0,40)+"”":"o item "+(i+1);
+    if(!nome)e.push("Escreva o nome do item "+(i+1)+".");
+    var q=it.qtd==null||it.qtd===""?1:+String(it.qtd).replace(",",".");if(!(q>0&&q<=1000))e.push("Confira a quantidade de "+rot+".");
+    var u=alCent(it.unitario),t=alCent(it.total),d=alCent(it.desconto);
+    if(u!==u)e.push("Confira o preço unitário de "+rot+".");if(t!==t)e.push("Confira o total de "+rot+".");if(d!==d)e.push("Confira o desconto de "+rot+".");
+    if(e.length)return {ok:false,erros:e};
+    var calc=u!=null?Math.round(q*u):null,bruto=t!=null?t:calc;d=d||0;
+    if(bruto==null)return {ok:false,erros:["Preencha o valor de "+rot+"."]};
+    if(bruto>AL_MAX)return {ok:false,erros:["O valor de "+rot+" parece errado."]};
+    if(t!=null&&calc!=null&&Math.abs(t-calc)>AL_TOL)return {ok:false,erros:[rot.charAt(0).toUpperCase()+rot.slice(1)+": quantidade × unitário dá "+alBRL(calc)+", mas o total da linha é "+alBRL(t)+"."]};
+    if(d>bruto)return {ok:false,erros:["O desconto de "+rot+" passa do valor do item."]};
+    return {ok:true,erros:[],qtd:q,bruto:bruto,desconto:d,liquido:bruto-d}}
+  var AL_CAMPOS=[["taxa_entrega","a taxa de entrega"],["taxa_servico","a taxa de serviço"],["gorjeta","a gorjeta"],["desconto_loja","o desconto da loja"],["desconto_plataforma","o desconto da plataforma"]];
+  /* a conta do pedido: total = subtotal (itens já com o desconto de cada um) + entrega + serviço + gorjeta − desconto da loja − desconto da
+     plataforma. O total pago é obrigatório e precisa bater com a conta (tolerância de 2 centavos); nada é calculado no lugar do que falta. */
+  function alPedidoConta(p){p=p||{};var e=[],c={},itens=Array.isArray(p.itens)?p.itens:[],sub=0,bruto=0,itensOk=true;
+    if(!itens.length){e.push("Inclua pelo menos um item.");itensOk=false}
+    itens.forEach(function(it,i){var r=alItem(it,i);if(!r.ok){itensOk=false;e.push.apply(e,r.erros)}else{sub+=r.liquido;bruto+=r.bruto}});
+    AL_CAMPOS.forEach(function(k){var v=alCent(p[k[0]]);if(v!==v||v>AL_MAX)e.push("Confira "+k[1]+" (um valor de zero para cima).");c[k[0]]=v>0?v:0});
+    var sd=alCent(p.subtotal);if(sd!==sd)e.push("Confira o subtotal.");
+    else if(sd!=null&&itensOk&&Math.abs(sd-sub)>AL_TOL&&Math.abs(sd-bruto)>AL_TOL)e.push("Os itens somam "+alBRL(sub)+", mas o subtotal do pedido é "+alBRL(sd)+".");
+    var calc=sub+c.taxa_entrega+c.taxa_servico+c.gorjeta-c.desconto_loja-c.desconto_plataforma;
+    if(itensOk&&calc<0)e.push("Os descontos passam do valor do pedido.");
+    var pago=alCent(p.total_pago);
+    if(pago==null)e.push("Preencha o total pago.");else if(pago!==pago||pago>AL_MAX)e.push("Confira o total pago.");
+    else if(itensOk&&calc>=0&&Math.abs(pago-calc)>AL_TOL)e.push("A conta dá "+alBRL(calc)+" (itens + taxas + gorjeta − descontos), mas o total pago é "+alBRL(pago)+".");
+    var R=function(x){return x==null||x!==x?null:x/100};
+    return {ok:!e.length,erros:e,subtotal:R(sub),taxa_entrega:R(c.taxa_entrega),taxa_servico:R(c.taxa_servico),taxas:R(c.taxa_entrega+c.taxa_servico),gorjeta:R(c.gorjeta),
+      desconto_loja:R(c.desconto_loja),desconto_plataforma:R(c.desconto_plataforma),descontos:R(c.desconto_loja+c.desconto_plataforma),calculado:R(calc),pago:R(pago)}}
+  /* conferência antes de salvar: a conta acima + estabelecimento, data (não futura), plataforma e modo válidos */
+  function alConferir(p,ctx){ctx=ctx||{};p=p||{};var e=[];
+    if(!String(p.estabelecimento||"").trim())e.push("Escreva o estabelecimento.");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(p.data||""))e.push("Escolha a data.");else if(ctx.hoje&&p.data>ctx.hoje)e.push("A data está no futuro.");
+    if(!AL_PLATAFORMAS[p.plataforma])e.push("Escolha onde foi o pedido.");if(!AL_MODOS[p.modo])e.push("Escolha entrega, retirada ou no local.");
+    var c=alPedidoConta(p);return {ok:!e.length&&c.ok,erros:e.concat(c.erros),conta:c}}
+  /* categorias financeiras da alimentação; o que não é comida (limpeza, higiene, descartáveis, fraldas) fica fora do total */
+  var AL_CAT={supermercado:"Alimentação · Supermercado",acougue:"Alimentação · Açougue/Peixaria",padaria:"Alimentação · Padaria",hortifruti:"Alimentação · Hortifrúti",
+    delivery:"Alimentação · Delivery",restaurante:"Alimentação · Restaurante",taxas:"Alimentação · Taxas de entrega e serviço",gorjeta:"Alimentação · Gorjeta"};
+  var AL_CATEGORIAS=["supermercado","acougue","padaria","hortifruti","delivery","restaurante","taxas","gorjeta"].map(function(k){return AL_CAT[k]});
+  /* as categorias do Mercado de hoje (nenhuma muda): em qual grupo a comida entra */
+  var AL_MERC_COMIDA={"bebidas":"supermercado","acougue/frios":"acougue","peixaria":"acougue","hortifruti":"hortifruti","padaria":"padaria","chocolates/doces":"supermercado","mercearia":"supermercado"};
+  var AL_NAO_COMIDA=/limpeza|higiene|descartave|fralda|farmacia|remedio|utilidade|papelaria|cosmetic|perfum|bazar|racao|pet\b/;
+  /* fraldas e lenços umedecidos nunca são comida, mesmo numa categoria de comida ("fraldinha" é carne e continua) */
+  var AL_PROD_NAO_COMIDA=/(^|[^a-z])(fralda|fraldas|pampers|huggies)([^a-z]|$)|umedecid/;
+  /* item do Mercado → categoria de alimentação; "" = não é comida; null = categoria desconhecida (aparece como "sem classificação") */
+  function alCatMercado(categoria,produto){var c=norm(categoria).trim(),p=norm(produto);
+    if(AL_PROD_NAO_COMIDA.test(p))return "";var g=AL_MERC_COMIDA[c];if(g)return AL_CAT[g];return AL_NAO_COMIDA.test(c)?"":null}
+  /* delivery: modo entrega, ou pedido pelo iFood/99Food sem modo; o resto (retirada, no local, direto) é restaurante */
+  function alModo(p){var m=String((p||{}).modo||""),pl=String((p||{}).plataforma||"");return m==="delivery"||(!m&&(pl==="ifood"||pl==="99food"))?"delivery":"restaurante"}
+  /* o pedido em despesas que somam o total pago: a comida (itens − descontos) em Delivery ou Restaurante, taxas e gorjeta à parte.
+     Desconto maior que a comida (ex.: entrega grátis) desconta o resto das taxas. Formato do Painel: [{d, v, f, cat}] */
+  function alPedidoDespesas(p){var c=alPedidoConta(p);if(!c.ok||!p.data)return [];
+    var C=function(x){return Math.round((x||0)*100)},comida=C(c.subtotal)-C(c.descontos),taxas=C(c.taxas),gorjeta=C(c.gorjeta);
+    if(comida<0){taxas+=comida;comida=0}
+    var dif=C(c.pago)-(comida+taxas+gorjeta);if(comida>0||!taxas)comida+=dif;else taxas+=dif;
+    var modo=alModo(p),f=modo==="delivery"?"Delivery":"Restaurante",L=[];
+    [[comida,AL_CAT[modo]],[taxas,AL_CAT.taxas],[gorjeta,AL_CAT.gorjeta]].forEach(function(x){if(x[0]>0)L.push({d:p.data,v:x[0]/100,f:f,cat:x[1],id:p.id||null})});
+    return L}
+  /* itens do Mercado (view compras) → só a comida, na categoria de alimentação; o resto fica contado à parte (não entra no total) */
+  function alMercadoDespesas(compras){var o={linhas:[],fora:0,sem:{}};
+    (compras||[]).forEach(function(x){var v=+x.valor_total;if(!x.data||!isFinite(v))return;var cat=alCatMercado(x.categoria,x.produto||x.descricao);
+      if(cat)o.linhas.push({d:x.data,v:v,f:"Mercado",cat:cat,estab:x.mercado||""});else if(cat==="")o.fora+=v;else{var k=x.categoria||"Outros";o.sem[k]=(o.sem[k]||0)+v}});
+    return o}
+  /* soma por categoria, em centavos (sem erro de arredondamento) */
+  function alSomar(linhas){var t=0,por={};(linhas||[]).forEach(function(x){var c=Math.round((+x.v||0)*100);t+=c;por[x.cat]=(por[x.cat]||0)+c});
+    Object.keys(por).forEach(function(k){por[k]/=100});return {total:t/100,por:por}}
+  /* ---- nomes de produtos: chave padrão, tamanho e comparação (nunca junta quando há dúvida) ---- */
+  var AL_ABREV={refri:"refrigerante",refrig:"refrigerante",trad:"tradicional",integ:"integral",desn:"desnatado",choc:"chocolate",bisc:"biscoito",qj:"queijo",mus:"mussarela",mussar:"mussarela",
+    pres:"presunto",fgo:"frango",frgo:"frango",cong:"congelado",min:"mineral",ling:"linguica",semidesnatado:"semidesnatado"};
+  var AL_PARADA=/^(de|da|do|das|dos|com|c|e|un|und|unid|unidade|unidades|kg|g|gr|l|lt|ml)$/;
+  var AL_VERSOES=["zero","diet","light","sem acucar","sem lactose","zero lactose","integral","desnatado","semidesnatado","sem gluten","organico","congelado","resfriado","fatiado","descafeinado","lata","pet","garrafa","long neck","retornavel","sem sal"];
+  var AL_VERSOES_FRACAS={tradicional:1,original:1};
+  /* tamanho no nome → {ml} ou {g}: 2 L, 2 litros, 2LT e 2000 ml dão o mesmo; 1,5 kg = 1500 g. Mais de um tamanho diferente: ambíguo (null) */
+  function alTamanho(nome){var t=norm(nome).replace(/(\d),(\d)/g,"$1.$2"),re=/(\d+(?:\.\d+)?)\s*(litros?|lts?|l|ml|kgs?|quilos?|gramas?|grs?|g)(?![a-z])/g,m,v=null,ok=true;
+    while((m=re.exec(t))){var n=parseFloat(m[1]),u=m[2],x=/^(ml)$/.test(u)?{ml:n}:/^(litros?|lts?|l)$/.test(u)?{ml:n*1000}:/^(kgs?|quilos?)$/.test(u)?{g:n*1000}:{g:n};
+      x.ml!=null&&(x.ml=Math.round(x.ml*1000)/1000);x.g!=null&&(x.g=Math.round(x.g*1000)/1000);
+      if(v&&(v.ml!==x.ml||v.g!==x.g))ok=false;v=x}
+    return ok?v:null}
+  function alProdutoInfo(nome){var base=norm(nome).replace(/(\d),(\d)/g,"$1.$2"),tam=alTamanho(nome);
+    var semTam=base.replace(/(\d+(?:\.\d+)?)\s*(litros?|lts?|l|ml|kgs?|quilos?|gramas?|grs?|g)(?![a-z])/g," ");
+    var pal=semTam.replace(/[^a-z0-9.]+/g," ").split(" ").map(function(w){w=w.replace(/^\.+|\.+$/g,"");return AL_ABREV[w]||w}).filter(function(w){return w&&!AL_PARADA.test(w)});
+    var txt=" "+pal.join(" ")+" ",ver=AL_VERSOES.filter(function(v){return txt.indexOf(" "+v+" ")>=0}).sort(),fracas=pal.filter(function(w){return AL_VERSOES_FRACAS[w]});
+    var tamTxt=tam?(tam.ml!=null?tam.ml+"ml":tam.g+"g"):"";
+    return {palavras:pal,tamanho:tam,versoes:ver,fracas:fracas,numeros:pal.filter(function(w){return /\d/.test(w)}).sort(),
+      chave:pal.slice().sort().join(" ")+(tamTxt?" "+tamTxt:""),colado:pal.join("")+tamTxt}}
+  function alChaveProduto(nome){return alProdutoInfo(nome).chave}
+  /* "igual" (pode juntar sozinho), "possivel" (pergunta antes) ou "diferente" (nunca junta), com o motivo */
+  function alCompararProdutos(a,b){var A=alProdutoInfo(a),B=alProdutoInfo(b);
+    if(!A.palavras.length||!B.palavras.length)return {resultado:"diferente",motivo:"nome vazio"};
+    var mesmoTam=JSON.stringify(A.tamanho)===JSON.stringify(B.tamanho);
+    if(A.tamanho&&B.tamanho&&!mesmoTam)return {resultado:"diferente",motivo:"tamanho diferente"};
+    if(A.versoes.join("|")!==B.versoes.join("|"))return {resultado:"diferente",motivo:"versão diferente ("+(A.versoes.concat(B.versoes).filter(function(v){return A.versoes.indexOf(v)<0||B.versoes.indexOf(v)<0}).join(", "))+")"};
+    if(A.numeros.length&&B.numeros.length&&A.numeros.join("|")!==B.numeros.join("|"))return {resultado:"diferente",motivo:"números diferentes no nome"};
+    if(A.chave===B.chave||(A.colado===B.colado))return mesmoTam?{resultado:"igual",motivo:"mesmo produto"}:{resultado:"possivel",motivo:"um dos nomes não diz o tamanho"};
+    var sA=A.palavras.filter(function(w){return !AL_VERSOES_FRACAS[w]}),sB=B.palavras.filter(function(w){return !AL_VERSOES_FRACAS[w]});
+    var com=sA.filter(function(w){return sB.indexOf(w)>=0}).length,uni=sA.length+sB.length-com;
+    var contido=com===Math.min(sA.length,sB.length)&&com>0;
+    if((contido||com/uni>=0.5)&&(mesmoTam||!A.tamanho||!B.tamanho))return {resultado:"possivel",motivo:contido?"um nome tem palavras a mais":"nomes parecidos"};
+    return {resultado:"diferente",motivo:"nomes diferentes"}}
+  /* histórico de preços: só produtos (Mercado e itens de pedido ligados a um produto); prato de restaurante não entra */
+  function alNoHistorico(it){return !!(it&&(it.origem==="mercado"||it.produto_id))}
+  /* preço por litro ou quilo, para comparar tamanhos diferentes */
+  function alPrecoBase(nome,unitario){var t=alTamanho(nome),v=+unitario;if(!t||!isFinite(v)||v<=0)return null;
+    return t.ml?{v:Math.round(v/t.ml*1000*100)/100,por:"L"}:t.g?{v:Math.round(v/t.g*1000*100)/100,por:"kg"}:null}
+  /* duplicidade: "confirmada" (mesmo lançamento, ou mesma plataforma e mesmo número de pedido) bloqueia; "possivel" (mesmo
+     estabelecimento, data e valor, sem números que provem que são pedidos diferentes) só pede confirmação; null = nenhuma */
+  function alNumeroPedido(n){return String(n||"").toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/^0+(?=.)/,"")}
+  function alEstab(n){return alChaveProduto(String(n||"").replace(/\s*\(.*\)$/,""))}
+  function alDuplicata(novo,lista,ignorar){novo=novo||{};var num=alNumeroPedido(novo.numero),pl=String(novo.plataforma||""),est=alEstab(novo.estabelecimento),
+    tot=alCent(novo.total_pago!=null?novo.total_pago:novo.total),possivel=null;
+    for(var i=0;i<(lista||[]).length;i++){var x=lista[i];if(!x||(ignorar&&x.id===ignorar))continue;
+      if(novo.id&&x.id===novo.id)return {nivel:"confirmada",pedido:x,motivo:"é o mesmo lançamento"};
+      var xn=alNumeroPedido(x.numero),xp=String(x.plataforma||"");
+      if(num&&xn&&xp===pl){if(num===xn)return {nivel:"confirmada",pedido:x,motivo:"mesma plataforma e mesmo número de pedido ("+x.numero+")"};continue}
+      var xt=alCent(x.total_pago!=null?x.total_pago:x.total);
+      if(!possivel&&x.data===novo.data&&tot!=null&&tot===tot&&xt!=null&&Math.abs(xt-tot)<=1&&alEstab(x.estabelecimento)===est&&est)
+        possivel={nivel:"possivel",pedido:x,motivo:"mesmo estabelecimento, mesma data e mesmo valor"+(xp!==pl?" (lançado como outra origem)":"")}}
+    return possivel}
+  /* dados do pedido para gravar: números em reais com 2 casas; na edição, os valores anteriores vão para versoes (até 10) */
+  var AL_VERSIONADOS=["data","estabelecimento","plataforma","modo","numero","pagamento","subtotal","taxa_entrega","taxa_servico","gorjeta","desconto_loja","desconto_plataforma","total_pago","observacoes"];
+  function alVersao(ant,agora){if(!ant)return [];var v={em:ant.atualizado_em||ant.criado_em||null,quando:agora};AL_VERSIONADOS.forEach(function(k){if(ant[k]!=null&&ant[k]!=="")v[k]=ant[k]});
+    if(Array.isArray(ant.itens))v.itens=ant.itens.map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total}});
+    return (Array.isArray(ant.versoes)?ant.versoes:[]).concat([v]).slice(-10)}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
     pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias,
     ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar,
-    AB_COMBUST:AB_COMBUST,AB_KML:AB_KML,abLer:abLer,abConsumo:abConsumo,abPrecos:abPrecos,abPorMes:abPorMes,abResumo:abResumo,abDuplicado:abDuplicado,abConferir:abConferir,abDados:abDados,pnVeicCat:pnVeicCat};
+    AB_COMBUST:AB_COMBUST,AB_KML:AB_KML,abLer:abLer,abConsumo:abConsumo,abPrecos:abPrecos,abPorMes:abPorMes,abResumo:abResumo,abDuplicado:abDuplicado,abConferir:abConferir,abDados:abDados,pnVeicCat:pnVeicCat,
+    AL_PLATAFORMAS:AL_PLATAFORMAS,AL_MODOS:AL_MODOS,AL_CAT:AL_CAT,AL_CATEGORIAS:AL_CATEGORIAS,alCent:alCent,alBRL:alBRL,alItem:alItem,alPedidoConta:alPedidoConta,alConferir:alConferir,
+    alCatMercado:alCatMercado,alModo:alModo,alPedidoDespesas:alPedidoDespesas,alMercadoDespesas:alMercadoDespesas,alSomar:alSomar,alTamanho:alTamanho,alProdutoInfo:alProdutoInfo,
+    alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao};
 })(typeof window!=="undefined"?window:globalThis);

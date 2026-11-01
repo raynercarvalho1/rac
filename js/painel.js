@@ -24,14 +24,18 @@
     var hoje=hojeISO(),meses=NUCLEO.pnMeses(hoje,n),todos=NUCLEO.pnMeses(hoje,2*n),ini2=todos[0]+"-01";
     function seguro(p){return p.then(function(v){return {ok:true,v:v}},function(e){logErro("painel",e);return {ok:false,erro:e.message||String(e)}})}
     var P=Promise.all([
-      seguro(pnPag(function(f){return SB.from("compras").select("data,categoria,valor_total,mercado,numero").gte("data",ini2).order("data").range(f,f+999)})),
+      seguro(pnPag(function(f){return SB.from("compras").select("data,categoria,valor_total,mercado,numero,produto").gte("data",ini2).order("data").range(f,f+999)})),
       seguro(pnPag(function(f){return SB.from("registros").select("id,quem,tipo,data,titulo,dados,criado_em").gte("data",ini2).order("data").range(f,f+999)})),
       seguro(Promise.resolve().then(function(){return SB.from("lista").select("id,item,feito,feito_em,criado").eq("tipo","tarefa")}).then(sbOk)),
       seguro(Promise.resolve().then(function(){return SB.from("orcamentos").select("categoria,valor")}).then(sbOk)),
       seguro((SAUDE.dias?Promise.resolve():saudeCarregar()).then(function(){return {dias:SAUDE.dias||[],ativs:(SAUDE.ativs||[]).filter(function(a){return TREINO_OCULTOS.indexOf(a.tipo)<0})}})),
-      seguro(agendaColetar())])
+      seguro(agendaColetar()),
+      /* pedidos de delivery e restaurante (Alimentação), com os itens: entram nos gastos separados em comida, taxas e gorjeta */
+      seguro(pnPag(function(f){return SB.from("pedidos").select("id,data,plataforma,modo,estabelecimento,subtotal,taxa_entrega,taxa_servico,gorjeta,desconto_loja,desconto_plataforma,total_pago,pedido_itens(descricao,qtd,total,desconto)").gte("data",ini2).order("data").range(f,f+999)})
+        .then(function(l){return l.map(function(p){var o={};Object.keys(p).forEach(function(k){o[k]=k==="pedido_itens"?undefined:p[k]});["subtotal","taxa_entrega","taxa_servico","gorjeta","desconto_loja","desconto_plataforma","total_pago"].forEach(function(k){o[k]=+p[k]});
+          o.itens=(p.pedido_itens||[]).map(function(i){return {descricao:i.descricao,qtd:+i.qtd,total:+i.total,desconto:+i.desconto||0}});return o})}))])
     .then(function(r){return {hoje:hoje,meses:meses,todos:todos,ini:meses[0]+"-01",iniAnt:todos[0]+"-01",fimAnt:maisDias(meses[0]+"-01",-1),
-      compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5]}});
+      compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6]}});
     PAINEL.cache[n]=P;P.catch(function(){delete PAINEL.cache[n]});return P}
 
   function renderPainel(aba){
@@ -50,7 +54,7 @@
 
   /* ---------- contas comuns às abas ---------- */
   function pnGastos(D){var mf=typeof mbaFin==="function"?mbaFin():null;
-    return NUCLEO.pnDespesas(D.compras.ok?D.compras.v:[],D.registros.ok?D.registros.v:[],mf?mf.ps:[],pnFonteReg)}
+    return NUCLEO.pnDespesas(D.compras.ok?D.compras.v:[],D.registros.ok?D.registros.v:[],mf?mf.ps:[],pnFonteReg,D.pedidos&&D.pedidos.ok?D.pedidos.v:[])}
   function pnTreinos(D){return D.saude.ok?D.saude.v.ativs:[]}
   /* estudos concluídos com data: tópicos e exercícios do MBA, trilhas de Estudos e exercícios de SQL (as marcações do próprio site) */
   function pnEstudosFeitos(){var L=[],f=typeof mbaFeito==="function"?mbaFeito():{};
@@ -149,14 +153,27 @@
         pc.appendChild(h("h3",{class:"mbag",text:"Ticket médio"}));pc.appendChild(rsColunas(B,D.meses.map(function(m,i){return nPor[i]?tPor[i]/nPor[i]:0}),pnCurto,function(i,v){return [B[i].nome,v?brl(v)+" por compra":"sem compras"]}))}
       else pc.appendChild(pnVazio("Nenhuma compra lançada no Mercado no período."))}
     pc.appendChild(pnFonte("Mercado (notas lançadas)",D.ini,hoje));L.push(pc);
+    L.push(pnAlimentacao(D,B));
     /* categorias do período */
     var pk=panel("Categorias de despesas","Mercado pela categoria do produto; os registros pelo tipo (consulta, abastecimento…).");
-    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=(x.f==="Mercado"?"":x.f+" · ")+(x.f==="Mercado"?x.cat:x.f==="Veículos"?NUCLEO.pnVeicCat(x.cat):typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
+    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=x.f==="Mercado"||/^Alimentação · /.test(x.cat)?x.cat:x.f+" · "+(x.f==="Veículos"?NUCLEO.pnVeicCat(x.cat):typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
     var ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
     pk.appendChild(ks.length?rsBarras(ks.slice(0,12).map(function(k){return {nome:k,v:cat[k],txt:brl(cat[k])}})):pnVazio("Nenhuma despesa com categoria no período."));
     if(ks.length>12)pk.appendChild(h("p",{class:"sub",text:"+ "+(ks.length-12)+" categorias menores."}));
-    pk.appendChild(pnFonte("Mercado (categoria do produto) e registros com custo",D.ini,hoje));L.push(pk);
+    pk.appendChild(pnFonte("Mercado (categoria do produto), registros com custo e pedidos (Alimentação)",D.ini,hoje));L.push(pk);
     L.push(pnOrcPainel(D));return L}
+  /* alimentação: a comida do Mercado (sem limpeza, higiene, fraldas e descartáveis) e os pedidos, mês a mês, com taxas e gorjeta à parte.
+     São os mesmos números dos gastos acima (nada é somado de novo): o Mercado vem da view compras, os pedidos da tabela pedidos. */
+  function pnAlimentacao(D,B){var p=panel("Alimentação","Comida do Mercado e pedidos de delivery e restaurante. Limpeza, higiene, fraldas e descartáveis do Mercado ficam fora.");
+    if(D.pedidos&&!D.pedidos.ok)p.appendChild(pnVazio("Não consegui ler os pedidos agora ("+D.pedidos.erro+")."));
+    var merc=NUCLEO.alMercadoDespesas(D.compras.ok?D.compras.v.map(function(x){return {data:x.data,categoria:x.categoria,produto:x.produto,valor_total:x.valor_total,mercado:x.mercado}}):[]).linhas,ped=[];
+    (D.pedidos&&D.pedidos.ok?D.pedidos.v:[]).forEach(function(x){ped=ped.concat(NUCLEO.alPedidoDespesas(x))});
+    var todas=merc.concat(ped).filter(function(x){return x.d>=D.ini}),pm=NUCLEO.pnPorMes(todas,D.meses),S=NUCLEO.alSomar(todas),fonte=function(f){return NUCLEO.alSomar(todas.filter(function(x){return x.f===f})).total};
+    if(!todas.length){p.appendChild(pnVazio("Nenhum gasto com alimentação no período."));p.appendChild(pnFonte("Mercado (comida) e pedidos",D.ini,D.hoje));return p}
+    p.appendChild(rsKpis([["No período",brl(S.total)],["Mercado (comida)",brl(fonte("Mercado"))],["Pedidos",brl(fonte("Delivery")+fonte("Restaurante"))],["Taxas e gorjetas",brl((S.por[NUCLEO.AL_CAT.taxas]||0)+(S.por[NUCLEO.AL_CAT.gorjeta]||0))]]));
+    p.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].total}),pnCurto,function(i,v){var o=pm[D.meses[i]].por;return [B[i].nome,v?brl(v)+" · Mercado "+brl(o.Mercado||0)+" · Delivery "+brl(o.Delivery||0)+" · Restaurante "+brl(o.Restaurante||0):"sem gastos com alimentação"]}));
+    p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#alimentacao",text:"Abrir Alimentação"})));
+    p.appendChild(pnFonte("Mercado (itens de comida) e pedidos de delivery e restaurante",D.ini,D.hoje));return p}
   /* veículos: os registros dos veículos (os mesmos que já entram nos gastos, uma vez cada). Combustível é separado da manutenção;
      consumo e custo por km só por veículo, de tanque cheio a tanque cheio (NUCLEO.abConsumo), e só com trechos inteiros no período */
   function pnVeiculos(D,B){

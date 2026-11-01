@@ -1,7 +1,7 @@
 -- Central de Segurança (docs/seguranca.md): a 2ª etapa do login (MFA/TOTP) passa a valer também no banco, o histórico de
 -- segurança (backups, restaurações, MFA) e a auditoria das permissões vista de dentro do banco.
--- Rode uma vez no SQL Editor, depois do 021. Pode rodar de novo sem estragar nada (e roda de novo depois do 024, que criou
--- pedidos e pedido_itens: as tabelas que ainda não existem são puladas). Não liga MFA para ninguém:
+-- Rode uma vez no SQL Editor, depois do 021. Pode rodar de novo sem estragar nada (e roda de novo depois do 024 e do 025, que criaram
+-- pedidos, pedido_itens e as tabelas da Central de Compras: as tabelas que ainda não existem são puladas). Não liga MFA para ninguém:
 -- quem não cadastrou um app autenticador continua entrando só com a senha, como hoje.
 
 -- 1) A trava da 2ª etapa. Vale só para quem tem um fator TOTP confirmado: essa pessoa só lê e grava com a sessão
@@ -22,7 +22,7 @@ declare t text;
 begin
   foreach t in array array['mercados', 'produtos', 'notas', 'itens', 'orcamentos', 'membros', 'pessoal', 'registros',
     'garmin_dia', 'garmin_ativ', 'erros', 'rotina_log', 'lista', 'bebe', 'push_inscricoes', 'ia_config', 'ia_uso',
-    'ia_cobranca', 'newsletter_edicoes', 'newsletter_avisos', 'pedidos', 'pedido_itens'] loop
+    'ia_cobranca', 'newsletter_edicoes', 'newsletter_avisos', 'pedidos', 'pedido_itens', 'compras_online', 'compras_online_itens', 'compras_online_docs'] loop
     if to_regclass('public.' || t) is not null then
       execute format('drop policy if exists "mfa" on public.%I', t);
       execute format('create policy "mfa" on public.%I as restrictive for all to authenticated using ((select public.rac_aal_ok())) with check ((select public.rac_aal_ok()))', t);
@@ -66,7 +66,7 @@ create or replace function public.seguranca_estado() returns jsonb
 declare
   pessoais text[] := array['mercados', 'produtos', 'notas', 'itens', 'orcamentos', 'membros', 'pessoal', 'registros',
     'garmin_dia', 'garmin_ativ', 'erros', 'rotina_log', 'lista', 'bebe', 'push_inscricoes', 'ia_config', 'ia_uso',
-    'ia_cobranca', 'newsletter_edicoes', 'newsletter_avisos', 'pedidos', 'pedido_itens', 'seguranca_eventos'];
+    'ia_cobranca', 'newsletter_edicoes', 'newsletter_avisos', 'pedidos', 'pedido_itens', 'compras_online', 'compras_online_itens', 'compras_online_docs', 'seguranca_eventos'];
   r jsonb;
 begin
   if (select auth.uid()) is null then raise exception 'sem login' using errcode = '42501'; end if;

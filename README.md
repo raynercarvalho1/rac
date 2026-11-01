@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança, o Painel de Produtividade e Alimentação e Delivery.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança, o Painel de Produtividade, Alimentação e Delivery e a Central de Compras.
 
 ## Como funciona
 
@@ -55,6 +55,13 @@ Página `#alimentacao` (`js/alimentacao.js`): pedidos de iFood, 99Food e restaur
 itens, taxas, gorjeta, descontos, fotos e versões, e a comida do Mercado nas contas sem cópia (view `alimentacao_gastos`). Entra no
 Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo em [docs/alimentacao.md](docs/alimentacao.md).
 
+## Central de Compras
+
+Página `#compras` (`js/compras.js`): pedidos de lojas online (Amazon primeiro, Mercado Livre e outras no mesmo formato) importados de PDF,
+DANFE, XML, CSV/ZIP, e-mails (inclusive pelo Gmail já conectado) e prints com OCR local, com os arquivos originais no cofre, junção dos
+documentos do mesmo pedido, divergências, duplicidade, recorrências a confirmar e histórico de preços (SQL 025). Entra no Painel e no
+backup; é da casa. Sem IA paga e sem senha de loja. Tudo em [docs/compras.md](docs/compras.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -66,8 +73,8 @@ Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo e
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `024`, em ordem (e o `022` de novo depois do `024`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 024 foi aplicado em 01/11/2026).
+`schema.sql` e depois `002` a `025`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 025 foi aplicado em 01/11/2026).
 
 ## Testes (`tests/`)
 
@@ -81,6 +88,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
+| `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |
 | `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |

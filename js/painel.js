@@ -33,9 +33,13 @@
       /* pedidos de delivery e restaurante (Alimentação), com os itens: entram nos gastos separados em comida, taxas e gorjeta */
       seguro(pnPag(function(f){return SB.from("pedidos").select("id,data,plataforma,modo,estabelecimento,subtotal,taxa_entrega,taxa_servico,gorjeta,desconto_loja,desconto_plataforma,total_pago,pedido_itens(descricao,qtd,total,desconto)").gte("data",ini2).order("data").range(f,f+999)})
         .then(function(l){return l.map(function(p){var o={};Object.keys(p).forEach(function(k){o[k]=k==="pedido_itens"?undefined:p[k]});["subtotal","taxa_entrega","taxa_servico","gorjeta","desconto_loja","desconto_plataforma","total_pago"].forEach(function(k){o[k]=+p[k]});
-          o.itens=(p.pedido_itens||[]).map(function(i){return {descricao:i.descricao,qtd:+i.qtd,total:+i.total,desconto:+i.desconto||0}});return o})}))])
+          o.itens=(p.pedido_itens||[]).map(function(i){return {descricao:i.descricao,qtd:+i.qtd,total:+i.total,desconto:+i.desconto||0}});return o})})),
+      /* compras online (Central de Compras): o total pago de cada pedido, uma vez; as marcadas como já contadas em outro lugar ficam fora */
+      seguro(pnPag(function(f){return SB.from("compras_online").select("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,compras_online_itens(descricao,total,desconto,categoria)").gte("data",ini2).order("data").range(f,f+999)})
+        .then(function(l){return l.map(function(c){return {id:c.id,data:c.data,loja:c.loja,vendedor:c.vendedor,total_pago:+c.total_pago,categoria:c.categoria,fora_das_contas:c.fora_das_contas,
+          itens:(c.compras_online_itens||[]).map(function(i){return {descricao:i.descricao,total:+i.total,desconto:+i.desconto||0,categoria:i.categoria}})}})}))])
     .then(function(r){return {hoje:hoje,meses:meses,todos:todos,ini:meses[0]+"-01",iniAnt:todos[0]+"-01",fimAnt:maisDias(meses[0]+"-01",-1),
-      compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6]}});
+      compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6],online:r[7]}});
     PAINEL.cache[n]=P;P.catch(function(){delete PAINEL.cache[n]});return P}
 
   function renderPainel(aba){
@@ -54,7 +58,7 @@
 
   /* ---------- contas comuns às abas ---------- */
   function pnGastos(D){var mf=typeof mbaFin==="function"?mbaFin():null;
-    return NUCLEO.pnDespesas(D.compras.ok?D.compras.v:[],D.registros.ok?D.registros.v:[],mf?mf.ps:[],pnFonteReg,D.pedidos&&D.pedidos.ok?D.pedidos.v:[])}
+    return NUCLEO.pnDespesas(D.compras.ok?D.compras.v:[],D.registros.ok?D.registros.v:[],mf?mf.ps:[],pnFonteReg,D.pedidos&&D.pedidos.ok?D.pedidos.v:[],D.online&&D.online.ok?D.online.v:[])}
   function pnTreinos(D){return D.saude.ok?D.saude.v.ativs:[]}
   /* estudos concluídos com data: tópicos e exercícios do MBA, trilhas de Estudos e exercícios de SQL (as marcações do próprio site) */
   function pnEstudosFeitos(){var L=[],f=typeof mbaFeito==="function"?mbaFeito():{};
@@ -153,10 +157,10 @@
         pc.appendChild(h("h3",{class:"mbag",text:"Ticket médio"}));pc.appendChild(rsColunas(B,D.meses.map(function(m,i){return nPor[i]?tPor[i]/nPor[i]:0}),pnCurto,function(i,v){return [B[i].nome,v?brl(v)+" por compra":"sem compras"]}))}
       else pc.appendChild(pnVazio("Nenhuma compra lançada no Mercado no período."))}
     pc.appendChild(pnFonte("Mercado (notas lançadas)",D.ini,hoje));L.push(pc);
-    L.push(pnAlimentacao(D,B));
+    L.push(pnAlimentacao(D,B));L.push(pnOnline(D,B));
     /* categorias do período */
     var pk=panel("Categorias de despesas","Mercado pela categoria do produto; os registros pelo tipo (consulta, abastecimento…).");
-    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=x.f==="Mercado"||/^Alimentação · /.test(x.cat)?x.cat:x.f+" · "+(x.f==="Veículos"?NUCLEO.pnVeicCat(x.cat):typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
+    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=x.f==="Mercado"||/^Alimentação · /.test(x.cat)?x.cat:x.f==="Compras online"?"Compras online · "+x.cat:x.f+" · "+(x.f==="Veículos"?NUCLEO.pnVeicCat(x.cat):typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
     var ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
     pk.appendChild(ks.length?rsBarras(ks.slice(0,12).map(function(k){return {nome:k,v:cat[k],txt:brl(cat[k])}})):pnVazio("Nenhuma despesa com categoria no período."));
     if(ks.length>12)pk.appendChild(h("p",{class:"sub",text:"+ "+(ks.length-12)+" categorias menores."}));
@@ -174,6 +178,18 @@
     p.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].total}),pnCurto,function(i,v){var o=pm[D.meses[i]].por;return [B[i].nome,v?brl(v)+" · Mercado "+brl(o.Mercado||0)+" · Delivery "+brl(o.Delivery||0)+" · Restaurante "+brl(o.Restaurante||0):"sem gastos com alimentação"]}));
     p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#alimentacao",text:"Abrir Alimentação"})));
     p.appendChild(pnFonte("Mercado (itens de comida) e pedidos de delivery e restaurante",D.ini,D.hoje));return p}
+  /* compras online: o total pago por mês, por loja e por categoria (os mesmos números dos gastos acima, uma vez cada) */
+  function pnOnline(D,B){var p=panel("Compras online","Pedidos da Central de Compras (Amazon, Mercado Livre e outras lojas), pelo total efetivamente pago.");
+    if(D.online&&!D.online.ok){p.appendChild(pnVazio("Não consegui ler as compras online agora ("+D.online.erro+")."));return p}
+    var L=NUCLEO.coDespesas(D.online?D.online.v:[]).filter(function(x){return x.d>=D.ini}),pm=NUCLEO.pnPorMes(L,D.meses);
+    if(!L.length){p.appendChild(pnVazio("Nenhuma compra online no período."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#compras/importar",text:"Importar compras"})));return p}
+    var tot=L.reduce(function(s,x){return s+x.v},0),cat={};L.forEach(function(x){cat[x.cat]=(cat[x.cat]||0)+x.v});
+    p.appendChild(rsKpis([["No período",brl(tot)],["Pedidos",L.length],["Ticket médio",brl(tot/L.length)]]));
+    p.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].total}),pnCurto,function(i,v){return [B[i].nome,v?brl(v)+" · "+pm[D.meses[i]].n+(pm[D.meses[i]].n===1?" pedido":" pedidos"):"sem compras online"]}));
+    var ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});p.appendChild(h("h3",{class:"mbag",text:"Por categoria"}));
+    p.appendChild(rsBarras(ks.map(function(k){return {nome:k,v:cat[k],txt:brl(cat[k]),dica:brl(cat[k])+" · "+Math.round(cat[k]/(tot||1)*100)+"% das compras online"}})));
+    p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#compras",text:"Abrir a Central de Compras"})));
+    p.appendChild(pnFonte("Central de Compras (total pago de cada pedido)",D.ini,D.hoje));return p}
   /* veículos: os registros dos veículos (os mesmos que já entram nos gastos, uma vez cada). Combustível é separado da manutenção;
      consumo e custo por km só por veículo, de tanque cheio a tanque cheio (NUCLEO.abConsumo), e só com trechos inteiros no período */
   function pnVeiculos(D,B){

@@ -104,7 +104,7 @@ test("Painel: os pedidos entram como uma fonte a mais, sem mudar Mercado, regist
   assert.equal(Math.round(pm["2026-10"].por.Delivery * 100), 7788);
   const pn = ler("js/painel.js");
   assert.match(pn, /SB\.from\("pedidos"\)\.select\("id,data,plataforma,modo,estabelecimento,subtotal/);
-  assert.match(pn, /NUCLEO\.pnDespesas\([^)]*pnFonteReg,D\.pedidos&&D\.pedidos\.ok\?D\.pedidos\.v:\[\]\)/);
+  assert.match(pn, /NUCLEO\.pnDespesas\([^)]*pnFonteReg,D\.pedidos&&D\.pedidos\.ok\?D\.pedidos\.v:\[\][,)]/);
   assert.match(pn, /function pnAlimentacao\(D,B\)/);
 });
 test("SQL 024: pedidos e itens na casa, com RLS, trava da 2ª etapa, nada para anon, conta fechada no banco, sem mexer no Mercado", () => {
@@ -125,11 +125,11 @@ test("SQL 024: pedidos e itens na casa, com RLS, trava da 2ª etapa, nada para a
   assert.ok(!/ia_config|acoes_reais|limite_brl|vault|cron\./i.test(s), "nada de IA, orçamento, segredos ou agendamentos");
   /* o 022 (rodado de novo depois) cobre as tabelas novas na trava e na auditoria */
   const s22 = ler("supabase/022_seguranca.sql");
-  assert.match(s22, /'newsletter_avisos', 'pedidos', 'pedido_itens'\] loop/); assert.match(s22, /'pedidos', 'pedido_itens', 'seguranca_eventos'\];/);
+  assert.match(s22, /'newsletter_avisos', 'pedidos', 'pedido_itens'[\],]/); assert.match(s22, /'pedidos', 'pedido_itens', [^\]]*'seguranca_eventos'\];/);
   /* backup: as duas tabelas, com o item apontando para o pedido; as fotos dos pedidos vão junto */
   const d = N.segDef("pedido_itens"); assert.ok(N.segDef("pedidos")); assert.deepEqual(d.fk, { pedido_id: "pedidos", produto_id: "produtos" });
   assert.ok(N.SEG_TABELAS.findIndex((x) => x.t === "pedidos") < N.SEG_TABELAS.findIndex((x) => x.t === "pedido_itens"));
-  assert.match(ler("js/sistema.js"), /if\(t==="registros"\|\|t==="pedidos"\)regs=regs\.concat\(l\);/);
+  assert.match(ler("js/sistema.js"), /if\(t==="registros"\|\|t==="pedidos"[^)]*\)regs=regs\.concat\(l\);/);
   assert.match(ler("tests/seguranca.test.mjs"), /"pedidos", "pedido_itens", "alimentacao_gastos"/);
 });
 test("IA: alimentacao.pedido só em DEMO (no código e no banco); a resposta simulada nunca preenche nada", () => {

@@ -280,7 +280,7 @@
   /* os últimos n meses (competências), do atual para trás: "2026-10-01", "2026-09-01"… */
   function iaCompetencias(mes,n){var m=/^(\d{4})-(\d{2})/.exec(String(mes||"")),l=[];if(!m)return l;var a=+m[1],k=+m[2];
     for(var i=0;i<(n||12);i++){l.push(a+"-"+(k<10?"0":"")+k+"-01");k--;if(!k){k=12;a--}}return l}
-  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva",alimentacao:"Alimentação"};
+  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva",alimentacao:"Alimentação",compras:"Central de Compras"};
   function iaModulo(m){return IA_MODULOS[m]||String(m||"")}
   var IA_ERROS={recusado:"a IA não quis ler este conteúdo",resposta_invalida:"resposta fora do formato",provedor_recusou_pedido:"a Anthropic recusou o pedido",
     provedor_ocupado:"serviço ocupado",provedor_indisponivel:"serviço fora do ar",tempo_esgotado:"tempo esgotado",rede:"falha de rede",registro_falhou:"a resposta não foi registrada",interno:"erro interno"};
@@ -469,6 +469,7 @@
     {t:"orcamentos",pk:["categoria"]},{t:"registros",pk:["id"]},{t:"lista",pk:["id"]},{t:"bebe",pk:["id"],nat:[["chave"]]},
     {t:"pessoal",pk:["chave"]},{t:"garmin_dia",pk:["data"]},{t:"garmin_ativ",pk:["id"]},
     {t:"pedidos",pk:["id"]},{t:"pedido_itens",pk:["id"],fk:{pedido_id:"pedidos",produto_id:"produtos"},opc:{produto_id:1}},
+    {t:"compras_online",pk:["id"]},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},
     {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
@@ -582,9 +583,10 @@
   /* todas as despesas com data, de três fontes reais: itens do Mercado (view compras), registros com dados.custo (veículos, Eddie, Olivia,
      documentos) e parcelas do MBA marcadas como pagas (no mês do vencimento). O registro que veio de uma compra do Mercado
      (dados.compra, ex.: "Lata N aberta") fica de fora: o preço já está no Mercado. fonteDe(quem) dá o nome da fonte do registro. */
-  /* pedidos (Alimentação e Delivery, tabela pedidos com os itens): uma quarta fonte, separada em comida, taxas e gorjeta
+  /* compras online (Central de Compras): o total pago de cada pedido, uma vez (coDespesas). Pedidos (Alimentação e Delivery,
+     tabela pedidos com os itens): outra fonte, separada em comida, taxas e gorjeta
      (alPedidoDespesas). Não se cruza com o Mercado: compra de mercado fica no Mercado, pedido fica em pedidos. */
-  function pnDespesas(compras,registros,parcelas,fonteDe,pedidos){var L=[];
+  function pnDespesas(compras,registros,parcelas,fonteDe,pedidos,comprasOnline){var L=coDespesas(comprasOnline);
     (pedidos||[]).forEach(function(p){L=L.concat(alPedidoDespesas(p))});
     (compras||[]).forEach(function(x){var v=+x.valor_total;if(x.data&&isFinite(v))L.push({d:x.data,v:v,f:"Mercado",cat:x.categoria||"Outros"})});
     (registros||[]).forEach(function(r){var d=r.dados||{};if(typeof d.custo!=="number"||!isFinite(d.custo)||d.compra||!r.data)return;L.push({d:r.data,v:d.custo,f:fonteDe?fonteDe(r.quem):r.quem,cat:r.tipo})});
@@ -921,6 +923,147 @@
   function alVersao(ant,agora){if(!ant)return [];var v={em:ant.atualizado_em||ant.criado_em||null,quando:agora};AL_VERSIONADOS.forEach(function(k){if(ant[k]!=null&&ant[k]!=="")v[k]=ant[k]});
     if(Array.isArray(ant.itens))v.itens=ant.itens.map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total}});
     return (Array.isArray(ant.versoes)?ant.versoes:[]).concat([v]).slice(-10)}
+  /* ===== Central de Compras (docs/compras.md): pedidos de lojas online (Amazon primeiro; Mercado Livre e outras pelo mesmo formato).
+     Lê o texto do PDF/e-mail/OCR, a NF-e (XML) e o CSV de histórico; junta os documentos do mesmo pedido, aponta divergências,
+     evita duplicidade e acha recorrências. Nunca guarda número de cartão: só a bandeira e os 4 últimos dígitos. ===== */
+  var CO_LOJAS={amazon:"Amazon",mercadolivre:"Mercado Livre",shopee:"Shopee",magalu:"Magazine Luiza",outra:"Outra loja"};
+  var CO_CATEGORIAS=["Pet","Saúde e farmácia","Casa","Eletrônicos","Higiene e beleza","Bebê","Alimentação","Livros e papelaria","Veículos","Vestuário","Presentes","Outros"];
+  var CO_CAT_PALAVRAS=[["Pet",/bravecto|nexgard|simparic|credeli|ra[cç][aã]o|petisco|antipulga|vermifug|coleira|areia (?:sanit|higi)|\bpet\b|\bcaes\b|\bcaes\b|gatos?\b/],["Bebê",/fralda|pampers|huggies|\bnan\b|aptamil|mamadeira|chupeta|len[cç]o umedecido|bebe\b/],
+    ["Saúde e farmácia",/vitamina|suplemento|medicament|dipirona|paracetamol|ibuprofeno|termometro|curativo|whey|creatina/],["Higiene e beleza",/shampoo|condicionador|sabonete|desodorante|creme dental|escova de dente|perfume|protetor solar|hidratante/],
+    ["Eletrônicos",/fone|cabo usb|carregador|celular|smartphone|notebook|tablet|kindle|echo|alexa|mouse|teclado|monitor|ssd|hd externo|pilha|bateria|smartwatch|hdmi/],
+    ["Livros e papelaria",/livro|caderno|caneta|papel a4|agenda|lapis|marca texto/],["Veículos",/oleo de motor|lubrificante|pneu|palheta|automotiv|capacete|moto\b/],
+    ["Casa",/panela|toalha|lencol|travesseiro|organizador|lampada|ferramenta|cozinha|limpeza|detergente|vassoura|aspirador|cafeteira|filtro de agua/],
+    ["Vestuário",/camiseta|camisa|calca|tenis|bermuda|meia|cueca|vestido|jaqueta/],["Alimentação",/cafe |capsula|chocolate|biscoito|azeite|arroz|feijao|leite|cerveja|refrigerante/]];
+  function coCategoria(desc){var n=" "+norm(desc)+" ";for(var i=0;i<CO_CAT_PALAVRAS.length;i++)if(CO_CAT_PALAVRAS[i][1].test(n))return CO_CAT_PALAVRAS[i][0];return "Outros"}
+  /* "R$ 1.234,56", "-R$ 6,82", "136.42" → número (≥ 0); vazio → null */
+  function coNum(v){if(v==null||v==="")return null;if(typeof v==="number")return isFinite(v)?Math.abs(v):null;
+    var s=String(v).replace(/R\$|\s| /g,"").replace(/^[-−–]/,"");if(/,\d{1,2}$/.test(s))s=s.replace(/\./g,"").replace(",",".");else if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");
+    var n=parseFloat(s);return isFinite(n)?Math.round(n*100)/100:null}
+  var CO_MESES={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+  function coData(t){var s=norm(t),m=/(\d{1,2})\s+de\s+([a-z]+)\.?\s+de\s+(\d{4})/.exec(s);if(m&&CO_MESES[m[2]])return m[3]+"-"+(CO_MESES[m[2]]<10?"0":"")+CO_MESES[m[2]]+"-"+(m[1].length<2?"0":"")+m[1];
+    m=/\b(\d{2})\/(\d{2})\/(\d{4})\b/.exec(s);if(m)return m[3]+"-"+m[2]+"-"+m[1];m=/\b(\d{4})-(\d{2})-(\d{2})/.exec(s);return m?m[1]+"-"+m[2]+"-"+m[3]:null}
+  /* forma de pagamento: só bandeira + 4 últimos dígitos (o resto de qualquer número longo é descartado) */
+  function coPagamento(t){var s=String(t||""),b=/\b(mastercard|master card|visa|elo|american express|amex|hipercard|diners)\b/i.exec(s);
+    var d=/(?:final|terminad[oa] em|termina em|[uú]ltimos? (?:4 )?d[ií]gitos:?|\*{2,}|•{2,}|x{4})\s*(\d{4})\b/i.exec(s)||(b?/\b(?:mastercard|master card|visa|elo|american express|amex|hipercard|diners)\s*[-–:]\s*(\d{4})\b/i.exec(s):null);
+    if(b){var nome={"master card":"Mastercard",amex:"American Express"}[b[1].toLowerCase()]||b[1].charAt(0).toUpperCase()+b[1].slice(1).toLowerCase();return nome+(d?" final "+d[1]:"")}
+    if(/\bpix\b/i.test(s))return "Pix";if(/boleto/i.test(s))return "Boleto";if(/vale[- ]presente|saldo amazon|gift card/i.test(s))return "Vale-presente";return null}
+  /* recorrência informada no documento (Programe e Poupe, entrega automática, assinatura): só informação, nunca uma compra futura */
+  function coRecorrencia(t){var s=norm(t);if(!/programe e poupe|entrega automatica|assinatura|recorrente|subscribe|a cada \d+ (mes|semana)/.test(s))return null;
+    var m=/a cada\s+(\d+)\s+(mes(?:es)?|semanas?)/.exec(s);if(!m)return {texto:"recorrência informada (frequência não lida)",meses:null};
+    var n=+m[1],sem=/^semana/.test(m[2]);return {texto:"Entrega automática a cada "+n+" "+(sem?(n===1?"semana":"semanas"):(n===1?"mês":"meses")),meses:sem?Math.round(n*7/30.44*10)/10:n}}
+  function coLinhaValor(txt,re){var m=re.exec(txt);return m?coNum(m[m.length-1]):null}
+  /* texto de pedido (PDF de resumo, e-mail de confirmação/envio/entrega, print com OCR) → dados do pedido. Tolerante: o que não for
+     lido fica null e vai para a conferência. */
+  function coLerTexto(texto){var t=String(texto||"").replace(/ /g," ").replace(/[ \t]+/g," "),n=norm(t),o={itens:[],avisos:[]};
+    o.loja=/amazon/.test(n)?"amazon":/mercado ?livre|mercadolivre/.test(n)?"mercadolivre":/shopee/.test(n)?"shopee":/magalu|magazine luiza/.test(n)?"magalu":"outra";
+    var num=/\b(\d{3}-\d{7}-\d{7})\b/.exec(t)||/(?:pedido|compra|order)\s*(?:n[ºo°.]*|#|numero|id)?\s*:?\s*#?(\d{8,20})\b/i.exec(t);o.numero=num?num[1]:null;
+    var dl=/(?:pedido (?:feito|realizado|efetuado)(?: em)?|data do pedido|feito em|realizado em|order placed|compra realizada em)\s*:?\s*([^\n]{6,40})/i.exec(t);o.data=coData(dl?dl[1]:t);
+    var vend=/(?:vendido por|vendedor)\s*:?\s*([^\n|]{2,60})/i.exec(t);o.vendedor=vend?vend[1].replace(/\s+(?:e entregue|fornecido|enviado).*$/i,"").replace(/[.,;]\s*$/,"").trim():null;
+    o.subtotal=coLinhaValor(t,/subtotal(?: dos itens| do pedido)?\s*:?\s*R\$\s*([\d.,]+)/i);
+    o.frete=coLinhaValor(t,/(?:frete(?: e manuseio)?|envio|entrega)\s*:?\s*R\$\s*([\d.,]+)/i);
+    var desc=0,dr=/(?:desconto|promo[cç][aã]o|cupom|programe e poupe|economia)[^\n\d]{0,40}?[-−–]\s*R\$\s*([\d.,]+)|[-−–]\s*R\$\s*([\d.,]+)[^\n]{0,30}(?:desconto|promo|cupom)/gi,dm,achou=false;
+    while((dm=dr.exec(t))){desc+=coNum(dm[1]||dm[2])||0;achou=true}
+    if(!achou){var d2=coLinhaValor(t,/(?:desconto|promo[cç][oõ]es? aplicad[ao]s?|cupom)\s*:?\s*R\$\s*([\d.,]+)/i);if(d2!=null){desc=d2;achou=true}}
+    o.desconto=achou?Math.round(desc*100)/100:null;
+    o.taxas=coLinhaValor(t,/(?:taxa de servi[cç]o|taxas|impostos de importa[cç][aã]o)\s*:?\s*R\$\s*([\d.,]+)/i);
+    o.total_pago=coLinhaValor(t,/(?:total do pedido|total geral|valor total|total da compra|total pago|total a pagar|grand total|total\s*\(.*?\))\s*:?\s*R\$\s*([\d.,]+)/i);
+    if(o.total_pago==null)o.total_pago=coLinhaValor(t,/\btotal\s*:?\s*R\$\s*([\d.,]+)/i);
+    o.pagamento=coPagamento((/(?:forma de pagamento|pagamento|m[eé]todo de pagamento|pago com)[\s\S]{0,120}/i.exec(t)||[t])[0]);
+    o.recorrencia=coRecorrencia(t);
+    o.tipo=/foi entregue|entregue em|seu pedido foi entregue/.test(n)?"email_entrega":/foi enviado|saiu para entrega|enviado em|a caminho/.test(n)?"email_envio":/obrigad[oa] pelo seu pedido|pedido confirmado|confirmacao do pedido/.test(n)?"email_confirmacao":"resumo";
+    /* itens: "1 unidade de: X", "Quantidade: 2 X", "2 x X R$ 10,00", ou uma linha com descrição e preço */
+    var ir=/(\d+)\s*(?:unidades?|un\.?|x)\s*(?:de:?\s*)?([^\n]{3,160}?)(?:\s+R\$\s*([\d.,]+))?(?:\n|$)/gi,im;
+    while((im=ir.exec(t))){var dsc=im[2].replace(/\s*(?:vendido por|vendedor)\b.*$/i,"").trim();if(!dsc||/^r\$/i.test(dsc))continue;o.itens.push({descricao:dsc.slice(0,160),qtd:+im[1],total:coNum(im[3]),unitario:null})}
+    if(!o.itens.length){var q=/quantidade\s*:?\s*(\d+)/i.exec(t),nome=/(?:produto|item|itens pedidos)\s*:?\s*\n?([^\n]{3,160})/i.exec(t);if(nome)o.itens.push({descricao:nome[1].trim(),qtd:q?+q[1]:1,total:null,unitario:null})}
+    o.itens.forEach(function(i){if(i.total==null&&o.itens.length===1&&o.subtotal!=null)i.total=o.subtotal;if(i.total!=null&&i.qtd)i.unitario=Math.round(i.total/i.qtd*100)/100;i.categoria=coCategoria(i.descricao)});
+    if(o.subtotal==null&&o.itens.length&&o.itens.every(function(i){return i.total!=null}))o.subtotal=Math.round(o.itens.reduce(function(s,i){return s+i.total},0)*100)/100;
+    var chave=/\b(\d{4}\s?){10}\d{4}\b/.exec(t.replace(/(\d{4}) (?=\d{4})/g,"$1 "));o.chave_nfe=chave?chave[0].replace(/\s/g,""):null;
+    if(o.chave_nfe&&o.chave_nfe.length!==44)o.chave_nfe=null;
+    return o}
+  /* NF-e (XML da nota ou da SEFAZ): emitente, número, chave, itens, totais e forma de pagamento */
+  function coTag(x,tag){var m=new RegExp("<(?:\\w+:)?"+tag+"(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?"+tag+">","i").exec(x);return m?m[1].replace(/<!\[CDATA\[|\]\]>/g,"").trim():null}
+  function coTags(x,tag){var re=new RegExp("<(?:\\w+:)?"+tag+"(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?"+tag+">","gi"),m,l=[];while((m=re.exec(x)))l.push(m[1]);return l}
+  var CO_TPAG={"01":"Dinheiro","02":"Cheque","03":"Cartão de crédito","04":"Cartão de débito","05":"Crédito loja","10":"Vale alimentação","11":"Vale refeição","12":"Vale-presente","15":"Boleto","16":"Depósito","17":"Pix","18":"Transferência","19":"Programa de fidelidade","90":"Sem pagamento","99":"Outros"};
+  function coLerNFe(xml){var x=String(xml||"");if(!/<(?:\w+:)?infNFe\b/i.test(x))return null;
+    var id=/<(?:\w+:)?infNFe[^>]*\bId="NFe(\d{44})"/i.exec(x),emit=coTag(x,"emit")||"",ide=coTag(x,"ide")||"",tot=coTag(x,"ICMSTot")||"",pag=coTag(x,"pag")||"";
+    var itens=coTags(x,"det").map(function(d){var p=coTag(d,"prod")||"";return {descricao:coTag(p,"xProd"),codigo:coTag(p,"cProd"),qtd:coNum(coTag(p,"qCom")),unitario:coNum(coTag(p,"vUnCom")),total:coNum(coTag(p,"vProd")),desconto:coNum(coTag(p,"vDesc"))||0}})
+      .map(function(i){i.categoria=coCategoria(i.descricao);return i});
+    var inf=coTag(x,"infCpl")||"",ped=/\b(\d{3}-\d{7}-\d{7})\b/.exec(inf);
+    var o={tipo:"nfe_xml",chave_nfe:id?id[1]:null,numero_nf:coTag(ide,"nNF"),serie:coTag(ide,"serie"),data:(coTag(ide,"dhEmi")||coTag(ide,"dEmi")||"").slice(0,10)||null,
+      emitente:coTag(emit,"xNome"),cnpj:(coTag(emit,"CNPJ")||"").replace(/\D/g,"")||null,itens:itens,
+      subtotal:coNum(coTag(tot,"vProd")),desconto:coNum(coTag(tot,"vDesc")),frete:coNum(coTag(tot,"vFrete")),taxas:coNum(coTag(tot,"vOutro")),total_pago:coNum(coTag(tot,"vNF")),
+      pagamento:(coTags(pag,"tPag").map(function(t){return CO_TPAG[t]||null}).filter(Boolean)[0])||null,numero:ped?ped[1]:null,
+      loja:/amazon/i.test(coTag(emit,"xNome")||"")?"amazon":/mercado ?livre|ebazar/i.test(coTag(emit,"xNome")||"")?"mercadolivre":"outra",vendedor:coTag(emit,"xNome")};
+    return o}
+  /* CSV de histórico de pedidos (Amazon "Solicitar seus dados" → Retail.OrderHistory; colunas em inglês ou português) → um pedido por número */
+  function coLerCSV(txt){var L=csvLinhas(txt);if(L.length<2)return [];var cab=L[0].map(function(c){return norm(c).trim()});
+    function col(){for(var i=0;i<arguments.length;i++){var k=cab.indexOf(arguments[i]);if(k>=0)return k}return -1}
+    var C={id:col("order id","numero do pedido","pedido","order_id"),data:col("order date","data do pedido","data"),nome:col("product name","produto","nome do produto","descricao"),
+      qtd:col("quantity","quantidade"),un:col("unit price","preco unitario"),tot:col("total owed","total","valor total"),frete:col("shipping charge","frete"),desc:col("total discounts","descontos","desconto"),
+      pag:col("payment instrument type","forma de pagamento","pagamento"),asin:col("asin","codigo","sku"),site:col("website","loja"),status:col("order status","status")};
+    if(C.id<0||C.nome<0)return [];var por={},ordem=[];
+    L.slice(1).forEach(function(r){var id=String(r[C.id]||"").trim();if(!id)return;if(C.status>=0&&/cancel/i.test(r[C.status]||""))return;
+      var p=por[id];if(!p){p=por[id]={tipo:"csv",numero:id,loja:/amazon/i.test(C.site>=0?r[C.site]:"amazon")||/^\d{3}-\d{7}-\d{7}$/.test(id)?"amazon":"outra",data:coData(r[C.data]||""),itens:[],subtotal:0,desconto:0,frete:0,total_pago:0,pagamento:C.pag>=0?coPagamento(r[C.pag])||String(r[C.pag]||"").replace(/\d{5,}/g,"").trim()||null:null};ordem.push(id)}
+      var q=coNum(r[C.qtd])||1,u=coNum(r[C.un]),tot=coNum(r[C.tot]);
+      p.itens.push({descricao:String(r[C.nome]||"").trim().slice(0,160),codigo:C.asin>=0?String(r[C.asin]||"").trim()||null:null,qtd:q,unitario:u,total:u!=null?Math.round(u*q*100)/100:tot,desconto:0,categoria:coCategoria(r[C.nome])});
+      p.subtotal+=u!=null?u*q:(tot||0);p.desconto+=coNum(r[C.desc])||0;p.frete+=coNum(r[C.frete])||0;p.total_pago+=tot||0});
+    return ordem.map(function(id){var p=por[id];["subtotal","desconto","frete","total_pago"].forEach(function(k){p[k]=Math.round(p[k]*100)/100});return p})}
+  /* conta: total pago = subtotal − desconto + frete + taxas (2 centavos de folga); itens somando o subtotal é aviso, não erro */
+  function coConferir(c,ctx){ctx=ctx||{};c=c||{};var e=[],a=[],cent=function(v){return v==null||v===""?null:Math.round((+v)*100)};
+    if(!CO_LOJAS[c.loja])e.push("Escolha a loja.");if(!String(c.numero||"").trim())e.push("Preencha o número do pedido.");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||""))e.push("Preencha a data do pedido.");else if(ctx.hoje&&c.data>ctx.hoje)e.push("A data está no futuro.");
+    var itens=(c.itens||[]).filter(function(i){return i&&String(i.descricao||"").trim()});if(!itens.length)e.push("Inclua pelo menos um produto.");
+    itens.forEach(function(i,k){if(!(+i.qtd>0))e.push("Confira a quantidade do item "+(k+1)+".");if(!(+i.total>=0)||i.total===""||i.total==null)e.push("Preencha o valor do item "+(k+1)+".")});
+    var V={};["subtotal","desconto","frete","taxas","total_pago"].forEach(function(k){var v=cent(c[k]);if(v!=null&&(!isFinite(v)||v<0))e.push("Confira "+k.replace("_"," ")+".");V[k]=v});
+    if(V.total_pago==null)e.push("Preencha o total pago.");if(V.subtotal==null)e.push("Preencha o subtotal.");
+    if(!e.length){var calc=V.subtotal-(V.desconto||0)+(V.frete||0)+(V.taxas||0);
+      if(Math.abs(calc-V.total_pago)>2)e.push("A conta dá R$ "+(calc/100).toFixed(2).replace(".",",")+" (subtotal − desconto + frete + taxas), mas o total pago é R$ "+(V.total_pago/100).toFixed(2).replace(".",",")+".");
+      var si=itens.reduce(function(s,i){return s+cent(i.total)-(cent(i.desconto)||0)},0);if(Math.abs(si-V.subtotal)>2)a.push("Os produtos somam R$ "+(si/100).toFixed(2).replace(".",",")+" e o subtotal é R$ "+(V.subtotal/100).toFixed(2).replace(".",",")+".")}
+    return {ok:!e.length,erros:e,avisos:a}}
+  function coNumeroPedido(n){return String(n||"").toUpperCase().replace(/[^A-Z0-9]/g,"").replace(/^0+(?=.)/,"")}
+  /* duplicidade entre fontes: mesmo pedido (loja + número) ou mesma NF-e é "confirmada" (o documento novo vai para o pedido que já existe);
+     mesmo dia e mesmo total em outra fonte (Mercado, Alimentação ou outra compra) é "possivel" (pergunta antes) */
+  function coDuplicata(c,compras,outras,ignorar){c=c||{};var n=coNumeroPedido(c.numero),tot=c.total_pago==null?null:Math.round(+c.total_pago*100);
+    for(var i=0;i<(compras||[]).length;i++){var x=compras[i];if(!x||x.id===ignorar)continue;
+      if(n&&x.loja===c.loja&&coNumeroPedido(x.numero)===n)return {nivel:"confirmada",compra:x,motivo:"mesmo pedido ("+(CO_LOJAS[x.loja]||x.loja)+" "+x.numero+")"};
+      if(c.chave_nfe&&x.chave_nfe===c.chave_nfe)return {nivel:"confirmada",compra:x,motivo:"mesma nota fiscal"}}
+    if(tot==null||!c.data)return null;
+    var todas=(compras||[]).filter(function(x){return x.id!==ignorar}).map(function(x){return {o:"Compras online",x:x,t:x.total_pago,d:x.data,nome:x.vendedor||CO_LOJAS[x.loja]}}).concat((outras||[]).map(function(x){return {o:x.origem,x:x,t:x.total,d:x.data,nome:x.nome}}));
+    for(var k=0;k<todas.length;k++){var y=todas[k];if(y.d===c.data&&Math.abs(Math.round(+y.t*100)-tot)<=1)return {nivel:"possivel",compra:y.x,origem:y.o,motivo:"mesmo dia e mesmo total em "+y.o+(y.nome?" ("+y.nome+")":"")}}
+    return null}
+  /* junta o que veio de vários documentos do mesmo pedido: o resumo/e-mail manda nos preços e no desconto, a NF-e na chave e no emitente;
+     valores diferentes entre os documentos viram divergências (nada é trocado em silêncio) */
+  var CO_CAMPOS_VAL=[["subtotal","subtotal"],["desconto","desconto"],["frete","frete"],["total_pago","total pago"]];
+  function coMesclar(base,novo){if(!base)return JSON.parse(JSON.stringify(novo));var o=JSON.parse(JSON.stringify(base)),div=o.divergencias||[];
+    ["numero","data","vendedor","pagamento","chave_nfe","numero_nf","emitente","cnpj","recorrencia"].forEach(function(k){if((o[k]==null||o[k]==="")&&novo[k]!=null)o[k]=novo[k]});
+    if(o.loja==="outra"&&novo.loja&&novo.loja!=="outra")o.loja=novo.loja;
+    CO_CAMPOS_VAL.forEach(function(k){var a=o[k[0]],b=novo[k[0]];if(a==null&&b!=null)o[k[0]]=b;else if(a!=null&&b!=null&&Math.abs(a-b)>0.02)div.push({campo:k[0],texto:"O "+k[1]+" é R$ "+(+a).toFixed(2).replace(".",",")+" num documento e R$ "+(+b).toFixed(2).replace(".",",")+" no "+(CO_DOC_NOME[novo.tipo]||novo.tipo)+"."})});
+    if(!(o.itens||[]).length&&(novo.itens||[]).length)o.itens=novo.itens;
+    else (novo.itens||[]).forEach(function(i){var p=(o.itens||[]).filter(function(j){return !j.codigo&&i.codigo&&alCompararProdutos(j.descricao,i.descricao).resultado!=="diferente"})[0];if(p)p.codigo=i.codigo});
+    o.divergencias=div;return o}
+  var CO_DOC_NOME={resumo:"resumo do pedido",resumo_pdf:"PDF do pedido",email_confirmacao:"e-mail de confirmação",email_envio:"e-mail de envio",email_entrega:"e-mail de entrega",nfe_xml:"XML da nota fiscal",danfe:"DANFE",csv:"CSV de histórico",imagem:"print",foto_produto:"foto do produto",outro:"documento"};
+  /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido; pedido marcado como "já contado em outro lugar" fica fora */
+  function coDespesas(compras){var L=[];(compras||[]).forEach(function(c){var v=+c.total_pago;if(!c||!c.data||!isFinite(v)||c.fora_das_contas)return;
+    var cats={};(c.itens||[]).forEach(function(i){var k=i.categoria||"Outros";cats[k]=(cats[k]||0)+(+i.total||0)-(+i.desconto||0)});
+    var ks=Object.keys(cats),cat=ks.length?ks.sort(function(a,b){return cats[b]-cats[a]})[0]:(c.categoria||"Outros");
+    L.push({d:c.data,v:v,f:"Compras online",cat:c.categoria||cat,id:c.id||null})});return L}
+  /* recorrências: a informada no documento (a confirmar) e a percebida (o mesmo produto comprado 2+ vezes, com o intervalo médio).
+     A próxima data é só uma estimativa para conferir: nenhuma compra é criada. */
+  function coRecorrencias(compras,hoje){var por={},L=[];
+    (compras||[]).forEach(function(c){(c.itens||[]).forEach(function(i){var k=alChaveProduto(i.descricao);if(!k)return;(por[k]=por[k]||{nome:i.descricao,datas:[],compras:[]}).datas.push(c.data);por[k].compras.push(c)})});
+    Object.keys(por).forEach(function(k){var p=por[k],d=p.datas.slice().sort(),inf=null;p.compras.forEach(function(c){if(c.recorrencia_texto&&!inf)inf={texto:c.recorrencia_texto,meses:c.recorrencia_meses,status:c.recorrencia_status||"a_confirmar"}});
+      var int=[];for(var i=1;i<d.length;i++)int.push(diasEntre(d[i-1],d[i]));var media=int.length?Math.round(int.reduce(function(a,b){return a+b},0)/int.length):null;
+      if(!inf&&d.length<2)return;var ult=d[d.length-1],passo=inf&&inf.meses&&inf.meses%1?Math.round(inf.meses*30.44):media,meses=inf&&inf.meses&&!(inf.meses%1)?inf.meses:0;
+      L.push({produto:p.nome,vezes:d.length,ultima:ult,informada:inf,intervaloDias:media,proximaEstimada:inf&&inf.status==="descartada"?null:meses?coMaisMeses(ult,meses):passo?somaDiasISO(ult,passo):null})});
+    return L.sort(function(a,b){return (a.proximaEstimada||"9")<(b.proximaEstimada||"9")?-1:1})}
+  /* soma meses de calendário (31/01 + 1 mês = 28 ou 29/02) */
+  function coMaisMeses(iso,n){var y=+iso.slice(0,4),m=+iso.slice(5,7)-1+n,d=+iso.slice(8,10);y+=Math.floor(m/12);m=((m%12)+12)%12;var fim=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+    return y+"-"+(m<9?"0":"")+(m+1)+"-"+(Math.min(d,fim)<10?"0":"")+Math.min(d,fim)}
+  /* histórico de preço por produto (pela chave padrão do nome): última, menor e variação */
+  function coPrecos(compras){var por={};(compras||[]).forEach(function(c){(c.itens||[]).forEach(function(i){var k=alChaveProduto(i.descricao),q=+i.qtd||1,u=i.unitario!=null?+i.unitario:((+i.total||0)-(+i.desconto||0))/q;if(!k||!(u>=0))return;
+      (por[k]=por[k]||{nome:i.descricao,l:[],img:null}).l.push({d:c.data,u:u,loja:c.vendedor||CO_LOJAS[c.loja]});if(i.imagem_path&&!por[k].img)por[k].img=i.imagem_path})});
+    return Object.keys(por).map(function(k){var p=por[k],l=p.l.sort(function(a,b){return a.d<b.d?-1:1}),u=l[l.length-1];return {chave:k,nome:p.nome,img:p.img,vezes:l.length,ultimo:u,menor:Math.min.apply(null,l.map(function(x){return x.u})),variacao:l.length>1&&l[0].u>0?(u.u-l[0].u)/l[0].u*100:null,historico:l}})
+      .sort(function(a,b){return b.vezes-a.vezes||(a.nome<b.nome?-1:1)})}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
@@ -930,5 +1073,7 @@
     AB_COMBUST:AB_COMBUST,AB_KML:AB_KML,abLer:abLer,abConsumo:abConsumo,abPrecos:abPrecos,abPorMes:abPorMes,abResumo:abResumo,abDuplicado:abDuplicado,abConferir:abConferir,abDados:abDados,pnVeicCat:pnVeicCat,
     AL_PLATAFORMAS:AL_PLATAFORMAS,AL_MODOS:AL_MODOS,AL_CAT:AL_CAT,AL_CATEGORIAS:AL_CATEGORIAS,alCent:alCent,alBRL:alBRL,alItem:alItem,alPedidoConta:alPedidoConta,alConferir:alConferir,
     alCatMercado:alCatMercado,alModo:alModo,alPedidoDespesas:alPedidoDespesas,alMercadoDespesas:alMercadoDespesas,alSomar:alSomar,alTamanho:alTamanho,alProdutoInfo:alProdutoInfo,
-    alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao};
+    alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
+    CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
+    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};
 })(typeof window!=="undefined"?window:globalThis);

@@ -180,9 +180,9 @@
     p.appendChild(pnFonte("Mercado (itens de comida) e pedidos de delivery e restaurante",D.ini,D.hoje));return p}
   /* compras online: o total pago por mês, por loja e por categoria (os mesmos números dos gastos acima, uma vez cada) */
   function pnOnline(D,B){var p=panel("Compras online","Pedidos da Central de Compras (Amazon, Mercado Livre e outras lojas), pelo total efetivamente pago.");
-    if(D.online&&!D.online.ok){p.appendChild(pnVazio("Não consegui ler as compras online agora ("+D.online.erro+")."));return p}
+    if(D.online&&!D.online.ok){p.appendChild(pnVazio("Não consegui ler as compras online agora ("+D.online.erro+")."));p.appendChild(pnFonte("Central de Compras",D.ini,D.hoje));return p}
     var L=NUCLEO.coDespesas(D.online?D.online.v:[]).filter(function(x){return x.d>=D.ini}),pm=NUCLEO.pnPorMes(L,D.meses);
-    if(!L.length){p.appendChild(pnVazio("Nenhuma compra online no período."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#compras/importar",text:"Importar compras"})));return p}
+    if(!L.length){p.appendChild(pnVazio("Nenhuma compra online no período."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#compras/importar",text:"Importar compras"})));p.appendChild(pnFonte("Central de Compras",D.ini,D.hoje));return p}
     var tot=L.reduce(function(s,x){return s+x.v},0),cat={};L.forEach(function(x){cat[x.cat]=(cat[x.cat]||0)+x.v});
     p.appendChild(rsKpis([["No período",brl(tot)],["Pedidos",L.length],["Ticket médio",brl(tot/L.length)]]));
     p.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].total}),pnCurto,function(i,v){return [B[i].nome,v?brl(v)+" · "+pm[D.meses[i]].n+(pm[D.meses[i]].n===1?" pedido":" pedidos"):"sem compras online"]}));

@@ -741,18 +741,23 @@
   /* o mesmo abastecimento já lançado: mesmo veículo e data e (mesma km, ou mesmo total e litros). ignorar = o próprio registro, na edição */
   function abDuplicado(c,regs,ignorar){var perto=function(a,b){return a!=null&&b!=null&&Math.abs(a-b)<0.005};
     return abDoTipo(regs).filter(function(x){return x.id!==ignorar&&x.quem===c.quem&&x.data===c.data&&((c.km!=null&&x.km===c.km)||(perto(x.total,c.total)&&perto(x.litros,c.litros)))})[0]||null}
-  /* conferência antes de salvar: erros impedem; avisos só alertam. ctx: {hoje, ultimaKm, exigirTanque} */
+  /* conferência antes de salvar: erros impedem; avisos só alertam. ctx: {hoje, ultimaKm, exigirTanque, exigir}
+     exigir: campos obrigatórios (km, litros, preco, total); vazio ou zero conta como não preenchido. Nada é calculado aqui: o que falta, falta. */
+  var AB_TOL_RS=0.1,AB_CAMPOS={km:"a quilometragem do painel",litros:"os litros",preco:"o preço por litro",total:"o total pago"};
   function abConferir(c,ctx){ctx=ctx||{};var e=[],a=[];
     if(!c.quem)e.push("Escolha o veículo.");
     if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||""))e.push("Escolha a data.");else if(ctx.hoje&&c.data>ctx.hoje)e.push("A data está no futuro.");
-    if(c.litros==null&&c.total==null)e.push("Preencha os litros e o total (estão na bomba).");
+    var falta=(ctx.exigir||[]).filter(function(k){return !(typeof c[k]==="number"&&c[k]>0)}).map(function(k){return AB_CAMPOS[k]});
+    if(falta.length)e.push("Preencha "+(falta.length>1?falta.slice(0,-1).join(", ")+" e "+falta[falta.length-1]:falta[0])+" (maior que zero).");
+    if(!(ctx.exigir||[]).length&&c.litros==null&&c.total==null)e.push("Preencha os litros e o total (estão na bomba).");
     if(c.litros!=null&&!(c.litros>=0.1&&c.litros<=200))e.push("Os litros parecem errados ("+c.litros+").");
     if(c.preco!=null&&!(c.preco>=1&&c.preco<=20))e.push("O preço por litro parece errado ("+c.preco+").");
     if(c.total!=null&&!(c.total>=0.5&&c.total<=5000))e.push("O total parece errado ("+c.total+").");
     if(c.km!=null&&!(c.km>0&&c.km<2e6&&Math.round(c.km)===c.km))e.push("A quilometragem precisa ser um número inteiro, como 18181.");
     if(ctx.exigirTanque&&c.tanque!=="cheio"&&c.tanque!=="parcial")e.push("Marque se o tanque ficou cheio ou parcial.");
-    if(c.km==null)a.push("Sem a quilometragem do painel, este abastecimento não entra no cálculo de consumo.");
-    if(c.litros!=null&&c.preco!=null&&c.total!=null&&Math.abs(c.litros*c.preco-c.total)>Math.max(0.05,c.total*0.01))a.push("Litros × preço dá "+(Math.round(c.litros*c.preco*100)/100).toFixed(2).replace(".",",")+", diferente do total. Confira na foto da bomba.");
+    if(c.km==null&&(ctx.exigir||[]).indexOf("km")<0)a.push("Sem a quilometragem do painel, este abastecimento não entra no cálculo de consumo.");
+    /* divergência relevante (mais de R$ 0,10 e de 1% do total) impede: a bomba arredonda centavos, não reais */
+    if(c.litros!=null&&c.preco!=null&&c.total!=null&&Math.abs(c.litros*c.preco-c.total)>Math.max(AB_TOL_RS,c.total*0.01))e.push("Litros × preço dá "+(Math.round(c.litros*c.preco*100)/100).toFixed(2).replace(".",",")+", diferente do total ("+c.total.toFixed(2).replace(".",",")+"). Confira na foto da bomba.");
     if(c.km!=null&&ctx.ultimaKm!=null&&c.km<ctx.ultimaKm)a.push("A quilometragem é menor que a última anotada ("+ctx.ultimaKm+"). Confira se não leu o parcial (Trip).");
     if(c.km!=null&&ctx.ultimaKm!=null&&c.km-ctx.ultimaKm>5000)a.push("São mais de 5.000 km desde a última anotação. Confira o hodômetro.");
     return {erros:e,avisos:a}}

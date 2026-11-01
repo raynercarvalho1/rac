@@ -29,10 +29,10 @@ const campos = (r) => { const A = N.abLer(r); return { quem: A.quem, data: A.dat
 test("foto da bomba: lê combustível, litros, preço e total; sem painel, a km fica vazia", () => {
   const v = IA.validar(FX.leituras.bomba, { veiculo_sugerido: "moto" });
   assert.equal(v.ok, true);
-  assert.deepEqual([v.resultado.km, v.resultado.litros, v.resultado.preco_litro, v.resultado.total, v.resultado.combustivel], [null, 4.58, 6.39, 29.27, "gasolina"]);
-  assert.deepEqual(v.avisos, [], "4,58 × 6,39 = 29,27: a conta da bomba fecha");
+  assert.deepEqual([v.resultado.km, v.resultado.litros, v.resultado.preco_litro, v.resultado.total, v.resultado.combustivel], [null, 4.581, 6.39, 29.27, "gasolina"]);
+  assert.deepEqual(v.avisos, [], "4,581 × 6,39 = 29,27: a conta da bomba fecha");
   const r = N.lerAbast(N.iaAbastTexto(v.resultado));
-  assert.equal(r.km, null); assert.equal(r.litros, 4.58); assert.equal(r.total, 29.27); assert.equal(r.posto, "Posto dos Tropeiros");
+  assert.equal(r.km, null); assert.equal(r.litros, 4.581); assert.equal(r.total, 29.27); assert.equal(r.posto, "Posto dos Tropeiros");
 });
 
 test("foto do painel: lê o hodômetro e o veículo; sem bomba, litros e valores ficam vazios", () => {
@@ -65,11 +65,27 @@ test("DEMO nunca chega à conferência (a resposta simulada não vira texto)", (
   assert.ok(!/SB\.|insert|update/.test(cb), "a resposta da IA não grava nada");
 });
 
+test("DEMO no abastecimento: só o aviso de que nada foi lido, sem valores simulados; o Salvar depende da conferência completa", () => {
+  const appJs = fs.readFileSync(new URL("js/app.js", raiz), "utf8");
+  const b = appJs.slice(appJs.indexOf("function iaBotao("), appJs.indexOf("function briefingBtn("));
+  const ramo = /if\(r&&r\.ok&&r\.modo==="DEMO"&&o\.demo\)\{(.*)\}\n/.exec(b);
+  assert.ok(ramo, "existe o ramo DEMO com o aviso próprio");
+  assert.ok(!/iaPrevia|o\.real/.test(ramo[1]) && /text:o\.demo/.test(ramo[1]) && /return$/.test(ramo[1]), "nesse ramo não há prévia com valores nem caminho para a conferência");
+  assert.ok(b.indexOf('modo==="DEMO"&&o.demo') < b.indexOf('if(r&&r.ok&&r.modo==="DEMO"){'), "o aviso vem antes da prévia genérica");
+  const f = famJs.slice(famJs.indexOf("function abForm("), famJs.indexOf("/* registro antigo"));
+  assert.match(f, /demo:"DEMONSTRAÇÃO: a leitura das fotos com IA ainda não está ligada\. Nada foi lido das fotos e nenhum campo foi preenchido/);
+  assert.match(f, /salvar\.disabled=!gravado&&r\.erros\.length>0/, "Salvar desabilitado enquanto houver erro");
+  assert.match(f, /var exigir=\["km","litros","preco","total"\]/);
+  assert.ok(!/c\.total=Math\.round|c\.preco=Math\.round/.test(f), "a tela não calcula o campo que falta");
+  assert.ok(!/gravarKm|soKm/.test(f), "sem atalho que salve só a km por aqui (há o Atualizar km)");
+  assert.ok(!/fPainel\.addEventListener|fBomba\.addEventListener|fPainel\.onchange|fBomba\.onchange/.test(f), "escolher foto não mexe nos campos");
+});
+
 /* ---------- conferência e correção manual ---------- */
 test("o abastecimento da NMax (31/10) passa na conferência sem erro nem aviso", () => {
   const A = N.abLer(NMAX);
-  assert.deepEqual([A.km, A.litros, A.preco, A.total, A.tanque, A.combustivel, A.posto, A.pagamento], [18181, 4.58, 6.39, 29.27, "cheio", "gasolina comum", "Posto dos Tropeiros, Sorocaba", "Crédito Mastercard"]);
-  const r = N.abConferir(campos(NMAX), { hoje: "2026-11-01", ultimaKm: 18172, exigirTanque: true });
+  assert.deepEqual([A.km, A.litros, A.preco, A.total, A.tanque, A.combustivel, A.posto, A.pagamento], [18181, 4.581, 6.39, 29.27, "cheio", "gasolina comum", "Posto dos Tropeiros, Sorocaba", "Crédito Mastercard"]);
+  const r = N.abConferir(campos(NMAX), { hoje: "2026-11-01", ultimaKm: 18172, exigirTanque: true, exigir: ["km", "litros", "preco", "total"] });
   assert.deepEqual(r, { erros: [], avisos: [] });
 });
 
@@ -86,9 +102,9 @@ test("campos ausentes ou ilegíveis: a conferência pede o que falta e não salv
   assert.deepEqual(semKm.erros, []); assert.match(semKm.avisos.join(" "), /não entra no cálculo de consumo/);
 });
 
-test("correção manual: a conta errada avisa, e o valor corrigido passa", () => {
+test("correção manual: a conta errada impede salvar, e o valor corrigido passa", () => {
   const base = { quem: "moto", data: "2026-10-31", km: 18181, litros: 4.58, preco: 6.39, total: 92.7, tanque: "cheio" };
-  assert.match(N.abConferir(base, {}).avisos.join(" "), /diferente do total/);
+  assert.match(N.abConferir(base, {}).erros.join(" "), /diferente do total/, "divergência relevante impede salvar");
   assert.deepEqual(N.abConferir({ ...base, total: 29.27 }, {}).avisos, []);
   assert.match(N.abConferir({ ...base, total: 29.27, km: 1818 }, { ultimaKm: 18172 }).avisos.join(" "), /Trip/);
   assert.match(N.abConferir({ ...base, total: 29.27, km: 28181 }, { ultimaKm: 18172 }).avisos.join(" "), /5\.000 km/);
@@ -96,7 +112,7 @@ test("correção manual: a conta errada avisa, e o valor corrigido passa", () =>
 
 test("gravação nova: dados com os campos da conferência, origem e custo; nada de atualizadoEm", () => {
   const d = N.abDados(campos(NMAX), null, "2026-11-01T12:00:00Z");
-  assert.deepEqual(d, { ...NMAX.dados, itensCusto: [["4,58 l de gasolina comum", 29.27]] });
+  assert.deepEqual(d, { ...NMAX.dados, itensCusto: [["4,581 l de gasolina comum", 29.27]] });
   assert.equal(d.atualizadoEm, undefined);
   assert.equal(N.abDados({ ...campos(NMAX), origem: "ia" }, null, "x").origem, "ia");
 });
@@ -107,12 +123,29 @@ test("edição: atualiza atualizadoEm, guarda a versão anterior, preserva o res
   assert.equal(d1.atualizadoEm, "2026-11-02T10:00:00Z");
   assert.deepEqual(d1.alertas, ["injeção eletrônica (motor)"], "o que já estava no registro continua");
   assert.equal(d1.origem, "ia", "a origem do lançamento não muda na edição");
-  assert.deepEqual(d1.versoes, [{ em: "2026-11-01T12:00:00Z", data: "2026-10-31", km: 18181, litros: 4.58, precoLitro: 6.39, custo: 29.27, combustivel: "gasolina comum", tanque: "cheio", pagamento: "Crédito Mastercard" }]);
+  assert.deepEqual(d1.versoes, [{ em: "2026-11-01T12:00:00Z", data: "2026-10-31", km: 18181, litros: 4.581, precoLitro: 6.39, custo: 29.27, combustivel: "gasolina comum", tanque: "cheio", pagamento: "Crédito Mastercard" }]);
   assert.ok(!("criado_em" in d1));
   const d2 = N.abDados({ ...campos({ ...reg, dados: d1 }), pagamento: null }, { ...reg, dados: d1 }, "2026-11-03T10:00:00Z");
   assert.equal(d2.versoes.length, 2); assert.equal(d2.versoes[1].em, "2026-11-02T10:00:00Z");
   assert.ok(!("pagamento" in d2), "campo apagado na correção sai do registro");
   assert.ok(famJs.includes('SB.from("registros").update(row).eq("id",id)'), "a edição atualiza o mesmo registro (não cria outro)");
+});
+
+test("lançamento novo: km, litros, preço e total obrigatórios (vazio, zero ou negativo impedem); nada é calculado no lugar", () => {
+  const ex = { hoje: "2026-11-01", exigirTanque: true, exigir: ["km", "litros", "preco", "total"] };
+  const ok = { quem: "moto", data: "2026-10-31", km: 18181, litros: 4.581, preco: 6.39, total: 29.27, tanque: "cheio" };
+  assert.deepEqual(N.abConferir(ok, ex).erros, []);
+  for (const [k, nome] of [["km", "quilometragem"], ["litros", "litros"], ["preco", "preço por litro"], ["total", "total pago"]]) {
+    for (const v of [null, 0, -1]) assert.ok(N.abConferir({ ...ok, [k]: v }, ex).erros.some((e) => e.includes(nome)), `${k}=${v} tem que impedir`);
+  }
+  assert.match(N.abConferir({ ...ok, km: null, litros: null }, ex).erros[0], /a quilometragem do painel e os litros/);
+  /* divergência pequena (arredondamento da bomba) passa; relevante impede */
+  assert.deepEqual(N.abConferir({ ...ok, total: 29.3 }, ex).erros, []);
+  assert.ok(N.abConferir({ ...ok, total: 29.9 }, ex).erros.some((e) => /diferente do total/.test(e)));
+  /* os números simulados da DEMO (km 0, litros 1, preço 1, total 1) nunca formam um lançamento válido */
+  assert.ok(N.abConferir({ ...ok, km: 0, litros: 1, preco: 1, total: 1 }, ex).erros.some((e) => /quilometragem/.test(e)));
+  /* edição de registro antigo: só exige o que ele já tinha */
+  assert.deepEqual(N.abConferir({ ...ok, km: null, preco: null, total: 160 , litros: 38 }, { exigir: ["litros", "total"] }).erros, []);
 });
 
 /* ---------- duplicidade ---------- */
@@ -228,7 +261,7 @@ test("preço médio ponderado (total ÷ litros) é diferente da média simples d
 test("por mês: gasto, litros e preço ponderado; mês sem abastecimento fica zerado (sem preço)", () => {
   const o = N.abPorMes([NMAX, ab("moto", "2026-10-10", 18050, 3, 19.5, "parcial"), ab("civic", "2026-09-15", 103000, 40, 240, "cheio")], ["2026-09", "2026-10", "2026-11"]);
   assert.deepEqual(o["2026-09"], { gasto: 240, litros: 40, n: 1, preco: 6 });
-  assert.equal(o["2026-10"].gasto, 48.77); perto(o["2026-10"].preco, 48.77 / 7.58);
+  assert.equal(o["2026-10"].gasto, 48.77); perto(o["2026-10"].preco, 48.77 / 7.581);
   assert.deepEqual(o["2026-11"], { gasto: 0, litros: 0, n: 0, preco: null });
 });
 
@@ -242,7 +275,7 @@ test("Painel: cada abastecimento conta uma vez nos gastos e combustível fica se
   assert.deepEqual(["abastecimento", "oleo", "revisao", "pneu", "seguro", "documento", "outro"].map(N.pnVeicCat), ["Combustível", "Manutenção", "Manutenção", "Manutenção", "Seguro", "Impostos e licenciamento", "Outros"]);
   assert.match(painelJs, /x\.f==="Veículos"\?NUCLEO\.pnVeicCat\(x\.cat\)/, "as categorias do Painel separam combustível e manutenção");
   const r = N.abResumo(regs.slice(0, 1), "2026-10-01", "2026-10-31");
-  assert.deepEqual([r.n, r.gasto, r.litros], [1, 29.27, 4.58]);
+  assert.deepEqual([r.n, r.gasto, r.litros], [1, 29.27, 4.581]);
 });
 
 test("Painel: quadros de combustível, consumo e despesas dos veículos, com fonte e período", () => {

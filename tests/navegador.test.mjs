@@ -571,7 +571,7 @@ test("Painel de Produtividade: 375 px, quatro abas, fontes, sem contar em dobro,
 // Veículos (docs/veiculos.md): o fluxo de abastecimento no iPhone (375 px), com banco de mentira dentro da página. Nada vai à produção:
 // o registro da NMax é a fixture de teste. Confere conferência obrigatória, toque duplo, duplicidade, edição, tanque antigo com
 // confirmação, IA em DEMO sem preencher, sem internet sem gravar, a Fernanda (casa) usando e o Painel com combustível separado.
-test("Veículos: 375 px, novo abastecimento com fotos, conferência, toque duplo, duplicidade, edição, tanque antigo, DEMO, sem internet e Painel", { skip: pular, timeout: 150000 }, async () => {
+test("Veículos: 375 px, DEMO não lê nem preenche, lançamento manual sem fotos, fotos não apagam campos, validação, toque duplo, duplicidade, edição, tanque antigo, sem internet e Painel", { skip: pular, timeout: 150000 }, async () => {
   const servidor = http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (p.endsWith("/")) p += "index.html";
@@ -595,7 +595,7 @@ test("Veículos: 375 px, novo abastecimento com fotos, conferência, toque duplo
     await pag.evaluate(() => precisa(["familia", "painel"]));
     await pag.evaluate(() => {
       const hoje = hojeISO(), d = (n) => maisDias(hoje, -n);
-      const B = (window.__ab = { gravacoes: [], envios: [], ia: 0, banco: {
+      const B = (window.__ab = { gravacoes: [], envios: [], ia: [], banco: {
         registros: [{ id: "km1", quem: "moto", tipo: "outro", data: d(3), titulo: "Quilometragem", dados: { km: 18172 }, arquivos: [], criado_em: d(3) + "T10:00:00Z" },
           { id: "c-ant1", quem: "civic", tipo: "abastecimento", data: d(40), titulo: "Etanol", valor: "Posto A", dados: { km: 103900, litros: 38, precoLitro: 4.2, custo: 159.6, combustivel: "etanol" }, arquivos: [], criado_em: d(40) + "T10:00:00Z" },
           { id: "c-ant2", quem: "civic", tipo: "abastecimento", data: d(20), titulo: "Etanol", valor: "Posto A", dados: { km: 104308, litros: 36, precoLitro: 4.3, custo: 154.8, combustivel: "etanol" }, arquivos: [], criado_em: d(20) + "T10:00:00Z" },
@@ -614,9 +614,10 @@ test("Veículos: 375 px, novo abastecimento com fotos, conferência, toque duplo
           else { B.gravacoes.push({ op: q._op, nome }); data = []; }
           if (q._single && data) data = data[0] || null;
           return Promise.resolve({ data, error }).then(ok, no); } }; return q; };
+      /* o servidor de IA de mentira só responde DEMO e guarda o que o site pediu (para provar que o site não pede REAL) */
       SB = { from: tabela, rpc: () => Promise.resolve({ data: null, error: null }),
         storage: { from: () => ({ upload: (p) => { B.envios.push(p); return Promise.resolve({ data: { path: p }, error: null }); }, createSignedUrls: (ps) => Promise.resolve({ data: ps.map((p) => ({ path: p, signedUrl: "data:image/png;base64,iVBORw0KGgo=" })), error: null }), remove: () => Promise.resolve({ data: [], error: null }), list: () => Promise.resolve({ data: [], error: null }) }) },
-        functions: { invoke: () => { B.ia++; return Promise.resolve({ error: null, data: { ok: true, versao: 1, modo: "DEMO", estado: "demo", mensagem: "DEMONSTRAÇÃO", avisos: [], resultado: { veiculo: "moto", data: null, km: 0, litros: 1, preco_litro: 1, total: 1, combustivel: "gasolina", posto: "POSTO DEMONSTRAÇÃO", alertas: [], _demo: true } } }); } } };
+        functions: { invoke: (nome, o) => { B.ia.push({ nome, corpo: JSON.parse(JSON.stringify((o && o.body) || {})) }); return Promise.resolve({ error: null, data: { ok: true, versao: 1, modo: "DEMO", estado: "demo", mensagem: "DEMONSTRAÇÃO", avisos: [], resultado: { veiculo: "moto", data: null, km: 0, litros: 1, preco_litro: 1, total: 1, combustivel: "gasolina", posto: "POSTO DEMONSTRAÇÃO", alertas: [], _demo: true } } }); } } };
       PAPEL = "dono"; EU = { id: "dono-teste", email: "teste@exemplo.invalid" }; DONO = "dono-teste"; PESSOAL = {};
       try { localStorage.removeItem("rac-veic"); } catch (e) {}
       document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true;
@@ -625,95 +626,127 @@ test("Veículos: 375 px, novo abastecimento com fotos, conferência, toque duplo
     const largura = () => pag.evaluate(() => document.documentElement.scrollWidth);
     const botao = (txt) => pag.evaluate((t) => { const b = [...document.querySelectorAll("#veiculos-view button")].find((x) => x.textContent.trim() === t && !x.closest("[hidden]")); if (!b) throw new Error("sem o botão " + t); b.click(); }, txt);
     const status = () => pag.evaluate(() => document.querySelector("#veiculos-view .abconf p[role=status]").textContent);
+    const faltaTxt = () => pag.evaluate(() => document.querySelector("#veiculos-view .abconf .abfalta").textContent);
+    const salvarDesligado = () => pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .abconf button")].find((x) => /^Salvar/.test(x.textContent)).disabled);
     const conf = (rot) => pag.locator("#veiculos-view .abconf").getByLabel(rot, { exact: true });
     const preencher = async (v) => { for (const [k, x] of Object.entries(v)) await conf(k).fill(x); };
-    const ontem = await pag.evaluate(() => maisDias(hojeISO(), -1));
-    const nmax = { "Data": ontem, "Quilometragem do painel (ODO)": "18181", "Litros": "4,58", "Preço por litro (R$)": "6,39", "Total pago (R$)": "29,27", "Forma de pagamento": FX.dados.pagamento, "Posto (opcional)": FX.valor };
+    const valores = () => pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .abconf input:not([type=file]):not([type=date])")].map((i) => i.value));
+    const ins = () => pag.evaluate(() => __ab.gravacoes.filter((g) => g.op === "insert"));
+    const grav = () => pag.evaluate(() => __ab.gravacoes.length);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const ontem = await pag.evaluate(() => maisDias(hojeISO(), -1)), hoje = await pag.evaluate(() => hojeISO());
+    const nmax = { "Data": ontem, "Quilometragem do painel (ODO)": "18181", "Litros": "4,581", "Preço por litro (R$)": "6,39", "Total pago (R$)": "29,27", "Forma de pagamento": FX.dados.pagamento, "Posto (opcional)": FX.valor };
 
-    /* 1. abrir o novo abastecimento na moto: fotos do painel e da bomba e a conferência, sem rolagem lateral */
+    /* 1. formulário novo: campos vazios (nenhum valor padrão), Salvar desligado e o que falta escrito */
     await ir("#veiculos/moto", "#veiculos-view .famhead");
     await botao("⛽ Novo abastecimento");
     await pag.waitForSelector("#veiculos-view .abconf");
-    assert.equal(await pag.locator('#veiculos-view input[aria-label="Foto do painel"]').count(), 1);
-    assert.equal(await pag.locator('#veiculos-view input[aria-label="Foto da bomba"]').count(), 1);
+    assert.ok((await valores()).every((v) => v === ""), "nenhum campo vem preenchido");
+    assert.equal(await salvarDesligado(), true);
+    assert.match(await faltaTxt(), /quilometragem do painel, os litros, o preço por litro e o total pago/);
     assert.ok((await largura()) <= 375, "formulário sem rolagem lateral");
-    /* 2. IA em DEMO: mostra a prévia simulada e não preenche nada */
-    await pag.locator("#veiculos-view .iabox input[type=text]").fill("4,58 litros a 6,39, 18.181 km");
-    await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .iabox button")].find((b) => /Ler com IA/.test(b.textContent)).click());
-    await pag.waitForFunction(() => /DEMONSTRAÇÃO/.test(document.querySelector("#veiculos-view .iabox").textContent), null, { timeout: 5000 });
-    assert.equal(await conf("Litros").inputValue(), "", "DEMO não preenche a conferência");
-    assert.equal(await pag.evaluate(() => __ab.ia), 1);
-    /* 3. preencher (correção manual) com as fotos: sem marcar o tanque, não salva */
-    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    /* 2. fotos + Ler com IA em DEMONSTRAÇÃO: só o aviso; nenhum valor simulado na tela nem nos campos; Salvar continua desligado */
     await pag.setInputFiles('#veiculos-view input[aria-label="Foto do painel"]', { name: "painel.png", mimeType: "image/png", buffer: png });
     await pag.setInputFiles('#veiculos-view input[aria-label="Foto da bomba"]', { name: "bomba.png", mimeType: "image/png", buffer: png });
+    await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .iabox button")].find((b) => /Ler com IA/.test(b.textContent)).click());
+    await pag.waitForSelector("#veiculos-view .iabox .iademo", { timeout: 5000 });
+    const demo = await pag.evaluate(() => ({ caixa: document.querySelector("#veiculos-view .iabox").innerText, previa: !!document.querySelector("#veiculos-view .iaprevia") }));
+    assert.match(demo.caixa, /Nada foi lido das fotos e nenhum campo foi preenchido/);
+    assert.equal(demo.previa, false, "sem a lista de valores simulados");
+    assert.ok(!/POSTO DEMONSTRAÇÃO|preco_litro|litros\s*\n\s*1/.test(demo.caixa), "nenhum número fictício na tela");
+    assert.ok((await valores()).every((v) => v === ""), "DEMO não preenche nada");
+    assert.equal(await salvarDesligado(), true, "DEMO não permite salvar");
+    await foto("1-demo");
+    /* 3. preencher à mão; trocar e tirar as fotos não apaga o que foi digitado */
+    await preencher({ "Quilometragem do painel (ODO)": "18181", "Litros": "4,581" });
+    await pag.setInputFiles('#veiculos-view input[aria-label="Foto do painel"]', []);
+    await pag.setInputFiles('#veiculos-view input[aria-label="Foto da bomba"]', { name: "bomba2.png", mimeType: "image/png", buffer: png });
+    assert.equal(await conf("Quilometragem do painel (ODO)").inputValue(), "18181");
+    assert.equal(await conf("Litros").inputValue(), "4,581");
+    await pag.setInputFiles('#veiculos-view input[aria-label="Foto do painel"]', { name: "painel.png", mimeType: "image/png", buffer: png });
+    assert.equal(await conf("Litros").inputValue(), "4,581", "escolher a foto de novo também não apaga");
+    /* 4. sem tanque, ou com dado inválido, o Salvar fica desligado e diz o porquê; tocar nele não grava */
     await preencher(nmax);
     await conf("Combustível").selectOption("gasolina comum");
+    assert.equal(await salvarDesligado(), true); assert.match(await faltaTxt(), /tanque ficou cheio ou parcial/);
     await botao("Salvar abastecimento");
-    assert.match(await status(), /tanque ficou cheio ou parcial/);
-    assert.equal(await pag.evaluate(() => __ab.gravacoes.length), 0, "nada gravado sem a confirmação completa");
-    await foto("1-conferencia");
-    /* 4. tanque cheio + toque duplo no Salvar: um registro só, com o id da tela, as duas fotos e os dados conferidos */
+    assert.equal(await grav(), 0, "nada gravado");
     await botao("Tanque cheio");
+    assert.equal(await salvarDesligado(), false); assert.match(await faltaTxt(), /Pronto para salvar/);
+    for (const [campo, valor, motivo] of [["Total pago (R$)", "39,27", /diferente do total/], ["Litros", "0", /os litros/], ["Preço por litro (R$)", "", /o preço por litro/], ["Quilometragem do painel (ODO)", "", /quilometragem do painel/]]) {
+      await conf(campo).fill(valor);
+      assert.equal(await salvarDesligado(), true, `${campo}=${valor} desliga o Salvar`); assert.match(await faltaTxt(), motivo);
+      await conf(campo).fill(nmax[campo]);
+    }
+    assert.equal(await salvarDesligado(), false);
+    await foto("2-conferencia");
+    /* 5. toque duplo: um registro só, com o id da tela, as fotos e os valores digitados (4,581 l, sem arredondar) */
     await pag.evaluate(() => { const b = [...document.querySelectorAll("#veiculos-view .abconf button")].find((x) => x.textContent === "Salvar abastecimento"); b.click(); b.click(); });
     await pag.waitForFunction(() => document.querySelector("#veiculos-view .abhist"), null, { timeout: 10000 });
-    const g1 = await pag.evaluate(() => __ab.gravacoes);
-    const ins = g1.filter((g) => g.op === "insert");
-    assert.equal(ins.length, 1, "toque duplo grava uma vez");
-    assert.ok(/^[0-9a-f-]{36}$/.test(ins[0].v.id), "o id nasce na tela");
-    assert.deepEqual({ ...ins[0].v.dados }, { ...FX.dados, itensCusto: [["4,58 l de gasolina comum", 29.27]] });
-    assert.deepEqual([ins[0].v.quem, ins[0].v.tipo, ins[0].v.data, ins[0].v.valor], ["moto", "abastecimento", ontem, FX.valor]);
+    const i1 = await ins();
+    assert.equal(i1.length, 1, "toque duplo grava uma vez");
+    assert.ok(/^[0-9a-f-]{36}$/.test(i1[0].v.id), "o id nasce na tela");
+    assert.deepEqual({ ...i1[0].v.dados }, { ...FX.dados, itensCusto: [["4,581 l de gasolina comum", 29.27]] });
+    assert.deepEqual([i1[0].v.quem, i1[0].v.tipo, i1[0].v.data, i1[0].v.valor], ["moto", "abastecimento", ontem, FX.valor]);
     assert.equal(await pag.evaluate(() => __ab.envios.length), 2, "as fotos do painel e da bomba foram junto");
-    assert.equal(g1.filter((g) => g.op === "update" && g.v.arquivos).length, 1);
-    /* 5. o histórico mostra o abastecimento como referência (primeiro tanque cheio: sem consumo ainda) */
+    /* 6. histórico: referência (primeiro tanque cheio, sem consumo inventado) */
     const hist = await pag.evaluate(() => document.querySelector("#veiculos-view .abhist").closest(".panel").innerText);
-    assert.match(hist, /18\.181 km/); assert.match(hist, /R\$\s?29,27/); assert.match(hist, /Referência para o próximo tanque cheio/); assert.match(hist, /primeiro tanque cheio é a referência/);
+    assert.match(hist, /18\.181 km/); assert.match(hist, /4,581 l/); assert.match(hist, /R\$\s?29,27/); assert.match(hist, /Referência para o próximo tanque cheio/);
     assert.ok(!/km\/l/.test(hist), "sem consumo inventado");
     assert.ok((await largura()) <= 375, "histórico sem rolagem lateral");
-    await foto("2-historico");
-    /* 6. o mesmo abastecimento de novo: a conferência acha no banco e não grava */
-    await botao("⛽ Novo abastecimento");
-    await pag.waitForSelector("#veiculos-view .abconf");
+    await foto("3-historico");
+    /* 7. o mesmo abastecimento de novo: a conferência acha no banco e não grava */
+    await botao("⛽ Novo abastecimento"); await pag.waitForSelector("#veiculos-view .abconf");
     await preencher(nmax); await botao("Tanque cheio"); await botao("Salvar abastecimento");
     await pag.waitForFunction(() => /já está lançado/.test(document.querySelector("#veiculos-view .abconf p[role=status]").textContent), null, { timeout: 5000 });
-    assert.equal(await pag.evaluate(() => __ab.gravacoes.filter((g) => g.op === "insert").length), 1, "duplicado não grava");
+    assert.equal((await ins()).length, 1, "duplicado não grava");
     await botao("Cancelar");
-    /* 7. sem internet: avisa e não tenta gravar */
-    await botao("⛽ Novo abastecimento");
-    await pag.waitForSelector("#veiculos-view .abconf");
-    await preencher({ ...nmax, "Quilometragem do painel (ODO)": "18290", "Litros": "2", "Total pago (R$)": "12,78" }); await botao("Parcial");
+    /* 8. sem internet: avisa e não grava */
+    const parcial = { ...nmax, "Data": hoje, "Quilometragem do painel (ODO)": "18290", "Litros": "2", "Total pago (R$)": "12,78", "Forma de pagamento": "Débito" };
+    await botao("⛽ Novo abastecimento"); await pag.waitForSelector("#veiculos-view .abconf");
+    await preencher(parcial); await botao("Parcial");
+    const antes = await grav();
     await ctx.setOffline(true);
     await botao("Salvar abastecimento");
     assert.match(await status(), /Sem internet: nada foi salvo/);
     await ctx.setOffline(false);
-    assert.equal(await pag.evaluate(() => __ab.gravacoes.length), 2, "nada novo gravado sem internet");
-    await botao("Cancelar");
-    /* 8. edição: mesmo registro, atualizadoEm e a versão anterior guardada */
-    await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .abhist button")].find((b) => b.textContent === "Editar").click());
+    assert.equal(await grav(), antes, "nada gravado sem internet");
+    /* 9. lançamento manual, sem fotos e sem IA: grava (depois de a internet voltar), sem enviar arquivo nenhum */
+    await botao("Salvar abastecimento");
+    await pag.waitForFunction(() => __ab.gravacoes.filter((g) => g.op === "insert").length === 2, null, { timeout: 5000 });
+    const i2 = (await ins())[1];
+    assert.deepEqual([i2.v.dados.km, i2.v.dados.litros, i2.v.dados.custo, i2.v.dados.tanque, i2.v.dados.origem], [18290, 2, 12.78, "parcial", "manual"]);
+    assert.equal(await pag.evaluate(() => __ab.envios.length), 2, "sem fotos, nada enviado");
+    await pag.waitForSelector("#veiculos-view .abhist");
+    /* 10. edição do primeiro: os 4,581 l aparecem como estão; mesmo registro, atualizadoEm e a versão anterior guardada */
+    await pag.evaluate((id) => [...document.querySelectorAll(`#veiculos-view .abhist li[data-reg="${id}"] button`)].find((b) => b.textContent === "Editar").click(), i1[0].v.id);
     await pag.waitForSelector("#veiculos-view .abconf");
-    assert.equal(await conf("Litros").inputValue(), "4,58");
-    await preencher({ "Litros": "4,60", "Total pago (R$)": "29,39" });
+    assert.equal(await conf("Litros").inputValue(), "4,581");
+    assert.equal(await salvarDesligado(), false, "registro completo pode ser salvo");
+    await conf("Forma de pagamento").fill("Crédito Mastercard (corrigido)");
+    const g0 = await grav();
     await botao("Salvar alterações");
-    await pag.waitForFunction(() => __ab.gravacoes.length === 3, null, { timeout: 5000 });
-    const ed = await pag.evaluate(() => __ab.gravacoes[2]);
-    assert.equal(ed.op, "update"); assert.equal(ed.f[0][1], ins[0].v.id, "atualiza o mesmo registro");
-    assert.equal(ed.v.dados.litros, 4.6); assert.ok(ed.v.dados.atualizadoEm); assert.equal(ed.v.dados.versoes.length, 1); assert.equal(ed.v.dados.versoes[0].litros, 4.58);
+    await pag.waitForFunction((n) => __ab.gravacoes.length === n + 1, g0, { timeout: 5000 });
+    const ed = await pag.evaluate(() => __ab.gravacoes[__ab.gravacoes.length - 1]);
+    assert.equal(ed.op, "update"); assert.deepEqual(ed.f, [["id", i1[0].v.id]], "atualiza o mesmo registro");
+    assert.equal(ed.v.dados.litros, 4.581); assert.equal(ed.v.dados.pagamento, "Crédito Mastercard (corrigido)"); assert.ok(ed.v.dados.atualizadoEm);
+    assert.equal(ed.v.dados.versoes.length, 1); assert.equal(ed.v.dados.versoes[0].pagamento, "Crédito Mastercard");
     assert.ok(!("criado_em" in ed.v), "a data de lançamento não muda");
-    /* 9. Civic: registros antigos sem tanque ficam fora do consumo; marcar exige escolher e confirmar, um por um */
+    assert.equal((await ins()).length, 2, "editar não cria outro");
+    /* 11. Civic: registros antigos sem tanque; marcar exige escolher e confirmar, um por um */
     await ir("#veiculos/civic", "#veiculos-view .abhist");
     const hc = await pag.evaluate(() => document.querySelector("#veiculos-view .abhist").closest(".panel").innerText);
     assert.match(hc, /marque “Tanque cheio”/); assert.equal((hc.match(/tanque \?/g) || []).length, 2);
     await pag.evaluate(() => [...document.querySelectorAll('#veiculos-view .abhist li[data-reg="c-ant1"] button')].find((b) => b.textContent === "Informar tanque").click());
     await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .abmarca button")].find((b) => b.textContent === "Cheio").click());
-    assert.equal(await pag.evaluate(() => __ab.gravacoes.length), 3, "escolher não grava");
+    const g1 = await grav();
     assert.match(await pag.evaluate(() => document.querySelector("#veiculos-view .abmarca").textContent), /Marcar o abastecimento de .* como tanque cheio\?/);
-    await foto("3-marcar-tanque");
     await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view .abmarca button")].find((b) => b.textContent === "Confirmar").click());
-    await pag.waitForFunction(() => __ab.gravacoes.length === 4, null, { timeout: 5000 });
-    const mt = await pag.evaluate(() => __ab.gravacoes[3]);
+    await pag.waitForFunction((n) => __ab.gravacoes.length === n + 1, g1, { timeout: 5000 });
+    const mt = await pag.evaluate(() => __ab.gravacoes[__ab.gravacoes.length - 1]);
     assert.deepEqual(mt.f, [["id", "c-ant1"]]); assert.equal(mt.v.dados.tanque, "cheio"); assert.equal(mt.v.dados.km, 103900); assert.ok(mt.v.dados.atualizadoEm);
     assert.equal(await pag.evaluate(() => __ab.banco.registros.find((r) => r.id === "c-ant2").dados.tanque), undefined, "o outro registro antigo não foi tocado");
-    /* 10. Painel → Finanças: combustível, consumo e despesas dos veículos, com fonte; combustível separado da manutenção */
+    /* 12. Painel → Finanças: combustível, consumo e despesas dos veículos, com fonte; combustível separado da manutenção */
     await pag.evaluate(() => { PAINEL.cache = {}; });
     await ir("#painel/financas", "#painel-view .pnfonte");
     await pag.waitForFunction(() => !/Carregando/.test(document.querySelector("#painel-view").innerText), null, { timeout: 15000 });
@@ -722,19 +755,21 @@ test("Veículos: 375 px, novo abastecimento com fotos, conferência, toque duplo
         semRotulo: [...document.querySelectorAll("#painel-view .vb")].filter((b) => !b.querySelector(".vbv")?.textContent || !b.querySelector(".vbl b")?.textContent).length, texto: document.querySelector("#painel-view").innerText }; });
     for (const t of ["Combustível", "Consumo e custo por km", "Despesas dos veículos"]) assert.ok(pn.titulos.includes(t), "falta o quadro " + t);
     assert.deepEqual(pn.semFonte, []); assert.equal(pn.semRotulo, 0);
-    assert.match(pn.texto, /Veículos · Combustível/); assert.match(pn.texto, /Veículos · Manutenção/);
-    assert.match(pn.texto, /Civic · Combustível/); assert.match(pn.texto, /Civic · Manutenção/);
-    assert.match(pn.texto, /R\$\s?29,39/, "o abastecimento editado conta com o valor novo");
-    assert.match(pn.texto, /Ainda não há, no período, dois abastecimentos de tanque cheio seguidos/, "sem dois cheios seguidos, nada de consumo");
+    assert.match(pn.texto, /Veículos · Combustível/); assert.match(pn.texto, /Veículos · Manutenção/); assert.match(pn.texto, /Civic · Manutenção/);
+    assert.match(pn.texto, /Moto · Combustível[\s\S]*R\$\s?42,05/, "moto: 29,27 + 12,78, cada um uma vez");
     assert.ok((await largura()) <= 375, "Painel sem rolagem lateral");
     await foto("4-painel");
-    /* 11. a Fernanda (papel casa) usa Veículos, mas o Painel continua só do dono */
+    /* 13. a Fernanda (papel casa) usa Veículos, mas o Painel continua só do dono */
     await pag.evaluate(() => { PAPEL = "casa"; });
     await ir("#veiculos/moto", "#veiculos-view .famhead");
     assert.ok(await pag.evaluate(() => [...document.querySelectorAll("#veiculos-view button")].some((b) => b.textContent === "⛽ Novo abastecimento")));
     await pag.evaluate(() => { location.hash = "#painel"; });
     await pag.waitForTimeout(400);
     assert.equal(await pag.evaluate(() => document.getElementById("painel").hidden), true, "casa não vê o Painel");
+    /* 14. nenhuma chamada REAL: o site fez um único pedido, à rac-ia, sem modo no corpo (quem decide é o servidor) */
+    const ia = await pag.evaluate(() => __ab.ia);
+    assert.equal(ia.length, 1); assert.equal(ia[0].nome, "rac-ia"); assert.equal(ia[0].corpo.acao, "abastecimento.interpretar");
+    assert.ok(!("modo" in ia[0].corpo) && !/REAL/.test(JSON.stringify(ia[0].corpo)), "o pedido não pede REAL");
     assert.deepEqual(erros, [], "nenhum erro no navegador");
   } finally {
     await nav.close();

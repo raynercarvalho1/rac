@@ -9,10 +9,10 @@
     "valor": "Posto dos Tropeiros, Sorocaba",
     "detalhes": null,
     "criado_em": "2026-11-01T12:00:00Z",
-    "dados": { "km": 18181, "litros": 4.58, "precoLitro": 6.39, "custo": 29.27, "combustivel": "gasolina comum", "tanque": "cheio", "pagamento": "Crédito Mastercard", "origem": "manual" }
+    "dados": { "km": 18181, "litros": 4.581, "precoLitro": 6.39, "custo": 29.27, "combustivel": "gasolina comum", "tanque": "cheio", "pagamento": "Crédito Mastercard", "origem": "manual" }
   },
   "leituras": {
-    "bomba": { "veiculo": null, "data": null, "km": null, "litros": 4.58, "preco_litro": 6.39, "total": 29.27, "combustivel": "gasolina", "posto": "Posto dos Tropeiros", "alertas": [] },
+    "bomba": { "veiculo": null, "data": null, "km": null, "litros": 4.581, "preco_litro": 6.39, "total": 29.27, "combustivel": "gasolina", "posto": "Posto dos Tropeiros", "alertas": [] },
     "painel": { "veiculo": "moto", "data": null, "km": 18181, "litros": null, "preco_litro": null, "total": null, "combustivel": null, "posto": "", "alertas": [] },
     "ilegivel": { "veiculo": null, "data": null, "km": null, "litros": null, "preco_litro": null, "total": null, "combustivel": null, "posto": "", "alertas": [] }
   }

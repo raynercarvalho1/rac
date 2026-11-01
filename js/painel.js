@@ -180,7 +180,7 @@
         return [B[i].nome,v?brl(v)+"/l · "+fmtN(Math.round(pm[m].litros*100)/100)+" l":"sem abastecimento com litros e total"]}));
       var ult=ab.filter(function(r){return r.data>=D.ini}).sort(function(a,b){return b.data.localeCompare(a.data)}).slice(0,5),ul=h("ul",{class:"wl"});
       ult.forEach(function(r){var A=NUCLEO.abLer(r);ul.appendChild(h("li",null,h("span",{class:"pnico",text:"⛽"}),h("a",{class:"grow",href:"#veiculos/"+r.quem},
-        h("b",{text:nome(r.quem)+" · "+dataBR(r.data)}),h("span",{class:"sub",text:[A.litros!=null?fmtN(A.litros)+" l":"",A.preco!=null?brl(A.preco)+"/l":"",A.tanque==="cheio"?"tanque cheio":A.tanque==="parcial"?"parcial":""].filter(Boolean).join(" · ")})),
+        h("b",{text:nome(r.quem)+" · "+dataBR(r.data)}),h("span",{class:"sub",text:[A.litros!=null?fmtLitros(A.litros)+" l":"",A.preco!=null?brl(A.preco)+"/l":"",A.tanque==="cheio"?"tanque cheio":A.tanque==="parcial"?"parcial":""].filter(Boolean).join(" · ")})),
         h("span",{class:"end",text:A.total!=null?brl(A.total):"—"})))});
       pc.appendChild(h("h3",{class:"mbag",text:"Últimos abastecimentos"}));pc.appendChild(ul)}
     pc.appendChild(pnFonte(fonteAb,D.ini,hoje));L.push(pc);

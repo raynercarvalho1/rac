@@ -30,14 +30,21 @@ JSON `dados` (005). O RLS, o backup (`NUCLEO.SEG_TABELAS`) e a trava "mfa" (022)
 
 ## O fluxo (Veículos → ⛽ Novo abastecimento)
 
-1. Veículo, foto do painel e foto da bomba (a nota fiscal é opcional, no campo de mais fotos).
-2. Ler: **Ler com IA** (ação `abastecimento.interpretar`) ou **Ler pelo Claude e colar a resposta**. Ou preencher à mão.
-3. Conferência: todos os campos editáveis; o tanque (cheio ou parcial) é obrigatório no lançamento novo.
-4. Salvar: só o toque em Salvar grava. Sem litros e sem total, vira só um registro de Quilometragem.
+1. Veículo e, se quiser, as fotos do painel e da bomba (opcionais: ficam como comprovante; a nota fiscal vai no campo de mais fotos).
+2. Preencher a conferência olhando as fotos. Opcional: **Ler com IA** (ação `abastecimento.interpretar`) ou **Ler pelo Claude e colar a resposta**.
+3. Conferência: todos os campos editáveis e vazios no começo (sem valor padrão). Escolher ou tirar uma foto não mexe nos campos.
+4. Salvar: fica **desligado** até a conferência estar completa e válida, e a linha acima dele diz o que falta. Só o toque em Salvar grava.
+   Para anotar só a quilometragem, use **Atualizar km**.
 
-A leitura só preenche a conferência. A ação continua em **DEMO** em produção (o banco só libera REAL para `newsletter.resumo`):
-a resposta simulada aparece na prévia e nunca chega à conferência (`NUCLEO.iaAbastTexto` recusa `_demo`). A Edge Function `rac-ia`
-não mudou nesta entrega: a leitura de hora e de "gasolina aditivada" pela IA fica para quando o REAL do abastecimento for liberado.
+**Validação do lançamento novo** (`NUCLEO.abConferir` com `exigir`): quilometragem inteira e maior que zero; litros, preço por litro
+e total maiores que zero; tanque cheio ou parcial; data não futura; e litros × preço igual ao total, com tolerância de R$ 0,10 ou 1%
+(o que for maior), porque a bomba arredonda os centavos. Nada é calculado no lugar do que falta. Na edição de um registro antigo,
+só é exigido o que ele já tinha. Litros e preço aceitam 3 casas (4,581 l), e a tela mostra os litros sem arredondar.
+
+**Leitura com IA em DEMONSTRAÇÃO:** a ação continua em **DEMO** em produção (o banco só libera REAL para `newsletter.resumo`).
+Em DEMO, a tela do abastecimento mostra só o aviso de que a leitura não está ligada e nada foi lido (opção `demo` do `iaBotao`):
+nenhum valor da resposta simulada aparece, nenhum campo é preenchido e nada pode ser salvo a partir dela (`NUCLEO.iaAbastTexto`
+recusa `_demo`). A Edge Function `rac-ia` não mudou: a leitura de hora e de "gasolina aditivada" fica para quando o REAL for liberado.
 
 ## Duplicidade
 

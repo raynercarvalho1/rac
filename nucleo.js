@@ -692,10 +692,87 @@
   /* cache local das análises REAIS: guarda as max mais recentes */
   function espCacheGuardar(cache,chave,item,max){var c={};Object.keys(cache||{}).forEach(function(k){c[k]=cache[k]});c[chave]=item;
     Object.keys(c).sort(function(a,b){return ((c[b]&&c[b].quando)||0)-((c[a]&&c[a].quando)||0)}).slice(max||8).forEach(function(k){delete c[k]});return c}
+  /* ===== Veículos: abastecimentos (registros tipo "abastecimento"), consumo e custos (docs/veiculos.md) =====
+     Nada é estimado: campo que falta fica null, e trecho com dado faltando ou incoerente sai da conta (com o motivo). */
+  var AB_COMBUST=["gasolina comum","gasolina aditivada","etanol","diesel"];
+  /* faixa possível de consumo (km/l): fora disso o trecho tem km ou litros errados */
+  var AB_KML={min:3,max:70};
+  function abNum(v){return typeof v==="number"&&isFinite(v)&&v>0?v:null}
+  /* um registro → os campos do abastecimento (os registros antigos não têm tanque: fica null, "não informado") */
+  function abLer(r){var d=r&&r.dados||{},km=abNum(d.km);
+    return {id:r.id,quem:r.quem,data:r.data,hora:/^\d{2}:\d{2}$/.test(d.hora||"")?d.hora:null,km:km!=null&&Math.round(km)===km?km:null,litros:abNum(d.litros),preco:abNum(d.precoLitro),
+      total:abNum(d.custo),tanque:d.tanque==="cheio"||d.tanque==="parcial"?d.tanque:null,combustivel:d.combustivel||null,posto:r.valor||null,pagamento:d.pagamento||null,origem:d.origem||null}}
+  function abOrdem(a,b){return a.data<b.data?-1:a.data>b.data?1:(a.hora||"")<(b.hora||"")?-1:(a.hora||"")>(b.hora||"")?1:(a.km||0)-(b.km||0)}
+  function abDoTipo(regs){return (regs||[]).filter(function(r){return r&&r.tipo==="abastecimento"&&r.data}).map(abLer).sort(abOrdem)}
+  /* um trecho de tanque cheio (L[i]) a tanque cheio (L[j]): os litros são os colocados depois do primeiro, com os parciais do meio e o segundo cheio */
+  function abTrecho(L,i,j){var A=L[i],B=L[j],meio=L.slice(i+1,j+1),t={de:A,ate:B,n:meio.length,km:null,litros:null,custo:null,kml:null,ok:false,motivo:null};
+    if(A.km==null||B.km==null){t.motivo="falta a quilometragem";return t}
+    if(B.km<=A.km){t.motivo="a quilometragem não aumentou";return t}
+    var ant=A.km;for(var k=0;k<meio.length;k++){var x=meio[k];
+      if(x.km!=null){if(x.km<ant||x.km>B.km){t.motivo="quilometragem fora de ordem";return t}ant=x.km}
+      if(x.litros==null){t.motivo="faltam os litros de um abastecimento";return t}
+      if(k<meio.length-1&&x.tanque==null){t.motivo="um abastecimento no meio está sem a marcação de tanque";return t}}
+    t.km=B.km-A.km;t.litros=Math.round(meio.reduce(function(s,x){return s+x.litros},0)*1000)/1000;t.kml=t.km/t.litros;
+    if(t.kml<AB_KML.min||t.kml>AB_KML.max){t.motivo="consumo impossível ("+(Math.round(t.kml*10)/10)+" km/l): confira km e litros";t.kml=null;return t}
+    t.custo=meio.every(function(x){return x.total!=null})?Math.round(meio.reduce(function(s,x){return s+x.total},0)*100)/100:null;
+    t.ok=true;return t}
+  /* consumo pelo método do tanque cheio, separado por veículo. ini/fim (opcionais): só os trechos inteiros dentro do período.
+     kml = soma dos km ÷ soma dos litros (média ponderada); kmlSimples = média dos km/l de cada trecho; custoKm = R$ ÷ km dos trechos com o total de todos */
+  function abConsumo(regs,ini,fim){var L=abDoTipo(regs),por={},trechos=[],cheios=0;
+    L.forEach(function(x){(por[x.quem]=por[x.quem]||[]).push(x)});
+    Object.keys(por).forEach(function(q){var V=por[q],a=-1;for(var i=0;i<V.length;i++){if(V[i].tanque!=="cheio")continue;cheios++;if(a>=0)trechos.push(abTrecho(V,a,i));a=i}});
+    trechos=trechos.filter(function(t){return (!ini||t.de.data>=ini)&&(!fim||t.ate.data<=fim)});
+    var ok=trechos.filter(function(t){return t.ok}),km=ok.reduce(function(s,t){return s+t.km},0),l=ok.reduce(function(s,t){return s+t.litros},0),
+      cc=ok.filter(function(t){return t.custo!=null}),ckm=cc.reduce(function(s,t){return s+t.km},0),cr=cc.reduce(function(s,t){return s+t.custo},0);
+    return {trechos:trechos,validos:ok.length,descartados:trechos.length-ok.length,cheios:cheios,km:km,litros:Math.round(l*1000)/1000,
+      kml:l?km/l:null,kmlSimples:ok.length?ok.reduce(function(s,t){return s+t.kml},0)/ok.length:null,custoKm:ckm?cr/ckm:null,custoKmBase:{km:ckm,custo:Math.round(cr*100)/100,trechos:cc.length}}}
+  /* preço por litro: ponderado = total pago ÷ litros (só registros com os dois); simples = média dos preços anotados */
+  function abPrecos(regs){var L=abDoTipo(regs),c=L.filter(function(x){return x.litros!=null&&x.total!=null}),p=L.filter(function(x){return x.preco!=null}),
+      t=c.reduce(function(s,x){return s+x.total},0),l=c.reduce(function(s,x){return s+x.litros},0);
+    return {ponderado:l?t/l:null,simples:p.length?p.reduce(function(s,x){return s+x.preco},0)/p.length:null,n:c.length,litros:Math.round(l*1000)/1000,total:Math.round(t*100)/100}}
+  /* por mês: gasto (total pago), litros, quantidade e preço ponderado do mês */
+  function abPorMes(regs,meses){var o={};meses.forEach(function(m){o[m]={gasto:0,litros:0,n:0,preco:null,_t:0,_l:0}});
+    abDoTipo(regs).forEach(function(x){var b=o[x.data.slice(0,7)];if(!b)return;b.n++;if(x.total!=null)b.gasto+=x.total;if(x.litros!=null)b.litros+=x.litros;if(x.total!=null&&x.litros!=null){b._t+=x.total;b._l+=x.litros}});
+    meses.forEach(function(m){var b=o[m];b.gasto=Math.round(b.gasto*100)/100;b.litros=Math.round(b.litros*1000)/1000;b.preco=b._l?b._t/b._l:null;delete b._t;delete b._l});return o}
+  /* tudo de um período (ini..fim): gasto, litros, preços e consumo */
+  function abResumo(regs,ini,fim){var L=(regs||[]).filter(function(r){return r&&r.tipo==="abastecimento"&&r.data&&(!ini||r.data>=ini)&&(!fim||r.data<=fim)}),A=abDoTipo(L);
+    return {n:A.length,gasto:Math.round(A.reduce(function(s,x){return s+(x.total||0)},0)*100)/100,litros:Math.round(A.reduce(function(s,x){return s+(x.litros||0)},0)*1000)/1000,
+      precos:abPrecos(L),consumo:abConsumo(regs,ini,fim)}}
+  /* o mesmo abastecimento já lançado: mesmo veículo e data e (mesma km, ou mesmo total e litros). ignorar = o próprio registro, na edição */
+  function abDuplicado(c,regs,ignorar){var perto=function(a,b){return a!=null&&b!=null&&Math.abs(a-b)<0.005};
+    return abDoTipo(regs).filter(function(x){return x.id!==ignorar&&x.quem===c.quem&&x.data===c.data&&((c.km!=null&&x.km===c.km)||(perto(x.total,c.total)&&perto(x.litros,c.litros)))})[0]||null}
+  /* conferência antes de salvar: erros impedem; avisos só alertam. ctx: {hoje, ultimaKm, exigirTanque} */
+  function abConferir(c,ctx){ctx=ctx||{};var e=[],a=[];
+    if(!c.quem)e.push("Escolha o veículo.");
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.data||""))e.push("Escolha a data.");else if(ctx.hoje&&c.data>ctx.hoje)e.push("A data está no futuro.");
+    if(c.litros==null&&c.total==null)e.push("Preencha os litros e o total (estão na bomba).");
+    if(c.litros!=null&&!(c.litros>=0.1&&c.litros<=200))e.push("Os litros parecem errados ("+c.litros+").");
+    if(c.preco!=null&&!(c.preco>=1&&c.preco<=20))e.push("O preço por litro parece errado ("+c.preco+").");
+    if(c.total!=null&&!(c.total>=0.5&&c.total<=5000))e.push("O total parece errado ("+c.total+").");
+    if(c.km!=null&&!(c.km>0&&c.km<2e6&&Math.round(c.km)===c.km))e.push("A quilometragem precisa ser um número inteiro, como 18181.");
+    if(ctx.exigirTanque&&c.tanque!=="cheio"&&c.tanque!=="parcial")e.push("Marque se o tanque ficou cheio ou parcial.");
+    if(c.km==null)a.push("Sem a quilometragem do painel, este abastecimento não entra no cálculo de consumo.");
+    if(c.litros!=null&&c.preco!=null&&c.total!=null&&Math.abs(c.litros*c.preco-c.total)>Math.max(0.05,c.total*0.01))a.push("Litros × preço dá "+(Math.round(c.litros*c.preco*100)/100).toFixed(2).replace(".",",")+", diferente do total. Confira na foto da bomba.");
+    if(c.km!=null&&ctx.ultimaKm!=null&&c.km<ctx.ultimaKm)a.push("A quilometragem é menor que a última anotada ("+ctx.ultimaKm+"). Confira se não leu o parcial (Trip).");
+    if(c.km!=null&&ctx.ultimaKm!=null&&c.km-ctx.ultimaKm>5000)a.push("São mais de 5.000 km desde a última anotação. Confira o hodômetro.");
+    return {erros:e,avisos:a}}
+  /* o campo dados para gravar: mantém o que já havia (alertas, ficha…), troca os campos do abastecimento e, na edição,
+     anota atualizadoEm e guarda os valores anteriores em versoes (até 10). criado_em não está aqui: o banco não muda. */
+  function abDados(c,ant,agora){var d={},o=ant&&ant.dados||{};Object.keys(o).forEach(function(k){d[k]=o[k]});
+    var m={km:c.km,litros:c.litros,precoLitro:c.preco,custo:c.total!=null?Math.round(c.total*100)/100:null,combustivel:c.combustivel||null,tanque:c.tanque||null,pagamento:c.pagamento||null,hora:c.hora||null};
+    Object.keys(m).forEach(function(k){if(m[k]==null)delete d[k];else d[k]=m[k]});
+    if(d.custo!=null)d.itensCusto=[[(d.litros?String(d.litros).replace(".",",")+" l de ":"")+(d.combustivel||"combustível"),d.custo]];else delete d.itensCusto;
+    if(ant){var v={em:o.atualizadoEm||ant.criado_em||null,data:ant.data};["km","litros","precoLitro","custo","combustivel","tanque","pagamento","hora"].forEach(function(k){if(o[k]!=null)v[k]=o[k]});
+      d.versoes=(Array.isArray(o.versoes)?o.versoes:[]).concat([v]).slice(-10);d.atualizadoEm=agora;d.origem=o.origem||"manual"}
+    else d.origem=c.origem||"manual";
+    return d}
+  /* as despesas dos veículos em categorias separadas: combustível não se mistura com manutenção */
+  function pnVeicCat(tipo){return tipo==="abastecimento"?"Combustível":/^(revisao|oleo|manutencao|bateria|pneu)$/.test(tipo)?"Manutenção":tipo==="seguro"?"Seguro":tipo==="documento"?"Impostos e licenciamento":"Outros"}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
     pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias,
-    ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar};
+    ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar,
+    AB_COMBUST:AB_COMBUST,AB_KML:AB_KML,abLer:abLer,abConsumo:abConsumo,abPrecos:abPrecos,abPorMes:abPorMes,abResumo:abResumo,abDuplicado:abDuplicado,abConferir:abConferir,abDados:abDados,pnVeicCat:pnVeicCat};
 })(typeof window!=="undefined"?window:globalThis);

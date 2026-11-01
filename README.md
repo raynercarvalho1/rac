@@ -43,6 +43,12 @@ Página `#esportes` (`js/esportes.js` + `js/esportes-central.js`): MLB com os Do
 modalidades, com classificação, líderes, estatísticas, desempenho recente e comparações, e a análise com IA sobre um pacote de fatos
 (ações `esportes.analise` e `esportes.giro`, só DEMO nesta etapa). Tudo em [docs/esportes.md](docs/esportes.md).
 
+## Veículos e abastecimentos
+
+Página `#veiculos` (`js/familia.js`): ⛽ Novo abastecimento pelas fotos do painel e da bomba, conferência antes de salvar, histórico,
+consumo de tanque cheio a tanque cheio, custo por km e os quadros de combustível no Painel. Usa a tabela `registros` (sem tabela
+nova); as contas ficam em `NUCLEO.ab*`. Tudo em [docs/veiculos.md](docs/veiculos.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).

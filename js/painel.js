@@ -140,6 +140,7 @@
     var porF={};g.forEach(function(x){if(x.d>=D.ini)porF[x.f]=(porF[x.f]||0)+x.v});var tf=Object.keys(porF).reduce(function(s,k){return s+porF[k]},0);
     if(tf)pg.appendChild(rsBarras(Object.keys(porF).sort(function(a,b){return porF[b]-porF[a]}).map(function(k){return {nome:k,v:porF[k],txt:brl(porF[k]),sub:Math.round(porF[k]/tf*100)+"% do período",dica:brl(porF[k])+" · "+Math.round(porF[k]/tf*100)+"% do período"}})));
     pg.appendChild(pnFonte("Mercado, registros com custo e MBA",D.ini,hoje));L.push(pg);
+    L=L.concat(pnVeiculos(D,B));
     /* evolução das compras do Mercado: quantas idas e ticket médio */
     var pc=panel("Evolução das compras","Idas ao mercado (uma por nota) e o valor médio de cada uma.");
     if(D.compras.ok){var notas={};D.compras.v.forEach(function(x){if(x.data<D.ini)return;var k=x.data+"|"+x.mercado+"|"+(x.numero||"");notas[k]=notas[k]||{m:x.data.slice(0,7),t:0};notas[k].t+=+x.valor_total||0});
@@ -150,12 +151,58 @@
     pc.appendChild(pnFonte("Mercado (notas lançadas)",D.ini,hoje));L.push(pc);
     /* categorias do período */
     var pk=panel("Categorias de despesas","Mercado pela categoria do produto; os registros pelo tipo (consulta, abastecimento…).");
-    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=(x.f==="Mercado"?"":x.f+" · ")+(x.f==="Mercado"?x.cat:typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
+    var cat={};g.forEach(function(x){if(x.d<D.ini)return;var k=(x.f==="Mercado"?"":x.f+" · ")+(x.f==="Mercado"?x.cat:x.f==="Veículos"?NUCLEO.pnVeicCat(x.cat):typeof tipoInfo==="function"?tipoInfo(x.cat)[1]:x.cat);cat[k]=(cat[k]||0)+x.v});
     var ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
     pk.appendChild(ks.length?rsBarras(ks.slice(0,12).map(function(k){return {nome:k,v:cat[k],txt:brl(cat[k])}})):pnVazio("Nenhuma despesa com categoria no período."));
     if(ks.length>12)pk.appendChild(h("p",{class:"sub",text:"+ "+(ks.length-12)+" categorias menores."}));
     pk.appendChild(pnFonte("Mercado (categoria do produto) e registros com custo",D.ini,hoje));L.push(pk);
     L.push(pnOrcPainel(D));return L}
+  /* veículos: os registros dos veículos (os mesmos que já entram nos gastos, uma vez cada). Combustível é separado da manutenção;
+     consumo e custo por km só por veículo, de tanque cheio a tanque cheio (NUCLEO.abConsumo), e só com trechos inteiros no período */
+  function pnVeiculos(D,B){
+    var veics=typeof FAM!=="undefined"?Object.keys(FAM).filter(function(k){return FAM[k].veic}):[],hoje=D.hoje,L=[];
+    var R=D.registros.ok?D.registros.v.filter(function(r){return veics.indexOf(r.quem)>=0}):[],ab=R.filter(function(r){return r.tipo==="abastecimento"});
+    var nome=function(q){return FAM[q].n},f1=function(v){return fmtN(Math.round(v*10)/10)},fonteAb="Veículos → abastecimentos (o total pago na bomba de cada um)";
+    /* 1. combustível: gasto, litros, preço por litro e os últimos abastecimentos */
+    var pc=panel("Combustível","Gasto e preço por litro dos abastecimentos de todos os veículos.");
+    var rP=NUCLEO.abResumo(ab,D.ini,hoje),rA=NUCLEO.abResumo(ab,D.iniAnt,D.fimAnt);
+    if(!D.registros.ok)pc.appendChild(pnVazio("Não consegui ler os registros dos veículos agora ("+D.registros.erro+")."));
+    else if(!rP.n)pc.appendChild(pnVazio("Nenhum abastecimento registrado no período. Lance pelo ⛽ Novo abastecimento, em Veículos."));
+    else{pc.appendChild(h("div",{class:"kgasto"},pnKpi("Gasto no período",pnBRL(rP.gasto),rA.n?"antes: "+brl(rA.gasto)+" · "+pnDif(rP.gasto,rA.gasto,brl,true):"sem abastecimentos no período anterior"),
+        pnKpi("Litros",fmtN(Math.round(rP.litros*100)/100),rP.n+(rP.n===1?" abastecimento":" abastecimentos")),
+        rP.precos.ponderado?pnKpi("Preço médio por litro",pnBRL(rP.precos.ponderado),"ponderado pelos litros"+(rP.precos.simples?" · simples "+brl(rP.precos.simples):"")):null));
+      var pm=NUCLEO.abPorMes(ab,D.meses),porV={};veics.forEach(function(q){porV[q]=NUCLEO.abPorMes(ab.filter(function(r){return r.quem===q}),D.meses)});
+      pc.appendChild(h("h3",{class:"mbag",text:"Gasto com combustível por mês"}));
+      pc.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].gasto}),pnCurto,function(i,v){var m=D.meses[i];
+        return [B[i].nome,v?brl(v)+" · "+fmtN(Math.round(pm[m].litros*100)/100)+" l · "+veics.filter(function(q){return porV[q][m].gasto}).map(function(q){return nome(q)+" "+brl(porV[q][m].gasto)}).join(" · "):"sem abastecimento"]}));
+      pc.appendChild(h("h3",{class:"mbag",text:"Preço por litro (média ponderada do mês)"}));
+      pc.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].preco||0}),function(v){return fmtN(Math.round(v*100)/100)},function(i,v){var m=D.meses[i];
+        return [B[i].nome,v?brl(v)+"/l · "+fmtN(Math.round(pm[m].litros*100)/100)+" l":"sem abastecimento com litros e total"]}));
+      var ult=ab.filter(function(r){return r.data>=D.ini}).sort(function(a,b){return b.data.localeCompare(a.data)}).slice(0,5),ul=h("ul",{class:"wl"});
+      ult.forEach(function(r){var A=NUCLEO.abLer(r);ul.appendChild(h("li",null,h("span",{class:"pnico",text:"⛽"}),h("a",{class:"grow",href:"#veiculos/"+r.quem},
+        h("b",{text:nome(r.quem)+" · "+dataBR(r.data)}),h("span",{class:"sub",text:[A.litros!=null?fmtN(A.litros)+" l":"",A.preco!=null?brl(A.preco)+"/l":"",A.tanque==="cheio"?"tanque cheio":A.tanque==="parcial"?"parcial":""].filter(Boolean).join(" · ")})),
+        h("span",{class:"end",text:A.total!=null?brl(A.total):"—"})))});
+      pc.appendChild(h("h3",{class:"mbag",text:"Últimos abastecimentos"}));pc.appendChild(ul)}
+    pc.appendChild(pnFonte(fonteAb,D.ini,hoje));L.push(pc);
+    /* 2. consumo e custo por km, por veículo (não se mistura moto com carro) */
+    var pk=panel("Consumo e custo por km","Por veículo, de tanque cheio a tanque cheio: km rodados ÷ litros colocados (com os parciais do meio). Média ponderada: soma dos km ÷ soma dos litros. Custo por km: o que foi pago nesses trechos ÷ os km deles. Trecho com dado faltando ou incoerente fica fora.");
+    var cv=veics.map(function(q){return {q:q,c:NUCLEO.abConsumo(ab.filter(function(r){return r.quem===q}),D.ini,hoje)}}).filter(function(x){return x.c.validos});
+    if(cv.length)pk.appendChild(rsBarras(cv.map(function(x){var c=x.c;return {nome:nome(x.q),v:c.kml,txt:f1(c.kml)+" km/l",href:"#veiculos/"+x.q,
+      sub:[c.custoKm?brl(c.custoKm)+"/km":"",fmtKm0(c.km),c.validos+(c.validos===1?" trecho":" trechos")].filter(Boolean).join(" · "),
+      dica:f1(c.kml)+" km/l (ponderada"+(c.validos>1?"; simples "+f1(c.kmlSimples):"")+") · "+fmtKm0(c.km)+" com "+fmtN(Math.round(c.litros*100)/100)+" l"+(c.custoKm?" · "+brl(c.custoKm)+"/km":"")}})));
+    else pk.appendChild(pnVazio("Ainda não há, no período, dois abastecimentos de tanque cheio seguidos do mesmo veículo. O consumo aparece a partir do segundo tanque cheio."));
+    pk.appendChild(pnFonte(fonteAb+", com a quilometragem do painel e a marcação de tanque",D.ini,hoje));L.push(pk);
+    /* 3. despesas dos veículos por categoria: combustível, manutenção, seguro e impostos, cada uma separada */
+    var pd=panel("Despesas dos veículos","Combustível separado de manutenção, seguro e impostos. São os mesmos valores que entram nos gastos, uma vez cada.");
+    var cat={},tot=0,totA=0;R.forEach(function(r){var c=(r.dados||{}).custo;if(typeof c!=="number"||!isFinite(c)||(r.dados||{}).compra)return;
+      if(r.data>=D.ini&&r.data<=hoje){var k=nome(r.quem)+" · "+NUCLEO.pnVeicCat(r.tipo);cat[k]=(cat[k]||0)+c;tot+=c}else if(r.data>=D.iniAnt&&r.data<=D.fimAnt)totA+=c});
+    var ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
+    if(ks.length){pd.appendChild(h("div",{class:"kgasto"},pnKpi("Total dos veículos",pnBRL(tot),totA?"antes: "+brl(totA)+" · "+pnDif(tot,totA,brl,true):"sem despesas no período anterior")));
+      pd.appendChild(rsBarras(ks.map(function(k){return {nome:k,v:cat[k],txt:brl(cat[k]),sub:Math.round(cat[k]/tot*100)+"% dos veículos"}})))}
+    else pd.appendChild(pnVazio("Nenhuma despesa de veículo no período."));
+    pd.appendChild(pnFonte("Veículos → registros com custo (abastecimentos, revisões, manutenção, seguro, impostos)",D.ini,hoje));L.push(pd);
+    return L}
+  function fmtKm0(v){return Math.round(v).toLocaleString("pt-BR")+" km"}
   /* orçamento do mês por categoria do Mercado: a tabela orcamentos já existia sem tela; aqui ela ganha a conferência e o ajuste */
   function pnOrcPainel(D){
     var mes=D.hoje.slice(0,7),gm={};if(D.compras.ok)D.compras.v.forEach(function(x){if(x.data.slice(0,7)===mes){var c=x.categoria||"Outros";gm[c]=(gm[c]||0)+(+x.valor_total||0)}});

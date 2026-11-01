@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-01.1",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-01.2",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"]};
@@ -950,12 +950,13 @@
       r.mensagem?h("p",{class:"sub",text:String(r.mensagem).replace(/^DEMONSTRAÇÃO:[^.]*\.[^.]*\.\s*/,"")}):null,ul,
       (r.avisos||[]).length?h("p",{class:"sub",text:r.avisos.join(" ")}):null)}
   /* botão "Ler com IA" de um módulo: fotos e texto opcionais; real(resultado) só recebe resposta REAL sem _demo */
+  /* o.arquivos (opcional): a tela já tem os seus campos de foto (ex.: painel e bomba do abastecimento) e o botão usa esses */
   function iaBotao(o){
-    var fotos=h("input",{type:"file",accept:"image/*",multiple:"","aria-label":"Fotos para a IA ler"}),texto=o.texto?h("input",{type:"text",placeholder:o.texto,"aria-label":"Texto para a IA ler"}):null;
+    var fotos=o.arquivos?null:h("input",{type:"file",accept:"image/*",multiple:"","aria-label":"Fotos para a IA ler"}),texto=o.texto?h("input",{type:"text",placeholder:o.texto,"aria-label":"Texto para a IA ler"}):null;
     var b=h("button",{type:"button",class:"ghostbtn pri",text:"✨ Ler com IA"}),st=h("p",{class:"sub",role:"status"}),previa=h("div");
     b.onclick=function(){
       if(b.disabled)return;
-      var arqs=[].slice.call(fotos.files||[]).slice(0,4),t=texto?texto.value.trim():"";
+      var arqs=(o.arquivos?o.arquivos():[].slice.call(fotos.files||[])).slice(0,4),t=texto?texto.value.trim():"";
       if(!arqs.length&&!t){st.textContent="Escolha uma foto"+(texto?" ou escreva o texto":"")+".";return}
       b.disabled=true;st.textContent="Lendo com a IA…";previa.innerHTML="";
       Promise.all(arqs.map(iaFoto)).then(function(imgs){return racIA(o.modulo,o.acao,{texto:t,imagens:imgs},o.contexto?o.contexto():{})}).then(function(r){

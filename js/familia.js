@@ -9,7 +9,7 @@
     /* veículos: mesma tabela de registros, outra lista de tipos e outro resumo; aparecem na página Veículos.
        Placa, ano e cor ficam num registro com dados.ficha, na conta, e não aqui no código (o repositório é público) */
     civic:{n:"Civic",veic:true,root:"veiculos-view",desc:"Honda Civic"},
-    moto:{n:"Moto",veic:true,root:"veiculos-view",desc:"Yamaha"},
+    moto:{n:"Moto",veic:true,root:"veiculos-view",desc:"Yamaha NMax"},
     c3:{n:"C3 (antigo)",veic:true,root:"veiculos-view",desc:"Citroën C3"},
     /* cofre de documentos da casa: mesmo motor, com validade ("Vence em") que entra na Agenda */
     docs:{n:"Documentos",docs:true,root:"documentos-view"}};
@@ -246,7 +246,8 @@
     if(typeof d.km==="number"||typeof d.proxKm==="number"||d.vigenciaFim||d.garantiaAte)card.appendChild(h("p",{class:"sub"},[
       typeof d.km==="number"?"Quilometragem: "+fmtKm(d.km):"",typeof d.proxKm==="number"?"Próxima com "+fmtKm(d.proxKm):"",
       d.vigenciaFim?"Vigência até "+dataBR(d.vigenciaFim):"",d.garantiaAte?"Garantia até "+dataBR(d.garantiaAte):""].filter(Boolean).join(" · ")));
-    if(typeof d.litros==="number")card.appendChild(h("p",{class:"sub",text:fmtN(d.litros)+" litros"+(d.precoLitro?" a "+brl(d.precoLitro)+"/l":"")+(d.combustivel?" · "+d.combustivel:"")}));
+    if(typeof d.litros==="number")card.appendChild(h("p",{class:"sub",text:fmtN(d.litros)+" litros"+(d.precoLitro?" a "+brl(d.precoLitro)+"/l":"")+(d.combustivel?" · "+d.combustivel:"")+(r.tipo==="abastecimento"?" · "+(d.tanque==="cheio"?"tanque cheio":d.tanque==="parcial"?"parcial":"tanque não informado"):"")+(d.pagamento?" · "+d.pagamento:"")}));
+    if(r.tipo==="abastecimento"&&(d.origem||d.atualizadoEm))card.appendChild(h("p",{class:"sub",text:[d.origem==="ia"?"Lido pela IA e conferido":d.origem==="claude"?"Lido pelo Claude e conferido":d.origem==="manual"?"Lançado à mão":"",d.atualizadoEm?"editado em "+dataBR(d.atualizadoEm.slice(0,10)):""].filter(Boolean).join(" · ")}));
     (d.alertas||[]).forEach(function(a){card.appendChild(h("p",{class:"qrwarn",text:"⚠ "+a}))});
     var quem=[d.clinica,d.vet].filter(Boolean).join(" · ");if(quem)card.appendChild(h("p",{class:"sub",text:quem}));
     if(d.motivo)card.appendChild(h("p",null,h("b",{text:"Motivo: "}),d.motivo));
@@ -360,13 +361,11 @@
     var pts=regs.map(function(r){return {data:r.data,km:dadosDe(r).km}}).filter(function(x){return typeof x.km==="number"&&x.data>=maisDias(hojeISO(),-365)}).sort(function(a,b){return a.data.localeCompare(b.data)});
     if(pts.length<2)return null;var a=pts[0],b=pts[pts.length-1],dias=(new Date(b.data)-new Date(a.data))/864e5;
     return dias>=20&&b.km>a.km?{kmDia:(b.km-a.km)/dias,de:a,ate:b}:null}
-  /* custo por km (tudo que tem custo) e só do combustível, mais o consumo médio entre tanques, no mesmo período do ritmo */
+  /* custo por km (tudo que tem custo) e só do combustível, no período do ritmo; o consumo é o de tanque cheio a tanque cheio (NUCLEO.abConsumo) */
   function veicCustos(regs,rit){
     if(!rit||rit.ate.km-rit.de.km<300)return null;var rod=rit.ate.km-rit.de.km,tot=0,comb=0;
     regs.forEach(function(r){var c=dadosDe(r).custo;if(typeof c!=="number"||r.data<=rit.de.data||r.data>rit.ate.data)return;tot+=c;if(r.tipo==="abastecimento")comb+=c});
-    var ab=regs.filter(function(r){return r.tipo==="abastecimento"&&typeof dadosDe(r).km==="number"}).sort(function(a,b){return a.data.localeCompare(b.data)}),km=0,l=0;
-    for(var i=1;i<ab.length;i++){var d=dadosDe(ab[i]);if(d.litros&&d.km>dadosDe(ab[i-1]).km){km+=d.km-dadosDe(ab[i-1]).km;l+=d.litros}}
-    return {rod:rod,tot:tot,comb:comb,porKm:tot/rod,combKm:comb/rod,consumo:l?km/l:null}}
+    return {rod:rod,tot:tot,comb:comb,porKm:tot/rod,combKm:comb/rod,consumo:NUCLEO.abConsumo(regs).kml}}
   function veicAgora(quem,regs,ir){
     var p=panel("Como "+(quem==="moto"?"a ":"o ")+FAM[quem].n+" está","Toque numa linha para ver o registro completo."),ul=h("ul",{class:"wl famagora"}),hoje=hojeISO(),km=veicKm(regs);
     function item(rot,val,sub,cls,r){var li=h("li",{class:(cls||"")+(r?" clic":""),tabindex:r?"0":null,role:r?"button":null},h("span",{class:"grow"},h("b",{text:rot}),sub?h("span",{class:"sub",text:sub}):null),val?h("span",{class:"end",text:val}):null);
@@ -400,16 +399,6 @@
       .forEach(function(r){r.dados.alertas.forEach(function(a){item("Aviso da oficina ("+dataBR(r.data)+")","",a,"alerta",r)})});
     if(!ul.children.length)return null;
     p.appendChild(ul);return p}
-  /* consumo: entre dois abastecimentos de tanque cheio, km rodados ÷ litros do segundo */
-  function veicConsumo(regs){
-    var ab=regs.filter(function(r){return r.tipo==="abastecimento"}).sort(function(a,b){return a.data.localeCompare(b.data)});if(!ab.length)return null;
-    var p=panel("Abastecimentos",ab.length+(ab.length===1?" anotado":" anotados")),tb=h("table",{class:"famtab"});
-    tb.appendChild(h("thead",null,h("tr",null,["Data","Km","Litros","R$/litro","Total","Consumo"].map(function(c){return h("th",{text:c})}))));
-    tb.appendChild(h("tbody",null,ab.map(function(r,i){var d=dadosDe(r),ant=ab[i-1]&&dadosDe(ab[i-1]),c=ant&&typeof ant.km==="number"&&typeof d.km==="number"&&d.litros?(d.km-ant.km)/d.litros:null;
-      return h("tr",null,h("td",{text:dataBR(r.data)}),h("td",{text:typeof d.km==="number"?fmtKm(d.km):"—"}),h("td",{text:d.litros?fmtN(d.litros):"—"}),h("td",{text:d.precoLitro?brl(d.precoLitro):"—"}),
-        h("td",{text:typeof d.custo==="number"?brl(d.custo):"—"}),h("td",{text:c?fmtN(Math.round(c*100)/100)+" km/l":"—"}))})));
-    p.appendChild(h("div",{class:"famtabw"},tb));return p}
-
   function renderFamilia(quem){
     var root=$("#"+(FAM[quem].root||quem+"-view")),F=FAM[quem],merc=[];root.innerHTML="";
     root.appendChild(h("div",{class:"panel"},loading()));
@@ -428,16 +417,18 @@
       if(topoH===quem||(ehVeic(quem)&&topoH==="veiculos"))fundoPagina(fotoBg?urls[fotoBg.path]:null,F.n,ehVeic(quem));
       var nasc=regs.filter(function(r){return r.tipo==="nascimento"})[0],ultPeso=regs.filter(function(r){return r.tipo==="peso"&&r.valor})[0];
       var foto=regs.filter(function(r){return dadosDe(r).perfil&&(r.arquivos||[]).some(function(a){return urls[a.path]&&/^image\//.test(a.tipo)})})[0];
-      var add=h("button",{type:"button",class:"mkadd",text:"+ Adicionar registro"}),imp=h("button",{type:"button",class:"ghostbtn",text:"Importar histórico"}),abf=ehVeic(quem)?h("button",{type:"button",class:"ghostbtn",text:"📷 Painel ou abastecimento pela foto"}):null,akm=ehVeic(quem)?h("button",{type:"button",class:"ghostbtn",text:"Atualizar km"}):null;
+      var add=h("button",{type:"button",class:"mkadd",text:"+ Adicionar registro"}),imp=h("button",{type:"button",class:"ghostbtn",text:"Importar histórico"}),abf=ehVeic(quem)?h("button",{type:"button",class:"mkadd",text:"⛽ Novo abastecimento"}):null,akm=ehVeic(quem)?h("button",{type:"button",class:"ghostbtn",text:"Atualizar km"}):null;
       var topo=h("div",{class:"panel famhead"},foto?h("img",{class:"famav",src:urls[foto.arquivos.filter(function(a){return /^image\//.test(a.tipo)})[0].path],alt:F.n}):null,
         h("div",{class:"grow"},h("h2",{text:F.n}),
         h("p",{class:"sub",text:F.docs?"Documentos, garantias, notas fiscais e contratos da casa. O que tem validade entra na Agenda.":ehVeic(quem)?[(regs.filter(function(r){return dadosDe(r).ficha})[0]||{dados:{ficha:F.desc}}).dados.ficha,(function(){var k=veicKm(regs);return k?fmtKm(k.km)+" em "+dataBR(k.data):""})()].filter(Boolean).join(" · "):[nasc?idadeTxt(nasc.data)+" (nasceu em "+dataBR(nasc.data)+")":"Adicione um registro “Nascimento” para mostrar a idade",ultPeso?"último peso "+ultPeso.valor+" kg em "+dataBR(ultPeso.data):""].filter(Boolean).join(" · ")})),
-        h("div",{class:"vfil famacoes"},add,akm,abf,imp));
+        h("div",{class:"vfil famacoes"},abf,add,akm,imp));
       root.appendChild(topo);
       var formBox=h("div");root.appendChild(formBox);
       add.onclick=function(){abrirForm(null)};
       if(akm)akm.onclick=function(){formBox.innerHTML="";formBox.appendChild(veicKmForm(quem,regs,function(){renderFamilia(quem)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})};
-      if(abf)abf.onclick=function(){formBox.innerHTML="";formBox.appendChild(veicFoto(quem,regs,function(q){try{localStorage.setItem("rac-veic",q)}catch(e){}if(location.hash!=="#veiculos/"+q)location.hash="#veiculos/"+q;else renderVeiculos(q)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})};
+      if(abf)abf.onclick=function(){abrirAb(null)};
+      /* abastecimento novo ou editado: depois de salvar, abre o veículo em que ficou */
+      function abrirAb(reg){formBox.innerHTML="";formBox.appendChild(abForm(quem,regs,reg,function(q){try{localStorage.setItem("rac-veic",q)}catch(e){}if(q===quem)renderFamilia(quem);else if(location.hash!=="#veiculos/"+q)location.hash="#veiculos/"+q;else renderVeiculos(q)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})}
       imp.onclick=function(){formBox.innerHTML="";formBox.appendChild(famImportar(quem,regs,function(){renderFamilia(quem)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})};
       function abrirForm(reg){formBox.innerHTML="";formBox.appendChild(famForm(quem,reg,function(){renderFamilia(quem)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})}
       if(!regs.length){root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:F.docs?"Nada guardado ainda. Toque em “Adicionar registro” para guardar o primeiro documento, garantia ou nota fiscal (com foto ou PDF e a validade).":"Nada registrado ainda. Toque em “Adicionar registro” para lançar o primeiro exame, vacina ou foto, ou em “Importar histórico”."})));return}
@@ -465,7 +456,7 @@
               else if(/pdf/i.test(x.tipo)||/\.pdf$/i.test(x.nome))g.appendChild(pdfMini(u,x.nome));
               else g.appendChild(ext(u,"📄 Abrir "+x.nome,"ghostbtn"))});
             card.appendChild(g)}
-          var ed=h("button",{type:"button",class:"ghostbtn",text:"Editar"});ed.onclick=function(){abrirForm(r)};
+          var ed=h("button",{type:"button",class:"ghostbtn",text:"Editar"});ed.onclick=function(){if(r.tipo==="abastecimento")abrirAb(r);else abrirForm(r)};
           var del=h("button",{type:"button",class:"ghostbtn",text:"Apagar"}),armado=false;
           del.onclick=function(){
             if(!armado){armado=true;del.textContent="Toque de novo para apagar";del.classList.add("danger");setTimeout(function(){armado=false;del.textContent="Apagar";del.classList.remove("danger")},5000);return}
@@ -488,7 +479,7 @@
         c.classList.add("alvo");setTimeout(function(){c.classList.remove("alvo")},2600);
         setTimeout(function(){c.scrollIntoView({behavior:"smooth",block:"start"})},30)}
       var box=h("div",{class:"stack"});root.appendChild(box);
-      if(vista==="resumo"&&ehVeic(quem)){[veicAgora(quem,regs,ir),veicConsumo(regs),famGastos(regs,ir,quem)].forEach(function(x){if(x)box.appendChild(x)});return}
+      if(vista==="resumo"&&ehVeic(quem)){[veicAgora(quem,regs,ir),abHistorico(quem,regs,abrirAb,function(){renderFamilia(quem)}),famGastos(regs,ir,quem)].forEach(function(x){if(x)box.appendChild(x)});return}
       if(vista==="resumo"){[famAgora(quem,regs,ir),famPeso(regs,quem),famGastos(regs.concat(merc),ir,quem)].forEach(function(x){if(x)box.appendChild(x)});return}
       if(vista==="exames"){[famComparaSangue(regs),famComparaUS(regs)].forEach(function(x){if(x)box.appendChild(x)});
         cards(regs.filter(function(r){return r.tipo==="exame"||r.tipo==="pedido"}),box);irAoAlvo();return}
@@ -528,8 +519,9 @@
     "km é o hodômetro total do painel (ODO), não o parcial (Trip). Sem foto da bomba, litros, preco_litro, total e combustivel ficam null. "+
     "alertas é a lista das luzes de aviso acesas no painel, em português (ex.: \"injeção eletrônica (motor)\", \"óleo\", \"bateria\", \"temperatura\", \"freio\"); lista vazia se nenhuma estiver acesa. "+
     "Use ponto como separador decimal e não use separador de milhar. Se a data não aparecer nas fotos, use null. Se não conseguir ler um número, use null.";
-  function veicFoto(quem,regs,pronto,fechar){
-    var p=panel("Painel ou abastecimento pela foto","O Claude lê as fotos e reconhece o carro ou a moto pelo painel; você cola a resposta aqui, confere e salva."),f=h("div",{class:"wform"});
+  /* o caminho sem a IA do site: o Claude (projeto Abastecimento) lê as fotos e a pessoa cola a resposta aqui */
+  function abClaude(pronto){
+    var d=h("details",{class:"famvals abclaude"},h("summary",{text:"Ler pelo Claude e colar a resposta"})),f=h("div",{class:"wform"});
     var CH_LINK="rac-claude-abast";function link(){try{return localStorage.getItem(CH_LINK)||""}catch(e){return ""}}
     var cmsg=h("p",{class:"sub",role:"status"}),pedTxt=h("textarea",{class:"qrpaste",rows:"4",readonly:"",hidden:"","aria-label":"Pedido para copiar"});pedTxt.value=PEDIDO_ABAST;
     var abrir=h("a",{class:"filebtn",target:"_blank",rel:"noopener"});
@@ -541,76 +533,172 @@
       if(v&&!/^https:\/\/claude\.ai\/(chat|project)\/[\w-]+/.test(v)){lmsg.textContent="O link precisa começar com https://claude.ai/project/ (ou /chat/). Copie o endereço da barra do navegador com o projeto aberto.";return}
       try{if(v)localStorage.setItem(CH_LINK,v);else localStorage.removeItem(CH_LINK)}catch(e){}lform.hidden=true;lmsg.textContent=v?"✓ Pronto: o botão agora abre o seu projeto.":"Voltou a abrir uma conversa nova.";mostrar()};
     lform.appendChild(lin);lform.appendChild(lok);mostrar();
-    /* RAC Intelligence (só aparece quando estiver ligada): o resultado REAL vira o mesmo texto do fluxo manual e cai na conferência */
-    if(typeof iaLigada==="function"&&iaLigada())f.appendChild(iaBotao({modulo:"abastecimento",acao:"abastecimento.interpretar",texto:"ou escreva: 6,1 litros a 6,29, 18.240 km",
-      contexto:function(){var k=veicKm(regs),c={veiculo_sugerido:quem==="moto"?"moto":"carro"};if(k)c.ultima_km=k.km;return c},
-      real:function(r){var t=NUCLEO.iaAbastTexto(r);if(!t)return;resp.value=t;ler();conf.scrollIntoView({behavior:"smooth",block:"start"})}}));
-    f.appendChild(h("ol",{class:"how"},h("li",null,"Tire a foto do painel com a quilometragem e, se abasteceu, a da bomba com o total. Só o painel já serve para anotar a km."),
-      h("li",null,"Toque em Abrir o Claude, anexe as fotos e envie. Ele reconhece pelo painel se é o carro ou a moto."),
-      h("li",null,"Copie a resposta inteira, volte aqui e toque em ",h("b",{text:"Colar a resposta"}),".")));
+    f.appendChild(h("ol",{class:"how"},h("li",null,"Toque em Abrir o Claude, anexe as fotos do painel e da bomba e envie."),h("li",null,"Copie a resposta inteira, volte aqui e toque em ",h("b",{text:"Colar a resposta"}),".")));
     f.appendChild(h("div",{class:"vfil"},abrir,trocar));f.appendChild(lform);f.appendChild(lmsg);f.appendChild(cmsg);f.appendChild(pedTxt);
-    var resp=h("textarea",{class:"qrpaste",rows:"3",placeholder:"…ou cole aqui a resposta","aria-label":"Resposta do Claude"}),colar=h("button",{type:"button",text:"Colar a resposta"}),fch=h("button",{type:"button",class:"ghostbtn",text:"Fechar"}),rmsg=h("p",{class:"sub",role:"status"});
+    var resp=h("textarea",{class:"qrpaste",rows:"3",placeholder:"…ou cole aqui a resposta","aria-label":"Resposta do Claude"}),colar=h("button",{type:"button",text:"Colar a resposta"}),rmsg=h("p",{class:"sub",role:"status"});
+    function ler(){if(!resp.value.trim()){rmsg.textContent="";return}var r=lerAbast(resp.value);
+      if(r.km==null&&r.litros==null&&r.total==null){rmsg.textContent="Não achei km, litros nem total nessa resposta. Copie a resposta inteira do Claude.";return}
+      rmsg.textContent="";pronto(r)}
     colar.onclick=function(){if(!navigator.clipboard||!navigator.clipboard.readText){resp.focus();return}navigator.clipboard.readText().then(function(t){resp.value=t;ler()},function(){rmsg.textContent="Toque no quadro abaixo e cole.";resp.focus()})};
-    fch.onclick=fechar;resp.addEventListener("input",function(){ler()});
-    f.appendChild(h("div",{class:"vfil"},colar,fch));f.appendChild(resp);f.appendChild(rmsg);
-    /* conferência: tudo editável antes de salvar */
-    var conf=h("div",{class:"wform",hidden:""});
-    var veic=h("select",{"aria-label":"Veículo"},Object.keys(FAM).filter(ehVeic).map(function(k){return h("option",{value:k,selected:k===quem?"":null,text:FAM[k].n})}));
-    var data=h("input",{type:"date",value:hojeISO()}),km=h("input",{type:"text",inputmode:"numeric"}),lit=h("input",{type:"text",inputmode:"decimal"}),pre=h("input",{type:"text",inputmode:"decimal"}),tot=h("input",{type:"text",inputmode:"decimal"});
-    var comb=h("select",{"aria-label":"Combustível"},["gasolina","etanol","diesel"].map(function(c){return h("option",{value:c,text:c.charAt(0).toUpperCase()+c.slice(1)})})),posto=h("input",{type:"text",placeholder:"Ex.: Posto Shell"});
-    var arq=h("input",{type:"file",multiple:"",accept:"image/*"}),aviso=h("p",{class:"qrwarn",hidden:""});
-    conf.appendChild(h("div",{class:"two"},h("label",null,"Veículo",veic),h("label",null,"Data",data)));
-    conf.appendChild(h("div",{class:"two"},h("label",null,"Quilometragem do painel",km),h("label",null,"Litros",lit)));
-    conf.appendChild(h("div",{class:"two"},h("label",null,"Preço por litro (R$)",pre),h("label",null,"Total pago (R$)",tot)));
-    conf.appendChild(h("div",{class:"two"},h("label",null,"Combustível",comb),h("label",null,"Posto (opcional)",posto)));
-    conf.appendChild(h("label",null,"As fotos (para guardar junto)",arq));conf.appendChild(aviso);
-    function br(v,c){return v==null?"":v.toLocaleString("pt-BR",{minimumFractionDigits:c,maximumFractionDigits:c})}
-    function num(s){s=String(s||"").replace(/[R$\s]/g,"");if(!s)return null;if(/,/.test(s))s=s.replace(/\./g,"").replace(",",".");var x=parseFloat(s);return isFinite(x)?x:null}
-    function ler(){
-      if(!resp.value.trim()){rmsg.textContent="";return}
-      var r=lerAbast(resp.value);alertas=r.alertas||[];
-      if(r.km==null&&r.litros==null&&r.total==null){rmsg.textContent="Não achei km, litros nem total nessa resposta. Copie a resposta inteira do Claude.";conf.hidden=true;return}
-      if(r.veiculo)veic.value=r.veiculo;if(r.data)data.value=r.data;km.value=r.km!=null?String(r.km):"";lit.value=br(r.litros,2);pre.value=br(r.preco,3);tot.value=br(r.total,2);
-      var cb=/gasolina|etanol|diesel/.exec(r.combustivel);if(cb)comb.value=cb[0];if(r.posto)posto.value=r.posto;
-      var soKm=r.km!=null&&r.litros==null&&r.total==null;
-      rmsg.textContent="✓ Li a resposta"+(soKm?": só a quilometragem, sem abastecimento":"")+". Confira os valores abaixo e salve."+(r.veiculo?"":" Escolha o veículo (a resposta não disse se é carro ou moto).");conf.hidden=false;conferir()}
-    /* avisa o que parece errado: conta que não fecha ou km menor que o último anotado */
-    var alertas=[];
-    function conferir(){var L=num(lit.value),P=num(pre.value),T=num(tot.value),K=parseInt(km.value.replace(/\D/g,""),10),avs=[];
-      salvar.textContent=!(T>0)&&!(L>0)?"Salvar quilometragem":"Salvar abastecimento";
-      if(alertas.length)avs.push("Luz acesa no painel: "+alertas.join(", ")+". Se continuar acesa com o motor ligado, vale levar para avaliar.");
-      if(L&&P&&T&&Math.abs(L*P-T)>Math.max(1,T*0.02))avs.push("Litros × preço dá "+brl(Math.round(L*P*100)/100)+", diferente do total. Confira na foto da bomba.");
-      if(K&&veic.value===quem){var ult=veicKm(regs);if(ult&&K<ult.km)avs.push("A quilometragem é menor que a última anotada ("+fmtKm(ult.km)+" em "+dataBR(ult.data)+"). Confira se não leu o parcial (trip).")}
+    resp.addEventListener("input",ler);
+    f.appendChild(h("div",{class:"vfil"},colar));f.appendChild(resp);f.appendChild(rmsg);d.appendChild(f);return d}
+
+  /* ===== Novo abastecimento (e a edição): fotos do painel e da bomba → leitura (IA, que hoje responde em DEMO, ou o Claude colado)
+     → conferência com tudo editável → Salvar. A leitura só preenche a conferência; só o Salvar grava. O id nasce aqui, um por tela:
+     toque duplo ou nova tentativa depois de falha de rede não criam outro registro (o banco recusa o mesmo id), e antes de gravar
+     o banco é consultado para achar o mesmo abastecimento (mesmo veículo e data, e mesma km ou mesmo total e litros). */
+  function abNovoId(){try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID()}catch(e){}
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){var r=Math.random()*16|0;return (c==="x"?r:(r&3|8)).toString(16)})}
+  function abNumBR(s){s=String(s==null?"":s).replace(/[R$\s]/g,"");if(!s)return null;if(/,/.test(s))s=s.replace(/\./g,"").replace(",",".");var x=parseFloat(s);return isFinite(x)&&x>0?x:null}
+  function abCombLer(t){t=norm(t);return /aditiv/.test(t)?"gasolina aditivada":/gasolina/.test(t)?"gasolina comum":/etanol|alcool/.test(t)?"etanol":/diesel/.test(t)?"diesel":""}
+  function abTitulo(comb,posto){comb=comb||"Combustível";return comb.charAt(0).toUpperCase()+comb.slice(1)+(posto?" ("+posto+")":"")}
+  function abForm(quem,regs,reg,pronto,fechar){
+    var A=reg?NUCLEO.abLer(reg):null,novo=!reg,id=reg?reg.id:abNovoId(),origem=novo?"manual":A.origem||"manual",alertas=reg&&dadosDe(reg).alertas||[],salvando=false,gravado=null;
+    var p=panel(novo?"⛽ Novo abastecimento":"Editar abastecimento",novo?"Fotografe o painel e a bomba, leia com a IA (ou preencha) e confira. Nada é gravado antes do Salvar.":"Corrija o que precisar. A data em que foi lançado não muda, e os valores anteriores ficam guardados no registro."),f=h("div",{class:"wform"});
+    var fPainel=h("input",{type:"file",accept:"image/*","aria-label":"Foto do painel"}),fBomba=h("input",{type:"file",accept:"image/*","aria-label":"Foto da bomba"}),fMais=h("input",{type:"file",multiple:"",accept:"image/*,application/pdf","aria-label":"Comprovante ou mais fotos"});
+    var lido=h("p",{class:"sub",role:"status"});
+    if(novo){f.appendChild(h("div",{class:"two abfotos"},h("label",null,"📷 Foto do painel (hodômetro)",fPainel),h("label",null,"⛽ Foto da bomba (litros e total)",fBomba)));
+      if(typeof iaLigada==="function"&&iaLigada())f.appendChild(iaBotao({modulo:"abastecimento",acao:"abastecimento.interpretar",texto:"ou escreva: 4,58 litros a 6,39, 18.181 km",
+        arquivos:function(){return [fPainel.files[0],fBomba.files[0]].filter(Boolean)},
+        contexto:function(){var k=ultKm(veic.value),c={veiculo_sugerido:veic.value==="moto"?"moto":"carro"};if(k!=null)c.ultima_km=k;return c},
+        /* só chega aqui resposta REAL validada (DEMO nunca vira texto: NUCLEO.iaAbastTexto) */
+        real:function(r){var t=NUCLEO.iaAbastTexto(r);if(!t)return;preencher(lerAbast(t),"ia")}}));
+      f.appendChild(abClaude(function(r){preencher(r,"claude")}));f.appendChild(lido)}
+    /* conferência */
+    var veic=h("select",{"aria-label":"Veículo"},Object.keys(FAM).filter(ehVeic).map(function(k){return h("option",{value:k,selected:k===(reg?reg.quem:quem)?"":null,text:FAM[k].n})}));
+    var data=h("input",{type:"date",value:reg?reg.data:hojeISO(),max:hojeISO()}),hora=h("input",{type:"time",value:A&&A.hora||""});
+    var km=h("input",{type:"text",inputmode:"numeric",placeholder:"Ex.: 18181",value:A&&A.km!=null?String(A.km):""});
+    var br=function(v,c){return v==null?"":v.toLocaleString("pt-BR",{minimumFractionDigits:c,maximumFractionDigits:c})};
+    var lit=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 4,58",value:A?br(A.litros,2):""}),pre=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 6,39",value:A?br(A.preco,2):""}),tot=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 29,27",value:A?br(A.total,2):""});
+    var combs=NUCLEO.AB_COMBUST.slice();if(A&&A.combustivel&&combs.indexOf(A.combustivel)<0)combs.push(A.combustivel);
+    var comb=h("select",{"aria-label":"Combustível"},combs.map(function(c){return h("option",{value:c,selected:A&&A.combustivel===c?"":null,text:c.charAt(0).toUpperCase()+c.slice(1)})}));
+    var tanque=A?A.tanque:null,tq=h("div",{class:"seg famseg abtanque",role:"group","aria-label":"Tanque"});
+    function desenhaTanque(){tq.innerHTML="";[["cheio","Tanque cheio"],["parcial","Parcial"]].forEach(function(o){var b=h("button",{type:"button","aria-pressed":String(tanque===o[0]),text:o[1]});
+      b.onclick=function(){tanque=o[0];desenhaTanque();conferir()};tq.appendChild(b)});if(!tanque)tq.appendChild(h("span",{class:"sub",text:novo?"escolha um":"não informado"}))}
+    desenhaTanque();
+    var dl=h("datalist",{id:"abpag-"+id},["Crédito","Débito","Pix","Dinheiro","Vale-combustível"].map(function(x){return h("option",{value:x})}));
+    var pag=h("input",{type:"text",list:"abpag-"+id,placeholder:"Ex.: Crédito Mastercard",value:A&&A.pagamento||""}),posto=h("input",{type:"text",placeholder:"Ex.: Posto Shell",value:A&&A.posto||""});
+    var obs=h("textarea",{rows:"2",placeholder:"Opcional"});obs.value=reg&&reg.detalhes||"";
+    var aviso=h("p",{class:"qrwarn",hidden:""}),st=h("p",{class:"sub",role:"status"});
+    var salvar=h("button",{type:"button",text:novo?"Salvar abastecimento":"Salvar alterações"}),canc=h("button",{type:"button",class:"ghostbtn",text:"Cancelar"});canc.onclick=fechar;
+    var conf=h("div",{class:"wform abconf"},h("h3",{class:"mbag",text:"Conferência"}),
+      h("div",{class:"two"},h("label",null,"Veículo",veic),h("label",null,"Data",data)),
+      h("div",{class:"two"},h("label",null,"Quilometragem do painel (ODO)",km),h("label",null,"Hora (opcional)",hora)),
+      h("div",{class:"two"},h("label",null,"Combustível",comb),h("label",null,"Litros",lit)),
+      h("div",{class:"two"},h("label",null,"Preço por litro (R$)",pre),h("label",null,"Total pago (R$)",tot)),
+      h("div",{class:"abtq"},h("span",{class:"kl",text:"Tanque"}),tq),
+      h("div",{class:"two"},h("label",null,"Forma de pagamento",pag,dl),h("label",null,"Posto (opcional)",posto)),
+      h("label",null,"Observações",obs),
+      h("label",null,novo?"Comprovante ou mais fotos (opcional; as fotos do painel e da bomba já vão junto)":"Mais fotos ou o comprovante (opcional)",fMais),
+      aviso,h("div",{class:"vfil"},salvar,canc),st);
+    f.appendChild(conf);p.appendChild(f);
+    function ultKm(q){if(q!==quem)return null;var k=veicKm(regs.filter(function(r){return r.id!==id}));return k?k.km:null}
+    function coletar(){var K=parseInt(String(km.value).replace(/\D/g,""),10),c={quem:veic.value,data:data.value,hora:hora.value||null,km:K>0?K:null,
+        litros:abNumBR(lit.value),preco:abNumBR(pre.value),total:abNumBR(tot.value),combustivel:comb.value,tanque:tanque,pagamento:pag.value.trim()||null,origem:origem};
+      /* a conta da própria bomba (não é estimativa): total = litros × preço, ou preço = total ÷ litros */
+      if(c.total==null&&c.litros&&c.preco)c.total=Math.round(c.litros*c.preco*100)/100;
+      if(c.preco==null&&c.litros&&c.total)c.preco=Math.round(c.total/c.litros*1000)/1000;
+      return c}
+    function soKm(c){return novo&&c.litros==null&&c.total==null&&c.km!=null}
+    function conferir(){var c=coletar(),r=NUCLEO.abConferir(c,{hoje:hojeISO(),ultimaKm:ultKm(c.quem)}),avs=r.avisos.slice();
+      if(soKm(c))avs=["Sem litros e total: vai salvar só a quilometragem, sem abastecimento."];
+      if(alertas.length)avs.unshift("Luz acesa no painel: "+alertas.join(", ")+". Se continuar acesa com o motor ligado, vale levar para avaliar.");
+      salvar.textContent=soKm(c)?"Salvar quilometragem":novo?"Salvar abastecimento":"Salvar alterações";
       aviso.textContent=avs.map(function(a){return "⚠ "+a}).join(" ");aviso.hidden=!avs.length}
-    [km,lit,pre,tot,veic].forEach(function(x){x.addEventListener("change",conferir)});
-    var st=h("p",{class:"sub",role:"status"}),salvar=h("button",{type:"button",text:"Salvar abastecimento"}),canc=h("button",{type:"button",class:"ghostbtn",text:"Cancelar"});
-    canc.onclick=fechar;
+    [veic,data,km,lit,pre,tot,comb].forEach(function(x){x.addEventListener("change",conferir);x.addEventListener("input",conferir)});
+    function preencher(r,org){origem=org;alertas=r.alertas||[];
+      if(r.veiculo&&FAM[r.veiculo])veic.value=r.veiculo;if(r.data)data.value=r.data;
+      if(r.km!=null)km.value=String(r.km);if(r.litros!=null)lit.value=br(r.litros,2);if(r.preco!=null)pre.value=br(r.preco,2);if(r.total!=null)tot.value=br(r.total,2);
+      var cb=abCombLer(r.combustivel);if(cb)comb.value=cb;if(r.posto)posto.value=r.posto;
+      var falta=[["a quilometragem",r.km],["os litros",r.litros],["o preço por litro",r.preco],["o total",r.total]].filter(function(x){return x[1]==null}).map(function(x){return x[0]});
+      lido.textContent="✓ Lido"+(org==="ia"?" pela IA":" do Claude")+". Confira cada campo e marque o tanque."+(falta.length?" Não deu para ler "+falta.join(", ")+": preencha olhando a foto.":"")+(r.veiculo?"":" Confira o veículo.");
+      conferir();conf.scrollIntoView({behavior:"smooth",block:"start"})}
+    function fotos(){return (novo?[fPainel.files[0],fBomba.files[0]]:[]).concat([].slice.call(fMais.files||[])).filter(Boolean)}
+    function anexar(q,row){var fs=fotos();if(!fs.length)return Promise.resolve();
+      return enviarArquivos(q,row.id,fs,function(t){st.textContent=t}).then(function(n){return SB.from("registros").update({arquivos:(row.arquivos||[]).concat(n)}).eq("id",row.id).then(sbOk)})}
+    /* insert com o id desta tela: se o banco disser que o id já existe, é a mesma gravação repetida (não grava de novo) */
+    function inserir(row){return SB.from("registros").insert(row).select("id,arquivos").single().then(function(r){if(r&&r.error&&r.error.code==="23505")return {id:row.id,arquivos:[],repetido:true};return sbOk(r)})}
+    /* só a quilometragem (sem bomba): vira um registro "Quilometragem", como no Atualizar km */
+    function gravarKm(c){return inserir({id:id,quem:c.quem,tipo:"outro",data:c.data,titulo:"Quilometragem",valor:null,detalhes:alertas.length?"Luz acesa no painel: "+alertas.join(", "):null,
+      dados:alertas.length?{km:c.km,alertas:alertas,origem:origem}:{km:c.km,origem:origem}})}
+    function gravarAbast(c){st.textContent="Conferindo se já foi lançado…";
+      return SB.from("registros").select("id,quem,tipo,data,valor,dados").eq("quem",c.quem).eq("tipo","abastecimento").eq("data",c.data).then(sbOk).then(function(l){
+        var dup=NUCLEO.abDuplicado(c,l,novo?null:id);if(dup)throw {dup:dup};
+        st.textContent="Salvando…";var d=NUCLEO.abDados(c,reg,new Date().toISOString());if(alertas.length)d.alertas=alertas;
+        var row={quem:c.quem,tipo:"abastecimento",data:c.data,titulo:abTitulo(c.combustivel,posto.value.trim()),valor:posto.value.trim()||null,detalhes:obs.value.trim()||null,dados:d};
+        if(novo){row.id=id;return inserir(row)}
+        return SB.from("registros").update(row).eq("id",id).select("id,arquivos").single().then(sbOk)})}
     salvar.onclick=function(){
-      var K=parseInt(km.value.replace(/\D/g,""),10),L=num(lit.value),P=num(pre.value),T=num(tot.value);
-      if(!data.value){st.textContent="Escolha a data.";return}
-      var q=veic.value,alt=alertas.length?"Luz acesa no painel: "+alertas.join(", "):null;
-      if(!(T>0)&&!(L>0)){
-        /* sem bomba: só a quilometragem, igual ao "Atualizar km" */
-        if(!(K>0)){st.textContent="Preencha a quilometragem, ou os litros e o total.";return}
-        var rk={quem:q,tipo:"outro",data:data.value,titulo:"Quilometragem",valor:null,detalhes:alt,dados:alertas.length?{km:K,alertas:alertas}:{km:K}};
-        salvar.disabled=true;st.textContent="Salvando…";return guardar(rk)}
-      if(T==null&&L&&P)T=Math.round(L*P*100)/100;
-      var c=comb.value,tit=c.charAt(0).toUpperCase()+c.slice(1)+(posto.value.trim()?" ("+posto.value.trim()+")":"");
-      var dd={combustivel:c};if(alertas.length)dd.alertas=alertas;if(K>0)dd.km=K;if(L>0)dd.litros=L;if(P>0)dd.precoLitro=P;if(T>0){dd.custo=Math.round(T*100)/100;dd.itensCusto=[[L?fmtN(L)+" l de "+c:c,dd.custo]]}
-      var reg={quem:q,tipo:"abastecimento",data:data.value,titulo:tit,valor:posto.value.trim()||null,detalhes:[L?fmtN(L)+" litros":"",P?"a "+brl(P)+"/l":"",T?"total "+brl(T):"",alt?"· "+alt:""].filter(Boolean).join(" ")||null,dados:dd};
-      salvar.disabled=true;st.textContent="Salvando…";guardar(reg)};
-    function guardar(reg){var q=reg.quem;
-      SB.from("registros").insert(reg).select("id,arquivos").single().then(sbOk).then(function(row){
-        if(!arq.files.length)return;
-        return enviarArquivos(q,row.id,arq.files,function(t){st.textContent=t}).then(function(novos){return SB.from("registros").update({arquivos:(row.arquivos||[]).concat(novos)}).eq("id",row.id).then(sbOk)})
-      }).then(function(){pronto(q)}).catch(function(e){salvar.disabled=false;st.textContent="Não consegui salvar: "+e.message})}
-    conf.appendChild(h("div",{class:"vfil"},salvar,canc));conf.appendChild(st);
-    f.appendChild(conf);p.appendChild(f);return p}
+      if(salvando)return;
+      var c=coletar();
+      if(!gravado){
+        var chk=soKm(c)?{erros:!/^\d{4}-\d{2}-\d{2}$/.test(c.data)||c.data>hojeISO()?["Confira a data."]:[]}:NUCLEO.abConferir(c,{hoje:hojeISO(),ultimaKm:ultKm(c.quem),exigirTanque:novo||!!(A&&A.tanque)});
+        if(chk.erros.length){st.textContent=chk.erros.join(" ");return}
+        if(navigator.onLine===false){st.textContent="Sem internet: nada foi salvo. Os dados continuam aqui; toque em Salvar quando a conexão voltar.";return}}
+      salvando=true;salvar.disabled=true;
+      var seg=gravado?Promise.resolve(gravado):soKm(c)?gravarKm(c):gravarAbast(c);
+      seg.then(function(row){gravado=row;return row.repetido?null:anexar(c.quem,row)})
+        .then(function(){st.textContent="✓ Salvo.";pronto(c.quem)})
+        .catch(function(e){salvando=false;salvar.disabled=false;
+          if(e&&e.dup){st.textContent="Este abastecimento já está lançado ("+dataBR(e.dup.data)+(e.dup.km!=null?", "+fmtKm(e.dup.km):"")+(e.dup.total!=null?", "+brl(e.dup.total):"")+"). Nada foi salvo de novo.";return}
+          st.textContent=gravado?"O abastecimento foi salvo, mas as fotos não foram ("+(e&&e.message||e)+"). Toque em Salvar para tentar enviar as fotos de novo.":"Não consegui salvar: "+(e&&e.message||e)+". Nada foi gravado; toque em Salvar de novo."})};
+    conferir();return p}
+
+  /* registro antigo sem a marcação de tanque: a pessoa escolhe e confirma, um por um (nada é marcado sozinho) */
+  function abMarcarTanque(r,li,pronto){
+    var x=li.querySelector(".abmarca");if(x){x.remove();return}
+    var A=NUCLEO.abLer(r),box=h("div",{class:"abmarca vfil"});li.appendChild(box);
+    function passo1(){box.innerHTML="";box.appendChild(h("span",{class:"sub",text:"Neste abastecimento o tanque ficou:"}));
+      [["cheio","Cheio"],["parcial","Parcial"]].forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});b.onclick=function(){passo2(o[0])};box.appendChild(b)});
+      var c=h("button",{type:"button",class:"ghostbtn",text:"Cancelar"});c.onclick=function(){box.remove()};box.appendChild(c)}
+    function passo2(t){box.innerHTML="";
+      var ok=h("button",{type:"button",text:"Confirmar"}),volta=h("button",{type:"button",class:"ghostbtn",text:"Voltar"}),st=h("span",{class:"sub",role:"status"});
+      box.appendChild(h("span",{class:"sub",text:"Marcar o abastecimento de "+dataBR(r.data)+(A.litros?" ("+fmtN(A.litros)+" l)":"")+" como tanque "+t+"?"}));box.appendChild(ok);box.appendChild(volta);box.appendChild(st);
+      volta.onclick=passo1;
+      ok.onclick=function(){if(ok.disabled)return;ok.disabled=true;st.textContent="Salvando…";
+        var c={km:A.km,litros:A.litros,preco:A.preco,total:A.total,combustivel:A.combustivel,tanque:t,pagamento:A.pagamento,hora:A.hora};
+        SB.from("registros").update({dados:NUCLEO.abDados(c,r,new Date().toISOString())}).eq("id",r.id).then(sbOk).then(pronto)
+          .catch(function(e){ok.disabled=false;st.textContent="Não consegui salvar: "+e.message})}}
+    passo1()}
+
+  /* histórico do veículo: indicadores (só os que têm dado) e a lista por mês, com o consumo de cada trecho de tanque cheio a tanque cheio */
+  function abHistorico(quem,regs,editar,pronto){
+    var ab=regs.filter(function(r){return r.tipo==="abastecimento"}).sort(function(a,b){return b.data.localeCompare(a.data)||String(b.criado_em||"").localeCompare(String(a.criado_em||""))});
+    var p=panel("Abastecimentos",ab.length?ab.length+(ab.length===1?" lançado":" lançados")+". O consumo é medido de tanque cheio a tanque cheio.":"");
+    if(!ab.length){p.appendChild(h("p",{class:"empty",text:"Nenhum abastecimento ainda. Toque em ⛽ Novo abastecimento."}));return p}
+    var hoje=hojeISO(),co=NUCLEO.abConsumo(ab),pr=NUCLEO.abPrecos(ab),r12=NUCLEO.abResumo(ab,maisDias(hoje,-365),hoje),f1=function(v){return fmtN(Math.round(v*10)/10)};
+    var kp=function(rot,val,sub){return h("div",null,h("span",{class:"kl",text:rot}),h("b",{class:"kv",text:val}),sub?h("span",{class:"ksub",text:sub}):null)};
+    p.appendChild(h("div",{class:"kgasto"},
+      co.kml?kp("Consumo médio",f1(co.kml)+" km/l","média ponderada de "+co.validos+(co.validos===1?" trecho":" trechos")+(co.validos>1?" · simples "+f1(co.kmlSimples)+" km/l":"")):null,
+      co.custoKm?kp("Combustível por km",brl(co.custoKm),brl(co.custoKmBase.custo)+" em "+fmtKm(co.custoKmBase.km)):null,
+      pr.ponderado?kp("Preço médio por litro",brl(pr.ponderado),"ponderado pelos litros"+(pr.simples?" · simples "+brl(pr.simples):"")):null,
+      r12.n?kp("Últimos 12 meses",brl(r12.gasto),fmtN(Math.round(r12.litros*100)/100)+" litros em "+r12.n+(r12.n===1?" abastecimento":" abastecimentos")):null));
+    var exp=!co.cheios?"Para medir o consumo, marque “Tanque cheio” nos próximos abastecimentos (os antigos podem ser marcados um a um abaixo).":
+      !co.trechos.length?"O primeiro tanque cheio é a referência: o consumo aparece no próximo tanque cheio.":
+      co.descartados?co.descartados+(co.descartados===1?" trecho ficou":" trechos ficaram")+" fora do consumo por dado faltando ou incoerente (o motivo está na linha).":"";
+    if(exp)p.appendChild(h("p",{class:"sub",text:exp}));
+    var porFim={},refs={};co.trechos.forEach(function(t){porFim[t.ate.id]=t});
+    var cheios=ab.filter(function(r){return NUCLEO.abLer(r).tanque==="cheio"});if(cheios.length&&!porFim[cheios[cheios.length-1].id])refs[cheios[cheios.length-1].id]=1;
+    var mes=null,ul=null;
+    ab.forEach(function(r){var A=NUCLEO.abLer(r),m=r.data.slice(0,7);
+      if(m!==mes){mes=m;var tm=ab.filter(function(x){return x.data.slice(0,7)===m}).reduce(function(s,x){return s+(NUCLEO.abLer(x).total||0)},0);
+        p.appendChild(h("h3",{class:"mbag",text:new Date(+m.slice(0,4),+m.slice(5,7)-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})+(tm?" · "+brl(tm):"")}));ul=h("ul",{class:"wl famagora abhist"});p.appendChild(ul)}
+      var t=porFim[r.id],linha=t?(t.ok?"⛽ "+f1(t.kml)+" km/l em "+fmtKm(t.km)+" desde "+dataBR(t.de.data)+(t.custo!=null?" · "+brl(t.custo/t.km)+"/km":""):"Fora do consumo: "+t.motivo):refs[r.id]?"Referência para o próximo tanque cheio":"";
+      var li=h("li",{"data-reg":r.id},h("span",{class:"grow"},
+        h("b",{text:dataBR(r.data)+(A.hora?" "+A.hora:"")+(A.km!=null?" · "+fmtKm(A.km):"")}),
+        h("span",{class:"sub",text:[A.litros!=null?fmtN(A.litros)+" l":"",A.preco!=null?brl(A.preco)+"/l":"",A.combustivel,A.posto,A.pagamento].filter(Boolean).join(" · ")}),
+        linha?h("span",{class:t&&!t.ok?"sub abfora":"sub abcons",text:linha}):null),
+        h("span",{class:"end"},A.total!=null?brl(A.total):"—",h("small",{class:"vp abtq-"+(A.tanque||"ni"),text:A.tanque==="cheio"?"cheio":A.tanque==="parcial"?"parcial":"tanque ?"})));
+      var ed=h("button",{type:"button",class:"ghostbtn",text:"Editar"});ed.onclick=function(){editar(r)};
+      var acoes=h("div",{class:"vfil abacoes"},ed);
+      if(!A.tanque){var mt=h("button",{type:"button",class:"ghostbtn",text:"Informar tanque"});mt.onclick=function(){abMarcarTanque(r,li,pronto)};acoes.appendChild(mt)}
+      li.appendChild(acoes);ul.appendChild(li)});
+    return p}
 
   /* Formulário de registro: tipo, data, título, valor, próxima data, detalhes e arquivos */
   function famForm(quem,reg,pronto,cancelar){
     var p=panel(reg?"Editar registro":"Novo registro "+(ehVeic(quem)?"do ":"de ")+FAM[quem].n),f=h("div",{class:"wform"});
-    var tipo=h("select",{"aria-label":"Tipo"},tiposDe(quem).map(function(t){return h("option",{value:t[0],selected:(reg?reg.tipo:(ehVeic(quem)?"revisao":"exame"))===t[0]?"":null,text:t[1]})}));
+    var tipo=h("select",{"aria-label":"Tipo"},tiposDe(quem).filter(function(t){return reg||t[0]!=="abastecimento"}).map(function(t){return h("option",{value:t[0],selected:(reg?reg.tipo:(ehVeic(quem)?"revisao":"exame"))===t[0]?"":null,text:t[1]})}));
     var data=h("input",{type:"date",value:reg?reg.data:hojeISO()}),titulo=h("input",{type:"text",value:reg?reg.titulo:""});
     var valor=h("input",{type:"text",value:reg&&reg.valor||""}),prox=h("input",{type:"date",value:reg&&reg.proxima||""});
     /* quanto custou (consulta, remédio, lata de fórmula, pacote de fraldas…): entra no quadro de gastos */

@@ -1028,7 +1028,8 @@ test("site: resposta DEMO vai só para a prévia (sem salvar); só REAL sem _dem
 });
 
 test("site: os jeitos manuais continuam lá (pedido ao Claude, colar a resposta, conferir e salvar)", () => {
-  const foto = trecho(famJs, "function veicFoto(", "\n  /* Formulário de registro");
-  for (const x of ["PEDIDO_ABAST", "Colar a resposta", "function ler()", "Salvar abastecimento", "salvar.onclick", "SB.from(\"registros\").insert(reg)"]) assert.ok(foto.includes(x), "veicFoto perdeu " + x);
+  const claude = trecho(famJs, "function abClaude(", "\n  /* ====="), form = trecho(famJs, "function abForm(", "\n  /* registro antigo");
+  for (const x of ["PEDIDO_ABAST", "Colar a resposta", "function ler()"]) assert.ok(claude.includes(x), "abClaude perdeu " + x);
+  for (const x of ["abClaude(", "Salvar abastecimento", "salvar.onclick", "SB.from(\"registros\").insert(row)"]) assert.ok(form.includes(x), "abForm perdeu " + x);
   for (const x of ["var PEDIDO =", "function tentarResp()", "function lerEConferir()", "Colar a resposta", "function salvarNota("]) assert.ok(merJs.includes(x), "Mercado perdeu " + x);
 });

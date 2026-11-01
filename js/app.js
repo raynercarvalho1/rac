@@ -11,7 +11,8 @@
      #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
   var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","newsletter"];
   var DA_CASA=["mercado","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
-  var sports=["beisebol","basquete","futebol-americano"];
+  /* #esportes abre a Central Esportiva; futebol e giro também moram na Central (js/esportes-central.js) */
+  var sports=["central","beisebol","basquete","futebol-americano","futebol","giro"],SP_CENTRAL=["central","futebol","giro"];
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
     if(a.dataset[attr]===val)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
   /* Marca o item da barra lateral e copia o ícone e o nome dele para o título da página */
@@ -24,9 +25,9 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-10-31.7",MODULOS={},MOD_OK={};
-  var MOD_DEPS={conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"]};
-  var ROTA_MODS={esportes:["esportes"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
+  var MOD_VERSAO="2026-11-01.1",MODULOS={},MOD_OK={};
+  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"]};
+  var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
@@ -119,13 +120,15 @@
     if(top==="eddie"||top==="olivia"){sideMark(top,top);renderFamilia(top);return}
     if(top==="veiculos"){sideMark("veiculos","veiculos");renderVeiculos(parts[1]);return}
     if(top!=="esportes"){sideMark(top,top);return}
-    var sp=sports.indexOf(parts[1])<0?"beisebol":parts[1];
-    sports.forEach(function(x){document.getElementById("sp-"+x).hidden=(x!==sp)});
+    var sp=sports.indexOf(parts[1])<0?"central":parts[1],naCentral=SP_CENTRAL.indexOf(sp)>=0;
+    ["central","beisebol","basquete","futebol-americano"].forEach(function(x){document.getElementById("sp-"+x).hidden=(x!==(naCentral?"central":sp))});
     var v=parts[2]||"";
-    sideMark("esportes/"+sp+(sp==="beisebol"&&v==="dodgers"?"/dodgers":""),"esportes");
+    mark(".espnav a","v",sp==="beisebol"&&v==="dodgers"?"dodgers":sp);
+    sideMark(sp==="central"?"esportes":"esportes/"+sp+(sp==="beisebol"&&v==="dodgers"?"/dodgers":""),"esportes");
+    if(naCentral){renderCentral(sp);return}
     if(sp==="beisebol"){
       v=v||"liga";
-      mark(".pills a","v",/^time-/.test(v)?"times":v);
+      mark("#sp-beisebol .pills a","v",/^time-/.test(v)?"times":v);
       renderMlb(v)}
     else renderEspn(sp==="basquete"?"nba":"nfl",v)
   }

@@ -140,8 +140,14 @@
     return b}
 
   /* ===== Beisebol: dados ao vivo da API oficial da MLB ===== */
-  var API="https://statsapi.mlb.com/api/v1",SEASON=2026;
-  var DODGERS=119,BREWERS=158,OHTANI=660271;
+  /* temporada: estimada pelo calendário ao carregar e confirmada pelas datas oficiais da MLB (mlbTemporada) antes de desenhar a página */
+  var API="https://statsapi.mlb.com/api/v1",MLB_TEMP=NUCLEO.espTemporada("mlb",hojeISO()),SEASON=MLB_TEMP.ano;
+  var DODGERS=119,OHTANI=660271;
+  function mlbTemporada(){return once("temporada",function(){var y=+hojeISO().slice(0,4);
+    return api("/seasons?sportId=1&season="+y).then(function(d){MLB_TEMP=NUCLEO.espTemporada("mlb",hojeISO(),(d.seasons||[])[0]);SEASON=MLB_TEMP.ano;return MLB_TEMP},function(){return MLB_TEMP})})}
+  /* data oficial do dia de abertura da próxima temporada (null se a MLB ainda não divulgou) */
+  function mlbAbertura(){return once("abertura",function(){return api("/seasons?sportId=1&season="+(SEASON+1)).then(function(d){var s=(d.seasons||[])[0];return s&&s.regularSeasonStartDate||null},function(){return null})})}
+  function semJogoTexto(el,base){el.textContent=base;mlbAbertura().then(function(a){if(a)el.textContent=base+" A temporada "+(SEASON+1)+" começa em "+new Date(a+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long"})+" (data oficial da MLB)."})}
   var MLBC={108:"#BA0021",109:"#A71930",110:"#DF4601",111:"#BD3039",112:"#0E3386",113:"#C6011F",114:"#00385D",115:"#333366",116:"#0C2340",117:"#002D62",118:"#004687",119:"#005A9C",120:"#AB0003",121:"#002D72",133:"#003831",134:"#27251F",135:"#2F241D",136:"#0C2C56",137:"#FD5A1E",138:"#C41E3A",139:"#092C5C",140:"#003278",141:"#134A8E",142:"#002B5C",143:"#E81828",144:"#CE1141",145:"#27251F",146:"#00A3E0",147:"#0C2340",158:"#12284B"};
   function api(u){return getJson(API+u)}
   function logoUrl(id){return "https://www.mlbstatic.com/team-logos/"+id+".svg"}
@@ -360,7 +366,7 @@
         .map(function(x){return h("li",null,h("span",{class:"grow",text:x[0]}),h("span",{class:"end",text:dt(x[1])}))})));
       if(dias>0)box.appendChild(h("p",{class:"sub",text:"Faltam "+dias+" dias para o dia de abertura."}))}).catch(function(){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Datas ainda não divulgadas."}))});
     return p}
-  function foraDeTemporada(){var m=new Date().getMonth();return m>=10||m<=1}
+  function foraDeTemporada(){return MLB_TEMP.fase==="fora"||MLB_TEMP.fase==="pre"}
   function rumorPanel(){
     var p=panel("Rumores");
     p.appendChild(h("h3",{class:"dayh"},img(logoUrl(DODGERS),"lg sm"),"Dodgers no mercado de inverno"));
@@ -394,9 +400,11 @@
         body.appendChild(cards(fin.slice(-6),true))})}));
     root.appendChild(section("Próximos jogos",WATCHNOTE,function(body){
       return sched.then(function(gs){var nx=gs.filter(function(g){return g.state==="pre"});body.innerHTML="";
-        if(!nx.length){body.appendChild(h("p",{class:"empty",text:"Sem jogos nos próximos 10 dias. A temporada 2027 começa em março."}));return}
+        if(!nx.length){var e=h("p",{class:"empty"});semJogoTexto(e,"Sem jogos nos próximos 10 dias.");body.appendChild(e);return}
         body.appendChild(cards(nx,false))})}));
     root.appendChild(dodgersSummary());
+    /* Central Esportiva: classificação completa e líderes da MLB */
+    mlbLigaCentral().forEach(function(x){root.appendChild(x)});
     /* fora de temporada (novembro a fevereiro), o mercado ganha mais espaço: 30 dias de movimentações, rumores, prêmios e as datas da próxima */
     /* acabou a temporada quando não há jogo agendado nos próximos 10 dias (ou de novembro a fevereiro) */
     var resto=h("div",{class:"stack"});root.appendChild(resto);
@@ -410,9 +418,25 @@
   function dodgersRecord(){
     return once("std",function(){return api("/standings?leagueId=103,104&season="+SEASON).then(function(d){
       var r=null;(d.records||[]).forEach(function(x){(x.teamRecords||[]).forEach(function(t){if(t.team.id===DODGERS)r=t})});return r})})}
+  /* jogos de pós-temporada da temporada atual, com a situação de cada série (seriesStatus), direto da MLB */
+  function mlbPosTemporada(id){return once("pos"+id+"-"+SEASON,function(){return api("/schedule?sportId=1&teamId="+id+"&gameType=F,D,L,W&season="+SEASON+"&hydrate=seriesStatus").then(function(d){
+    var l=[];(d.dates||[]).forEach(function(x){l=l.concat(x.games||[])});return l})})}
+  /* a frase da faixa: tudo vem da agenda oficial (nada escrito à mão) */
+  function desfechoNos(r){
+    if(!r)return null;
+    var adv=h("span",{class:"tn"},logoImg(r.adversario.id,"sm"),r.adversario.nome);
+    if(r.tipo==="campeao")return h("span",null,"Campeões da Série Mundial de "+SEASON+" contra o ",adv," ("+r.vitorias+"–"+r.derrotas+")");
+    if(r.tipo==="eliminado")return h("span",null,(MLB_TEMP.fase==="fora"?"Temporada encerrada: e":"E")+"liminados na "+r.serie+" pelo ",adv," ("+r.vitorias+"–"+r.derrotas+" na série)");
+    if(r.tipo==="avancou")return h("span",null,"Venceram a "+r.serie+" contra o ",adv," ("+r.vitorias+"–"+r.derrotas+")");
+    return h("span",null,r.serie+" em andamento contra o ",adv)}
   function dodgersBanner(links){
-    var meta=h("div",null,"Temporada encerrada: eliminados na final da Liga Nacional pelo ",h("span",{class:"tn"},logoImg(BREWERS,"sm"),"Milwaukee Brewers"));
+    var meta=h("div",null,h("div",{text:"Temporada "+SEASON+" · "+MLB_TEMP.faseNome}));
+    mlbPosTemporada(DODGERS).then(function(gs){var n=desfechoNos(NUCLEO.mlbDesfecho(gs,DODGERS));
+      if(n)meta.insertBefore(h("div",null,n),meta.firstChild);
+      else if(MLB_TEMP.fase==="fora")meta.insertBefore(h("div",{text:"Temporada "+SEASON+" encerrada, sem pós-temporada."}),meta.firstChild)}).catch(function(){});
     dodgersRecord().then(function(r){if(r)meta.appendChild(h("div",{text:"Campanha "+r.wins+"–"+r.losses+" · "+r.divisionRank+"º na NL Oeste"}))}).catch(function(){});
+    /* fora de temporada: a abertura da próxima, só quando a MLB já divulgou a data */
+    if(MLB_TEMP.fase==="fora"||MLB_TEMP.fase==="pre")mlbAbertura().then(function(a){if(a)meta.appendChild(h("div",{text:"Temporada "+(SEASON+1)+": dia de abertura em "+new Date(a+"T12:00:00").toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})+" (data oficial da MLB)"}))});
     return banner({name:"Los Angeles Dodgers",logo:logoUrl(DODGERS),color:MLBC[DODGERS],meta:meta,links:links})}
   function dodgersGames(n){
     return mlbSched("teamId="+DODGERS+"&gameType=R,F,D,L,W&startDate="+ymd(addDays(new Date(),-120))+"&endDate="+ymd(new Date())).then(function(gs){
@@ -484,10 +508,10 @@
       var next=games.filter(function(g){return g.state!=="post"}).slice(0,6);
       lBody.innerHTML="";nBody.innerHTML="";
       if(fin.length)lBody.appendChild(cards(fin.slice(-3),true));else lBody.appendChild(h("p",{class:"empty",text:"Sem jogos finalizados recentes."}));
-      if(!next.length)nBody.appendChild(h("p",{class:"empty",text:"Nenhum jogo agendado. A temporada 2026 acabou para este time; a de 2027 começa em março."}));
+      if(!next.length){var e=h("p",{class:"empty"});semJogoTexto(e,"Nenhum jogo agendado nos próximos 30 dias.");nBody.appendChild(e)}
       else nBody.appendChild(cards(next,false));
       var last=fin[fin.length-1];
-      if(!last){sBody.innerHTML="";sBody.appendChild(h("p",{class:"empty",text:"Sem jogos finalizados em 2026."}));return}
+      if(!last){sBody.innerHTML="";sBody.appendChild(h("p",{class:"empty",text:"Sem jogos finalizados nos últimos 90 dias."}));return}
       return api("/game/"+last.id+"/boxscore").then(function(box){
         var side=box.teams.home.team.id===id?"home":"away",ts=box.teams[side];
         var order=ts.battingOrder||[],pit=(ts.pitchers||[])[0];
@@ -531,6 +555,8 @@
   /* ---- Dodgers ---- */
   function viewDodgers(root){
     root.appendChild(dodgersBanner([["Elenco e estatísticas","#esportes/beisebol/time-"+DODGERS],["@Dodgers no X","https://x.com/Dodgers"],["Instagram","https://www.instagram.com/dodgers/"]]));
+    /* Central Esportiva (js/esportes-central.js): IA, últimos 10, estatísticas, comparação com a divisão, jogadores em fase, comparador e calendário */
+    dodgersCentral().forEach(function(x){root.appendChild(x)});
     root.appendChild(mercadoDodgers());
     root.appendChild(rumoresMlb("dodgers",10));
     root.appendChild(section("Últimos jogos dos Dodgers",null,function(body){
@@ -717,7 +743,10 @@
     return p}
 
   function renderMlb(view){
-    var root=document.getElementById("mlb-view");root.innerHTML="";
+    var root=document.getElementById("mlb-view");root.innerHTML="";root.appendChild(h("div",{class:"panel"},loading()));
+    /* a temporada certa (ano e fase) vem das datas oficiais antes de qualquer pedido de estatística */
+    mlbTemporada().then(function(){if(location.hash.split("/")[1]!=="beisebol")return;root.innerHTML="";renderMlbVista(root,view)})}
+  function renderMlbVista(root,view){
     if(view==="times")viewTimes(root);
     else if(view==="dodgers")viewDodgers(root);
     else if(/^time-\d+$/.test(view))viewTeam(root,parseInt(view.slice(5),10));
@@ -797,7 +826,9 @@
         var prev=fin.slice(0,-1).slice(-3);
         if(prev.length)resB.appendChild(cards(prev,true));else resBlk.hidden=true;
         if(nx.length)nxtB.appendChild(cards(nx.slice(0,6),false));else nxtB.appendChild(h("p",{class:"empty",text:"Nenhum jogo agendado."}));
-        [espnClassificacao(sport,t),espnTabela(sport,d.games),espnNoticias(sport,t)].forEach(function(x){root.insertBefore(x,lastBox)});
+        /* Central Esportiva (js/esportes-central.js): IA, desempenho recente, estatísticas, comparação, líderes e notícias da liga */
+        var cx=espnCentral(sport,t,d.games);
+        cx.antes.concat([espnClassificacao(sport,t)],cx.meio,[espnTabela(sport,d.games),espnNoticias(sport,t)],cx.depois).forEach(function(x){root.insertBefore(x,lastBox)});
         var last=fin.filter(function(g){return g.state==="post"}).pop();
         if(last)espnSummary(sport,last.id).then(function(s){
           var g=espnFromSummary(sport,s);
@@ -808,10 +839,12 @@
       }).catch(function(e){head.innerHTML="";head.appendChild(failed(load,e));heroB.innerHTML="";nxtB.innerHTML=""})}
     load()}
 
+  /* classificação da liga na ESPN (a mesma resposta serve à tabela, à comparação e à IA) */
+  function espnStandings(sport){return once("estd-"+sport,function(){return getJson("https://site.api.espn.com/apis/v2/sports/"+ESPN[sport].path+"/standings"+(sport==="nfl"?"?level=3":""))})}
   /* classificação: NBA na conferência do time (a outra fica recolhida); NFL na divisão e, recolhida, a conferência pela vaga nos playoffs */
   function espnClassificacao(sport,t){
     var p=panel("Classificação",sport==="nba"?"Conferência do "+(t.shortDisplayName||t.displayName)+", pela posição de playoffs.":"Divisão do "+(t.shortDisplayName||t.displayName)+" e a conferência."),box=h("div",null,loading());p.appendChild(box);
-    getJson("https://site.api.espn.com/apis/v2/sports/"+ESPN[sport].path+"/standings"+(sport==="nfl"?"?level=3":"")).then(function(d){box.innerHTML="";
+    espnStandings(sport).then(function(d){box.innerHTML="";
       function st(e,n){var x=(e.stats||[]).filter(function(s){return s.name===n||s.type===n||s.abbreviation===n})[0];return x?x.displayValue:"—"}
       function tabela(entries,cols){var tb=h("table",{class:"famtab stand"});
         tb.appendChild(h("thead",null,h("tr",null,[h("th",{text:"#"}),h("th",{text:"Time"})].concat(cols.map(function(c){return h("th",{text:c[0],title:c[2]||""})})))));
@@ -824,9 +857,10 @@
         (d.children||[]).sort(function(a,b){return temTime(b)-temTime(a)}).forEach(function(c,i){var es=c.standings.entries.slice().sort(seed),nome=c.name.replace("Eastern Conference","Conferência Leste").replace("Western Conference","Conferência Oeste");
           if(i===0){box.appendChild(h("h3",{class:"dayh",text:nome}));box.appendChild(tabela(es,CN))}else box.appendChild(h("details",{class:"famvals"},h("summary",{text:nome}),tabela(es,CN)))})}
       else{var CF=[["V","wins","Vitórias"],["D","losses","Derrotas"],["E","ties","Empates"],["%","winPercent","Aproveitamento"],["Div.","divisionRecord","Campanha na divisão"],["Seq.","streak","Sequência"]];
-        (d.children||[]).forEach(function(conf){var divs=conf.children||[],minha=divs.filter(temTime)[0];if(!minha)return;
-          var nd=minha.name.replace(/^(AFC|NFC) /,"$1 · ").replace("North","Norte").replace("South","Sul").replace("East","Leste").replace("West","Oeste");
-          box.appendChild(h("h3",{class:"dayh",text:"Divisão "+nd}));box.appendChild(tabela(minha.standings.entries.slice().sort(function(a,b){return (+st(b,"winPercent")||0)-(+st(a,"winPercent")||0)}),CF));
+        /* a conferência do time primeiro (com a divisão dele aberta); a outra conferência inteira fica recolhida */
+        (d.children||[]).slice().sort(function(a,b){return ((b.children||[]).some(temTime)?1:0)-((a.children||[]).some(temTime)?1:0)}).forEach(function(conf){var divs=conf.children||[],minha=divs.filter(temTime)[0];
+          if(minha){var nd=minha.name.replace(/^(AFC|NFC) /,"$1 · ").replace("North","Norte").replace("South","Sul").replace("East","Leste").replace("West","Oeste");
+            box.appendChild(h("h3",{class:"dayh",text:"Divisão "+nd}));box.appendChild(tabela(minha.standings.entries.slice().sort(function(a,b){return (+st(b,"winPercent")||0)-(+st(a,"winPercent")||0)}),CF))}
           var todos=[];divs.forEach(function(dv){todos=todos.concat(dv.standings.entries)});
           box.appendChild(h("details",{class:"famvals"},h("summary",{text:conf.name.replace("National Football Conference","Conferência Nacional (NFC)").replace("American Football Conference","Conferência Americana (AFC)")+" · ordem dos playoffs"}),tabela(todos.sort(seed),CF)))})}
       if(!box.children.length)box.appendChild(h("p",{class:"empty",text:"Classificação ainda não disponível."}))

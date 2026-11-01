@@ -37,6 +37,12 @@ Tudo em [docs/seguranca.md](docs/seguranca.md).
 Página `#painel` (`js/painel.js`): a evolução mês a mês de gastos, treinos, estudos, tarefas e competências, com a fonte e o período
 de cada número, só com dados que já existem no site. Tudo em [docs/painel.md](docs/painel.md).
 
+## Central Esportiva
+
+Página `#esportes` (`js/esportes.js` + `js/esportes-central.js`): MLB com os Dodgers em destaque, Lakers, Packers, futebol e o giro das outras
+modalidades, com classificação, líderes, estatísticas, desempenho recente e comparações, e a análise com IA sobre um pacote de fatos
+(ações `esportes.analise` e `esportes.giro`, só DEMO nesta etapa). Tudo em [docs/esportes.md](docs/esportes.md).
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -63,6 +69,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
+| `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 
 `SEM_REDE=1` pula os testes que acessam o Supabase. Os testes rodam a cada publicação e toda segunda (`.github/workflows/testes.yml`).

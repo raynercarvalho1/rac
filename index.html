@@ -553,6 +553,23 @@ h2.sec small{font:500 calc(13px + var(--fz))/1.4 var(--f-ui);color:rgba(255,255,
 .lg.big{width:56px;height:56px;padding:6px}
 .lg.huge{width:84px;height:84px;padding:9px}
 .tn{white-space:nowrap}
+/* Central Esportiva (js/esportes-central.js) */
+.espnav{margin-bottom:16px}.espnav a{flex:1 0 auto}
+.ecsaldo .vbf{background:color-mix(in srgb,var(--good) 55%,transparent)}.ecsaldo .vb.neg .vbf{background:color-mix(in srgb,var(--bad) 55%,transparent)}.ecsaldo .vb.emp .vbf{background:var(--line)}
+.ectend{margin:8px 0 0}.ecfonte{margin-top:8px}.ecmelhor{font-weight:800;color:var(--good)}
+.eclid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
+.eclidc{border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.eclidc ol{counter-reset:n;list-style:none;margin:6px 0 0;padding:0}
+.eclidc li{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:6px;min-width:0}.eclidc li::before{counter-increment:n;content:counter(n) "º";color:var(--muted);min-width:22px;font-variant-numeric:tabular-nums}
+.eclidc .pc{min-width:0;flex:1 1 auto}.eclidc .pc>:not(.ph):not(.pn){display:none}.eclidc .pn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.eclidc li>.sub{flex:none}
+.eclidc li.eu{font-weight:700;background:var(--hover)}.eclidc .end{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+.eccomp{align-items:center;flex-wrap:wrap}.eccomp select{max-width:100%;min-width:0;flex:1 1 140px}
+.ecia .wl .grow .sub,.ecpontos .grow,.ecfatos .grow{white-space:normal}.ecfatos li{align-items:flex-start}.ecfatos .vp{flex:none}
+.ectipo{display:inline-block;font:700 calc(11px + var(--fz)) var(--f-ui);text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;margin-right:6px;background:var(--hover)}
+.ec-destaque{color:var(--good)}.ec-tendencia{color:var(--accent)}.ec-atencao{color:var(--warn)}.ec-comparacao{color:var(--muted)}
+.ecanalise{margin-top:10px}.ecmeta{margin-top:10px}
+.ectime .ectop{display:flex;gap:10px;align-items:center;text-decoration:none;color:var(--ink);margin-bottom:6px}.ectime .ectop .grow{display:flex;flex-direction:column}
+.ecfut .tn.win{font-weight:700}
 .stand tr.eu td{font-weight:700;background:var(--hover)}.stand td:first-child,.stand th:first-child{width:28px;text-align:center}.stand .tn{display:inline-flex;align-items:center;gap:6px}
 .rumores li{align-items:flex-start}.rtags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.rumores .nimg{width:96px;height:54px;object-fit:cover;border-radius:8px;flex:none}
 .tabjogos li .when{min-width:96px}.tabjogos li.ganhou .end{color:var(--good);font-weight:700}.tabjogos li.perdeu .end{color:var(--bad);font-weight:700}.tabjogos .tn{display:inline-flex;align-items:center;gap:6px}
@@ -996,6 +1013,8 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
       <a class="it" href="#esportes/beisebol/dodgers" data-k="esportes/beisebol/dodgers"><img class="ico" src="https://www.mlbstatic.com/team-logos/119.svg" alt=""><span class="t">Dodgers</span></a>
       <a class="it" href="#esportes/basquete" data-k="esportes/basquete"><img class="ico" src="https://a.espncdn.com/i/teamlogos/nba/500/lal.png" alt=""><span class="t">Lakers</span></a>
       <a class="it" href="#esportes/futebol-americano" data-k="esportes/futebol-americano"><img class="ico" src="https://a.espncdn.com/i/teamlogos/nfl/500/gb.png" alt=""><span class="t">Packers</span></a>
+      <a class="it" href="#esportes/futebol" data-k="esportes/futebol"><span class="ico" style="--ic:var(--c-esportes)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5l4 2.9-1.5 4.7h-5L8 10.4z"/></svg></span><span class="t">Futebol</span></a>
+      <a class="it" href="#esportes/giro" data-k="esportes/giro"><span class="ico" style="--ic:var(--c-esportes)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg></span><span class="t">Giro esportivo</span></a>
     </div>
     <div class="grp" id="grp-x"><h4>Listas do X</h4></div>
     <div class="sidefoot">
@@ -1037,6 +1056,16 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   <section id="olivia" hidden><div id="olivia-view" class="stack"></div></section>
   <section id="veiculos" hidden><div class="seg famseg veicseg" id="veicseg" role="group" aria-label="Veículo"></div><div id="veiculos-view" class="stack"></div></section>
   <section id="esportes" hidden>
+    <nav class="pills espnav" aria-label="Central Esportiva">
+      <a href="#esportes" data-v="central">Central</a>
+      <a href="#esportes/beisebol" data-v="beisebol">MLB</a>
+      <a href="#esportes/beisebol/dodgers" data-v="dodgers">Dodgers</a>
+      <a href="#esportes/basquete" data-v="basquete">Lakers</a>
+      <a href="#esportes/futebol-americano" data-v="futebol-americano">Packers</a>
+      <a href="#esportes/futebol" data-v="futebol">Futebol</a>
+      <a href="#esportes/giro" data-v="giro">Giro</a>
+    </nav>
+    <div id="sp-central" hidden><div id="esc-view" class="stack"></div></div>
     <div id="sp-beisebol" hidden>
       <div class="pills" aria-label="Beisebol">
         <a href="#esportes/beisebol/liga" data-v="liga">Liga toda</a>
@@ -1048,7 +1077,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 
     <div id="sp-basquete" hidden><div id="nba-view" class="stack"></div></div>
     <div id="sp-futebol-americano" hidden><div id="nfl-view" class="stack"></div></div>
-    <p class="foot">Tudo carregado ao vivo sempre que você abre a página: beisebol da API oficial da MLB, basquete e futebol americano da ESPN. As redes sociais dos jogadores vêm do Wikidata e só aparecem quando o jogador tem perfil cadastrado lá. Horários de Brasília.</p>
+    <p class="foot">Tudo carregado ao vivo sempre que você abre a página: beisebol da API oficial da MLB; basquete, futebol americano, futebol e o giro das outras modalidades da ESPN. A análise com IA usa só esses dados, com a fonte e o período de cada fato. As redes sociais dos jogadores vêm do Wikidata e só aparecem quando o jogador tem perfil cadastrado lá. Horários de Brasília.</p>
   </section>
 
 

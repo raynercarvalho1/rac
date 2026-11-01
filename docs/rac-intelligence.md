@@ -64,6 +64,11 @@ o modo da casa nunca esteve em REAL, e em DEMO a função responde antes de qual
 | `abastecimento.interpretar` | abastecimento | `claude-haiku-5-5` | dono, casa | sim, se liberada | 3.000 tokens | até 4 fotos + texto (2.000 caracteres); contexto `veiculo_sugerido`, `ultima_km` |
 | `mercado.nota` | mercado | `claude-sonnet-5-5` | dono, casa | **não (DEMO fixo)** | 12.000 tokens | até 4 fotos + texto (4.000 caracteres) |
 | `newsletter.resumo` | newsletter | `claude-haiku-5-5` (nunca Sonnet) | só dono | sim, se liberada (020 + 021; autorizado em 31/10/2026) | 4.000 tokens | só texto (15.000 caracteres, grupos com id, sem links); contexto `data` |
+| `esportes.analise` | esportes | `claude-haiku-5-5` | só dono | **não (DEMO fixo nesta etapa)** | 3.000 tokens | só texto (14.000 caracteres, pacote de fatos com id); contexto `foco` (dodgers, lakers, packers) |
+| `esportes.giro` | esportes | `claude-haiku-5-5` | só dono | **não (DEMO fixo nesta etapa)** | 3.000 tokens | só texto (14.000 caracteres, pacote de fatos com id); contexto `data` |
+
+As ações da Central Esportiva (`docs/esportes.md`) só aceitam respostas que citam ids de fatos enviados e cujos números aparecem
+nos fatos citados; a constraint do banco não as aceita em `acoes_reais`.
 
 Sem Opus. Sem troca automática de modelo na recusa (`fallbacks` não é enviado). Esforço `low` em todas.
 A Newsletter (`docs/newsletter.md`) confere na validação que a resposta só cita ids que vieram na entrada (`validar`

@@ -277,7 +277,128 @@ const newsletterResumo: Acao = {
   },
 };
 
-export const ACOES: Record<string, Acao> = { [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo };
+/* ---------- Central Esportiva: análise de um time e giro do dia (Haiku 5.5, só DEMO nesta fase) ----------
+   A entrada é um pacote de fatos montado pelo site com os dados das fontes: <fato id="f01" fonte="…" periodo="…">texto</fato>.
+   A IA só interpreta: cada trecho cita os ids dos fatos que usou, e todo número escrito precisa estar nesses fatos.
+   Período, fontes e horário de atualização não vêm da IA: o site mostra os do pacote (docs/esportes.md). */
+export const ESP_TIPOS = ["destaque", "tendencia", "atencao", "comparacao"];
+export const ESP_FOCOS = ["dodgers", "lakers", "packers"];
+/* os fatos que o site mandou: id → texto + atributos (os números dos atributos, como o período, também valem) */
+export function fatosDaEntrada(entrada?: Entrada): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const x of (entrada?.texto ?? "").matchAll(/<fato id="(f\d{2})"([^>]*)>([^<]*)<\/fato>/g)) m.set(x[1], x[3] + " " + x[2]);
+  return m;
+}
+export function numerosDe(t: string): number[] {
+  return (t.match(/\d*[.,]?\d+/g) ?? []).map((n) => parseFloat(n.replace(",", "."))).filter((n) => isFinite(n));
+}
+const ESP_ESQUEMA = {
+  type: "object",
+  properties: {
+    titulo: { type: "string" },
+    resumo: { type: "string" },
+    resumo_fatos: { type: "array", items: { type: "string" } },
+    pontos: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { tipo: { type: "string", enum: ESP_TIPOS }, texto: { type: "string" }, fatos: { type: "array", items: { type: "string" } } },
+        required: ["tipo", "texto", "fatos"],
+        additionalProperties: false,
+      },
+    },
+    insuficiente: { type: "array", items: { type: "string" } },
+  },
+  required: ["titulo", "resumo", "resumo_fatos", "pontos", "insuficiente"],
+  additionalProperties: false,
+};
+const ESP_REGRAS =
+  "Você recebe um pacote de fatos esportivos, cada um entre <fato id=\"…\" fonte=\"…\" periodo=\"…\">…</fato>, tirados das fontes oficiais pelo sistema. " +
+  "Escreva SEMPRE em português do Brasil, de forma objetiva, mesmo quando os nomes estiverem em inglês.\n" +
+  "Regras: use somente o que está nos fatos. Não acrescente estatísticas, resultados, placares, datas, lesões, contratações, notícias, nomes ou causas que não estejam ali. " +
+  "Não faça contas novas (médias, porcentagens, diferenças, projeções): escreva os números exatamente como aparecem nos fatos que você citar. " +
+  "Cada trecho (o resumo e cada ponto) lista em fatos/resumo_fatos os ids que sustentam o que diz; cite somente ids que estão no pacote. " +
+  "Não escreva links. Não dê palpite de aposta nem previsão de resultado. O título é curto e sem números. " +
+  "insuficiente: o que não dá para responder com estes fatos (sem números); lista vazia se nada faltar. Se os fatos forem poucos, diga isso no resumo e em insuficiente.";
+function validarEsportes(r: unknown, entrada?: Entrada): Validado {
+  const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+  const fatos = fatosDaEntrada(entrada);
+  if (!fatos.size) return { ok: false, motivo: "a entrada não tinha fatos" };
+  const avisos: string[] = [];
+  /* um trecho: ids conhecidos (pelo menos um) e todo número presente nos fatos citados; qualquer falha invalida a resposta inteira */
+  const trecho = (texto: unknown, ids: unknown, nome: string): { texto: string; fatos: string[] } | string => {
+    const t = semLinks(txt(texto, 700));
+    if (!t) return nome + " vazio";
+    if (!Array.isArray(ids) || !ids.length) return nome + " sem fatos citados";
+    const lista = [...new Set(ids)];
+    const fora = lista.filter((id) => typeof id !== "string" || !fatos.has(id));
+    if (fora.length) return "fato desconhecido em " + nome + ": " + fora.slice(0, 3).map((x) => String(x).slice(0, 12)).join(", ");
+    const permitidos = new Set(lista.flatMap((id) => numerosDe(fatos.get(id as string)!)));
+    const sem = numerosDe(t).filter((n) => !permitidos.has(n));
+    if (sem.length) return "número fora dos fatos citados em " + nome + ": " + sem.slice(0, 3).join(", ");
+    return { texto: t, fatos: (lista as string[]).slice(0, 12) };
+  };
+  const titulo = semLinks(txt(o.titulo, 120));
+  if (/\d/.test(titulo)) return { ok: false, motivo: "título com número" };
+  const resumo = trecho(o.resumo, o.resumo_fatos, "o resumo");
+  if (typeof resumo === "string") return { ok: false, motivo: resumo };
+  if (!Array.isArray(o.pontos)) return { ok: false, motivo: "sem pontos" };
+  const pontos: Record<string, unknown>[] = [];
+  for (const [i, x] of o.pontos.entries()) {
+    const p = objeto(x); if (!p) return { ok: false, motivo: "ponto inválido" };
+    if (!ESP_TIPOS.includes(p.tipo as string)) return { ok: false, motivo: "tipo de ponto desconhecido" };
+    const t = trecho(p.texto, p.fatos, "o ponto " + (i + 1));
+    if (typeof t === "string") return { ok: false, motivo: t };
+    pontos.push({ tipo: p.tipo, ...t });
+  }
+  if (pontos.length > 8) { pontos.length = 8; avisos.push("A IA mandou mais de 8 pontos; ficaram os 8 primeiros."); }
+  const insuficiente = (Array.isArray(o.insuficiente) ? o.insuficiente : []).map((x) => semLinks(txt(x, 200))).filter(Boolean);
+  if (insuficiente.some((x) => /\d/.test(x))) return { ok: false, motivo: "número em insuficiente" };
+  return { ok: true, avisos, resultado: { titulo, resumo: resumo.texto, resumo_fatos: resumo.fatos, pontos, insuficiente: insuficiente.slice(0, 6) } };
+}
+const esportesAnalise: Acao = {
+  id: "esportes.analise",
+  modulo: "esportes",
+  modelo: "claude-haiku-5-5",
+  papeis: ["dono"],
+  real: false, // Central Esportiva só em DEMO nesta fase (decisão do dono, 31/10/2026)
+  maxTokens: 3000,
+  esforco: "low",
+  imagensMax: 0,
+  textoMax: 14000,
+  contexto: { foco: "texto" },
+  sistema: REGRAS_GERAIS + "\n\n" + ESP_REGRAS + "\n" +
+    "Tarefa: analise o desempenho do time em foco (contexto foco). Responda, quando os fatos permitirem: como o time vem jogando no período mais recente; " +
+    "se o ataque e a defesa (ou o arremesso) melhoraram ou pioraram em relação ao período anterior; quais jogadores estão em melhor fase; " +
+    "como o time se compara aos rivais da divisão ou da conferência; e quais tendências merecem atenção. De 3 a 6 pontos.",
+  esquema: ESP_ESQUEMA,
+  validar(r, ctx, entrada) {
+    if (!ESP_FOCOS.includes(ctx.foco as string)) return { ok: false, motivo: "foco desconhecido" };
+    return validarEsportes(r, entrada);
+  },
+};
+const esportesGiro: Acao = {
+  id: "esportes.giro",
+  modulo: "esportes",
+  modelo: "claude-haiku-5-5",
+  papeis: ["dono"],
+  real: false, // Central Esportiva só em DEMO nesta fase (decisão do dono, 31/10/2026)
+  maxTokens: 3000,
+  esforco: "low",
+  imagensMax: 0,
+  textoMax: 14000,
+  contexto: { data: "texto" },
+  sistema: REGRAS_GERAIS + "\n\n" + ESP_REGRAS + "\n" +
+    "Tarefa: faça o giro esportivo do dia (contexto data). Responda, quando os fatos permitirem: quais foram os principais acontecimentos; " +
+    "quais equipes estão em melhor fase; e quais estatísticas ou tendências merecem atenção. Manchetes são só manchetes: não acrescente o que não está escrito. De 3 a 8 pontos.",
+  esquema: ESP_ESQUEMA,
+  validar(r, _ctx, entrada) { return validarEsportes(r, entrada); },
+};
+
+export const ACOES: Record<string, Acao> = {
+  [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo,
+  [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro,
+};
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */
 export type Bloco = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };

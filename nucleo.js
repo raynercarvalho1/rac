@@ -280,7 +280,7 @@
   /* os últimos n meses (competências), do atual para trás: "2026-10-01", "2026-09-01"… */
   function iaCompetencias(mes,n){var m=/^(\d{4})-(\d{2})/.exec(String(mes||"")),l=[];if(!m)return l;var a=+m[1],k=+m[2];
     for(var i=0;i<(n||12);i++){l.push(a+"-"+(k<10?"0":"")+k+"-01");k--;if(!k){k=12;a--}}return l}
-  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter"};
+  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva"};
   function iaModulo(m){return IA_MODULOS[m]||String(m||"")}
   var IA_ERROS={recusado:"a IA não quis ler este conteúdo",resposta_invalida:"resposta fora do formato",provedor_recusou_pedido:"a Anthropic recusou o pedido",
     provedor_ocupado:"serviço ocupado",provedor_indisponivel:"serviço fora do ar",tempo_esgotado:"tempo esgotado",rede:"falha de rede",registro_falhou:"a resposta não foi registrada",interno:"erro interno"};
@@ -611,9 +611,91 @@
     return SKILLS.map(function(s){var l=(evid||[]).filter(function(e){return e&&e.d&&(e.skill===s[0]||(!e.skill&&s[2].test(e.t||"")))});
       var ult=l.reduce(function(m,e){return !m||e.d>m?e.d:m},null);
       return {k:s[0],n:s[1],declarada:!!dec[s[0]],estudos:l.length,ultima:ult}})}
+  /* ===== Central Esportiva (docs/esportes.md): temporada de cada liga, desempenho recente e o pacote de fatos da IA ===== */
+  var ESP_FASES={pre:"pré-temporada",regular:"temporada regular",pos:"playoffs",fora:"fora de temporada"},ESP_TIPOS={1:"pre",2:"regular",3:"pos",4:"fora"};
+  /* temporada e fase de cada liga. mlb: info = a temporada do ano de hoje na API da MLB (/seasons); nba/nfl: info = o "season" da ESPN
+     ({year, displayName, type}). Sem info, uma estimativa pelo calendário (estimada: true). NBA: o ano da ESPN é o do fim (2026-27 = 2027); NFL: o do começo */
+  function espTemporada(liga,hoje,info){
+    var d=String(hoje).slice(0,10),y=+d.slice(0,4),md=d.slice(5),ano,fase,rot;
+    if(liga==="mlb"){var s=info&&info.regularSeasonStartDate?info:null;
+      if(s){if(d<s.regularSeasonStartDate){ano=y-1;fase=d>=(s.springStartDate||s.regularSeasonStartDate)?"pre":"fora"}
+        else if(d<=(s.regularSeasonEndDate||"9999")){ano=y;fase="regular"}
+        else if(d<=(s.postSeasonEndDate||s.regularSeasonEndDate)){ano=y;fase="pos"}else{ano=y;fase="fora"}}
+      else if(md<"03-25"){ano=y-1;fase=md>="02-20"?"pre":"fora"}else if(md<="09-28"){ano=y;fase="regular"}else if(md<="10-31"){ano=y;fase="pos"}else{ano=y;fase="fora"}
+      return {liga:liga,ano:ano,rotulo:String(ano),fase:fase,faseNome:ESP_FASES[fase],estimada:!s}}
+    var t=info&&info.type,tipo=ESP_TIPOS[t&&typeof t==="object"?(t.type||+t.id):t];
+    if(liga==="nba"){ano=info&&info.year?+info.year:(md>="07-01"?y+1:y);rot=(info&&info.displayName)||((ano-1)+"-"+String(ano).slice(2));
+      fase=tipo||(md>="10-20"||md<="04-13"?"regular":md<="06-25"?"pos":md>="10-01"?"pre":"fora")}
+    else{ano=info&&info.year?+info.year:(md>="03-01"?y:y-1);rot=String(ano);
+      fase=tipo||(md>="09-04"||md<="01-06"?"regular":md<="02-15"?"pos":md>="08-01"?"pre":"fora")}
+    return {liga:liga,ano:ano,rotulo:rot,fase:fase,faseNome:ESP_FASES[fase],estimada:!info}}
+  /* como terminou (ou está) a pós-temporada de um time da MLB, só com os jogos oficiais (agenda com hydrate=seriesStatus) */
+  var MLB_SERIES={F:"Wild Card",D:"Série Divisional",L:"Final da Liga",W:"Série Mundial"};
+  function mlbDesfecho(jogos,timeId){
+    var pos=(jogos||[]).filter(function(g){return g&&/^[FDLW]$/.test(g.gameType)&&g.status&&g.status.abstractGameState==="Final"&&g.teams})
+      .sort(function(a,b){return String(a.gameDate).localeCompare(String(b.gameDate))});
+    if(!pos.length)return null;
+    var u=pos[pos.length-1],ss=u.seriesStatus||{},casa=u.teams.home.team.id===timeId,adv=casa?u.teams.away.team:u.teams.home.team;
+    var r={serie:MLB_SERIES[u.gameType]||"",adversario:{id:adv.id,nome:adv.name},data:String(u.gameDate||"").slice(0,10),jogos:pos.length};
+    if(!ss.isOver){r.tipo="em_andamento";return r}
+    var venceu=!!(ss.winningTeam&&ss.winningTeam.id===timeId);
+    r.tipo=venceu?(u.gameType==="W"?"campeao":"avancou"):"eliminado";
+    r.vitorias=venceu?ss.wins:ss.losses;r.derrotas=venceu?ss.losses:ss.wins;return r}
+  function espDia(iso){var t=Date.parse(iso);return isFinite(t)?nlDataBRT(t):String(iso||"").slice(0,10)}
+  function espUm(x){return Math.round(x*10)/10}
+  /* desempenho nos n últimos jogos terminados (pular = quantos dos mais recentes deixar de fora, para comparar com o período anterior).
+     jogos no formato do site ({state, date, home, away} com score); meu(time) diz qual lado é o time */
+  function espUltimos(jogos,meu,n,pular){
+    var fin=(jogos||[]).filter(function(g){return g&&g.state==="post"&&g.home&&g.away&&isFinite(parseFloat(g.home.score))&&isFinite(parseFloat(g.away.score))})
+      .sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+    var fim=Math.max(0,fin.length-(pular||0)),l=fin.slice(Math.max(0,fim-n),fim);
+    var r={jogos:l.length,v:0,d:0,e:0,pro:0,contra:0,saldo:0,mediaPro:null,mediaContra:null,inicio:null,fim:null,seq:"",lista:[]};
+    l.forEach(function(g){var eu=meu(g.home)?g.home:g.away,ele=eu===g.home?g.away:g.home,a=parseFloat(eu.score),b=parseFloat(ele.score),res=a>b?"V":a<b?"D":"E";
+      r.pro+=a;r.contra+=b;r[res.toLowerCase()]++;
+      r.lista.push({data:espDia(g.date),adversario:ele.abbr||ele.name||"",casa:eu===g.home,pro:a,contra:b,res:res})});
+    if(!r.jogos)return r;
+    r.saldo=r.pro-r.contra;r.mediaPro=espUm(r.pro/r.jogos);r.mediaContra=espUm(r.contra/r.jogos);
+    r.inicio=r.lista[0].data;r.fim=r.lista[r.lista.length-1].data;
+    var ult=r.lista[r.lista.length-1].res,k=0;for(var i=r.lista.length-1;i>=0&&r.lista[i].res===ult;i--)k++;r.seq=ult+k;
+    return r}
+  /* variação de um período para o anterior, por jogo (positivo = mais pontos/corridas) */
+  function espComparar(rec,ant){if(!rec||!ant||!rec.jogos||!ant.jogos)return null;return {pro:espUm(rec.mediaPro-ant.mediaPro),contra:espUm(rec.mediaContra-ant.mediaContra)}}
+  /* pacote de fatos da IA: cada fato tem id (f01…), fonte e período, escritos pelo sistema; a IA só pode citar estes ids e os números deles */
+  function espAttr(s){return String(s==null?"":s).replace(/["<>&]/g,"").replace(/\s+/g," ").trim().slice(0,80)}
+  function espFatos(lista){var fatos=[],fontes=[],per=[];
+    (lista||[]).forEach(function(f){if(!f||!f.texto||fatos.length>=90)return;
+      var t=String(f.texto).replace(/[<>]/g,"").replace(/\s+/g," ").trim().slice(0,300);if(!t)return;
+      var n=fatos.length+1,fo=espAttr(f.fonte),pe=espAttr(f.periodo);
+      fatos.push({id:"f"+(n<10?"0":"")+n,texto:t,fonte:fo,periodo:pe,grupo:espAttr(f.grupo)});
+      if(fo&&fontes.indexOf(fo)<0)fontes.push(fo);if(pe&&per.indexOf(pe)<0)per.push(pe)});
+    return {fatos:fatos,ids:fatos.map(function(f){return f.id}),fontes:fontes,periodos:per,
+      texto:fatos.map(function(f){return '<fato id="'+f.id+'"'+(f.fonte?' fonte="'+f.fonte+'"':"")+(f.periodo?' periodo="'+f.periodo+'"':"")+">"+f.texto+"</fato>"}).join("\n")}}
+  /* chave de idempotência: a mesma ação, o mesmo foco e os mesmos fatos dão a mesma chave (o servidor não cobra duas vezes) */
+  function espChaveIA(acao,foco,texto){return "esp-"+String(acao).replace(/^esportes\./,"").replace(/[^a-z]/g,"")+"-"+String(foco||"geral").replace(/[^a-z0-9]/g,"").slice(0,20)+"-"+nlHash(texto)}
+  /* números de um texto (6-4 → 6 e 4; ,762 e .762 → 0.762), para conferir que a IA só usou números dos fatos */
+  function espNumeros(s){return (String(s||"").match(/\d*[.,]?\d+/g)||[]).map(function(t){return parseFloat(t.replace(",","."))}).filter(function(x){return isFinite(x)})}
+  /* segunda conferência, no aparelho, antes de mostrar (a primeira é a do servidor): ids conhecidos e números presentes nos fatos citados */
+  function espAplicarIA(res,pacote){res=res||{};var mapa={};((pacote&&pacote.fatos)||[]).forEach(function(f){mapa[f.id]=f});
+    function bloco(texto,ids,nome){ids=Array.isArray(ids)?ids:[];
+      var fora=ids.filter(function(id){return !mapa[id]});if(fora.length)return {erro:nome+" cita um fato que não foi enviado ("+String(fora[0]).slice(0,10)+")"};
+      if(!ids.length)return {erro:nome+" não cita nenhum fato"};
+      var ok={};ids.forEach(function(id){var f=mapa[id];espNumeros(f.texto+" "+f.periodo).forEach(function(x){ok[x]=1})});
+      var sem=espNumeros(texto).filter(function(x){return !ok[x]});
+      if(sem.length)return {erro:nome+" tem um número que não está nos fatos citados ("+sem[0]+")"};
+      return {texto:String(texto||""),fatos:ids.map(function(id){return mapa[id]})}}
+    if(/\d/.test(String(res.titulo||"")))return {ok:false,motivo:"o título tem número"};
+    var r=bloco(res.resumo,res.resumo_fatos,"o resumo");if(r.erro)return {ok:false,motivo:r.erro};
+    var pontos=[],l=Array.isArray(res.pontos)?res.pontos:[];
+    for(var i=0;i<l.length;i++){var b=bloco(l[i]&&l[i].texto,l[i]&&l[i].fatos,"o ponto "+(i+1));if(b.erro)return {ok:false,motivo:b.erro};b.tipo=String(l[i].tipo||"");pontos.push(b)}
+    var ins=(Array.isArray(res.insuficiente)?res.insuficiente:[]).map(String).filter(function(t){return t&&!/\d/.test(t)});
+    return {ok:true,titulo:String(res.titulo||""),resumo:r,pontos:pontos,insuficiente:ins}}
+  /* cache local das análises REAIS: guarda as max mais recentes */
+  function espCacheGuardar(cache,chave,item,max){var c={};Object.keys(cache||{}).forEach(function(k){c[k]=cache[k]});c[chave]=item;
+    Object.keys(c).sort(function(a,b){return ((c[b]&&c[b].quando)||0)-((c[a]&&c[a].quando)||0)}).slice(max||8).forEach(function(k){delete c[k]});return c}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
-    pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias};
+    pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias,
+    ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar};
 })(typeof window!=="undefined"?window:globalThis);

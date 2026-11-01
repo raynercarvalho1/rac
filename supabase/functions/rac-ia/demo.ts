@@ -2,7 +2,7 @@
 // não contam no orçamento e são marcadas em três lugares (modo "DEMO", resultado._demo e valores obviamente falsos).
 // No site, uma resposta DEMO só aparece numa prévia de leitura: nunca entra nas telas que salvam (docs/rac-intelligence.md).
 
-import { ACOES, idsDaEntrada, type Entrada } from "./acoes.ts";
+import { ACOES, fatosDaEntrada, idsDaEntrada, type Entrada } from "./acoes.ts";
 import type { Resposta } from "./contrato.ts";
 
 const FIXTURES: Record<string, (ctx: Record<string, unknown>, entrada?: Entrada) => Record<string, unknown>> = {
@@ -27,7 +27,20 @@ const FIXTURES: Record<string, (ctx: Record<string, unknown>, entrada?: Entrada)
       categorias: [],
     };
   },
+  /* cita só ids que vieram e não escreve nenhum número: passa pela mesma validação, e é obviamente simulado */
+  "esportes.analise": (_ctx, entrada) => espDemo(entrada),
+  "esportes.giro": (_ctx, entrada) => espDemo(entrada),
 };
+function espDemo(entrada?: Entrada): Record<string, unknown> {
+  const ids = [...fatosDaEntrada(entrada).keys()];
+  return {
+    titulo: "Análise de demonstração",
+    resumo: "DEMONSTRAÇÃO: texto simulado. Nenhum fato foi lido pela IA; os fatos citados abaixo são os enviados, sem interpretação.",
+    resumo_fatos: ids.slice(0, 2),
+    pontos: ids.slice(0, 3).map((id, i) => ({ tipo: ["destaque", "tendencia", "atencao"][i], texto: "Ponto de demonstração, sem relação com o fato citado.", fatos: [id] })),
+    insuficiente: ["Demonstração: a análise de verdade só existe no modo REAL."],
+  };
+}
 
 export const AVISO_DEMO = "DEMONSTRAÇÃO: resposta simulada, não veio do Claude. Não pode ser salva.";
 

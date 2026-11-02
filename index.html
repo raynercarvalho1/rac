@@ -110,7 +110,8 @@ img.ico{background:#fff;object-fit:contain;padding:2px;box-shadow:0 0 0 1px var(
 .credit a{color:var(--muted)}
 .main{min-width:0;width:100%;max-width:1000px;justify-self:center;padding-top:20px}
 .ptitle{display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.4)}
-.ptitle h1{font:700 clamp(24px,4vw,32px)/1.1 var(--f-ui);margin:0;letter-spacing:-.02em;min-width:0}
+/* título longo termina em reticências em vez de passar por baixo de Voltar, ↻ e Início */
+.ptitle h1{font:700 clamp(24px,4vw,32px)/1.1 var(--f-ui);margin:0;letter-spacing:-.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ptitle .ico{width:34px;height:34px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 .ptitle .ico svg{width:17px;height:17px}
 .ptitle .homebtn{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font:600 calc(13px + var(--fz)) var(--f-ui);background:var(--glass);color:var(--ink);text-shadow:none;padding:6px 12px 6px 8px;border-radius:99px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);text-decoration:none;white-space:nowrap}
@@ -119,6 +120,21 @@ img.ico{background:#fff;object-fit:contain;padding:2px;box-shadow:0 0 0 1px var(
 .ptitle .homebtn:hover{background:var(--surface)}
 .ptitle .homebtn:not([hidden])+.date{margin-left:0}
 .ptitle #voltarbtn{border:0;cursor:pointer}.ptitle #voltarbtn:not([hidden])+.homebtn{margin-left:8px}
+/* botão de atualizar: sempre no topo, ao lado de Voltar e Início; toque de 44 px; a hora é a da última atualização desta página */
+.ptitle .atubtn{border:0;cursor:pointer;min-width:44px;min-height:44px;justify-content:center;padding:6px 10px}.ptitle .atubtn+.homebtn,.ptitle #voltarbtn+.atubtn{margin-left:8px}
+.ptitle .atubtn svg{width:17px;height:17px}.ptitle .atubtn .atuh{font-size:calc(11px + var(--fz));font-variant-numeric:tabular-nums}.ptitle .atubtn .atuh:empty{display:none}
+.ptitle .atubtn:disabled{opacity:.7;cursor:progress}.ptitle .atubtn.girando svg{animation:atugira .9s linear infinite}@keyframes atugira{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.ptitle .atubtn.girando svg{animation:none}}
+/* onde o ↻ aperta o cabeçalho, Voltar e Início ficam só com o ícone em todas as páginas (como já era na Newsletter; o texto continua no
+   botão para leitores de tela): no celular e entre 861 e 1200 px (barra lateral aberta e conteúdo estreito) */
+@media(max-width:480px),(min-width:861px) and (max-width:1200px){
+  .ptitle .homebtn{flex:none;width:36px;height:36px;padding:0;justify-content:center;gap:0;font-size:0}.ptitle .homebtn svg{width:18px;height:18px}
+  .ptitle .atubtn{width:auto;min-width:44px;height:44px;padding:0 8px;gap:3px}}
+/* no celular, além disso, o título ocupa o que sobra e o ícone da página (#pico, cópia decorativa do ícone do menu) sai para ele caber */
+@media(max-width:480px){.ptitle{gap:10px}.ptitle #pico{display:none}.ptitle h1{flex:1 1 auto}.ptitle .atubtn .atuh{font-size:calc(10.5px + var(--fz))}
+  .ptitle #voltarbtn:not([hidden])+.homebtn,.ptitle .atubtn+.homebtn{margin-left:6px}}
+.atust{margin:-6px 0 14px;padding:8px 12px;border-radius:10px;background:var(--side);color:var(--ink);font:500 calc(13.5px + var(--fz))/1.4 var(--f-ui);box-shadow:var(--shadow)}
+.atust.ok{border-left:4px solid var(--good,#2e7d32)}.atust.aviso{border-left:4px solid var(--warn,#b26a00)}.atust.erro{border-left:4px solid var(--bad,#c62828)}
 .ptitle .date{margin-left:auto;font:500 calc(13px + var(--fz)) var(--f-ui);background:var(--glass);color:var(--ink);text-shadow:none;padding:6px 12px;border-radius:99px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);white-space:nowrap}
 .sidebtn{display:none;background:var(--glass);color:var(--ink);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:10px;padding:8px;text-shadow:none}
 .sidebtn svg{width:20px;height:20px;display:block}
@@ -1066,9 +1082,11 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
     <span class="ico" id="pico"></span>
     <h1 id="ptitle">Esportes</h1>
     <button type="button" class="homebtn" id="voltarbtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Voltar</button>
+    <button type="button" class="homebtn atubtn" id="atubtn" aria-label="Atualizar esta página" title="Atualizar esta página"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="atuh"></span></button>
     <a class="homebtn" id="homebtn" href="#inicio" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>Início</a>
     <span class="date" id="hoje"></span>
   </div>
+  <p class="atust" id="atust" role="status" aria-live="polite" hidden></p>
   <a class="alertbar" id="bdalert" href="#aniversarios" hidden></a>
   <section id="inicio" hidden><div id="inicio-view"></div></section>
   <section id="estudos" hidden><div id="estudos-view" class="stack"></div></section>

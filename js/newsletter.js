@@ -4,15 +4,28 @@
    Regras da IA: o resumo automático (6h, 12h e 18h) é feito no servidor (rac-newsletter → rac-ia) e já chega salvo no
    histórico; aqui, a resposta DEMO só aparece numa prévia sem botão de salvar e a REAL vai para a prévia com "Salvar
    edição", e só esse toque grava. Links, veículos e datas vêm sempre do coletor, nunca da IA (docs/newsletter.md). */
-  var NLS={dados:null,quando:0};
+  var NLS={dados:null,quando:0,busca:null,hist:null};
   var NL_IA_CACHE="rac-nl-ia",NL_IA_TENT="rac-nl-ia-tent",NL_HIST_CACHE="rac-nl-hist";
   function nlLer(k,padrao){try{var v=JSON.parse(localStorage.getItem(k)||"null");return v==null?padrao:v}catch(e){return padrao}}
   function nlGuardarLocal(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
   /* newsletter.json: o service worker devolve a cópia guardada na hora (funciona sem internet) e atualiza por trás */
   function nlCarregar(forcar){
     if(NLS.dados&&!forcar&&Date.now()-NLS.quando<5*60e3)return Promise.resolve(NLS.dados);
-    return getJson("newsletter.json?v="+Math.floor(Date.now()/6e5)).then(function(d){
-      if(!d||!Array.isArray(d.grupos))throw new Error("newsletter.json sem grupos");NLS.dados=d;NLS.quando=Date.now();return d})}
+    return nlLerEdicao().then(function(d){NLS.dados=d;NLS.quando=Date.now();return d})}
+  /* só lê (não mexe em NLS); com o botão de atualizar, getJson pede o newsletter.json à rede agora (?atualizar=1) */
+  function nlLerEdicao(){return getJson("newsletter.json?v="+Math.floor(Date.now()/6e5)).then(function(d){
+      if(!d||!Array.isArray(d.grupos))throw new Error("newsletter.json sem grupos");return d})}
+  /* botão de atualizar: a edição (Hoje e Buscar) ou o histórico (Anteriores e Semana) de novo, trocados só com a leitura inteira;
+     Guardadas e Ajustes vêm do PESSOAL, que o ↻ já relê. Nunca chama a IA; um resumo da IA esperando Salvar faz o ↻ esperar */
+  function nlAba(){return ((location.hash||"").replace("#","").split("/")[1])||""}
+  atuModulo("newsletter",{
+    buscar:function(){var a=nlAba();
+      if(a==="historico"||a==="semana")return atuLer(nlHistorico).then(function(r){return {historico:r}});
+      if(a===""||a==="busca")return atuLer(nlLerEdicao).then(function(r){return {edicao:r}});
+      return {}},
+    antes:function(){var a=nlAba();return a==="historico"||a==="semana"?(NLS.hist?{historico:{ok:true}}:{}):a===""||a==="busca"?(NLS.dados?{edicao:{ok:true}}:{}):{}},
+    trocar:function(n){if(n.edicao){NLS.dados=n.edicao.v;NLS.quando=Date.now()}if(n.historico)NLS.hist=n.historico.v},
+    ocupado:function(){return document.querySelector("#newsletter-view .nlprevia:not(.iaprevia) .nlacts")?"o resumo da IA esperando Salvar ou Descartar":""}});
   function nlQuando(iso){var d=new Date(iso);return isNaN(d)?"":d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"}).replace(","," ·")}
   function nlDataLonga(data){return new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
   function nlTurnoTxt(t){return NUCLEO.NL_TURNOS[t]?"edição das "+NUCLEO.NL_TURNOS[t]:""}
@@ -56,7 +69,7 @@
     return p}
 
   function renderNewsletter(sub,arg){
-    var root=$("#newsletter-view");root.innerHTML="";window.scrollTo(0,0);
+    var root=$("#newsletter-view");root.innerHTML="";window.scrollTo(0,0);if(!ATU.rodando){NLS.busca=null;NLS.hist=null}
     sub=["busca","guardadas","historico","semana","ajustes"].indexOf(sub)>=0?sub:"";
     root.appendChild(nlTabs(sub));
     var corpo=h("div",{class:"stack"},h("div",{class:"panel"},h("p",{class:"empty",text:"Carregando…"})));root.appendChild(corpo);
@@ -164,12 +177,14 @@
   function nlBuscaView(corpo,q0){
     var d=NLS.dados,cfg=NUCLEO.nlConfig(PESSOAL.newsletter),agora=Date.now(),lim=30;
     var gs=d.grupos.map(function(g){var x=Object.assign({},g);x.s=NUCLEO.nlRelevancia(g,agora,cfg).s;return x});
-    var F={q:q0||"",c:"",tipo:"",fonte:"",ordem:"data"},p=panel("Buscar nas notícias","Todas as notícias da coleta (últimas 48 horas). Todas as palavras precisam aparecer."),res=h("div");
+    var F=NLS.busca||{q:q0||"",c:"",tipo:"",fonte:"",ordem:"data"},p=panel("Buscar nas notícias","Todas as notícias da coleta (últimas 48 horas). Todas as palavras precisam aparecer."),res=h("div");
     var q=h("input",{type:"search",placeholder:"Buscar (ex.: Copom, Nintendo, Python)","aria-label":"Buscar nas notícias",value:F.q});
-    var tipo=h("select",{"aria-label":"Tipo"},[["","Todos os tipos"],["noticia","Notícias"],["analise","Análises"],["opiniao","Opiniões"]].map(function(o){return h("option",{value:o[0],text:o[1]})}));
+    NLS.busca=F;
+    var tipo=h("select",{"aria-label":"Tipo","data-atu-filtro":""},[["","Todos os tipos"],["noticia","Notícias"],["analise","Análises"],["opiniao","Opiniões"]].map(function(o){return h("option",{value:o[0],text:o[1]})}));
     var nomes=[];(d.fontes||[]).forEach(function(f){if(nomes.indexOf(f.n)<0)nomes.push(f.n)});nomes.sort();
-    var fonte=h("select",{"aria-label":"Veículo"},[h("option",{value:"",text:"Todos os veículos"})].concat(nomes.map(function(n){return h("option",{value:n,text:n})})));
-    var ordem=h("select",{"aria-label":"Ordem"},h("option",{value:"data",text:"Mais recentes"}),h("option",{value:"relevancia",text:"Mais relevantes"}));
+    var fonte=h("select",{"aria-label":"Veículo","data-atu-filtro":""},[h("option",{value:"",text:"Todos os veículos"})].concat(nomes.map(function(n){return h("option",{value:n,text:n})})));
+    var ordem=h("select",{"aria-label":"Ordem","data-atu-filtro":""},h("option",{value:"data",text:"Mais recentes"}),h("option",{value:"relevancia",text:"Mais relevantes"}));
+    tipo.value=F.tipo;fonte.value=F.fonte;ordem.value=F.ordem;
     var chips=h("div",{class:"chips nlchips"});
     [{k:"",n:"Todas"}].concat(NUCLEO.NL_CATS).forEach(function(k){var b=h("button",{type:"button",class:"chipb"+(k.k===F.c?" on":""),"aria-pressed":String(k.k===F.c),text:k.n});
       b.onclick=function(){F.c=k.k;[].forEach.call(chips.children,function(x){x.classList.remove("on");x.setAttribute("aria-pressed","false")});b.classList.add("on");b.setAttribute("aria-pressed","true");lim=30;rodar()};chips.appendChild(b)});
@@ -209,7 +224,7 @@
     p.appendChild(h("p",{class:"empty",text:/PGRST205|42P01/.test(String(e.code))||/newsletter_edicoes/.test(e.message)?"O histórico começa a ser guardado quando o SQL 018 for rodado no Supabase.":"Não consegui abrir o histórico agora ("+e.message+")."}));
     corpo.appendChild(p)}
   function nlHistoricoView(corpo,data){
-    nlHistorico().then(function(r){corpo.innerHTML="";
+    (NLS.hist?Promise.resolve(NLS.hist):nlHistorico()).then(function(r){NLS.hist=r;corpo.innerHTML="";
       if(data){var pd=data.split("/"),e=r.l.filter(function(x){return x.data===pd[0]&&(!pd[1]||x.turno===pd[1])})[0];if(!e){corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Essa edição não está guardada."}),h("a",{class:"ghostbtn",href:"#newsletter/historico",text:"Ver todas"})));return}
         var c=e.conteudo,p=panel("Edição de "+nlDataLonga(c.data)+(e.turno?" · "+NUCLEO.NL_TURNOS[e.turno]:""),(c.origem==="ia"?"Com resumo da IA"+(e.modelo?" ("+e.modelo+")":"")+(e.custo!=null?" · custo "+nlUsd(e.custo):""):"Montada pelas regras")+" · coletada em "+nlQuando(c.coletado));
         p.appendChild(h("p",{class:"nlresumo",text:c.resumo_dia}));p.appendChild(h("a",{class:"ghostbtn",href:"#newsletter/historico",text:"← Todas as edições"}));corpo.appendChild(p);
@@ -229,7 +244,7 @@
 
   /* ----- Semana: as edições dos últimos 7 dias ----- */
   function nlSemanaView(corpo){
-    nlHistorico().then(function(r){corpo.innerHTML="";var desde=maisDias(hojeISO(),-6),l=r.l.filter(function(e){return e.data>=desde}),s=NUCLEO.nlSemana(l);
+    (NLS.hist?Promise.resolve(NLS.hist):nlHistorico()).then(function(r){NLS.hist=r;corpo.innerHTML="";var desde=maisDias(hojeISO(),-6),l=r.l.filter(function(e){return e.data>=desde}),s=NUCLEO.nlSemana(l);
       var p=panel("Resumo da semana",s.dias.length?s.dias.length+(s.dias.length===1?" edição":" edições")+" ("+s.dias.map(function(x){return dataBR(x).slice(0,5)}).join(", ")+") · "+s.destaques+" destaques diferentes"+(s.ia?" · "+s.ia+" com resumo da IA":""):null);
       if(!s.dias.length){p.appendChild(h("p",{class:"empty",text:"Ainda não há edições guardadas nos últimos 7 dias."}));corpo.appendChild(p);return}
       p.appendChild(h("h3",{class:"mbag",text:"Destaques por categoria"}));

@@ -45,11 +45,21 @@
       ["Idade do condicionamento físico","Em inglês, fitness age. A idade que o seu condicionamento aparenta, comparada com a média das pessoas."]];
     return h("details",{class:"famvals"},h("summary",{text:"O que significa cada número"}),h("dl",{class:"glos"},G.map(function(g){return [h("dt",{text:g[0]}),h("dd",{text:g[1]})]}).reduce(function(a,b){return a.concat(b)},[])))}
   function saudeCarregar(){
+    return saudeLer().then(function(x){SAUDE.dias=x.dias;SAUDE.ativs=x.ativs;
+        if(x.antigos)Promise.resolve().then(function(){return Promise.all([SB.from("garmin_ativ").delete().lt("inicio",GARMIN_DESDE),SB.from("garmin_dia").delete().lt("data",GARMIN_DESDE)])}).catch(function(e){logErro("Garmin (limpar antigos)",e)})})}
+  /* só lê do banco o que o relógio já mandou (não mexe em SAUDE e não chama a função garmin) */
+  function saudeLer(){
     function pag(t,cols,ord,from,acc){return SB.from(t).select(cols).order(ord,{ascending:false}).range(from,from+999).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(t,cols,ord,from+1000,acc):acc})}
     return Promise.all([pag("garmin_dia","data,dados,atualizado","data",0,[]),pag("garmin_ativ","id,inicio,tipo,dados","inicio",0,[])])
-      .then(function(r){SAUDE.dias=r[0].reverse().filter(function(d){return d.data>=GARMIN_DESDE});
-        SAUDE.ativs=r[1].filter(function(a){return a.inicio>=GARMIN_DESDE});
-        if(SAUDE.ativs.length<r[1].length||SAUDE.dias.length<r[0].length)Promise.resolve().then(function(){return Promise.all([SB.from("garmin_ativ").delete().lt("inicio",GARMIN_DESDE),SB.from("garmin_dia").delete().lt("data",GARMIN_DESDE)])}).catch(function(e){logErro("Garmin (limpar antigos)",e)})})}
+      .then(function(r){var dias=r[0].reverse().filter(function(d){return d.data>=GARMIN_DESDE}),ativs=r[1].filter(function(a){return a.inicio>=GARMIN_DESDE});
+        return {dias:dias,ativs:ativs,antigos:ativs.length<r[1].length||dias.length<r[0].length}})}
+  /* botão de atualizar: relê do banco os dias e os treinos (o que o relógio já mandou) e só troca com as duas leituras. Não sincroniza
+     com o Garmin: isso é o "Atualizar agora" daqui. Enquanto ele roda, o ↻ espera. O filtro, o período e a métrica ficam em SAUDE */
+  atuModulo("saude",{
+    buscar:function(){return atuLer(saudeLer).then(function(r){return {relogio:r}})},
+    antes:function(){return SAUDE.dias?{relogio:{ok:true}}:{}},
+    trocar:function(n){SAUDE.dias=n.relogio.v.dias;SAUDE.ativs=n.relogio.v.ativs},
+    ocupado:function(){return SAUDE.sinc?"a sincronização com o relógio Garmin":""}});
   /* pede à função "garmin" o que é novo (dias e depois treinos), em rodadas até não ter mais */
   function saudeSincronizar(st){
     function chamar(corpo){return SB.functions.invoke("garmin",{body:corpo}).then(function(r){
@@ -74,7 +84,7 @@
       var ult=SAUDE.dias.length?SAUDE.dias[SAUDE.dias.length-1].atualizado:null;
       st.textContent=ult?"Última atualização: "+new Date(ult).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
       /* abre atualizando se faz mais de 2 horas */
-      if(!SAUDE.sinc&&(!ult||Date.now()-new Date(ult).getTime()>2*3600e3))sinc()
+      if(!SAUDE.sinc&&!ATU.semExternos&&(!ult||Date.now()-new Date(ult).getTime()>2*3600e3))sinc()
     }).catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:/garmin_dia|relation|schema cache/i.test(e.message)?"Falta rodar o supabase/007_garmin.sql no Supabase para ligar esta área.":"Não consegui carregar ("+e.message+")."})))});
     function desenhar(){
       corpo.innerHTML="";var dias=SAUDE.dias||[],ativs=SAUDE.ativs||[];
@@ -343,7 +353,7 @@
     topo.insertBefore(h("div",{class:"vfil"},volta),topo.firstChild);root.appendChild(topo);
     var st=h("p",{class:"sub",role:"status",text:"Carregando o treino…"});topo.appendChild(st);
     var corpo=h("div",{class:"stack"});root.appendChild(corpo);
-    (TREINO_DET[id]?Promise.resolve(TREINO_DET[id]):SB.functions.invoke("garmin",{body:{tipo:"detalhe",id:+id}}).then(function(r){
+    (TREINO_DET[id]?Promise.resolve(TREINO_DET[id]):ATU.semExternos?Promise.reject(new Error("o botão de atualizar não chama o relógio; abra o treino de novo")):SB.functions.invoke("garmin",{body:{tipo:"detalhe",id:+id}}).then(function(r){
       if(r.error)throw new Error(r.error.message);if(r.data&&r.data.erro)throw new Error(r.data.erro);TREINO_DET[id]=r.data;return r.data}))
     .then(function(x){st.remove();desenharTreino(x)}).catch(function(e){logErro("treino",e,{id:id});st.textContent="Não consegui carregar os detalhes ("+e.message+"). Os números abaixo vêm do resumo.";desenharTreino({resumo:{},serie:[],rota:[],voltas:[],series:[]})});
     function desenharTreino(x){

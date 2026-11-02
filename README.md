@@ -62,6 +62,24 @@ DANFE, XML, CSV/ZIP, e-mails (Gmail, só leitura, com os anexos PDF e XML) e pri
 documentos do mesmo pedido, divergências, duplicidade, recorrências a confirmar e histórico de preços (SQL 025). Entra no Painel e no
 backup; é da casa. Sem IA paga e sem senha de loja. Tudo em [docs/compras.md](docs/compras.md).
 
+## Botão de atualizar (↻)
+
+No topo de todas as páginas (`js/app.js`, bloco "Botão de atualizar"; regras em `NUCLEO.atu*`): atualiza só a página aberta, sem recarregar
+o site. Antes de mexer na tela confere se o banco responde; espera formulário não salvo e operação em andamento (envio de fotos,
+importação, backup, restauração, IA, sincronização do Garmin); nunca chama Garmin, Gmail nem IA. Os módulos com dados em memória
+(Alimentação, Compras, Painel, Saúde, Olivia, Newsletter, Rede, Busca e Segurança) se ligam por `atuModulo`: leem tudo de novo, só trocam
+se todas as leituras vierem e, se algo falhar, a tela de antes fica. Os JSON do site vêm da rede na hora (`?atualizar=1` no service worker).
+
+### Limitações conhecidas — atualização global
+
+Aceitas pelo dono em 02/11/2026; são conhecidas e ficam assim até uma etapa própria (o teste `tests/atualizar_modulos.test.mjs` lista as
+três páginas e falha se outra página com dados em memória ficar de fora):
+
+- **Resumo**, **Esportes** e **Lista** ainda usam o caminho padrão da Etapa A: o ↻ redesenha a página e ela pode usar dados que já estavam
+  na memória, sem buscar todos de novo.
+- **Newsletter, aba Hoje**: abrir a aba, inclusive pelo ↻, pode gravar no histórico (`newsletter_edicoes`, origem "regras") a edição montada
+  pelas regras, como já acontecia ao abrir a página. Essa gravação não usa IA.
+
 ## Publicar
 
 1. `node --test tests/*.test.mjs` (tem que passar tudo).
@@ -91,6 +109,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |
 | `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
+| `atualizar.test.mjs`, `atualizar_modulos.test.mjs` | botão de atualizar sem rede: regras, service worker, e os nove módulos com um banco falso (busca antes, troca só no sucesso) |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 
 `SEM_REDE=1` pula os testes que acessam o Supabase. Os testes rodam a cada publicação e toda segunda (`.github/workflows/testes.yml`).

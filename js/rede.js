@@ -21,7 +21,14 @@
   function redeTexto(m,c){return m.replace(/\{nome\}/g,c&&c.titulo?c.titulo.split(" ")[0]:"{nome}").replace(/\{empresa\}/g,c&&c.valor?c.valor:"{empresa}")}
   function redeCopiar(b,txt){try{navigator.clipboard.writeText(txt).then(function(){var t=b.textContent;b.textContent="✓ Copiado";setTimeout(function(){b.textContent=t},1500)})}catch(e){prompt("Copie:",txt)}}
   function redeDias(d){return d?Math.round((new Date(hojeISO()+"T12:00:00")-new Date(String(d).slice(0,10)+"T12:00:00"))/864e5):null}
-  function redeCarregar(){return SB.from("registros").select("id,tipo,data,titulo,valor,detalhes,dados").eq("quem","rede").order("data",{ascending:false}).then(sbOk).then(function(l){REDE.regs=l;return l})}
+  function redeCarregar(){return redeLer().then(function(l){REDE.regs=l;return l})}
+  /* só lê (não mexe em REDE) */
+  function redeLer(){return Promise.resolve().then(function(){return SB.from("registros").select("id,tipo,data,titulo,valor,detalhes,dados").eq("quem","rede").order("data",{ascending:false})}).then(sbOk)}
+  /* botão de atualizar: os contatos de novo, trocados só com a leitura inteira; o contato em edição continua aberto (REDE.editando) */
+  atuModulo("rede",{
+    buscar:function(){return atuLer(redeLer).then(function(r){return {contatos:r}})},
+    antes:function(){return REDE.regs?{contatos:{ok:true}}:{}},
+    trocar:function(n){REDE.regs=n.contatos.v}});
   function renderRede(){
     var root=$("#rede-view");root.innerHTML="";
     var topo=panel("Rede em Sorocaba","Quem é de RH e recrutamento nas empresas da região, em que pé está cada contato e quando os posts foram vistos pela última vez. O LinkedIn não deixa robôs entrarem na conta, então aqui ficam os atalhos e a memória do trabalho; o resto é no próprio LinkedIn.");
@@ -35,7 +42,8 @@
     var pm=h("details",{class:"panel famvals"},h("summary",{text:"Modelos de mensagem"}));
     REDE_MSG.forEach(function(m){var b=h("button",{type:"button",class:"ghostbtn",text:"Copiar"});b.onclick=function(){redeCopiar(b,m[1])};pm.appendChild(h("h3",{class:"mbag",text:m[0]}));pm.appendChild(h("p",{class:"sub",text:m[1]}));pm.appendChild(h("div",{class:"vfil"},b))});
     pm.appendChild(h("p",{class:"sub",text:"Em cada contato, o botão Mensagem já copia o convite com o nome e a empresa da pessoa."}));root.appendChild(pm);
-    redeCarregar().then(function(){redeDesenhar(box)},function(e){box.innerHTML="";box.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui carregar ("+e.message+")."})));logErro("rede",e)})}
+    /* pelo ↻ os contatos já chegaram novos: desenha com eles, sem ler de novo */
+    (ATU.rodando&&REDE.regs?Promise.resolve(REDE.regs):redeCarregar()).then(function(){redeDesenhar(box)},function(e){box.innerHTML="";box.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui carregar ("+e.message+")."})));logErro("rede",e)})}
   function redeDesenhar(box){
     box.innerHTML="";var l=(REDE.regs||[]).filter(function(r){return r.tipo==="contato"});
     var p=panel("Contatos de RH ("+l.length+")",null),f=h("div",{class:"wform"});

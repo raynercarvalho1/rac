@@ -17,10 +17,19 @@
   function ccPag(q){var acc=[];function pag(f){return Promise.resolve().then(function(){return q(f)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(f+1000):acc})}return pag(0)}
   function ccCarregar(forcar){
     if(CC.carregando&&!forcar)return CC.carregando;
-    CC.carregando=ccPag(function(f){return SB.from("compras_online").select(CC_COLS+",compras_online_itens(id,ordem,descricao,codigo,qtd,unitario,total,desconto,categoria,imagem_path),compras_online_docs(id,tipo,nome,path,mime,tamanho,sha256,criado_em)")
-      .order("data",{ascending:false}).order("criado_em",{ascending:false}).range(f,f+999)}).then(function(l){CC.dados=l.map(ccCompra);return CC.dados});
+    CC.carregando=ccLer().then(function(l){CC.dados=l;return CC.dados});
     CC.carregando.catch(function(){CC.carregando=null});return CC.carregando}
+  /* só lê (não mexe em CC) */
+  function ccLer(){return ccPag(function(f){return SB.from("compras_online").select(CC_COLS+",compras_online_itens(id,ordem,descricao,codigo,qtd,unitario,total,desconto,categoria,imagem_path),compras_online_docs(id,tipo,nome,path,mime,tamanho,sha256,criado_em)")
+      .order("data",{ascending:false}).order("criado_em",{ascending:false}).range(f,f+999)}).then(function(l){return l.map(ccCompra)})}
   function ccEsquecer(){CC.carregando=null;if(typeof PAINEL!=="undefined")PAINEL.cache={}}
+  /* botão de atualizar: as compras de novo, trocadas só se a leitura vier inteira. Um lote importado esperando conferência não é
+     redesenhado (sumiria sem ser salvo): primeiro salve ou saia de Importar */
+  atuModulo("compras",{
+    buscar:function(){return atuLer(ccLer).then(function(r){return {compras:r}})},
+    antes:function(){return CC.dados?{compras:{ok:true}}:{}},
+    trocar:function(n){CC.dados=n.compras.v;CC.carregando=Promise.resolve(CC.dados);if(typeof PAINEL!=="undefined")PAINEL.cache={}},
+    ocupado:function(){return CC.aba==="importar"&&CC.lote&&CC.lote.isConnected?"a conferência da importação (salve os pedidos ou saia de Importar)":""}});
   function ccLoja(c){return NUCLEO.CO_LOJAS[c.loja]||c.loja}
   function ccFonte(t){return h("p",{class:"sub pnfonte",text:"Fonte: "+t})}
   function ccVazio(t){return h("p",{class:"empty",text:t})}
@@ -198,7 +207,7 @@
       if(/^(png|jpe?g|webp|gif|heic)$/.test(ext))return ccOcr(doc.blob).then(function(t){var e=NUCLEO.coLerTexto(t);e.tipo="imagem";doc.tipo="imagem";doc.ext=e.numero||e.total_pago!=null?e:null;doc.texto=t;doc.ocr=true;return [doc]},function(){doc.tipo="imagem";doc.ext=null;doc.ocrFalhou=true;return [doc]});
       doc.tipo="outro";doc.ext=null;return [doc]})})}
   /* vários arquivos (e textos colados / e-mails do Gmail) → candidatos: um por pedido, com todos os documentos dele */
-  function ccProcessar(files,textos,st){var docs=[];
+  function ccProcessar(files,textos,st){var docs=[],fimT=atuTarefa("a leitura dos documentos");
     return files.reduce(function(p,f){return p.then(function(){return ccLerArquivo(f,st).then(function(l){docs=docs.concat(l)},function(e){docs.push({nome:f.name,erro:e.message})})})},Promise.resolve())
     .then(function(){var ignorados=0;
       return (textos||[]).reduce(function(p,t){return p.then(function(){var raw=t.raw||t.texto,m=/^[\w-]+:\s/m.test(raw.slice(0,400))&&/\r?\n\r?\n/.test(raw)?ccEml(raw):{texto:raw,imagens:[],anexos:[]},e=NUCLEO.coLerTexto(m.texto);if(!e.data&&(m.data||t.data))e.data=m.data||t.data;
@@ -224,7 +233,7 @@
         if(d.extras&&d.extras.length){d.extras.forEach(function(e){var g=grupo(e);g.cand=NUCLEO.coMesclar(g.cand,e);g.docs.push(d)});return}
         if(!d.ext||(!d.ext.numero&&!d.ext.chave_nfe&&d.ext.total_pago==null)){if(d.tipo!=="zip")soltos.push(d);return}
         var g=grupo(d.ext);g.cand=NUCLEO.coMesclar(g.cand,d.ext);g.docs.push(d);g.imagens=g.imagens.concat(d.imagens||[]);g.imagensUrl=g.imagensUrl.concat(d.imagensUrl||[])});
-      return {grupos:grupos,soltos:soltos,docs:docs,ignorados:docs.ignorados||0}})}
+      return {grupos:grupos,soltos:soltos,docs:docs,ignorados:docs.ignorados||0}}).then(function(r){fimT();return r},function(e){fimT();throw e})}
 
   /* ---------- Gmail (só leitura): os e-mails da Amazon, com o login do Google que o site já usa ----------
      Reaproveita de js/app.js o Client ID público (GOOGLE_CLIENT_ID), a permissão gmail.readonly (GM_SCOPE), o script do login (GSI_JS),
@@ -282,25 +291,25 @@
   function ccGmailBloco(saida,st){var box=h("div",{class:"ccgm"});
     function desenhar(){box.innerHTML="";var tk=ccGmToken(),contas=ccGmContas(),email=CC_GM.email&&contas.indexOf(CC_GM.email)>=0?CC_GM.email:contas[0];
       if(!contas.length){box.appendChild(h("p",{class:"sub",text:"✉ Gmail: nenhuma conta do Gmail com endereço no cartão de E-mail. Cadastre a conta da Amazon lá (Início → E-mail) e volte aqui."}));return}
-      var selC=h("select",{"aria-label":"Conta do Gmail"},contas.map(function(c){return h("option",{value:c,selected:c===email?"":null,text:c})}));
-      var selP=h("select",{"aria-label":"Período"},CC_GM_PERIODOS.map(function(d){return h("option",{value:String(d),selected:d===CC_GM.dias?"":null,text:"Últimos "+d+" dias"})}));
+      var selC=h("select",{"aria-label":"Conta do Gmail","data-atu-filtro":""},contas.map(function(c){return h("option",{value:c,selected:c===email?"":null,text:c})}));
+      var selP=h("select",{"aria-label":"Período","data-atu-filtro":""},CC_GM_PERIODOS.map(function(d){return h("option",{value:String(d),selected:d===CC_GM.dias?"":null,text:"Últimos "+d+" dias"})}));
       selC.onchange=function(){CC_GM.email=selC.value;if(CC_GM.conta&&CC_GM.conta!==selC.value)ccGmSair();desenhar()};selP.onchange=function(){CC_GM.dias=+selP.value};
       var b=h("button",{type:"button",class:"ghostbtn pri",text:tk?"✉ Buscar e-mails da Amazon":"✉ Conectar ao Gmail e buscar"}),sair=h("button",{type:"button",class:"ghostbtn",text:"Desconectar"});
       sair.onclick=function(){ccGmSair();desenhar();st.textContent="Gmail desconectado nesta tela (o acesso não fica guardado)."};
-      b.onclick=function(){var em=selC.value;CC_GM.email=em;b.disabled=true;st.textContent=ccGmToken()?"Procurando os e-mails da Amazon…":"Abrindo o login do Google…";
+      b.onclick=function(){var em=selC.value,fimT=atuTarefa("a leitura do Gmail");CC_GM.email=em;b.disabled=true;st.textContent=ccGmToken()?"Procurando os e-mails da Amazon…":"Abrindo o login do Google…";
         (ccGmToken()&&CC_GM.conta===em?Promise.resolve():ccGmConectar(em)).then(function(){st.textContent="Procurando os e-mails da Amazon…";return ccGmIds(CC_GM.dias,st)})
         .then(function(r){if(!r.ids.length){st.textContent="Nenhum e-mail da Amazon nos últimos "+CC_GM.dias+" dias.";return null}
           return ccGmBaixar(r.ids,st).then(function(x){x.mais=r.mais;return x})})
         .then(function(x){if(!x)return null;return ccProcessar([],x.emails,st).then(function(r){r.gmail={total:x.emails.length,falhas:x.falhas,mais:x.mais};return r})})
-        .then(function(r){b.disabled=false;desenhar();if(!r)return;ccMostrarLote(saida,r,st);
+        .then(function(r){fimT();b.disabled=false;desenhar();if(!r)return;ccMostrarLote(saida,r,st);
           st.textContent+=" "+r.gmail.total+" e-mails lidos"+(r.ignorados?", "+r.ignorados+" sem pedido (propaganda ou aviso geral) ignorados":"")+(r.gmail.falhas?", "+r.gmail.falhas+" não baixaram":"")+(r.gmail.mais?"; limite de "+CC_GM_MAX+" e-mails: escolha um período menor para ver os mais antigos":"")+"."},
-          function(e){b.disabled=false;desenhar();st.textContent="Gmail: "+(e&&e.message||e)})};
+          function(e){fimT();b.disabled=false;desenhar();st.textContent="Gmail: "+(e&&e.message||e)})};
       box.appendChild(h("div",{class:"two"},h("label",null,"Conta do Gmail",selC),h("label",null,"Período",selP)));
       box.appendChild(h("div",{class:"vfil"},b,tk?sair:null));
       box.appendChild(h("p",{class:"sub",text:tk?"Conectado (só leitura): "+CC_GM.conta+". O acesso fica só nesta tela e vence em cerca de 1 hora.":"Só leitura: o site não envia, apaga nem altera e-mails, e não guarda o acesso. Nada é salvo antes da conferência."}))}
     desenhar();return box}
 
-  function ccImportar(corpo){
+  function ccImportar(corpo){CC.lote=null;
     var p=panel("Importar compras","Escolha vários arquivos de uma vez: PDF do pedido, DANFE, XML da nota, CSV ou ZIP exportado pela loja, e-mail (.eml) ou print. Tudo é lido neste aparelho; nada é gravado antes do Salvar.");
     var arq=h("input",{type:"file",multiple:"",accept:".pdf,.xml,.csv,.zip,.eml,.txt,image/*","aria-label":"Arquivos das compras"}),txt=h("textarea",{rows:"4",placeholder:"Ou cole aqui o texto do e-mail de confirmação ou do pedido"});
     var ler=h("button",{type:"button",class:"ghostbtn pri",text:"Ler os arquivos"}),st=h("p",{class:"sub",role:"status"}),saida=h("div",{class:"stack"});
@@ -316,7 +325,7 @@
       ler.disabled=true;st.textContent="Lendo…";ccProcessar(fs,ts,st).then(function(r){ler.disabled=false;ccMostrarLote(saida,r,st)},function(e){ler.disabled=false;st.textContent="Não consegui ler: "+e.message;logErro("compras",e)})};
   }
   /* a conferência do lote: um quadro por pedido, já marcado como novo, já existente (só anexa os documentos) ou possível repetido */
-  function ccMostrarLote(saida,r,st){saida.innerHTML="";var n=r.grupos.length;
+  function ccMostrarLote(saida,r,st){saida.innerHTML="";var n=r.grupos.length;CC.lote=r.grupos.length?saida:null;
     st.textContent=n?n+(n===1?" pedido encontrado":" pedidos encontrados")+" em "+r.docs.filter(function(d){return d.tipo!=="zip"}).length+" documentos. Confira e salve.":"Nenhum pedido foi reconhecido nos documentos.";
     var salvarTodos=function(){return quadros.reduce(function(p,q){return p.then(function(){return q._salvar()}).catch(function(){})},Promise.resolve()).then(function(){st.textContent="Pronto: o que estava completo foi importado (pedidos que já existiam só ganharam os documentos novos). O que pede conferência continua aberto."})};
     var quadros=r.grupos.map(function(g){var dup=NUCLEO.coDuplicata(g.cand,CC.dados,[]);return ccConferencia({cand:g.cand,docs:g.docs,imagens:g.imagens,imagensUrl:g.imagensUrl,dup:dup,existente:dup&&dup.nivel==="confirmada"?dup.compra:null})});
@@ -380,7 +389,7 @@
         return ccCarregar(true)},function(e){sal=false;salvar.disabled=false;falta.textContent="Não consegui salvar ("+(e&&e.message||e)+"). Os dados continuam aqui.";logErro("compras",e)})};
     p._salvar=function(){return salvar.disabled?Promise.resolve():salvar.onclick()||Promise.resolve()};return p}
   /* grava (nova ou edição): compra, produtos, documentos originais e a imagem do produto. Edição guarda a versão anterior. */
-  function ccGravar(x,ant,cand,docs,imagens,imagensUrl,divs,st){var id=ant?ant.id:novoId(),agora=new Date().toISOString(),orig=cand&&cand.tipo?({resumo_pdf:"pdf",danfe:"pdf",resumo:"pdf",nfe_xml:"xml",csv:"csv",imagem:"imagem"})[cand.tipo]||(/^email_/.test(cand.tipo)?"email":"manual"):"manual";
+  function ccGravar(x,ant,cand,docs,imagens,imagensUrl,divs,st){var fimT=atuTarefa("a gravação da compra"),id=ant?ant.id:novoId(),agora=new Date().toISOString(),orig=cand&&cand.tipo?({resumo_pdf:"pdf",danfe:"pdf",resumo:"pdf",nfe_xml:"xml",csv:"csv",imagem:"imagem"})[cand.tipo]||(/^email_/.test(cand.tipo)?"email":"manual"):"manual";
     var linha={loja:x.loja,numero:x.numero,data:x.data,vendedor:x.vendedor,subtotal:x.subtotal,desconto:x.desconto,frete:x.frete,taxas:x.taxas,total_pago:x.total_pago,pagamento:x.pagamento,categoria:x.categoria,
       recorrencia_texto:x.recorrencia?x.recorrencia.texto:null,recorrencia_meses:x.recorrencia?x.recorrencia.meses:null,observacoes:x.observacoes,divergencias:(ant?ant.divergencias||[]:[]).concat(divs||[])};
     if(x.recorrencia&&!(ant&&ant.recorrencia_status))linha.recorrencia_status="a_confirmar";if(!x.recorrencia)linha.recorrencia_status=null;
@@ -393,17 +402,17 @@
     else{linha.id=id;linha.origem=orig;st("Salvando a compra…");
       passo=SB.from("compras_online").insert(linha).then(sbOk).then(function(){return SB.from("compras_online_itens").insert(itens).then(function(r){if(r.error)return SB.from("compras_online").delete().eq("id",id).then(function(){throw new Error(r.error.message)})})})}
     return passo.then(function(){if(docs.length)st("Guardando os documentos originais…");return ccSubirDocs(id,docs)})
-      .then(function(){return ccImagemProduto(id,itens,imagens,imagensUrl,st)}).then(function(){return id})}
+      .then(function(){return ccImagemProduto(id,itens,imagens,imagensUrl,st)}).then(function(){fimT();return id},function(e){fimT();throw e})}
   /* os tipos de documento que o banco aceita (025 e 026) */
   var CC_TIPOS_DB=["resumo_pdf","danfe","nfe_xml","csv","zip","email_confirmacao","email_envio","email_entrega","email_pagamento","email_cancelamento","email_reembolso","imagem","foto_produto","comprovante","outro"];
   function ccNomeSeguro(n){return NUCLEO.norm(n).replace(/[^a-z0-9.]+/g,"-").replace(/^-+|-+$/g,"").slice(-80)||"arquivo"}
   /* o arquivo original, como veio, no cofre; a linha em compras_online_docs com o que foi extraído (o mesmo arquivo não entra duas vezes) */
-  function ccSubirDocs(id,docs){return docs.reduce(function(p,d){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+ccNomeSeguro(d.nome);
+  function ccSubirDocs(id,docs){return atuDurante("o envio dos documentos",function(){return docs.reduce(function(p,d){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+ccNomeSeguro(d.nome);
       return SB.storage.from("familia").upload(path,d.blob,{contentType:d.mime,upsert:false}).then(function(r){if(r.error)throw new Error(d.nome+": "+r.error.message);
         var ext=d.ext?JSON.parse(JSON.stringify(d.ext)):{};if(d.extras)ext={pedidos:d.extras.map(function(e){return e.numero})};if(d.texto)ext.texto=String(d.texto).slice(0,20000);
         var tipoDb=d.tipo==="resumo"?"resumo_pdf":d.tipo;if(CC_TIPOS_DB.indexOf(tipoDb)<0){ext.tipo=ext.tipo||tipoDb;tipoDb="outro"}
         return SB.from("compras_online_docs").insert({compra_id:id,tipo:tipoDb,nome:d.nome.slice(0,200),path:path,mime:d.mime,tamanho:d.tamanho||d.blob.size,sha256:d.sha,extraido:ext}).then(function(x){
-          if(x.error&&x.error.code==="23505")return SB.storage.from("familia").remove([path]).catch(function(){});if(x.error)throw new Error(x.error.message)})})})},Promise.resolve())}
+          if(x.error&&x.error.code==="23505")return SB.storage.from("familia").remove([path]).catch(function(){});if(x.error)throw new Error(x.error.message)})})})},Promise.resolve())})}
   /* imagem do produto: a que veio no PDF (ou no e-mail, quando a loja deixa baixar) vira um documento "foto do produto" e aparece no item */
   function ccImagemProduto(id,itens,imagens,urls,st){var fontes=(imagens||[]).map(function(x){return Promise.resolve(x.blob)}).concat((urls||[]).slice(0,2).map(function(u){return fetch(u).then(function(r){return r.ok?r.blob():null},function(){return null})}));
     if(!fontes.length||!itens.length)return Promise.resolve();

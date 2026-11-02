@@ -21,6 +21,9 @@
   /* tudo do período (e do período anterior, do mesmo tamanho, para comparar); cada fonte falha sozinha */
   function pnCarregar(n){
     if(PAINEL.cache[n])return PAINEL.cache[n];
+    var P=pnLer(n,false);PAINEL.cache[n]=P;P.catch(function(){delete PAINEL.cache[n]});return P}
+  /* só lê (não mexe no PAINEL). fresco: o relógio também é relido do banco (o botão de atualizar), sem trocar SAUDE aqui */
+  function pnLer(n,fresco){
     var hoje=hojeISO(),meses=NUCLEO.pnMeses(hoje,n),todos=NUCLEO.pnMeses(hoje,2*n),ini2=todos[0]+"-01";
     function seguro(p){return p.then(function(v){return {ok:true,v:v}},function(e){logErro("painel",e);return {ok:false,erro:e.message||String(e)}})}
     var P=Promise.all([
@@ -28,7 +31,8 @@
       seguro(pnPag(function(f){return SB.from("registros").select("id,quem,tipo,data,titulo,dados,criado_em").gte("data",ini2).order("data").range(f,f+999)})),
       seguro(Promise.resolve().then(function(){return SB.from("lista").select("id,item,feito,feito_em,criado").eq("tipo","tarefa")}).then(sbOk)),
       seguro(Promise.resolve().then(function(){return SB.from("orcamentos").select("categoria,valor")}).then(sbOk)),
-      seguro((SAUDE.dias?Promise.resolve():saudeCarregar()).then(function(){return {dias:SAUDE.dias||[],ativs:(SAUDE.ativs||[]).filter(function(a){return TREINO_OCULTOS.indexOf(a.tipo)<0})}})),
+      seguro((fresco?saudeLer():(SAUDE.dias?Promise.resolve():saudeCarregar()).then(function(){return {dias:SAUDE.dias||[],ativs:SAUDE.ativs||[]}}))
+        .then(function(x){return {dias:x.dias,ativs:x.ativs.filter(function(a){return TREINO_OCULTOS.indexOf(a.tipo)<0}),bruto:x}})),
       seguro(agendaColetar()),
       /* pedidos de delivery e restaurante (Alimentação), com os itens: entram nos gastos separados em comida, taxas e gorjeta */
       seguro(pnPag(function(f){return SB.from("pedidos").select("id,data,plataforma,modo,estabelecimento,subtotal,taxa_entrega,taxa_servico,gorjeta,desconto_loja,desconto_plataforma,total_pago,pedido_itens(descricao,qtd,total,desconto)").gte("data",ini2).order("data").range(f,f+999)})
@@ -40,7 +44,17 @@
           itens:(c.compras_online_itens||[]).map(function(i){return {descricao:i.descricao,total:+i.total,desconto:+i.desconto||0,categoria:i.categoria}})}})}))])
     .then(function(r){return {hoje:hoje,meses:meses,todos:todos,ini:meses[0]+"-01",iniAnt:todos[0]+"-01",fimAnt:maisDias(meses[0]+"-01",-1),
       compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6],online:r[7]}});
-    PAINEL.cache[n]=P;P.catch(function(){delete PAINEL.cache[n]});return P}
+    return P}
+  var PN_FONTES=["compras","registros","tarefas","orcamentos","saude","agenda","pedidos","online"];
+  function pnFontes(D){var o={};PN_FONTES.forEach(function(k){o[k]=D[k]});return o}
+  /* botão de atualizar (no lugar do antigo "Atualizar" do Painel): o período aberto de novo, inclusive o relógio; troca só se toda fonte
+     que estava boa continuar boa. Os outros períodos guardados saem da memória (são relidos ao abrir) e o SAUDE recebe o relógio novo */
+  atuModulo("painel",{
+    buscar:function(){var n=PAINEL.n;return pnLer(n,true).then(function(D){return {n:n,D:D}})},
+    fontes:function(x){return pnFontes(x.D)},
+    antes:function(){var D=PAINEL.ult&&PAINEL.ult.n===PAINEL.n?PAINEL.ult.D:null;return D?NUCLEO.atuEstado(pnFontes(D)):{}},
+    trocar:function(x){PAINEL.cache={};PAINEL.cache[x.n]=Promise.resolve(x.D);
+      if(x.D.saude.ok){SAUDE.dias=x.D.saude.v.bruto.dias;SAUDE.ativs=x.D.saude.v.bruto.ativs}}});
 
   function renderPainel(aba){
     PAINEL.aba=PN_ABAS.some(function(a){return a[0]===aba})?aba:"geral";
@@ -49,10 +63,9 @@
       abas=h("div",{class:"seg famseg pnabas",role:"group","aria-label":"Área"}),per=h("div",{class:"seg famseg pnper",role:"group","aria-label":"Período"});
     PN_ABAS.forEach(function(a){abas.appendChild(h("a",{href:"#painel/"+a[0],"aria-pressed":String(PAINEL.aba===a[0]),text:a[1]}))});
     [3,6,12].forEach(function(n){var b=h("button",{type:"button","aria-pressed":String(PAINEL.n===n),text:n+" meses"});b.onclick=function(){PAINEL.n=n;renderPainel(PAINEL.aba)};per.appendChild(b)});
-    var atu=h("button",{type:"button",class:"ghostbtn",text:"Atualizar"});atu.onclick=function(){PAINEL.cache={};SAUDE.dias=null;renderPainel(PAINEL.aba)};
-    topo.appendChild(abas);topo.appendChild(h("div",{class:"vfil pnbarra"},per,atu));root.appendChild(topo);
+    topo.appendChild(abas);topo.appendChild(h("div",{class:"vfil pnbarra"},per));root.appendChild(topo);
     var corpo=h("div",{class:"stack"},h("div",{class:"panel"},loading()));root.appendChild(corpo);
-    pnCarregar(PAINEL.n).then(function(D){corpo.innerHTML="";
+    pnCarregar(PAINEL.n).then(function(D){corpo.innerHTML="";PAINEL.ult={n:PAINEL.n,D:D};
       var f={geral:pnGeral,financas:pnFinancas,saude:pnSaude,estudos:pnEstudos}[PAINEL.aba];f(D).forEach(function(p){if(p)corpo.appendChild(p)})})
     .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(function(){renderPainel(PAINEL.aba)},e)));logErro("painel",e)})}
 

@@ -228,6 +228,51 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do turno vai para o histórico");
     assert.ok(["manha", "tarde", "noite"].includes(grav[0].v.turno) && grav[0].v.conteudo.turno === grav[0].v.turno, "com o turno da edição");
 
+    /* o ↻ do topo em 375 px: um toque de verdade atualiza a página; depois, com a hora da última atualização ao lado, o título continua
+       inteiro, o ↻ tem 44 px e nada se sobrepõe (o ícone decorativo da página sai no celular) */
+    const topo = () => pag.evaluate(() => {
+      const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
+      return { titulo: t.textContent, cortado: t.scrollWidth > t.clientWidth + 1, reticencias: getComputedStyle(t).textOverflow, pico: getComputedStyle(document.getElementById("pico")).display,
+        atu: { w: a.width, h: a.height, visivel: getComputedStyle(document.getElementById("atubtn")).display !== "none" }, hora: document.querySelector("#atubtn .atuh").textContent,
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth, largura: document.documentElement.scrollWidth };
+    });
+    await pag.evaluate(() => { SB.rpc = () => ({ then: (ok, no) => Promise.resolve({ data: "pong", error: null }).then(ok, no) }); });
+    await pag.click("#atubtn");
+    await pag.waitForFunction(() => /^Atualizado às \d{2}:\d{2}\.$/.test(document.getElementById("atust").textContent), null, { timeout: 10000 });
+    const depois = await topo();
+    assert.equal(depois.titulo, "Newsletter"); assert.equal(depois.cortado, false, "título inteiro com a hora ao lado do ↻");
+    assert.match(depois.hora, /^\d{2}:\d{2}$/, "a hora da última atualização aparece"); assert.equal(depois.pico, "none", "só o ícone decorativo sai");
+    assert.ok(depois.atu.visivel && depois.atu.w >= 44 && depois.atu.h >= 44, `↻ visível com 44 px (${depois.atu.w}×${depois.atu.h})`);
+    assert.ok(depois.ordem, "título, Voltar, ↻ e Início lado a lado, sem sobreposição e dentro da tela"); assert.ok(depois.largura <= 375, "sem rolagem lateral");
+    /* as outras páginas ligadas ao botão, no mesmo cabeçalho (com Voltar e a hora): nada se sobrepõe; o título longo termina em reticências
+       (antes da Etapa A ele passava por baixo dos botões); Newsletter, Olivia e Segurança cabem inteiros */
+    const paginas = await pag.evaluate(() => ["alimentacao", "compras", "painel", "saude", "olivia", "seguranca", "newsletter"].map((k) => {
+      sideMark(k, k); document.documentElement.setAttribute("data-sec", k); document.getElementById("voltarbtn").hidden = false; ATU.ultima[k] = Date.now(); atuBotao();
+      const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
+      return { k, cortado: t.scrollWidth > t.clientWidth + 1, reticencias: getComputedStyle(t).textOverflow, atu: [a.width, a.height],
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth, largura: document.documentElement.scrollWidth };
+    }));
+    for (const p of paginas) {
+      assert.ok(p.ordem, p.k + ": nada se sobrepõe"); assert.ok(p.largura <= 375, p.k + ": sem rolagem lateral");
+      assert.ok(p.atu[0] >= 44 && p.atu[1] >= 44, p.k + ": ↻ com 44 px"); assert.equal(p.reticencias, "ellipsis", p.k + ": título longo termina em reticências");
+      if (["newsletter", "olivia", "seguranca"].includes(p.k)) assert.equal(p.cortado, false, p.k + ": título inteiro");
+    }
+    /* em 1024 px (barra lateral aberta) o mesmo cabeçalho, com a hora: nada se sobrepõe; só Compras e Saúde podem perder uns pixels em reticências */
+    await pag.setViewportSize({ width: 1024, height: 768 });
+    const largo = await pag.evaluate(() => ["alimentacao", "compras", "painel", "saude", "olivia", "seguranca", "newsletter"].map((k) => {
+      sideMark(k, k); document.documentElement.setAttribute("data-sec", k); document.getElementById("voltarbtn").hidden = false; ATU.ultima[k] = Date.now(); atuBotao();
+      const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
+      return { k, cortado: t.scrollWidth > t.clientWidth + 1, atu: [a.width, a.height], largura: document.documentElement.scrollWidth,
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth };
+    }));
+    for (const p of largo) {
+      assert.ok(p.ordem, "1024 px, " + p.k + ": nada se sobrepõe"); assert.ok(p.largura <= 1024, "1024 px, " + p.k + ": sem rolagem lateral");
+      assert.ok(p.atu[0] >= 44 && p.atu[1] >= 44, "1024 px, " + p.k + ": ↻ com 44 px");
+      if (!["compras", "saude"].includes(p.k)) assert.equal(p.cortado, false, "1024 px, " + p.k + ": título inteiro");
+    }
+    await pag.setViewportSize({ width: 375, height: 812 });
+    await abrir("#newsletter");
+
     /* Guardar e tirar (PESSOAL.salvos) */
     const guard = await pag.evaluate(() => {
       const b = [...document.querySelectorAll("#newsletter-view .nlcard button")].find((x) => x.textContent === "Guardar");
@@ -287,10 +332,15 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     assert.equal(await pag.evaluate(() => document.querySelectorAll(".nlpesos select").length), 8);
     assert.ok(await pag.evaluate(() => document.documentElement.scrollWidth <= 375));
 
-    /* as outras páginas mantêm o cabeçalho de sempre (Voltar e Início com o texto à mostra) */
+    /* desde o ↻ (Etapa A), as outras páginas têm o mesmo cabeçalho no celular: Voltar e Início só com o ícone, o nome continua no botão
+       para leitores de tela, e nenhum cobre o título */
     await abrir("#estudos"); await pag.waitForTimeout(200);
     const outra = await cabecalho();
-    assert.ok(outra.botoes.length >= 1 && outra.botoes.every((b) => b.fonte >= 12), "texto dos botões visível fora da Newsletter: " + JSON.stringify(outra.botoes));
+    assert.ok(outra.botoes.length >= 1, "Voltar ou Início na tela: " + JSON.stringify(outra.botoes));
+    for (const b of outra.botoes) {
+      assert.ok(["Voltar", "Início"].includes(b.texto), "o nome continua para leitores de tela: " + b.texto); assert.equal(b.fonte, 0, b.texto + " só com o ícone");
+      assert.ok(b.esq >= outra.direita && b.dir <= 375, `${b.texto} não cobre o título e fica na tela`);
+    }
 
     /* Início: cartão com os destaques */
     await abrir("#inicio");

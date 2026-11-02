@@ -1,10 +1,11 @@
 /* Service worker do Dia a Dia RAC: deixa o site instalável como app, funcionando também sem internet.
    - Arquivos do site (páginas e módulos): rede primeiro; sem internet, a última versão guardada.
-   - Dados que os robôs atualizam (notícias, Newsletter, vagas, tecnologia): abre na hora com a cópia guardada e atualiza por trás.
+   - Dados que os robôs atualizam (notícias, Newsletter, vagas, tecnologia): abre na hora com a cópia guardada e atualiza por trás;
+     com ?atualizar=1 (botão de atualizar) vai à rede primeiro.
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-01.10";
+const VERSAO = "2026-11-02.1";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./nucleo.js", "./mercado.js", "./js/app.js", "./js/esportes.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/conexoes.js", "./js/sistema.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
@@ -32,6 +33,11 @@ function guardadoEAtualiza(req, chave) {
     return guardado || rede;
   }));
 }
+/* botão de atualizar (?atualizar=1): pergunta à rede agora e renova a cópia; sem rede, devolve a cópia de antes (a tela não fica vazia) */
+function redeEGuarda(req, chave) {
+  return caches.open(DADOS).then(c => fetch(req, { cache: "no-cache" }).then(res => { if (res.ok) c.put(chave, res.clone()); return res; })
+    .catch(() => c.match(chave).then(guardado => guardado || Response.error())));
+}
 function guardadoPrimeiro(req) {
   return caches.open(LIBS).then(c => c.match(req).then(r => r || fetch(req).then(res => { if (res.ok || res.type === "opaque") c.put(req, res.clone()); return res; })));
 }
@@ -40,7 +46,10 @@ self.addEventListener("fetch", e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET") return;
   if (url.origin === self.location.origin) {
-    if (/\.json$/.test(url.pathname) && !/manifest/.test(url.pathname)) { e.respondWith(guardadoEAtualiza(req, url.origin + url.pathname)); return; }
+    if (/\.json$/.test(url.pathname) && !/manifest/.test(url.pathname)) {
+      e.respondWith(url.searchParams.get("atualizar") === "1" ? redeEGuarda(req, url.origin + url.pathname) : guardadoEAtualiza(req, url.origin + url.pathname));
+      return;
+    }
     e.respondWith(redePrimeiro(req));
     return;
   }

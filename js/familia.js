@@ -33,13 +33,14 @@
   function nomeSeguro(n){return norm(n).replace(/[^a-z0-9.]+/g,"-").replace(/^-+|-+$/g,"").slice(-60)||"arquivo"}
   function enviarArquivos(quem,id,files,status){
     var out=[],i=0;
-    return Array.prototype.reduce.call(files,function(p,f){return p.then(function(){
+    /* enquanto as fotos sobem, o botão de atualizar espera (atuDurante) */
+    return atuDurante("o envio das fotos",function(){return Array.prototype.reduce.call(files,function(p,f){return p.then(function(){
       i++;status("Enviando arquivo "+i+" de "+files.length+"…");
       if(f.size>50*1024*1024)throw new Error("“"+f.name+"” passa de 50 MB. Vídeo longo: deixe no iCloud e cole o link nos detalhes.");
       return encolher(f).then(function(g){
         var path=DONO+"/"+quem+"/"+id+"/"+Date.now()+"-"+nomeSeguro(g.name);
         return SB.storage.from("familia").upload(path,g,{contentType:g.type||"application/octet-stream",upsert:false}).then(function(r){
-          if(r.error)throw new Error(r.error.message);out.push({path:path,nome:f.name,tipo:g.type,tamanho:g.size})})})})},Promise.resolve()).then(function(){return out})}
+          if(r.error)throw new Error(r.error.message);out.push({path:path,nome:f.name,tipo:g.type,tamanho:g.size})})})})},Promise.resolve())}).then(function(){return out})}
 
   function refTxt(it){return it.min!=null&&it.max!=null?fmtN(it.min)+" a "+fmtN(it.max)+(it.u?" "+it.u:""):""}
   function foraRef(it){return it.max!=null&&it.v>it.max?"alto":it.min!=null&&it.v<it.min?"baixo":""}
@@ -203,7 +204,7 @@
   /* itens das notas do Mercado que são dela, no formato de registro (só para os Gastos).
      Se no mesmo dia já houver um registro com custo de fralda/fórmula, vale o registro, para não contar duas vezes;
      e a compra que virou "Lata N aberta" (dados.compra.id) sai daqui, porque o registro da lata já leva o preço dela. */
-  function famMercado(quem,regs){
+  function famMercado(quem,regs,estrito){
     var M=FAM[quem].merc;if(!M)return Promise.resolve([]);
     var or=M.termos.map(function(t){return "produto.ilike.*"+t+"*,descricao.ilike.*"+t+"*"}).join(",");
     return SB.from("compras").select("id,data,mercado,descricao,produto,quantidade,unidade,valor_total").or(or).order("data",{ascending:false}).then(sbOk).then(function(l){
@@ -211,7 +212,7 @@
       return l.filter(function(x){return M.re.test(x.produto||"")||M.re.test(x.descricao||"")}).filter(function(x){return !dias[x.data]&&!usadas[x.id]&&+x.valor_total>0}).map(function(x){
         var n=x.produto||x.descricao,q=+x.quantidade;
         return {id:"m-"+x.id,merc:true,tipo:"produto",data:x.data,titulo:n+(q>1&&x.unidade!=="kg"?" ("+fmtN(q)+" un)":""),dados:{custo:Math.round(+x.valor_total*100)/100,clinica:x.mercado}}})
-    }).catch(function(){return []})}
+    }).catch(function(e){if(estrito)throw e;return []})}
   function famAbrirLata(quem,regs,r){
     var n=regs.reduce(function(m,x){var k=/^Lata (\d+)\b/i.exec(x.titulo||"");return k?Math.max(m,+k[1]):m},0)+1;
     var num=prompt("Número da lata (a sequência está na "+(n-1)+")",String(n));if(num==null)return;num=parseInt(num,10);if(!(num>0))return;
@@ -399,14 +400,29 @@
       .forEach(function(r){r.dados.alertas.forEach(function(a){item("Aviso da oficina ("+dataBR(r.data)+")","",a,"alerta",r)})});
     if(!ul.children.length)return null;
     p.appendChild(ul);return p}
-  function renderFamilia(quem){
-    var root=$("#"+(FAM[quem].root||quem+"-view")),F=FAM[quem],merc=[];root.innerHTML="";
-    root.appendChild(h("div",{class:"panel"},loading()));
-    SB.from("registros").select("*").eq("quem",quem).order("data",{ascending:false}).order("criado_em",{ascending:false}).then(sbOk).then(function(regs){
+  /* só lê (não mexe na tela): os registros, os links das fotos e os gastos do Mercado. estrito: o que falhar derruba a leitura toda
+     (o botão de atualizar não troca o que está na tela por uma leitura com buraco) */
+  function famLer(quem,estrito){
+    return Promise.resolve().then(function(){return SB.from("registros").select("*").eq("quem",quem).order("data",{ascending:false}).order("criado_em",{ascending:false})}).then(sbOk).then(function(regs){
       var paths=[];regs.forEach(function(r){(r.arquivos||[]).forEach(function(a){paths.push(a.path)})});
       var urls={};
-      return Promise.all([paths.length?SB.storage.from("familia").createSignedUrls(paths,3600).then(function(r){(r.data||[]).forEach(function(x){if(x.signedUrl)urls[x.path]=x.signedUrl})}):null,famMercado(quem,regs)])
-        .then(function(r){merc=r[1];desenhar(regs,urls)})
+      return Promise.all([paths.length?SB.storage.from("familia").createSignedUrls(paths,3600).then(function(r){if(estrito&&r.error)throw new Error(r.error.message);(r.data||[]).forEach(function(x){if(x.signedUrl)urls[x.path]=x.signedUrl})}):null,famMercado(quem,regs,estrito)])
+        .then(function(r){return {regs:regs,urls:urls,merc:r[1]}})})}
+  /* botão de atualizar da Olivia: registros, fotos, gastos do Mercado e (se já estavam na memória) os eventos do bebê, tudo de novo;
+     troca só com todas as leituras. A vista, o filtro e o cartão aberto ficam (famVista, famFiltro, famAlvo; BEBE.met e BEBE.dias) */
+  var famPronto={};
+  atuModulo("olivia",{
+    buscar:function(){var comBebe=typeof bebeLer==="function"&&BEBE.evs&&BEBE.quem==="olivia";
+      return Promise.all([atuLer(function(){return famLer("olivia",true)}),comBebe?atuLer(function(){return bebeLer("olivia")}):null])
+        .then(function(r){var o={registros:r[0]};if(r[1])o.bebe=r[1];return o})},
+    antes:function(){return typeof BEBE!=="undefined"&&BEBE.evs&&BEBE.quem==="olivia"?{bebe:{ok:true}}:{}},
+    trocar:function(n){famPronto.olivia=n.registros.v;if(n.bebe){BEBE.evs=n.bebe.v;BEBE.quem="olivia"}}});
+  /* pronto: o que o botão de atualizar já leu; desenha direto, sem "Carregando" e sem ler de novo */
+  function renderFamilia(quem,pronto){
+    var root=$("#"+(FAM[quem].root||quem+"-view")),F=FAM[quem],merc=[];
+    if(!pronto&&ATU.rodando&&famPronto[quem])pronto=famPronto[quem];delete famPronto[quem];
+    if(!pronto){root.innerHTML="";root.appendChild(h("div",{class:"panel"},loading()))}
+    (pronto?Promise.resolve(pronto):famLer(quem)).then(function(x){merc=x.merc;desenhar(x.regs,x.urls)
     }).catch(function(e){logErro("família ("+quem+")",e);root.innerHTML="";root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:/registros|relation|schema cache/i.test(e.message)?"Falta rodar o supabase/004_familia.sql no Supabase para ligar esta área.":"Não consegui carregar ("+e.message+")."})))});
 
     function desenhar(regs,urls){

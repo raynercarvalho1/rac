@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-01.10",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-02.1",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"]};
@@ -89,7 +89,7 @@
     if(faltam.length){precisa(faltam).then(route,function(e){logErro("módulo",e);var v=document.querySelector("#"+top+" .stack, #"+top);
       tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});if(v)v.insertBefore(h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui abrir esta seção agora ("+e.message+"). Tente de novo."})),v.firstChild)});return}
     tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});
-    document.documentElement.setAttribute("data-sec",top);
+    document.documentElement.setAttribute("data-sec",top);atuBotao();if(!ATU.rodando)atuAviso("");
     if(top!=="eddie"&&top!=="olivia"&&top!=="veiculos")fundoPagina(null);
     /* voltar ao Início em todas as páginas (a esposa não tem o Início) */
     $("#homebtn").hidden=top==="inicio"||PAPEL==="casa";
@@ -138,6 +138,7 @@
   /* profundidade da navegação dentro do site, guardada no próprio histórico: o Voltar só usa o histórico se for daqui */
   var PROF=-1,VOLTAR_PAI="";
   function marcarProfundidade(){var st=history.state;if(st&&typeof st.racD==="number")PROF=st.racD;else{PROF=PROF+1;try{history.replaceState({racD:PROF},"")}catch(e){}}}
+  $("#atubtn").addEventListener("click",function(){atuAtualizar()});
   $("#voltarbtn").addEventListener("click",function(){if(PROF>0)history.back();else if(VOLTAR_PAI)location.hash=VOLTAR_PAI});
 
   /* Barra lateral: no celular ela desliza por cima do conteúdo */
@@ -374,7 +375,7 @@
   var TZ="America/Sao_Paulo";
   var memo={};
   function once(k,fn){if(!memo[k])memo[k]=fn().catch(function(e){delete memo[k];throw e});return memo[k]}
-  function getJson(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}
+  function getJson(u){if(typeof ATU!=="undefined"&&ATU.fresco)u=NUCLEO.atuUrlFresca(u);return fetch(u).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}
   function pad(n){return n<10?"0"+n:""+n}
   function ymd(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
   function addDays(d,n){var x=new Date(d.getTime());x.setDate(x.getDate()+n);return x}
@@ -930,7 +931,8 @@
      (data + notícias): o servidor recusa a mesma chave de novo, então a mesma edição nunca é paga duas vezes */
   function racIA(modulo,acao,entrada,contexto,chave){
     var corpo={versao:1,modulo:modulo,acao:acao,idempotencia:chave||iaNovaChave(),entrada:entrada,contexto:contexto||{}};
-    return SB.functions.invoke("rac-ia",{body:corpo}).then(function(r){
+    var fim=atuTarefa("leitura com IA");
+    return SB.functions.invoke("rac-ia",{body:corpo}).then(function(r){fim();return r},function(e){fim();throw e}).then(function(r){
       if(!r.error)return r.data;
       var c=r.error.context;
       return (c&&c.json?c.json().catch(function(){return null}):Promise.resolve(null)).then(function(j){
@@ -1117,7 +1119,8 @@
         else cabecalho("Não consegui ler ("+e.message+")",botao("Tentar de novo"))})}
     if(!GOOGLE_CLIENT_ID){cabecalho(c.e||"falta configurar o acesso do Google");return box}
     var tk=gmToken(slot);
-    if(tk)carregar(tk);else cabecalho(c.e?c.e+" · toque para ver os e-mails":"ainda não conectado",botao(c.e?"Atualizar":"Conectar"));
+    /* o botão de atualizar não lê o Gmail sozinho: fica o "toque para ver" */
+    if(tk&&!ATU.semExternos)carregar(tk);else cabecalho(c.e?c.e+" · toque para ver os e-mails":"ainda não conectado",botao(c.e?"Atualizar":"Conectar"));
     return box}
 
   /* Esportes: os times em temporada primeiro (último resultado, campanha e próximo jogo); a MLB mostra jogos só quando há jogo
@@ -1266,6 +1269,68 @@
     l.reduce(function(p,op){return p.then(function(){return executarOp(op).catch(function(e){if(semRede(e))resto.push(op);else logErro("fila",e,{t:op.t,acao:op.acao})})})},Promise.resolve())
       .then(function(){filaGravar(resto.concat(filaLer().slice(l.length)));filaRodando=false})}
   window.addEventListener("online",processarFila);setInterval(processarFila,60e3);
+
+  /* ===== Botão de atualizar (↻ no topo): só os dados da página atual, sem recarregar o site. Etapa A: a base e o caminho padrão
+     (o banco responde? então redesenha a página, guardando aba, busca e rolagem); a Etapa B dá a cada módulo o "busca antes, troca
+     depois". Garmin, Gmail e IA nunca rodam por aqui (ATU.semExternos). As regras ficam no núcleo (NUCLEO.atu*). ===== */
+  var ATU={rodando:false,fresco:false,semExternos:false,ultima:{},mods:{},tarefas:{},aviso:null};
+  /* um módulo pode dizer como se atualiza e quando está ocupado: atuRegistrar("alimentacao",{atualizar:fn→Promise, ocupado:fn→texto}) */
+  function atuRegistrar(sec,o){ATU.mods[sec]=o||{}}
+  /* tarefa longa em andamento (IA, envio, importação): a atualização espera. Devolve a função que encerra a tarefa */
+  function atuTarefa(nome){var k=novoId();ATU.tarefas[k]=nome;return function(){delete ATU.tarefas[k]}}
+  /* a mesma tarefa em volta de uma promessa: termina com ela, dê certo ou não */
+  function atuDurante(nome,f){var fim=atuTarefa(nome);return Promise.resolve().then(f).then(function(r){fim();return r},function(e){fim();throw e})}
+  /* uma leitura que não derruba as outras: {ok:true, v} ou {ok:false, erro} */
+  function atuLer(f){return Promise.resolve().then(f).then(function(v){return {ok:true,v:v}},function(e){return {ok:false,erro:e&&e.message||String(e)}})}
+  /* Etapa B, o caminho de um módulo com dados em memória: buscar() lê tudo de novo sem tocar na tela nem na memória e devolve
+     {fonte:{ok, v|erro}} (ou fontes(x) tira isso do que ela devolveu); antes() diz como estavam as fontes. Só se NUCLEO.atuConferir aprovar, trocar() põe os dados novos no lugar
+     e a página é redesenhada com eles (a aba, o filtro e o registro aberto ficam no estado do módulo). Falhou? Nada muda. */
+  function atuModulo(sec,o){atuRegistrar(sec,{ocupado:o.ocupado,atualizar:function(){
+    return Promise.resolve().then(o.buscar).then(function(novo){var c=NUCLEO.atuConferir(o.fontes?o.fontes(novo):novo,o.antes?o.antes():{});if(!c.ok)throw new Error(c.texto);
+      o.trocar(novo);return document.documentElement.getAttribute("data-sec")===sec?atuPadrao(document.getElementById(sec)):0})}})}
+  /* o valor de cada campo antes do primeiro toque da pessoa: o que o site preencheu sozinho não conta como alteração */
+  function atuAntes(ev){var el=ev.target;if(!ev.isTrusted||!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)||el.__atu)return;
+    el.__atu={v:el.value,m:el.checked,i:el.selectedIndex}}
+  ["focusin","pointerdown","keydown"].forEach(function(t){document.addEventListener(t,atuAntes,true)});
+  function atuCampos(raiz){if(!raiz)return [];return [].slice.call(raiz.querySelectorAll("input,textarea,select")).map(function(el){var a=el.__atu;
+    var t=el.tagName==="SELECT"?"select":el.tagName==="TEXTAREA"?"textarea":String(el.type||"text").toLowerCase();
+    if(t==="select")return {tipo:t,valor:el.selectedIndex,inicial:a?a.i:el.selectedIndex,desligado:el.disabled,filtro:el.hasAttribute("data-atu-filtro")};
+    return {tipo:t,valor:el.value,inicial:a?a.v:el.value,marcado:el.checked,marcadoInicial:a?a.m:el.checked,arquivos:el.files?el.files.length:0,
+      desligado:el.disabled||el.readOnly,filtro:el.hasAttribute("data-atu-filtro")}})}
+  /* busca e filtros digitados (type=search ou data-atu-filtro), na ordem da página: voltam depois de redesenhar */
+  function atuBuscas(raiz){return raiz?[].slice.call(raiz.querySelectorAll('input[type="search"],input[data-atu-filtro]')).map(function(el){return el.value}):[]}
+  function atuReporBuscas(raiz,vals){if(!raiz)return;[].slice.call(raiz.querySelectorAll('input[type="search"],input[data-atu-filtro]')).forEach(function(el,i){
+    if(vals[i]&&!el.value){el.value=vals[i];el.dispatchEvent(new Event("input",{bubbles:true}))}})}
+  function atuAviso(txt,tipo){var el=$("#atust");if(!el)return;clearTimeout(ATU.aviso);el.textContent=txt;el.className="atust"+(tipo?" "+tipo:"");el.hidden=!txt;
+    if(txt&&tipo)ATU.aviso=setTimeout(function(){el.hidden=true},tipo==="ok"?4000:9000)}
+  function atuBotao(){var b=$("#atubtn");if(!b)return;var u=ATU.ultima[document.documentElement.getAttribute("data-sec")||""],hr=u?NUCLEO.atuHora(u):"";
+    b.disabled=ATU.rodando;b.setAttribute("aria-busy",String(ATU.rodando));b.classList.toggle("girando",ATU.rodando);
+    b.querySelector(".atuh").textContent=hr;b.setAttribute("aria-label","Atualizar esta página"+(hr?" (última atualização às "+hr+")":""));b.title=b.getAttribute("aria-label")}
+  function atuPrazo(p,ms){return Promise.race([p,new Promise(function(_,n){setTimeout(function(){n(new Error("o banco não respondeu a tempo"))},ms)})])}
+  /* caminho padrão: redesenha a página e espera ela terminar de carregar (até 15 s); devolve quantos blocos não carregaram */
+  function atuPadrao(raiz){route();var ini=Date.now();
+    return new Promise(function(ok){(function espera(){
+      var carregando=raiz&&[].some.call(raiz.querySelectorAll("p.empty"),function(p){return p.textContent==="Carregando…"});
+      if(carregando&&Date.now()-ini<15000){setTimeout(espera,150);return}
+      ok(raiz?raiz.querySelectorAll(".diag").length:0)})()})}
+  function atuAtualizar(){
+    var sec=document.documentElement.getAttribute("data-sec")||"inicio",raiz=document.getElementById(sec),m=ATU.mods[sec]||{};
+    var tarefa=Object.keys(ATU.tarefas).map(function(k){return ATU.tarefas[k]})[0]||(m.ocupado&&m.ocupado())||"";
+    var pode=NUCLEO.atuPode({rodando:ATU.rodando,online:navigator.onLine,ocupado:tarefa,sujo:NUCLEO.atuFormSujo(atuCampos(raiz).concat(atuCampos($("#capfundo"))))});
+    if(!pode.ok){if(pode.motivo!=="rodando")atuAviso(pode.texto,"aviso");return Promise.resolve(false)}
+    ATU.rodando=true;atuBotao();atuAviso("Atualizando…","");
+    var hash=location.hash,y=window.scrollY,buscas=atuBuscas(raiz);
+    /* antes de tocar na tela: o banco responde? Se não, nada muda */
+    return atuPrazo(Promise.resolve().then(function(){return SB.rpc("ping")}).then(sbOk),8000).then(function(){
+      ATU.fresco=true;ATU.semExternos=true;
+      var reler=NUCLEO.atuRelerPessoal({dono:isOwner(),semTabela:SEM_TABELA,pendentes:pendentes().length,conflitos:Object.keys(SIS.conflitos).length});
+      return (reler?pessoalCarregar():Promise.resolve()).then(function(){return m.atualizar?m.atualizar().then(function(f){return f||0}):atuPadrao(raiz)})})
+    .then(function(falhas){
+      if(location.hash===hash){atuReporBuscas(raiz,buscas);window.scrollTo(0,y)}
+      ATU.ultima[sec]=Date.now();var hr=NUCLEO.atuHora(ATU.ultima[sec]);
+      atuAviso(falhas?"Atualizado às "+hr+", mas "+(falhas===1?"um bloco não carregou":falhas+" blocos não carregaram")+" (veja na página).":"Atualizado às "+hr+".",falhas?"aviso":"ok");return true},
+    function(e){logErro("atualizar",e,{secao:sec});atuAviso("Não consegui atualizar ("+(e&&e.message||e)+"). Os dados de antes continuam na tela.","erro");return false})
+    .then(function(r){ATU.rodando=false;ATU.fresco=false;ATU.semExternos=false;atuBotao();return r})}
 
   /* ===== Captura rápida: botão "+" para anotar em segundos (lista, tarefa, lembrete, ideia, link, peso, gasto, km) ===== */
   function capOpcoes(){

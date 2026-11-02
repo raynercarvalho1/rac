@@ -16,15 +16,22 @@
   /* pedidos (todos, com os itens) e a comida do Mercado dos últimos 12 meses; cada fonte falha sozinha */
   function aliCarregar(forcar){
     if(ALI.carregando&&!forcar)return ALI.carregando;
+    ALI.carregando=aliLer().then(function(r){ALI.pedidos=r[0];ALI.mercado=r[1];return r});
+    ALI.carregando.catch(function(){ALI.carregando=null});return ALI.carregando}
+  /* só lê (não mexe em ALI): o carregar normal e o botão de atualizar usam o mesmo caminho */
+  function aliLer(){
     var ini=NUCLEO.pnMeses(hojeISO(),12)[0]+"-01";
-    ALI.carregando=Promise.all([
+    return Promise.all([
       aliPag(function(f){return SB.from("pedidos").select(ALI_COLS+",pedido_itens(id,ordem,descricao,qtd,unidade,unitario,total,desconto,observacao,produto_id)").order("data",{ascending:false}).order("criado_em",{ascending:false}).range(f,f+999)})
         .then(function(l){return {ok:true,v:l.map(aliPedido)}},function(e){logErro("alimentacao",e);return {ok:false,erro:e.message||String(e)}}),
       aliPag(function(f){return SB.from("alimentacao_gastos").select("data,estabelecimento,categoria,produto,valor").eq("origem","mercado").gte("data",ini).order("data").range(f,f+999)})
-        .then(function(l){return {ok:true,v:l.map(function(x){return {data:x.data,mercado:x.estabelecimento,categoria:x.categoria,produto:x.produto,valor_total:+x.valor}})}},function(e){logErro("alimentacao",e);return {ok:false,erro:e.message||String(e)}})])
-    .then(function(r){ALI.pedidos=r[0];ALI.mercado=r[1];return r});
-    ALI.carregando.catch(function(){ALI.carregando=null});return ALI.carregando}
+        .then(function(l){return {ok:true,v:l.map(function(x){return {data:x.data,mercado:x.estabelecimento,categoria:x.categoria,produto:x.produto,valor_total:+x.valor}})}},function(e){logErro("alimentacao",e);return {ok:false,erro:e.message||String(e)}})])}
   function aliEsquecer(){ALI.carregando=null;if(typeof PAINEL!=="undefined")PAINEL.cache={}}
+  /* botão de atualizar: pedidos e Mercado de novo; só troca se as duas leituras vierem (a aba, a busca e o pedido aberto ficam) */
+  atuModulo("alimentacao",{
+    buscar:function(){return aliLer().then(function(r){return {pedidos:r[0],mercado:r[1]}})},
+    antes:function(){return NUCLEO.atuEstado({pedidos:ALI.pedidos,mercado:ALI.mercado})},
+    trocar:function(n){ALI.pedidos=n.pedidos;ALI.mercado=n.mercado;ALI.carregando=Promise.resolve([n.pedidos,n.mercado]);if(typeof PAINEL!=="undefined")PAINEL.cache={}}});
 
   function renderAlimentacao(sub,id){
     ALI.aba=ALI_ABAS.some(function(a){return a[0]===sub})||sub==="editar"?sub:"resumo";
@@ -207,7 +214,7 @@
         if(novo)linhaP.origem=origem;
         var itens=o.itens.map(function(i){return {descricao:i.descricao,qtd:+String(i.qtd||"1").replace(",",".")||1,total:R(i.total),desconto:R(i.desconto),observacao:i.observacao,produto_id:i.produto_id}});
         /* uma chamada só (027): o banco grava o pedido e os itens juntos, guarda a versão anterior e desfaz tudo se algo falhar */
-        return SB.rpc("pedido_salvar",{p_pedido:linhaP,p_itens:itens,p_novo:novo}).then(function(r){if(r.error)throw r.error;return r.data})})
+        return atuDurante("a gravação do pedido",function(){return SB.rpc("pedido_salvar",{p_pedido:linhaP,p_itens:itens,p_novo:novo})}).then(function(r){if(r.error)throw r.error;return r.data})})
       .then(function(){aliEsquecer();ALI.aberto=id;location.hash="#alimentacao/pedidos"},function(e){salvando=false;
         if(e&&e.mesmo){aliEsquecer();ALI.aberto=id;location.hash="#alimentacao/pedidos";return}
         /* 23505: o mesmo id (toque duplo que chegou junto) já está gravado; ou o número já existe nessa plataforma */

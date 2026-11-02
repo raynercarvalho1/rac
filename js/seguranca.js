@@ -8,19 +8,37 @@
   function segQuando(iso){return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}
   /* registro no histórico de segurança (022). Antes do 022 a tabela não existe: o resto continua igual */
   function segEvento(tipo,resumo){return Promise.resolve().then(function(){return SB.from("seguranca_eventos").insert({tipo:tipo,resumo:resumo||{}})}).then(function(){},function(){})}
-  function segCarregar(){
-    var q=function(f){return Promise.resolve().then(f)};
-    return Promise.all([
-      q(function(){return SB.auth.mfa.listFactors()}).then(function(r){var d=(r&&r.data)||{},todos=d.all||d.totp||[];
-        SEG.fatores=todos.filter(function(f){return f.factor_type==="totp"&&f.status==="verified"});SEG.pendentes=todos.filter(function(f){return f.status!=="verified"})},function(){SEG.fatores=[]}),
-      q(function(){return SB.auth.passkey.list()}).then(function(r){SEG.pkErro=r.error||null;SEG.passkeys=r.error?null:r.data||[]},function(e){SEG.pkErro=e;SEG.passkeys=null}),
-      q(function(){return SB.auth.mfa.getAuthenticatorAssuranceLevel()}).then(function(r){SEG.aal=r&&r.data?r.data.currentLevel:null},function(){}),
-      q(function(){return SB.rpc("seguranca_estado")}).then(function(r){SEG.semSql=!!r.error;SEG.estado=r.error?null:r.data},function(){SEG.semSql=true;SEG.estado=null}),
-      isOwner()?q(function(){return SB.from("seguranca_eventos").select("id,quando,tipo,resumo").order("quando",{ascending:false}).limit(40)}).then(function(r){SEG.eventos=r.error?null:r.data||[]},function(){SEG.eventos=null}):null,
-      isOwner()?q(function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"}})}).then(function(r){SEG.servidor=r.error?null:(r.data||[]).filter(function(f){return /\.json$/.test(f.name)})},function(){SEG.servidor=null}):null])}
+  function segCarregar(){return segLerTudo().then(segAplicar)}
+  /* só lê (não mexe em SEG): cada fonte vem como {ok, v} ou {ok:false, erro} */
+  function segLerTudo(){
+    var L=[["fatores",function(){return SB.auth.mfa.listFactors()}],["passkeys",function(){return SB.auth.passkey.list()}],["aal",function(){return SB.auth.mfa.getAuthenticatorAssuranceLevel()}],
+      ["estado",function(){return SB.rpc("seguranca_estado")}]];
+    if(isOwner())L.push(["eventos",function(){return SB.from("seguranca_eventos").select("id,quando,tipo,resumo").order("quando",{ascending:false}).limit(40)}],
+      ["servidor",function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"}})}]);
+    return Promise.all(L.map(function(x){return atuLer(x[1])})).then(function(r){var o={};L.forEach(function(x,i){o[x[0]]=r[i]});return o})}
+  /* para o botão de atualizar, a fonte só está boa se respondeu sem erro */
+  function segFontes(o){var f={};Object.keys(o).forEach(function(k){var r=o[k];f[k]={ok:r.ok&&!(r.v&&r.v.error),erro:r.erro||(r.v&&r.v.error&&r.v.error.message)}});return f}
+  /* o que cada fonte deixa em SEG (como sempre foi: o que falha vira vazio ou "falta o SQL") */
+  function segAplicar(o){var r;
+    r=o.fatores;if(r.ok){var d=(r.v&&r.v.data)||{},todos=d.all||d.totp||[];SEG.fatores=todos.filter(function(f){return f.factor_type==="totp"&&f.status==="verified"});SEG.pendentes=todos.filter(function(f){return f.status!=="verified"})}else SEG.fatores=[];
+    r=o.passkeys;if(r.ok){SEG.pkErro=r.v.error||null;SEG.passkeys=r.v.error?null:r.v.data||[]}else{SEG.pkErro=new Error(r.erro);SEG.passkeys=null}
+    r=o.aal;if(r.ok)SEG.aal=r.v&&r.v.data?r.v.data.currentLevel:null;
+    r=o.estado;if(r.ok){SEG.semSql=!!r.v.error;SEG.estado=r.v.error?null:r.v.data}else{SEG.semSql=true;SEG.estado=null}
+    if(o.eventos){r=o.eventos;SEG.eventos=r.ok&&!r.v.error?r.v.data||[]:null}
+    if(o.servidor){r=o.servidor;SEG.servidor=r.ok&&!r.v.error?(r.v.data||[]).filter(function(f){return /\.json$/.test(f.name)}):null}
+    SEG.fontes=segFontes(o)}
+  /* botão de atualizar: proteção, Face ID, código, histórico e backups do servidor de novo; troca só se nenhuma fonte que respondia
+     passou a falhar. Uma prévia de restauração aberta, um backup ou uma restauração em andamento fazem o ↻ esperar */
+  atuModulo("seguranca",{
+    buscar:segLerTudo,
+    fontes:segFontes,
+    antes:function(){return NUCLEO.atuEstado(SEG.fontes)},
+    trocar:segAplicar,
+    ocupado:function(){var a=SEG.areaRestaurar;return a&&a.isConnected&&a.querySelector("button.segdesc:not(:disabled)")?"a prévia da restauração (grave ou descarte antes)":""}});
   function renderSeguranca(sub){
     var root=$("#seguranca-view");root.innerHTML="";root.appendChild(loading());
-    segCarregar().then(function(){root.innerHTML="";
+    /* pelo ↻ as leituras já chegaram novas (SEG): desenha com elas, sem ler de novo */
+    (ATU.rodando&&SEG.fontes?Promise.resolve():segCarregar()).then(function(){root.innerHTML="";
       root.appendChild(segProtecao());root.appendChild(segPasskeys());root.appendChild(segMfa());
       if(isOwner()){root.appendChild(segBackupPainel());var pr=segRestaurarPainel();root.appendChild(pr);root.appendChild(segHistorico());root.appendChild(segAuditoria());
         if(sub==="restaurar")setTimeout(function(){pr.scrollIntoView({behavior:"smooth",block:"start"})},80)}
@@ -142,7 +160,8 @@
 
   /* ---------- 3. backup e exportação ---------- */
   /* o backup em JSON (formato 2): todas as tabelas pessoais desta conta, sem segredos, com quantidade e SHA-256 de cada uma */
-  function segExportar(st,motivo){
+  function segExportar(st,motivo){return atuDurante("o backup",function(){return segExportarJa(st,motivo)})}
+  function segExportarJa(st,motivo){
     var tabs={},hashes={},fora=[],falhas=[],criado=new Date().toISOString();
     return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");
       return lerTabela(t).then(function(l0){var c=NUCLEO.segLimpar(t,l0);tabs[t]=c.linhas;fora=fora.concat(c.fora);return segSha(NUCLEO.segCanon(c.linhas)).then(function(x){hashes[t]=x})},
@@ -160,7 +179,7 @@
     js.onclick=function(){trava(true);segExportar(function(t){st.textContent=t}).then(function(r){trava(false);
       st.textContent="✓ Backup baixado ("+sisKb(r.tamanho)+"): "+Object.keys(r.tabelas).map(function(k){return k+" "+r.tabelas[k]}).join(", ")+"."+(r.fora.length?" Ficaram de fora "+r.fora.length+" segredos (senhas, chaves, tokens).":"")+(r.falhas.length?" ⚠ Não li: "+r.falhas.join("; "):"")})
       .catch(function(e){trava(false);st.textContent="Não consegui exportar: "+e.message;logErro("backup",e)})};
-    function zip(c){trava(true);exportarTudo(c,function(t){st.textContent=t}).then(function(m){trava(false);
+    function zip(c){trava(true);atuDurante("o backup",function(){return exportarTudo(c,function(t){st.textContent=t})}).then(function(m){trava(false);
       st.textContent="✓ Pacote baixado: "+Object.keys(m.tabelas).map(function(k){return k+" "+m.tabelas[k]}).join(", ")+(m.anexos!=null?", anexos "+m.anexos:"")+".";
       segEvento("exportacao",{formato:c?"zip com anexos":"zip",tabelas:m.tabelas,anexos:m.anexos||0,fora:(m.fora||[]).length})})
       .catch(function(e){trava(false);st.textContent="Não consegui exportar: "+e.message;logErro("backup",e)})}
@@ -182,7 +201,7 @@
     return (r.data&&x!==r.data?dataBR(String(r.data).slice(0,10))+" · ":"")+String(x).slice(0,80)}
   function segPrevia(fonte,area){
     var st=h("p",{class:"sub",role:"status",text:"Lendo “"+fonte.nome+"”…"});area.innerHTML="";area.appendChild(st);
-    var B,anexos=[],H;
+    var B,anexos=[],H,fimT=atuTarefa("a leitura do backup");
     function erro(lista,titulo){area.innerHTML="";area.appendChild(h("p",{class:"alerta",text:"✗ "+titulo}));var ul=h("ul",{class:"clean"});lista.forEach(function(x){ul.appendChild(h("li",{text:x}))});area.appendChild(ul);
       area.appendChild(h("p",{class:"sub",text:"Nada foi gravado."}))}
     return Promise.resolve().then(fonte.ler).then(function(r){anexos=r.anexos||[];B=NUCLEO.segLer(r.json);
@@ -194,8 +213,8 @@
         /* lê todas as tabelas (não só as do backup): um item do backup pode apontar para uma nota que já existe hoje */
         return NUCLEO.SEG_TABELAS.filter(function(d){return !d.so}).map(function(d){return d.t}).reduce(function(pr,t){return pr.then(function(){return lerTabela(t).then(function(l){atual[t]=l})})},Promise.resolve())
           .then(function(){return NUCLEO.segPlano(B,atual,{conta:EU.id})})})})
-    .then(function(plano){if(plano)segMostrarPlano(fonte,B,H,plano,anexos,area)})
-    .catch(function(e){erro([e.message||String(e)],"Não consegui ler o backup");logErro("restaurar",e)})}
+    .then(function(plano){fimT();if(plano)segMostrarPlano(fonte,B,H,plano,anexos,area)})
+    .catch(function(e){fimT();erro([e.message||String(e)],"Não consegui ler o backup");logErro("restaurar",e)})}
   function segMostrarPlano(fonte,B,H,plano,anexos,area){
     area.innerHTML="";var T=plano.total,linhas=[];
     area.appendChild(h("h3",{class:"mbag",text:"Prévia: "+fonte.nome}));
@@ -220,7 +239,7 @@
       it.invalidas.slice(0,5).forEach(function(x){w.appendChild(h("li",{class:"alerta"},h("span",{class:"grow"},h("b",{text:"Inválida (não entra)"}),h("span",{class:"sub",text:segRot(it.t,x.linha)+" · "+x.motivo}))))});
       area.appendChild(d)});
     var cCopia=h("input",{type:"checkbox",checked:""}),cSub=h("input",{type:"checkbox"}),cConta=h("input",{type:"checkbox"}),
-      grava=h("button",{type:"button"}),can=h("button",{type:"button",class:"ghostbtn",text:"Descartar a prévia"}),st=h("p",{class:"sub",role:"status"});
+      grava=h("button",{type:"button"}),can=h("button",{type:"button",class:"ghostbtn segdesc",text:"Descartar a prévia"}),st=h("p",{class:"sub",role:"status"});
     area.appendChild(h("label",null,cCopia,h("span",{text:"Antes de gravar, baixar uma cópia (JSON) do que existe hoje."})));
     if(T.diferentes)area.appendChild(h("label",null,cSub,h("span",{text:"Também trocar "+(T.diferentes===1?"a linha que mudou":"as "+T.diferentes+" linhas que mudaram")+" pelo que está no backup (sem marcar, o que existe hoje fica como está)."})));
     if(plano.outraConta)area.appendChild(h("label",null,cConta,h("span",{class:"alerta",text:"Este backup é de outra conta. Quero trazer os dados dele para esta conta."})));
@@ -232,14 +251,14 @@
     grava.onclick=function(){var n=total();
       if(!confirm("Gravar agora?\n\n• "+segN(T.novas,"linha nova entra","linhas novas entram")+(cSub.checked?"\n• "+segN(T.diferentes,"linha de hoje é trocada","linhas de hoje são trocadas")+" pelo backup":"\n• nenhuma linha de hoje é alterada")+(anexos.length?"\n• anexos que faltam no cofre são enviados":"")+"\n• nada é apagado"))return;
       grava.disabled=can.disabled=true;
-      var feito={inseridas:0,substituidas:0,anexos:0,anexosExistentes:0};
+      var feito={inseridas:0,substituidas:0,anexos:0,anexosExistentes:0},fimT=atuTarefa("a restauração do backup");
       (cCopia.checked?segExportar(function(t){st.textContent="Cópia de hoje: "+t},"antes-de-restaurar"):Promise.resolve())
       .then(function(){return segGravar(NUCLEO.segEscrita(plano,cSub.checked),feito,function(t){st.textContent=t})})
       .then(function(){return segAnexos(anexos,B.conta,feito,function(t){st.textContent=t})})
       .then(function(){return segEvento("restauracao",{arquivo:fonte.nome,criado:B.criado,formato:B.versao,outraConta:plano.outraConta,inseridas:feito.inseridas,substituidas:feito.substituidas,anexos:feito.anexos})})
-      .then(function(){st.textContent="✓ Restaurado: "+segN(feito.inseridas,"linha nova","linhas novas")+(feito.substituidas?", "+segN(feito.substituidas,"trocada","trocadas"):"")+(feito.anexos||feito.anexosExistentes?", "+feito.anexos+" anexos enviados ("+feito.anexosExistentes+" já existiam)":"")+".";
+      .then(function(){fimT();st.textContent="✓ Restaurado: "+segN(feito.inseridas,"linha nova","linhas novas")+(feito.substituidas?", "+segN(feito.substituidas,"trocada","trocadas"):"")+(feito.anexos||feito.anexosExistentes?", "+feito.anexos+" anexos enviados ("+feito.anexosExistentes+" já existiam)":"")+".";
         var r=h("button",{type:"button",text:"Recarregar o site"});r.onclick=function(){location.reload()};area.appendChild(h("div",{class:"vfil"},r))})
-      .catch(function(e){st.textContent="Parou com erro: "+e.message+". Gravado até aqui: "+feito.inseridas+" novas, "+feito.substituidas+" trocadas. Nada foi apagado; pode abrir a prévia de novo (o que já entrou aparece como igual).";
+      .catch(function(e){fimT();st.textContent="Parou com erro: "+e.message+". Gravado até aqui: "+feito.inseridas+" novas, "+feito.substituidas+" trocadas. Nada foi apagado; pode abrir a prévia de novo (o que já entrou aparece como igual).";
         logErro("restaurar",e);segEvento("restauracao",{arquivo:fonte.nome,erro:String(e.message).slice(0,300),inseridas:feito.inseridas,substituidas:feito.substituidas})})};
     area.appendChild(h("div",{class:"vfil"},grava,can));area.appendChild(st)}
   /* insert para as novas (se a linha passou a existir nesse meio-tempo, o banco recusa em vez de sobrescrever); upsert só no que o dono mandou trocar */

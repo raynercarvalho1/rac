@@ -4,16 +4,19 @@
   var BEBE={evs:null,quem:null,met:"sono",dias:30};
   function bebeCarregar(quem,forca){
     if(BEBE.evs&&BEBE.quem===quem&&!forca)return Promise.resolve(BEBE.evs);
-    function pag(de,acc){return SB.from("bebe").select("tipo,inicio,fim,dados").eq("quem",quem).order("inicio",{ascending:true}).range(de,de+999).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(de+1000,acc):acc})}
-    return pag(0,[]).then(function(l){BEBE.evs=l;BEBE.quem=quem;return l})}
+    return bebeLer(quem).then(function(l){BEBE.evs=l;BEBE.quem=quem;return l})}
+  /* só lê (não mexe em BEBE) */
+  function bebeLer(quem){
+    function pag(de,acc){return Promise.resolve().then(function(){return SB.from("bebe").select("tipo,inicio,fim,dados").eq("quem",quem).order("inicio",{ascending:true}).range(de,de+999)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(de+1000,acc):acc})}
+    return pag(0,[])}
   function haQuanto(iso){var m=Math.round((Date.now()-new Date(iso))/6e4);return m<60?m+" min":m<48*60?Math.floor(m/60)+"h"+String(m%60).padStart(2,"0"):Math.round(m/1440)+" dias"}
   function bebeImportar(quem,pronto){
     var inp=h("input",{type:"file",accept:".csv,text/csv",hidden:""}),b=h("button",{type:"button",class:"ghostbtn",text:"Importar do Napper (.csv)"}),st=h("p",{class:"sub",role:"status"});
     b.onclick=function(){inp.click()};
     inp.onchange=function(){var f=inp.files[0];if(!f)return;b.disabled=true;st.textContent="Lendo…";
-      f.text().then(function(t){var ev=NUCLEO.napperLer(t).map(function(e){return {quem:quem,tipo:e.tipo,inicio:e.inicio,fim:e.fim,dados:e.dados,origem:"napper",chave:e.chave}});
+      atuDurante("a importação do Napper",function(){return f.text().then(function(t){var ev=NUCLEO.napperLer(t).map(function(e){return {quem:quem,tipo:e.tipo,inicio:e.inicio,fim:e.fim,dados:e.dados,origem:"napper",chave:e.chave}});
         var feitos=0;function lote(i){if(i>=ev.length)return Promise.resolve();return SB.from("bebe").upsert(ev.slice(i,i+500),{onConflict:"user_id,chave",ignoreDuplicates:true}).then(function(r){if(r.error)throw new Error(r.error.message);feitos+=Math.min(500,ev.length-i);st.textContent="Importando… "+feitos+" de "+ev.length;return lote(i+500)})}
-        return lote(0).then(function(){st.textContent="✓ "+ev.length+" registros do Napper conferidos (os que já estavam aqui não duplicam).";b.disabled=false;BEBE.evs=null;if(pronto)pronto()})})
+        return lote(0).then(function(){st.textContent="✓ "+ev.length+" registros do Napper conferidos (os que já estavam aqui não duplicam).";b.disabled=false;BEBE.evs=null;if(pronto)pronto()})})})
       .catch(function(e){b.disabled=false;st.textContent=/bebe|relation|schema cache/i.test(e.message)?"Falta rodar o supabase/010_bebe.sql no Supabase.":"Não consegui importar: "+e.message;logErro("Napper",e)})};
     return h("div",null,h("div",{class:"vfil"},b,inp),st)}
   /* colunas simples por dia (mesmo visual dos outros gráficos do site) */

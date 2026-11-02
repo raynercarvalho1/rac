@@ -943,6 +943,36 @@
       if(nt==null||nt!==nt||Math.abs(nt-tot)>AL_TOL||alEstab(nome)!==est)continue;
       return {nivel:"possivel",nota:n,motivo:"há uma nota do Mercado com o mesmo estabelecimento, a mesma data e o mesmo valor"}}
     return null}
+  /* ===== Botão de atualizar (Etapa A): as regras, sem tela. A tela (js/app.js) coleta o estado e mostra o resultado. ===== */
+  /* formulário com alteração não salva? campos: [{tipo, valor, inicial, marcado, marcadoInicial, arquivos, desligado, filtro}].
+     Busca e filtro não contam (são preservados); campo desligado ou só de leitura também não; arquivo escolhido conta. */
+  var ATU_IGNORA={search:1,button:1,submit:1,reset:1,hidden:1,image:1};
+  function atuFormSujo(campos){return (campos||[]).some(function(c){if(!c||c.desligado||c.filtro||ATU_IGNORA[c.tipo])return false;
+    if(c.tipo==="checkbox"||c.tipo==="radio")return !!c.marcado!==!!c.marcadoInicial;
+    if(c.tipo==="file")return (c.arquivos||0)>0;
+    return String(c.valor==null?"":c.valor)!==String(c.inicial==null?"":c.inicial)})}
+  /* pode atualizar agora? Nesta ordem: já atualizando, sem internet, tarefa em andamento, formulário não salvo. Nunca descarta nada. */
+  function atuPode(e){e=e||{};
+    if(e.rodando)return {ok:false,motivo:"rodando",texto:"Já estou atualizando esta página."};
+    if(e.online===false)return {ok:false,motivo:"offline",texto:"Sem internet: nada foi atualizado. Os dados de antes continuam na tela."};
+    if(e.ocupado)return {ok:false,motivo:"ocupado",texto:"Espere terminar: "+e.ocupado+". Depois toque de novo."};
+    if(e.sujo)return {ok:false,motivo:"formulario",texto:"Há um formulário com alterações não salvas. Salve ou cancele antes de atualizar; nada foi descartado."};
+    return {ok:true,motivo:"",texto:""}}
+  /* reler o PESSOAL só quando é seguro: dono, com a tabela, sem alteração esperando envio, sem conflito e sem gravação em curso */
+  function atuRelerPessoal(e){e=e||{};return !!(e.dono&&!e.semTabela&&!(e.pendentes>0)&&!(e.conflitos>0)&&!(e.gravando>0))}
+  /* JSON do próprio site com a marca que o service worker entende como "buscar na rede agora" */
+  function atuUrlFresca(u){u=String(u||"");if(/^[a-z]+:\/\//i.test(u)||!/^[^?#]+\.json(\?|#|$)/.test(u)||/[?&]atualizar=1(&|#|$)/.test(u))return u;
+    var i=u.indexOf("#"),base=i<0?u:u.slice(0,i),fim=i<0?"":u.slice(i);return base+(base.indexOf("?")<0?"?":"&")+"atualizar=1"+fim}
+  /* hora local "14:32" de um instante (ms) */
+  function atuHora(ms){var d=new Date(ms);if(!isFinite(d.getTime()))return "";return (d.getHours()<10?"0":"")+d.getHours()+":"+(d.getMinutes()<10?"0":"")+d.getMinutes()}
+  /* Etapa B: as leituras novas de um módulo podem ocupar o lugar das de antes? novo e antes: {fonte:{ok, erro}}. Troca só se toda fonte
+     veio boa; a que já falhava antes não impede (não há dado bom a perder); a que estava boa e sumiu impede. Nunca troca pela metade. */
+  function atuConferir(novo,antes){novo=novo||{};antes=antes||{};var falhas=[];
+    Object.keys(novo).forEach(function(k){var n=novo[k],a=antes[k];if(n&&n.ok)return;if(a&&a.ok===false)return;falhas.push(k+(n&&n.erro?" ("+n.erro+")":""))});
+    Object.keys(antes).forEach(function(k){if(!(k in novo)&&antes[k]&&antes[k].ok)falhas.push(k+" (não veio)")});
+    return {ok:!falhas.length,falhas:falhas,texto:falhas.length?"não consegui ler "+falhas.join(", "):""}}
+  /* de cada fonte guardada ({ok, v} ou {ok:false, erro}), só se estava boa: é o "antes" do atuConferir */
+  function atuEstado(fontes){var o={};Object.keys(fontes||{}).forEach(function(k){var f=fontes[k];if(f&&typeof f.ok==="boolean")o[k]={ok:f.ok}});return o}
   /* ===== Central de Compras (docs/compras.md): pedidos de lojas online (Amazon primeiro; Mercado Livre e outras pelo mesmo formato).
      Lê o texto do PDF/e-mail/OCR, a NF-e (XML) e o CSV de histórico; junta os documentos do mesmo pedido, aponta divergências,
      evita duplicidade e acha recorrências. Nunca guarda número de cartão: só a bandeira e os 4 últimos dígitos. ===== */
@@ -1099,6 +1129,7 @@
     alCatMercado:alCatMercado,alModo:alModo,alPedidoDespesas:alPedidoDespesas,alMercadoDespesas:alMercadoDespesas,alSomar:alSomar,alTamanho:alTamanho,alProdutoInfo:alProdutoInfo,
     alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
     alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
+    atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
     coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};
 })(typeof window!=="undefined"?window:globalThis);

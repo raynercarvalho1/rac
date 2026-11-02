@@ -48,6 +48,35 @@ Página `#alimentacao` (menu → Alimentação), código em `js/alimentacao.js`,
 - Nomes de produtos: `alChaveProduto` e `alCompararProdutos` ("Coca Cola 2L" = "Coca-Cola 2 litros"); marca, tamanho, versão (zero,
   integral, light…) ou números diferentes nunca juntam; na dúvida a resposta é "possível" e ninguém junta sozinho.
 - `alDuplicata`: "confirmada" ou "possível". `alVersao`: as versões da edição.
+- `alIntegridade` / `alIntegridadeLista`: conferem pedidos **já gravados** (como vêm do banco, itens em `pedido_itens`, números como
+  texto): sem itens, itens que não somam o subtotal, conta que não fecha (a mesma regra de `alPedidoConta`, 2 centavos), desconto de item
+  maior que o item, total inválido. Só apontam, nunca corrigem. O unitário gravado é derivado (total ÷ quantidade) e fica fora da conferência.
+- `alDuplicataMercado(pedido, notas)`: o mesmo gasto lançado como nota do Mercado e como pedido (ex.: padaria). Notas no formato
+  `[{id, data, total, mercado}]` (ou `{mercados: {nome}}` do select embutido). Mesma data + mesmo estabelecimento (a normalização de
+  `alDuplicata`) + valor a até 2 centavos → só **"possível"**, nunca bloqueia; nota sem total não é comparada.
+- Na tela (B.2b): a lista de Pedidos avisa "pedidos para conferir" (e marca cada um com ⚠), o detalhe diz o que conferir, e o Salvar
+  junta o aviso do Mercado ao "parece repetido" num único segundo toque ("Salvar mesmo assim"). Se as notas não carregarem, salva igual.
+
+## Gravação numa operação só (027)
+
+`supabase/027_pedido_salvar.sql` cria `public.pedido_salvar(p_pedido, p_itens, p_novo)`. O site chama só ela para criar e editar:
+o pedido, os itens e a versão anterior entram juntos, e **qualquer erro desfaz tudo** (antes, a edição era em três chamadas e uma
+falha no meio deixava o pedido sem itens).
+
+- **security invoker** (roda como quem chamou): valem as mesmas regras "casa" e "mfa" das tabelas, sem poder extra. search_path vazio.
+  Sem login não executa (o EXECUTE que o Supabase dá a `anon` por padrão é tirado).
+- O banco preenche `user_id` (a casa), `criado_por`, `criado_em`, `versoes` (montada com o que está gravado, mesmo formato de `alVersao`,
+  10 últimas) e `atualizado_em`. Mandar qualquer um deles, ou um campo desconhecido, dá erro; a `origem` só vem no pedido novo.
+- Confere tudo antes de gravar: tipos, data, dinheiro (0 a R$ 100.000, até 2 casas), 1 a 200 itens, quantidade, desconto do item,
+  soma dos itens = subtotal (2 centavos), produto só da própria casa, fotos (as antigas iguais e na mesma ordem; as novas só na pasta
+  `<dono>/alimentacao/<pedido>/`). A conta inteira e o número repetido o banco já conferia (024).
+- Toque duplo no pedido novo: o segundo volta `ja_existia` e não grava de novo.
+- Gatilho `pedidos_protegidos`: um UPDATE direto na tabela também não muda `user_id`, `criado_por`, `criado_em` e `origem` (fica o valor
+  de antes, sem erro, para a restauração do backup continuar trocando linhas inteiras). INSERT direto continua (é como a restauração grava).
+- Testes rodando o 024 e o 027 num Postgres de verdade dentro do Node (PGlite, só no teste): `tests/alimentacao_banco.test.mjs`.
+  No computador, aponte `RAC_PGLITE` para o pacote; no GitHub o `testes.yml` instala.
+- Aplicado pelo dono no SQL Editor em 01/11/2026, antes do site (versão `2026-11-01.10`). Conferido no catálogo do banco: função invoker
+  com search_path vazio, EXECUTE só para `authenticated`, gatilho ativo, RLS "casa" e "mfa" iguais e o código idêntico ao do arquivo.
 
 ## Painel de Produtividade
 

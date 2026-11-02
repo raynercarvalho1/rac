@@ -85,6 +85,10 @@
     var p=panel("Pedidos","Toque num pedido para ver os itens, as taxas e as fotos, editar ou apagar.");
     if(!ALI.pedidos.ok){p.appendChild(aliVazio("Não consegui ler os pedidos agora ("+ALI.pedidos.erro+")."));return [p]}
     var ped=ALI.pedidos.v;if(!ped.length){p.appendChild(aliVazio("Nenhum pedido lançado ainda."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#alimentacao/novo",text:"＋ Novo pedido"})));return [p]}
+    /* pedidos gravados que não fecham (sem itens, itens ≠ subtotal, conta aberta): só aponta; a correção é pelo Editar */
+    var integ=NUCLEO.alIntegridadeLista(ped),conf={};integ.pedidos.forEach(function(x){conf[x.id]=1});
+    if(integ.comProblema)p.appendChild(h("p",{class:"alconf",role:"status",text:"⚠ "+integ.comProblema+(integ.comProblema===1?" pedido para conferir: ":" pedidos para conferir: ")+
+      integ.pedidos.slice(0,3).map(function(x){return x.estabelecimento+" ("+dataBR(x.data).slice(0,5)+")"}).join(", ")+(integ.comProblema>3?"…":"")+". Abra o pedido e use Editar para corrigir."}));
     var q=h("input",{type:"search",placeholder:"Buscar (estabelecimento ou item)","aria-label":"Buscar pedidos"}),lista=h("div");p.appendChild(q);p.appendChild(lista);
     function draw(){lista.innerHTML="";var nq=NUCLEO.norm(q.value.trim()),meses={};
       ped.filter(function(x){return !nq||NUCLEO.norm(x.estabelecimento+" "+x.itens.map(function(i){return i.descricao}).join(" ")).indexOf(nq)>=0}).forEach(function(x){(meses[x.data.slice(0,7)]=meses[x.data.slice(0,7)]||[]).push(x)});
@@ -92,12 +96,13 @@
       ks.forEach(function(m){var l=meses[m],t=l.reduce(function(s,x){return s+x.total_pago},0);
         lista.appendChild(h("h3",{class:"mbag",text:MES3[+m.slice(5,7)-1]+"/"+m.slice(0,4)+" · "+l.length+(l.length===1?" pedido":" pedidos")+" · "+brl(t)}));
         lista.appendChild(h("ul",{class:"wl"},l.map(function(x){var b=h("button",{type:"button",class:"alped","aria-expanded":String(ALI.aberto===x.id)},
-            h("span",{class:"when",text:dataBR(x.data).slice(0,5)}),h("span",{class:"grow"},h("b",{text:x.estabelecimento}),h("span",{class:"sub",text:aliPlat(x)+" · "+NUCLEO.AL_MODOS[x.modo]+" · "+x.itens.length+(x.itens.length===1?" item":" itens")+((x.arquivos||[]).length?" · 📎":"")})),
+            h("span",{class:"when",text:dataBR(x.data).slice(0,5)}),h("span",{class:"grow"},h("b",{text:x.estabelecimento}),h("span",{class:"sub",text:(conf[x.id]?"⚠ conferir · ":"")+aliPlat(x)+" · "+NUCLEO.AL_MODOS[x.modo]+" · "+x.itens.length+(x.itens.length===1?" item":" itens")+((x.arquivos||[]).length?" · 📎":"")})),
             h("b",{class:"mkt",text:brl(x.total_pago)}));
           var li=h("li",{class:"alli"},b);b.onclick=function(){ALI.aberto=ALI.aberto===x.id?null:x.id;draw()};
           if(ALI.aberto===x.id)li.appendChild(aliDetalhe(x));return li})))})}
     q.addEventListener("input",draw);draw();return [p]}
-  function aliDetalhe(x){var d=h("div",{class:"aldet"}),C=NUCLEO.alPedidoConta(x);
+  function aliDetalhe(x){var d=h("div",{class:"aldet"}),C=NUCLEO.alPedidoConta(x),I=NUCLEO.alIntegridade(x);
+    if(!I.ok)d.appendChild(h("p",{class:"alconf",text:"Para conferir: "+I.problemas.join(" ")}));
     d.appendChild(h("div",{class:"famtabw"},h("table",{class:"famtab"},h("thead",null,h("tr",null,h("th",{text:"Item"}),h("th",{class:"num",text:"Qtd"}),h("th",{class:"num",text:"Total"}))),
       h("tbody",null,x.itens.map(function(i){return h("tr",null,h("td",null,i.descricao,i.observacao?h("small",{class:"sub",text:" · "+i.observacao}):null),h("td",{class:"num",text:fmtN(i.qtd)}),
         h("td",{class:"num",text:brl(i.total-(i.desconto||0))+(i.desconto?" (−"+brl(i.desconto)+")":"")}))})))));
@@ -183,27 +188,31 @@
       if(!navigator.onLine){falta.textContent="Sem internet: não salvei. Os dados continuam aqui; tente quando voltar.";return}
       var o=coletar(),R=function(v){return Math.round((NUCLEO.alCent(v)||0))/100};
       salvando=true;salvar.disabled=true;falta.textContent="Conferindo se o pedido já existe…";
-      /* duplicidade: o mesmo número na mesma plataforma bloqueia; mesmo lugar, dia e valor pede um segundo toque */
-      SB.from("pedidos").select("id,data,estabelecimento,plataforma,numero,total_pago").or("data.eq."+o.data+(o.numero?",numero.not.is.null":"")).then(sbOk).then(function(l){
-        var dup=NUCLEO.alDuplicata(o,l,ant?ant.id:null);
+      /* duplicidade: o mesmo número na mesma plataforma bloqueia; mesmo lugar, dia e valor (outro pedido ou uma nota do Mercado) só
+         pede um segundo toque. As notas do Mercado são só um aviso: se não carregarem, o Salvar continua */
+      Promise.all([SB.from("pedidos").select("id,data,estabelecimento,plataforma,numero,total_pago").or("data.eq."+o.data+(o.numero?",numero.not.is.null":"")).then(sbOk),
+        Promise.resolve().then(function(){return SB.from("notas").select("id,data,total,mercados(nome)").eq("data",o.data)}).then(sbOk).catch(function(){return []})]).then(function(l){
+        var dup=NUCLEO.alDuplicata(o,l[0],ant?ant.id:null),dupM=NUCLEO.alDuplicataMercado(o,l[1]),avisos=[];
         if(dup&&dup.nivel==="confirmada"&&!(novo&&dup.motivo==="é o mesmo lançamento"))throw {dup:"Já existe: "+dup.motivo+" ("+dup.pedido.estabelecimento+", "+dataBR(dup.pedido.data)+", "+brl(+dup.pedido.total_pago)+"). Nada foi gravado."};
         if(dup&&dup.nivel==="confirmada")throw {mesmo:true};
-        if(dup&&dup.nivel==="possivel"&&!dupOk)throw {possivel:"Parece repetido: "+dup.motivo+" ("+dup.pedido.estabelecimento+", "+brl(+dup.pedido.total_pago)+"). Se for outro pedido, toque de novo em Salvar."};
+        if(dup&&dup.nivel==="possivel")avisos.push("Parece repetido: "+dup.motivo+" ("+dup.pedido.estabelecimento+", "+brl(+dup.pedido.total_pago)+").");
+        if(dupM)avisos.push("Parece já lançado no Mercado: "+dupM.motivo+" ("+(dupM.nota.mercados&&dupM.nota.mercados.nome||"nota")+", "+dataBR(dupM.nota.data)+", "+brl(+dupM.nota.total)+").");
+        if(avisos.length&&!dupOk)throw {possivel:avisos.join(" ")+" Se for outro gasto, toque de novo em Salvar."};
         falta.textContent=(fotos.files||[]).length?"Enviando as fotos…":"Salvando…";
         return (fotos.files&&fotos.files.length?enviarArquivos("alimentacao",id,fotos.files,function(t){falta.textContent=t}):Promise.resolve([]))})
-      .then(function(novas){var conta=NUCLEO.alPedidoConta(o),agora=new Date().toISOString();
-        var linhaP={data:o.data,hora:o.hora,estabelecimento:o.estabelecimento,plataforma:o.plataforma,modo:o.modo,numero:o.numero,pagamento:o.pagamento,subtotal:conta.subtotal,
+      .then(function(novas){var conta=NUCLEO.alPedidoConta(o);
+        var linhaP={id:id,data:o.data,hora:o.hora,estabelecimento:o.estabelecimento,plataforma:o.plataforma,modo:o.modo,numero:o.numero,pagamento:o.pagamento,subtotal:conta.subtotal,
           taxa_entrega:R(o.taxa_entrega),taxa_servico:R(o.taxa_servico),gorjeta:R(o.gorjeta),desconto_loja:R(o.desconto_loja),desconto_plataforma:R(o.desconto_plataforma),total_pago:R(o.total_pago),
           observacoes:o.observacoes,arquivos:(ant&&ant.arquivos||[]).concat(novas)};
-        var itens=o.itens.map(function(i,n){var q=+String(i.qtd||"1").replace(",",".")||1,t=R(i.total);return {pedido_id:id,ordem:n,descricao:i.descricao,qtd:q,unitario:Math.round(t/q*100)/100,total:t,desconto:R(i.desconto),observacao:i.observacao,produto_id:i.produto_id}});
-        if(novo){linhaP.id=id;linhaP.origem=origem;
-          return SB.from("pedidos").insert(linhaP).then(function(r){if(r.error&&r.error.code!=="23505")throw new Error(r.error.message);if(r.error)throw {mesmo:true}})
-            .then(function(){return SB.from("pedido_itens").insert(itens).then(function(r){if(r.error){return SB.from("pedidos").delete().eq("id",id).then(function(){throw new Error(r.error.message)})}})})}
-        linhaP.versoes=NUCLEO.alVersao(ant,agora);linhaP.atualizado_em=agora;
-        return SB.from("pedidos").update(linhaP).eq("id",id).then(sbOk).then(function(){return SB.from("pedido_itens").delete().eq("pedido_id",id).then(sbOk)})
-          .then(function(){return SB.from("pedido_itens").insert(itens).then(sbOk)})})
+        if(novo)linhaP.origem=origem;
+        var itens=o.itens.map(function(i){return {descricao:i.descricao,qtd:+String(i.qtd||"1").replace(",",".")||1,total:R(i.total),desconto:R(i.desconto),observacao:i.observacao,produto_id:i.produto_id}});
+        /* uma chamada só (027): o banco grava o pedido e os itens juntos, guarda a versão anterior e desfaz tudo se algo falhar */
+        return SB.rpc("pedido_salvar",{p_pedido:linhaP,p_itens:itens,p_novo:novo}).then(function(r){if(r.error)throw r.error;return r.data})})
       .then(function(){aliEsquecer();ALI.aberto=id;location.hash="#alimentacao/pedidos"},function(e){salvando=false;
         if(e&&e.mesmo){aliEsquecer();ALI.aberto=id;location.hash="#alimentacao/pedidos";return}
+        /* 23505: o mesmo id (toque duplo que chegou junto) já está gravado; ou o número já existe nessa plataforma */
+        if(e&&e.code==="23505"){if(/pedidos_pkey/.test(e.message||"")){aliEsquecer();ALI.aberto=id;location.hash="#alimentacao/pedidos";return}
+          e={dup:"Já existe um pedido com esse número nessa plataforma. Nada foi gravado."}}
         if(e&&e.possivel){dupOk=true;salvar.disabled=false;salvar.textContent="Salvar mesmo assim";falta.textContent=e.possivel;return}
         salvar.disabled=false;falta.textContent=e&&e.dup?e.dup:"Não consegui salvar ("+(e&&e.message||e)+"). Os dados continuam aqui.";if(!(e&&e.dup))logErro("alimentacao",e)})};
     return p}

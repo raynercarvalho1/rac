@@ -94,6 +94,53 @@ test("duplicidade: mesmo número na mesma plataforma é confirmada; mesmo lugar,
   assert.equal(N.alDuplicata({ ...pedido({ id: "a" }), numero: "1234" }, ex, "a"), null, "editando o próprio pedido");
   assert.match(N.alDuplicata({ ...pedido({ id: "b", plataforma: "direto" }), numero: null }, ex).motivo, /outra origem/);
 });
+test("integridade: pedido gravado íntegro passa; sem itens, itens ≠ subtotal, conta aberta e desconto de item apontam; nada é corrigido", () => {
+  /* como vem do banco: itens em pedido_itens, números como texto, unitário derivado (total ÷ qtd) */
+  const gravado = (extra = {}) => ({ id: "g1", data: "2026-10-30", estabelecimento: "Pizzaria Exemplo", plataforma: "ifood", modo: "delivery",
+    subtotal: "73.90", taxa_entrega: "7.99", taxa_servico: "0.99", gorjeta: "5.00", desconto_loja: "0.00", desconto_plataforma: "10.00", total_pago: "77.88",
+    pedido_itens: [{ ordem: 1, descricao: "Coca-Cola 2L", qtd: "1.000", unitario: "14.00", total: "14.00", desconto: "0.00" },
+      { ordem: 0, descricao: "Pizza grande", qtd: "1.000", unitario: "59.90", total: "59.90", desconto: "0.00" }], ...extra });
+  assert.deepEqual(N.alIntegridade(gravado()), { ok: true, problemas: [] });
+  assert.deepEqual(N.alIntegridade({ ...gravado(), pedido_itens: undefined, itens: gravado().pedido_itens }), { ok: true, problemas: [] }, "aceita itens também");
+  /* unitário derivado e arredondado (10 ÷ 7 = 1,43; 7 × 1,43 = 10,01) não é falso alarme */
+  assert.equal(N.alIntegridade({ subtotal: 10, total_pago: 10, pedido_itens: [{ descricao: "Esfiha", qtd: 7, unitario: 1.43, total: 10 }] }).ok, true);
+  assert.equal(N.alIntegridade({ subtotal: 10, total_pago: 10, pedido_itens: [{ descricao: "Pão de queijo", qtd: 9, unitario: 1.11, total: 10 }] }).ok, true);
+  assert.deepEqual(N.alIntegridade(gravado({ pedido_itens: [] })), { ok: false, problemas: ["O pedido está gravado sem nenhum item."] });
+  assert.match(N.alIntegridade(gravado({ pedido_itens: undefined })).problemas.join(" "), /sem nenhum item/);
+  assert.match(N.alIntegridade(gravado({ pedido_itens: [gravado().pedido_itens[1]] })).problemas.join(" "), /Os itens somam R\$ 59,90, mas o subtotal do pedido é R\$ 73,90/);
+  assert.match(N.alIntegridade(gravado({ total_pago: "80.00" })).problemas.join(" "), /A conta dá R\$ 77,88.*total pago é R\$ 80,00/);
+  assert.match(N.alIntegridade(gravado({ pedido_itens: [{ descricao: "Pizza grande", qtd: 1, total: 59.9, desconto: 60 }] })).problemas.join(" "), /desconto de “Pizza grande” passa do valor do item/);
+  assert.match(N.alIntegridade(gravado({ pedido_itens: [{ descricao: "Pizza grande", qtd: 1, total: "abc" }] })).problemas.join(" "), /Confira o total de “Pizza grande”/);
+  /* arredondamento: 1 e 2 centavos passam, 3 apontam */
+  assert.equal(N.alIntegridade(gravado({ total_pago: "77.89" })).ok, true); assert.equal(N.alIntegridade(gravado({ total_pago: "77.90" })).ok, true);
+  assert.equal(N.alIntegridade(gravado({ total_pago: "77.91" })).ok, false);
+  /* só aponta: o pedido recebido não muda */
+  const g = gravado({ total_pago: "80.00" }), copia = JSON.parse(JSON.stringify(g)); N.alIntegridade(g); assert.deepEqual(g, copia);
+  const l = N.alIntegridadeLista([gravado(), gravado({ id: "g2", pedido_itens: [] }), gravado({ id: "g3", total_pago: 1 }), null]);
+  assert.equal(l.total, 4); assert.equal(l.comProblema, 3); assert.deepEqual(l.pedidos.map((x) => x.id), ["g2", "g3", null]);
+  assert.deepEqual(N.alIntegridadeLista([]), { total: 0, comProblema: 0, pedidos: [] });
+});
+test("duplicidade com o Mercado: mesma loja, dia e valor numa nota é só 'possível' (nunca bloqueia); qualquer diferença não avisa", () => {
+  const p = { id: "p9", data: "2026-10-30", estabelecimento: "Padaria Exemplo", plataforma: "direto", modo: "no_local", total_pago: 42.5 };
+  const nota = (extra = {}) => ({ id: "n1", data: "2026-10-30", total: 42.5, mercado: "Padaria Exemplo", ...extra });
+  const d = N.alDuplicataMercado(p, [nota()]);
+  assert.equal(d.nivel, "possivel"); assert.equal(d.nota.id, "n1"); assert.match(d.motivo, /nota do Mercado/);
+  assert.equal(N.alDuplicataMercado(p, [nota({ mercado: "PADARIA EXEMPLO" })]).nivel, "possivel", "caixa diferente");
+  assert.equal(N.alDuplicataMercado(p, [nota({ mercado: "Padaria-Exemplo." })]).nivel, "possivel", "pontuação diferente");
+  assert.equal(N.alDuplicataMercado({ ...p, estabelecimento: "Pão de Açúcar" }, [nota({ mercado: "Pao de Acucar" })]).nivel, "possivel", "acento diferente");
+  assert.equal(N.alDuplicataMercado(p, [nota({ mercado: undefined, mercados: { nome: "Padaria Exemplo" } })]).nivel, "possivel", "formato do select embutido");
+  assert.equal(N.alDuplicataMercado(p, [nota({ total: "42.52" })]).nivel, "possivel", "2 centavos passam");
+  assert.equal(N.alDuplicataMercado(p, [nota({ total: "42.53" })]), null, "3 centavos não");
+  assert.equal(N.alDuplicataMercado(p, [nota({ mercado: "Padaria Outra" })]), null, "valor igual em outro lugar");
+  assert.equal(N.alDuplicataMercado(p, [nota({ data: "2026-10-31" })]), null, "outro dia");
+  assert.equal(N.alDuplicataMercado(p, [nota({ total: null })]), null, "nota sem total não é comparada");
+  assert.equal(N.alDuplicataMercado({ ...p, total_pago: null }, [nota()]), null, "pedido sem total");
+  assert.equal(N.alDuplicataMercado({ ...p, estabelecimento: " " }, [nota({ mercado: "" })]), null, "sem nome não compara");
+  assert.equal(N.alDuplicataMercado(p, []), null); assert.equal(N.alDuplicataMercado(p, null), null);
+  assert.equal(N.alDuplicataMercado(p, [nota({ id: "n0", mercado: "Outra" }), nota()]).nota.id, "n1", "acha a nota certa no meio da lista");
+  /* nunca "confirmada": a mesma loja, dia e valor podem ser duas compras legítimas */
+  assert.ok(![nota(), nota({ total: "42.51" })].some((n) => N.alDuplicataMercado(p, [n]).nivel !== "possivel"));
+});
 test("Painel: os pedidos entram como uma fonte a mais, sem mudar Mercado, registros e MBA (nada contado duas vezes)", () => {
   const compras = [{ data: "2026-10-01", valor_total: 30, categoria: "Mercearia" }], regs = [{ quem: "civic", tipo: "abastecimento", data: "2026-10-02", dados: { custo: 100 } }];
   const antes = N.pnDespesas(compras, regs, [], null), depois = N.pnDespesas(compras, regs, [], null, [pedido()]);
@@ -152,7 +199,7 @@ test("tela: rota, menu, a casa (Fernanda) vê e lança, service worker, Salvar s
   assert.match(html, /href="#alimentacao" data-k="alimentacao"/); assert.match(html, /:not\(\[data-k="alimentacao"\]\)/);
   assert.match(ler("sw.js"), /"\.\/js\/alimentacao\.js"/);
   assert.match(js, /salvar\.disabled=!c\.ok\|\|salvando/); assert.match(js, /if\(!navigator\.onLine\)\{falta\.textContent="Sem internet: não salvei/);
-  assert.match(js, /enviarArquivos\("alimentacao",id,fotos\.files/); assert.match(js, /linhaP\.versoes=NUCLEO\.alVersao\(ant,agora\)/);
+  assert.match(js, /enviarArquivos\("alimentacao",id,fotos\.files/); assert.match(js, /SB\.rpc\("pedido_salvar"/, "versões e gravação ficam no banco (027; tests/alimentacao_banco)");
   assert.match(js, /if\(!confirm\("Apagar o pedido de "/, "apagar pede confirmação");
   assert.ok(!/rac-ia|anthropic/i.test(js), "a IA só passa por racIA/iaBotao");
 });

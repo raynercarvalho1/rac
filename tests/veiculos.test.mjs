@@ -66,7 +66,7 @@ test("DEMO nunca chega à conferência (a resposta simulada não vira texto)", (
 });
 
 test("DEMO no abastecimento: só o aviso de que nada foi lido, sem valores simulados; o Salvar depende da conferência completa", () => {
-  const appJs = fs.readFileSync(new URL("js/app.js", raiz), "utf8");
+  const appJs = fs.readFileSync(new URL("js/app.js", raiz), "utf8").replace(/\r\n/g, "\n"); /* no Windows o git pode trazer CRLF */
   const b = appJs.slice(appJs.indexOf("function iaBotao("), appJs.indexOf("function briefingBtn("));
   const ramo = /if\(r&&r\.ok&&r\.modo==="DEMO"&&o\.demo\)\{(.*)\}\n/.exec(b);
   assert.ok(ramo, "existe o ramo DEMO com o aviso próprio");

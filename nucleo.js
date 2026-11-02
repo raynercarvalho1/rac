@@ -923,6 +923,26 @@
   function alVersao(ant,agora){if(!ant)return [];var v={em:ant.atualizado_em||ant.criado_em||null,quando:agora};AL_VERSIONADOS.forEach(function(k){if(ant[k]!=null&&ant[k]!=="")v[k]=ant[k]});
     if(Array.isArray(ant.itens))v.itens=ant.itens.map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total}});
     return (Array.isArray(ant.versoes)?ant.versoes:[]).concat([v]).slice(-10)}
+  /* integridade de um pedido JÁ GRAVADO (como vem do banco: itens em pedido_itens, números podem vir como texto). Só aponta, nunca corrige.
+     O unitário gravado é derivado (total ÷ quantidade, arredondado), então fica fora da conferência para não dar falso alarme. */
+  function alIntegridade(p){p=p||{};var its=Array.isArray(p.pedido_itens)?p.pedido_itens:Array.isArray(p.itens)?p.itens:[];
+    if(!its.length)return {ok:false,problemas:["O pedido está gravado sem nenhum item."]};
+    var q={};Object.keys(p).forEach(function(k){q[k]=p[k]});
+    q.itens=its.slice().sort(function(a,b){return (+a.ordem||0)-(+b.ordem||0)}).map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total,desconto:i.desconto}});
+    var e=alPedidoConta(q).erros;return {ok:!e.length,problemas:e}}
+  /* a lista de pedidos gravados: quantos têm problema e quais (só os que têm) */
+  function alIntegridadeLista(pedidos){var L=[];(pedidos||[]).forEach(function(p){var r=alIntegridade(p);if(!r.ok)L.push({id:p&&p.id||null,data:p&&p.data||null,estabelecimento:p&&p.estabelecimento||"",problemas:r.problemas})});
+    return {total:(pedidos||[]).length,comProblema:L.length,pedidos:L}}
+  /* duplicidade ENTRE MÓDULOS: o mesmo gasto lançado como nota do Mercado e como pedido (ex.: padaria). Só "possivel", nunca bloqueia.
+     notas: [{id, data, total, mercado}] com o nome do mercado já resolvido (ou {mercados:{nome}}, como o Supabase devolve no select embutido).
+     Mesma data + mesmo estabelecimento (a normalização de alDuplicata) + valor a até 2 centavos; nota sem total não é comparada. */
+  function alDuplicataMercado(p,notas){p=p||{};var est=alEstab(p.estabelecimento),tot=alCent(p.total_pago!=null?p.total_pago:p.total);
+    if(!est||!p.data||tot==null||tot!==tot)return null;
+    for(var i=0;i<(notas||[]).length;i++){var n=notas[i];if(!n||n.data!==p.data)continue;
+      var nt=alCent(n.total),nome=n.mercado!=null?n.mercado:n.mercados&&n.mercados.nome;
+      if(nt==null||nt!==nt||Math.abs(nt-tot)>AL_TOL||alEstab(nome)!==est)continue;
+      return {nivel:"possivel",nota:n,motivo:"há uma nota do Mercado com o mesmo estabelecimento, a mesma data e o mesmo valor"}}
+    return null}
   /* ===== Central de Compras (docs/compras.md): pedidos de lojas online (Amazon primeiro; Mercado Livre e outras pelo mesmo formato).
      Lê o texto do PDF/e-mail/OCR, a NF-e (XML) e o CSV de histórico; junta os documentos do mesmo pedido, aponta divergências,
      evita duplicidade e acha recorrências. Nunca guarda número de cartão: só a bandeira e os 4 últimos dígitos. ===== */
@@ -1078,6 +1098,7 @@
     AL_PLATAFORMAS:AL_PLATAFORMAS,AL_MODOS:AL_MODOS,AL_CAT:AL_CAT,AL_CATEGORIAS:AL_CATEGORIAS,alCent:alCent,alBRL:alBRL,alItem:alItem,alPedidoConta:alPedidoConta,alConferir:alConferir,
     alCatMercado:alCatMercado,alModo:alModo,alPedidoDespesas:alPedidoDespesas,alMercadoDespesas:alMercadoDespesas,alSomar:alSomar,alTamanho:alTamanho,alProdutoInfo:alProdutoInfo,
     alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
+    alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
     coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};
 })(typeof window!=="undefined"?window:globalThis);

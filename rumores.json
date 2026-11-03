@@ -1,8 +1,52 @@
 {
- "coletado": "2026-11-03T06:43:55.733789+00:00",
+ "coletado": "2026-11-03T17:00:14.808346+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Mariners To Hire Jason Kanzler As Manager",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-hire-jason-kanzler-as-manager.html",
+   "data": "2026-11-03T16:41:49+00:00",
+   "resumo": "The Mariners have landed on Jason Kanzler as their next skipper, reports Daniel Kramer of MLB.com. Kanzler will replace Dan Wilson. This will be the first managerial position for Kanzler. He was a minor league hitting coach in the Astros system from 2019 through 2021. He was on…",
+   "tags": [
+    "Newsstand",
+    "Seattle Mariners",
+    "Jason Kanzler"
+   ]
+  },
+  {
+   "t": "Red Sox To Trade Eduardo Rivera To Cardinals",
+   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-trade-eduardo-rivera-to-cardinals.html",
+   "data": "2026-11-03T16:34:06+00:00",
+   "resumo": "The Red Sox are sending left-hander Eduardo Rivera to the Cardinals, reports Andrew Parker of SoxProspects.com. Boston will receive right-hander Juan Garcia in return. More to come…",
+   "tags": [
+    "Boston Red Sox",
+    "St. Louis Cardinals",
+    "Transactions",
+    "Eduardo Rivera",
+    "Juan Garcia"
+   ]
+  },
+  {
+   "t": "Rangers Make Coaching, Front Office Changes",
+   "link": "https://www.mlbtraderumors.com/2026/11/rangers-make-coaching-front-office-changes.html",
+   "data": "2026-11-03T15:56:19+00:00",
+   "resumo": "The Rangers are making some organizational adjustments after falling just short of a playoff spot this season. Assistant hitting coach Alex Cintrón will not return to the position, president of baseball operations Chris Young told reporters on Monday (h/t Shawn McFarland of the…",
+   "tags": [
+    "Texas Rangers",
+    "Alex Cintron",
+    "Dave Bush"
+   ]
+  },
+  {
+   "t": "The Opener: Top 50 FAs, Qualifying Offers, Deadlines",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-top-50-fas-qualifying-offers-deadlines.html",
+   "data": "2026-11-03T14:57:17+00:00",
+   "resumo": "As expected, Monday featured a flurry of transactions with teams working to get their 40-man rosters in place. More moves should be coming as yesterday’s DFAs resolve, either through waiver claims, outright assignments, or free agency elections. 1. Top 50 Free Agents is live…",
+   "tags": [
+    "The Opener"
+   ]
+  },
   {
    "t": "2026-27 Top 50 Free Agents With Predictions",
    "link": "https://www.mlbtraderumors.com/2026/11/2026-27-top-50-free-agents-with-predictions.html",
@@ -133,51 +177,6 @@
     "Jose Berrios",
     "Myles Straw",
     "Rudy Martin Jr."
-   ]
-  },
-  {
-   "t": "Mets Designate Kyren Paris, Christian Cairo For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-designate-kyren-paris-christian-cairo-for-assignment.html",
-   "data": "2026-11-02T22:36:46+00:00",
-   "resumo": "The Mets announced that infielder Kyren Paris, who was claimed off waivers from the Angels a few days ago, has been signed to a major league contract for 2027 and designated for assignment. They announced that fellow infielder Christian Cairo has been designated for assignment…",
-   "tags": [
-    "New York Mets",
-    "Transactions",
-    "Christian Cairo",
-    "Kyren Paris"
-   ]
-  },
-  {
-   "t": "Yankees Select Marco Luciano",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-select-marco-luciano.html",
-   "data": "2026-11-02T22:32:56+00:00",
-   "resumo": "The Yankees announced that they have added infielder/outfielder Marco Luciano to their 40-man roster. Luciano would have otherwise become a minor league free agent, so this allows the Yankees to keep him in the system for now. Luciano, now 25, was once a big prospect in the…",
-   "tags": [
-    "New York Yankees",
-    "Transactions",
-    "Marco Luciano"
-   ]
-  },
-  {
-   "t": "Orioles Decline Club Option On Dietrich Enns",
-   "link": "https://www.mlbtraderumors.com/2026/11/orioles-decline-club-option-on-dietrich-enns.html",
-   "data": "2026-11-02T22:28:15+00:00",
-   "resumo": "The Orioles announced that they have declined a $3.5MM club option on left-hander Dietrich Enns. He will receive a $125K buyout. This was an obvious call for the Orioles, who received little contributions from Enns in 2026. After he missed almost all of April with a foot…",
-   "tags": [
-    "Baltimore Orioles",
-    "Transactions",
-    "Dietrich Enns"
-   ]
-  },
-  {
-   "t": "Red Sox Designate Zack Kelly For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-designate-zack-kelly-for-assignment.html",
-   "data": "2026-11-02T22:26:42+00:00",
-   "resumo": "The Red Sox are designating reliever Zack Kelly for assignment, reports Chris Cotillo of MassLive. Boston subsequently confirmed the move and designated left-hander Eduardo Rivera for assignment. Those transactions got their roster count down to 40. Kelly has pitched parts of…",
-   "tags": [
-    "Boston Red Sox",
-    "Transactions",
-    "Zack Kelly"
    ]
   }
  ],

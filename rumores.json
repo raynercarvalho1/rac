@@ -1,30 +1,106 @@
 {
- "coletado": "2026-11-03T17:00:14.808346+00:00",
+ "coletado": "2026-11-03T23:17:28.092032+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "Mariners To Hire Jason Kanzler As Manager",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-hire-jason-kanzler-as-manager.html",
-   "data": "2026-11-03T16:41:49+00:00",
-   "resumo": "The Mariners have landed on Jason Kanzler as their next skipper, reports Daniel Kramer of MLB.com. Kanzler will replace Dan Wilson. This will be the first managerial position for Kanzler. He was a minor league hitting coach in the Astros system from 2019 through 2021. He was on…",
+   "t": "Rays’ Edwin Uceta Undergoes Shoulder Surgery",
+   "link": "https://www.mlbtraderumors.com/2026/11/rays-edwin-uceta-shoulder-surgery.html",
+   "data": "2026-11-03T22:12:08+00:00",
+   "resumo": "Rays right-hander Edwin Uceta underwent arthroscopic surgery on his right shoulder last month, president of baseball operations Erik Neander revealed in a session with the media earlier today (link via Marc Topkin of the Tampa Bay Times). Specifics aren’t clear, but Neander…",
    "tags": [
-    "Newsstand",
-    "Seattle Mariners",
-    "Jason Kanzler"
+    "Tampa Bay Rays",
+    "Edwin Uceta"
    ]
   },
   {
-   "t": "Red Sox To Trade Eduardo Rivera To Cardinals",
+   "t": "MLB Issues Latest Proposal To MLBPA; Union Swiftly Rejects",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlb-proposal-salary-cap-2028-five-year-free-agency-million-league-minimum.html",
+   "data": "2026-11-03T21:08:59+00:00",
+   "resumo": "Major League Baseball issued its latest proposal regarding a new collective bargaining agreement today. The key update is the league’s willingness to push the implementation of a salary cap/floor system from 2027 into the 2028 season, but the mere fact that the entire proposal…",
+   "tags": [
+    "2026-27 Collective Bargaining"
+   ]
+  },
+  {
+   "t": "Report: Orioles Open To Trade Offers On Majority Of Roster",
+   "link": "https://www.mlbtraderumors.com/2026/11/report-orioles-open-to-trade-offers-on-majority-of-roster.html",
+   "data": "2026-11-03T21:06:34+00:00",
+   "resumo": "The Orioles are going into the offseason with a very open mind, reports Andy Kostka of The Baltimore Banner. Per Kostka’s report, first baseman Pete Alonso is the only untouchable player on the roster. The O’s are open to offers on everyone else as they look to upgrade the…",
+   "tags": [
+    "Baltimore Orioles",
+    "Newsstand",
+    "Blaze Alexander",
+    "Christian Encarnacion-Strand",
+    "Coby Mayo",
+    "Felix Bautista"
+   ]
+  },
+  {
+   "t": "MLB Trade Rumors Free Agent Prediction Contest Now Open",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlb-trade-rumors-free-agent-prediction-contest-now-open.html",
+   "data": "2026-11-03T20:54:24+00:00",
+   "resumo": "The MLB Trade Rumors Free Agent Prediction Contest is now open! Click here to make your picks. The contest closes on Tuesday, November 10th at 11pm central time. Thousands of people participate in this annual tradition. In the coming weeks, MLBTR will publish a leaderboard for…",
+   "tags": [
+    "Newsstand"
+   ]
+  },
+  {
+   "t": "Cubs Decline Javier Assad’s Option; Assad Remains Under Team Control",
+   "link": "https://www.mlbtraderumors.com/2026/11/cubs-decline-option-javier-assad-retain-control-arbitration.html",
+   "data": "2026-11-03T18:58:35+00:00",
+   "resumo": "The Cubs declined their $3.3MM club option on righty Javier Assad yesterday, reports Jordan Bastian of MLB.com. He remains under club control as an arbitration-eligible player. The team didn’t formally announce the decision at any point. Assad played the 2026 season on a…",
+   "tags": [
+    "Chicago Cubs",
+    "Transactions",
+    "Javier Assad"
+   ]
+  },
+  {
+   "t": "Cardinals To Re-Sign Josh Fleming",
+   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-to-re-sign-josh-fleming.html",
+   "data": "2026-11-03T18:51:26+00:00",
+   "resumo": "Veteran lefty Josh Fleming is headed back to the Cardinals on a minor league deal, per Derrick Goold of the St. Louis Post-Dispatch. Fleming spent the final month of the season at Triple-A Memphis. The Blue Jays brought Fleming in on a minor league deal last offseason. He…",
+   "tags": [
+    "St. Louis Cardinals",
+    "Transactions",
+    "Josh Fleming"
+   ]
+  },
+  {
+   "t": "Rockies Return RJ Petit To Tigers",
+   "link": "https://www.mlbtraderumors.com/2026/11/rockies-return-rj-petit-to-tigers.html",
+   "data": "2026-11-03T17:37:54+00:00",
+   "resumo": "The Rockies have returned 2025 Rule 5 pick RJ Petit to the Tigers, per a team announcement. The right-hander missed the entire 2026 campaign while recovering from Tommy John surgery. Colorado took Petit with the top selection in last year’s Rule 5 draft. He was coming off a…",
+   "tags": [
+    "Colorado Rockies",
+    "Detroit Tigers",
+    "Transactions",
+    "RJ Petit"
+   ]
+  },
+  {
+   "t": "Red Sox Trade Eduardo Rivera To Cardinals",
    "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-trade-eduardo-rivera-to-cardinals.html",
-   "data": "2026-11-03T16:34:06+00:00",
-   "resumo": "The Red Sox are sending left-hander Eduardo Rivera to the Cardinals, reports Andrew Parker of SoxProspects.com. Boston will receive right-hander Juan Garcia in return. More to come…",
+   "data": "2026-11-03T17:17:06+00:00",
+   "resumo": "11:17 am CT: The Red Sox have officially announced the trade. 10:34 am CT: The Red Sox are sending left-hander Eduardo Rivera to the Cardinals, reports Andrew Parker of SoxProspects.com. Boston will receive right-hander Juan Garcia in return. Rivera was designated for…",
    "tags": [
     "Boston Red Sox",
     "St. Louis Cardinals",
     "Transactions",
     "Eduardo Rivera",
     "Juan Garcia"
+   ]
+  },
+  {
+   "t": "Mariners Hire Jason Kanzler As Manager",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-hire-jason-kanzler-as-manager.html",
+   "data": "2026-11-03T17:08:49+00:00",
+   "resumo": "11:03 am CT: The Mariners have officially announced Kanzler as their new manager. “Our goal in this process was finding a manager with the ability to challenge all of us to improve,” Dipoto said in a statement. “Jason has the mindset, expertise, communication skills, and…",
+   "tags": [
+    "Newsstand",
+    "Seattle Mariners",
+    "Jason Kanzler"
    ]
   },
   {
@@ -87,96 +163,6 @@
    "tags": [
     "Cleveland Guardians",
     "Parker Messick"
-   ]
-  },
-  {
-   "t": "Rockies Hire Ethan Katz As Pitching Coach",
-   "link": "https://www.mlbtraderumors.com/2026/11/rockies-hire-ethan-katz-as-pitching-coach.html",
-   "data": "2026-11-03T02:10:03+00:00",
-   "resumo": "The Rockies announced they’ve hired Ethan Katz as their new pitching coach. Thomas Harding of MLB.com reported the news shortly before it was official. Harding also reports that former MLB infielder Andre Lipcius is joining the staff as game-planning coach, where he’ll replace…",
-   "tags": [
-    "Colorado Rockies",
-    "Andre Lipcius",
-    "Ethan Katz"
-   ]
-  },
-  {
-   "t": "Red Sox Designate Eduardo Rivera For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-designate-eduardo-rivera-for-assignment.html",
-   "data": "2026-11-03T00:21:08+00:00",
-   "resumo": "The Red Sox announced that reliever Eduardo Rivera has been designated for assignment. The club’s 40-man roster count is now at 40. Rivera is a somewhat surprising final roster cut. He’s a 23-year-old left-hander with a 95 mph average fastball and promising slider. Rivera…",
-   "tags": [
-    "Boston Red Sox",
-    "Transactions",
-    "Eduardo Rivera"
-   ]
-  },
-  {
-   "t": "Rockies Outright Four Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/rockies-outright-four-players-2.html",
-   "data": "2026-11-03T00:18:54+00:00",
-   "resumo": "The Rockies announced they’ve dropped four players from their 40-man roster: infielder Chad Stevens and right-handers Blake Adams, Eiberson Castellano and TJ Shook. All four have already cleared outright waivers. Stevens, Castellano and Shook have elected free agency. Adams has…",
-   "tags": [
-    "Colorado Rockies",
-    "Transactions",
-    "Blake Adams",
-    "Chad Stevens",
-    "Eiberson Castellano",
-    "TJ Shook"
-   ]
-  },
-  {
-   "t": "Giants Designate Reiver Sanmartin, Decline Option On Rowan Wick",
-   "link": "https://www.mlbtraderumors.com/2026/11/giants-dfa-reiver-sanmartin-decline-option-rowan-wick.html",
-   "data": "2026-11-03T00:11:25+00:00",
-   "resumo": "The Giants announced Monday that they’ve designated left-handed reliever Reiver Sanmartin for assignment, dropping their 40-man roster to an even 40 players. San Francisco also declined its $800K option on righty Rowan Wick, who’ll receive a $100K buyout. Wick remains with the…",
-   "tags": [
-    "San Francisco Giants",
-    "Transactions",
-    "Reiver Sanmartin",
-    "Rowan Wick"
-   ]
-  },
-  {
-   "t": "Eight Players Receive Qualifying Offers",
-   "link": "https://www.mlbtraderumors.com/2026/11/eight-players-receive-qualifying-offers.html",
-   "data": "2026-11-02T23:25:23+00:00",
-   "resumo": "Eight players have received a $23.15MM qualifying offer, reports Joel Sherman of The New York Post. They are Randy Arozarena of the Mariners, Jake Bauers of the Brewers, David Bednar of the Yankees, Ryan Jeffers of the Twins, Brandon Lowe of the Pirates, Adrián Morejón of the…",
-   "tags": [
-    "Baltimore Orioles",
-    "Chicago Cubs",
-    "Milwaukee Brewers",
-    "Minnesota Twins",
-    "New York Yankees",
-    "Newsstand"
-   ]
-  },
-  {
-   "t": "Tigers Exercise Option On Drew Anderson, Decline Option On Kenley Jansen",
-   "link": "https://www.mlbtraderumors.com/2026/11/tigers-exercise-option-on-drew-anderson-decline-option-on-kenley-jansen.html",
-   "data": "2026-11-02T22:49:47+00:00",
-   "resumo": "The Tigers have picked up their $10MM option on swingman Drew Anderson, the club announced. They declined a $12MM option on closer Kenley Jansen in favor of a $2MM buyout. Detroit also re-signed righty Jacob Waguespack to a one-year, $1.3MM guarantee. That deal contains an…",
-   "tags": [
-    "Detroit Tigers",
-    "Newsstand",
-    "Transactions",
-    "Bailey Horn",
-    "Corey Julks",
-    "Drew Anderson"
-   ]
-  },
-  {
-   "t": "Blue Jays Decline Option On Myles Straw",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-decline-option-on-myles-straw.html",
-   "data": "2026-11-02T22:37:31+00:00",
-   "resumo": "The Blue Jays announced they’ve declined their $8MM club option on outfielder Myles Straw. He receives a $1.75MM buyout, which is paid by the Guardians as a condition of the 2025 trade that sent him to Toronto. Straw is now a free agent. Toronto announced a few procedural moves…",
-   "tags": [
-    "Toronto Blue Jays",
-    "Transactions",
-    "CJ Van Eyk",
-    "Jose Berrios",
-    "Myles Straw",
-    "Rudy Martin Jr."
    ]
   }
  ],

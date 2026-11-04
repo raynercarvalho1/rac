@@ -1,8 +1,17 @@
 {
- "coletado": "2026-11-04T06:12:12.842029+00:00",
+ "coletado": "2026-11-04T14:31:47.623774+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "2026-27 MLB Free Agent Tracker Now Available",
+   "link": "https://www.mlbtraderumors.com/2026/11/2026-27-mlb-free-agent-tracker-now-available.html",
+   "data": "2026-11-04T14:27:36+00:00",
+   "resumo": "One of the functions of our robust MLB Contract Tracker tool is that it serves as the best MLB free agent tracker available on the Internet. The Contract Tracker is one of the many benefits of a Trade Rumors Front Office subscription. If you’re a Trade Rumors Front Office…",
+   "tags": [
+    "Newsstand"
+   ]
+  },
   {
    "t": "MLB Trade Rumors Free Agent Prediction Contest Now Open",
    "link": "https://www.mlbtraderumors.com/2026/11/mlb-trade-rumors-free-agent-prediction-contest-now-open.html",
@@ -161,17 +170,6 @@
     "Transactions",
     "Eduardo Rivera",
     "Juan Garcia"
-   ]
-  },
-  {
-   "t": "Mariners Hire Jason Kanzler As Manager",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-hire-jason-kanzler-as-manager.html",
-   "data": "2026-11-03T17:08:49+00:00",
-   "resumo": "11:03 am CT: The Mariners have officially announced Kanzler as their new manager. “Our goal in this process was finding a manager with the ability to challenge all of us to improve,” Dipoto said in a statement. “Jason has the mindset, expertise, communication skills, and…",
-   "tags": [
-    "Newsstand",
-    "Seattle Mariners",
-    "Jason Kanzler"
    ]
   }
  ],

@@ -1,8 +1,104 @@
 {
- "coletado": "2026-11-04T14:31:47.623774+00:00",
+ "coletado": "2026-11-04T21:17:21.509439+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Reds Announce Joe Torres As Pitching Coach",
+   "link": "https://www.mlbtraderumors.com/2026/11/reds-announce-joe-torres-as-pitching-coach.html",
+   "data": "2026-11-04T21:06:32+00:00",
+   "resumo": "The Reds announced that Joe Torres has been hired as their new pitching coach. He has previously been serving as the assistant pitching coach with the Guardians. He will replace Derek Johnson, who was the previous pitching coach in Cincinnati. More to come.",
+   "tags": [
+    "Cincinnati Reds",
+    "Cleveland Guardians",
+    "Joe Torres"
+   ]
+  },
+  {
+   "t": "Nationals Release Zak Kent",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-release-zak-kent.html",
+   "data": "2026-11-04T19:53:58+00:00",
+   "resumo": "The Nationals are releasing right-hander Zak Kent, per a team announcement. Kent was designated for assignment last week. The 28-year-old Kent was bumped off the roster after Washington claimed right-hander Braxton Roxby off waivers from San Francisco. He apparently passed…",
+   "tags": [
+    "Transactions",
+    "Washington Nationals",
+    "Zak Kent"
+   ]
+  },
+  {
+   "t": "David Bell Leaves Blue Jays’ Front Office",
+   "link": "https://www.mlbtraderumors.com/2026/11/david-bell-leaves-blue-jays-front-office.html",
+   "data": "2026-11-04T19:14:52+00:00",
+   "resumo": "Blue Jays executive David Bell has left his position with the team, reports Ken Rosenthal of The Athletic. Bell served as assistant general manager and vice president of baseball operations for the past two seasons. “I decided to step away and reassess where I can make the…",
+   "tags": [
+    "Toronto Blue Jays",
+    "David Bell"
+   ]
+  },
+  {
+   "t": "Top 50 Free Agents Chat Transcript",
+   "link": "https://www.mlbtraderumors.com/2026/11/top-50-free-agents-chat-with-steve-adams-and-darragh-mcdonald-today-1pm-ct.html",
+   "data": "2026-11-04T18:52:11+00:00",
+   "resumo": "Steve Adams Good afternoon! We’ll get this underway at the top of the hour, but you can feel free to start sending in questions ahead of time if you are so inclined! We’ll talk about all things pertaining to our Top 50 Free Agent list and predictions. Looking forward to it!…",
+   "tags": [
+    "MLBTR Chats"
+   ]
+  },
+  {
+   "t": "Athletics Hire Brewers’ Cam Castro As General Manager",
+   "link": "https://www.mlbtraderumors.com/2026/11/athletics-hire-brewers-cam-castro-general-managers.html",
+   "data": "2026-11-04T18:03:45+00:00",
+   "resumo": "12:03 pm CT: The A’s have officially announced the hiring of Castro. 10:31 am CT: The Athletics are hiring Brewers senior vice president of player development and performance Cam Castro as their new general manager, reports Ken Rosenthal of The Athletic. He’ll serve as the No.…",
+   "tags": [
+    "Athletics",
+    "Milwaukee Brewers",
+    "Cam Castro"
+   ]
+  },
+  {
+   "t": "2027-28 MLB Free Agents",
+   "link": "https://www.mlbtraderumors.com/2026/11/2027-28-mlb-free-agents.html",
+   "data": "2026-11-04T17:55:09+00:00",
+   "resumo": "The following players project to become free agents after the 2027 season. The player’s 2028 age is in parentheses. For MLBTR’s list of 2026-27 free agents, click here. Updated 11-4-26 Catchers Joey Bart (31) Victor Caratani (34) – $12MM mutual option with a $3.5MM buyout…",
+   "tags": [
+    "2027-28 MLB Free Agents"
+   ]
+  },
+  {
+   "t": "MLBTR Podcast: Offseason Preview",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-offseason-preview.html",
+   "data": "2026-11-04T17:11:41+00:00",
+   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
+   "tags": [
+    "Baltimore Orioles",
+    "MLB Trade Rumors Podcast",
+    "Milwaukee Brewers",
+    "San Francisco Giants",
+    "Tampa Bay Rays",
+    "Texas Rangers"
+   ]
+  },
+  {
+   "t": "Cardinals To Hire Joel McKeithan As Hitting Coach",
+   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-hire-joel-mckeithan-hitting-coach-white-sox.html",
+   "data": "2026-11-04T16:25:42+00:00",
+   "resumo": "The Cardinals are set to hire White Sox assistant hitting coach Joel McKeithan as their new hitting coach, Robert Murray of Fansided reports. He’ll take over for Brant Brown, who spent the past two seasons as hitting coach in St. Louis but was dismissed last month. The…",
+   "tags": [
+    "Chicago White Sox",
+    "St. Louis Cardinals",
+    "Brant Brown",
+    "Joel McKeithan"
+   ]
+  },
+  {
+   "t": "The Opener: Latest CBA Proposal, Rasmussen, Managers",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-latest-cba-proposal-rasmussen-managers.html",
+   "data": "2026-11-04T14:32:49+00:00",
+   "resumo": "The wait is over. Our annual Free Agent Prediction Contest is live. Get those picks in! 1. MLB makes proposal, MLBPA says no The league tossed out its latest collective bargaining proposal on Tuesday. The proposed agreement included an adjustment to the salary cap system, but…",
+   "tags": [
+    "The Opener"
+   ]
+  },
   {
    "t": "2026-27 MLB Free Agent Tracker Now Available",
    "link": "https://www.mlbtraderumors.com/2026/11/2026-27-mlb-free-agent-tracker-now-available.html",
@@ -66,110 +162,6 @@
     "2026-27 Offseason Outlook",
     "Front Office Originals",
     "Houston Astros"
-   ]
-  },
-  {
-   "t": "Marlins Release Bradley Blalock",
-   "link": "https://www.mlbtraderumors.com/2026/11/marlins-release-bradley-blalock.html",
-   "data": "2026-11-04T00:36:19+00:00",
-   "resumo": "The Marlins released right-hander Bradley Blalock, according to the MLB.com transaction tracker. Kevin Barral of Fish On First suggests that the 25-year-old is likely to pursue an overseas opportunity. Miami’s 40-man roster tally drops to 35. Blalock spent one season in South…",
-   "tags": [
-    "Miami Marlins",
-    "Transactions",
-    "Bradley Blalock"
-   ]
-  },
-  {
-   "t": "Rangers President: 2027 Payroll To Be Similar To 2026",
-   "link": "https://www.mlbtraderumors.com/2026/11/rangers-president-2027-payroll-to-be-similar-to-2026.html",
-   "data": "2026-11-03T23:35:13+00:00",
-   "resumo": "Rangers president of baseball operations Chris Young met this week with members of the media, including Evan Grant of The Dallas Morning News, to talk about various topics related to the club. He said the aim will be for the 2027 club to be competitive will running a “very…",
-   "tags": [
-    "Texas Rangers",
-    "Brandon Nimmo",
-    "Corey Seager",
-    "Jacob deGrom",
-    "Nathan Eovaldi"
-   ]
-  },
-  {
-   "t": "Rays’ Edwin Uceta Undergoes Shoulder Surgery",
-   "link": "https://www.mlbtraderumors.com/2026/11/rays-edwin-uceta-shoulder-surgery.html",
-   "data": "2026-11-03T22:12:08+00:00",
-   "resumo": "Rays right-hander Edwin Uceta underwent arthroscopic surgery on his right shoulder last month, president of baseball operations Erik Neander revealed in a session with the media earlier today (link via Marc Topkin of the Tampa Bay Times). Specifics aren’t clear, but Neander…",
-   "tags": [
-    "Tampa Bay Rays",
-    "Edwin Uceta"
-   ]
-  },
-  {
-   "t": "MLB Issues Latest Proposal To MLBPA; Union Swiftly Rejects",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlb-proposal-salary-cap-2028-five-year-free-agency-million-league-minimum.html",
-   "data": "2026-11-03T21:08:59+00:00",
-   "resumo": "Major League Baseball issued its latest proposal regarding a new collective bargaining agreement today. The key update is the league’s willingness to push the implementation of a salary cap/floor system from 2027 into the 2028 season, but the mere fact that the entire proposal…",
-   "tags": [
-    "2026-27 Collective Bargaining"
-   ]
-  },
-  {
-   "t": "Report: Orioles Open To Trade Offers On Majority Of Roster",
-   "link": "https://www.mlbtraderumors.com/2026/11/report-orioles-open-to-trade-offers-on-majority-of-roster.html",
-   "data": "2026-11-03T21:06:34+00:00",
-   "resumo": "The Orioles are going into the offseason with a very open mind, reports Andy Kostka of The Baltimore Banner. Per Kostka’s report, first baseman Pete Alonso is the only untouchable player on the roster. The O’s are open to offers on everyone else as they look to upgrade the…",
-   "tags": [
-    "Baltimore Orioles",
-    "Newsstand",
-    "Blaze Alexander",
-    "Christian Encarnacion-Strand",
-    "Coby Mayo",
-    "Felix Bautista"
-   ]
-  },
-  {
-   "t": "Cubs Decline Javier Assad’s Option; Assad Remains Under Team Control",
-   "link": "https://www.mlbtraderumors.com/2026/11/cubs-decline-option-javier-assad-retain-control-arbitration.html",
-   "data": "2026-11-03T18:58:35+00:00",
-   "resumo": "The Cubs declined their $3.3MM club option on righty Javier Assad yesterday, reports Jordan Bastian of MLB.com. He remains under club control as an arbitration-eligible player. The team didn’t formally announce the decision at any point. Assad played the 2026 season on a…",
-   "tags": [
-    "Chicago Cubs",
-    "Transactions",
-    "Javier Assad"
-   ]
-  },
-  {
-   "t": "Cardinals To Re-Sign Josh Fleming",
-   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-to-re-sign-josh-fleming.html",
-   "data": "2026-11-03T18:51:26+00:00",
-   "resumo": "Veteran lefty Josh Fleming is headed back to the Cardinals on a minor league deal, per Derrick Goold of the St. Louis Post-Dispatch. Fleming spent the final month of the season at Triple-A Memphis. The Blue Jays brought Fleming in on a minor league deal last offseason. He…",
-   "tags": [
-    "St. Louis Cardinals",
-    "Transactions",
-    "Josh Fleming"
-   ]
-  },
-  {
-   "t": "Rockies Return RJ Petit To Tigers",
-   "link": "https://www.mlbtraderumors.com/2026/11/rockies-return-rj-petit-to-tigers.html",
-   "data": "2026-11-03T17:37:54+00:00",
-   "resumo": "The Rockies have returned 2025 Rule 5 pick RJ Petit to the Tigers, per a team announcement. The right-hander missed the entire 2026 campaign while recovering from Tommy John surgery. Colorado took Petit with the top selection in last year’s Rule 5 draft. He was coming off a…",
-   "tags": [
-    "Colorado Rockies",
-    "Detroit Tigers",
-    "Transactions",
-    "RJ Petit"
-   ]
-  },
-  {
-   "t": "Red Sox Trade Eduardo Rivera To Cardinals",
-   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-trade-eduardo-rivera-to-cardinals.html",
-   "data": "2026-11-03T17:17:06+00:00",
-   "resumo": "11:17 am CT: The Red Sox have officially announced the trade. 10:34 am CT: The Red Sox are sending left-hander Eduardo Rivera to the Cardinals, reports Andrew Parker of SoxProspects.com. Boston will receive right-hander Juan Garcia in return. Rivera was designated for…",
-   "tags": [
-    "Boston Red Sox",
-    "St. Louis Cardinals",
-    "Transactions",
-    "Eduardo Rivera",
-    "Juan Garcia"
    ]
   }
  ],

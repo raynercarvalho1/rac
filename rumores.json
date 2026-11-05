@@ -1,8 +1,39 @@
 {
- "coletado": "2026-11-05T06:40:45.140442+00:00",
+ "coletado": "2026-11-05T17:22:35.145213+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Red Sox Adding Shelley Duncan To Coaching Staff",
+   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-hire-yankees-triple-a-manager-shelley-duncan-coach.html",
+   "data": "2026-11-05T17:20:56+00:00",
+   "resumo": "The Red Sox are adding former big leaguer Shelley Duncan to their major league coaching staff, Chris Cotillo and Sean McAdam of MassLive.com report. As with Boston’s previously agreed-upon hiring of Jason Bell (who’d been with the Astros), a specific title has yet to be settled…",
+   "tags": [
+    "Boston Red Sox",
+    "New York Yankees",
+    "Shelley Duncan"
+   ]
+  },
+  {
+   "t": "Blue Jays, Rudy Martin Jr. Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-re-sign-rudy-martin-jr-outfielder.html",
+   "data": "2026-11-05T15:09:23+00:00",
+   "resumo": "The Blue Jays are bringing speedy outfielder Rudy Martin Jr. back on a minor league contract, Ari Alexander of 7News reports. He’ll be in big league camp as a non-roster invitee ahead of the 2027 season. Toronto originally acquired Martin, 30, on waivers from the Orioles in…",
+   "tags": [
+    "Toronto Blue Jays",
+    "Transactions",
+    "Rudy Martin Jr."
+   ]
+  },
+  {
+   "t": "The Opener: Astros Candidates, NL East Targets, More FA Rankings",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-astros-candidates-nl-east-targets-more-fa-rankings.html",
+   "data": "2026-11-05T14:33:59+00:00",
+   "resumo": "Free agency has yet to pick up. Once the ball gets rolling, it’ll be tough to keep up with who’s still available. That’s where our nifty Free Agent Tracker tool comes in. It’s the best way to monitor the market throughout the offseason. 1. List of Astros’ choices grows…",
+   "tags": [
+    "The Opener"
+   ]
+  },
   {
    "t": "MLBTR Podcast: Offseason Preview",
    "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-offseason-preview.html",
@@ -131,36 +162,6 @@
     "Transactions",
     "Washington Nationals",
     "Zak Kent"
-   ]
-  },
-  {
-   "t": "David Bell Leaves Blue Jays’ Front Office",
-   "link": "https://www.mlbtraderumors.com/2026/11/david-bell-leaves-blue-jays-front-office.html",
-   "data": "2026-11-04T19:14:52+00:00",
-   "resumo": "Blue Jays executive David Bell has left his position with the team, reports Ken Rosenthal of The Athletic. Bell served as assistant general manager and vice president of baseball operations for the past two seasons. “I decided to step away and reassess where I can make the…",
-   "tags": [
-    "Toronto Blue Jays",
-    "David Bell"
-   ]
-  },
-  {
-   "t": "Top 50 Free Agents Chat Transcript",
-   "link": "https://www.mlbtraderumors.com/2026/11/top-50-free-agents-chat-with-steve-adams-and-darragh-mcdonald-today-1pm-ct.html",
-   "data": "2026-11-04T18:52:11+00:00",
-   "resumo": "Steve Adams Good afternoon! We’ll get this underway at the top of the hour, but you can feel free to start sending in questions ahead of time if you are so inclined! We’ll talk about all things pertaining to our Top 50 Free Agent list and predictions. Looking forward to it!…",
-   "tags": [
-    "MLBTR Chats"
-   ]
-  },
-  {
-   "t": "Athletics Hire Brewers’ Cam Castro As General Manager",
-   "link": "https://www.mlbtraderumors.com/2026/11/athletics-hire-brewers-cam-castro-general-managers.html",
-   "data": "2026-11-04T18:03:45+00:00",
-   "resumo": "12:03 pm CT: The A’s have officially announced the hiring of Castro. 10:31 am CT: The Athletics are hiring Brewers senior vice president of player development and performance Cam Castro as their new general manager, reports Ken Rosenthal of The Athletic. He’ll serve as the No.…",
-   "tags": [
-    "Athletics",
-    "Milwaukee Brewers",
-    "Cam Castro"
    ]
   }
  ],

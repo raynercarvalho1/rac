@@ -130,7 +130,7 @@ test("030: registros antigos — nada é preenchido por UPDATE e as colunas nova
   assert.match(C30, /add column if not exists canal text;/); assert.match(C30, /add column if not exists historico boolean not null default false;/);
   assert.ok(!/add column[^;]*\bnatureza text not null/.test(C30) && !/add column if not exists canal text not null/.test(C30));
   assert.ok(!/visivel_casa/i.test(C30 + C31 + C32), "a visibilidade da família continua pendente: nenhuma coluna de visibilidade");
-  assert.match(C30, /constraint compras_online_historico_ok check \(not historico or \(canal = 'amazon' and natureza is not null\)\)/);
+  assert.match(C30, /constraint compras_online_historico_ok check \(not historico or coalesce\(canal = 'amazon' and natureza is not null, false\)\)/);
   assert.match(C30, /new\.origem := old\.origem; new\.historico := old\.historico; new\.importacao_id := old\.importacao_id;/);
   assert.equal(N.coCanalDe({ loja: "amazon" }), "amazon", "o núcleo continua deduzindo o canal pela loja quando a coluna está vazia");
   assert.equal(N.coClassificar({ loja: "amazon", total_pago: 95 }).tratamento, "despesa", "sem a marca de histórico, o tratamento financeiro é o de sempre");
@@ -190,7 +190,7 @@ test("status: o SQL aceita os antigos e os novos; histórico exige status explí
   const vocab = dentro(C30, /compras_online_status_vocab\s+check \(status is null or status in \(([^)]*)\)\)/);
   assert.deepEqual(vocab.sort(), ["autorizado", "cancelado", "cancelamento_informado", "concluido", "desconhecido", "reembolso_informado"]);
   assert.match(C30, /compras_online_status_vocab[\s\S]*?not valid;/, "NOT VALID: as linhas antigas não são reexaminadas");
-  assert.match(C30, /compras_online_historico_status\s+check \(not historico or status in \('concluido', 'autorizado', 'cancelado', 'desconhecido'\)\)/);
+  assert.match(C30, /compras_online_historico_status\s+check \(not historico or coalesce\(status in \('concluido', 'autorizado', 'cancelado', 'desconhecido'\), false\)\)/);
   /* a 025 deixava o status livre (texto até 40): nada que já estava gravado fica fora do vocabulário */
   assert.match(semComent(ler("supabase/025_compras_online.sql")), /status\s+text check \(status is null or length\(status\) <= 40\)/);
   /* comportamento financeiro por status, com o MESMO registro */
@@ -284,7 +284,7 @@ test("compras_gravar: invoker, sem anon, validações de dono, campos protegidos
   assert.match(C30, /revoke all on function public\.compras_gravar\(jsonb, jsonb, jsonb, boolean\) from public, anon;/);
   assert.match(C30, /if \(select auth\.uid\(\)\) is null or v_casa is null then raise exception 'compras_gravar: faça login' using errcode = '42501'/);
   assert.match(C30, /select \* into v_ant from public\.compras_online where id = v_id for update;\s+if not found then raise exception 'compras_gravar: compra não encontrada'/);
-  assert.match(C30, /if not p_novo and v_k = any \(fixos_edicao\)/); assert.match(C30, /fixos_edicao constant text\[\] := array\['origem', 'historico', 'importacao_id'\]/);
+  assert.match(C30, /p_compra \? 'origem' and \(p_compra->>'origem'\) is distinct from v_ant\.origem/); assert.match(C30, /origem não muda na edição/); assert.match(C30, /historico não muda na edição/); assert.match(C30, /importacao_id não muda na edição/);
   assert.match(C30, /v_pasta := v_casa::text \|\| '\/compras\/' \|\| v_id::text \|\| '\/'/);
   assert.match(C30, /from storage\.objects o where o\.bucket_id = 'familia' and o\.name = \(v_i->>'path'\)/);
   assert.match(C30, /insert into public\.compras_online_docs \(user_id, compra_id,[^)]*\)\s+select v_casa, v_id,/, "o dono do documento vem da casa de quem chama, nunca do JSON");
@@ -409,7 +409,7 @@ test("030: quem é da casa edita; estranho não vê nem edita; sem login ou sem 
 test("030: valores permitidos, histórico só com Amazon e natureza, proteção de campos e controle de importações", { skip: pular }, async () => {
   const db = await banco();
   const ins = (campos, valores) => como(db, R, `insert into public.compras_online (loja, numero, data, subtotal, total_pago, ${campos}) values ('amazon', '${Math.random()}', '2026-01-01', 10, 10, ${valores})`);
-  await ins("canal", "'amazon'"); await ins("canal, natureza, historico, origem", "'amazon', 'digital', true, 'historico_amazon'");
+  await ins("canal", "'amazon'"); await ins("canal, natureza, historico, origem, status", "'amazon', 'digital', true, 'historico_amazon', 'concluido'");
   for (const [c, v] of [["canal", "'ebay'"], ["canal", "'shopee'"], ["natureza", "'quimica'"], ["historico, canal", "true, 'amazon'"], ["historico, natureza", "true, 'fisica'"], ["origem", "'telepatia'"], ["impostos_info", "-1"]])
     assert.equal((await erro(ins(c, v))).code, "23514", c + " = " + v);
   await como(db, R, "insert into public.compras_online (loja, numero, data, subtotal, total_pago, canal) values ('outra', 'P1', '2026-01-01', 10, 10, 'presencial')");
@@ -425,8 +425,8 @@ test("030: valores permitidos, histórico só com Amazon e natureza, proteção 
   for (const o of [{ sha: "b".repeat(64), nome: "C:\\Users\\x\\a.csv" }, { sha: "c".repeat(64), grav: 11 }, { sha: "d".repeat(64), estado: "quase" }, { sha: "e".repeat(64), erros: [{ linha: 1, motivo: "joao@example.com" }] },
     { sha: "f".repeat(64), erros: [{ linha: 1, motivo: "CPF 12345678909" }] }, { sha: "1".repeat(64), erros: [{ linha: 1, motivo: "ok", conteudo: "linha inteira" }] }, { sha: "2".repeat(64), erros: "texto" }])
     assert.equal((await erro(imp(o))).code, "23514");
-  await gravar(db, R, compra({ origem: "historico_amazon", historico: true, importacao_id: ok }), itensOk(), [], true);
-  assert.match((await erro(gravar(db, R, compra({ id: C2, numero: "Z", origem: "historico_amazon", historico: true, importacao_id: "99999999-9999-4999-8999-999999999999" }), itensOk(), [], true))).message, /importação não encontrada/);
+  await gravar(db, R, compra({ origem: "historico_amazon", historico: true, status: "concluido", importacao_id: ok }), itensOk(), [], true);
+  assert.match((await erro(gravar(db, R, compra({ id: C2, numero: "Z", origem: "historico_amazon", historico: true, status: "concluido", importacao_id: "99999999-9999-4999-8999-999999999999" }), itensOk(), [], true))).message, /importação não encontrada/);
   assert.equal((await como(db, X, "select count(*)::int as n from public.compras_importacoes"))[0].n, 0, "estranho não vê importações");
   await db.close();
 });
@@ -452,12 +452,12 @@ test("031: solicitado e aprovado não geram crédito; recebido confirmado gera, 
 test("031: reembolso parcial e total; nunca passa do valor pago; repetir a confirmação não duplica; recebido é definitivo", { skip: pular }, async () => {
   const db = await banco(); await insCompra(db, C1, 187);
   const r1 = await reemb(db, { sol: 50 }), r2 = await reemb(db, { sol: 100 }), r3 = await reemb(db, { sol: 50 });
-  await confirmar(db, r1, 50, "2026-11-04"); await confirmar(db, r2, 100, "2026-12-01");
-  assert.deepEqual((await creditos(db)).map((c) => [c.valor, c.mes]), [[50, "2026-11"], [100, "2026-12"]], "cada crédito no seu mês");
-  const ex = await erro(confirmar(db, r3, 50, "2026-12-02")); assert.equal(ex.code, "23514"); assert.match(ex.message, /passariam do valor pago/);
-  assert.equal((await confirmar(db, r3, 37, "2026-12-02")).confirmado, true, "o que sobra (37) cabe");
-  assert.equal((await confirmar(db, r1, 50, "2026-11-04")).ja_confirmado, true); assert.equal((await creditos(db)).length, 3, "repetir não cria outro crédito");
-  assert.match((await erro(confirmar(db, r1, 51, "2026-11-04"))).message, /já foi confirmado com outro valor/);
+  await confirmar(db, r1, 50, "2026-10-15"); await confirmar(db, r2, 100, "2026-11-04");
+  assert.deepEqual((await creditos(db)).map((c) => [c.valor, c.mes]), [[50, "2026-10"], [100, "2026-11"]], "cada crédito no seu mês");
+  const ex = await erro(confirmar(db, r3, 50, "2026-11-05")); assert.equal(ex.code, "23514"); assert.match(ex.message, /passariam do valor pago/);
+  assert.equal((await confirmar(db, r3, 37, "2026-11-05")).confirmado, true, "o que sobra (37) cabe");
+  assert.equal((await confirmar(db, r1, 50, "2026-10-15")).ja_confirmado, true); assert.equal((await creditos(db)).length, 3, "repetir não cria outro crédito");
+  assert.match((await erro(confirmar(db, r1, 51, "2026-10-15"))).message, /já foi confirmado com outro valor/);
   assert.match((await erro(como(db, R, "update public.compras_reembolsos set valor_recebido = 1 where id = $1", [r1]))).message, /não muda/);
   assert.match((await erro(como(db, R, "delete from public.compras_reembolsos where id = $1", [r1]))).message, /não se apaga/);
   assert.match((await erro(como(db, R, "update public.compras_reembolsos set observacoes = 'conferido' where id = $1", [r1]))).message, /não muda/, "nem as observações de um recebido mudam");
@@ -608,7 +608,7 @@ test("estorno (031): corrige recebimento confirmado por engano sem apagar nada, 
   assert.match((await erro(como(db, R, "update public.compras_reembolsos set valor_recebido = 5 where id = $1", [a]))).message, /não muda/, "recebido continua sem edição direta");
   assert.match((await erro(confirmar(db, a, 100, "2026-11-04"))).message, /estornado/);
   /* o valor volta a caber: novo reembolso correto */
-  const b = await reemb(db, { sol: 100 }); assert.equal((await confirmar(db, b, 100, "2026-11-10")).confirmado, true);
+  const b = await reemb(db, { sol: 100 }); assert.equal((await confirmar(db, b, 100, "2026-11-05")).confirmado, true);
   assert.deepEqual((await creditos(db)).map((c) => [c.valor, c.reembolso_id]), [[100, b]]);
   /* só recebido se estorna; só quem é da casa; com 2ª etapa */
   const c = await reemb(db, { sol: 10 });
@@ -631,7 +631,7 @@ test("vistas de créditos (PGlite): só a casa lê; estranho, anon e quem tem 2�
   assert.deepEqual([await efet(R), await efet(F), await efet(X)], [0, 0, 0], "o estornado não conta");
   assert.match((await erro(como(db, null, "select * from public.compras_creditos_historico"))).message, /permission denied/, "anon");
   for (const v of ["compras_creditos", "compras_creditos_historico"]) for (const sql of [`delete from public.${v}`, `update public.${v} set canal = 'shopee'`, `insert into public.${v} (reembolso_id) values (gen_random_uuid())`, `truncate public.${v}`])
-    assert.match((await erro(como(db, R, sql))).message, /permission denied|cannot (insert|update|delete)|not (automatically )?updatable/i, sql);
+    assert.match((await erro(como(db, R, sql))).message, /permission denied|cannot (insert|update|delete)|not (automatically )?updatable|is not a table/i, sql);
   assert.equal((await db.query("select count(*)::int as n from public.compras_reembolsos")).rows[0].n, 1, "nada foi apagado pelas vistas");
   /* a trava da 2ª etapa vem da política "mfa" das tabelas de baixo (vista invoker): com fator e sem o código, as duas vistas ficam vazias */
   await db.exec(`insert into auth.mfa_factors values ('${R}', 'verified')`);
@@ -667,5 +667,20 @@ test("compras_gravar (PGlite): anon sem execução; user_id enviado é recusado;
   assert.deepEqual([await contar(db, "compras_online"), await contar(db, "compras_online_itens"), await contar(db, "compras_online_docs")], [0, 0, 0]);
   await gravar(db, R, compra(), itensOk(), [doc(1)], true);
   assert.equal((await db.query("select user_id from public.compras_online_docs")).rows[0].user_id, R, "o dono do documento vem do banco");
+  await db.close();
+});
+
+test("compras_gravar (PGlite): a edição aceita a linha inteira com origem/histórico/importação iguais ao gravado e recusa se diferentes; CHECKs de histórico não passam com NULL", { skip: pular }, async () => {
+  const db = await banco();
+  await gravar(db, R, compra({ origem: "pdf" }), itensOk(), [], true);
+  assert.equal((await gravar(db, R, compra({ origem: "pdf", subtotal: 110, total_pago: 105 }), itensOk(), [], false)).criado, false, "origem igual: passa");
+  assert.match((await erro(gravar(db, R, compra({ origem: "xml" }), itensOk(), [], false))).message, /origem não muda na edição/);
+  assert.match((await erro(gravar(db, R, compra({ origem: "pdf", historico: true }), itensOk(), [], false))).message, /historico não muda na edição/);
+  assert.match((await erro(gravar(db, R, compra({ origem: "pdf", importacao_id: "99999999-9999-4999-8999-999999999999" }), itensOk(), [], false))).message, /importacao_id não muda na edição|importação não encontrada/);
+  const ins = (cols, vals) => como(db, R, `insert into public.compras_online (loja, numero, data, subtotal, total_pago, ${cols}) values ('amazon', '${Math.random()}', '2026-01-01', 10, 10, ${vals})`);
+  assert.equal((await erro(ins("historico, natureza, status", "true, 'fisica', 'concluido'"))).code, "23514", "histórico sem canal (NULL) não passa");
+  assert.equal((await erro(ins("historico, canal, status", "true, 'amazon', 'concluido'"))).code, "23514", "histórico sem natureza (NULL) não passa");
+  assert.equal((await erro(ins("historico, canal, natureza", "true, 'amazon', 'fisica'"))).code, "23514", "histórico sem status (NULL) não passa");
+  await ins("historico, canal, natureza, status", "true, 'amazon', 'fisica', 'concluido'");
   await db.close();
 });

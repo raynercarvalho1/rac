@@ -74,7 +74,7 @@ alter table public.compras_online add constraint compras_online_canal_loja_ok ch
   or (canal = 'outro_marketplace' and loja in ('magalu', 'outra')) or (canal = 'presencial' and loja = 'outra'));
 /* histórico só existe para a Amazon e só com a natureza identificada (física, digital, mista ou indefinida) */
 alter table public.compras_online drop constraint if exists compras_online_historico_ok;
-alter table public.compras_online add constraint compras_online_historico_ok check (not historico or (canal = 'amazon' and natureza is not null));
+alter table public.compras_online add constraint compras_online_historico_ok check (not historico or coalesce(canal = 'amazon' and natureza is not null, false));   -- coalesce: NULL passaria no CHECK
 /* a origem (como o dado entrou) ganha "historico_amazon"; as antigas continuam valendo */
 alter table public.compras_online drop constraint if exists compras_online_origem_check;
 alter table public.compras_online add constraint compras_online_origem_check
@@ -89,7 +89,7 @@ alter table public.compras_online add constraint compras_online_status_vocab
   check (status is null or status in ('concluido', 'autorizado', 'cancelado', 'desconhecido', 'cancelamento_informado', 'reembolso_informado')) not valid;
 alter table public.compras_online drop constraint if exists compras_online_historico_status;
 alter table public.compras_online add constraint compras_online_historico_status
-  check (not historico or status in ('concluido', 'autorizado', 'cancelado', 'desconhecido'));
+  check (not historico or coalesce(status in ('concluido', 'autorizado', 'cancelado', 'desconhecido'), false));   -- coalesce: status vazio não passa
 
 create index if not exists compras_online_canal_data on public.compras_online (user_id, canal, data desc) where canal is not null;
 create index if not exists compras_online_importacao on public.compras_online (importacao_id) where importacao_id is not null;
@@ -140,7 +140,7 @@ grant select on public.compras_importacoes to service_role;
 -- • security invoker: roda como quem chamou, então valem a regra "casa" (dono_da_casa()) e a trava restritiva "mfa" (022) nas três tabelas.
 -- • search_path vazio e nomes completos; só quem fez login executa (anon e public perdem o EXECUTE).
 -- • Campos que o site não manda: user_id, criado_por, criado_em, versoes, atualizado_em (o banco preenche). Campo desconhecido dá erro.
--- • Na edição, origem, historico e importacao_id não mudam. A importação referida precisa ser da mesma casa.
+-- • Na edição, origem, historico e importacao_id não mudam (podem vir no JSON, desde que iguais ao gravado). A importação referida precisa ser da mesma casa.
 -- • Documento: o caminho tem de estar na pasta desta compra e o arquivo tem de existir no cofre "familia" (sem linha apontando para o nada).
 --   O conteúdo do arquivo nunca passa por aqui: só nome, tipo, tamanho, SHA-256 e o que foi extraído (já limpo pelo site).
 -- • Documento repetido (mesmo SHA-256) não vira linha: o caminho volta em docs_repetidos para o site apagar o arquivo duplicado.
@@ -151,7 +151,6 @@ declare
   campos constant text[] := array['id', 'loja', 'canal', 'natureza', 'historico', 'numero', 'data', 'vendedor', 'status', 'subtotal', 'desconto', 'frete',
     'taxas', 'impostos_info', 'total_pago', 'pagamento', 'categoria', 'recorrencia_texto', 'recorrencia_meses', 'recorrencia_status', 'chave_nfe',
     'numero_nf', 'emitente', 'cnpj', 'fora_das_contas', 'motivo_fora', 'divergencias', 'observacoes', 'origem', 'importacao_id'];
-  fixos_edicao constant text[] := array['origem', 'historico', 'importacao_id'];
   texto_opc constant text[] := array['canal', 'natureza', 'vendedor', 'status', 'pagamento', 'categoria', 'recorrencia_texto', 'recorrencia_status',
     'chave_nfe', 'numero_nf', 'emitente', 'cnpj', 'motivo_fora', 'observacoes', 'origem'];
   dinheiro constant text[] := array['subtotal', 'desconto', 'frete', 'taxas', 'impostos_info', 'total_pago'];
@@ -168,7 +167,6 @@ begin
   if p_compra is null or jsonb_typeof(p_compra) <> 'object' then raise exception 'compras_gravar: a compra precisa ser um objeto' using errcode = '22023'; end if;
   for v_k in select jsonb_object_keys(p_compra) loop
     if not v_k = any (campos) then raise exception 'compras_gravar: campo não permitido na compra: %', v_k using errcode = '22023'; end if;
-    if not p_novo and v_k = any (fixos_edicao) then raise exception 'compras_gravar: % não muda na edição', v_k using errcode = '22023'; end if;
   end loop;
   if jsonb_typeof(p_compra->'id') is distinct from 'string' or (p_compra->>'id') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'compras_gravar: identificador da compra inválido' using errcode = '22023'; end if;
@@ -267,6 +265,13 @@ begin
     /* só acha compra da própria casa (RLS); trava a linha até o fim */
     select * into v_ant from public.compras_online where id = v_id for update;
     if not found then raise exception 'compras_gravar: compra não encontrada' using errcode = 'P0002'; end if;
+    /* origem, histórico e importação não mudam na edição: o site pode mandar a linha inteira, desde que estes três venham iguais ao gravado */
+    if p_compra ? 'origem' and (p_compra->>'origem') is distinct from v_ant.origem then
+      raise exception 'compras_gravar: origem não muda na edição' using errcode = '22023'; end if;
+    if p_compra ? 'historico' and coalesce((p_compra->>'historico')::boolean, false) is distinct from v_ant.historico then
+      raise exception 'compras_gravar: historico não muda na edição' using errcode = '22023'; end if;
+    if p_compra ? 'importacao_id' and (p_compra->>'importacao_id')::uuid is distinct from v_ant.importacao_id then
+      raise exception 'compras_gravar: importacao_id não muda na edição' using errcode = '22023'; end if;
   end if;
 
   if not v_solo then

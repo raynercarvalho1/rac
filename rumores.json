@@ -1,8 +1,50 @@
 {
- "coletado": "2026-11-06T06:36:52.013677+00:00",
+ "coletado": "2026-11-06T16:44:15.656380+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Hitting Coach Aaron Bates To Leave Dodgers Organization",
+   "link": "https://www.mlbtraderumors.com/2026/11/hitting-coach-aaron-bates-to-leave-dodgers-organization.html",
+   "data": "2026-11-06T16:28:40+00:00",
+   "resumo": "Dodgers hitting coach Aaron Bates is departing the organization, reports MLBTR’s Tim Dierkes. He’d been offered a multi-year contract to stay, but the two parties couldn’t come to terms on a final agreement. Bates’ departure closes a 12-year run with the Dodgers that saw him…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Aaron Bates",
+    "Robert Van Scoyoc"
+   ]
+  },
+  {
+   "t": "Nationals, Jacob Young Agree To Extension",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-extend-jacob-young-center-fielder.html",
+   "data": "2026-11-06T16:15:11+00:00",
+   "resumo": "The Nationals are locking center fielder Jacob Young in as a key part of the roster, as the two parties have reportedly agreed to a four-year, $23MM contract extension. The contract contains a fifth-year option that’s valued at $8MM, and Young would receive a $2MM assignment…",
+   "tags": [
+    "Newsstand",
+    "Transactions",
+    "Washington Nationals",
+    "Jacob Young"
+   ]
+  },
+  {
+   "t": "Cardinals Promote Rob Cerfolio To General Manager",
+   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-promote-rob-cerfolio-general-manager.html",
+   "data": "2026-11-06T15:40:26+00:00",
+   "resumo": "9:40am: The Cardinals have formally announced Cerfolio’s promotion. 8:40am: The Cardinals are promoting assistant general manager Rob Cerfolio to the title of general manager, reports Derrick Goold of the St. Louis Post-Dispatch. He’ll serve as the No. 2 executive under…",
+   "tags": [
+    "St. Louis Cardinals",
+    "Rob Cerfolio"
+   ]
+  },
+  {
+   "t": "The Opener: Silver Slugger Finalists",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-silver-slugger-finalists.html",
+   "data": "2026-11-06T14:56:50+00:00",
+   "resumo": "The GM meetings begin next week. The potential lockout could cancel the Winter Meetings, so the GM version could produce more activity than usual. For now, some awards news… 1. Louisville Slugger announces awards finalists The Silver Slugger finalists dropped yesterday, as…",
+   "tags": [
+    "The Opener"
+   ]
+  },
   {
    "t": "Poll: Will Jake Bauers Accept The Qualifying Offer?",
    "link": "https://www.mlbtraderumors.com/2026/11/poll-will-jake-bauers-accept-the-qualifying-offer.html",
@@ -126,55 +168,20 @@
    "tags": [
     "The Opener"
    ]
-  },
-  {
-   "t": "MLBTR Podcast: Offseason Preview",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-offseason-preview.html",
-   "data": "2026-11-05T05:59:41+00:00",
-   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
-   "tags": [
-    "Baltimore Orioles",
-    "MLB Trade Rumors Podcast",
-    "Milwaukee Brewers",
-    "San Francisco Giants",
-    "Tampa Bay Rays",
-    "Texas Rangers"
-   ]
-  },
-  {
-   "t": "Marlins Open To Corner Infield/Outfield Addition",
-   "link": "https://www.mlbtraderumors.com/2026/11/marlins-open-to-corner-infield-outfield-addition.html",
-   "data": "2026-11-05T05:48:03+00:00",
-   "resumo": "The Marlins have a wide array of potential targets as the offseason gets underway. Barry Jackson of The Miami Herald reports that the Fish are seeking at least one external addition to both the rotation and the bullpen. According to Jackson, they’re also open to bringing in an…",
-   "tags": [
-    "Miami Marlins",
-    "Javier Sanoja",
-    "Kyle Stowers"
-   ]
-  },
-  {
-   "t": "Tristan Beck Signs With KBO’s LG Twins",
-   "link": "https://www.mlbtraderumors.com/2026/11/tristan-beck-signs-with-kbos-lg-twins.html",
-   "data": "2026-11-05T03:56:10+00:00",
-   "resumo": "The LG Twins of the Korea Baseball Organization announced the signing of right-hander Tristan Beck to a one-year deal. He’s guaranteed $878K in the form of a $300K signing bonus and $578K salary. Beck was just released by the Giants on Monday as part of San Francisco’s culling…",
-   "tags": [
-    "Korea Baseball Organization",
-    "Transactions",
-    "Tristan Beck"
-   ]
-  },
-  {
-   "t": "Mets To Add A.J. Ellis To Coaching Staff",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-add-a-j-ellis-to-coaching-staff.html",
-   "data": "2026-11-05T03:03:02+00:00",
-   "resumo": "The Mets are hiring former big league catcher A.J. Ellis as major league strategy coordinator, reports Will Sammon of The Athletic. He’ll be on Andy Green’s coaching staff. Ellis logged parts of 11 seasons in the big leagues during his playing career. He spent the vast majority…",
-   "tags": [
-    "New York Mets",
-    "A.J. Ellis"
-   ]
   }
  ],
  "dodgers": [
+  {
+   "t": "Hitting Coach Aaron Bates To Leave Dodgers Organization",
+   "link": "https://www.mlbtraderumors.com/2026/11/hitting-coach-aaron-bates-to-leave-dodgers-organization.html",
+   "data": "2026-11-06T16:28:40+00:00",
+   "resumo": "Dodgers hitting coach Aaron Bates is departing the organization, reports MLBTR’s Tim Dierkes. He’d been offered a multi-year contract to stay, but the two parties couldn’t come to terms on a final agreement. Bates’ departure closes a 12-year run with the Dodgers that saw him…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Aaron Bates",
+    "Robert Van Scoyoc"
+   ]
+  },
   {
    "t": "Tarik Skubal Rumors: Mets, Dodgers, Cubs",
    "link": "https://www.mlbtraderumors.com/2026/11/tarik-skubal-rumors-mets-dodgers-cubs.html",
@@ -341,16 +348,6 @@
     "Los Angeles Dodgers",
     "Seattle Mariners",
     "Rocco Baldelli"
-   ]
-  },
-  {
-   "t": "Shohei Ohtani Plans To Pitch Next Year, “Hard To Tell” On Offseason Surgery",
-   "link": "https://www.mlbtraderumors.com/2026/10/shohei-ohtani-plans-to-pitch-next-year-hard-to-tell-on-offseason-surgery.html",
-   "data": "2026-10-16T16:00:13+00:00",
-   "resumo": "Two-way star Shohei Ohtani had a shaky end to the season, both at the plate and on (or rather off) the mound. He batted just .160/.284/.253 with a 58 wRC+ in 88 plate appearances from August 18th onward. A left knee injury kept him from pitching since early July, and right…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Shohei Ohtani"
    ]
   }
  ]

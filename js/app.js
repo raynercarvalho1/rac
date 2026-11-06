@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-06.1",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-06.2",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],rachoje:["hoje"],iacustos:["iacustos"]};
@@ -462,6 +462,20 @@
      Quem está na tabela "membros" (a esposa) é "casa" e vê só o Mercado; o dono vê tudo. */
   var PAPEL=null,SB=null,EU=null,DONO=null,PESSOAL={},SEM_TABELA=false;
   function isOwner(){return PAPEL==="dono"}
+  /* o RAC Hoje guarda neste aparelho (js/hoje.js), numa chave por conta ("rac-hoje-ia…:" + id do usuário), as análises, as tentativas, a trava entre abas e as
+     chamadas sem resultado. Ao sair da conta, se quem entrou não é o dono, ou quando o RAC Hoje abre com outra conta (manter = id dessa conta): o conteúdo vai embora
+     (análises, tentativas e trava) e os registros de chamada sem resultado FICAM, sem o conteúdo do pedido (uma cobrança incerta não pode sumir; sem o conteúdo,
+     o reenvio seguro deixa de existir). Chaves de outras contas nunca são lidas pela conta atual. */
+  var HOJE_LOCAL_PREFIXO="rac-hoje-ia",HOJE_LOCAL_PEND="rac-hoje-ia-pend",HOJE_LOCAL_TENT="rac-hoje-ia-tent:";
+  function hojeLimparLocal(manter){var ks=[];try{ks=Object.keys(localStorage)}catch(e){}
+    ks.forEach(function(k){if(k.indexOf(HOJE_LOCAL_PREFIXO)!==0||(manter&&k.slice(-(String(manter).length+1))===":"+manter))return;
+      /* ficam só os metadados que impedem cobrança duplicada: o contador de tentativas (hash, sem texto) e, de cada chamada sem resultado, chave, estado, hora,
+         código, id e custo do servidor, intenção (hash) e dia. Saem pergunta, rótulo, pedido enviado e retrato dos fatos, e todo o resto (análises, trava). */
+      if(k.indexOf(HOJE_LOCAL_TENT)===0)return;
+      try{if(k.indexOf(HOJE_LOCAL_PEND)===0){var p=JSON.parse(localStorage.getItem(k)||"{}");
+        Object.keys(p).forEach(function(c){var e=p[c];if(!e)return;e.entrada=null;e.snap=null;e.pergunta="";e.rotulo="Chamada anterior (conteúdo removido)";e.semConteudo=true});localStorage.setItem(k,JSON.stringify(p))}else localStorage.removeItem(k)}catch(e){}})}
+  /* a conta mudou (entrada na página): trata o aparelho e a memória do RAC Hoje na hora, sem esperar a tela abrir */
+  function hojeAoEntrar(uid){hojeLimparLocal(uid);try{if(window.RAChoje)(window.RAChoje.confirmar||window.RAChoje.escopo)()}catch(e){}}
   /* Dados pessoais: um JSON por chave na tabela "pessoal", que só a conta do dono lê e grava */
   /* Cópia de segurança neste aparelho: se a conta falhar ou vier sem o dado, nada se perde.
      Cada chave guarda {v:valor, t:quando mudou, ok:já chegou na conta} */
@@ -544,15 +558,15 @@
   function entrar(){
     window.RACmercado.client().then(function(sb){SB=sb;return sb.auth.getSession()}).then(function(r){
       var ses=r.data&&r.data.session;
-      if(!ses){mostrarGate(RECUPERAR?"O link expirou ou já foi usado. Peça outro em Esqueci a senha.":"");return}
-      EU=ses.user;
+      if(!ses){hojeLimparLocal();mostrarGate(RECUPERAR?"O link expirou ou já foi usado. Peça outro em Esqueci a senha.":"");return}
+      EU=ses.user;hojeAoEntrar(EU.id);
       if(RECUPERAR){novaSenha();return}
       /* 2ª etapa: quem cadastrou um app autenticador digita o código antes de qualquer leitura (o banco, com o 022, exige isso) */
       return mfaPrecisa().then(function(falta){if(falta){mfaPedir();return}
       return SB.from("membros").select("dono").eq("membro",EU.id).then(function(m){
         PAPEL=m.data&&m.data.length?"casa":"dono";
         DONO=PAPEL==="casa"?m.data[0].dono:EU.id;
-        if(PAPEL!=="dono")return;
+        if(PAPEL!=="dono"){hojeLimparLocal();return}
         return pessoalCarregar().catch(function(e){SEM_TABELA=true;SIS.falhaSinc="Não consegui ler a conta ("+e.message+").";logErro("sincronização",e);pessoalDaCopia()}).then(migrarDoNavegador)
       }).then(iniciar)})
     }).catch(function(e){mostrarGate("Não consegui conectar agora ("+(e.message||e)+"). Tente de novo.")})}
@@ -575,7 +589,7 @@
       b.disabled=true;m.textContent="Conferindo…";
       SB.auth.mfa.challengeAndVerify({factorId:sel.value,code:c}).then(function(r){if(r.error)throw r.error;f.remove();$("#gate-form").hidden=false;entrar()})
         .catch(function(e){b.disabled=false;cod.value="";cod.focus();m.textContent=/invalid|expired/i.test(e.message||"")?"Código errado ou vencido. Espere o próximo e tente de novo.":"Não consegui conferir: "+(e.message||e)})};
-    sair.onclick=function(){SB.auth.signOut().then(function(){location.reload()})};
+    sair.onclick=function(){hojeLimparLocal();SB.auth.signOut().then(function(){location.reload()})};
     $("#gate").appendChild(f);setTimeout(function(){cod.focus()},50)}
   function iniciar(){
     var html=document.documentElement;
@@ -621,6 +635,7 @@
   /* ao sair, apaga deste aparelho as cópias que já estão salvas na conta */
   $("#sair").addEventListener("click",function(){
     Object.keys(localStorage).forEach(function(k){if(k.indexOf("rac-p-")===0){var cp=copiaLer(k.slice(6));if(cp&&cp.ok)localStorage.removeItem(k)}});
+    hojeLimparLocal();
     SB.auth.signOut().then(function(){location.reload()})});
 
   /* Vagas de Análise de Dados e BI (vagas.json, coletado do portal Mentora Dados).

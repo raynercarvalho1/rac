@@ -999,8 +999,11 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 .veicseg{margin-bottom:12px}
 /* RAC Hoje (#rachoje) e Custos de IA (#iacustos): mesmos painéis do site; texto sempre quebra, tabela vira lista no celular */
 .hjtag{display:inline-block;flex:none;white-space:nowrap;font:700 calc(11.5px + var(--fz)) var(--f-ui);letter-spacing:.03em;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:transparent}
-.hje-ok,.hjn-fato,.icc-reconciliado{border-color:var(--c-mercado);color:var(--c-mercado)}.hje-falhou,.hjp-alta{border-color:var(--bad);color:var(--bad)}
-.hje-desatualizada,.hjp-media,.icc-reserva{border-color:var(--warn);color:var(--warn)}.hjn-inf,.icc-estimado{border-color:var(--c-inicio);color:var(--c-inicio)}
+/* verde = só o que o SISTEMA conferiu (dados recentes, custo reconciliado). O que a IA diz (fato segundo a IA, inferência, recomendação) é neutro e se distingue pelo texto e pelo traço
+   da borda; leitura realizada (sem data conferida) também é neutra; parcial, falha e desatualizada têm estados próprios */
+.hje-ok,.icc-reconciliado{border-color:var(--c-mercado);color:var(--c-mercado)}.hje-falhou,.hjp-alta{border-color:var(--bad);color:var(--bad)}
+.hje-desatualizada,.hjp-media,.icc-reserva{border-color:var(--warn);color:var(--warn)}.hje-parcial{border-color:var(--warn);color:var(--warn);border-style:dashed}.icc-estimado{border-color:var(--c-inicio);color:var(--c-inicio)}
+.hjn-fato,.hje-lida{border-color:var(--line);color:var(--muted)}.hjn-inf{border-style:dashed}.hjn-sug{border-style:dotted}
 #rachoje-view .wl .grow b,#rachoje-view .wl .grow .sub,#iacustos-view .wl .grow b,#iacustos-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 #rachoje-view ul.wl li{align-items:flex-start;gap:10px}.hjtags{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .hjmeta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:6px}.hjmeta .sub{margin:0}
@@ -1025,7 +1028,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   .icprecos td,.icclasses td{border:0!important;padding:3px 0!important;text-align:left!important;white-space:normal}
   .icprecos td::before,.icclasses td::before{content:attr(data-l);display:inline-block;min-width:104px;color:var(--muted);font-size:calc(12px + var(--fz))}
   .icfiltros select,.icfiltros .icdata{flex:1 1 100%}.icfiltros .icdata input{flex:1}
-  #rachoje-view ul.wl li{flex-wrap:wrap}.hjtags{flex-direction:row}
+  #rachoje-view ul.wl li{flex-wrap:wrap}.hjtags{flex-direction:row;flex-wrap:wrap}.hjtag{white-space:normal;max-width:100%;overflow-wrap:anywhere}
 }
 </style>
 </head>

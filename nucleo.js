@@ -982,20 +982,43 @@
   var HOJE_FONTES={agenda:"Agenda",tarefas:"Tarefas da casa",vagas:"Vagas e carreira",newsletter:"Newsletter",noticias:"Notícias de Sorocaba",esportes:"Esportes",
     mercado:"Mercado",alimentacao:"Alimentação",compras:"Compras online",orcamentos:"Orçamentos",saude:"Saúde e relógio",mba:"MBA",tempo:"Tempo em Sorocaba"};
   /* horas até a fonte ser considerada desatualizada (pela data do próprio dado, não da leitura) */
-  var HOJE_VALIDADE={newsletter:14,noticias:12,vagas:48,saude:36,tempo:3};
+  var HOJE_VALIDADE={newsletter:14,noticias:12,vagas:48,saude:24,tempo:3};
   /* treinos que a Saúde esconde (pedido do dono): a Saúde, o Painel, o Resumo e o RAC Hoje usam esta mesma lista */
   var TREINO_OCULTOS=["fitness_equipment","open_water_swimming","cycling"];
   var HOJE_PESO={mba:12,familia:10,veiculo:8,carreira:8,financas:8,docs:6,lembrete:6,saude:6,tarefa:4,niver:4,sistema:2};
   function hojeReais(v){v=Math.round((+v||0)*100)/100;var s=Math.abs(v).toFixed(2).split("."),i=s[0].replace(/\B(?=(\d{3})+(?!\d))/g,".");return (v<0?"-":"")+"R$ "+i+","+s[1]}
   function hojeDias(de,ate){return Math.round((Date.parse(ate+"T12:00:00Z")-Date.parse(de+"T12:00:00Z"))/864e5)}
   /* estado de cada fonte: ok, vazia (respondeu sem dados), desatualizada (o dado é velho), falhou (a leitura deu erro) ou ausente */
-  function hojeEstadoFontes(fontes,agoraMs){fontes=fontes||{};return Object.keys(HOJE_FONTES).map(function(k){var f=fontes[k],nome=HOJE_FONTES[k];
+  function hojeEstadoUma(k,nome,f,agoraMs){
     if(!f)return {k:k,nome:nome,estado:"ausente",detalhe:"não foi lida"};
     if(!f.ok)return {k:k,nome:nome,estado:"falhou",detalhe:String(f.erro||"erro desconhecido").slice(0,120)};
+    /* leitura parcial: parte da fonte falhou (ex.: o banco) e o que veio é só o que estava na memória do site; nunca vira "ok" nem "vazia" */
+    if(f.parcial)return {k:k,nome:nome,estado:"parcial",detalhe:"leitura parcial: "+((f.falhas||[]).join("; ")||"parte da leitura falhou").slice(0,160)};
     if(f.vazio)return {k:k,nome:nome,estado:"vazia",detalhe:"respondeu sem dados"};
     var q=Date.parse(f.quando||""),lim=HOJE_VALIDADE[k];
     if(lim&&isFinite(q)&&agoraMs-q>lim*3600e3)return {k:k,nome:nome,estado:"desatualizada",detalhe:"dado de "+Math.round((agoraMs-q)/3600e3)+" horas atrás",horas:Math.round((agoraMs-q)/3600e3)};
-    return {k:k,nome:nome,estado:"ok",detalhe:""}})}
+    return {k:k,nome:nome,estado:"ok",detalhe:""}}
+  /* além do estado, cada fonte diz de onde veio (origem), a data do registro mais recente (ultimo) e a data que a própria fonte informa (quando);
+     sem nenhuma das duas, "ok" quer dizer só que a leitura foi concluída (comData:false). Nada aqui é inventado: vem do que o coletor entregou. */
+  function hojeEstadoFontes(fontes,agoraMs){fontes=fontes||{};return Object.keys(HOJE_FONTES).map(function(k){var f=fontes[k],e=hojeEstadoUma(k,HOJE_FONTES[k],f,agoraMs);
+    e.origem=f&&f.origem||null;e.nota=f&&f.ok&&f.nota||null;e.ultimo=f&&f.ok&&f.ultimo||null;e.quando=f&&f.ok&&f.quando||null;e.comData=!!(e.ultimo||e.quando);return e})}
+  /* as fontes com os dados PESSOAIS do dono. Vagas é uma fonte pública (a lista do portal; o funil só entra pela Agenda), e tempo, notícias, esportes e
+     Newsletter também: são contexto e, sozinhos ou juntos, não bastam para uma análise do dia (docs/hoje.md, "Fonte útil"). */
+  var HOJE_PESSOAIS=["agenda","tarefas","mercado","alimentacao","compras","orcamentos","saude","mba"];
+  /* há fonte útil? Só conta a que respondeu COM dados e em dia; a data de hoje, o estado das fontes e a falha de leitura não são fonte */
+  function hojeFontesUteis(estados){var uteis=[],parciais=[],c={falhou:0,vazia:0,desatualizada:0,ausente:0},nomes={falhou:"falharam",vazia:"sem dados",desatualizada:"desatualizadas",ausente:"não lidas"};
+    /* "ok" e "parcial" (a parte lida trouxe dados válidos, mesmo sem data própria) contam; falha, vazio, desatualizada e não lida, não. Uma falha não bloqueia se outra fonte pessoal serve. */
+    (estados||[]).forEach(function(e){if(HOJE_PESSOAIS.indexOf(e.k)<0)return;if(e.estado==="ok"||e.estado==="parcial"){uteis.push(e.nome);if(e.estado==="parcial")parciais.push(e.nome)}else if(c[e.estado]!=null)c[e.estado]++});
+    var partes=Object.keys(c).filter(function(k){return c[k]}).map(function(k){return c[k]+" "+nomes[k]});
+    return {ok:uteis.length>0,uteis:uteis,parciais:parciais,motivo:uteis.length?"":"Nenhuma fonte com os seus dados pessoais respondeu com dados utilizáveis"+(partes.length?" ("+partes.join(", ")+")":"")+
+      ". Vagas, notícias, esporte, tempo e Newsletter são informação pública ou de contexto, e a data de hoje não é dado seu: sozinhos, não bastam para uma análise do dia. Nada foi chamado nem cobrado."}}
+  /* o retrato das fontes (guardado com a análise): quantas estão ok e quais têm ressalva */
+  function hojeQualidadeFontes(estados){estados=estados||[];var c={ok:0,parcial:0,vazia:0,falhou:0,desatualizada:0,ausente:0},prob=[];
+    estados.forEach(function(e){if(c[e.estado]!=null)c[e.estado]++;if(e.estado!=="ok")prob.push({k:e.k,nome:e.nome,estado:e.estado,detalhe:e.detalhe||""})});
+    var nomes={parcial:"com leitura parcial",vazia:"sem dados",falhou:"com falha",desatualizada:"desatualizada(s)",ausente:"não lida(s)"},
+      resto=Object.keys(nomes).filter(function(k){return c[k]}).map(function(k){return c[k]+" "+nomes[k]});
+    return {total:estados.length,ok:c.ok,contagem:c,problemas:prob,comRessalva:prob.length>0,
+      resumo:c.ok+" de "+estados.length+" fontes lidas com dados"+(resto.length?"; "+resto.join(", "):"")}}
   /* prioridade: atrasado > hoje > amanhã > 3 dias > semana > sem data, com peso por área (a mesma régua da Próxima ação) */
   function hojePrioridade(it){var d=it.dias,base=d==null?20:d<0?100+Math.min(-d,20):d===0?90:d===1?70:d<=3?50:d<=7?30:10;return base+(HOJE_PESO[it.area]||0)+(it.extra||0)}
   function hojeNivel(p){return p>=80?"alta":p>=45?"média":"baixa"}
@@ -1080,7 +1103,7 @@
     function add(fonte,periodo,texto){texto=hojeLimpar(texto);if(!texto||HOJE_PROIBIDO.test(texto)||fatos.length>=99)return;fatos.push({fonte:fonte,periodo:periodo,texto:texto.slice(0,300)})}
     add("rac","hoje","Hoje é "+hoje+".");
     if(extra.quem)add("rac","sempre","Quem é quem no RAC: "+extra.quem+".");
-    estados.forEach(function(e){if(e.estado!=="ok")add("rac","hoje","Fonte "+e.nome+": "+(e.estado==="falhou"?"a leitura falhou ("+e.detalhe+")":e.estado==="vazia"?"sem dados":e.estado==="desatualizada"?"desatualizada, "+e.detalhe:"não foi lida")+".")});
+    estados.forEach(function(e){if(e.estado!=="ok")add("rac","hoje","Fonte "+e.nome+": "+(e.estado==="falhou"?"a leitura falhou ("+e.detalhe+")":e.estado==="parcial"?e.detalhe+" (pode faltar item)":e.estado==="vazia"?"sem dados":e.estado==="desatualizada"?"desatualizada, "+e.detalhe:"não foi lida")+".")});
     itens.slice(0,25).forEach(function(it){add(it.fontes.join("+"),it.data||"sem data","Prioridade "+it.nivel+": "+it.titulo+(it.sub?" — "+it.sub:"")+(it.dias==null?"":it.dias<0?" (atrasado há "+(-it.dias)+(it.dias===-1?" dia)":" dias)"):it.dias===0?" (hoje)":it.dias===1?" (amanhã)":" (em "+it.dias+" dias, "+it.data+")"))});
     mud.forEach(function(m){add(m.area,"desde ontem",m.texto)});
     if(fin.fontes.length){add("financas",fin.mes,"Gastos do mês até o dia "+fin.dia+": "+hojeReais(fin.total)+" (Mercado "+hojeReais(fin.atual.mercado||0)+", pedidos "+hojeReais(fin.atual.alimentacao||0)+", compras online "+hojeReais(fin.atual.compras||0)+").");
@@ -1103,11 +1126,19 @@
     return {texto:texto,fatos:usados,itens:itens,mudancas:mud,financas:fin,saude:sau,vagas:vg,estados:estados}}
   /* chave da análise: o mesmo pacote de fatos (e a mesma pergunta) não é analisado nem pago duas vezes; nova análise manual = tentativa+1 */
   function hojeChave(hoje,texto,pergunta,tentativa){return "hoje-"+hoje+"-"+nlHash(String(texto)+"|"+String(pergunta||""))+(tentativa?"-"+tentativa:"")}
-  /* o pacote que identifica a análise na chave: o mesmo texto que vai para a IA, sem o tempo (os fatos da fonte "tempo" e o estado da
-     fonte Tempo) e sem os ids dos fatos (que mudariam quando o fato do estado do tempo entra ou sai). A IA continua recebendo o tempo. */
-  var HOJE_CHAVE_SEM=[/^<fato id="f\d+" fonte="tempo" /,new RegExp('^<fato id="f\\d+" fonte="rac" periodo="hoje">Fonte '+HOJE_FONTES.tempo+':')];
+  /* o pacote que identifica a análise na chave: o mesmo texto que vai para a IA, sem o ruído (abaixo) e sem os ids dos fatos (que mudariam
+     quando um fato entra ou sai). A IA continua recebendo tudo, inclusive o tempo e as notícias. */
+  /* ruído: o que muda várias vezes ao dia sem mudar o seu dia (o tempo, as notícias e a Newsletter, e o estado dessas fontes) fica fora da chave e da
+     comparação "a análise ainda vale?". Dados pessoais, financeiros e de saúde NÃO entram aqui: qualquer mudança neles é outra análise. */
+  var HOJE_RUIDO=["tempo","noticias","newsletter"];
+  function hojeRuido(f){f=f||{};if(HOJE_RUIDO.indexOf(f.fonte)>=0)return true;
+    return f.fonte==="rac"&&HOJE_RUIDO.some(function(k){return String(f.texto||"").indexOf("Fonte "+HOJE_FONTES[k]+":")===0})}
+  /* "dado de 14 horas atrás" vira "dado velho": o passar das horas não é mudança de dado */
+  function hojeSemHoras(t){return String(t||"").replace(/dado de \d+ horas atrás/g,"dado velho")}
+  var HOJE_CHAVE_SEM=[new RegExp('^<fato id="f\\d+" fonte="('+HOJE_RUIDO.join("|")+')" '),
+    new RegExp('^<fato id="f\\d+" fonte="rac" periodo="hoje">Fonte ('+HOJE_RUIDO.map(function(k){return HOJE_FONTES[k]}).join("|")+'):')];
   function hojeTextoChave(texto){return String(texto||"").split("\n").filter(function(l){return l&&!HOJE_CHAVE_SEM.some(function(r){return r.test(l)})})
-    .map(function(l){return l.replace(/^<fato id="f\d+" /,"<fato ")}).join("\n")}
+    .map(function(l){return hojeSemHoras(l.replace(/^<fato id="f\d+" /,"<fato "))}).join("\n")}
   /* ===== Monitor de custos da IA (view ia_custos do 029): as contas, sem tela e sem banco. Conhecido = o valor cobrado que o dono
      conferiu no Console; estimado = uso informado pela API × tabela de preços da hora; incerto = chamada sem resposta certa (conta a
      reserva cheia, o pior caso); sem custo = não chegou a ser enviada. Nada é inventado: sem tokens, sem estimativa. ===== */
@@ -1359,7 +1390,7 @@
     alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
     atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
     TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
-    hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,
+    hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
     coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};

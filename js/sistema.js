@@ -69,12 +69,18 @@
   /* a Agenda, a Próxima ação, o resumo falado e o RAC Hoje pedem a agenda quase juntos: quem chega enquanto uma leitura está em curso
      usa a mesma (uma consulta a registros em vez de duas ou três); terminada, nada fica guardado, então a próxima vem sempre nova */
   var AGENDA_EM_CURSO=null;
-  function agendaColetar(){if(AGENDA_EM_CURSO)return AGENDA_EM_CURSO;
-    AGENDA_EM_CURSO=agendaLer().then(function(ev){AGENDA_EM_CURSO=null;return ev},function(e){AGENDA_EM_CURSO=null;throw e});return AGENDA_EM_CURSO}
+  /* agendaColetarLeitura devolve {eventos, falhas, estado}: estado "completa" (tudo lido), "vazia" (tudo lido, sem itens), "parcial" (uma leitura falhou e o que
+     aparece vem do resto, por exemplo da memória do site) ou "falha" (uma leitura falhou e não sobrou nada). Falha nunca vira "vazia" nem "completa".
+     agendaColetar devolve só os eventos, como sempre (quem não precisa do estado). */
+  function agendaColetarLeitura(){if(AGENDA_EM_CURSO)return AGENDA_EM_CURSO;
+    AGENDA_EM_CURSO=agendaLer().then(function(r){AGENDA_EM_CURSO=null;var f=r.falhas.map(function(x){return x.fonte+": "+x.erro});
+      return {eventos:r.eventos,falhas:f,estado:f.length?(r.eventos.length?"parcial":"falha"):(r.eventos.length?"completa":"vazia")}},function(e){AGENDA_EM_CURSO=null;throw e});return AGENDA_EM_CURSO}
+  function agendaColetar(){return agendaColetarLeitura().then(function(r){return r.eventos})}
+  function agendaAviso(r){return r&&r.falhas&&r.falhas.length?"Leitura parcial da agenda ("+r.falhas.join("; ")+"): o que aparece vem do que o site já tinha na memória e pode estar incompleto.":""}
   function agendaLer(){
-    var hoje=hojeISO(),ev=[];
+    var hoje=hojeISO(),ev=[],falhas=[];
     function add(data,t,sub,tipo,href,extra){if(data)ev.push(Object.assign({data:String(data).slice(0,10),t:t,sub:sub||"",tipo:tipo,href:href||""},extra||{}))}
-    var pReg=isOwner()?SB.from("registros").select("id,quem,tipo,data,titulo,proxima,dados").order("data",{ascending:false}).then(sbOk).catch(function(e){logErro("agenda",e);return []}):Promise.resolve([]);
+    var pReg=isOwner()?SB.from("registros").select("id,quem,tipo,data,titulo,proxima,dados").order("data",{ascending:false}).then(sbOk).catch(function(e){logErro("agenda",e);falhas.push({fonte:"registros",erro:String(e&&e.message||e).slice(0,100)});return []}):Promise.resolve([]);
     return pReg.then(function(regs){
       var visto={};
       regs.forEach(function(r){var F=FAM[r.quem];if(!F)return;var k=r.quem+"|"+r.tipo,tipo=F.veic?"veiculo":F.docs?"docs":"familia",href=F.veic?"#veiculos/"+r.quem:F.docs?"#documentos":"#"+r.quem,d=r.dados||{};
@@ -102,11 +108,12 @@
         (PESSOAL.candidaturas||[]).forEach(function(c){var d=(c.datas||{}).candidatei;if(c.coluna==="candidatei"&&d&&!c.followup)add(c.followupEm||maisDias(d,5),c.t+(c.e?" · "+c.e:""),"follow-up · candidatura de "+dataBR(d),"carreira","#carreira/funil",{pre:"Follow-up"})});
         if(!PESSOAL.ultimoBackup||PESSOAL.ultimoBackup<maisDias(hoje,-30))add(hoje,"Baixar um backup do site",PESSOAL.ultimoBackup?"o último foi em "+dataBR(PESSOAL.ultimoBackup):"nunca foi feito","sistema","#sistema")}
       /* o backup automático de domingo (no cofre privado do servidor): se o mais novo tiver mais de 9 dias, alguma coisa parou */
-      if(!isOwner())return ev.sort(function(a,b){return a.data.localeCompare(b.data)});
+      if(!isOwner())return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas};
       return Promise.resolve().then(function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"},limit:1})}).then(function(r){
         var ult=r&&r.data&&r.data[0]&&r.data[0].name.slice(0,10);
-        if(!r.error&&(!ult||ult<maisDias(hoje,-9)))add(hoje,"O backup automático de domingo não rodou",ult?"o último é de "+dataBR(ult):"ainda não há nenhum no servidor","sistema","#sistema")},function(){})
-        .then(function(){return ev.sort(function(a,b){return a.data.localeCompare(b.data)})})})}
+        if(r&&r.error)falhas.push({fonte:"backup",erro:String(r.error.message||r.error).slice(0,100)});
+        else if(!ult||ult<maisDias(hoje,-9))add(hoje,"O backup automático de domingo não rodou",ult?"o último é de "+dataBR(ult):"ainda não há nenhum no servidor","sistema","#sistema")},function(e){falhas.push({fonte:"backup",erro:String(e&&e.message||e).slice(0,100)})})
+        .then(function(){return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas}})})}
   /* ===== Próxima melhor ação: tudo o que pede algo de você, numa ordem só =====
      Agenda (atrasado > hoje > amanhã > semana, com peso por tipo), vagas muito compatíveis ainda fora do funil e a prontidão para treinar. */
   function proximasAcoes(){
@@ -147,8 +154,9 @@
     return li}
   function wAgenda(){
     var p=wCard("Agenda","bolo","#2E8BD8",["#agenda","ver tudo"],"w5"),ul=h("ul",{class:"wl agl"},h("li",null,h("span",{class:"sub",text:"Carregando…"})));p.appendChild(ul);
-    agendaColetar().then(function(ev){var hoje=hojeISO(),l=ev.filter(function(e){return e.data<=maisDias(hoje,7)});ul.innerHTML="";
-      if(!l.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nada vencendo nos próximos 7 dias."})));return}
+    agendaColetarLeitura().then(function(r){var ev=r.eventos,hoje=hojeISO(),l=ev.filter(function(e){return e.data<=maisDias(hoje,7)});ul.innerHTML="";
+      if(r.falhas.length)ul.appendChild(h("li",null,h("span",{class:"sub",role:"note",text:"⚠ "+agendaAviso(r)})));
+      if(!l.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:r.falhas.length?"Nenhum item de 7 dias na parte que foi lida.":"Nada vencendo nos próximos 7 dias."})));return}
       l.slice(0,7).forEach(function(e){ul.appendChild(agendaLinha(e))});
       if(l.length>7)ul.appendChild(h("li",null,h("a",{href:"#agenda",class:"link",text:"e mais "+(l.length-7)}))) }).catch(function(e){logErro("agenda",e)});
     return p}
@@ -160,11 +168,12 @@
     var lp=panel("Novo lembrete"),t=h("input",{type:"text",placeholder:"Ex.: ativar a conta paga do Google Cloud"}),d=h("input",{type:"date",value:hojeISO()}),ok=h("button",{type:"button",text:"Adicionar"});
     ok.onclick=function(){if(!t.value.trim()){t.focus();return}pessoalGravar("lembretes",[{id:"l"+Date.now().toString(36),data:d.value||hojeISO(),t:t.value.trim()}].concat(PESSOAL.lembretes||[]));t.value="";desenhar()};
     lp.appendChild(h("div",{class:"wform"},h("div",{class:"two"},h("label",null,"O quê",t),h("label",null,"Quando",d)),h("div",{class:"vfil"},ok)));root.appendChild(lp);
-    function desenhar(){agendaColetar().then(function(ev){box.innerHTML="";var hoje=hojeISO();
+    function desenhar(){agendaColetarLeitura().then(function(lei){var ev=lei.eventos;box.innerHTML="";var hoje=hojeISO();
+      if(lei.falhas.length)box.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+agendaAviso(lei)}));
       var G=[["Atrasados",function(e){return e.data<hoje}],["Hoje",function(e){return e.data===hoje}],["Próximos 7 dias",function(e){return e.data>hoje&&e.data<=maisDias(hoje,7)}],
         ["Até 30 dias",function(e){return e.data>maisDias(hoje,7)&&e.data<=maisDias(hoje,30)}],["Depois",function(e){return e.data>maisDias(hoje,30)&&e.data<=maisDias(hoje,120)}]];
       G.forEach(function(g){var l=ev.filter(g[1]);if(!l.length)return;box.appendChild(h("h3",{class:"mbag",text:g[0]+" ("+l.length+")"}));box.appendChild(h("ul",{class:"wl agl"},l.map(function(e){return agendaLinha(e,desenhar)})))});
-      if(!box.children.length)box.appendChild(h("p",{class:"empty",text:"Nada com data por enquanto."}))}).catch(function(e){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Não consegui montar a agenda ("+e.message+")."}));logErro("agenda",e)})}
+      if(!ev.length)box.appendChild(h("p",{class:"empty",text:lei.falhas.length?"Nenhum item na parte que foi lida (a leitura falhou: não dá para dizer que não há nada).":"Nada com data por enquanto."}))}).catch(function(e){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Não consegui montar a agenda ("+e.message+")."}));logErro("agenda",e)})}
     desenhar()}
 
   /* ---------- busca global: conteúdo, não só nomes de seções ---------- */

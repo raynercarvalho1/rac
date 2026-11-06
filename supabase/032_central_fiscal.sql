@@ -1,3 +1,4 @@
+-- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
 -- Central de Notas Fiscais (docs/fiscal.md, Lote 3): NF-e (modelo 55) e NFC-e (modelo 65) como entidade PRÓPRIA, independente de Compras.
 -- Rode depois do 031 e, logo em seguida, o 022 de novo. Pode rodar de novo sem estragar nada.
 -- PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco.

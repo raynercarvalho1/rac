@@ -1,3 +1,4 @@
+-- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
 -- Segurança das tabelas das migrations 030, 031 e 032 (Compras multiorigem, Reembolsos, Central Fiscal). Rode DEPOIS delas e do 022.
 -- Pode rodar de novo sem estragar nada. PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco.
 --

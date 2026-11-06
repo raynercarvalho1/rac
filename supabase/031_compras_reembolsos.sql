@@ -1,3 +1,4 @@
+-- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
 -- Reembolsos das compras (docs/compras.md, Lote 3). Rode depois do 030 e, logo em seguida, o 022 de novo. Pode rodar de novo sem estragar nada.
 -- PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco. Não lança nada nas despesas e não mexe em compra nenhuma.
 --

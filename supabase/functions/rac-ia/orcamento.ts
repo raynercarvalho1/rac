@@ -33,7 +33,9 @@ export const LIMITES = {
   corpoMaxBytes: 8_000_000,
 };
 
-export type Preco = { entrada_usd_mtok: number; saida_usd_mtok: number; max_entrada_tokens: number; conferido_em?: string };
+export type Preco = { entrada_usd_mtok: number; saida_usd_mtok: number; max_entrada_tokens: number; conferido_em?: string;
+  /* 029: preço do cache (null = não cadastrado; o cache conta como entrada cheia) */
+  cache_leitura_usd_mtok?: number | null; cache_escrita_usd_mtok?: number | null };
 
 /* junta a linha de ia_config (ou nada) com o padrão, sem aceitar valores fora das faixas do banco */
 export function configDe(linha: Partial<Config> | null | undefined): Config {
@@ -63,6 +65,31 @@ export function emReais(usd: number, c: Config): number {
 
 export function custoUsd(p: Preco, tokensEntrada: number, tokensSaida: number): number {
   return arred((tokensEntrada * p.entrada_usd_mtok + tokensSaida * p.saida_usd_mtok) / 1e6);
+}
+
+/* monitor de custos (029): o custo de uma chamada separado em entrada (cache à parte) e saída, com o preço e o câmbio da hora.
+   O preço do cache vem de ia_precos (colunas do 029); sem ele, o cache conta como entrada cheia (por excesso) e o registro diz isso.
+   É estimativa do RAC (uso informado × tabela); o valor cobrado de verdade é o da conferência com o Console (ia_reconciliar). */
+export type DetalheCusto = {
+  provedor: string; requisicao_id: string | null;
+  tokens_cache_leitura: number; tokens_cache_escrita: number;
+  custo_entrada_usd: number; custo_saida_usd: number; custo_total_usd: number;
+  preco_entrada_usd_mtok: number; preco_saida_usd_mtok: number; preco_cache_leitura_usd_mtok: number | null; preco_cache_escrita_usd_mtok: number | null;
+  precos_conferido_em: string | null; cache_como_entrada: boolean; cambio_brl_usd: number; custo_brl: number;
+};
+export function custoDetalhe(p: Preco, uso: { entrada: number; saida: number; cacheLeitura?: number; cacheEscrita?: number }, cfg: Pick<Config, "cambio_brl_usd">,
+  provedor: string, requisicao: string | null): DetalheCusto {
+  const cl = Math.max(0, uso.cacheLeitura ?? 0), ce = Math.max(0, uso.cacheEscrita ?? 0), normal = Math.max(0, uso.entrada - cl - ce);
+  const pl = typeof p.cache_leitura_usd_mtok === "number" ? p.cache_leitura_usd_mtok : null, pe = typeof p.cache_escrita_usd_mtok === "number" ? p.cache_escrita_usd_mtok : null;
+  const comoEntrada = (cl > 0 && pl === null) || (ce > 0 && pe === null);
+  const entrada = arred((normal * p.entrada_usd_mtok + cl * (pl ?? p.entrada_usd_mtok) + ce * (pe ?? p.entrada_usd_mtok)) / 1e6);
+  const saida = arred((Math.max(0, uso.saida) * p.saida_usd_mtok) / 1e6), total = arred(entrada + saida);
+  return {
+    provedor, requisicao_id: requisicao, tokens_cache_leitura: cl, tokens_cache_escrita: ce,
+    custo_entrada_usd: entrada, custo_saida_usd: saida, custo_total_usd: total,
+    preco_entrada_usd_mtok: p.entrada_usd_mtok, preco_saida_usd_mtok: p.saida_usd_mtok, preco_cache_leitura_usd_mtok: pl, preco_cache_escrita_usd_mtok: pe,
+    precos_conferido_em: p.conferido_em ?? null, cache_como_entrada: comoEntrada, cambio_brl_usd: cfg.cambio_brl_usd, custo_brl: arred(total * cfg.cambio_brl_usd),
+  };
 }
 
 /* sem a contagem oficial: estimativa por excesso. 2 caracteres por token (português conta mais que inglês),

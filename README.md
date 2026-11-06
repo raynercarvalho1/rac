@@ -62,6 +62,12 @@ DANFE, XML, CSV/ZIP, e-mails (Gmail, só leitura, com os anexos PDF e XML) e pri
 documentos do mesmo pedido, divergências, duplicidade, recorrências a confirmar e histórico de preços (SQL 025). Entra no Painel e no
 backup; é da casa. Sem IA paga e sem senha de loja. Tudo em [docs/compras.md](docs/compras.md).
 
+## RAC Hoje e monitor de custos da IA
+
+`js/hoje.js` (página `#rachoje`, só do dono): o coletor do dia (`hojeColetar`), as regras (`NUCLEO.hoje*`) e a análise com a IA real (ação
+`hoje.analise`, Sonnet 5.5, só do dono, só REAL). O monitor de custos (`NUCLEO.iaMonitor`, view `ia_custos`) separa o custo conhecido
+do estimado e tem a página Custos de IA (`#iacustos`, `js/iacustos.js`, só leitura). SQL 028 e 029 aplicados e `rac-ia` v8 publicada em 02/11/2026; o site com o RAC Hoje ainda não foi publicado. Tudo em [docs/hoje.md](docs/hoje.md).
+
 ## Botão de atualizar (↻)
 
 No topo de todas as páginas (`js/app.js`, bloco "Botão de atualizar"; regras em `NUCLEO.atu*`): atualiza só a página aberta, sem recarregar
@@ -91,8 +97,8 @@ três páginas e falha se outra página com dados em memória ficar de fora):
 
 ## Banco (pasta `supabase/`)
 
-`schema.sql` e depois `002` a `026`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 026 foi aplicado em 01/11/2026).
+`schema.sql` e depois `002` a `029`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 028 e o 029 foram aplicados em 02/11/2026).
 
 ## Testes (`tests/`)
 
@@ -109,6 +115,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |
 | `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
+| `hoje.test.mjs` | RAC Hoje e monitor de custos sem rede: regras do dia, pacote de fatos, ação `hoje.analise`, coletor, cache, falhas da IA, só o dono, as duas telas (DOM falso) e o histórico de custos |
 | `atualizar.test.mjs`, `atualizar_modulos.test.mjs` | botão de atualizar sem rede: regras, service worker, e os nove módulos com um banco falso (busca antes, troca só no sucesso) |
 | `navegador.test.mjs` | abre o site num navegador de verdade (só no GitHub, com Playwright) e procura erros |
 

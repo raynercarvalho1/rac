@@ -7,7 +7,7 @@
   var ATIV_TIPOS={running:["Corrida","🏃"],treadmill_running:["Esteira","🏃"],walking:["Caminhada","🚶"],strength_training:["Musculação","🏋️"],
     lap_swimming:["Natação","🏊"],open_water_swimming:["Águas abertas","🌊"],cycling:["Bike","🚴"],fitness_equipment:["Aparelhos","⚙️"]};
   /* esportes que não aparecem no quadro de Treinos: aparelhos, águas abertas e bike */
-  var TREINO_OCULTOS=["fitness_equipment","open_water_swimming","cycling"];
+  var TREINO_OCULTOS=NUCLEO.TREINO_OCULTOS;
   function ativTipo(t){return ATIV_TIPOS[t]||[t.replace(/_/g," "),"•"]}
   function hmDur(seg){if(seg==null)return "—";var m=Math.round(seg/60);return Math.floor(m/60)+"h"+String(m%60).padStart(2,"0")}
   function durTxt(seg){var m=Math.round(seg/60);return m<60?m+" min":Math.floor(m/60)+"h"+String(m%60).padStart(2,"0")}

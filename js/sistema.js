@@ -66,7 +66,12 @@
   /* a área de cada item aparece só como ícone (o título fica curto e cabe no celular); "pre" é a área por extenso, usada no briefing falado */
   var AGENDA_ICO={eddie:"🐶",olivia:"👶",civic:"🚗",moto:"🛵",c3:"🚙",docs:"📄"};
   function agendaIco(e){return e.ico||(AGENDA_TIPOS[e.tipo]||["•"])[0]}
-  function agendaColetar(){
+  /* a Agenda, a Próxima ação, o resumo falado e o RAC Hoje pedem a agenda quase juntos: quem chega enquanto uma leitura está em curso
+     usa a mesma (uma consulta a registros em vez de duas ou três); terminada, nada fica guardado, então a próxima vem sempre nova */
+  var AGENDA_EM_CURSO=null;
+  function agendaColetar(){if(AGENDA_EM_CURSO)return AGENDA_EM_CURSO;
+    AGENDA_EM_CURSO=agendaLer().then(function(ev){AGENDA_EM_CURSO=null;return ev},function(e){AGENDA_EM_CURSO=null;throw e});return AGENDA_EM_CURSO}
+  function agendaLer(){
     var hoje=hojeISO(),ev=[];
     function add(data,t,sub,tipo,href,extra){if(data)ev.push(Object.assign({data:String(data).slice(0,10),t:t,sub:sub||"",tipo:tipo,href:href||""},extra||{}))}
     var pReg=isOwner()?SB.from("registros").select("id,quem,tipo,data,titulo,proxima,dados").order("data",{ascending:false}).then(sbOk).catch(function(e){logErro("agenda",e);return []}):Promise.resolve([]);

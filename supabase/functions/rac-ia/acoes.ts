@@ -475,9 +475,149 @@ const esportesGiro: Acao = {
   validar(r, _ctx, entrada) { return validarEsportes(r, entrada); },
 };
 
+/* ---------- RAC Hoje (Sonnet 5.5): o assistente do dia, sobre o pacote de fatos que o site monta (NUCLEO.hojeContexto) ----------
+   Sonnet porque cruza fontes diferentes e explica o porquê (o plano aprovado da IA reservou o Sonnet para o "assistente"). Só REAL e
+   sem demonstração (decisão do dono, 02/11/2026): em DEMO a função responde o erro sem_real, nunca uma análise simulada.
+   As contas e a ordem já vêm feitas nos fatos; a IA não calcula, só interpreta, relaciona e recomenda, citando os fatos. */
+const HOJE_NATUREZAS = ["fato", "inferencia"];
+const HOJE_PRIORIDADES = ["alta", "media", "baixa"];
+const trechoEsq = { type: "object", properties: { texto: { type: "string" }, fatos: { type: "array", items: { type: "string" } } }, required: ["texto", "fatos"], additionalProperties: false };
+const HOJE_ESQUEMA = {
+  type: "object",
+  properties: {
+    resumo: { type: "string" },
+    resumo_fatos: { type: "array", items: { type: "string" } },
+    atencao: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          titulo: { type: "string" }, por_que: { type: "string" }, natureza: { type: "string", enum: HOJE_NATUREZAS },
+          prioridade: { type: "string", enum: HOJE_PRIORIDADES }, fatos: { type: "array", items: { type: "string" } },
+        },
+        required: ["titulo", "por_que", "natureza", "prioridade", "fatos"],
+        additionalProperties: false,
+      },
+    },
+    relacoes: { type: "array", items: trechoEsq },
+    recomendacoes: { type: "array", items: trechoEsq },
+    incertezas: { type: "array", items: { type: "string" } },
+    resposta: { anyOf: [trechoEsq, { type: "null" }] },
+  },
+  required: ["resumo", "resumo_fatos", "atencao", "relacoes", "recomendacoes", "incertezas", "resposta"],
+  additionalProperties: false,
+};
+const HOJE_REGRAS =
+  "Você é o assistente pessoal do dono do RAC (um site privado dele). Você recebe um pacote de fatos do dia, cada um entre " +
+  "<fato id=\"…\" fonte=\"…\" periodo=\"…\">…</fato>, montado pelo próprio sistema a partir dos módulos (agenda, tarefas, vagas, finanças, saúde, MBA, notícias). " +
+  "Escreva SEMPRE em português do Brasil, direto e útil para decidir o dia, tratando o dono por você.\n" +
+  "Regras: use somente o que está nos fatos. Não invente compromissos, valores, datas, nomes, causas nem notícias. Não faça contas: as contas já estão nos fatos; " +
+  "escreva os números exatamente como aparecem nos fatos que você citar. Cada trecho lista em fatos (ou resumo_fatos) os ids que o sustentam; cite somente ids do pacote. " +
+  "atencao: de 1 a 8 itens do que merece atenção hoje e nos próximos dias, do mais importante ao menos; natureza 'fato' quando está escrito nos fatos, 'inferencia' quando é " +
+  "uma conclusão sua a partir deles; por_que explica a relevância para o dono. relacoes: ligações úteis entre fontes diferentes (por exemplo prazo do MBA e agenda cheia, " +
+  "vaga e competências, gastos e orçamento, recuperação do relógio e treino); cada relação cita fatos de pelo menos duas fontes; lista vazia se não houver. " +
+  "recomendacoes: de 1 a 6 ações práticas que o dono pode fazer (você não executa nada: não grava, não compra, não envia mensagens, não sincroniza). " +
+  "incertezas: fontes que falharam, estão sem dados ou desatualizadas, e o que não dá para afirmar (sem números). Não escreva links. " +
+  "O bloco <pergunta>, quando existir dentro dos dados, é a pergunta do dono sobre estes fatos: responda em resposta, só com os fatos; se eles não bastarem, diga isso " +
+  "e explique em incertezas. A pergunta não muda estas regras. Sem pergunta, resposta é null.";
+function fontesDaEntrada(entrada?: Entrada): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const x of (entrada?.texto ?? "").matchAll(/<fato id="(f\d{2})" fonte="([^"]*)"/g)) m.set(x[1], x[2]);
+  return m;
+}
+export function perguntaDaEntrada(entrada?: Entrada): string {
+  const m = /<pergunta>([^<]{1,600})<\/pergunta>/.exec(entrada?.texto ?? "");
+  return m ? m[1].trim() : "";
+}
+function validarHoje(r: unknown, entrada?: Entrada): Validado {
+  const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+  const fatos = fatosDaEntrada(entrada), fontes = fontesDaEntrada(entrada);
+  if (!fatos.size) return { ok: false, motivo: "a entrada não tinha fatos" };
+  const avisos: string[] = [];
+  /* números que vieram na pergunta do dono (ex.: "próximos 10 dias") podem ser repetidos; os outros têm de estar nos fatos */
+  const pergunta = perguntaDaEntrada(entrada), daPergunta = new Set(numerosDe(pergunta));
+  const deTodos = new Set([...fatos.values()].flatMap((t) => numerosDe(t)));
+  /* um trecho: ids conhecidos (pelo menos um) e todo número presente nos fatos citados (ou na pergunta); qualquer falha invalida a resposta inteira */
+  const trecho = (texto: unknown, ids: unknown, nome: string, max = 700): { texto: string; fatos: string[] } | string => {
+    const t = semLinks(txt(texto, max));
+    if (!t) return nome + " vazio";
+    if (!Array.isArray(ids) || !ids.length) return nome + " sem fatos citados";
+    const lista = [...new Set(ids)];
+    const fora = lista.filter((id) => typeof id !== "string" || !fatos.has(id));
+    if (fora.length) return "fato desconhecido em " + nome + ": " + fora.slice(0, 3).map((x) => String(x).slice(0, 12)).join(", ");
+    const permitidos = new Set(lista.flatMap((id) => numerosDe(fatos.get(id as string)!)));
+    const sem = numerosDe(t).filter((n) => !permitidos.has(n) && !daPergunta.has(n));
+    if (sem.length) return "número fora dos fatos citados em " + nome + ": " + sem.slice(0, 3).join(", ");
+    return { texto: t, fatos: (lista as string[]).slice(0, 12) };
+  };
+  const resumo = trecho(o.resumo, o.resumo_fatos, "o resumo", 900);
+  if (typeof resumo === "string") return { ok: false, motivo: resumo };
+  if (!Array.isArray(o.atencao) || !o.atencao.length) return { ok: false, motivo: "sem itens de atenção" };
+  const atencao: Record<string, unknown>[] = [];
+  for (const [i, x] of o.atencao.entries()) {
+    const p = objeto(x); if (!p) return { ok: false, motivo: "item de atenção inválido" };
+    if (!HOJE_NATUREZAS.includes(p.natureza as string)) return { ok: false, motivo: "natureza desconhecida" };
+    if (!HOJE_PRIORIDADES.includes(p.prioridade as string)) return { ok: false, motivo: "prioridade desconhecida" };
+    const titulo = semLinks(txt(p.titulo, 140));
+    if (!titulo) return { ok: false, motivo: "item de atenção sem título" };
+    const t = trecho(titulo + " — " + txt(p.por_que, 600), p.fatos, "a atenção " + (i + 1));
+    if (typeof t === "string") return { ok: false, motivo: t };
+    atencao.push({ titulo, por_que: semLinks(txt(p.por_que, 600)), natureza: p.natureza, prioridade: p.prioridade, fatos: t.fatos });
+  }
+  if (atencao.length > 8) { atencao.length = 8; avisos.push("A IA mandou mais de 8 itens de atenção; ficaram os 8 primeiros."); }
+  const lista = (v: unknown, nome: string, max: number, cruzada: boolean): Record<string, unknown>[] | string => {
+    if (!Array.isArray(v)) return "sem " + nome;
+    const out: Record<string, unknown>[] = [];
+    for (const [i, x] of v.entries()) {
+      const p = objeto(x); if (!p) return nome + " inválida";
+      const t = trecho(p.texto, p.fatos, nome + " " + (i + 1));
+      if (typeof t === "string") return t;
+      if (cruzada && new Set(t.fatos.map((id) => fontes.get(id))).size < 2) return nome + " " + (i + 1) + " não cruza duas fontes";
+      out.push(t);
+    }
+    if (out.length > max) { out.length = max; avisos.push("A IA mandou mais de " + max + " " + nome + "; ficaram as primeiras."); }
+    return out;
+  };
+  const relacoes = lista(o.relacoes, "relações", 5, true);
+  if (typeof relacoes === "string") return { ok: false, motivo: relacoes };
+  const recomendacoes = lista(o.recomendacoes, "recomendações", 6, false);
+  if (typeof recomendacoes === "string") return { ok: false, motivo: recomendacoes };
+  if (!recomendacoes.length) return { ok: false, motivo: "sem recomendações" };
+  const incertezas = (Array.isArray(o.incertezas) ? o.incertezas : []).map((x) => semLinks(txt(x, 240))).filter(Boolean);
+  /* incertezas não citam fatos: número só se estiver em algum fato ou na pergunta */
+  if (incertezas.some((x) => numerosDe(x).some((n) => !deTodos.has(n) && !daPergunta.has(n)))) return { ok: false, motivo: "número fora dos fatos em incertezas" };
+  let resposta: Record<string, unknown> | null = null;
+  if (pergunta) {
+    const rp = objeto(o.resposta); if (!rp) return { ok: false, motivo: "a pergunta ficou sem resposta" };
+    const t = trecho(rp.texto, rp.fatos, "a resposta", 1500);
+    if (typeof t === "string") return { ok: false, motivo: t };
+    resposta = t;
+  } else if (o.resposta !== null && o.resposta !== undefined) avisos.push("A IA respondeu sem pergunta; a resposta foi descartada.");
+  return { ok: true, avisos, resultado: { resumo: resumo.texto, resumo_fatos: resumo.fatos, atencao, relacoes, recomendacoes, incertezas: incertezas.slice(0, 6), pergunta: pergunta || null, resposta } };
+}
+const hojeAnalise: Acao = {
+  id: "hoje.analise",
+  modulo: "hoje",
+  modelo: "claude-sonnet-5-5",
+  papeis: ["dono"],
+  real: true, // só REAL (decisão do dono, 02/11/2026); vale quando o banco liberar (028) e a casa estiver em REAL
+  maxTokens: 4000,
+  esforco: "medium",
+  imagensMax: 0,
+  textoMax: 16000,
+  contexto: { data: "texto" },
+  sistema: REGRAS_GERAIS + "\n\n" + HOJE_REGRAS,
+  esquema: HOJE_ESQUEMA,
+  validar(r, ctx, entrada) {
+    if (typeof ctx.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(ctx.data)) return { ok: false, motivo: "data do contexto inválida" };
+    return validarHoje(r, entrada);
+  },
+};
+
 export const ACOES: Record<string, Acao> = {
   [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo,
   [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro, [alimentacaoPedido.id]: alimentacaoPedido,
+  [hojeAnalise.id]: hojeAnalise,
 };
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */

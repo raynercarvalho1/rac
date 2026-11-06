@@ -256,6 +256,9 @@
   /* dólar: 2 casas; abaixo de 1 centavo, até 4 (uma leitura custa frações de centavo) */
   function iaUsd(v){var n=+v||0,a=Math.abs(n);if(a>0&&a<0.00005)return "menos de US$ 0,0001";
     return "US$ "+(a>0&&a<0.01?iaNum(n,4).replace(/0{1,2}$/,""):iaNum(n,2))}
+  /* dólar das telas de custo: até 4 casas abaixo de 1 dólar, sem zeros sobrando (0,026 e não 0,03: uma chamada custa frações de centavo) */
+  function iaUsdFino(v){var n=+v||0,a=Math.abs(n);if(a===0)return "US$ 0,00";if(a<0.00005)return "menos de US$ 0,0001";
+    return "US$ "+iaNum(n,a<1?4:2).replace(/(,\d\d\d*?)0+$/,"$1")}
   function iaReais(v){var n=+v||0;return n>0&&n<0.005?"menos de R$ 0,01":"R$ "+iaNum(n,2)}
   /* quanto um valor em dólar custa em reais, com o câmbio e os impostos da configuração (como emReais no servidor) */
   function iaBrl(usd,cfg){cfg=cfg||{};var c=+cfg.cambio_brl_usd>0?+cfg.cambio_brl_usd:6,i=+cfg.margem_impostos>=0?+cfg.margem_impostos:0.12;return iaReais((+usd||0)*c*(1+i))}
@@ -280,7 +283,7 @@
   /* os últimos n meses (competências), do atual para trás: "2026-10-01", "2026-09-01"… */
   function iaCompetencias(mes,n){var m=/^(\d{4})-(\d{2})/.exec(String(mes||"")),l=[];if(!m)return l;var a=+m[1],k=+m[2];
     for(var i=0;i<(n||12);i++){l.push(a+"-"+(k<10?"0":"")+k+"-01");k--;if(!k){k=12;a--}}return l}
-  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva",alimentacao:"Alimentação",compras:"Central de Compras"};
+  var IA_MODULOS={abastecimento:"Abastecimento",mercado:"Nota do mercado",newsletter:"Newsletter",esportes:"Central Esportiva",alimentacao:"Alimentação",compras:"Central de Compras",hoje:"RAC Hoje"};
   function iaModulo(m){return IA_MODULOS[m]||String(m||"")}
   var IA_ERROS={recusado:"a IA não quis ler este conteúdo",resposta_invalida:"resposta fora do formato",provedor_recusou_pedido:"a Anthropic recusou o pedido",
     provedor_ocupado:"serviço ocupado",provedor_indisponivel:"serviço fora do ar",tempo_esgotado:"tempo esgotado",rede:"falha de rede",registro_falhou:"a resposta não foi registrada",interno:"erro interno"};
@@ -973,6 +976,231 @@
     return {ok:!falhas.length,falhas:falhas,texto:falhas.length?"não consegui ler "+falhas.join(", "):""}}
   /* de cada fonte guardada ({ok, v} ou {ok:false, erro}), só se estava boa: é o "antes" do atuConferir */
   function atuEstado(fontes){var o={};Object.keys(fontes||{}).forEach(function(k){var f=fontes[k];if(f&&typeof f.ok==="boolean")o[k]={ok:f.ok}});return o}
+  /* ===== RAC Hoje (docs/hoje.md): as regras do dia, sem tela e sem banco. O coletor (js/hoje.js) entrega cada fonte como
+     {ok, v, quando} ou {ok:false, erro}; aqui se decide o que pede atenção, o que mudou, o que falta e o pacote de fatos que vai
+     para a IA (ação hoje.analise). Contas, ordem e conferências são do código; a IA só interpreta. ===== */
+  var HOJE_FONTES={agenda:"Agenda",tarefas:"Tarefas da casa",vagas:"Vagas e carreira",newsletter:"Newsletter",noticias:"Notícias de Sorocaba",esportes:"Esportes",
+    mercado:"Mercado",alimentacao:"Alimentação",compras:"Compras online",orcamentos:"Orçamentos",saude:"Saúde e relógio",mba:"MBA",tempo:"Tempo em Sorocaba"};
+  /* horas até a fonte ser considerada desatualizada (pela data do próprio dado, não da leitura) */
+  var HOJE_VALIDADE={newsletter:14,noticias:12,vagas:48,saude:36,tempo:3};
+  /* treinos que a Saúde esconde (pedido do dono): a Saúde, o Painel, o Resumo e o RAC Hoje usam esta mesma lista */
+  var TREINO_OCULTOS=["fitness_equipment","open_water_swimming","cycling"];
+  var HOJE_PESO={mba:12,familia:10,veiculo:8,carreira:8,financas:8,docs:6,lembrete:6,saude:6,tarefa:4,niver:4,sistema:2};
+  function hojeReais(v){v=Math.round((+v||0)*100)/100;var s=Math.abs(v).toFixed(2).split("."),i=s[0].replace(/\B(?=(\d{3})+(?!\d))/g,".");return (v<0?"-":"")+"R$ "+i+","+s[1]}
+  function hojeDias(de,ate){return Math.round((Date.parse(ate+"T12:00:00Z")-Date.parse(de+"T12:00:00Z"))/864e5)}
+  /* estado de cada fonte: ok, vazia (respondeu sem dados), desatualizada (o dado é velho), falhou (a leitura deu erro) ou ausente */
+  function hojeEstadoFontes(fontes,agoraMs){fontes=fontes||{};return Object.keys(HOJE_FONTES).map(function(k){var f=fontes[k],nome=HOJE_FONTES[k];
+    if(!f)return {k:k,nome:nome,estado:"ausente",detalhe:"não foi lida"};
+    if(!f.ok)return {k:k,nome:nome,estado:"falhou",detalhe:String(f.erro||"erro desconhecido").slice(0,120)};
+    if(f.vazio)return {k:k,nome:nome,estado:"vazia",detalhe:"respondeu sem dados"};
+    var q=Date.parse(f.quando||""),lim=HOJE_VALIDADE[k];
+    if(lim&&isFinite(q)&&agoraMs-q>lim*3600e3)return {k:k,nome:nome,estado:"desatualizada",detalhe:"dado de "+Math.round((agoraMs-q)/3600e3)+" horas atrás",horas:Math.round((agoraMs-q)/3600e3)};
+    return {k:k,nome:nome,estado:"ok",detalhe:""}})}
+  /* prioridade: atrasado > hoje > amanhã > 3 dias > semana > sem data, com peso por área (a mesma régua da Próxima ação) */
+  function hojePrioridade(it){var d=it.dias,base=d==null?20:d<0?100+Math.min(-d,20):d===0?90:d===1?70:d<=3?50:d<=7?30:10;return base+(HOJE_PESO[it.area]||0)+(it.extra||0)}
+  function hojeNivel(p){return p>=80?"alta":p>=45?"média":"baixa"}
+  function hojeItem(o,hoje){var it={area:o.area,titulo:String(o.titulo||"").trim(),data:o.data||null,sub:o.sub||"",fonte:o.fonte,extra:o.extra||0,href:o.href||""};
+    it.dias=it.data?hojeDias(hoje,String(it.data).slice(0,10)):null;it.p=hojePrioridade(it);it.nivel=hojeNivel(it.p);it.fontes=[o.fonte];return it}
+  /* o mesmo assunto que aparece em duas fontes (ex.: avaliação do MBA na Agenda e no MBA) vira um item só, com as duas fontes */
+  function hojeChaveItem(it){return norm(it.titulo).replace(/[^a-z0-9]+/g," ").trim()+"|"+(it.data||"")}
+  function hojeDedup(itens){var por={},ordem=[];(itens||[]).forEach(function(it){var k=hojeChaveItem(it),achou=por[k];
+      if(!achou)ordem.forEach(function(o){var a=hojeChaveItem(o).split("|"),b=k.split("|");if(!achou&&a[1]===b[1]&&a[0]&&b[0]&&(a[0].indexOf(b[0])>=0||b[0].indexOf(a[0])>=0))achou=o});
+      if(!achou){var c={};Object.keys(it).forEach(function(x){c[x]=it[x]});c.fontes=it.fontes.slice();por[k]=c;ordem.push(c);return}
+      it.fontes.forEach(function(f){if(achou.fontes.indexOf(f)<0)achou.fontes.push(f)});
+      if(it.p>achou.p){achou.p=it.p;achou.nivel=it.nivel}if(it.titulo.length>achou.titulo.length)achou.titulo=it.titulo;if(!achou.sub&&it.sub)achou.sub=it.sub});
+    return ordem}
+  function hojeOrdenar(itens){return itens.slice().sort(function(a,b){return b.p-a.p||(a.data||"9").localeCompare(b.data||"9")||a.titulo.localeCompare(b.titulo)})}
+  /* finanças do mês até hoje contra o mesmo trecho do mês anterior (Mercado, pedidos e compras online, cada um uma vez) */
+  function hojeFinancas(f,hoje){f=f||{};var mes=hoje.slice(0,7),dia=+hoje.slice(8,10),dAnt=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7)-2,1)),ant=dAnt.toISOString().slice(0,7);
+    var ultAnt=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7)-1,0)).getUTCDate(),fimAnt=ant+"-"+("0"+Math.min(dia,ultAnt)).slice(-2),ontem=somaDiasISO(hoje,-1);
+    function soma(l,campo,de,ate){return (l||[]).reduce(function(s,x){var d=String(x.data||"").slice(0,10);return d>=de&&d<=ate&&!x.fora_das_contas?s+(+x[campo]||0):s},0)}
+    var o={mes:mes,dia:dia,fontes:[]},par=[["mercado","valor_total"],["alimentacao","total_pago"],["compras","total_pago"]];
+    o.atual={};o.anterior={};o.ontem={};o.total=0;o.totalAnt=0;
+    par.forEach(function(p){var fo=f[p[0]];if(!fo||!fo.ok)return;o.fontes.push(p[0]);var l=fo.v||[];
+      o.atual[p[0]]=soma(l,p[1],mes+"-01",hoje);o.anterior[p[0]]=soma(l,p[1],ant+"-01",fimAnt);o.ontem[p[0]]=soma(l,p[1],ontem,ontem);o.total+=o.atual[p[0]];o.totalAnt+=o.anterior[p[0]]});
+    o.delta=o.total-o.totalAnt;o.pct=o.totalAnt>0?Math.round(o.delta/o.totalAnt*100):null;
+    var diasMes=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7),0)).getUTCDate();o.projecao=dia>=5?Math.round(o.total/dia*diasMes*100)/100:null;
+    var orc=f.orcamentos&&f.orcamentos.ok?(f.orcamentos.v||[]).reduce(function(s,x){return s+(+x.valor||0)},0):0;
+    o.orcamento=orc>0?{valor:orc,pct:Math.round(o.total/orc*100),projecaoPct:o.projecao!=null?Math.round(o.projecao/orc*100):null}:null;
+    return o}
+  /* relógio: o último dia com dados, a prontidão (NUCLEO.prontidao), dias sem treino e a noite anterior; nunca sincroniza */
+  function hojeSaude(f,hoje){if(!f||!f.ok)return null;var dias=(f.v&&f.v.dias)||[],ativs=(f.v&&f.v.ativs)||[];if(!dias.length)return {semDados:true};
+    var ult=dias[dias.length-1],x=ult.dados||{},pr=prontidao(dias,ult.data);
+    /* passos: o dia de hoje ainda está em andamento; a comparação usa os dois últimos dias completos */
+    var comp=dias.filter(function(d){return d.data<hoje}),c1=comp[comp.length-1],c2=comp[comp.length-2];
+    var treinos=ativs.map(function(a){return String(a.inicio).slice(0,10)}).sort(),ultTreino=treinos[treinos.length-1]||null;
+    return {ultimo:ult.data,atraso:hojeDias(ult.data,hoje),prontidao:pr?pr.nota:null,rotulo:pr?pr.rotulo:null,alertas:pr?pr.alertas.slice(0,2):[],
+      sonoH:x.sono&&x.sono.total?Math.round(x.sono.total/360)/10:null,notaSono:x.sono&&x.sono.nota||null,
+      diaPassos:c1?c1.data:null,passos:c1&&c1.dados&&c1.dados.passos||null,diaPassosAnt:c2?c2.data:null,passosAnt:c2&&c2.dados&&c2.dados.passos||null,vfc:x.vfc&&x.vfc.noite||null,ultTreino:ultTreino,semTreino:ultTreino?hojeDias(ultTreino,hoje):null,treinos7:treinos.filter(function(d){return d>=somaDiasISO(hoje,-6)}).length,
+      dias7:Object.keys(ativs.reduce(function(o,a){var d=String(a.inicio).slice(0,10);if(d>=somaDiasISO(hoje,-6))o[d]=1;return o},{})).length,
+      tipos7:ativs.reduce(function(o,a){if(String(a.inicio).slice(0,10)>=somaDiasISO(hoje,-6))o[a.tipo]=(o[a.tipo]||0)+1;return o},{})}}
+  /* vagas novas (até 7 dias) e compatíveis com as competências do perfil, fora do funil e não escondidas */
+  function hojeVagas(f,skills,noFunil,ocultas){if(!f||!f.ok)return [];noFunil=noFunil||[];ocultas=ocultas||{};
+    return ((f.v&&f.v.vagas)||[]).filter(function(v){return v.d<=7&&noFunil.indexOf(v.id)<0&&!ocultas[v.id]})
+      .map(function(v){var c=compatVaga(v.t+" "+(v.nv||""),skills||[]);return {t:v.t,e:v.e||"",cidade:v.cidade||"",d:v.d,nota:c.nota,falta:c.falta}})
+      .filter(function(v){return v.nota!=null&&v.nota>=60}).sort(function(a,b){return b.nota-a.nota||a.d-b.d}).slice(0,4)}
+  /* o que pede atenção, de todas as fontes, sem repetição e em ordem */
+  function hojeItens(f,hoje,extras){f=f||{};var l=[];
+    if(f.agenda&&f.agenda.ok)(f.agenda.v||[]).forEach(function(e){var d=hojeDias(hoje,e.data);if(d<-30||d>14)return;
+      l.push(hojeItem({area:e.tipo,titulo:(e.pre&&!/^(Aula|Boleto|Responder|Aniversário de)$/.test(e.pre)?e.pre+": ":"")+e.t,data:e.data,sub:e.sub,fonte:"agenda",href:e.href},hoje))});
+    if(f.mba&&f.mba.ok){var M=f.mba.v||{};(M.avals||[]).forEach(function(a){if(!a.feita)l.push(hojeItem({area:"mba",titulo:a.t+(a.disc?" ("+a.disc+")":""),data:a.ate,sub:"responder a avaliação do MBA",fonte:"mba"},hoje))});
+      (M.aulas||[]).filter(function(a){return a.data>=hoje}).slice(0,2).forEach(function(a){l.push(hojeItem({area:"mba",titulo:a.t,data:a.data,sub:"aula às "+a.hora,fonte:"mba"},hoje))})}
+    if(f.tarefas&&f.tarefas.ok)(f.tarefas.v||[]).forEach(function(t){var idade=t.criado?hojeDias(String(t.criado).slice(0,10),hoje):0;
+      l.push(hojeItem({area:"tarefa",titulo:"Tarefa: "+t.item,sub:idade>=7?"aberta há "+idade+" dias":"",fonte:"tarefas",extra:Math.min(idade,20)},hoje))});
+    if(f.compras&&f.compras.ok){var rec=(f.compras.v||[]).filter(function(c){return c.recorrencia_status==="a_confirmar"});
+      if(rec.length)l.push(hojeItem({area:"financas",titulo:"Confirmar "+rec.length+(rec.length===1?" recorrência":" recorrências")+" nas compras online",sub:rec.slice(0,3).map(function(c){return c.recorrencia_texto||c.loja}).join(", "),fonte:"compras",extra:10,href:"#compras"},hoje))}
+    extras=extras||{};
+    if(extras.saude&&extras.saude.prontidao!=null&&extras.saude.atraso<=1){var s=extras.saude;
+      if(s.prontidao<45)l.push(hojeItem({area:"saude",titulo:"Dia de recuperação (prontidão "+s.prontidao+")",data:hoje,sub:s.alertas.join("; "),fonte:"saude",extra:-30,href:"#saude"},hoje));
+      else if(s.semTreino!=null&&s.semTreino>=3)l.push(hojeItem({area:"saude",titulo:(s.prontidao>=70?"Bom dia para treinar forte":"Que tal um treino moderado")+" (prontidão "+s.prontidao+", "+s.semTreino+" dias sem treino)",data:hoje,fonte:"saude",extra:-40,href:"#saude"},hoje))}
+    if(extras.financas&&extras.financas.orcamento&&extras.financas.orcamento.projecaoPct!=null&&extras.financas.orcamento.projecaoPct>100)
+      l.push(hojeItem({area:"financas",titulo:"Gastos do mês a caminho de "+extras.financas.orcamento.projecaoPct+"% do orçamento",data:hoje,fonte:"mercado",extra:-30,href:"#painel/financas"},hoje));
+    (extras.vagas||[]).slice(0,2).forEach(function(v){if(v.nota>=70)l.push(hojeItem({area:"carreira",titulo:"Vaga "+v.nota+"% compatível: "+v.t+(v.e?" ("+v.e+")":""),sub:v.d<=1?"publicada hoje ou ontem":"há "+v.d+" dias",fonte:"vagas",extra:-20},hoje))});
+    return hojeOrdenar(hojeDedup(l))}
+  /* o que mudou desde ontem, só com contas do código (sem base, não compara) */
+  function hojeMudancas(f,hoje,fin,saude){f=f||{};var l=[],ontem=somaDiasISO(hoje,-1);
+    if(fin&&fin.fontes.length){var go=Object.keys(fin.ontem).reduce(function(s,k){return s+fin.ontem[k]},0);
+      if(go>0)l.push({area:"financas",texto:"Gastos registrados ontem: "+hojeReais(go)});
+      if(fin.totalAnt>0)l.push({area:"financas",texto:"Gastos do mês até hoje: "+hojeReais(fin.total)+" contra "+hojeReais(fin.totalAnt)+" no mesmo trecho do mês passado ("+(fin.pct>0?"+":"")+fin.pct+"%)"});
+      else if(fin.total>0)l.push({area:"financas",texto:"Gastos do mês até hoje: "+hojeReais(fin.total)+" (sem base no mês passado para comparar)"})}
+    if(f.vagas&&f.vagas.ok){var nv=((f.vagas.v&&f.vagas.v.vagas)||[]).filter(function(v){return v.d<=1}).length;if(nv)l.push({area:"carreira",texto:nv+(nv===1?" vaga nova":" vagas novas")+" desde ontem"})}
+    if(saude&&!saude.semDados&&saude.ultimo){if(saude.passos!=null&&saude.passosAnt!=null)l.push({area:"saude",texto:"Passos em "+saude.diaPassos+" (dia completo): "+saude.passos+" contra "+saude.passosAnt+" em "+saude.diaPassosAnt});
+      if(saude.ultTreino===ontem)l.push({area:"saude",texto:"Teve treino ontem"})}
+    if(f.newsletter&&f.newsletter.ok&&f.newsletter.quando&&String(f.newsletter.quando).slice(0,10)>=ontem){var q=Date.parse(f.newsletter.quando);l.push({area:"noticias",texto:"Edição nova da Newsletter coletada em "+(isFinite(q)?new Date(q-3*3600e3).toISOString().slice(0,16).replace("T"," às ")+" (Brasília)":String(f.newsletter.quando).slice(0,10))})}
+    return l}
+  /* tira do texto o que nunca vai para a IA: links, e-mails, números longos (documentos, cartões, chaves) e os sinais < > */
+  function hojeLimpar(t){return String(t==null?"":t).replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi,"").replace(/[^\s@]+@[^\s@]+\.[a-z]{2,}/gi,"[e-mail]")
+    .replace(/\d[\d.\-\/ ]{9,}\d/g,function(m){return /^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})( \d{2})?$/.test(m)?m:"[número]"}).replace(/[<>]/g,"").replace(/\s{2,}/g," ").trim()}
+  var HOJE_PROIBIDO=/senha|password|token|api[_ -]?key|secret|chave (secreta|privada|da api)|service_role|bearer/i;
+  /* o pacote de fatos que vai para a IA: cada fato com id, fonte e período; nada de segredo, link, e-mail ou documento; com teto */
+  /* extra.quem: quem é quem no RAC (ex.: "Olivia é a filha bebê do dono"), para a IA não confundir pessoas, pets e veículos */
+  function hojeContexto(f,hoje,agoraMs,max,extra){f=f||{};max=max||12000;extra=extra||{};var fatos=[],estados=hojeEstadoFontes(f,agoraMs);
+    var fin=hojeFinancas(f,hoje),sau=hojeSaude(f.saude,hoje),vg=f.vagas&&f.vagas.ok?hojeVagas(f.vagas,f.vagas.v.skills,f.vagas.v.noFunil,f.vagas.v.ocultas):[];
+    var itens=hojeItens(f,hoje,{saude:sau,financas:fin,vagas:vg}),mud=hojeMudancas(f,hoje,fin,sau);
+    function add(fonte,periodo,texto){texto=hojeLimpar(texto);if(!texto||HOJE_PROIBIDO.test(texto)||fatos.length>=99)return;fatos.push({fonte:fonte,periodo:periodo,texto:texto.slice(0,300)})}
+    add("rac","hoje","Hoje é "+hoje+".");
+    if(extra.quem)add("rac","sempre","Quem é quem no RAC: "+extra.quem+".");
+    estados.forEach(function(e){if(e.estado!=="ok")add("rac","hoje","Fonte "+e.nome+": "+(e.estado==="falhou"?"a leitura falhou ("+e.detalhe+")":e.estado==="vazia"?"sem dados":e.estado==="desatualizada"?"desatualizada, "+e.detalhe:"não foi lida")+".")});
+    itens.slice(0,25).forEach(function(it){add(it.fontes.join("+"),it.data||"sem data","Prioridade "+it.nivel+": "+it.titulo+(it.sub?" — "+it.sub:"")+(it.dias==null?"":it.dias<0?" (atrasado há "+(-it.dias)+(it.dias===-1?" dia)":" dias)"):it.dias===0?" (hoje)":it.dias===1?" (amanhã)":" (em "+it.dias+" dias, "+it.data+")"))});
+    mud.forEach(function(m){add(m.area,"desde ontem",m.texto)});
+    if(fin.fontes.length){add("financas",fin.mes,"Gastos do mês até o dia "+fin.dia+": "+hojeReais(fin.total)+" (Mercado "+hojeReais(fin.atual.mercado||0)+", pedidos "+hojeReais(fin.atual.alimentacao||0)+", compras online "+hojeReais(fin.atual.compras||0)+").");
+      if(fin.projecao!=null)add("financas",fin.mes,"No ritmo atual, o mês fecharia em "+hojeReais(fin.projecao)+".");
+      if(fin.orcamento)add("financas",fin.mes,"Orçamentos somados: "+hojeReais(fin.orcamento.valor)+"; usado até agora: "+fin.orcamento.pct+"%"+(fin.orcamento.projecaoPct!=null?"; projeção: "+fin.orcamento.projecaoPct+"%":"")+".")}
+    if(sau&&!sau.semDados){add("saude",sau.ultimo,"Último dia com dados do relógio: "+sau.ultimo+(sau.atraso>1?" ("+sau.atraso+" dias atrás; a Saúde precisa ser sincronizada pelo botão próprio)":"")+".");
+      if(sau.prontidao!=null)add("saude",sau.ultimo,"Prontidão "+sau.prontidao+" ("+sau.rotulo+")"+(sau.alertas.length?"; "+sau.alertas.join("; "):"")+".");
+      if(sau.sonoH!=null)add("saude",sau.ultimo,"Sono: "+String(sau.sonoH).replace(".",",")+" h"+(sau.notaSono?", nota "+sau.notaSono:"")+".");
+      add("saude","últimos 7 dias",sau.treinos7+(sau.treinos7===1?" atividade registrada":" atividades registradas")+" nos últimos 7 dias, em "+sau.dias7+(sau.dias7===1?" dia":" dias")+
+        (sau.treinos7?" ("+Object.keys(sau.tipos7).sort().map(function(k){return k.replace(/_/g," ")+": "+sau.tipos7[k]}).join(", ")+")":"")+(sau.semTreino!=null?"; último há "+sau.semTreino+(sau.semTreino===1?" dia":" dias"):"")+".")}
+    vg.forEach(function(v){add("vagas","últimos 7 dias","Vaga "+v.t+(v.e?" na "+v.e:"")+(v.cidade?" ("+v.cidade+")":"")+": "+v.nota+"% compatível com o perfil"+(v.falta.length?"; faltam "+v.falta.join(", "):"")+"; publicada há "+v.d+(v.d===1?" dia":" dias")+".")});
+    if(f.vagas&&f.vagas.ok&&f.vagas.v.funil)add("vagas","agora","Candidaturas no funil: "+f.vagas.v.funil+".");
+    if(f.mba&&f.mba.ok&&f.mba.v.progresso)add("mba","agora",f.mba.v.progresso);
+    if(f.newsletter&&f.newsletter.ok)(f.newsletter.v.destaques||[]).slice(0,6).forEach(function(g){add("newsletter",String(f.newsletter.quando||"").slice(0,10),"Destaque ("+g.cat+(g.n>1?", "+g.n+" veículos":"")+"): "+g.t)});
+    if(f.noticias&&f.noticias.ok)(f.noticias.v||[]).slice(0,4).forEach(function(n){add("noticias",String(n.d||"").slice(0,10),"Sorocaba: "+n.t+(n.f?" ("+n.f+")":""))});
+    if(f.esportes&&f.esportes.ok&&f.esportes.v)add("esportes",hoje,f.esportes.v);
+    if(f.tempo&&f.tempo.ok&&f.tempo.v)add("tempo",hoje,f.tempo.v);
+    var texto="",usados=[];
+    fatos.forEach(function(x,i){var id="f"+("0"+(i+1)).slice(-2),l="<fato id=\""+id+"\" fonte=\""+x.fonte+"\" periodo=\""+x.periodo+"\">"+x.texto+"</fato>\n";if(texto.length+l.length>max)return;texto+=l;usados.push({id:id,fonte:x.fonte,texto:x.texto})});
+    return {texto:texto,fatos:usados,itens:itens,mudancas:mud,financas:fin,saude:sau,vagas:vg,estados:estados}}
+  /* chave da análise: o mesmo pacote de fatos (e a mesma pergunta) não é analisado nem pago duas vezes; nova análise manual = tentativa+1 */
+  function hojeChave(hoje,texto,pergunta,tentativa){return "hoje-"+hoje+"-"+nlHash(String(texto)+"|"+String(pergunta||""))+(tentativa?"-"+tentativa:"")}
+  /* o pacote que identifica a análise na chave: o mesmo texto que vai para a IA, sem o tempo (os fatos da fonte "tempo" e o estado da
+     fonte Tempo) e sem os ids dos fatos (que mudariam quando o fato do estado do tempo entra ou sai). A IA continua recebendo o tempo. */
+  var HOJE_CHAVE_SEM=[/^<fato id="f\d+" fonte="tempo" /,new RegExp('^<fato id="f\\d+" fonte="rac" periodo="hoje">Fonte '+HOJE_FONTES.tempo+':')];
+  function hojeTextoChave(texto){return String(texto||"").split("\n").filter(function(l){return l&&!HOJE_CHAVE_SEM.some(function(r){return r.test(l)})})
+    .map(function(l){return l.replace(/^<fato id="f\d+" /,"<fato ")}).join("\n")}
+  /* ===== Monitor de custos da IA (view ia_custos do 029): as contas, sem tela e sem banco. Conhecido = o valor cobrado que o dono
+     conferiu no Console; estimado = uso informado pela API × tabela de preços da hora; incerto = chamada sem resposta certa (conta a
+     reserva cheia, o pior caso); sem custo = não chegou a ser enviada. Nada é inventado: sem tokens, sem estimativa. ===== */
+  var IA_AVISOS_PADRAO=[50,75,90];
+  function iaCustoChamada(l){l=l||{};
+    if(l.conhecido_usd!=null)return {usd:+l.conhecido_usd||0,tipo:"conhecido"};
+    if(l.estado==="concluido"||l.estado==="reconciliado")return l.estimado_usd!=null?{usd:+l.estimado_usd||0,tipo:"estimado"}:{usd:0,tipo:"sem_dado"};
+    if(l.estado==="incerto"||l.estado==="enviando")return {usd:+l.reservado_usd||0,tipo:"incerto"};
+    return {usd:0,tipo:"sem_custo"}}
+  /* o dia (AAAA-MM-DD) de um instante em Brasília (UTC-3, sem horário de verão): criado_em vem em UTC, e uma chamada das 22h de Brasília
+     já é do dia seguinte em UTC */
+  function iaDiaBR(iso){var s=String(iso||"");if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;var t=Date.parse(s);return isFinite(t)?new Date(t-3*3600e3).toISOString().slice(0,10):s.slice(0,10)}
+  function iaMediana(v){if(!v.length)return null;var s=v.slice().sort(function(a,b){return a-b}),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2}
+  /* linhas: as da view ia_custos; hoje "AAAA-MM-DD" (fuso de Brasília, como o resto do site); filtro {de, ate, funcionalidade, modelo};
+     cfg: ia_config (câmbio, impostos, limite em reais, avisos_pct, atipico_fator) */
+  function iaMonitor(linhas,hoje,cfg,filtro){cfg=cfg||{};filtro=filtro||{};var vistos={},L=[];
+    (linhas||[]).forEach(function(l){if(!l||!l.id||vistos[l.id])return;vistos[l.id]=1;var dia=iaDiaBR(l.criado_em);
+      if(filtro.de&&dia<filtro.de||filtro.ate&&dia>filtro.ate||filtro.funcionalidade&&l.funcionalidade!==filtro.funcionalidade||filtro.modelo&&l.modelo!==filtro.modelo)return;
+      var c=iaCustoChamada(l);L.push({l:l,dia:dia,mes:dia.slice(0,7),usd:c.usd,tipo:c.tipo})});
+    var cambio=+cfg.cambio_brl_usd>0?+cfg.cambio_brl_usd:6,imp=+cfg.margem_impostos>=0?+cfg.margem_impostos:0.12;
+    function brl(usd){return Math.round(usd*cambio*(1+imp)*100)/100}
+    function soma(lista){var o={usd:0,conhecido:0,estimado:0,incerto:0,chamadas:0,pagas:0,falhas:0,tokensEntrada:0,tokensSaida:0,cacheLeitura:0,cacheEscrita:0};
+      lista.forEach(function(x){o.usd+=x.usd;if(x.tipo==="conhecido")o.conhecido+=x.usd;else if(x.tipo==="estimado")o.estimado+=x.usd;else if(x.tipo==="incerto")o.incerto+=x.usd;
+        o.chamadas++;if(x.tipo!=="sem_custo")o.pagas++;if(x.l.erro_codigo||x.tipo==="incerto"||x.tipo==="sem_custo")o.falhas++;
+        o.tokensEntrada+=+x.l.tokens_entrada||0;o.tokensSaida+=+x.l.tokens_saida||0;o.cacheLeitura+=+x.l.tokens_cache_leitura||0;o.cacheEscrita+=+x.l.tokens_cache_escrita||0});
+      ["usd","conhecido","estimado","incerto"].forEach(function(k){o[k]=Math.round(o[k]*1e6)/1e6});o.brl=brl(o.usd);o.medio=o.pagas?Math.round(o.usd/o.pagas*1e6)/1e6:null;return o}
+    var d7=somaDiasISO(hoje,-6),mes=hoje.slice(0,7);
+    var r={hoje:soma(L.filter(function(x){return x.dia===hoje})),semana:soma(L.filter(function(x){return x.dia>=d7&&x.dia<=hoje})),
+      mes:soma(L.filter(function(x){return x.mes===mes})),total:soma(L),porFuncionalidade:{},porModelo:{},diario:[],mensal:[],cambio:cambio,impostos:imp};
+    function agrupa(chave){var g={};L.forEach(function(x){var k=chave(x)||"?";(g[k]=g[k]||[]).push(x)});var o={};Object.keys(g).sort().forEach(function(k){o[k]=soma(g[k])});return o}
+    r.porFuncionalidade=agrupa(function(x){return x.l.funcionalidade});r.porModelo=agrupa(function(x){return x.l.modelo});
+    var dias=agrupa(function(x){return x.dia}),meses=agrupa(function(x){return x.mes});
+    for(var i=29;i>=0;i--){var d=somaDiasISO(hoje,-i);r.diario.push({dia:d,usd:dias[d]?dias[d].usd:0,conhecido:dias[d]?dias[d].conhecido:0,estimado:dias[d]?dias[d].estimado:0,incerto:dias[d]?dias[d].incerto:0,chamadas:dias[d]?dias[d].chamadas:0})}
+    r.mensal=Object.keys(meses).map(function(m){return {mes:m,usd:meses[m].usd,brl:meses[m].brl,conhecido:meses[m].conhecido,estimado:meses[m].estimado,incerto:meses[m].incerto,chamadas:meses[m].chamadas}});
+    /* avisos: % do limite mensal em reais (com câmbio e impostos, como o servidor); nada é configurado aqui */
+    var lim=+cfg.limite_brl>0?+cfg.limite_brl:null,avisos=(cfg.avisos_pct&&cfg.avisos_pct.length?cfg.avisos_pct:IA_AVISOS_PADRAO).slice().sort(function(a,b){return a-b});
+    r.limite=lim?{brl:lim,pct:Math.round(r.mes.brl/lim*100),atingidos:avisos.filter(function(a){return r.mes.brl/lim*100>=a})}:null;
+    /* consumo atípico: hoje acima de fator × a mediana dos dias com gasto nas duas semanas anteriores (precisa de 5 dias de base) */
+    var base=[];for(var j=1;j<=14;j++){var dd=somaDiasISO(hoje,-j);if(dias[dd]&&dias[dd].usd>0)base.push(dias[dd].usd)}
+    var fator=+cfg.atipico_fator>0?+cfg.atipico_fator:3,med=base.length>=5?iaMediana(base):null;
+    r.atipico=med&&r.hoje.usd>fator*med?{hoje:r.hoje.usd,mediana:med,fator:fator}:null;
+    /* funcionalidades com custo alto: mais da metade do gasto do mês */
+    r.caras=Object.keys(r.porFuncionalidade).filter(function(k){var m=soma(L.filter(function(x){return x.mes===mes&&x.l.funcionalidade===k}));return r.mes.usd>0&&m.usd/r.mes.usd>0.5}).map(function(k){return k});
+    return r}
+  /* ===== Tela de Custos de IA (docs/hoje.md): a classe de cada custo, o histórico filtrado, ordenado e paginado, e os filtros disponíveis.
+     Classes: reconciliado (valor cobrado que o dono conferiu no Console), estimado (tokens informados pela API × tabela de preços da
+     hora), reserva (chamada sem resposta certa: conta a reserva cheia), sem dado e sem custo. A API da Anthropic informa tokens, não
+     custo: não existe "custo informado pelo provedor" nos registros, e a tela diz isso em vez de inventar. ===== */
+  var IA_CLASSES={reconciliado:"Reconciliado",estimado:"Estimado",reserva:"Reserva (incerta)",sem_dado:"Sem dado de uso",sem_custo:"Sem custo"};
+  function iaClasse(l){var c=iaCustoChamada(l),k=c.tipo==="conhecido"?"reconciliado":c.tipo==="incerto"?"reserva":c.tipo;return {chave:k,rotulo:IA_CLASSES[k]||k,usd:c.usd}}
+  /* o provedor informou o uso (tokens) e o id da requisição */
+  function iaInformadoProvedor(l){return !!(l&&l.tokens_entrada!=null&&l.requisicao_id)}
+  function iaStatusCustos(l){l=l||{};var e=l.estado,erro=l.erro_codigo?(IA_ERROS[l.erro_codigo]||l.erro_codigo):"";
+    if(e==="concluido")return erro?"Recusada: "+erro:"Concluída";
+    if(e==="reconciliado")return +l.conhecido_usd>0?"Conferida: cobrada":"Conferida: não cobrada";
+    if(e==="incerto")return "Incerta"+(erro?" ("+erro+")":"");
+    if(e==="enviando")return "Em andamento";if(e==="reservado")return "Reservada";
+    if(e==="falhou_sem_envio")return "Falhou antes do envio"+(erro?" ("+erro+")":"");
+    return String(e||"?")}
+  function iaOpcoes(linhas){var f={},m={},s={};(linhas||[]).forEach(function(l){if(!l)return;if(l.funcionalidade)f[l.funcionalidade]=1;if(l.modelo)m[l.modelo]=1;if(l.estado)s[l.estado]=1});
+    return {funcionalidades:Object.keys(f).sort(),modelos:Object.keys(m).sort(),estados:Object.keys(s).sort()}}
+  /* o: {de, ate, funcionalidade, modelo, classe, estado, ordem:{campo, dir}, pagina, porPagina}; campos de ordem: data, funcionalidade,
+     modelo, tokens, custo, status */
+  function iaHistorico(linhas,o){o=o||{};var vistos={},L=[];
+    (linhas||[]).forEach(function(l){if(!l||!l.id||vistos[l.id])return;vistos[l.id]=1;var dia=iaDiaBR(l.criado_em),c=iaClasse(l);
+      if(o.de&&dia<o.de||o.ate&&dia>o.ate||o.funcionalidade&&l.funcionalidade!==o.funcionalidade||o.modelo&&l.modelo!==o.modelo||o.classe&&c.chave!==o.classe||o.estado&&l.estado!==o.estado)return;
+      L.push({l:l,dia:dia,classe:c.chave,classeRotulo:c.rotulo,usd:c.usd,status:iaStatusCustos(l),tokens:(+l.tokens_entrada||0)+(+l.tokens_saida||0),
+        informado:iaInformadoProvedor(l)})});
+    var ord=o.ordem||{},campo=ord.campo||"data",dir=ord.dir==="asc"?1:-1;
+    var chave={data:function(x){return String(x.l.criado_em||"")},funcionalidade:function(x){return String(x.l.funcionalidade||"")},modelo:function(x){return String(x.l.modelo||"")},
+      tokens:function(x){return x.tokens},custo:function(x){return x.usd},status:function(x){return x.status}}[campo]||function(x){return String(x.l.criado_em||"")};
+    L.sort(function(a,b){var p=chave(a),q=chave(b),c=p<q?-1:p>q?1:0;if(c)return c*dir;var d=String(b.l.criado_em||"")<String(a.l.criado_em||"")?-1:String(b.l.criado_em||"")>String(a.l.criado_em||"")?1:0;return d||(a.l.id<b.l.id?-1:1)});
+    var soma={usd:0,reconciliado:0,estimado:0,reserva:0,tokensEntrada:0,tokensSaida:0};
+    L.forEach(function(x){soma.usd+=x.usd;if(x.classe==="reconciliado")soma.reconciliado+=x.usd;else if(x.classe==="estimado")soma.estimado+=x.usd;else if(x.classe==="reserva")soma.reserva+=x.usd;
+      soma.tokensEntrada+=+x.l.tokens_entrada||0;soma.tokensSaida+=+x.l.tokens_saida||0});
+    ["usd","reconciliado","estimado","reserva"].forEach(function(k){soma[k]=Math.round(soma[k]*1e6)/1e6});
+    var por=Math.max(5,Math.min(100,Math.round(+o.porPagina)||15)),paginas=Math.max(1,Math.ceil(L.length/por)),pag=Math.max(1,Math.min(paginas,Math.round(+o.pagina)||1));
+    return {itens:L.slice((pag-1)*por,pag*por),total:L.length,soma:soma,pagina:pag,paginas:paginas,porPagina:por,de:L.length?(pag-1)*por+1:0,ate:Math.min(L.length,pag*por)}}
+  /* ===== Tela do RAC Hoje: a análise guardada ainda vale? Compara o pacote de fatos de agora com o da análise (sem chamar a IA). ===== */
+  var HOJE_IDADE_MAX_H=6;
+  function hojeDefasagem(a,pacoteAtual,hoje,agoraMs){
+    if(!a)return null;
+    if(a.hoje&&hoje&&a.hoje!==hoje)return {atual:false,nivel:"outro_dia",motivo:"É de outro dia ("+String(a.hoje).split("-").reverse().join("/")+"). Os fatos de hoje podem ser outros."};
+    if(!a.pacote||!pacoteAtual)return {atual:false,nivel:"sem_base",motivo:"Não dá para comparar com os dados de agora."};
+    if(a.pacote!==pacoteAtual)return {atual:false,nivel:"dados_mudaram",motivo:"Os dados do RAC mudaram desde esta análise."};
+    var q=Date.parse(a.quando||""),h=isFinite(q)&&agoraMs!=null?(agoraMs-q)/3600e3:0;
+    if(h>HOJE_IDADE_MAX_H)return {atual:false,nivel:"velha",motivo:"Foi feita há "+Math.floor(h)+" horas, com os mesmos dados."};
+    return {atual:true,nivel:"ok",motivo:"Feita com os dados de agora."}}
+  /* os fatos que a análise cita, na ordem do pacote (para mostrar "Fatos utilizados" sem depender do pacote atual) */
+  function hojeCitados(res,fatos){res=res||{};var ids={};
+    function add(l){(l||[]).forEach(function(i){ids[i]=1})}
+    add(res.resumo_fatos);["atencao","relacoes","recomendacoes"].forEach(function(k){(res[k]||[]).forEach(function(x){add(x.fatos)})});if(res.resposta)add(res.resposta.fatos);
+    return (fatos||[]).filter(function(f){return ids[f.id]}).map(function(f){return {id:f.id,fonte:f.fonte,texto:f.texto}})}
   /* ===== Central de Compras (docs/compras.md): pedidos de lojas online (Amazon primeiro; Mercado Livre e outras pelo mesmo formato).
      Lê o texto do PDF/e-mail/OCR, a NF-e (XML) e o CSV de histórico; junta os documentos do mesmo pedido, aponta divergências,
      evita duplicidade e acha recorrências. Nunca guarda número de cartão: só a bandeira e os 4 últimos dígitos. ===== */
@@ -1130,6 +1358,9 @@
     alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
     alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
     atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
+    TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
+    hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,
+    IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
     coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};
 })(typeof window!=="undefined"?window:globalThis);

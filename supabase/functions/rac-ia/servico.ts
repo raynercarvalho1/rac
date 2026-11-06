@@ -7,9 +7,9 @@
 
 import { ACOES, caracteresDoPedido, montarPedido } from "./acoes.ts";
 import { respostaErro, validarPedido, type Consumo, type Resposta } from "./contrato.ts";
-import { respostaDemo } from "./demo.ts";
+import { respostaDemo, temDemo } from "./demo.ts";
 import {
-  codigoDoErro, configDe, custoUsd, decidirModo, destinoAposErro, LIMITES, nivelAlerta, reservaUsd, tokensEntradaPorExcesso,
+  codigoDoErro, configDe, custoDetalhe, custoUsd, decidirModo, type DetalheCusto, destinoAposErro, LIMITES, nivelAlerta, reservaUsd, tokensEntradaPorExcesso,
   type Config, type ErroProvedor, type Preco,
 } from "./orcamento.ts";
 import type { ProvedorIA } from "./provedores.ts";
@@ -22,7 +22,7 @@ export type Banco = {
   reservar(a: { dono: string; user: string; idempotencia: string; modulo: string; acao: string; modelo: string; reservado_usd: number; tokens_contados: number; contagem_oficial: boolean }): Promise<Reserva>;
   marcarEnvio(id: string): Promise<boolean>;
   falhouSemEnvio(id: string, erro: string): Promise<boolean>;
-  concluir(id: string, tokensEntrada: number, tokensSaida: number, estimadoUsd: number, ms: number, erro: string | null): Promise<boolean>;
+  concluir(id: string, tokensEntrada: number, tokensSaida: number, estimadoUsd: number, ms: number, erro: string | null, detalhe?: DetalheCusto): Promise<boolean>;
   marcarIncerto(id: string, erro: string, ms: number): Promise<boolean>;
 };
 export type Dependencias = {
@@ -53,7 +53,11 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
   if (!a.papeis.includes(papel) || (papel === "casa" && !cfg.acoes_casa.includes(a.id))) return respostaErro("sem_permissao", base);
 
   const { modo, motivo } = temConfig ? decidirModo(cfg, !!d.provedor, a, papel) : { modo: "DEMO" as const, motivo: "A configuração da IA desta casa ainda não foi criada." };
-  if (modo === "DEMO" || !d.provedor) return ok(respostaDemo(a.id, p.contexto, motivo, v.avisos, p.entrada));
+  if (modo === "DEMO" || !d.provedor) {
+    /* ação só REAL (RAC Hoje): nunca uma resposta simulada; diz por que a análise não pôde ser feita */
+    if (!temDemo(a.id)) return respostaErro("sem_real", { ...base, modo: "DEMO", detalhe: motivo || "A chave da Anthropic não está configurada no servidor." });
+    return ok(respostaDemo(a.id, p.contexto, motivo, v.avisos, p.entrada));
+  }
 
   /* ---------- REAL ---------- */
   const preco = await d.banco.preco(a.modelo).catch(() => null);
@@ -93,8 +97,10 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
   }
 
   const ms = agora() - t0, estimado = custoUsd(preco, resp.uso.entrada, resp.uso.saida);
+  /* o detalhe do monitor de custos (029): entrada, saída e cache separados, o preço e o câmbio usados e o id da requisição */
+  const detalhe = custoDetalhe(preco, resp.uso, cfg, d.provedor.nome, resp.requisicao ?? null);
   const codigoResp = resp.tipo === "recusa" ? "recusado" : resp.tipo === "ok" ? null : "resposta_invalida";
-  const registrado = await d.banco.concluir(id, resp.uso.entrada, resp.uso.saida, estimado, ms, codigoResp).catch(() => false);
+  const registrado = await d.banco.concluir(id, resp.uso.entrada, resp.uso.saida, estimado, ms, codigoResp, detalhe).catch(() => false);
   if (!registrado) await d.banco.marcarIncerto(id, "registro_falhou", ms).catch(() => {});
   log({ id, acao: a.id, estado: registrado ? "concluido" : "incerto", erro: codigoResp, ms, modelo: resp.modelo });
 
@@ -102,7 +108,7 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
   const teto = r.teto_usd ?? 0, pct = teto > 0 ? Math.round(comprometido / teto * 100) : 100;
   const consumo: Consumo = {
     modelo: resp.modelo,
-    uso_api: { tokens_entrada: resp.uso.entrada, tokens_saida: resp.uso.saida },
+    uso_api: { tokens_entrada: resp.uso.entrada, tokens_saida: resp.uso.saida, tokens_cache_leitura: resp.uso.cacheLeitura ?? 0, tokens_cache_escrita: resp.uso.cacheEscrita ?? 0 },
     reservado_usd: reservado,
     estimado_rac_usd: estimado,
     cobranca_efetiva: null,

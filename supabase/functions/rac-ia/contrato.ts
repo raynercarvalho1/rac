@@ -21,6 +21,8 @@ export const ERROS: Record<string, { status: number; mensagem: string }> = {
   configuracao_ausente: { status: 503, mensagem: "A configuração da IA desta casa não existe. Nada foi reservado nem cobrado." },
   modo_demo: { status: 409, mensagem: "O modo REAL está desligado para esta casa. Nada foi reservado nem cobrado." },
   acao_em_demo: { status: 409, mensagem: "O modo REAL não está liberado para esta leitura. Nada foi reservado nem cobrado." },
+  /* ação que só existe em REAL (RAC Hoje): sem demonstração, o pedido é recusado em vez de simulado */
+  sem_real: { status: 409, mensagem: "Esta análise só existe com a IA real, e ela não está liberada agora. Nada foi analisado, reservado nem cobrado." },
   papel_em_demo: { status: 403, mensagem: "O modo REAL desta leitura está liberado só para o dono. Nada foi reservado nem cobrado." },
   tempo_esgotado: { status: 504, mensagem: "A IA não respondeu a tempo. A chamada ficou marcada como incerta e não será repetida sozinha." },
   provedor_indisponivel: { status: 502, mensagem: "O serviço de IA está fora do ar. Tente mais tarde ou use o jeito manual." },
@@ -100,7 +102,7 @@ export function validarPedido(corpo: unknown, acoes: Record<string, Acao>): Resu
 
 export type Consumo = {
   modelo: string;
-  uso_api: { tokens_entrada: number; tokens_saida: number } | null;
+  uso_api: { tokens_entrada: number; tokens_saida: number; tokens_cache_leitura?: number; tokens_cache_escrita?: number } | null;
   reservado_usd: number | null;
   estimado_rac_usd: number | null;
   cobranca_efetiva: null;

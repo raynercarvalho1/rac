@@ -469,8 +469,11 @@ test("controle de orçamento: com o teto esgotado a geração não acontece (só
 });
 
 test("só a Newsletter ganha o REAL automático: o Mercado continua DEMO fixo, a rotina só pede newsletter.resumo e o site nunca repete sozinho", async () => {
-  assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "newsletter.resumo"]);
+  assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "hoje.analise", "newsletter.resumo"]);
   assert.equal(ACOES["mercado.nota"].real, false);
+  /* o RAC Hoje é REAL, mas nunca automático: nenhum arquivo do site chama hojeAnalisar sozinho (só o dono, pela função) */
+  for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) assert.ok(!/hojeAnalisar\(/.test(ler("js/" + f).replace(/function hojeAnalisar\(|analisar:hojeAnalisar|hojeAnalisar\(o\)\.then\(/g, "")), f + " chama o RAC Hoje sozinho");
+  /* a única chamada é a da tela do RAC Hoje (hjAnalisar), só depois do botão e da confirmação (tests/hoje.test.mjs) */
   /* o abastecimento só é REAL se o banco liberar, e a liberação desta fase é só da Newsletter */
   const soNl = bancoFalso({ modo: "REAL", acoes_reais: ["newsletter.resumo"], acoes_reais_casa: [] }), pa = provedor({});
   const ab = await atenderPedido("rayner", { versao: 1, modulo: "abastecimento", acao: "abastecimento.interpretar", idempotencia: "teste-abast-1", entrada: { texto: "6 litros" }, contexto: {} }, { banco: soNl, provedor: pa });
@@ -600,7 +603,7 @@ test("SQL 020: só permite a Newsletter em REAL; não liga nada, não acrescenta
 /* ---------- integração com o site ---------- */
 test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema, no service worker e fora do papel casa", () => {
   const app = ler("js/app.js"), html = ler("index.html"), sw = ler("sw.js"), sis = ler("js/sistema.js");
-  assert.match(app, /var tabs=\[[^\]]*"newsletter"\]/); assert.match(app, /newsletter:\["newsletter"\]/);
+  assert.match(app, /var tabs=\[[^\]]*"newsletter"/); assert.match(app, /newsletter:\["newsletter"\]/);
   assert.match(app, /if\(top==="newsletter"\)\{sideMark\("newsletter","newsletter"\);renderNewsletter\(/);
   assert.match(app, /wLazy\(\["newsletter"\],"wNewsletter"\)/);
   assert.ok(!/DA_CASA=\[[^\]]*newsletter/.test(app), "quem é da casa não vê a Newsletter");

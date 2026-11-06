@@ -62,6 +62,8 @@
 :root[data-sec="x"]{--accent:var(--c-x);--accent-ink:var(--side)}
 :root[data-sec="mercado"]{--accent:var(--c-mercado)}
 :root[data-sec="newsletter"]{--accent:var(--c-inicio)}
+:root[data-sec="rachoje"]{--accent:var(--c-inicio)}
+:root[data-sec="iacustos"]{--accent:var(--c-saude)}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -995,6 +997,36 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 .bgimg .mos.largo{grid-template-columns:repeat(auto-fill,minmax(270px,1fr));grid-auto-rows:180px}
 .bgimg .mos.largo img{object-position:center}
 .veicseg{margin-bottom:12px}
+/* RAC Hoje (#rachoje) e Custos de IA (#iacustos): mesmos painéis do site; texto sempre quebra, tabela vira lista no celular */
+.hjtag{display:inline-block;flex:none;white-space:nowrap;font:700 calc(11.5px + var(--fz)) var(--f-ui);letter-spacing:.03em;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:transparent}
+.hje-ok,.hjn-fato,.icc-reconciliado{border-color:var(--c-mercado);color:var(--c-mercado)}.hje-falhou,.hjp-alta{border-color:var(--bad);color:var(--bad)}
+.hje-desatualizada,.hjp-media,.icc-reserva{border-color:var(--warn);color:var(--warn)}.hjn-inf,.icc-estimado{border-color:var(--c-inicio);color:var(--c-inicio)}
+#rachoje-view .wl .grow b,#rachoje-view .wl .grow .sub,#iacustos-view .wl .grow b,#iacustos-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+#rachoje-view ul.wl li{align-items:flex-start;gap:10px}.hjtags{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.hjmeta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:6px}.hjmeta .sub{margin:0}
+.hjtexto{display:block;margin:0 0 6px;line-height:1.5;overflow-wrap:anywhere}.hjdef{border-left:4px solid var(--warn);padding:6px 10px;margin:6px 0;background:var(--hover);border-radius:0 8px 8px 0}
+.hjerro{border:1px solid var(--bad);border-left-width:4px;border-radius:10px;padding:10px 12px;margin:0 0 12px}.hjerro p{margin:4px 0}
+.hjaviso{margin:10px 0 6px;font-weight:600;overflow-wrap:anywhere}.hjpago{margin-top:12px}.hjperg textarea{width:100%;min-height:72px;resize:vertical}
+#rachoje-view .ghostbtn,#iacustos-view .ghostbtn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+#iacustos-view select,#iacustos-view input[type=date]{min-height:44px;max-width:100%}.icdata{display:flex;align-items:center;gap:6px;font-size:calc(13px + var(--fz));color:var(--muted)}
+.icfiltros{align-items:center}.icaj{display:block;font-size:calc(12px + var(--fz));color:var(--muted);white-space:normal;margin-top:3px}
+.icclasses td,.ichist td{white-space:normal;vertical-align:top}.ichist tr.icl{cursor:pointer}.ichist tr.icl:hover td{background:var(--hover)}.ichist tr.dicaon td{background:var(--hover)}
+.icpag{justify-content:center;gap:14px}
+.icclasses td:not([data-l])::before{display:none}
+@media (max-width:1180px){
+  .ichist thead{display:none}.ichist,.ichist tbody,.ichist tr,.ichist td{display:block;width:100%}
+  .ichist tr.icl{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .ichist td{border:0!important;padding:3px 0!important;text-align:left!important;white-space:normal}
+  .ichist td::before{content:attr(data-l);display:inline-block;min-width:104px;color:var(--muted);font-size:calc(12px + var(--fz))}
+}
+@media (max-width:760px){
+  .icprecos thead,.icclasses thead{display:none}.icprecos,.icprecos tbody,.icprecos tr,.icprecos td,.icclasses,.icclasses tbody,.icclasses tr,.icclasses td{display:block;width:100%}
+  .icprecos tr,.icclasses tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .icprecos td,.icclasses td{border:0!important;padding:3px 0!important;text-align:left!important;white-space:normal}
+  .icprecos td::before,.icclasses td::before{content:attr(data-l);display:inline-block;min-width:104px;color:var(--muted);font-size:calc(12px + var(--fz))}
+  .icfiltros select,.icfiltros .icdata{flex:1 1 100%}.icfiltros .icdata input{flex:1}
+  #rachoje-view ul.wl li{flex-wrap:wrap}.hjtags{flex-direction:row}
+}
 </style>
 </head>
 <body>
@@ -1030,6 +1062,8 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
       <h4>Painel</h4>
       <a class="it" href="#inicio" data-k="inicio"><span class="ico" style="--ic:var(--c-inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg></span><span class="t">Início</span></a>
       <a class="it" href="#newsletter" data-k="newsletter"><span class="ico" style="--ic:var(--c-inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5M8 16h3"/></svg></span><span class="t">Newsletter</span></a>
+      <a class="it" href="#rachoje" data-k="rachoje"><span class="ico" style="--ic:var(--c-inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg></span><span class="t">RAC Hoje</span></a>
+      <a class="it" href="#iacustos" data-k="iacustos"><span class="ico" style="--ic:var(--c-saude)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.8-2.5 1.8-1.2 0-2.1-.5-2.6-1.3M12 6.5V8m0 8v1.5"/></svg></span><span class="t">Custos de IA</span></a>
       <a class="it" href="#conexoes" data-k="conexoes"><span class="ico" style="--ic:var(--c-mercado)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span><span class="t">Conexões do dia</span></a>
       <a class="it" href="#agenda" data-k="agenda"><span class="ico" style="--ic:var(--c-vagas)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="t">Agenda</span></a>
       <a class="it" href="#resumo" data-k="resumo"><span class="ico" style="--ic:var(--c-saude)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="t">Resumo</span></a>
@@ -1101,6 +1135,8 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   <section id="seguranca" hidden><div id="seguranca-view" class="stack"></div></section>
   <section id="conexoes" hidden><div id="conexoes-view" class="stack"></div></section>
   <section id="newsletter" hidden><div id="newsletter-view"></div></section>
+  <section id="rachoje" hidden><div id="rachoje-view" class="stack"></div></section>
+  <section id="iacustos" hidden><div id="iacustos-view" class="stack"></div></section>
   <section id="saude" hidden><div id="saude-view" class="stack"></div></section>
   <section id="eddie" hidden><div id="eddie-view" class="stack"></div></section>
   <section id="olivia" hidden><div id="olivia-view" class="stack"></div></section>

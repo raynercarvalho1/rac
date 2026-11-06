@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { ACOES, montarPedido } from "../supabase/functions/rac-ia/acoes.ts";
 import { validarPedido, respostaErro } from "../supabase/functions/rac-ia/contrato.ts";
-import { respostaDemo } from "../supabase/functions/rac-ia/demo.ts";
+import { respostaDemo, temDemo } from "../supabase/functions/rac-ia/demo.ts";
 import * as O from "../supabase/functions/rac-ia/orcamento.ts";
 import { provedorAnthropic, classificarPorFormato } from "../supabase/functions/rac-ia/provedores.ts";
 import { atenderPedido } from "../supabase/functions/rac-ia/servico.ts";
@@ -158,7 +158,9 @@ test("DEMO: resposta simulada marcada em três lugares e válida pelo mesmo cont
   /* a Central Esportiva precisa de fatos (<fato id="f01">): também só cita os que vieram */
   const entrada = { texto: ["a", "b", "c", "d", "e", "f"].map((x) => `<grupo id="g${x.repeat(10)}">\nTítulo: teste\n</grupo>`).join("\n") +
     "\n" + ["01", "02", "03"].map((n) => `<fato id="f${n}" fonte="teste">Fato de teste ${n}</fato>`).join("\n"), imagens: [] };
-  for (const acao of Object.keys(ACOES)) {
+  /* o RAC Hoje é só REAL (decisão do dono, 02/11/2026): não tem demonstração; as outras têm */
+  assert.equal(temDemo("hoje.analise"), false);
+  for (const acao of Object.keys(ACOES).filter(temDemo)) {
     const r = respostaDemo(acao, acao === "esportes.analise" ? { foco: "dodgers" } : {}, "", [], entrada);
     assert.equal(r.modo, "DEMO"); assert.equal(r.resultado._demo, true); assert.match(r.mensagem, /DEMONSTRAÇÃO/);
     assert.equal(r.consumo.uso_api, null); assert.equal(r.consumo.cobranca_efetiva, null);
@@ -184,7 +186,7 @@ test("provedor: uma tentativa só, JSON obrigatório, sem fallbacks e sem thinki
   const pv = provedorAnthropic(c), p = montarPedido(ACOES["abastecimento.interpretar"], { texto: "x", imagens: [IMG] }, {});
   assert.equal(await pv.contarTokens(p, AbortSignal.timeout(1000)), 2100);
   const r = await pv.gerar(p, AbortSignal.timeout(1000));
-  assert.equal(r.tipo, "ok"); assert.deepEqual(r.uso, { entrada: 2100, saida: 300 });
+  assert.equal(r.tipo, "ok"); assert.deepEqual(r.uso, { entrada: 2100, saida: 300, cacheLeitura: 0, cacheEscrita: 0 });
   const { params, op } = c.chamadas.create[0];
   assert.equal(op.maxRetries, 0); assert.equal(c.chamadas.count[0].op.maxRetries, 0);
   assert.equal(params.output_config.format.type, "json_schema"); assert.equal(params.output_config.effort, "low");
@@ -292,7 +294,7 @@ test("fluxo REAL: reserva → envio → uma chamada → concluído, com reserva,
   assert.deepEqual(b.log.filter((x) => ["reservar", "envio", "concluir"].includes(x)), ["reservar", "envio", "concluir"]);
   assert.equal(pv.chamadas, 1); assert.equal(b.linhas[0].estado, "concluido"); assert.equal(b.linhas[0].oficial, true);
   const c = r.corpo.consumo;
-  assert.ok(c.reservado_usd > c.estimado_rac_usd); assert.deepEqual(c.uso_api, { tokens_entrada: 2100, tokens_saida: 300 });
+  assert.ok(c.reservado_usd > c.estimado_rac_usd); assert.deepEqual(c.uso_api, { tokens_entrada: 2100, tokens_saida: 300, tokens_cache_leitura: 0, tokens_cache_escrita: 0 });
   assert.equal(c.cobranca_efetiva, null); assert.match(c.observacao, /Não é a fatura/);
 });
 
@@ -782,7 +784,7 @@ test("matriz C: só com tudo autorizado e a reserva aprovada há uma geração, 
     const r = await atenderPedido(user, pedido(), { banco: b, provedor: pv });
     assert.equal(r.corpo.modo, "REAL", user);
     assert.deepEqual([pv.contagens, pv.chamadas, b.linhas.length], [1, 1, 1], user);
-    assert.deepEqual(r.corpo.consumo.uso_api, { tokens_entrada: 2100, tokens_saida: 300 }, user + ": os tokens faturáveis vêm do uso informado pela API");
+    assert.deepEqual(r.corpo.consumo.uso_api, { tokens_entrada: 2100, tokens_saida: 300, tokens_cache_leitura: 0, tokens_cache_escrita: 0 }, user + ": os tokens faturáveis vêm do uso informado pela API");
   }
   /* contagem oficial indisponível: só a estimativa interna (nada sai além da tentativa), e a reserva fica maior */
   const b = bancoFalso({ cfg: REAL }), pv = provedorFalso(okAbast, new Error("fora do ar"));

@@ -54,7 +54,7 @@ function bancoSupabase(admin: ReturnType<typeof createClient>): Banco {
       return data;
     },
     async preco(modelo) {
-      const { data, error } = await admin.from("ia_precos").select("entrada_usd_mtok,saida_usd_mtok,max_entrada_tokens,conferido_em").eq("modelo", modelo).maybeSingle();
+      const { data, error } = await admin.from("ia_precos").select("entrada_usd_mtok,saida_usd_mtok,max_entrada_tokens,conferido_em,cache_leitura_usd_mtok,cache_escrita_usd_mtok").eq("modelo", modelo).maybeSingle();
       if (error || !data) return null;
       return { entrada_usd_mtok: +data.entrada_usd_mtok, saida_usd_mtok: +data.saida_usd_mtok, max_entrada_tokens: +data.max_entrada_tokens, conferido_em: data.conferido_em };
     },
@@ -64,7 +64,8 @@ function bancoSupabase(admin: ReturnType<typeof createClient>): Banco {
     },
     marcarEnvio: (id) => rpc("ia_marcar_envio", { p_id: id }).then((x) => x === true),
     falhouSemEnvio: (id, erro) => rpc("ia_falhou_sem_envio", { p_id: id, p_erro: erro }).then((x) => x === true),
-    concluir: (id, te, ts, est, ms, erro) => rpc("ia_concluir", { p_id: id, p_tokens_entrada: te, p_tokens_saida: ts, p_estimado_usd: est, p_ms: ms, p_erro: erro }).then((x) => x === true),
+    /* 029: o detalhe do monitor de custos vai junto (publicar a função só depois do 029, que cria p_detalhe e as colunas de cache em ia_precos) */
+    concluir: (id, te, ts, est, ms, erro, detalhe) => rpc("ia_concluir", { p_id: id, p_tokens_entrada: te, p_tokens_saida: ts, p_estimado_usd: est, p_ms: ms, p_erro: erro, p_detalhe: detalhe ?? null }).then((x) => x === true),
     marcarIncerto: (id, erro, ms) => rpc("ia_marcar_incerto", { p_id: id, p_erro: erro, p_ms: ms }).then((x) => x === true),
   };
 }

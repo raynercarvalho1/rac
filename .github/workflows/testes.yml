@@ -26,21 +26,37 @@ jobs:
           npx playwright install --with-deps chromium
       # Grupo 1: estrutura, regressão e tudo o que não precisa de banco simulado (inclui os testes que leem o Supabase real, só leitura, como antes).
       # Estes testes só leem o texto do SQL: NÃO provam o comportamento do banco.
+      # Se algum teste falhar, os nomes e as mensagens dos que falharam aparecem como anotações públicas da execução (o log completo exige login).
       - name: "Grupo 1 · estrutura e regressão (sem Postgres simulado)"
         shell: bash
         run: |
-          set -o pipefail
           ARQS=$(ls tests/*.test.mjs | grep -v -E 'tests/(banco_lote3|alimentacao_banco)\.test\.mjs')
-          node --test $ARQS 2>&1 | tee grupo1.txt
+          set +e
+          node --test $ARQS > grupo1.txt 2>&1
+          ST=$?
+          set -e
+          cat grupo1.txt
           { echo "### Grupo 1 · estrutura e regressão"; echo '```'; grep -E '^ℹ (tests|pass|fail|skipped)' grupo1.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^ℹ (tests|pass|fail|skipped)' grupo1.txt | tr '\n' ' ' | sed 's/^/::notice::Grupo 1: /'; echo
+          if [ "$ST" != "0" ]; then
+            grep -E '^\s*✖|AssertionError|Error:|actual:|expected:|message:' grupo1.txt | head -40 | cut -c1-400 | while IFS= read -r L; do echo "::error::G1 $L"; done
+          fi
+          exit $ST
       # Grupo 2: o SQL das migrations 027, 030, 031, 032 e 033 rodando de verdade no Postgres do PGlite (ver "Fidelidade" no cabeçalho de
       # tests/banco_lote3.test.mjs). Nenhum teste pode ficar ignorado aqui: se o PGlite não instalou, o teste falha em vez de pular.
       - name: "Grupo 2 · banco (PGlite): migrations 027, 030, 031, 032, 033"
         shell: bash
         run: |
-          set -o pipefail
-          node --test --test-reporter=spec tests/banco_lote3.test.mjs tests/alimentacao_banco.test.mjs 2>&1 | tee grupo2.txt
+          set +e
+          node --test --test-reporter=spec tests/banco_lote3.test.mjs tests/alimentacao_banco.test.mjs > grupo2.txt 2>&1
+          ST=$?
+          set -e
+          cat grupo2.txt
           { echo "### Grupo 2 · banco (PGlite)"; echo '```'; grep -E '^ℹ (tests|pass|fail|skipped)' grupo2.txt; grep -E 'PGlite · versão' grupo2.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^ℹ (tests|pass|fail|skipped)|PGlite · versão' grupo2.txt | tr '\n' ' ' | sed 's/^/::notice::Grupo 2: /'; echo
+          if [ "$ST" != "0" ]; then
+            grep -E '^\s*✖|AssertionError|Error:|actual:|expected:|message:|SyntaxError|error:' grupo2.txt | head -60 | cut -c1-500 | while IFS= read -r L; do echo "::error::G2 $L"; done
+          fi
           PULADOS=$(grep -E '^ℹ skipped' grupo2.txt | awk '{print $3}')
           TESTES=$(grep -E '^ℹ tests' grupo2.txt | awk '{print $3}')
           echo "Testes de banco: $TESTES executados, $PULADOS ignorados"
@@ -48,3 +64,4 @@ jobs:
             echo "::error::Teste de banco ignorado ou não executado (ignorados=$PULADOS, total=$TESTES). Não é permitido pular os testes de banco no GitHub."
             exit 1
           fi
+          exit $ST

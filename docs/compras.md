@@ -111,3 +111,93 @@ foram preenchidos, e os valores da nota bateram com os do pedido. O DANFE não t
 
 Os números do pedido, da nota, a chave de acesso e o final do cartão ficam só no banco (com login), nunca neste repositório: a chave de
 acesso permite consultar a nota na Sefaz, com os dados do comprador.
+
+## Multiorigem, histórico da Amazon e reembolsos (Lote 2: só o núcleo, sem tela nem banco)
+
+Tudo em `nucleo.js`, testado em `tests/compras_multiorigem.test.mjs`. **Nada disso está ligado à tela nem ao banco ainda.**
+
+- **Canal** (`CO_CANAIS`): `amazon`, `shopee`, `mercado_livre`, `outro_marketplace`, `presencial`. `coCanalDe(c)` usa o campo `canal` e,
+  em registro antigo (sem ele), deduz pela `loja` (`CO_LOJA_CANAL`). Nenhum dado existente muda de significado.
+- **Tratamento** (`coClassificar(c)`, que `coDespesas` já usa):
+
+  | Registro | Tratamento |
+  |---|---|
+  | Compra atual, qualquer canal, e registro antigo | `despesa`, pelo total pago |
+  | Amazon físico **histórico** (`historico`/`origem: historico_amazon`, `natureza: fisica`) | `referencia_historica`: só indicadores da Amazon, nunca nas despesas gerais |
+  | Amazon digital histórico | `despesa_digital`: entra sozinho em **Compras online · Digital** |
+  | Histórico com itens digitais e físicos | `misto`: só a parte digital entra |
+  | Histórico sem natureza identificada | `referencia_historica` + aviso, até alguém revisar |
+  | `segmento: supermercado` / `combustivel` | `outro_modulo`: continuam no Mercado / em Veículos |
+- **Histórico Amazon** (`amLerHistorico`, `amIndicadores`): cabeçalhos reais do `Order History.csv` (`Total Amount`, `Original Quantity`,
+  `Payment Method Type`); os antigos (`Total Owed`, `Quantity`, `Payment Instrument Type`) continuam aceitos. `Total Amount` é por **linha**:
+  o pedido soma as linhas (se todas repetem o mesmo total e nenhuma fecha a conta, conta uma vez só). Imposto, frete e desconto ficam
+  separados (`taxas`, `frete`, `desconto`); a conta é conferida linha a linha. Status: cancelado (fora dos totais), autorizado, concluído.
+  Linha inválida vai para `invalidas` e a importação segue; cabeçalho obrigatório ausente devolve erro claro, sem exceção.
+  `coLerCSV` (usado pela tela) agora usa o mesmo leitor e continua devolvendo um pedido por número, sem cancelados.
+- **Privacidade do ZIP** (`amSelecionarArquivos`, `amImportar`, `amReconstruirCSV`, `amAuditarSanitizado`): só os CSVs de pedidos são lidos;
+  imagens e o resto são ignorados. O CSV reconstruído tem só `AM_CAMPOS_SAIDA` (pedido, data, status, natureza, produto, asin, quantidade,
+  preço, imposto, frete, desconto, total, pagamento como bandeira + final); endereço, telefone, coordenadas, destinatário e rastreio nunca
+  saem do original. **Nenhum envio:** o ZIP não é guardado e o cofre não é tocado neste lote.
+- **Reembolsos** (`coReembCreditos`, `coReembVincular`): solicitado e aprovado **não** são crédito; só `estado: recebido` com
+  `recebido_confirmado: true` e `recebido_em` (o crédito cai no mês do recebimento). Exige o pedido original e não passa do valor pago;
+  a chave (`reemb:<id>` ou pedido + valor + data) impede crédito duplicado, inclusive contra créditos já lançados.
+
+**Ainda depende de SQL/tela:** colunas `canal`, `natureza`, `historico`, `origem` em `compras_online` (e o tipo `presencial`), tabela de
+reembolsos e de créditos, o cofre do CSV sanitizado, a tela de importação com prévia e a leitura do ZIP no navegador.
+**Cuidado até lá:** a tela atual ainda salva o CSV como compra comum; não importe o histórico real por ela, senão o físico entraria nas despesas.
+
+## Banco do Lote 3 (030 a 033: preparados no repositório, NÃO executados)
+
+Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Nenhuma foi executada em banco nenhum.
+
+- **Status do pedido** (`coSituacao`, decisão de 06/11/2026): cancelado não contabiliza; **autorizado é pendente** (fora das despesas efetivas,
+  o valor aparece em `valor_pendente`); concluído/efetivado/enviado/entregue contabiliza. No histórico, status desconhecido ou ausente nunca
+  vira compra efetivada sozinho. Registro antigo não muda (sem status, `cancelamento_informado` e `reembolso_informado` seguem como despesa até
+  o dono confirmar o cancelamento). Amazon físico histórico continua só referência, em qualquer status.
+  No banco (030), `compras_online.status` era texto livre; agora aceita `concluido`, `autorizado`, `cancelado`, `desconhecido` **e** os antigos
+  (`cancelamento_informado`, `reembolso_informado`, vazio), como CHECK `NOT VALID` (vale para o que for gravado daqui em diante, sem reexaminar as
+  linhas antigas; o dono pode rodar `validate constraint` depois de conferir os dados). Histórico exige status explícito.
+- **030** (`supabase/030_compras_multiorigem.sql`): `compras_online` ganha `canal`, `natureza`, `historico`, `importacao_id`, `impostos_info`
+  (todas vazias/falsas nos registros antigos; nenhum UPDATE de dados); `compras_online_itens` ganha `natureza`, `total_linha`, `situacao`;
+  `origem` aceita também `historico_amazon`; tabela `compras_importacoes` (nome lógico, contagens, estado, resumo de erros sem dado pessoal, SHA-256
+  do CSV sanitizado); gatilho que impede mudar dono, origem, histórico e importação por UPDATE direto. **Sem coluna de visibilidade:** a decisão sobre
+  o histórico da Amazon para a Fernanda segue pendente (hoje vale a regra da casa, igual a todo o módulo).
+- **`compras_gravar(p_compra, p_itens, p_docs, p_novo)`**: grava compra, produtos e documentos numa transação (roda como quem chamou: valem a casa e
+  a trava da 2ª etapa). Só enxerga e edita compra da casa de quem chama (RLS); o dono dos dados é sempre `dono_da_casa()`; `user_id`, `criado_*`,
+  `versoes` e `atualizado_em` não podem ser enviados; documento só entra se o caminho for `<dono>/compras/<compra>/…` e o arquivo já estiver no cofre
+  `familia`. Fluxo novo do site (ainda não ligado): 1) envia os originais ao cofre; 2) chama a função uma vez; 3) se der erro, apaga os arquivos que
+  enviou; os caminhos devolvidos em `docs_repetidos` (mesmo SHA-256) também são apagados. Suposição a confirmar: o cadastro de novos usuários do Auth
+  fica fechado (como em todos os módulos, quem não é da casa só enxerga os próprios dados vazios). **Dependência de interface:** trocar
+  `ccSalvar`/`ccSubirDocs` em `js/compras.js` por essa sequência (próximo lote, com a tela).
+- **031** (`supabase/031_compras_reembolsos.sql`): `compras_reembolsos` (compra original, canal e pedido copiados da compra, valores solicitado, aprovado e
+  recebido, datas, confirmação com quem e quando). O banco garante: solicitado/aprovado não geram crédito; a soma dos recebidos (sem os estornados) nunca
+  passa do total pago (parciais valem, várias linhas por compra); a compra é travada (`FOR UPDATE`) antes de somar, então confirmações simultâneas não
+  duplicam; recebido não se edita (nem as observações) nem se apaga; o total pago da compra não pode cair abaixo do que já foi reembolsado (sem contar estornos) e a compra não pode ser apagada com reembolso ligado; `reembolso_confirmar` é idempotente.
+- **Estorno** (`compras_reembolsos_estornos` + `reembolso_estornar(id, motivo)`): corrige um recebimento confirmado por engano **sem editar nem apagar**
+  o reembolso. Grava quem estornou, quando, o motivo (5 a 200 letras) e o valor e o mês do crédito desfeito (copiados do reembolso pelo banco). Só
+  acrescenta (update/delete são recusados até para quem tem permissão total), vale uma vez por reembolso (unique; repetir devolve `ja_estornado`),
+  vale só para recebido, respeita a casa e a 2ª etapa. O valor estornado volta a caber no limite da compra (dá para registrar o reembolso certo).
+- **Créditos (vistas, sem segunda fonte da verdade)**:
+  - `compras_creditos` é **a única consulta que se soma**: um crédito por reembolso `recebido` e confirmado **sem estorno**. O valor é o recebido; um
+    **reembolso parcial** aparece como uma linha com o seu valor (nunca agrupado nem rateado); o **mês do crédito é o mês de recebimento** (`recebido_em`),
+    não o do pedido nem o da aprovação.
+  - Um **estorno** tira a linha de `compras_creditos` no mesmo instante (a vista é calculada na hora, não há cópia para apagar), então um crédito
+    estornado não pode continuar sendo contabilizado.
+  - `compras_creditos_historico` é só **auditoria**: todo recebido, com `estornado`, `situacao` (`credito` ou `credito_estornado`), quem estornou, quando e o
+    motivo. Não deve ser somada.
+  - Segurança: `security_invoker` (vale o RLS de quem consulta), nada para anon.
+- **033** (`supabase/033_seguranca_compras_fiscal.sql`): como o 022 é histórico e não muda, o 033 reafirma a trava da 2ª etapa e o fechamento para anon nas
+  tabelas novas e atualiza `seguranca_estado()` (auditoria) com elas. Se o 022 rodar de novo, rode o 033 em seguida.
+- **Backup:** as tabelas novas estão em `NUCLEO.SEG_TABELAS` (pais antes dos filhos) e os originais das notas vão em `anexos/` do .zip do site. O
+  **backup semanal do servidor** (dentro da função `garmin`, que não muda) não inclui nenhuma tabela de Compras nem fiscal: incluir exige alterar a
+  função e fica como proposta separada.
+- **Pendências de interface (não implementadas):** os selects do **Painel e Hoje** (`js/painel.js`, `js/hoje.js`) precisam passar a trazer `canal`,
+  `natureza`, `historico`, `status` e os produtos (`natureza`, `total_linha`, `situacao`) para a classificação multiorigem valer sobre dados do banco;
+  ligar `compras_gravar`, a tela de reembolsos/estorno e a importação.
+- **Revisão de segurança das vistas e dos privilégios:** vista comum não tem RLS própria; por isso `compras_creditos` e `compras_creditos_historico` usam
+  `security_invoker = true` (PostgreSQL 15+; a 031 e a 033 param com erro claro em versão menor) e leem tabelas que têm RLS: a regra da casa e a política
+  restritiva "mfa". **A trava da 2ª etapa vem dessa política das tabelas de baixo, não da vista** (RLS e MFA são coisas separadas: o RLS filtra por casa; o "mfa"
+  exige aal2 de quem tem fator). Privilégios (033): nada para `anon`; `authenticated` só `select` nas vistas e nas tabelas de estorno também `insert`
+  (sem update/delete/truncate); responsáveis (`confirmado_por`, `estornado_por`) sem `ON DELETE`, para a auditoria não ser reescrita.
+- **Auth (pendência):** não há `config.toml` nem qualquer registro local sobre o cadastro público de novos usuários do Supabase Auth; só o painel de
+  produção diz se está desabilitado. Nada foi suposto nem alterado: conferir em Authentication → Sign In / Providers ("Allow new users to sign up").

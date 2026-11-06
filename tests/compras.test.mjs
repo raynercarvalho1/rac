@@ -192,3 +192,32 @@ test("Outlook removido: sem ms.html, sem Microsoft Graph, sem código ou documen
   assert.ok(!fs.existsSync(new URL("../ms.html", import.meta.url)), "ms.html saiu");
   for (const a of ["js/compras.js", "docs/compras.md", "README.md", "sw.js", "index.html"]) assert.ok(!/outlook|graph\.microsoft|login\.microsoftonline|ms\.html|CC_MS|ccMs/i.test(ler(a)), a);
 });
+test("Lote 1 · P1: o texto extraído é gravado sem CPF, telefone, e-mail, CEP, endereço, destinatário e saudação; pedido e valores ficam", () => {
+  const bruto = ["Olá, Fulano de Tal", "Pedido 701-0000001-0000002", "Enviar para:", "Fulano de Tal", "Rua das Flores, 123", "Sorocaba - SP 18000-000", "Telefone: (15) 99999-1234",
+    "Contato fulano@exemplo.com", "CPF: 123.456.789-09", "1 unidade de: Cabo USB R$ 25,00", "Total do pedido: R$ 95,00"].join("\n");
+  const t = N.coLimparTexto(bruto);
+  for (const p of [/Fulano/, /Rua das Flores/, /18000/, /99999/, /@/, /123\.456/, /Olá/]) assert.ok(!p.test(t), String(p));
+  assert.match(t, /701-0000001-0000002/); assert.match(t, /Cabo USB R\$ 25,00/); assert.match(t, /Total do pedido: R\$ 95,00/);
+  const e = N.coLimparExtraido({ numero: "701-0000001-0000002", total_pago: 95, texto: bruto, avisos: ["fale com a@b.com"], itens: [{ descricao: "Cabo", total: 25 }] });
+  assert.equal(e.numero, "701-0000001-0000002"); assert.equal(e.total_pago, 95); assert.equal(e.itens[0].total, 25); assert.ok(!/@/.test(JSON.stringify(e)) && !/Fulano/.test(e.texto));
+  assert.match(ler("js/compras.js"), /ext=NUCLEO\.coLimparExtraido\(ext\);[\s\S]*?SB\.from\("compras_online_docs"\)\.insert/, "limpa antes de gravar");
+});
+test("Lote 1 · D1: compra cancelada fica fora do Painel e do Hoje (e não pede recorrência)", () => {
+  assert.match(ler("js/painel.js"), /compras_online_itens\(descricao,total,desconto,categoria\),status"\)/); assert.match(ler("js/painel.js"), /fora_das_contas:c\.fora_das_contas,status:c\.status,/);
+  assert.match(ler("js/hoje.js"), /select\("data,loja,total_pago,fora_das_contas,status,recorrencia_status/);
+  const f = { compras: { ok: true, v: [{ data: "2026-11-02", total_pago: 100 }, { data: "2026-11-03", total_pago: 40, status: "cancelado" }, { data: "2026-11-03", total_pago: 7, status: "cancelamento_informado" }] } };
+  assert.equal(N.hojeFinancas(f, "2026-11-05").atual.compras, 107, "só o cancelado confirmado sai");
+  const r = N.hojeItens({ compras: { ok: true, v: [{ data: "2026-11-02", total_pago: 1, status: "cancelado", recorrencia_status: "a_confirmar" }] } }, "2026-11-05");
+  assert.ok(!(r || []).some((x) => /recorr/i.test(x.titulo || "")));
+});
+test("Lote 1 · D2/D4: duplicidade lê Mercado, Alimentação e Abastecimento; leituras de compras ordenam por data e id", () => {
+  const js = ler("js/compras.js");
+  assert.match(js, /NUCLEO\.coDuplicata\(g\.cand,CC\.dados,CC\.outras\|\|\[\]\)/);
+  for (const o of ["Mercado", "Alimentação", "Abastecimento"]) assert.match(js, new RegExp('origem:"' + o + '"'));
+  assert.match(js, /SB\.from\("registros"\)\.select\("id,data,titulo,dados"\)\.eq\("tipo","abastecimento"\)/);
+  assert.match(js, /\.order\("criado_em",\{ascending:false\}\)\.order\("id",\{ascending:false\}\)/);
+  assert.match(ler("js/painel.js"), /\.order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\n\s+\.then\(function\(l\)\{return l\.map\(function\(c\)\{return \{id:c\.id/);
+  assert.match(ler("js/hoje.js"), /order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\.then\(function\(l\)\{return \{v:l,vazio:!l\.length,ultimo:hojeUltimo\(l,"data"\),origem:"banco"\}\}\)\},\n\s+orcamentos/);
+  assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Abastecimento", data: "2026-10-05", total: 30, nome: "Posto" }]).nivel, "possivel");
+  assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Mercado", data: "2026-10-06", total: 30 }]), null);
+});

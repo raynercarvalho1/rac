@@ -25,14 +25,18 @@ test("022: aplicado em produção em 31/10/2026 (sem a marca de pendente) e pode
 });
 
 test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, como política restritiva", () => {
-  const cobertas = listaMfa(sql);
-  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t), `${t} sem a trava da 2ª etapa no 022`);
+  const cobertas = listaMfa(sql), sql33 = ler("supabase/033_seguranca_compras_fiscal.sql"), cobertas33 = listaMfa(sql33);
+  /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 */
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t), `${t} sem a trava da 2ª etapa no 022 nem no 033`);
   assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
   assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);
   /* a conferência de dentro do banco olha a mesma lista (mais o histórico) */
   const audit = [...(/pessoais text\[\] := array\[([\s\S]*?)\];/.exec(sql)[1].matchAll(/'([a-z_]+)'/g))].map((m) => m[1]);
   assert.deepEqual(audit, [...cobertas, "seguranca_eventos"]);
+  /* e a auditoria do 033 olha a lista do 022 mais as tabelas novas */
+  const audit33 = [...(/pessoais text\[\] := array\[([\s\S]*?)\];/.exec(sql33)[1].matchAll(/'([a-z_]+)'/g))].map((m) => m[1]);
+  assert.deepEqual(audit33, [...cobertas, ...cobertas33, "seguranca_eventos"]);
 });
 
 test("022: rac_aal_ok só deixa sem código quem não tem fator confirmado; funções fechadas para quem não entrou", () => {

@@ -39,8 +39,8 @@
         .then(function(l){return l.map(function(p){var o={};Object.keys(p).forEach(function(k){o[k]=k==="pedido_itens"?undefined:p[k]});["subtotal","taxa_entrega","taxa_servico","gorjeta","desconto_loja","desconto_plataforma","total_pago"].forEach(function(k){o[k]=+p[k]});
           o.itens=(p.pedido_itens||[]).map(function(i){return {descricao:i.descricao,qtd:+i.qtd,total:+i.total,desconto:+i.desconto||0}});return o})})),
       /* compras online (Central de Compras): o total pago de cada pedido, uma vez; as marcadas como já contadas em outro lugar ficam fora */
-      seguro(pnPag(function(f){return SB.from("compras_online").select("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,compras_online_itens(descricao,total,desconto,categoria)").gte("data",ini2).order("data").range(f,f+999)})
-        .then(function(l){return l.map(function(c){return {id:c.id,data:c.data,loja:c.loja,vendedor:c.vendedor,total_pago:+c.total_pago,categoria:c.categoria,fora_das_contas:c.fora_das_contas,
+      seguro(pnPag(function(f){return SB.from("compras_online").select("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,compras_online_itens(descricao,total,desconto,categoria),status").gte("data",ini2).order("data").order("id").range(f,f+999)})
+        .then(function(l){return l.map(function(c){return {id:c.id,data:c.data,loja:c.loja,vendedor:c.vendedor,total_pago:+c.total_pago,categoria:c.categoria,fora_das_contas:c.fora_das_contas,status:c.status,
           itens:(c.compras_online_itens||[]).map(function(i){return {descricao:i.descricao,total:+i.total,desconto:+i.desconto||0,categoria:i.categoria}})}})}))])
     .then(function(r){return {hoje:hoje,meses:meses,todos:todos,ini:meses[0]+"-01",iniAnt:todos[0]+"-01",fimAnt:maisDias(meses[0]+"-01",-1),
       compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6],online:r[7]}});

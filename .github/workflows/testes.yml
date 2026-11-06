@@ -1,4 +1,4 @@
-# A cada publicação: roda os testes do site (tests/*.test.mjs). O resultado aparece na página Sistema.
+# A cada publicação: roda os testes do site (tests/*.test.mjs) em dois grupos (estrutura/regressão e banco com PGlite). O resultado aparece na página Sistema.
 name: Testes
 
 on:
@@ -24,5 +24,27 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright@1.48.2 @electric-sql/pglite@0.5.10
           npx playwright install --with-deps chromium
-      - name: Rodar os testes
-        run: node --test tests/*.test.mjs
+      # Grupo 1: estrutura, regressão e tudo o que não precisa de banco simulado (inclui os testes que leem o Supabase real, só leitura, como antes).
+      # Estes testes só leem o texto do SQL: NÃO provam o comportamento do banco.
+      - name: "Grupo 1 · estrutura e regressão (sem Postgres simulado)"
+        shell: bash
+        run: |
+          set -o pipefail
+          ARQS=$(ls tests/*.test.mjs | grep -v -E 'tests/(banco_lote3|alimentacao_banco)\.test\.mjs')
+          node --test $ARQS 2>&1 | tee grupo1.txt
+          { echo "### Grupo 1 · estrutura e regressão"; echo '```'; grep -E '^ℹ (tests|pass|fail|skipped)' grupo1.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      # Grupo 2: o SQL das migrations 027, 030, 031, 032 e 033 rodando de verdade no Postgres do PGlite (ver "Fidelidade" no cabeçalho de
+      # tests/banco_lote3.test.mjs). Nenhum teste pode ficar ignorado aqui: se o PGlite não instalou, o teste falha em vez de pular.
+      - name: "Grupo 2 · banco (PGlite): migrations 027, 030, 031, 032, 033"
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test --test-reporter=spec tests/banco_lote3.test.mjs tests/alimentacao_banco.test.mjs 2>&1 | tee grupo2.txt
+          { echo "### Grupo 2 · banco (PGlite)"; echo '```'; grep -E '^ℹ (tests|pass|fail|skipped)' grupo2.txt; grep -E 'PGlite · versão' grupo2.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          PULADOS=$(grep -E '^ℹ skipped' grupo2.txt | awk '{print $3}')
+          TESTES=$(grep -E '^ℹ tests' grupo2.txt | awk '{print $3}')
+          echo "Testes de banco: $TESTES executados, $PULADOS ignorados"
+          if [ "$PULADOS" != "0" ] || [ -z "$TESTES" ] || [ "$TESTES" -lt 20 ]; then
+            echo "::error::Teste de banco ignorado ou não executado (ignorados=$PULADOS, total=$TESTES). Não é permitido pular os testes de banco no GitHub."
+            exit 1
+          fi

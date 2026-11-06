@@ -21,7 +21,17 @@
     CC.carregando.catch(function(){CC.carregando=null});return CC.carregando}
   /* só lê (não mexe em CC) */
   function ccLer(){return ccPag(function(f){return SB.from("compras_online").select(CC_COLS+",compras_online_itens(id,ordem,descricao,codigo,qtd,unitario,total,desconto,categoria,imagem_path),compras_online_docs(id,tipo,nome,path,mime,tamanho,sha256,criado_em)")
-      .order("data",{ascending:false}).order("criado_em",{ascending:false}).range(f,f+999)}).then(function(l){return l.map(ccCompra)})}
+      .order("data",{ascending:false}).order("criado_em",{ascending:false}).order("id",{ascending:false}).range(f,f+999)}).then(function(l){return l.map(ccCompra)})}
+  /* D2: as outras fontes para a checagem de duplicidade (só leitura; falhou → lista vazia, e a conferência segue sem elas).
+     Mercado: notas agrupadas por data+mercado+número (total = soma das linhas); Alimentação: pedidos; Abastecimento: registros com custo.
+     A comparação continua sendo a do núcleo (mesmo dia e mesmo total → "possível repetido", que só pergunta). */
+  function ccOutras(){var mer=ccPag(function(f){return SB.from("compras").select("id,data,valor_total,mercado,numero").order("data").order("id").range(f,f+999)}).then(function(l){var g={},k=[];
+        l.forEach(function(x){var ch=x.data+"|"+x.mercado+"|"+(x.numero||"");if(!g[ch]){g[ch]={origem:"Mercado",data:x.data,total:0,nome:x.mercado};k.push(ch)}g[ch].total+=+x.valor_total||0});
+        return k.map(function(ch){g[ch].total=Math.round(g[ch].total*100)/100;return g[ch]})}),
+      ali=ccPag(function(f){return SB.from("pedidos").select("id,data,total_pago,estabelecimento").order("data").order("id").range(f,f+999)}).then(function(l){return l.filter(function(x){return +x.total_pago>0}).map(function(x){return {origem:"Alimentação",data:x.data,total:+x.total_pago,nome:x.estabelecimento}})}),
+      abs=ccPag(function(f){return SB.from("registros").select("id,data,titulo,dados").eq("tipo","abastecimento").order("data").order("id").range(f,f+999)}).then(function(l){return l.filter(function(x){return x.dados&&typeof x.dados.custo==="number"&&x.dados.custo>0}).map(function(x){return {origem:"Abastecimento",data:x.data,total:x.dados.custo,nome:x.titulo}})});
+    function tolerante(p){return p.then(function(l){return l},function(){return []})}
+    return Promise.all([tolerante(mer),tolerante(ali),tolerante(abs)]).then(function(r){CC.outras=[].concat(r[0],r[1],r[2]);return CC.outras})}
   function ccEsquecer(){CC.carregando=null;if(typeof PAINEL!=="undefined")PAINEL.cache={}}
   /* botão de atualizar: as compras de novo, trocadas só se a leitura vier inteira. Um lote importado esperando conferência não é
      redesenhado (sumiria sem ser salvo): primeiro salve ou saia de Importar */
@@ -233,7 +243,7 @@
         if(d.extras&&d.extras.length){d.extras.forEach(function(e){var g=grupo(e);g.cand=NUCLEO.coMesclar(g.cand,e);g.docs.push(d)});return}
         if(!d.ext||(!d.ext.numero&&!d.ext.chave_nfe&&d.ext.total_pago==null)){if(d.tipo!=="zip")soltos.push(d);return}
         var g=grupo(d.ext);g.cand=NUCLEO.coMesclar(g.cand,d.ext);g.docs.push(d);g.imagens=g.imagens.concat(d.imagens||[]);g.imagensUrl=g.imagensUrl.concat(d.imagensUrl||[])});
-      return {grupos:grupos,soltos:soltos,docs:docs,ignorados:docs.ignorados||0}}).then(function(r){fimT();return r},function(e){fimT();throw e})}
+      return {grupos:grupos,soltos:soltos,docs:docs,ignorados:docs.ignorados||0}}).then(function(r){return ccOutras().then(function(){return r})}).then(function(r){fimT();return r},function(e){fimT();throw e})}
 
   /* ---------- Gmail (só leitura): os e-mails da Amazon, com o login do Google que o site já usa ----------
      Reaproveita de js/app.js o Client ID público (GOOGLE_CLIENT_ID), a permissão gmail.readonly (GM_SCOPE), o script do login (GSI_JS),
@@ -328,7 +338,7 @@
   function ccMostrarLote(saida,r,st){saida.innerHTML="";var n=r.grupos.length;CC.lote=r.grupos.length?saida:null;
     st.textContent=n?n+(n===1?" pedido encontrado":" pedidos encontrados")+" em "+r.docs.filter(function(d){return d.tipo!=="zip"}).length+" documentos. Confira e salve.":"Nenhum pedido foi reconhecido nos documentos.";
     var salvarTodos=function(){return quadros.reduce(function(p,q){return p.then(function(){return q._salvar()}).catch(function(){})},Promise.resolve()).then(function(){st.textContent="Pronto: o que estava completo foi importado (pedidos que já existiam só ganharam os documentos novos). O que pede conferência continua aberto."})};
-    var quadros=r.grupos.map(function(g){var dup=NUCLEO.coDuplicata(g.cand,CC.dados,[]);return ccConferencia({cand:g.cand,docs:g.docs,imagens:g.imagens,imagensUrl:g.imagensUrl,dup:dup,existente:dup&&dup.nivel==="confirmada"?dup.compra:null})});
+    var quadros=r.grupos.map(function(g){var dup=NUCLEO.coDuplicata(g.cand,CC.dados,CC.outras||[]);return ccConferencia({cand:g.cand,docs:g.docs,imagens:g.imagens,imagensUrl:g.imagensUrl,dup:dup,existente:dup&&dup.nivel==="confirmada"?dup.compra:null})});
     if(quadros.length>1){var todos=h("button",{type:"button",class:"ghostbtn pri",text:"Salvar todos os que estão prontos"});
       todos.onclick=function(){todos.disabled=true;salvarTodos().then(function(){todos.disabled=false})};
       saida.appendChild(h("div",{class:"panel"},h("div",{class:"vfil"},todos)))}
@@ -410,6 +420,7 @@
   function ccSubirDocs(id,docs){return atuDurante("o envio dos documentos",function(){return docs.reduce(function(p,d){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+ccNomeSeguro(d.nome);
       return SB.storage.from("familia").upload(path,d.blob,{contentType:d.mime,upsert:false}).then(function(r){if(r.error)throw new Error(d.nome+": "+r.error.message);
         var ext=d.ext?JSON.parse(JSON.stringify(d.ext)):{};if(d.extras)ext={pedidos:d.extras.map(function(e){return e.numero})};if(d.texto)ext.texto=String(d.texto).slice(0,20000);
+        ext=NUCLEO.coLimparExtraido(ext);/* P1: nada pessoal vai para o banco (só o original, como veio, fica no cofre privado) */
         var tipoDb=d.tipo==="resumo"?"resumo_pdf":d.tipo;if(CC_TIPOS_DB.indexOf(tipoDb)<0){ext.tipo=ext.tipo||tipoDb;tipoDb="outro"}
         return SB.from("compras_online_docs").insert({compra_id:id,tipo:tipoDb,nome:d.nome.slice(0,200),path:path,mime:d.mime,tamanho:d.tamanho||d.blob.size,sha256:d.sha,extraido:ext}).then(function(x){
           if(x.error&&x.error.code==="23505")return SB.storage.from("familia").remove([path]).catch(function(){});if(x.error)throw new Error(x.error.message)})})})},Promise.resolve())})}

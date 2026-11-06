@@ -34,7 +34,7 @@
     var enc=new TextEncoder(),arqs=[],man={versao:1,criado:new Date().toISOString(),dono:EU.id,site:"Dia a Dia RAC",tabelas:{},fora:[]},regs=[];
     return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");return lerTabela(t).then(function(l0){
       var c=NUCLEO.segLimpar(t,l0),l=c.linhas;man.fora=man.fora.concat(c.fora);
-      man.tabelas[t]=l.length;if(t==="registros"||t==="pedidos"||t==="compras_online_docs")regs=regs.concat(l);
+      man.tabelas[t]=l.length;if(t==="registros"||t==="pedidos"||t==="compras_online_docs"||t==="notas_fiscais_docs")regs=regs.concat(l);
       arqs.push({nome:"dados/"+t+".json",dados:enc.encode(JSON.stringify(l))},{nome:"dados/"+t+".csv",dados:enc.encode(paraCsv(l))})}).catch(function(e){man.tabelas[t]="não lida: "+e.message})})},Promise.resolve())
     .then(function(){
       if(!comAnexos)return;

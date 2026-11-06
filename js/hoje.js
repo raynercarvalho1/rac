@@ -37,8 +37,8 @@
     mercado:function(ini){return hojePag(function(f){return SB.from("compras").select("data,valor_total").gte("data",ini).order("data").range(f,f+999)}).then(function(l){return {v:l,vazio:!l.length,ultimo:hojeUltimo(l,"data"),origem:"banco"}})},
     alimentacao:function(ini){return hojePag(function(f){return SB.from("pedidos").select("data,total_pago").gte("data",ini).order("data").range(f,f+999)}).then(function(l){return {v:l,vazio:!l.length,ultimo:hojeUltimo(l,"data"),origem:"banco"}})},
     /* compras online do período e as recorrências ainda a confirmar (mesmo que antigas) */
-    compras:function(ini){return hojePag(function(f){return SB.from("compras_online").select("data,loja,total_pago,fora_das_contas,recorrencia_status,recorrencia_texto")
-      .or("data.gte."+ini+",recorrencia_status.eq.a_confirmar").order("data").range(f,f+999)}).then(function(l){return {v:l,vazio:!l.length,ultimo:hojeUltimo(l,"data"),origem:"banco"}})},
+    compras:function(ini){return hojePag(function(f){return SB.from("compras_online").select("data,loja,total_pago,fora_das_contas,status,recorrencia_status,recorrencia_texto")
+      .or("data.gte."+ini+",recorrencia_status.eq.a_confirmar").order("data").order("id").range(f,f+999)}).then(function(l){return {v:l,vazio:!l.length,ultimo:hojeUltimo(l,"data"),origem:"banco"}})},
     orcamentos:function(){return Promise.resolve().then(function(){return SB.from("orcamentos").select("categoria,valor")}).then(sbOk).then(function(l){return {v:l,vazio:!l.length,origem:"banco"}})},
     /* o que o relógio já mandou para o banco (60 dias para a prontidão, 14 de treinos); nunca chama a função garmin */
     saude:function(){var hoje=hojeISO(),ocultos=NUCLEO.TREINO_OCULTOS;

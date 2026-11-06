@@ -8,7 +8,7 @@ const URL_SB = "https://hofnhbxnfebfnncwxrds.supabase.co", CHAVE = "sb_publishab
 const H = { apikey: CHAVE, Authorization: "Bearer " + CHAVE };
 const pular = process.env.SEM_REDE === "1";
 
-for (const t of ["pessoal", "registros", "garmin_dia", "garmin_ativ", "erros", "rotina_log", "notas", "itens", "produtos", "mercados", "membros", "lista", "bebe", "push_inscricoes", "rac_segredos", "newsletter_edicoes", "newsletter_avisos", "seguranca_eventos", "pedidos", "pedido_itens", "alimentacao_gastos", "compras_online", "compras_online_itens", "compras_online_docs", "ia_custos"]) {
+for (const t of ["pessoal", "registros", "garmin_dia", "garmin_ativ", "erros", "rotina_log", "notas", "itens", "produtos", "mercados", "membros", "lista", "bebe", "push_inscricoes", "rac_segredos", "newsletter_edicoes", "newsletter_avisos", "seguranca_eventos", "pedidos", "pedido_itens", "alimentacao_gastos", "compras_online", "compras_online_itens", "compras_online_docs", "compras_importacoes", "compras_reembolsos", "compras_reembolsos_estornos", "compras_creditos", "compras_creditos_historico", "notas_fiscais", "notas_fiscais_itens", "notas_fiscais_docs", "notas_fiscais_vinculos", "ia_custos"]) {
   test(`sem login não lê a tabela ${t}`, { skip: pular }, async () => {
     const r = await fetch(`${URL_SB}/rest/v1/${t}?select=*&limit=1`, { headers: H });
     const corpo = await r.json().catch(() => null);

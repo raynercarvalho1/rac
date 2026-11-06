@@ -472,7 +472,8 @@
     {t:"orcamentos",pk:["categoria"]},{t:"registros",pk:["id"]},{t:"lista",pk:["id"]},{t:"bebe",pk:["id"],nat:[["chave"]]},
     {t:"pessoal",pk:["chave"]},{t:"garmin_dia",pk:["data"]},{t:"garmin_ativ",pk:["id"]},
     {t:"pedidos",pk:["id"]},{t:"pedido_itens",pk:["id"],fk:{pedido_id:"pedidos",produto_id:"produtos"},opc:{produto_id:1}},
-    {t:"compras_online",pk:["id"]},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},
+    {t:"compras_importacoes",pk:["id"],nat:[["sha256"]]},{t:"compras_online",pk:["id"],fk:{importacao_id:"compras_importacoes"},opc:{importacao_id:1}},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos_estornos",pk:["id"],nat:[["reembolso_id"]],fk:{reembolso_id:"compras_reembolsos",compra_id:"compras_online"}},
+    {t:"notas_fiscais",pk:["id"],nat:[["chave"]]},{t:"notas_fiscais_itens",pk:["id"],fk:{nota_id:"notas_fiscais"}},{t:"notas_fiscais_docs",pk:["id"],nat:[["sha256"]],fk:{nota_id:"notas_fiscais"}},{t:"notas_fiscais_vinculos",pk:["id"],nat:[["nota_id","modulo","registro_id"]],fk:{nota_id:"notas_fiscais"}},
     {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
@@ -1087,7 +1088,7 @@
   /* finanças do mês até hoje contra o mesmo trecho do mês anterior (Mercado, pedidos e compras online, cada um uma vez) */
   function hojeFinancas(f,hoje){f=f||{};var mes=hoje.slice(0,7),dia=+hoje.slice(8,10),dAnt=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7)-2,1)),ant=dAnt.toISOString().slice(0,7);
     var ultAnt=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7)-1,0)).getUTCDate(),fimAnt=ant+"-"+("0"+Math.min(dia,ultAnt)).slice(-2),ontem=somaDiasISO(hoje,-1);
-    function soma(l,campo,de,ate){return (l||[]).reduce(function(s,x){var d=String(x.data||"").slice(0,10);return d>=de&&d<=ate&&!x.fora_das_contas?s+(+x[campo]||0):s},0)}
+    function soma(l,campo,de,ate){return (l||[]).reduce(function(s,x){var d=String(x.data||"").slice(0,10);return d>=de&&d<=ate&&!x.fora_das_contas&&x.status!=="cancelado"?s+coContaNaSoma(x,campo):s},0)}
     var o={mes:mes,dia:dia,fontes:[]},par=[["mercado","valor_total"],["alimentacao","total_pago"],["compras","total_pago"]];
     o.atual={};o.anterior={};o.ontem={};o.total=0;o.totalAnt=0;
     par.forEach(function(p){var fo=f[p[0]];if(!fo||!fo.ok)return;o.fontes.push(p[0]);var l=fo.v||[];
@@ -1122,7 +1123,7 @@
       (M.aulas||[]).filter(function(a){return a.data>=hoje}).slice(0,2).forEach(function(a){l.push(hojeItem({area:"mba",titulo:a.t,data:a.data,sub:"aula às "+a.hora,fonte:"mba"},hoje))})}
     if(f.tarefas&&f.tarefas.ok)(f.tarefas.v||[]).forEach(function(t){var idade=t.criado?hojeDias(String(t.criado).slice(0,10),hoje):0;
       l.push(hojeItem({area:"tarefa",titulo:"Tarefa: "+t.item,sub:idade>=7?"aberta há "+idade+" dias":"",fonte:"tarefas",extra:Math.min(idade,20)},hoje))});
-    if(f.compras&&f.compras.ok){var rec=(f.compras.v||[]).filter(function(c){return c.recorrencia_status==="a_confirmar"});
+    if(f.compras&&f.compras.ok){var rec=(f.compras.v||[]).filter(function(c){return c.recorrencia_status==="a_confirmar"&&c.status!=="cancelado"});
       if(rec.length)l.push(hojeItem({area:"financas",titulo:"Confirmar "+rec.length+(rec.length===1?" recorrência":" recorrências")+" nas compras online",sub:rec.slice(0,3).map(function(c){return c.recorrencia_texto||c.loja}).join(", "),fonte:"compras",extra:10,href:"#compras"},hoje))}
     extras=extras||{};
     var sg=priSaude(extras.saude); /* a mesma regra de relevância da Próxima melhor ação; sugestão de Saúde é informativa */
@@ -1359,19 +1360,6 @@
       pagamento:(coTags(pag,"tPag").map(function(t){return CO_TPAG[t]||null}).filter(Boolean)[0])||null,numero:ped?ped[1]:null,
       loja:/amazon/i.test(coTag(emit,"xNome")||"")?"amazon":/mercado ?livre|ebazar/i.test(coTag(emit,"xNome")||"")?"mercadolivre":"outra",vendedor:coTag(emit,"xNome")};
     return o}
-  /* CSV de histórico de pedidos (Amazon "Solicitar seus dados" → Retail.OrderHistory; colunas em inglês ou português) → um pedido por número */
-  function coLerCSV(txt){var L=csvLinhas(txt);if(L.length<2)return [];var cab=L[0].map(function(c){return norm(c).trim()});
-    function col(){for(var i=0;i<arguments.length;i++){var k=cab.indexOf(arguments[i]);if(k>=0)return k}return -1}
-    var C={id:col("order id","numero do pedido","pedido","order_id"),data:col("order date","data do pedido","data"),nome:col("product name","produto","nome do produto","descricao"),
-      qtd:col("quantity","quantidade"),un:col("unit price","preco unitario"),tot:col("total owed","total","valor total"),frete:col("shipping charge","frete"),desc:col("total discounts","descontos","desconto"),
-      pag:col("payment instrument type","forma de pagamento","pagamento"),asin:col("asin","codigo","sku"),site:col("website","loja"),status:col("order status","status")};
-    if(C.id<0||C.nome<0)return [];var por={},ordem=[];
-    L.slice(1).forEach(function(r){var id=String(r[C.id]||"").trim();if(!id)return;if(C.status>=0&&/cancel/i.test(r[C.status]||""))return;
-      var p=por[id];if(!p){p=por[id]={tipo:"csv",numero:id,loja:/amazon/i.test(C.site>=0?r[C.site]:"amazon")||/^\d{3}-\d{7}-\d{7}$/.test(id)?"amazon":"outra",data:coData(r[C.data]||""),itens:[],subtotal:0,desconto:0,frete:0,total_pago:0,pagamento:C.pag>=0?coPagamento(r[C.pag])||String(r[C.pag]||"").replace(/\d{5,}/g,"").trim()||null:null};ordem.push(id)}
-      var q=coNum(r[C.qtd])||1,u=coNum(r[C.un]),tot=coNum(r[C.tot]);
-      p.itens.push({descricao:String(r[C.nome]||"").trim().slice(0,160),codigo:C.asin>=0?String(r[C.asin]||"").trim()||null:null,qtd:q,unitario:u,total:u!=null?Math.round(u*q*100)/100:tot,desconto:0,categoria:coCategoria(r[C.nome])});
-      p.subtotal+=u!=null?u*q:(tot||0);p.desconto+=coNum(r[C.desc])||0;p.frete+=coNum(r[C.frete])||0;p.total_pago+=tot||0});
-    return ordem.map(function(id){var p=por[id];["subtotal","desconto","frete","total_pago"].forEach(function(k){p[k]=Math.round(p[k]*100)/100});return p})}
   /* conta: total pago = subtotal − desconto + frete + taxas (2 centavos de folga); itens somando o subtotal é aviso, não erro */
   function coConferir(c,ctx){ctx=ctx||{};c=c||{};var e=[],a=[],cent=function(v){return v==null||v===""?null:Math.round((+v)*100)};
     if(!CO_LOJAS[c.loja])e.push("Escolha a loja.");if(!String(c.numero||"").trim())e.push("Preencha o número do pedido.");
@@ -1395,6 +1383,28 @@
     var todas=(compras||[]).filter(function(x){return x.id!==ignorar}).map(function(x){return {o:"Compras online",x:x,t:x.total_pago,d:x.data,nome:x.vendedor||CO_LOJAS[x.loja]}}).concat((outras||[]).map(function(x){return {o:x.origem,x:x,t:x.total,d:x.data,nome:x.nome}}));
     for(var k=0;k<todas.length;k++){var y=todas[k];if(y.d===c.data&&Math.abs(Math.round(+y.t*100)-tot)<=1)return {nivel:"possivel",compra:y.x,origem:y.o,motivo:"mesmo dia e mesmo total em "+y.o+(y.nome?" ("+y.nome+")":"")}}
     return null}
+  /* dados pessoais fora do que é gravado: o texto lido do PDF/print (extraido.texto) perde CPF, telefone, e-mail, CEP, endereço, destinatário
+     e saudação ANTES de ir para o banco. Mantém pedido, produtos, valores, datas, pagamento sem número e a loja/vendedor.
+     Melhor esforço sobre texto de OCR: o original continua só no cofre privado, como veio. */
+  var CO_PES_CAB=/^\s*(?:endere[cç]o|enviar para|entregar (?:em|para)|enviado para|entrega em|destinat[aá]rio|dados do (?:destinat[aá]rio|cliente|comprador)|cliente|comprador|faturad[oa] (?:para|a)|nome completo|nome\s*\/\s*raz[aã]o social|telefone|fone|celular|whatsapp|contato|e-?mail|cpf|bairro|munic[ií]pio|cidade|cep)\b/i,
+    CO_PES_COM=/R\$|^\s*(?:itens?|produtos?|pedido|forma de pagamento|pagamento|subtotal|total|frete|data|vendido por|resumo|quantidade|desconto|taxas?|envio|c[aá]lculo|fatura|transportador)\b/i,
+    CO_PES_SAUD=/^\s*(?:ol[aá]|oi|prezad[oa]s?|caro|cara|bom dia|boa tarde|boa noite)(?=[\s,!:.]|$)/i,
+    CO_PES_RUA=/\b(?:rua|avenida|av\.|alameda|travessa|rodovia|estrada|pra[cç]a|largo)\s+[^\n,]{2,60},?\s*(?:n[ºo°.]*\s*)?\d+/i;
+  function coLimparTokens(s){return String(s)
+    .replace(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g,"[removido]")
+    .replace(/\bcpf\b[^\n\d]{0,15}\d{11}\b/gi,"[removido]").replace(/[\d*]{3}\.[\d*]{3}\.[\d*]{3}-[\d*]{2}/g,"[removido]")
+    .replace(/\+55[\s.-]?\d{2}[\s.-]?9?\d{4}[\s.-]?\d{4}/g,"[removido]").replace(/\(\d{2}\)\s*9?\d{4}[\s.-]?\d{4}/g,"[removido]").replace(/\b\d{2}\s9\d{4}-\d{4}\b/g,"[removido]")
+    .replace(/(tel(?:efone)?|fone|cel(?:ular)?|whats(?:app)?|contato)\b[^\n\d]{0,12}[\d()\s.+-]{8,20}/gi,"$1 [removido]")
+    .replace(/\b\d{5}-\d{3}\b/g,"[removido]")}
+  function coLimparTexto(texto){var L=String(texto==null?"":texto).split(/\r?\n/),o=[];
+    for(var i=0;i<L.length;i++){var l=L[i];
+      if(CO_PES_CAB.test(l)){var n=0;while(n<4&&i+1<L.length&&L[i+1].trim()&&!CO_PES_COM.test(L[i+1])&&!CO_PES_CAB.test(L[i+1])){i++;n++}continue}
+      if(CO_PES_SAUD.test(l)||CO_PES_RUA.test(l))continue;
+      o.push(coLimparTokens(l))}
+    return o.join("\n")}
+  /* uma cópia do que foi extraído, pronta para gravar: o texto bruto limpo e, nos demais campos, só os padrões inequívocos (e-mail, CPF, telefone, CEP) */
+  function coLimparExtraido(v){if(v==null)return v;if(typeof v==="string")return coLimparTokens(v);if(Array.isArray(v))return v.map(coLimparExtraido);
+    if(typeof v==="object"){var o={};Object.keys(v).forEach(function(k){o[k]=k==="texto"&&typeof v[k]==="string"?coLimparTexto(v[k]):coLimparExtraido(v[k])});return o}return v}
   /* junta o que veio de vários documentos do mesmo pedido: o resumo/e-mail manda nos preços e no desconto, a NF-e na chave e no emitente;
      valores diferentes entre os documentos viram divergências (nada é trocado em silêncio) */
   var CO_CAMPOS_VAL=[["subtotal","subtotal"],["desconto","desconto"],["frete","frete"],["total_pago","total pago"]];
@@ -1409,9 +1419,10 @@
   /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido; fica fora o pedido marcado como "já contado em outro lugar"
      e o cancelamento que o dono confirmou (status "cancelado"; o e-mail de cancelamento sozinho só avisa) */
   function coDespesas(compras){var L=[];(compras||[]).forEach(function(c){var v=+c.total_pago;if(!c||!c.data||!isFinite(v)||c.fora_das_contas||c.status==="cancelado")return;
+    var cl=coClassificar(c);if(cl.tratamento!=="despesa"){v=cl.valor_despesa;if(!(v>0))return}
     var cats={};(c.itens||[]).forEach(function(i){var k=i.categoria||"Outros";cats[k]=(cats[k]||0)+(+i.total||0)-(+i.desconto||0)});
     var ks=Object.keys(cats),cat=ks.length?ks.sort(function(a,b){return cats[b]-cats[a]})[0]:(c.categoria||"Outros");
-    L.push({d:c.data,v:v,f:"Compras online",cat:c.categoria||cat,id:c.id||null})});return L}
+    L.push({d:c.data,v:v,f:"Compras online",cat:cl.categoria||c.categoria||cat,id:c.id||null})});return L}
   /* recorrências: a informada no documento (a confirmar) e a percebida (o mesmo produto comprado 2+ vezes, com o intervalo médio).
      A próxima data é só uma estimativa para conferir: nenhuma compra é criada. */
   function coRecorrencias(compras,hoje){var por={},L=[];
@@ -1429,6 +1440,287 @@
       (por[k]=por[k]||{nome:i.descricao,l:[],img:null}).l.push({d:c.data,u:u,loja:c.vendedor||CO_LOJAS[c.loja]});if(i.imagem_path&&!por[k].img)por[k].img=i.imagem_path})});
     return Object.keys(por).map(function(k){var p=por[k],l=p.l.sort(function(a,b){return a.d<b.d?-1:1}),u=l[l.length-1];return {chave:k,nome:p.nome,img:p.img,vezes:l.length,ultimo:u,menor:Math.min.apply(null,l.map(function(x){return x.u})),variacao:l.length>1&&l[0].u>0?(u.u-l[0].u)/l[0].u*100:null,historico:l}})
       .sort(function(a,b){return b.vezes-a.vezes||(a.nome<b.nome?-1:1)})}
+  /* ===== Compras multiorigem (Lote 2) =====
+     O canal diz de onde veio a compra; natureza (física/digital) e histórico dizem o tratamento. Registro antigo, sem canal, continua
+     valendo pela loja: nada do que já está gravado muda de significado. Supermercado fica no Mercado e combustível em Veículos. */
+  var CO_CANAIS={amazon:"Amazon",shopee:"Shopee",mercado_livre:"Mercado Livre",outro_marketplace:"Outro marketplace",presencial:"Loja presencial"};
+  var CO_LOJA_CANAL={amazon:"amazon",shopee:"shopee",mercadolivre:"mercado_livre",magalu:"outro_marketplace",outra:"outro_marketplace"};
+  var CO_CAT_DIGITAL="Compras online · Digital";
+  function coCanalDe(c){c=c||{};if(CO_CANAIS[c.canal])return c.canal;return CO_LOJA_CANAL[c.loja]||"outro_marketplace"}
+  function coModuloDestino(c){var s=c&&c.segmento;return s==="supermercado"?"mercado":s==="combustivel"?"veiculos":"compras"}
+  function amR2(x){return Math.round(x*100)/100}
+  /* o que um registro soma nas finanças do mês: o campo todo, ou só a parte que entra nas despesas (histórico, pendente) */
+  function coContaNaSoma(x,campo){var k=coClassificar(x);return k.tratamento==="despesa"?(+x[campo]||0):k.valor_despesa}
+  /* Situação do pedido para as despesas (decisão de 06/11/2026):
+     - cancelada: não contabiliza;
+     - pendente: "autorizado" (cobrança só autorizada) e status desconhecido de histórico: fora das despesas efetivas até virar efetivado;
+     - efetiva: compra confirmada, enviada ou entregue ("concluido" do histórico).
+     Registro antigo continua igual: sem status (confirmada pelo dono), "cancelamento_informado" e "reembolso_informado" seguem como despesa
+     até o dono confirmar o cancelamento. Status desconhecido nunca vira compra efetivada sozinho no histórico. */
+  var CO_STATUS_EFETIVO={concluido:1,efetivado:1,efetivada:1,enviado:1,enviada:1,entregue:1,delivered:1,shipped:1,closed:1};
+  function coSituacao(c){c=c||{};var s=norm(c.status_norm||c.status||"").trim();
+    if(s==="cancelado"||s==="cancelada")return "cancelada";
+    if(s==="autorizado"||s==="autorizada"||s==="authorized"||s==="desconhecido")return "pendente";
+    if(c.historico===true||c.origem==="historico_amazon")return CO_STATUS_EFETIVO[s]?"efetiva":"pendente";
+    return "efetiva"}
+  /* tratamento financeiro de um registro de Compras:
+     - despesa: entra nas despesas gerais pelo total pago (compra atual efetiva, de qualquer canal, e registro antigo);
+     - pendente: autorizado ou status desconhecido; guarda o valor em valor_pendente e não entra nas despesas;
+     - cancelado: não contabiliza;
+     - referencia_historica: Amazon físico histórico, só nos indicadores da Amazon (nunca nas despesas gerais, qualquer que seja o status);
+     - despesa_digital: Amazon digital histórico efetivado: entra sozinho em "Compras online · Digital";
+     - misto: histórico com itens digitais efetivados e físicos (só a parte digital entra);
+     - outro_modulo: supermercado/combustível, que não são contados em Compras.
+     Histórico Amazon sem natureza identificada fica como referência até alguém revisar (nunca entra por engano). */
+  function coClassificar(c){c=c||{};var canal=coCanalDe(c),total=+c.total_pago,av=[],hist=c.historico===true||c.origem==="historico_amazon",
+      nat=c.natureza==="digital"||c.natureza==="fisica"?c.natureza:null,mod=coModuloDestino(c),sit=coSituacao(c);if(!isFinite(total))total=0;
+    var o={canal:canal,modulo:mod,historico:hist,natureza:nat,situacao:sit,tratamento:"despesa",valor_despesa:total,valor_referencia:0,valor_pendente:0,categoria:null,avisos:av};
+    if(mod!=="compras"){o.tratamento="outro_modulo";o.valor_despesa=0;av.push("Este registro pertence ao módulo "+(mod==="mercado"?"Mercado":"Veículos")+", não a Compras.");return o}
+    if(sit==="cancelada"){o.tratamento="cancelado";o.valor_despesa=0;return o}
+    if(hist&&canal==="amazon"){var dig=0,ref=0,ind=0;
+      (c.itens||[]).forEach(function(i){var n=i.natureza||nat,v=+(i.total_linha!=null?i.total_linha:i.total)||0;if(i.status_norm==="cancelado")return;if(n==="digital")dig+=v;else if(n==="fisica")ref+=v;else ind+=v});
+      if(!(dig+ref+ind>0)){if(nat==="digital")dig=total;else if(nat==="fisica")ref=total;else ind=total}
+      if(ind>0)av.push("Natureza (física ou digital) não identificada: fica só como referência até ser revisada.");
+      o.valor_referencia=amR2(ref+ind);
+      if(sit==="pendente"){o.valor_pendente=amR2(dig);o.valor_despesa=0;av.push("Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado.")}
+      else{o.valor_despesa=amR2(dig)}
+      o.tratamento=o.valor_despesa>0&&o.valor_referencia>0?"misto":o.valor_despesa>0?"despesa_digital":o.valor_pendente>0?"pendente":"referencia_historica";if(dig>0)o.categoria=CO_CAT_DIGITAL;return o}
+    if(sit==="pendente"){o.tratamento="pendente";o.valor_pendente=total;o.valor_despesa=0;av.push("Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado.")}
+    return o}
+
+  /* ===== Histórico Amazon (Solicitar seus dados) =====
+     Colunas reais do "Order History.csv": Total Amount, Original Quantity, Payment Method Type (os nomes antigos continuam aceitos).
+     Total Amount é o valor de CADA linha de item: o total do pedido é a soma das linhas, nunca o valor repetido. */
+  var AM_COLUNAS={id:["order id","order number","numero do pedido","pedido"],data:["order date","data do pedido","data"],nome:["product name","nome do produto","produto","descricao"],
+    qtd:["original quantity","quantity","quantidade"],un:["unit price","preco unitario"],imp:["unit price tax","imposto unitario","imposto"],tot:["total amount","total owed","valor total","total"],
+    frete:["shipping charge","frete"],desc:["total discounts","descontos","desconto"],pag:["payment method type","payment instrument type","forma de pagamento","pagamento"],
+    asin:["asin","codigo","sku"],site:["website","loja"],status:["order status","status"],envio:["shipment status"],dataenvio:["ship date"],opcao:["shipping option"],
+    rastreio:["carrier name & tracking number","carrier name and tracking number","tracking number","carrier"],natureza:["natureza"]};
+  var AM_OBRIG=["id","data","nome","tot"],AM_NOMES={id:"Order ID",data:"Order Date",nome:"Product Name",tot:"Total Amount"};
+  /* campos permitidos no CSV reconstruído (lista explícita: o que não está aqui nunca sai do arquivo original) */
+  var AM_CAMPOS_SAIDA=["pedido","data","status","natureza","produto","asin","quantidade","preco_unitario","imposto","frete","desconto","total","pagamento"];
+  function amCab(c){return norm(c).replace(/[_\s]+/g," ").trim()}
+  function amMapear(cab){var C={},usados={},ig=[],ausentes=[];
+    Object.keys(AM_COLUNAS).forEach(function(k){C[k]=-1;for(var i=0;i<AM_COLUNAS[k].length;i++){var x=cab.indexOf(AM_COLUNAS[k][i]);if(x>=0){C[k]=x;usados[x]=1;break}}});
+    cab.forEach(function(c,i){if(!usados[i]&&c)ig.push(c)});AM_OBRIG.forEach(function(k){if(C[k]<0)ausentes.push(AM_NOMES[k])});
+    return {C:C,ausentes:ausentes,ignorados:ig}}
+  /* valor com sinal: "1.234,56", "136.42", "-R$ 5,00", "Not Applicable" (→ null) */
+  function amValor(v){if(v==null)return null;var s=String(v).replace(/R\$|\s| /g,"");if(!s||/^(n\/a|na|notapplicable|naoseaplica|-)$/i.test(norm(s)))return null;
+    var neg=/^[-−–(]/.test(s);s=s.replace(/^[-−–(]|\)$/g,"");if(!/^[\d.,]+$/.test(s))return null;if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");
+    var n=coNum(s);return n==null?null:neg?-n:n}
+  function amData(t,hoje){var d=coData(t);if(!d)return null;var y=+d.slice(0,4),m=+d.slice(5,7),dia=+d.slice(8,10);if(y<1995||m<1||m>12||dia<1||dia>31)return null;if(hoje&&d>hoje)return null;return d}
+  function amStatus(t){var s=norm(t);if(!s.trim())return "desconhecido";if(/cancel/.test(s))return "cancelado";if(/authori[sz]ed|autoriz/.test(s))return "autorizado";
+    if(/closed|conclu|entreg|deliver|shipped|enviad|fechad|complete/.test(s))return "concluido";return "desconhecido"}
+  /* física, digital ou indefinida: arquivo/site/opção de envio "digital" → digital; rastreio, data de envio ou status de entrega → física;
+     "não se aplica" no envio ou produto de leitura/streaming → digital; sem sinal nenhum → indefinida (vai para revisão, não para as despesas) */
+  function amNatureza(L,arq,cancelada){var d=norm(L.natureza||"");if(d==="digital"||d==="fisica")return d;
+    var site=norm(L.site),a=norm(arq||""),op=norm(L.opcao),env=norm(L.envio),de=norm(L.dataenvio);
+    if(/digital/.test(a)||/digital/.test(site)||/digital/.test(op))return "digital";
+    if(String(L.rastreio||"").trim()||/delivered|shipped|entregue|enviado|in transit|a caminho|out for delivery/.test(env)||(de.trim()&&!/n\/a|not applicable|nao se aplica/.test(de)))return "fisica";
+    if(!cancelada&&(/not applicable|n\/a|nao se aplica/.test(env)||/\b(e-?book|kindle edition|edicao kindle|prime video|audible|amazon music|assinatura|aplicativo)\b/.test(norm(L.nome))))return "digital";
+    return "indefinida"}
+  function amPagamento(raw){raw=String(raw||"").trim();if(!raw)return null;return (coPagamento(raw)||raw.replace(/\d{5,}/g,"").trim()||null)}
+  /* lê o CSV: um pedido por número, itens agrupados; linha inválida vai para `invalidas` e o resto segue; nunca lança erro */
+  function amLerHistorico(txt,opc){opc=opc||{};var r={ok:false,erro:null,pedidos:[],invalidas:[],avisos:[],cabecalhos_ausentes:[],cabecalhos_ignorados:[],linhas:0},L=csvLinhas(txt);
+    if(L.length<2){r.erro="Arquivo vazio ou sem linhas de pedido.";return r}
+    var m=amMapear(L[0].map(amCab)),C=m.C;r.cabecalhos_ausentes=m.ausentes;r.cabecalhos_ignorados=m.ignorados;
+    if(m.ausentes.length){r.erro="Cabeçalhos obrigatórios ausentes: "+m.ausentes.join(", ")+".";return r}
+    if(C.qtd<0)r.avisos.push("Sem coluna de quantidade: cada linha foi contada como 1 unidade.");
+    function g(row,k){return C[k]>=0&&row[C[k]]!=null?String(row[C[k]]).trim():""}
+    var por={},ordem=[];
+    L.slice(1).forEach(function(row,ix){r.linhas++;var n=ix+1;function inv(t){r.invalidas.push({linha:n,motivo:t})}
+      var id=g(row,"id");if(!id){inv("sem número do pedido");return}if(!/^[A-Za-z0-9-]{5,40}$/.test(id)){inv("número do pedido inválido");return}
+      var dt=amData(g(row,"data"),opc.hoje);if(!dt){inv("data do pedido ausente ou inválida");return}
+      var nome=g(row,"nome");if(!nome){inv("sem nome do produto");return}
+      var tot=amValor(g(row,"tot"));if(tot==null){inv("valor total ausente ou inválido");return}if(tot<0){inv("valor negativo (reembolso não é compra)");return}
+      var q=1,qa=[];if(C.qtd>=0){var qr=g(row,"qtd");if(!qr){qa.push("Quantidade ausente: assumida 1.")}else{q=amValor(qr);if(q==null||q<=0||q%1){inv("quantidade inválida");return}}}
+      var un=amValor(g(row,"un")),imp=amValor(g(row,"imp"))||0,fr=Math.abs(amValor(g(row,"frete"))||0),de=Math.abs(amValor(g(row,"desc"))||0),st=amStatus(g(row,"status")),av=qa.slice(),sub,fecha=true;
+      if(un!=null){sub=amR2(un*q);var t1=amR2(imp*q);
+        if(Math.abs(sub+t1+fr-de-tot)<=0.02)imp=t1;else if(Math.abs(sub+imp+fr-de-tot)<=0.02)imp=amR2(imp);else{imp=t1;fecha=false;av.push("A conta da linha não fecha com o Total Amount (usado como valor pago).")}}
+      else{imp=amR2(imp*q);sub=amR2(tot-imp-fr+de);av.push("Sem preço unitário: subtotal derivado do total.")}
+      var nat=amNatureza({natureza:g(row,"natureza"),site:g(row,"site"),opcao:g(row,"opcao"),envio:g(row,"envio"),dataenvio:g(row,"dataenvio"),rastreio:g(row,"rastreio"),nome:nome},opc.arquivo,st==="cancelado");
+      var p=por[id];if(!p){p=por[id]={tipo:"csv",origem:"historico_amazon",historico:true,loja:"amazon",canal:"amazon",numero:id,data:dt,data_original:g(row,"data"),status:g(row,"status")||null,status_norm:"desconhecido",natureza:"indefinida",
+        pagamento:amPagamento(g(row,"pag")),categoria:null,itens:[],subtotal:0,desconto:0,frete:0,taxas:0,total_pago:0,avisos:[],_fecha:[],_tot:[]};ordem.push(id)}
+      else{if(dt<p.data){p.data=dt;p.data_original=g(row,"data")}if(!p.pagamento)p.pagamento=amPagamento(g(row,"pag"))}
+      p.itens.push({descricao:nome.slice(0,160),codigo:g(row,"asin")||null,qtd:q,unitario:un,total:sub,total_linha:amR2(tot),desconto:0,impostos:imp,frete:amR2(fr),desconto_linha:amR2(de),
+        categoria:coCategoria(nome),natureza:nat,status:g(row,"status")||null,status_norm:st,avisos:av});p._fecha.push(fecha);p._tot.push(amR2(tot))});
+    ordem.forEach(function(id){var p=por[id],vivos=p.itens.filter(function(i){return i.status_norm!=="cancelado"}),ns={};
+      /* todas as linhas com o mesmo total e nenhuma fechando a conta: é o total do pedido repetido em cada linha; conta uma vez só */
+      var repetido=vivos.length>1&&vivos.every(function(i){return i.total_linha===vivos[0].total_linha})&&p._fecha.every(function(f){return !f});
+      vivos.forEach(function(i){p.subtotal+=i.total;p.desconto+=i.desconto_linha;p.frete+=i.frete;p.taxas+=i.impostos;p.total_pago+=i.total_linha;ns[i.natureza]=1});
+      if(repetido){p.total_pago=vivos[0].total_linha;p.avisos.push("O mesmo total aparece em todas as linhas do pedido: contado uma vez só.")}
+      ["subtotal","desconto","frete","taxas","total_pago"].forEach(function(k){p[k]=amR2(p[k])});
+      var ks=Object.keys(ns);p.natureza=!ks.length?(p.itens[0]?p.itens[0].natureza:"indefinida"):ks.length===1?ks[0]:"mista";
+      p.status_norm=!vivos.length?"cancelado":vivos.some(function(i){return i.status_norm==="autorizado"})?"autorizado":vivos.every(function(i){return i.status_norm==="concluido"})?"concluido":"desconhecido";
+      if(p.natureza==="digital")p.categoria=CO_CAT_DIGITAL;
+      p.itens.forEach(function(i){i.avisos.forEach(function(a){if(p.avisos.indexOf(a)<0)p.avisos.push(a)})});
+      p.tratamento=coClassificar(p).tratamento;delete p._fecha;delete p._tot;r.pedidos.push(p)});
+    if(r.invalidas.length)r.avisos.push(r.invalidas.length+(r.invalidas.length===1?" linha foi ignorada":" linhas foram ignoradas")+" por estarem incompletas ou inválidas.");
+    r.ok=true;return r}
+  /* compatível com a tela atual: um pedido por número, cancelados fora */
+  function coLerCSV(txt){var r=amLerHistorico(txt);return r.pedidos.filter(function(p){return p.status_norm!=="cancelado"})}
+  /* indicadores da Amazon: o histórico físico e o digital ficam separados; cancelado não conta */
+  function amIndicadores(pedidos){var o={pedidos:0,cancelados:0,itens:0,unidades:0,valor:0,valor_pendente:0,primeiro:null,ultimo:null,por_natureza:{},por_status:{},por_mes:[],por_ano:[],produtos:[]},mes={},ano={},prod={},nat={};
+    function bloco(){return {pedidos:0,itens:0,unidades:0,valor:0}}
+    (pedidos||[]).forEach(function(p){if(!p)return;o.por_status[p.status_norm]=(o.por_status[p.status_norm]||0)+1;if(p.status_norm==="cancelado"){o.cancelados++;return}
+      o.pedidos++;if(!o.primeiro||p.data<o.primeiro)o.primeiro=p.data;if(!o.ultimo||p.data>o.ultimo)o.ultimo=p.data;
+      var m=p.data.slice(0,7),a=p.data.slice(0,4),vistoN={};mes[m]=mes[m]||{mes:m,pedidos:0,valor:0,fisica:0,digital:0,indefinida:0};ano[a]=ano[a]||{ano:a,pedidos:0,valor:0,fisica:0,digital:0,indefinida:0};mes[m].pedidos++;ano[a].pedidos++;
+      p.itens.forEach(function(i){if(i.status_norm==="cancelado")return;var v=i.total_linha!=null?i.total_linha:i.total,n=i.natureza||"indefinida",b=nat[n]=nat[n]||bloco();
+        if(!vistoN[n]){vistoN[n]=1;b.pedidos++}b.itens++;b.unidades+=i.qtd;b.valor+=v;o.itens++;o.unidades+=i.qtd;o.valor+=v;if(p.status_norm!=="concluido")o.valor_pendente+=v;
+        mes[m].valor+=v;mes[m][n]+=v;ano[a].valor+=v;ano[a][n]+=v;
+        var k=(alChaveProduto(i.descricao)||norm(i.descricao).slice(0,60))+"|"+n,pr=prod[k]=prod[k]||{chave:k.split("|")[0],nome:i.descricao,natureza:n,qtd:0,valor:0,pedidos:0,_p:{}};
+        pr.qtd+=i.qtd;pr.valor+=v;if(!pr._p[p.numero]){pr._p[p.numero]=1;pr.pedidos++}})});
+    Object.keys(nat).forEach(function(n){var b=nat[n];b.valor=amR2(b.valor);o.por_natureza[n]=b});o.valor=amR2(o.valor);o.valor_pendente=amR2(o.valor_pendente);
+    o.por_mes=Object.keys(mes).sort().map(function(k){var x=mes[k];["valor","fisica","digital","indefinida"].forEach(function(f){x[f]=amR2(x[f])});return x});
+    o.por_ano=Object.keys(ano).sort().map(function(k){var x=ano[k];["valor","fisica","digital","indefinida"].forEach(function(f){x[f]=amR2(x[f])});return x});
+    o.produtos=Object.keys(prod).map(function(k){var x=prod[k];delete x._p;x.valor=amR2(x.valor);return x}).sort(function(a,b){return b.valor-a.valor||(a.nome<b.nome?-1:1)});
+    return o}
+  /* quais arquivos de dentro do ZIP interessam; imagens de entrega e o resto nem chegam a ser lidos */
+  function amSelecionarArquivos(nomes){var usar=[],ignorar=[];
+    (nomes||[]).forEach(function(n){var b=String(n||"").replace(/\\/g,"/");if(!b||/\/$/.test(b))return;var s=norm(b);
+      if(/\.csv$/.test(s)&&!/__macosx\//.test(s)&&/order[ ._-]?history|digital[ ._-]?(orders?|items?)/.test(s))usar.push({nome:n,digital:/digital/.test(s)});
+      else ignorar.push({nome:n,motivo:/\.(jpe?g|png|gif|webp|heic|bmp|pdf)$/.test(s)?"imagem ou documento sem uso na importação":/\.csv$/.test(s)?"CSV que não é de pedidos":"arquivo fora da importação"})});
+    return {usar:usar,ignorar:ignorar}}
+  /* vários arquivos {nome, texto} → pedidos (o mesmo pedido em dois arquivos vale uma vez) */
+  function amImportar(arquivos,opc){opc=opc||{};var sel=amSelecionarArquivos((arquivos||[]).map(function(a){return a&&a.nome})),r={pedidos:[],arquivos_lidos:[],arquivos_ignorados:sel.ignorar,invalidas:[],avisos:[],erros:[]},visto={};
+    sel.usar.forEach(function(u){var a=(arquivos||[]).filter(function(x){return x&&x.nome===u.nome})[0],l=amLerHistorico(a&&a.texto,{arquivo:u.nome,hoje:opc.hoje});
+      if(!l.ok){r.erros.push({arquivo:u.nome,erro:l.erro});return}r.arquivos_lidos.push(u.nome);
+      l.invalidas.forEach(function(x){r.invalidas.push({arquivo:u.nome,linha:x.linha,motivo:x.motivo})});
+      l.pedidos.forEach(function(p){var k=coNumeroPedido(p.numero)+"|"+p.natureza;if(visto[k]){r.avisos.push("Pedido repetido entre arquivos, contado uma vez: "+p.numero);return}visto[k]=1;r.pedidos.push(p)})});
+    return r}
+  /* CSV reconstruído com a lista explícita de campos; endereço, telefone, coordenadas, destinatário, rastreio e o resto nunca saem do original.
+     Texto livre (produto, status, pagamento) ainda passa pelo limpador de e-mail/CPF/telefone/CEP e contra fórmula de planilha. */
+  function amCelula(v,texto){var s=v==null?"":String(v);if(texto){s=coLimparTokens(s);if(/^[=+\-@\t\r]/.test(s))s="'"+s}return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+  function amReconstruirCSV(txt,opc){var l=amLerHistorico(txt,opc),o={ok:l.ok,erro:l.erro,csv:null,campos:AM_CAMPOS_SAIDA.slice(),linhas:0,descartadas:l.invalidas.length,avisos:l.avisos.slice()};if(!l.ok)return o;
+    var n2=function(v){return v==null?"":(+v).toFixed(2)},rows=[AM_CAMPOS_SAIDA.join(",")];
+    l.pedidos.forEach(function(p){p.itens.forEach(function(i){rows.push([amCelula(p.numero,1),p.data,amCelula(i.status,1),i.natureza,amCelula(i.descricao,1),amCelula(i.codigo,1),i.qtd,n2(i.unitario),n2(i.impostos),n2(i.frete),n2(i.desconto_linha),n2(i.total_linha),amCelula(p.pagamento,1)].join(","));o.linhas++})});
+    o.csv=rows.join("\n")+"\n";return o}
+  /* confere que um CSV reconstruído tem só os campos permitidos e nenhum padrão de dado pessoal */
+  function amAuditarSanitizado(csv){var L=csvLinhas(csv),ach=[];if(!L.length)return {ok:false,achados:["arquivo vazio"]};
+    if(L[0].join(",")!==AM_CAMPOS_SAIDA.join(","))ach.push("cabeçalho fora da lista permitida");
+    L.slice(1).forEach(function(r,i){if(r.length!==AM_CAMPOS_SAIDA.length)ach.push("linha "+(i+1)+": número de colunas diferente");
+      r.forEach(function(c){if(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/.test(c)||/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(c)||/\b\d{5}-\d{3}\b/.test(c)||/\(\d{2}\)\s*9?\d{4}[\s.-]?\d{4}/.test(c)||/(^|\D)\d{11}(\D|$)/.test(c))ach.push("linha "+(i+1)+": possível dado pessoal")})});
+    return {ok:!ach.length,achados:ach}}
+
+  /* ===== Reembolsos da Amazon ===== Solicitado e aprovado NÃO são crédito: só o recebimento confirmado à mão, no mês em que o dinheiro entrou. */
+  var CO_REEMB_ESTADOS={solicitado:"Solicitado",aprovado:"Aprovado",recebido:"Recebido",recusado:"Recusado"};
+  function coReembChave(r){r=r||{};if(r.id)return "reemb:"+r.id;return "reemb:"+(r.canal||"amazon")+":"+coNumeroPedido(r.numero)+":"+Math.round((+r.valor||0)*100)+":"+(r.recebido_em||"")}
+  function coReembVincular(r,compras){r=r||{};var n=coNumeroPedido(r.numero);if(!n)return {ok:false,compra:null,erro:"Informe o pedido original do reembolso."};
+    for(var i=0;i<(compras||[]).length;i++){var c=compras[i];if(c&&coNumeroPedido(c.numero)===n&&(!r.canal||coCanalDe(c)===r.canal))return {ok:true,compra:c,erro:null}}
+    return {ok:false,compra:null,erro:"Pedido original não encontrado: o reembolso não pode virar crédito."}}
+  function coReembCreditos(reembolsos,compras,creditos){var o={creditos:[],sem_credito:[]},visto={},pago={};
+    (creditos||[]).forEach(function(c){if(!c)return;visto[c.chave]=1;var n=coNumeroPedido(c.numero);pago[n]=(pago[n]||0)+Math.round((+c.valor||0)*100)});
+    (reembolsos||[]).forEach(function(r){r=r||{};var no=function(t){o.sem_credito.push({reembolso:r,motivo:t})},val=Math.round((+r.valor||0)*100);
+      if(r.estornado===true||r.estornado_em){no("Recebimento estornado: não conta como crédito.");return}
+      if(r.estado!=="recebido"){no(r.estado==="aprovado"?"Aprovado ainda não é crédito: falta confirmar o recebimento.":"Solicitado ainda não é crédito.");return}
+      if(r.recebido_confirmado!==true){no("Recebimento não confirmado manualmente.");return}
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(r.recebido_em||"")){no("Informe a data em que o dinheiro foi recebido.");return}
+      if(!(val>0)){no("Valor do reembolso inválido.");return}
+      var v=coReembVincular(r,compras);if(!v.ok){no(v.erro);return}
+      var k=coReembChave(r);if(visto[k]){no("Crédito já lançado para este reembolso.");return}
+      var n=coNumeroPedido(r.numero),limite=Math.round((+v.compra.total_pago||0)*100);if((pago[n]||0)+val>limite){no("Os reembolsos passariam do valor pago no pedido.");return}
+      visto[k]=1;pago[n]=(pago[n]||0)+val;o.creditos.push({chave:k,numero:r.numero,compra_id:v.compra.id||null,valor:val/100,mes:r.recebido_em.slice(0,7),recebido_em:r.recebido_em,reembolso_id:r.id||null})});
+    return o}
+
+  /* ===== Núcleo fiscal (NF-e modelo 55, NFC-e modelo 65) ===== entidade própria, sem despesa automática e sem dado do consumidor. */
+  var NF_UF={11:"RO",12:"AC",13:"AM",14:"RR",15:"PA",16:"AP",17:"TO",21:"MA",22:"PI",23:"CE",24:"RN",25:"PB",26:"PE",27:"AL",28:"SE",29:"BA",31:"MG",32:"ES",33:"RJ",35:"SP",41:"PR",42:"SC",43:"RS",50:"MS",51:"MT",52:"GO",53:"DF"};
+  var NF_MODELOS={"55":"NF-e","65":"NFC-e"},NF_FORMATOS={xml:"XML",pdf:"PDF",danfe:"DANFE",imagem:"Imagem ou foto"},NF_CONTINGENCIA={2:1,4:1,5:1,6:1,7:1,9:1};
+  var NF_SITUACOES={autorizada:"Autorizada",contingencia:"Contingência",pendente:"Pendente",rejeitada:"Rejeitada",cancelada:"Cancelada"};
+  var NF_BANDEIRAS={"01":"Visa","02":"Mastercard","03":"American Express","04":"Sorocred","05":"Diners","06":"Elo","07":"Hipercard","08":"Aura","09":"Cabal","99":"Outra"};
+  var NF_MODULOS={compras:"Compras online",mercado:"Mercado",alimentacao:"Alimentação",veiculos:"Veículos/Abastecimento"};
+  var NF_UNID={un:["un","und","unid","unidade","unidades","u","unit"],pc:["pc","pca","peca","pecas"],cx:["cx","caixa","caixas"],pct:["pct","pacote","pacotes"],par:["par","pares"],
+    kg:["kg","kgs","kilo","kilos","quilo","quilos","quilograma","quilogramas"],g:["g","gr","grs","grama","gramas"],l:["l","lt","lts","litro","litros"],ml:["ml","mililitro","mililitros"],m:["m","metro","metros"]};
+  var NF_FAMILIA={un:"contagem",pc:"contagem",cx:"contagem",pct:"contagem",par:"contagem",kg:"massa",g:"massa",l:"volume",ml:"volume",m:"comprimento"};
+  function nfDigitos(s){return String(s==null?"":s).replace(/\D/g,"")}
+  /* quantidade com casas decimais (não arredonda em centavos): "0.7340", "1,5", "1.234,500" */
+  function nfDec(v){if(v==null||v==="")return null;if(typeof v==="number")return isFinite(v)?v:null;var s=String(v).replace(/\s| /g,"");if(!/^-?[\d.,]+$/.test(s))return null;
+    if(/,\d+$/.test(s))s=s.replace(/\./g,"").replace(",",".");else if(/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,"");var n=parseFloat(s);return isFinite(n)?Math.round(n*10000)/10000:null}
+  /* dígito verificador da chave: módulo 11, pesos 2 a 9 da direita para a esquerda */
+  function nfDvChave(b43){var p=2,s=0;for(var i=b43.length-1;i>=0;i--){s+=(+b43.charAt(i))*p;p=p===9?2:p+1}var r=s%11;return r<2?0:11-r}
+  function nfCnpjValido(c){c=nfDigitos(c);if(c.length!==14||/^(\d)\1{13}$/.test(c))return false;
+    function dv(n){var p=n-7,s=0;for(var i=0;i<n;i++){s+=(+c.charAt(i))*p;p=p===2?9:p-1}var r=s%11;return r<2?0:11-r}
+    return dv(12)===+c.charAt(12)&&dv(13)===+c.charAt(13)}
+  /* chave de 44 dígitos: UF(2) AAMM(4) CNPJ(14) modelo(2) série(3) número(9) tipo de emissão(1) código(8) DV(1).
+     `ctx` (opcional) cruza com o que o documento diz: {cnpj, modelo, serie, numero, mes: "AAAA-MM", uf: sigla ou código, hoje} */
+  function nfValidarChave(chave,ctx){ctx=ctx||{};var k=nfDigitos(chave),e=[],o={ok:false,chave:k,erros:e,campos:null};
+    function er(c,t){e.push({codigo:c,texto:t})}
+    if(k.length!==44){er("tamanho","A chave tem "+k.length+" dígitos; são 44.");return o}
+    var c=o.campos={uf:k.slice(0,2),aamm:k.slice(2,6),cnpj:k.slice(6,20),modelo:k.slice(20,22),serie:+k.slice(22,25),numero:+k.slice(25,34),tp_emis:+k.charAt(34),codigo:k.slice(35,43),dv:+k.charAt(43)};
+    c.sigla_uf=NF_UF[c.uf]||null;c.ano=2000+(+c.aamm.slice(0,2));c.mes=+c.aamm.slice(2,4);c.mes_emissao=c.ano+"-"+(c.mes<10?"0":"")+c.mes;
+    if(/^(\d)\1{43}$/.test(k))er("repetida","A chave é uma sequência repetida.");
+    if(!c.sigla_uf)er("uf","Código de UF inexistente ("+c.uf+").");
+    if(c.mes<1||c.mes>12)er("mes","Mês de emissão inválido na chave ("+c.aamm.slice(2)+").");else if(c.ano<2006||(ctx.hoje&&c.mes_emissao>ctx.hoje.slice(0,7)))er("mes","Ano/mês de emissão fora do possível ("+c.mes_emissao+").");
+    if(!nfCnpjValido(c.cnpj))er("cnpj","O CNPJ do emitente na chave é inválido.");
+    if(!NF_MODELOS[c.modelo])er("modelo","Modelo "+c.modelo+" não é NF-e (55) nem NFC-e (65).");
+    if(!(c.numero>0))er("numero","Número da nota zerado na chave.");
+    if(c.tp_emis<1)er("tp_emis","Tipo de emissão inválido na chave.");
+    if(nfDvChave(k.slice(0,43))!==c.dv)er("dv","Dígito verificador incorreto.");
+    if(ctx.cnpj&&nfDigitos(ctx.cnpj)!==c.cnpj)er("cnpj_divergente","O CNPJ do emitente não bate com o da chave.");
+    if(ctx.modelo&&String(ctx.modelo)!==c.modelo)er("modelo_divergente","O modelo informado não bate com o da chave.");
+    if(ctx.serie!=null&&ctx.serie!==""&&+ctx.serie!==c.serie)er("serie_divergente","A série não bate com a da chave.");
+    if(ctx.numero!=null&&ctx.numero!==""&&+ctx.numero!==c.numero)er("numero_divergente","O número da nota não bate com o da chave.");
+    if(ctx.mes&&ctx.mes!==c.mes_emissao)er("mes_divergente","O mês de emissão não bate com o da chave.");
+    if(ctx.uf&&String(ctx.uf).toUpperCase()!==c.sigla_uf&&String(ctx.uf)!==c.uf)er("uf_divergente","A UF não bate com a da chave.");
+    o.ok=!e.length;return o}
+  /* situação só com evidência: autorizada exige protocolo (15 dígitos) + cStat 100/150; contingência sem autorização continua contingência */
+  function nfSituacao(ev){ev=ev||{};var cs=+ev.cStat||0,prot=nfDigitos(ev.protocolo),tp=+ev.tp_emis||0,t=norm(ev.situacao_texto||"");
+    if(ev.cancelada===true||cs===101||cs===151||cs===155)return {situacao:"cancelada",evidencia:ev.cancelada===true?"evento de cancelamento registrado":"cStat "+cs};
+    if(/cancel/.test(t))return {situacao:"cancelada",evidencia:"situação informada no documento"};
+    if(cs===110||(cs>=301&&cs<=303))return {situacao:"rejeitada",denegada:true,evidencia:"uso denegado (cStat "+cs+")"};
+    if(cs>=200&&cs<=999)return {situacao:"rejeitada",evidencia:"rejeição cStat "+cs};
+    if(/rejeit/.test(t))return {situacao:"rejeitada",evidencia:"situação informada no documento"};
+    if((cs===100||cs===150)&&prot.length===15)return {situacao:"autorizada",evidencia:"protocolo "+prot+" com cStat "+cs};
+    if(NF_CONTINGENCIA[tp]||ev.contingencia===true||/conting/.test(t))return {situacao:"contingencia",evidencia:"emitida em contingência sem protocolo de autorização"};
+    return {situacao:"pendente",evidencia:cs===100?"cStat 100 sem protocolo":"sem protocolo de autorização"}}
+  function nfUnidade(u){var k=norm(u).replace(/[^a-z0-9]/g,""),cod=null;Object.keys(NF_UNID).forEach(function(c){if(NF_UNID[c].indexOf(k)>=0)cod=c});
+    return cod?{cod:cod,familia:NF_FAMILIA[cod],reconhecida:true,original:String(u||"")}:{cod:k||null,familia:"outra",reconhecida:false,original:String(u||"")}}
+  /* quantidade na unidade-base (kg para massa, litro para volume) para comparar preço */
+  function nfQtdBase(item){var q=item&&item.qtd,c=item&&item.unidade&&item.unidade.cod;if(q==null)return null;if(c==="g")return {qtd:q/1000,unidade:"kg"};if(c==="ml")return {qtd:q/1000,unidade:"l"};return {qtd:q,unidade:c||null}}
+  function nfData(t){var d=coData(t);return d&&d.slice(5,7)>="01"&&d.slice(5,7)<="12"?d:null}
+  /* normaliza o que foi extraído (XML, PDF, DANFE ou foto) numa estrutura só; copia campo a campo (nada do consumidor entra) */
+  function nfNormalizar(d){d=d||{};var av=[],em=d.emitente||{},v0=d.valores||{},cnpj=nfDigitos(em.cnpj),
+      val=nfValidarChave(d.chave,{cnpj:cnpj||null,modelo:d.modelo,serie:d.serie,numero:d.numero,mes:(nfData(d.data_emissao)||"").slice(0,7)||null,uf:em.uf}),camp=val.campos,
+      modelo=String(d.modelo||(camp&&camp.modelo)||"");if(!NF_MODELOS[modelo]){av.push("Modelo da nota não identificado.");modelo=null}
+    var formato=NF_FORMATOS[d.formato]?d.formato:"imagem",din=function(x){return x==null||x===""?null:coNum(x)};
+    var itens=(d.itens||[]).map(function(i){i=i||{};var u=nfUnidade(i.unidade),it={descricao:String(i.descricao||"").trim().slice(0,200),codigo:i.codigo!=null&&i.codigo!==""?String(i.codigo).slice(0,60):null,qtd:nfDec(i.qtd),unidade:u,unitario:din(i.unitario),total:din(i.total),desconto:din(i.desconto)||0};
+      if(it.qtd==null)av.push("Item sem quantidade: "+(it.descricao||"sem descrição")+".");if(!u.reconhecida&&u.cod)av.push("Unidade não reconhecida: "+u.original+".");it.qtd_base=nfQtdBase(it);return it});
+    var pags=(d.pagamentos||[]).map(function(p){p=p||{};var cod=p.codigo!=null?String(p.codigo):null,fin=nfDigitos(p.final);
+      return {codigo:cod,forma:CO_TPAG[cod]||(p.forma?String(p.forma).slice(0,40):null),valor:din(p.valor),bandeira:NF_BANDEIRAS[p.bandeira_codigo]||(p.bandeira?String(p.bandeira).slice(0,30):null),final:fin.length>=4?fin.slice(-4):null}});
+    var troco=din(d.troco)||0,somaPag=pags.length&&pags.every(function(p){return p.valor!=null})?amR2(pags.reduce(function(s,p){return s+p.valor},0)-troco):null;
+    var V={produtos:din(v0.produtos),descontos:din(v0.descontos),frete:din(v0.frete),outras:din(v0.outras),impostos:din(v0.impostos),total:din(v0.total),a_pagar:din(v0.a_pagar)};if(V.a_pagar==null)V.a_pagar=somaPag;
+    if(V.produtos!=null&&V.total!=null){var calc=amR2(V.produtos-(V.descontos||0)+(V.frete||0)+(V.outras||0));if(Math.abs(calc-V.total)>0.02)av.push("A conta dos valores da nota não fecha (produtos − descontos + frete + outras = R$ "+calc.toFixed(2).replace(".",",")+"; total R$ "+V.total.toFixed(2).replace(".",",")+"). Impostos como IPI e ST podem explicar.")}
+    var sit=nfSituacao({cStat:d.cStat,protocolo:d.protocolo,tp_emis:d.tp_emis!=null?d.tp_emis:camp&&camp.tp_emis,cancelada:d.cancelada,contingencia:d.contingencia,situacao_texto:d.situacao_texto});
+    var difPag=V.a_pagar!=null&&V.total!=null?amR2(V.a_pagar-V.total):null;if(difPag!=null&&Math.abs(difPag)>0.02)av.push("O valor a pagar difere do total da nota.");
+    if(!val.ok)av.push("A chave de acesso não passou na validação.");
+    return {modelo:modelo,tipo:modelo?NF_MODELOS[modelo]:null,formato:formato,chave:val.chave.length===44?val.chave:null,chave_valida:val.ok,validacao:{ok:val.ok,erros:val.erros},
+      numero:d.numero!=null&&d.numero!==""?String(+d.numero||d.numero):(camp?String(camp.numero):null),serie:d.serie!=null&&d.serie!==""?String(+d.serie):(camp?String(camp.serie):null),data_emissao:nfData(d.data_emissao),
+      emitente:{nome:em.nome?String(em.nome).slice(0,120):null,cnpj:cnpj.length===14?cnpj:null,uf:em.uf||(camp&&camp.sigla_uf)||null},
+      situacao:sit.situacao,situacao_evidencia:sit.evidencia,denegada:sit.denegada===true,tp_emis:d.tp_emis!=null?+d.tp_emis:(camp?camp.tp_emis:null),
+      valores:V,diferenca_pagamento:difPag,pagamentos:pags,itens:itens,requer_conferencia:formato!=="xml"||!val.ok,avisos:av,gera_despesa:false}}
+  /* lê o XML da nota (nfeProc); nunca lê destinatário, transporte nem informações adicionais */
+  function nfLerXML(xml){var x=String(xml||"");if(!/<(?:\w+:)?infNFe\b/i.test(x))return null;
+    var id=/<(?:\w+:)?infNFe[^>]*\bId="NFe(\d{44})"/i.exec(x),ide=coTag(x,"ide")||"",emit=coTag(x,"emit")||"",ender=coTag(emit,"enderEmit")||"",tot=coTag(x,"ICMSTot")||"",pag=coTag(x,"pag")||"",prot=coTag(x,"infProt")||"";
+    var canc=coTags(x,"retEvento").some(function(r){var cs=+coTag(r,"cStat");return coTag(r,"tpEvento")==="110111"&&(cs===135||cs===155||cs===151)});
+    return {formato:"xml",chave:(id&&id[1])||coTag(prot,"chNFe"),modelo:coTag(ide,"mod"),serie:coTag(ide,"serie"),numero:coTag(ide,"nNF"),data_emissao:(coTag(ide,"dhEmi")||coTag(ide,"dEmi")||"").slice(0,10)||null,tp_emis:coTag(ide,"tpEmis"),
+      emitente:{nome:coTag(emit,"xNome"),cnpj:coTag(emit,"CNPJ"),uf:coTag(ender,"UF")},cStat:coTag(prot,"cStat"),protocolo:coTag(prot,"nProt"),cancelada:canc,
+      valores:{produtos:coTag(tot,"vProd"),descontos:coTag(tot,"vDesc"),frete:coTag(tot,"vFrete"),outras:coTag(tot,"vOutro"),impostos:coTag(tot,"vTotTrib"),total:coTag(tot,"vNF")},troco:coTag(pag,"vTroco"),
+      pagamentos:coTags(pag,"detPag").map(function(p){return {codigo:coTag(p,"tPag"),valor:coTag(p,"vPag"),bandeira_codigo:coTag(p,"tBand")}}),
+      itens:coTags(x,"det").map(function(dt){var p=coTag(dt,"prod")||"";return {descricao:coTag(p,"xProd"),codigo:coTag(p,"cProd"),qtd:coTag(p,"qCom"),unidade:coTag(p,"uCom"),unitario:coTag(p,"vUnCom"),total:coTag(p,"vProd"),desconto:coTag(p,"vDesc")}})}}
+  /* auditoria de privacidade do objeto normalizado: chave de campo de consumidor, CPF formatado ou sequência de 11 dígitos */
+  function nfTemDadoPessoal(o){var ach=[];(function ve(v,cam){if(v==null)return;if(Array.isArray(v)){v.forEach(function(x,i){ve(x,cam+"["+i+"]")});return}
+      if(typeof v==="object"){Object.keys(v).forEach(function(k){if(/cpf|consumidor|destinat|cliente|comprador|endereco|telefone|e-?mail|cvv|cartao_numero|pan$/i.test(k))ach.push(cam+"."+k);ve(v[k],cam+"."+k)});return}
+      var s=String(v);if(/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(s)||/(^|\D)\d{11}(\D|$)/.test(s))ach.push(cam+": padrão de CPF")})(o,"nota");return {ok:!ach.length,achados:ach}}
+  /* vínculo de conferência com um registro de outro módulo; nunca cria despesa */
+  function nfVincular(nota,alvo,existentes){nota=nota||{};alvo=alvo||{};var e=[],a=[];
+    if(!nota.chave)e.push("A nota não tem chave de acesso para identificá-la.");if(!NF_MODULOS[alvo.modulo])e.push("Módulo de destino inválido.");if(alvo.id==null||alvo.id==="")e.push("Informe o registro que a nota documenta.");
+    if(nota.situacao==="cancelada"||nota.situacao==="rejeitada")e.push("Nota "+(nota.situacao==="cancelada"?"cancelada":"rejeitada")+" não documenta compra.");
+    else if(nota.situacao!=="autorizada")a.push("A nota está "+(NF_SITUACOES[nota.situacao]||"sem situação").toLowerCase()+": sem autorização comprovada.");
+    if(nota.chave&&nota.chave_valida===false)a.push("A chave da nota não passou na validação.");
+    (existentes||[]).forEach(function(x){if(!x||x.chave!==nota.chave||x.modulo!==alvo.modulo)return;if(String(x.registro_id)===String(alvo.id))e.push("Esta nota já está vinculada a este registro.");else a.push("A nota já está vinculada a outro registro de "+NF_MODULOS[alvo.modulo]+".")});
+    var ref=nota.valores&&(nota.valores.a_pagar!=null?nota.valores.a_pagar:nota.valores.total),dif=ref!=null&&alvo.total!=null?amR2(+alvo.total-ref):null;
+    if(dif!=null&&Math.abs(dif)>0.02)a.push("O valor do registro difere do valor da nota em R$ "+Math.abs(dif).toFixed(2).replace(".",",")+".");
+    if(e.length)return {ok:false,erros:e,avisos:a,vinculo:null};
+    return {ok:true,erros:[],avisos:a,vinculo:{chave:nota.chave,modulo:alvo.modulo,registro_id:alvo.id,tipo:"conferencia",confere:dif==null?null:Math.abs(dif)<=0.02,diferenca:dif,gera_despesa:false}}}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
@@ -1445,5 +1737,10 @@
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
-    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos};
+    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coLimparTexto:coLimparTexto,coLimparExtraido:coLimparExtraido,coMesclar:coMesclar,coDespesas:coDespesas,coRecorrencias:coRecorrencias,coPrecos:coPrecos,
+    CO_CANAIS:CO_CANAIS,CO_CAT_DIGITAL:CO_CAT_DIGITAL,coCanalDe:coCanalDe,coModuloDestino:coModuloDestino,coSituacao:coSituacao,coClassificar:coClassificar,
+    AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
+    CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
+    NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfVincular:nfVincular};
 })(typeof window!=="undefined"?window:globalThis);

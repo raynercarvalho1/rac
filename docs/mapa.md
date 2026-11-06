@@ -23,7 +23,8 @@ Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atua
 | Segurança (`#seguranca`) | `js/seguranca.js` | `docs/seguranca.md` | `central.test.mjs`, `seguranca.test.mjs` | `022` | — |
 | Painel (`#painel`) | `js/painel.js` | `docs/painel.md` | `painel.test.mjs` | — | — |
 | Alimentação (`#alimentacao`) | `js/alimentacao.js` | `docs/alimentacao.md` | `alimentacao.test.mjs`, `alimentacao_banco.test.mjs` | `024`, `027` | `rac-ia` (`alimentacao.pedido`, DEMO) |
-| Compras online (`#compras`) | `js/compras.js` | `docs/compras.md` | `compras.test.mjs` | `025`, `026` | — |
+| Compras online (`#compras`) | `js/compras.js`; núcleo multiorigem, Amazon histórico e reembolsos em `nucleo.js` (`co*`, `am*`) | `docs/compras.md` | `compras.test.mjs`, `compras_multiorigem.test.mjs`, `banco_lote3.test.mjs` | `025`, `026`, `030`, `031` (preparados) | — |
+| Notas fiscais (núcleo, sem tela) | `nucleo.js` (`nf*`) | `docs/fiscal.md` | `fiscal.test.mjs`, `banco_lote3.test.mjs` | `032` (preparado) | — |
 | Esportes (`#esportes`) | `js/esportes.js`, `js/esportes-central.js` | `docs/esportes.md` | `esportes.test.mjs` | — | `rac-ia` (`esportes.*`, DEMO); `scripts/atualizar_rumores.py` |
 | Newsletter (`#newsletter`) | `js/newsletter.js` | `docs/newsletter.md` | `newsletter.test.mjs` | `018`–`021`, `023` | `rac-newsletter`; `rac-ia` (`newsletter.resumo`, REAL); `scripts/atualizar_newsletter.py` |
 | RAC Hoje (`#rachoje`) | `js/hoje.js` (coleta, análise e tela) | `docs/hoje.md` | `hoje.test.mjs` | `028`, `029` | `rac-ia` (`hoje.analise`, só REAL) |

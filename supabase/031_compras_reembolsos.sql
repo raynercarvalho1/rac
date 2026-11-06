@@ -1,6 +1,5 @@
--- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
--- Reembolsos das compras (docs/compras.md, Lote 3). Rode depois do 030 e, logo em seguida, o 022 de novo. Pode rodar de novo sem estragar nada.
--- PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco. Não lança nada nas despesas e não mexe em compra nenhuma.
+-- Reembolsos das compras (docs/compras.md, Lote 3). Rode depois do 030 (o 022 não roda de novo; a auditoria das tabelas novas é do 033). Pode rodar de novo sem estragar nada.
+-- Aplicado em produção em 06/11/2026 (Postgres 17.11) e conferido por consulta só-leitura. Não lança nada nas despesas e não mexe em compra nenhuma.
 --
 -- Regras financeiras (todas garantidas pelo BANCO, não só pelo site):
 -- 1) solicitado e aprovado NÃO geram crédito; 2) só "recebido" com confirmação manual gera crédito (quem confirmou e quando ficam gravados;

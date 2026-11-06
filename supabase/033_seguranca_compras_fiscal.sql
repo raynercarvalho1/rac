@@ -1,6 +1,5 @@
--- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
 -- Segurança das tabelas das migrations 030, 031 e 032 (Compras multiorigem, Reembolsos, Central Fiscal). Rode DEPOIS delas e do 022.
--- Pode rodar de novo sem estragar nada. PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco.
+-- Pode rodar de novo sem estragar nada. Aplicado em produção em 06/11/2026 (Postgres 17.11) e conferido por consulta só-leitura.
 --
 -- Por que existe: o 022 é histórico (já aplicado em produção) e fica exatamente como está. Ele tem a lista das tabelas pessoais da trava da
 -- 2ª etapa e da auditoria seguranca_estado(); em vez de editá-lo, este arquivo cobre as tabelas novas. As migrations 030/031/032 já criam a

@@ -146,9 +146,9 @@ Tudo em `nucleo.js`, testado em `tests/compras_multiorigem.test.mjs`. **Nada dis
 reembolsos e de créditos, o cofre do CSV sanitizado, a tela de importação com prévia e a leitura do ZIP no navegador.
 **Cuidado até lá:** a tela atual ainda salva o CSV como compra comum; não importe o histórico real por ela, senão o físico entraria nas despesas.
 
-## Banco do Lote 3 (030 a 033: preparados no repositório, NÃO executados)
+## Banco do Lote 3 (030 a 033: aplicados em produção em 06/11/2026)
 
-Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Nenhuma foi executada em banco nenhum.
+Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Aplicadas pelo proprietário no SQL Editor (Postgres 17.11), com backup prévio, e conferidas por uma consulta só-leitura de 34 verificações: tudo como esperado (veja "Aplicação em produção" abaixo). A 022 não roda de novo.
 
 - **Status do pedido** (`coSituacao`, decisão de 06/11/2026): cancelado não contabiliza; **autorizado é pendente** (fora das despesas efetivas,
   o valor aparece em `valor_pendente`); concluído/efetivado/enviado/entregue contabiliza. No histórico, status desconhecido ou ausente nunca
@@ -201,3 +201,10 @@ Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Nenhum
   (sem update/delete/truncate); responsáveis (`confirmado_por`, `estornado_por`) sem `ON DELETE`, para a auditoria não ser reescrita.
 - **Auth (pendência):** não há `config.toml` nem qualquer registro local sobre o cadastro público de novos usuários do Supabase Auth; só o painel de
   produção diz se está desabilitado. Nada foi suposto nem alterado: conferir em Authentication → Sign In / Providers ("Allow new users to sign up").
+
+### Aplicação em produção (06/11/2026)
+
+- **Antes:** Postgres 17.11; cadastro público e login anônimo do Auth desligados e e-mail confirmado ligado (informado pelo proprietário); 025, 026 e 027 aplicadas; bucket `familia` privado; nenhum objeto da 030 a 033 existia; 1 compra (status vazio, origem `manual`), 2 contas, 0 fatores TOTP. Backup feito pelo proprietário antes de aplicar.
+- **Depois (consulta só-leitura, tudo como esperado):** 7 tabelas e 2 views novas; as 2 views com `security_invoker`; RLS ligado nas 7 tabelas com a política restritiva `mfa` e as políticas da casa (8); `anon` sem nenhum privilégio nas 9 relações; `authenticated` só com `select` nas views e só `select`/`insert` nos estornos; 13 funções novas, nenhuma `security definer`, todas com `search_path` fixo e fechadas para `anon`; RPCs `compras_gravar`, `reembolso_confirmar` e `reembolso_estornar` executáveis por `authenticated`; 8 constraints, 7 gatilhos e 5 índices únicos novos; a regra de status é `NOT VALID`; `seguranca_estado()` cobre as tabelas novas; tabelas novas vazias; a compra antiga intacta (sem marca nova, mesmo status e origem), com seu item e documento; bucket e políticas do Storage intactos.
+- **Não comprovado (continua pendente):** sessão real com MFA/aal2 (não há conta com TOTP), acesso real ao Storage pela RPC (exigiria enviar um arquivo), concorrência real nos reembolsos, e uso das views e RPCs pela API (PostgREST) com uma sessão autenticada. Nenhum teste criou compra, nota ou reembolso reais.
+- **Interface:** nada do site usa as tabelas novas ainda; as consultas de Painel e Hoje precisam passar a trazer `canal`, `natureza`, `historico` e os campos dos produtos.

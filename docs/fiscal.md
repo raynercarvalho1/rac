@@ -1,6 +1,6 @@
 # Central de Notas Fiscais (núcleo fiscal)
 
-Lote 2: só o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. **Sem tela, sem Storage, sem OCR; o banco (032) está preparado no repositório e NÃO foi executado.**
+Lote 2: só o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. **Sem tela, sem Storage, sem OCR; o banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção").**
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
@@ -49,7 +49,7 @@ módulo e valor do registro diferente do da nota.
 OCR/leitura de PDF, DANFE e foto; XML real de uma nota da família para validar tags (os testes usam XML fictício); tabelas `notas_fiscais`
 e de vínculos com RLS e backup (`SEG_TABELAS`); cofre para os originais; tela da Central. Orçamento de IA fiscal fica de fora.
 
-## Banco (032: preparado, não executado)
+## Banco (032: aplicado em produção em 06/11/2026)
 
 `supabase/032_central_fiscal.sql`: `notas_fiscais`, `notas_fiscais_itens`, `notas_fiscais_docs`, `notas_fiscais_vinculos`, no mesmo conceito da casa
 (Rayner e Fernanda) mais a trava "mfa" (criada na própria 032 e reafirmada pela 033; o 022 não muda). Compartilhar a Central Fiscal não dá acesso à IA paga (nada aqui toca `ia_*` nem `rac-ia`).

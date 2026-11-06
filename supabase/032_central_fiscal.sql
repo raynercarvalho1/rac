@@ -1,7 +1,6 @@
--- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
 -- Central de Notas Fiscais (docs/fiscal.md, Lote 3): NF-e (modelo 55) e NFC-e (modelo 65) como entidade PRÓPRIA, independente de Compras.
--- Rode depois do 031 e, logo em seguida, o 022 de novo. Pode rodar de novo sem estragar nada.
--- PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco.
+-- Rode depois do 031 (o 022 não roda de novo; a auditoria das tabelas novas é do 033). Pode rodar de novo sem estragar nada.
+-- Aplicado em produção em 06/11/2026 (Postgres 17.11) e conferido por consulta só-leitura.
 --
 -- • Vincular uma nota a uma compra, ao Mercado, à Alimentação ou ao Abastecimento é só conferência/documentação: o vínculo tem
 --   gera_despesa = false (travado por CHECK) e nada aqui escreve em outra tabela de gastos.

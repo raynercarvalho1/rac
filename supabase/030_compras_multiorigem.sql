@@ -1,7 +1,5 @@
--- status: pendente (preparado no repositório; ainda não rodou no banco — tire esta linha depois de rodar e conferir)
--- Compras multiorigem, importação do histórico e gravação atômica (docs/compras.md, Lote 3). Rode depois do 026/027 e, logo em seguida,
--- o 022 de novo (ele inclui as tabelas novas na trava da 2ª etapa e na auditoria). Pode rodar de novo sem estragar nada.
--- PENDENTE DE REVISÃO: preparado no repositório; não foi executado em nenhum banco.
+-- Compras multiorigem, importação do histórico e gravação atômica (docs/compras.md, Lote 3). Rode depois do 026/027 (ordem completa: 030, 031, 032, 033; o 022 não roda de novo, a auditoria das tabelas novas é do 033). Pode rodar de novo sem estragar nada.
+-- Aplicado em produção em 06/11/2026 (Postgres 17.11) e conferido por consulta só-leitura. A 022 NÃO roda de novo: a auditoria das tabelas novas é da 033.
 --
 -- O que muda (só soma; nenhum dado existente é alterado):
 -- • compras_online ganha canal, natureza, historico, importacao_id e impostos_info. Todas nascem vazias/falsas: registro antigo continua

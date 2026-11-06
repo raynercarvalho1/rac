@@ -981,14 +981,14 @@ test("R1: sem a chave ou o pedido originais, o reenvio não é oferecido nem ace
 });
 
 /* ---- R2: o estado real da Agenda (a função de verdade, extraída de js/sistema.js) */
-function agendaReal({ registros, owner = true, backup, aulas = true, lembretes = true, veic = true } = {}) {
+function agendaReal({ registros, owner = true, backup, aulas = true, lembretes = true, veic = true, candidaturas = [] } = {}) {
   const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  /* ===== Próxima melhor ação");
   assert.ok(i > 0 && j > i, "o trecho da Agenda está no sistema.js");
   const pronto = (r) => (r && r.rejeita ? Promise.reject(new Error(r.rejeita)) : Promise.resolve(r));
   const ctx = { console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, hojeISO: () => HOJE, isOwner: () => owner, logErro: () => {},
     sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, maisDias: (d, n) => N.somaDiasISO(d, n), tipoInfo: () => ["x", "Revisão"], dataBR: (d) => d.split("-").reverse().join("/"), BRL: (v) => "R$ " + v,
     FAM: { civic: { n: "Civic", veic }, eddie: { n: "Eddie" } }, withDates: () => [], mbaAulas: () => (aulas ? [{ data: "2026-11-12", hora: "19:00", t: "Python II" }] : []), mbaAvals: () => [], mbaFin: () => null,
-    PESSOAL: { ultimoBackup: HOJE, lembretes: lembretes ? [{ id: "l1", data: "2026-11-11", t: "Ligar para o seguro" }] : [] }, EU: { id: "dono-1" },
+    NUCLEO: N, PESSOAL: { ultimoBackup: HOJE, candidaturas, lembretes: lembretes ? [{ id: "l1", data: "2026-11-11", t: "Ligar para o seguro" }] : [] }, EU: { id: "dono-1" },
     SB: { from: () => ({ select: () => ({ order: () => pronto(registros) }) }), storage: { from: () => ({ list: () => pronto(backup || { data: [{ name: "2026-11-08.zip" }], error: null }) }) } } };
   vm.createContext(ctx); vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda)" });
   return ctx;
@@ -1609,4 +1609,151 @@ test("E4/4: sem localStorage a tela funciona (lê vazio, mostra o motivo ao tent
   ouvinte({ key: REG }); await espera(260); assert.ok(tela.textContent.includes("Fontes de informação"));
   botao(tela, "Analisar o dia").onclick(); botao(tela, "Confirmar e chamar a IA").onclick(); await fluxo();
   assert.equal(ia.chamadas.length, 0, "sem onde gravar o registro, a chamada paga não sai"); assert.ok(tela.textContent.includes("Nada foi enviado.") && tela.textContent.includes("nada foi cobrado"));
+});
+
+/* ---- Próxima melhor ação: a Agenda e o cartão de verdade (js/sistema.js), com um DOM mínimo e sem rede */
+function elFalso(tag, attrs, ...kids) {
+  const e = { tag, attrs: attrs || {}, children: [], isConnected: true, tabIndex: 0, classList: { add: (c) => { e.attrs.class = ((e.attrs.class || "") + " " + c).trim(); } }, appendChild(c) { e.children.push(c); return c; }, remove() {} };
+  Object.defineProperty(e, "innerHTML", { set() { e.children = []; }, get() { return ""; } });
+  const add = (k) => { if (Array.isArray(k)) k.forEach(add); else if (k != null && k !== false) e.children.push(k); };
+  kids.forEach(add); return e;
+}
+const textoDe = (e) => (e == null ? "" : typeof e === "string" ? e : [e.attrs && e.attrs.text, ...(e.children || []).map(textoDe)].filter(Boolean).join(" "));
+const acharTodos = (e, f, acc = []) => { if (e && typeof e === "object") { if (f(e)) acc.push(e); (e.children || []).forEach((c) => acharTodos(c, f, acc)); } return acc; };
+const pausa = () => new Promise((r) => setTimeout(r, 15));
+function inicioReal({ registros = { data: [], error: null }, candidaturas = [], lembretes = [], dias = [], ativs = [], vagas = [], recolhido = false } = {}) {
+  const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  function renderAgenda(");
+  assert.ok(i > 0 && j > i, "o trecho da Agenda e da Próxima melhor ação está no sistema.js");
+  const ouv = {}, gravados = [], estado = { recolhido };
+  const doc = { addEventListener: (n, f) => { (ouv[n] = ouv[n] || []).push(f); }, removeEventListener: (n, f) => { ouv[n] = (ouv[n] || []).filter((x) => x !== f); }, dispatchEvent: (e) => { (ouv[e.type] || []).slice().forEach((f) => f(e)); } };
+  const ok = (data) => Promise.resolve({ data, error: null });
+  const ctx = { console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, hojeISO: () => HOJE, isOwner: () => true, logErro: () => {}, document: doc, Event: class { constructor(t) { this.type = t; } },
+    sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, maisDias: (d, n) => N.somaDiasISO(d, n), tipoInfo: () => ["x", "Revisão"], dataBR: (d) => d.split("-").reverse().join("/"), BRL: (v) => "R$ " + v,
+    FAM: { civic: { n: "Civic", veic: true } }, withDates: () => [], mbaAulas: () => [], mbaAvals: () => [], mbaFin: () => null, NUCLEO: N, EU: { id: "dono-1" }, location: { hash: "" }, window: { open() {} },
+    PESSOAL: { ultimoBackup: HOJE, candidaturas, lembretes }, VG: { all: vagas }, vgHidden: {}, h: elFalso, recolhidos: () => (estado.recolhido ? { "Próxima melhor ação": 1 } : {}),
+    wCard: (t, ic, cor, more, cls) => { const e = elFalso("div", { class: "panel " + cls }); e.titulo = t; return e; },
+    pessoalGravar: (k, v) => { ctx.PESSOAL[k] = v; gravados.push(k); },
+    SB: { from: (t) => (t === "registros" ? { select: () => ({ order: () => Promise.resolve(registros) }) } : t === "garmin_dia" ? { select: () => ({ gte: () => ({ order: () => ok(dias) }) }) } : { select: () => ({ gte: () => ok(ativs) }) }),
+      storage: { from: () => ({ list: () => ok([{ name: HOJE + ".zip" }]) }) } } };
+  vm.createContext(ctx); vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda + próxima ação)" });
+  ctx.estado = estado; ctx.gravados = gravados; ctx.doc = doc; return ctx;
+}
+const CAND_VELHA = { id: "c-velha", t: "Técnico de Suporte N2", e: "Acme", coluna: "candidatei", datas: { candidatei: "2026-09-20" }, interacoes: [{ d: "2026-09-20", tipo: "E-mail", t: "Candidatura: Recebemos" }] };
+const CAND_RECENTE = { id: "c-rec", t: "Analista de Dados Jr", e: "Beta", coluna: "candidatei", datas: { candidatei: "2026-11-05" } }; /* follow-up hoje */
+const CAND_RECUSADA = { id: "c-rec2", t: "Assistente de Suporte de TI", coluna: "candidatei", datas: { candidatei: "2026-10-01" }, resultado: "recusado" };
+const CAND_FEITA = { id: "c-feita", t: "Analista de Suporte e Atendimento", coluna: "candidatei", datas: { candidatei: "2026-10-01" }, followup: "2026-10-07" };
+const CAND_SALVA = { id: "c-salva", t: "Vaga salva", coluna: "salva", datas: { salva: "2026-10-01" } };
+const TODAS = [CAND_VELHA, CAND_RECENTE, CAND_RECUSADA, CAND_FEITA, CAND_SALVA];
+const REG_VENCIDO = { data: [{ id: 9, quem: "civic", tipo: "revisao", data: "2026-10-01", titulo: "Revisão 30 mil", proxima: "2026-11-05", dados: {} }], error: null };
+
+test("Próxima ação 1: a Agenda gera follow-up só da candidatura sem resultado; a antiga vira 'sem retorno' (informativa) e nada da candidatura é alterado", async () => {
+  const c = inicioReal({ candidaturas: JSON.parse(JSON.stringify(TODAS)) }), antes = JSON.stringify(c.PESSOAL.candidaturas);
+  const ev = await c.agendaColetar(), cs = ev.filter((e) => e.tipo === "carreira");
+  assert.deepEqual(plano(cs.map((e) => e.id).sort()), ["cand:c-rec", "cand:c-velha"], "recusada, feita e salva não geram nada");
+  const velha = cs.find((e) => e.cid === "c-velha"), rec = cs.find((e) => e.cid === "c-rec");
+  assert.deepEqual([velha.semRetorno, velha.prazo, velha.pre, velha.href], [true, "informativo", "Sem retorno", "#carreira/editar/c-velha"]); assert.match(velha.sub, /sem retorno · candidatura de 20\/09\/2026/);
+  assert.deepEqual([rec.semRetorno || false, rec.prazo, rec.acao, rec.data], [false, "calculado", "followup", HOJE]);
+  assert.equal(JSON.stringify(c.PESSOAL.candidaturas), antes, "ler a Agenda não grava nem muda a candidatura (resultado e histórico intactos)");
+});
+
+test("Próxima ação 2: o cartão põe o prazo real vencido na frente do follow-up; a candidatura de 20/09 não aparece; o motivo e o nível vêm junto", async () => {
+  const c = inicioReal({ registros: REG_VENCIDO, candidaturas: TODAS, lembretes: [{ id: "l1", data: "2026-11-11", t: "Ligar para o seguro" }] });
+  const s = await c.proximasSelecao();
+  assert.deepEqual([s.destaque.titulo, s.destaque.nivel, s.destaque.prazo], ["Revisão 30 mil", "urgente", "real"]); assert.match(s.destaque.motivo, /^venceu há 5 dias/);
+  assert.deepEqual(s.secundarias.map((x) => [x.titulo, x.nivel, x.prazo]), [["Ligar para o seguro", "importante", "real"], ["Analista de Dados Jr · Beta", "importante", "calculado"]]);
+  assert.match(s.secundarias[1].motivo, /^follow-up previsto para hoje/);
+  const tudo = JSON.stringify(s); assert.ok(!/Técnico de Suporte N2|Assistente de Suporte|Atendimento/.test(tudo), "candidatura antiga, recusada ou com follow-up feito não ocupa o cartão");
+  assert.equal(s.vazio, false);
+});
+
+test("Próxima ação 3: sem nada relevante o cartão diz 'Tudo em dia', sem inventar ação; uma vaga compatível aparece só como informativa", async () => {
+  const c = inicioReal({ candidaturas: [CAND_VELHA, CAND_RECUSADA] }); const p = c.wProxima(); await pausa();
+  assert.match(textoDe(p), /Tudo em dia\. Nenhuma ação urgente agora\./); assert.equal(acharTodos(p, (e) => /(^| )prox( |$)/.test(e.attrs.class || "")).length, 0, "nenhuma linha");
+  const v = { id: "v1", t: "Analista de Dados SQL Power BI Excel", nv: "pleno", e: "Gama", d: 1 };
+  assert.ok(N.compatVaga(v.t + " " + v.nv, ["sql", "powerbi", "excel", "negocio", "estat"]).nota >= 70, "a vaga de teste é mesmo compatível");
+  const c2 = inicioReal({ candidaturas: [CAND_VELHA], vagas: [v] }); const p2 = c2.wProxima(); await pausa(); const t2 = textoDe(p2);
+  assert.match(t2, /Tudo em dia/); assert.match(t2, /Analista de Dados SQL Power BI Excel/); assert.match(t2, /Informativo/); assert.ok(!/Urgente|Importante/.test(t2), "oportunidade não é urgência");
+  const s = await c2.proximasSelecao(); assert.deepEqual([s.destaque, s.acoes], [null, 0]);
+});
+
+test("Próxima ação 4: Saúde só entra com dado de ontem ou hoje e como sugestão informativa (nunca destaque)", async () => {
+  const dia = (n) => ({ data: N.somaDiasISO(HOJE, -n), dados: { passos: 8000, sono: { total: 25200, nota: 80 }, vfc: { noite: 50 } } });
+  const velhos = []; for (let n = 25; n >= 9; n--) velhos.push(dia(n));
+  const s1 = await inicioReal({ dias: velhos, ativs: [{ inicio: N.somaDiasISO(HOJE, -12) + "T07:00:00", tipo: "running" }] }).proximasSelecao();
+  assert.equal(s1.mostrados.length, 0, "relógio sem sincronizar há 9 dias não recomenda nada");
+  const recentes = []; for (let n = 25; n >= 1; n--) recentes.push(dia(n));
+  const s2 = await inicioReal({ dias: recentes, ativs: [{ inicio: N.somaDiasISO(HOJE, -6) + "T07:00:00", tipo: "running" }, { inicio: N.somaDiasISO(HOJE, -2) + "T07:00:00", tipo: "cycling" }] }).proximasSelecao();
+  assert.equal(s2.mostrados.length, 1, "3+ dias sem treino (a bicicleta é um tipo escondido pela Saúde e não conta)"); assert.deepEqual([s2.destaque, s2.mostrados[0].nivel, s2.mostrados[0].area], [null, "informativo", "saude"]);
+  const s3 = await inicioReal({ dias: recentes, ativs: [{ inicio: N.somaDiasISO(HOJE, -1) + "T07:00:00", tipo: "running" }] }).proximasSelecao();
+  assert.equal(s3.mostrados.length, 0, "treinou ontem e a prontidão está boa: nada a recomendar");
+});
+
+test("Próxima ação 5: o que o cartão mostra não se repete nas primeiras linhas da Agenda do Início; a página Agenda e os dados seguem completos", async () => {
+  const lemb = [1, 2, 3, 4, 5, 6].map((n) => ({ id: "l" + n, data: N.somaDiasISO(HOJE, -n), t: "Lembrete " + n }));
+  const c = inicioReal({ lembretes: lemb }); const prox = c.wProxima(); const ag = c.wAgenda(); await pausa(); await pausa();
+  const noCartao = acharTodos(prox, (e) => /(^| )prox( |$)/.test(e.attrs.class || "")).map(textoDe).join("|"), naAgenda = textoDe(ag);
+  const mostrados = ["Lembrete 6", "Lembrete 5", "Lembrete 4", "Lembrete 3"], restantes = ["Lembrete 2", "Lembrete 1"];
+  mostrados.forEach((t) => { assert.ok(noCartao.includes(t), t + " está no cartão"); assert.ok(!naAgenda.includes(t), t + " não se repete na Agenda do Início"); });
+  restantes.forEach((t) => { assert.ok(!noCartao.includes(t)); assert.ok(naAgenda.includes(t), t + " continua na Agenda"); });
+  assert.match(textoDe(prox), /e mais 2 na Agenda/); assert.match(naAgenda, /\+4 em Próxima melhor ação/);
+  assert.equal((await c.agendaColetar()).filter((e) => e.tipo === "lembrete").length, 6, "nenhum compromisso real foi apagado ou alterado");
+  /* cartão recolhido: nada fica escondido, a Agenda volta a mostrar tudo */
+  c.estado.recolhido = true; c.doc.dispatchEvent(new c.Event("rac-recolher")); await pausa();
+  [...mostrados, ...restantes].forEach((t) => assert.ok(textoDe(ag).includes(t), t + " de volta na Agenda com o cartão recolhido"));
+});
+
+test("Próxima ação 6: a Agenda do Início não mostra 'sem retorno' como atraso; a página Agenda os separa", async () => {
+  const c = inicioReal({ candidaturas: [CAND_VELHA] }); const ag = c.wAgenda(); await pausa();
+  assert.ok(!textoDe(ag).includes("Técnico de Suporte N2"), "a candidatura antiga não toma as primeiras linhas");
+  assert.match(textoDe(ag), /Nada vencendo nos próximos 7 dias/);
+  const src = ler("js/sistema.js"); assert.match(src, /\["Candidaturas sem retorno",function\(e\)\{return !!e\.semRetorno\},true\]/); assert.match(src, /\["Atrasados",function\(e\)\{return e\.data<hoje&&!e\.semRetorno\}/);
+  assert.match(ler("js/painel.js"), /e\.data<hoje&&!e\.semRetorno/, "o Painel também não conta 'sem retorno' como atrasado");
+});
+
+test("Próxima ação 7: ações rápidas usam os caminhos existentes: Feito, Adiar 3 dias e Sem retorno mudam só o necessário e preservam o histórico", async () => {
+  const mk = () => inicioReal({ candidaturas: JSON.parse(JSON.stringify([CAND_VELHA, CAND_RECENTE])), lembretes: [{ id: "l1", data: HOJE, t: "Ligar" }] });
+  let c = mk(), disparos = 0; c.doc.addEventListener("rac-proxima", () => disparos++);
+  c.proximaAcao("feito", { cid: "c-rec" }); let r = c.PESSOAL.candidaturas.find((x) => x.id === "c-rec");
+  assert.deepEqual([r.followup, r.t, r.datas.candidatei, r.resultado], [HOJE, "Analista de Dados Jr", "2026-11-05", undefined]); assert.equal(c.PESSOAL.candidaturas.find((x) => x.id === "c-velha").followup, undefined, "as outras não mudam");
+  assert.equal(N.priFollowup(r, HOJE).estado, "nenhum", "feito sai do cartão e da Agenda"); assert.equal(disparos, 1, "avisa os cartões para se redesenharem");
+  c = mk(); c.proximaAcao("adiar", { cid: "c-rec" }); r = c.PESSOAL.candidaturas.find((x) => x.id === "c-rec");
+  assert.equal(r.followupEm, "2026-11-13"); assert.equal(N.priFollowup(r, HOJE).estado, "ativo"); assert.equal(N.priFollowup(r, HOJE).dias, 3);
+  c.proximaAcao("adiar", { cid: "c-rec" }); assert.equal(c.PESSOAL.candidaturas.find((x) => x.id === "c-rec").followupEm, "2026-11-16", "adiar de novo soma 3 dias à data futura, como o botão do editor");
+  c = mk(); c.proximaAcao("semretorno", { cid: "c-velha" }); r = c.PESSOAL.candidaturas.find((x) => x.id === "c-velha");
+  assert.equal(r.resultado, "sem retorno"); assert.equal(r.coluna, "candidatei", "a coluna não muda"); assert.equal(r.interacoes.length, 2, "o histórico original fica e ganha uma linha"); assert.deepEqual(r.interacoes[0], CAND_VELHA.interacoes[0]);
+  assert.equal(N.priFollowup(r, HOJE).estado, "nenhum", "resultado preenchido encerra");
+  c = mk(); c.PESSOAL.candidaturas[0].resultado = "recusado"; c.proximaAcao("semretorno", { cid: "c-velha" }); assert.equal(c.PESSOAL.candidaturas[0].resultado, "recusado", "nunca troca um resultado que o dono marcou");
+  c = mk(); c.proximaAcao("feito", { lid: "l1" }); assert.equal(c.PESSOAL.lembretes[0].feito, HOJE); assert.deepEqual(c.gravados, ["lembretes"]);
+  c = mk(); assert.deepEqual(plano(c.proximaAcoesDe({ acao: "followup" })), ["feito", "adiar", "semretorno"]); assert.deepEqual(plano(c.proximaAcoesDe({ semRetorno: true })), ["semretorno"]); assert.deepEqual(plano(c.proximaAcoesDe({ t: "x" })), []);
+});
+
+test("Próxima ação 8: o botão do destaque do cartão grava e o cartão se redesenha sem a candidatura", async () => {
+  const c = inicioReal({ candidaturas: JSON.parse(JSON.stringify([CAND_RECENTE])) }); const p = c.wProxima(); await pausa();
+  const feito = acharTodos(p, (e) => e.tag === "button" && e.attrs.text === "Feito")[0]; assert.ok(feito, "o destaque oferece Feito");
+  assert.deepEqual(acharTodos(p, (e) => e.tag === "button").map((b) => b.attrs.text), ["Feito", "Adiar 3 dias", "Sem retorno"]);
+  feito.onclick({ stopPropagation() {} }); await pausa(); await pausa();
+  assert.match(textoDe(p), /Tudo em dia/); assert.equal(c.PESSOAL.candidaturas[0].followup, HOJE);
+});
+
+test("Próxima ação 9: resumo falado — só urgente e importante viram 'para hoje'; candidatura antiga sem retorno nunca é anunciada", async () => {
+  const app = ler("js/app.js"); assert.ok(!/proximasAcoes\(/.test(app) && !/proximasAcoes\(/.test(ler("js/sistema.js")), "ninguém mais usa a lista antiga");
+  assert.match(app, /proximasSelecao\(\)\}\)\.then\(function\(s\)\{return s\.mostrados\.filter\(function\(x\)\{return x\.nivel!=="informativo"\}\)\}\)/); assert.match(app, /Tudo em dia\. Nenhuma ação urgente agora\./);
+  const c = inicioReal({ candidaturas: [CAND_VELHA], vagas: [{ id: "v1", t: "Analista de Dados SQL Power BI Excel", nv: "pleno", d: 1 }] });
+  const fala = (await c.proximasSelecao()).mostrados.filter((x) => x.nivel !== "informativo"); assert.deepEqual(fala, [], "nada para falar: a vaga é informativa e a candidatura de 20/09 é 'sem retorno'");
+  const c2 = inicioReal({ candidaturas: [CAND_VELHA, CAND_RECENTE], registros: REG_VENCIDO });
+  assert.deepEqual((await c2.proximasSelecao()).mostrados.map((x) => x.titulo), ["Revisão 30 mil", "Analista de Dados Jr · Beta"]);
+});
+
+test("Próxima ação 10: RAC Hoje usa a mesma régua: 'sem retorno' fora, follow-up abaixo do prazo real, e os níveis batem com os do cartão", async () => {
+  const c = inicioReal({ registros: REG_VENCIDO, candidaturas: TODAS, lembretes: [{ id: "l1", data: "2026-11-11", t: "Ligar para o seguro" }] });
+  const ev = await c.agendaColetar(), itens = N.hojeItens({ agenda: { ok: true, v: ev } }, HOJE, {});
+  assert.ok(!itens.some((i) => /Técnico de Suporte N2/.test(i.titulo)), "a candidatura de 20/09 não entra nas prioridades do dia");
+  const fu = itens.find((i) => /Analista de Dados Jr/.test(i.titulo)), real = itens.find((i) => /Revisão 30 mil/.test(i.titulo));
+  assert.deepEqual([fu.prazo, fu.nivel, real.prazo, real.nivel], ["calculado", "média", "real", "alta"]); assert.ok(fu.p < real.p);
+  const MAPA = { urgente: "alta", importante: "média", informativo: "baixa" };
+  itens.forEach((i) => { const e = ev.find((x) => i.titulo.endsWith(x.t)); assert.equal(i.nivel, MAPA[N.priItem(e, HOJE).nivel], i.titulo + ": o mesmo nível do cartão"); });
+  assert.equal(N.hojeNivel(N.hojePrioridade({ dias: 0, area: "sistema" })), "alta", "hoje é sempre alta, qualquer área");
+  const s = N.hojeItens({}, HOJE, { saude: { prontidao: 30, atraso: 0, alertas: ["sono curto"] }, vagas: [{ nota: 80, t: "Vaga", e: "X", d: 1 }] });
+  assert.ok(s.every((i) => i.prazo === "informativo" && i.nivel === "baixa"), "saúde e vaga: informativas também no RAC Hoje");
+  assert.equal(N.hojeItens({}, HOJE, { saude: { prontidao: 30, atraso: 4, alertas: [] } }).length, 0, "e a mesma regra de dado velho");
 });

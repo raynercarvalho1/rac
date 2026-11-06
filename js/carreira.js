@@ -19,7 +19,7 @@
   function carMover(id,col){var hj=hojeISO();carSalvar(carCands().map(function(c){if(c.id!==id)return c;var d=Object.assign({},c.datas||{});d[col]=d[col]||hj;return Object.assign({},c,{coluna:col,datas:d})}))}
   function carFunil(root){
     var l=carCands(),meus=carMeus();
-    var topo=panel("Funil de candidaturas","Salve vagas da página Vagas (ou cadastre aqui), avance pelas colunas e, 5 dias depois de se candidatar sem resposta, o follow-up aparece na Agenda.");
+    var topo=panel("Funil de candidaturas","Salve vagas da página Vagas (ou cadastre aqui), avance pelas colunas e, 5 dias depois de se candidatar sem resposta, o follow-up aparece na Agenda e na Próxima melhor ação; 10 dias depois de vencer, vira “sem retorno” (só na apresentação: o resultado que você marcou não muda).");
     var nv=h("button",{type:"button",class:"ghostbtn pri",text:"+ Vaga de fora do portal"});nv.onclick=function(){location.hash="#carreira/editar/novo"};
     topo.appendChild(h("div",{class:"vfil"},nv,h("a",{href:"#vagas",class:"ghostbtn",text:"Ver vagas abertas"})));
     var tot=CAR_COLS.map(function(c){return c[1]+": "+l.filter(function(x){return x.coluna===c[0]}).length});topo.appendChild(h("p",{class:"sub",text:tot.join(" · ")}));
@@ -31,10 +31,11 @@
       var c=h("div",{class:"kcol"},h("h3",{class:"mbag",text:col[1]+" ("+cards.length+")"}));
       cards.forEach(function(x){
         var cp=NUCLEO.compatVaga([x.t,x.desc].join(" "),meus),desde=(x.datas||{})[col[0]],dias=desde?Math.round((new Date(hojeISO()+"T12:00:00")-new Date(desde+"T12:00:00"))/864e5):null;
-        var fem=carFollowEm(x),fu=col[0]==="candidatei"&&!x.followup&&!!fem&&fem<=hojeISO();
+        /* a mesma situação da Agenda e do Início (NUCLEO.priFollowup): follow-up ativo, ou "sem retorno" depois de 10 dias; resultado preenchido não gera nada */
+        var fol=NUCLEO.priFollowup(x,hojeISO()),fem=fol.estado==="nenhum"?"":fol.data,fu=fol.estado==="ativo"&&fol.dias<=0,semRet=fol.estado==="sem_retorno";
         var k=h("div",{class:"kcard"+(fu?" alerta":"")},h("b",{text:x.t}),h("span",{class:"sub",text:[x.e,x.local,x.modalidade,x.salario&&!/combinar/i.test(x.salario)?x.salario:"",dias!=null?"há "+dias+(dias===1?" dia":" dias"):""].filter(Boolean).join(" · ")}),
           cp.nota!=null?h("span",{class:"kcompat",title:"Pede: "+cp.pede.map(carSkillNome).join(", "),text:cp.nota+"% compatível"+(cp.falta.length?" · falta "+cp.falta.map(carSkillNome).join(", "):"")}):null,
-          x.resultado?h("span",{class:"sub",text:"Resultado: "+x.resultado}):null,x.etapa?h("span",{class:"sub",text:"Etapa liberada: "+x.etapa}):null,x.fonte?h("span",{class:"sub",text:"via "+x.fonte}):null,fu?h("span",{class:"qrwarn",text:"Fazer follow-up"}):col[0]==="candidatei"&&fem&&!x.followup?h("span",{class:"sub",text:"Follow-up em "+dataBR(fem)}):null);
+          x.resultado?h("span",{class:"sub",text:"Resultado: "+x.resultado}):null,x.etapa?h("span",{class:"sub",text:"Etapa liberada: "+x.etapa}):null,x.fonte?h("span",{class:"sub",text:"via "+x.fonte}):null,fu?h("span",{class:"qrwarn",text:"Fazer follow-up"}):semRet?h("span",{class:"sub",text:"Sem retorno (follow-up de "+dataBR(fem)+")"}):fem?h("span",{class:"sub",text:"Follow-up em "+dataBR(fem)}):null);
         var bt=h("div",{class:"vfil"});
         if(ci>0){var e=h("button",{type:"button",class:"ghostbtn",text:"◀"});e.onclick=function(){carMover(x.id,CAR_COLS[ci-1][0]);renderCarreira("funil")};bt.appendChild(e)}
         if(ci<CAR_COLS.length-1){var d=h("button",{type:"button",class:"ghostbtn",text:"▶ "+CAR_COLS[ci+1][1]});d.onclick=function(){carMover(x.id,CAR_COLS[ci+1][0]);renderCarreira("funil")};bt.appendChild(d)}
@@ -132,6 +133,7 @@
     cand.addEventListener("change",function(){if(cand.value&&!x.followupEm)fuEm.value=maisDias(cand.value,5)});
     f.appendChild(h("div",{class:"two"},h("label",null,"Fazer follow-up em",fuEm),h("div",{class:"vfil",style:"align-self:end"},a3,a7)));
     f.appendChild(h("label",{class:"chk"},fu," Follow-up feito (sai da Agenda)"));
+    if(NUCLEO.priFollowup(x,hojeISO()).estado==="sem_retorno")f.appendChild(h("p",{class:"sub",text:"Sem retorno: o follow-up venceu há mais de "+NUCLEO.PRI_VALIDADE_CALC+" dias, então a Agenda mostra esta candidatura como “sem retorno”. Para encerrar de vez, escolha o resultado acima."}));
     /* contatos e histórico */
     sec("Contatos e histórico");
     var cont=h("textarea",{rows:"2",placeholder:"Um por linha: nome — cargo — e-mail, telefone ou LinkedIn"});cont.value=x.contatos||"";f.appendChild(h("label",null,"Contatos",cont));

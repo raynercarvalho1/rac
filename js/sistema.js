@@ -91,7 +91,7 @@
         if(d.garantiaAte&&!visto[k+"g"]&&d.garantiaAte>=hoje){visto[k+"g"]=1;add(d.garantiaAte,"Fim da garantia de "+r.titulo,F.n,tipo,href,ex)}});
       /* rede em Sorocaba: contatos de RH com os posts sem olhar há 7 dias ou mais viram um lembrete só */
       var rede=regs.filter(function(r){return r.quem==="rede"&&r.tipo==="contato"}),atras=rede.filter(function(r){var v=(r.dados||{}).visto;return !v||String(v).slice(0,10)<=maisDias(hoje,-7)});
-      if(atras.length)add(hoje,"Olhar os posts de "+atras.length+(atras.length===1?" contato":" contatos")+" de RH",atras.slice(0,4).map(function(r){return r.titulo+" ("+r.valor+")"}).join(", ")+(atras.length>4?"…":""),"carreira","#rede",{ico:"🤝",pre:"Rede"});
+      if(atras.length)add(hoje,"Olhar os posts de "+atras.length+(atras.length===1?" contato":" contatos")+" de RH",atras.slice(0,4).map(function(r){return r.titulo+" ("+r.valor+")"}).join(", ")+(atras.length>4?"…":""),"carreira","#rede",{ico:"🤝",pre:"Rede",prazo:"calculado"});
       /* IPVA de SP: vence em janeiro pelo final da placa (cota única com desconto ou 1ª parcela); aparece de novembro até quitar.
          Some quando houver um registro "Licenciamento e impostos" com IPVA do ano. */
       var ano=+hoje.slice(0,4)+(+hoje.slice(5,7)>=11?1:0),dIpva=ano+"-01-09";
@@ -104,61 +104,104 @@
         var fin=mbaFin();if(fin)fin.ps.forEach(function(q){if(!q.paga)add(q.venc,q.n,"boleto do MBA · "+BRL(q.v),"mba","#mba",{pre:"Boleto"})});
         withDates().forEach(function(x){if(x.dias<=7||(x.fav&&x.dias<=30))add(maisDias(hoje,x.dias),x.nome,"aniversário"+(x.fav?" · marcado":""), "niver","#aniversarios",{pre:"Aniversário de"})});
         (PESSOAL.lembretes||[]).forEach(function(l){if(!l.feito)add(l.data,l.t,"lembrete","lembrete","",{lembrete:l})});
-        /* carreira: 5 dias depois de se candidatar sem resposta, hora do follow-up */
-        (PESSOAL.candidaturas||[]).forEach(function(c){var d=(c.datas||{}).candidatei;if(c.coluna==="candidatei"&&d&&!c.followup)add(c.followupEm||maisDias(d,5),c.t+(c.e?" · "+c.e:""),"follow-up · candidatura de "+dataBR(d),"carreira","#carreira/funil",{pre:"Follow-up"})});
-        if(!PESSOAL.ultimoBackup||PESSOAL.ultimoBackup<maisDias(hoje,-30))add(hoje,"Baixar um backup do site",PESSOAL.ultimoBackup?"o último foi em "+dataBR(PESSOAL.ultimoBackup):"nunca foi feito","sistema","#sistema")}
+        /* carreira: 5 dias depois de se candidatar sem resposta, hora do follow-up. É um prazo CALCULADO (NUCLEO.priFollowup): vale até 10 dias depois de vencer;
+           depois vira "sem retorno" (só apresentação: o resultado real da candidatura não é tocado). Resultado preenchido ou follow-up feito: nada. */
+        (PESSOAL.candidaturas||[]).forEach(function(c){var f=NUCLEO.priFollowup(c,hoje);if(f.estado==="nenhum")return;
+          var ex={pre:"Follow-up",prazo:"calculado",acao:"followup",cid:c.id,id:"cand:"+c.id},t=c.t+(c.e?" · "+c.e:"");
+          if(f.estado==="sem_retorno")add(f.data,t,"sem retorno · candidatura de "+dataBR(f.desde),"carreira","#carreira/editar/"+c.id,Object.assign(ex,{pre:"Sem retorno",prazo:"informativo",semRetorno:true}));
+          else add(f.data,t,"candidatura de "+dataBR(f.desde),"carreira","#carreira/editar/"+c.id,ex)});
+        if(!PESSOAL.ultimoBackup||PESSOAL.ultimoBackup<maisDias(hoje,-30))add(hoje,"Baixar um backup do site",PESSOAL.ultimoBackup?"o último foi em "+dataBR(PESSOAL.ultimoBackup):"nunca foi feito","sistema","#sistema",{prazo:"calculado"})}
       /* o backup automático de domingo (no cofre privado do servidor): se o mais novo tiver mais de 9 dias, alguma coisa parou */
       if(!isOwner())return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas};
       return Promise.resolve().then(function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"},limit:1})}).then(function(r){
         var ult=r&&r.data&&r.data[0]&&r.data[0].name.slice(0,10);
         if(r&&r.error)falhas.push({fonte:"backup",erro:String(r.error.message||r.error).slice(0,100)});
-        else if(!ult||ult<maisDias(hoje,-9))add(hoje,"O backup automático de domingo não rodou",ult?"o último é de "+dataBR(ult):"ainda não há nenhum no servidor","sistema","#sistema")},function(e){falhas.push({fonte:"backup",erro:String(e&&e.message||e).slice(0,100)})})
+        else if(!ult||ult<maisDias(hoje,-9))add(hoje,"O backup automático de domingo não rodou",ult?"o último é de "+dataBR(ult):"ainda não há nenhum no servidor","sistema","#sistema",{prazo:"calculado"})},function(e){falhas.push({fonte:"backup",erro:String(e&&e.message||e).slice(0,100)})})
         .then(function(){return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas}})})}
-  /* ===== Próxima melhor ação: tudo o que pede algo de você, numa ordem só =====
-     Agenda (atrasado > hoje > amanhã > semana, com peso por tipo), vagas muito compatíveis ainda fora do funil e a prontidão para treinar. */
-  function proximasAcoes(){
-    var hoje=hojeISO(),PESO={mba:12,familia:10,veiculo:8,carreira:8,docs:6,lembrete:6,niver:4,sistema:2};
+  /* ===== Próxima melhor ação: só o que pede algo de você, agora =====
+     A régua é uma só e mora no núcleo (NUCLEO.pri*, docs/hoje.md "Régua de prioridades"): prazo real > prazo calculado (follow-up, com validade de 10 dias) > informativo (vaga, treino).
+     Fontes: a Agenda (nunca relida: é a mesma leitura da Agenda), vagas muito compatíveis ainda fora do funil e a prontidão para treinar (só com dado de ontem ou de hoje).
+     O cartão mostra 1 destaque e até 3 secundárias; o que ele mostra sai das primeiras linhas da Agenda do Início (as duas telas concordam). */
+  var PROX_TITULO="Próxima melhor ação",PROX_EXIBIDOS={ids:[]};
+  var PROX_NIVEIS={urgente:["Urgente","Prazo real vencido ou para hoje."],importante:["Importante","Prazo real em até 3 dias, ou follow-up sem resposta ainda dentro dos 10 dias de validade."],informativo:["Informativo","Oportunidade ou sugestão: não exige ação."]};
+  var PROX_ROTULOS={feito:"Feito",adiar:"Adiar 3 dias",semretorno:"Sem retorno"};
+  /* o resultado da seleção: {destaque, secundarias, mostrados, ids, mais, acoes, vazio} (NUCLEO.priSelecionar) */
+  function proximasSelecao(){
+    var hoje=hojeISO();
     var pAg=agendaColetar().catch(function(){return []});
     var pVg=(typeof vgPronto!=="undefined"&&vgPronto?vgPronto:Promise.resolve()).then(function(){return VG.all||[]}).catch(function(){return []});
     var pSa=Promise.resolve().then(function(){return Promise.all([SB.from("garmin_dia").select("data,dados").gte("data",maisDias(hoje,-61)).order("data").then(sbOk),
-      SB.from("garmin_ativ").select("inicio").gte("inicio",maisDias(hoje,-3)).then(sbOk)])}).catch(function(){return null});
+      SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",maisDias(hoje,-61)).then(sbOk)])}).catch(function(){return null});
     return Promise.all([pAg,pVg,pSa]).then(function(r){
-      var out=[];
-      r[0].forEach(function(e){var dd=Math.round((new Date(e.data+"T12:00:00")-new Date(hoje+"T12:00:00"))/864e5);if(dd>7)return;
-        var base=dd<0?100+Math.min(-dd,20):dd===0?90:dd===1?70:dd<=3?50:30;
-        out.push({p:base+(PESO[e.tipo]||0),t:e.t,ico:agendaIco(e),pre:e.pre,sub:(dd<0?"atrasado há "+(-dd)+(dd===-1?" dia":" dias"):dd===0?"hoje":dd===1?"amanhã":"em "+dd+" dias")+(e.sub?" · "+e.sub:""),href:e.href,ext:e.ext,tipo:e.tipo})});
-      /* vagas: só as novas (até 7 dias), bem compatíveis e que ainda não estão no funil nem escondidas */
+      var itens=r[0].map(function(e){return NUCLEO.priItem(e,hoje)}).filter(Boolean);
+      /* vagas: só as novas (até 7 dias), bem compatíveis e que ainda não estão no funil nem escondidas; sempre informativas */
       var meus=((PESSOAL.perfilCarreira||{}).skills)||["sql","powerbi","excel","negocio","estat"],noFunil=(PESSOAL.candidaturas||[]).map(function(c){return c.vagaId});
       r[1].filter(function(v){return v.d<=7&&noFunil.indexOf(v.id)<0&&!(typeof vgHidden!=="undefined"&&vgHidden[v.id])}).map(function(v){return [v,NUCLEO.compatVaga(v.t+" "+(v.nv||""),meus).nota]})
         .filter(function(x){return x[1]!=null&&x[1]>=70}).sort(function(a,b){return b[1]-a[1]}).slice(0,2)
-        .forEach(function(x){out.push({p:40+(x[1]-70)/2,t:x[0].t,ico:"💼",pre:"Vaga "+x[1]+"% compatível",sub:x[1]+"% compatível"+(x[0].e?" · "+x[0].e:"")+(x[0].d<=1?" · publicada hoje":" · há "+x[0].d+" dias"),href:"#vagas",tipo:"carreira"})});
-      /* treino: pela prontidão de hoje e pelos dias sem treinar */
-      if(r[2]&&r[2][0].length){var pr=NUCLEO.prontidao(r[2][0],r[2][0][r[2][0].length-1].data),sem=!r[2][1].length;
-        if(pr&&pr.nota<45)out.push({p:60,ico:"❤️",t:"Hoje é dia de recuperação",sub:"prontidão "+pr.nota+(pr.alertas[0]?" · "+pr.alertas[0]:""),href:"#saude",tipo:"saude"});
-        else if(pr&&sem)out.push({p:pr.nota>=70?55:45,ico:"🏃",t:pr.nota>=70?"Bom dia para treinar forte":"Que tal um treino moderado?",sub:"prontidão "+pr.nota+" · 3 dias sem treino",href:"#saude",tipo:"saude"})}
-      return out.sort(function(a,b){return b.p-a.p})})}
+        .forEach(function(x){itens.push(NUCLEO.priOportunidade({id:"vaga:"+x[0].id,area:"carreira",ico:"💼",titulo:x[0].t,pre:"Vaga "+x[1]+"% compatível",
+          motivo:x[1]+"% compatível"+(x[0].e?" · "+x[0].e:"")+(x[0].d<=1?" · publicada hoje":" · há "+x[0].d+" dias"),href:"#vagas",extra:Math.round((x[1]-70)/2)}))});
+      /* treino: a regra de relevância é a do núcleo (NUCLEO.priSaude): sem dado de ontem ou de hoje, não recomenda nada */
+      if(r[2]&&r[2][0].length){var sg=NUCLEO.priSaude(NUCLEO.hojeSaude({ok:true,v:{dias:r[2][0],ativs:r[2][1].filter(function(a){return NUCLEO.TREINO_OCULTOS.indexOf(a.tipo)<0})}},hoje));
+        if(sg&&sg.tipo==="recuperacao")itens.push(NUCLEO.priOportunidade({id:"saude:recuperacao",area:"saude",ico:"❤️",titulo:"Hoje é dia de recuperação",motivo:"prontidão "+sg.prontidao+(sg.alertas[0]?" · "+sg.alertas[0]:""),href:"#saude",extra:15}));
+        else if(sg)itens.push(NUCLEO.priOportunidade({id:"saude:treino",area:"saude",ico:"🏃",titulo:sg.forte?"Bom dia para treinar forte":"Que tal um treino moderado?",motivo:"prontidão "+sg.prontidao+" · "+sg.semTreino+" dias sem treino",href:"#saude",extra:sg.forte?8:3}))}
+      return NUCLEO.priSelecionar(itens)})}
+  /* gravação das ações rápidas: os mesmos caminhos do funil e da Agenda (pessoalGravar), sem estado novo
+     feito = follow-up feito (o mesmo do editor da candidatura); adiar = "fazer follow-up em" +3 dias (como o botão do editor);
+     semretorno = resultado "sem retorno" (opção que já existe no editor) + uma linha no histórico. Nada é apagado. */
+  function proxCand(cid,mudar){pessoalGravar("candidaturas",(PESSOAL.candidaturas||[]).map(function(c){return c.id===cid?Object.assign({},c,mudar(c)):c}))}
+  function proximaAcao(tipo,it,depois){var hj=hojeISO();
+    if(it.cid){
+      if(tipo==="feito")proxCand(it.cid,function(c){return {followup:c.followup||hj}});
+      else if(tipo==="adiar")proxCand(it.cid,function(c){var f=NUCLEO.priFollowup(c,hj),base=f.data&&f.data>hj?f.data:hj;return {followupEm:maisDias(base,3)}});
+      else if(tipo==="semretorno")proxCand(it.cid,function(c){return c.resultado?{}:{resultado:"sem retorno",interacoes:(c.interacoes||[]).concat([{d:hj,tipo:"Outro",t:"Marcada como sem retorno"}])}})}
+    else if(it.lid&&tipo==="feito")pessoalGravar("lembretes",(PESSOAL.lembretes||[]).map(function(l){return l.id===it.lid?Object.assign({},l,{feito:hj}):l}));
+    document.dispatchEvent(new Event("rac-proxima"));if(depois)depois()}
+  /* as ações de um evento da Agenda (a "sem retorno" só oferece encerrar) */
+  function proximaAcoesDe(e){return e.semRetorno?["semretorno"]:e.acao==="followup"?["feito","adiar","semretorno"]:e.lembrete?["feito"]:[]}
+  function proximaBotoes(it,acoes,depois,encerrar){if(!acoes.length)return null;
+    return h("span",{class:"proxac"},acoes.map(function(a){var b=h("button",{type:"button",class:"ghostbtn",text:a==="semretorno"&&encerrar?"Encerrar":PROX_ROTULOS[a]});
+      b.onclick=function(ev){ev.stopPropagation();proximaAcao(a,it,depois)};return b}))}
+  function proximaLinha(it,top){
+    var n=PROX_NIVEIS[it.nivel],li=h("li",{class:"prox prox-"+it.nivel+(top?" top":"")+(it.nivel==="urgente"?" alerta":"")},
+      h("span",{class:"agico","aria-hidden":"true",text:it.ico||"•"}),
+      h("span",{class:"grow"},h("b",{text:(it.cid?"Follow-up: ":"")+it.titulo}),h("span",{class:"sub",text:it.motivo}),top?proximaBotoes(it,it.acoes||[]):null),
+      h("span",{class:"proxn proxn-"+it.nivel,title:n[1],text:n[0]}));
+    if(it.href){li.classList.add("clic");li.tabIndex=0;li.onclick=function(){if(it.ext)window.open(it.href,"_blank","noopener");else location.hash=it.href};li.onkeydown=function(e){if(e.key==="Enter"&&e.target===li)li.onclick()}}
+    return li}
   function wProxima(){
-    var p=wCard("Próxima melhor ação","alvo","#E5484D",["#agenda","agenda"],"w5 wprox"),ul=h("ul",{class:"wl agl"},h("li",null,h("span",{class:"sub",text:"Pensando…"})));p.appendChild(ul);
-    proximasAcoes().then(function(l){ul.innerHTML="";
-      if(!l.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nada pedindo a sua atenção agora. 🎉"})));return}
-      l.slice(0,5).forEach(function(a,i){var li=h("li",{class:(i===0?"top ":"")+(/atrasado/.test(a.sub)?"alerta":"")||null},h("span",{class:"agico","aria-hidden":"true",text:a.ico||"•"}),h("span",{class:"grow"},h("b",{text:a.t}),h("span",{class:"sub",text:a.sub})));
-        if(a.href){li.classList.add("clic");li.tabIndex=0;li.onclick=function(){if(a.ext)window.open(a.href,"_blank","noopener");else location.hash=a.href}}
-        ul.appendChild(li)})}).catch(function(e){ul.innerHTML="";ul.appendChild(h("li",null,h("span",{class:"sub",text:"Não consegui montar agora."})));logErro("próxima ação",e)});
+    PROX_EXIBIDOS={ids:[]};
+    var p=wCard(PROX_TITULO,"alvo","#E5484D",["#agenda","agenda"],"w5 wprox"),box=h("div",{class:"proxbox"},h("p",{class:"sub",text:"Pensando…"})),visto=false;p.appendChild(box);
+    function desenhar(){proximasSelecao().then(function(s){box.innerHTML="";PROX_EXIBIDOS={ids:s.ids};
+      if(s.vazio)box.appendChild(h("p",{class:"proxok",role:"status",text:"Tudo em dia. Nenhuma ação urgente agora."}));
+      if(s.mostrados.length)box.appendChild(h("ul",{class:"wl agl proxl"},s.mostrados.map(function(it){return proximaLinha(it,it===s.destaque)})));
+      if(s.mais>0)box.appendChild(h("a",{href:"#agenda",class:"link proxmais",text:"e mais "+s.mais+" na Agenda"}));
+      document.dispatchEvent(new Event("rac-proxima-exibida"))
+    }).catch(function(e){box.innerHTML="";PROX_EXIBIDOS={ids:[]};box.appendChild(h("p",{class:"sub",text:"Não consegui montar agora."}));logErro("próxima ação",e)})}
+    function ouvir(){if(p.isConnected)visto=true;else if(visto){document.removeEventListener("rac-proxima",ouvir);return}desenhar()}
+    document.addEventListener("rac-proxima",ouvir);desenhar();
     return p}
   function agendaLinha(e,redesenhar){
     var hoje=hojeISO(),dd=Math.round((new Date(e.data+"T12:00:00")-new Date(hoje+"T12:00:00"))/864e5);
     var quando=dd<0?"há "+(-dd)+(dd===-1?" dia":" dias"):dd===0?"hoje":dd===1?"amanhã":new Date(e.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"});
-    var li=h("li",{class:(dd<0?"alerta":"")+(e.href?" clic":"")||null},h("span",{class:"agico","aria-hidden":"true",text:agendaIco(e)}),h("span",{class:"grow"},h("b",{text:e.t}),e.sub?h("span",{class:"sub",text:e.sub}):null),h("span",{class:"end",text:quando}));
+    var li=h("li",{class:(dd<0&&!e.semRetorno?"alerta":"")+(e.href?" clic":"")||null},h("span",{class:"agico","aria-hidden":"true",text:agendaIco(e)}),h("span",{class:"grow"},h("b",{text:e.t}),e.sub?h("span",{class:"sub",text:e.sub}):null),h("span",{class:"end",text:quando}));
     if(e.href){li.tabIndex=0;li.onclick=function(){if(e.ext)window.open(e.href,"_blank","noopener");else location.hash=e.href}}
-    if(e.lembrete){var ok=h("button",{type:"button",class:"ghostbtn",text:"Feito"});ok.onclick=function(ev){ev.stopPropagation();pessoalGravar("lembretes",(PESSOAL.lembretes||[]).map(function(l){return l.id===e.lembrete.id?Object.assign({},l,{feito:hojeISO()}):l}));if(redesenhar)redesenhar()};li.appendChild(ok)}
+    /* ações rápidas: na página Agenda todas (Feito, Adiar, Sem retorno/Encerrar); no cartão do Início só o "Feito" do lembrete, como sempre */
+    var ac=proximaAcoesDe(e);if(!redesenhar)ac=ac.filter(function(a){return !!e.lembrete&&a==="feito"});
+    var bt=proximaBotoes({cid:e.cid||null,lid:e.lembrete&&e.lembrete.id||null},ac,redesenhar,!!e.semRetorno);if(bt)li.appendChild(bt);
     return li}
   function wAgenda(){
-    var p=wCard("Agenda","bolo","#2E8BD8",["#agenda","ver tudo"],"w5"),ul=h("ul",{class:"wl agl"},h("li",null,h("span",{class:"sub",text:"Carregando…"})));p.appendChild(ul);
-    agendaColetarLeitura().then(function(r){var ev=r.eventos,hoje=hojeISO(),l=ev.filter(function(e){return e.data<=maisDias(hoje,7)});ul.innerHTML="";
+    var p=wCard("Agenda","bolo","#2E8BD8",["#agenda","ver tudo"],"w5"),ul=h("ul",{class:"wl agl"},h("li",null,h("span",{class:"sub",text:"Carregando…"}))),visto=false;p.appendChild(ul);
+    /* o que a Próxima melhor ação já mostra não se repete aqui (a menos que o cartão esteja recolhido); a tela Agenda segue completa */
+    function proxOculta(){return typeof recolhidos==="function"&&!!recolhidos()[PROX_TITULO]}
+    function desenhar(){agendaColetarLeitura().then(function(r){var hoje=hojeISO(),fora=proxOculta()?[]:PROX_EXIBIDOS.ids,
+      ev=r.eventos.filter(function(e){return e.data<=maisDias(hoje,7)&&!e.semRetorno}),l=ev.filter(function(e){return fora.indexOf(NUCLEO.priId(e))<0}),escondidos=ev.length-l.length;ul.innerHTML="";
       if(r.falhas.length)ul.appendChild(h("li",null,h("span",{class:"sub",role:"note",text:"⚠ "+agendaAviso(r)})));
-      if(!l.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:r.falhas.length?"Nenhum item de 7 dias na parte que foi lida.":"Nada vencendo nos próximos 7 dias."})));return}
+      if(!l.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:r.falhas.length?"Nenhum item de 7 dias na parte que foi lida.":escondidos?"O que vence nos próximos 7 dias já está em "+PROX_TITULO+".":"Nada vencendo nos próximos 7 dias."})));return}
       l.slice(0,7).forEach(function(e){ul.appendChild(agendaLinha(e))});
-      if(l.length>7)ul.appendChild(h("li",null,h("a",{href:"#agenda",class:"link",text:"e mais "+(l.length-7)}))) }).catch(function(e){logErro("agenda",e)});
+      if(l.length>7)ul.appendChild(h("li",null,h("a",{href:"#agenda",class:"link",text:"e mais "+(l.length-7)})));
+      if(escondidos)ul.appendChild(h("li",null,h("span",{class:"sub",text:"+"+escondidos+" em "+PROX_TITULO}))) }).catch(function(e){logErro("agenda",e)})}
+    function ouvir(){if(p.isConnected)visto=true;else if(visto){["rac-proxima","rac-proxima-exibida","rac-recolher"].forEach(function(n){document.removeEventListener(n,ouvir)});return}desenhar()}
+    ["rac-proxima","rac-proxima-exibida","rac-recolher"].forEach(function(n){document.addEventListener(n,ouvir)});desenhar();
     return p}
   function renderAgenda(){
     var root=$("#agenda-view");root.innerHTML="";
@@ -170,9 +213,13 @@
     lp.appendChild(h("div",{class:"wform"},h("div",{class:"two"},h("label",null,"O quê",t),h("label",null,"Quando",d)),h("div",{class:"vfil"},ok)));root.appendChild(lp);
     function desenhar(){agendaColetarLeitura().then(function(lei){var ev=lei.eventos;box.innerHTML="";var hoje=hojeISO();
       if(lei.falhas.length)box.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+agendaAviso(lei)}));
-      var G=[["Atrasados",function(e){return e.data<hoje}],["Hoje",function(e){return e.data===hoje}],["Próximos 7 dias",function(e){return e.data>hoje&&e.data<=maisDias(hoje,7)}],
-        ["Até 30 dias",function(e){return e.data>maisDias(hoje,7)&&e.data<=maisDias(hoje,30)}],["Depois",function(e){return e.data>maisDias(hoje,30)&&e.data<=maisDias(hoje,120)}]];
-      G.forEach(function(g){var l=ev.filter(g[1]);if(!l.length)return;box.appendChild(h("h3",{class:"mbag",text:g[0]+" ("+l.length+")"}));box.appendChild(h("ul",{class:"wl agl"},l.map(function(e){return agendaLinha(e,desenhar)})))});
+      /* "sem retorno" (follow-up de mais de 10 dias) não é atraso: fica no próprio grupo, no fim, sem alerta */
+      var G=[["Atrasados",function(e){return e.data<hoje&&!e.semRetorno}],["Hoje",function(e){return e.data===hoje}],["Próximos 7 dias",function(e){return e.data>hoje&&e.data<=maisDias(hoje,7)}],
+        ["Até 30 dias",function(e){return e.data>maisDias(hoje,7)&&e.data<=maisDias(hoje,30)}],["Depois",function(e){return e.data>maisDias(hoje,30)&&e.data<=maisDias(hoje,120)}],
+        ["Candidaturas sem retorno",function(e){return !!e.semRetorno},true]];
+      G.forEach(function(g){var l=ev.filter(g[1]);if(!l.length)return;box.appendChild(h("h3",{class:"mbag",text:g[0]+" ("+l.length+")"}));
+        if(g[2])box.appendChild(h("p",{class:"sub",text:"Sem resposta há mais de "+NUCLEO.PRI_VALIDADE_CALC+" dias do follow-up. Não exigem ação; o resultado da candidatura não foi alterado. “Encerrar” marca o resultado como “sem retorno”."}));
+        box.appendChild(h("ul",{class:"wl agl"},l.map(function(e){return agendaLinha(e,desenhar)})))});
       if(!ev.length)box.appendChild(h("p",{class:"empty",text:lei.falhas.length?"Nenhum item na parte que foi lida (a leitura falhou: não dá para dizer que não há nada).":"Nada com data por enquanto."}))}).catch(function(e){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Não consegui montar a agenda ("+e.message+")."}));logErro("agenda",e)})}
     desenhar()}
 

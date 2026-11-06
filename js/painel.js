@@ -131,7 +131,7 @@
     /* pendências e compromissos: a Agenda única do site (nada novo) */
     var pp=panel("Pendências e compromissos","O que vem nos próximos 14 dias e o que ficou para trás, pela Agenda.");
     if(!D.agenda.ok)pp.appendChild(pnVazio("Não consegui ler a Agenda agora ("+D.agenda.erro+")."));
-    else{var lim=maisDias(hoje,14),atr=D.agenda.v.filter(function(e){return e.data<hoje}),prox=D.agenda.v.filter(function(e){return e.data>=hoje&&e.data<=lim});
+    else{var lim=maisDias(hoje,14),atr=D.agenda.v.filter(function(e){return e.data<hoje&&!e.semRetorno}),prox=D.agenda.v.filter(function(e){return e.data>=hoje&&e.data<=lim});
       var tAb=D.tarefas.ok?D.tarefas.v.filter(function(t){return !t.feito}).length:null;
       pp.appendChild(h("div",{class:"kgasto"},pnKpi("Próximos 14 dias",String(prox.length)),pnKpi("Atrasados",String(atr.length)),tAb!=null?pnKpi("Tarefas abertas",String(tAb)):null,
         pnKpi("Lembretes abertos",String((PESSOAL.lembretes||[]).filter(function(l){return !l.feito}).length))));

@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-06.2",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-06.4",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],rachoje:["hoje"],iacustos:["iacustos"]};
@@ -931,7 +931,7 @@
     if(/^#?(inicio)?$/.test(location.hash.split("/")[0])){
       var b=h("button",{type:"button",class:"recolher"});
       function marcar(r){p.classList.toggle("recolhido",r);b.setAttribute("aria-expanded",String(!r));b.setAttribute("aria-label",(r?"Mostrar ":"Recolher ")+title);b.title=r?"Mostrar":"Recolher";b.textContent=r?"▸":"▾"}
-      b.onclick=function(){var m=recolhidos(),r=!p.classList.contains("recolhido");if(r)m[title]=1;else delete m[title];try{localStorage.setItem(RECOLHIDOS,JSON.stringify(m))}catch(e){}marcar(r)};
+      b.onclick=function(){var m=recolhidos(),r=!p.classList.contains("recolhido");if(r)m[title]=1;else delete m[title];try{localStorage.setItem(RECOLHIDOS,JSON.stringify(m))}catch(e){}marcar(r);document.dispatchEvent(new Event("rac-recolher"))};
       wh.appendChild(b);marcar(!!recolhidos()[title])}
     return p}
   function quando(d){return new Date(d).toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(",","")}
@@ -1012,13 +1012,14 @@
   function briefingTexto(){
     var agora=new Date(),hoje=hojeISO(),partes=[saudacao()+", Rayner. Hoje é "+agora.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})+"."];
     var pTempo=TEMPO_HOJE?Promise.resolve(TEMPO_HOJE):getJson("https://api.open-meteo.com/v1/forecast?latitude=-23.50&longitude=-47.46&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&hourly=precipitation_probability,precipitation&timezone=America%2FSao_Paulo&forecast_days=2").catch(function(){return null});
-    var pAcoes=precisa(["sistema"]).then(function(){return proximasAcoes()}).catch(function(){return []});
+    /* o que se fala é a mesma seleção do cartão Próxima melhor ação; só urgente e importante viram "para hoje" (informativo não é tarefa) */
+    var pAcoes=precisa(["sistema"]).then(function(){return proximasSelecao()}).then(function(s){return s.mostrados.filter(function(x){return x.nivel!=="informativo"})}).catch(function(){return []});
     var pJogo=getJson("https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId=119&date="+hoje+"&hydrate=team").catch(function(){return null});
     return Promise.all([pTempo,pAcoes,pJogo]).then(function(r){
       var d=r[0];if(d){partes.push("Em Sorocaba faz "+Math.round(d.current.temperature_2m)+" graus, "+WXTXT[wxKind(d.current.weather_code)]+", com máxima de "+Math.round(d.daily.temperature_2m_max[0])+" e mínima de "+Math.round(d.daily.temperature_2m_min[0])+".");
         var c=NUCLEO.chuvaAviso(d.hourly,d.current.time);if(c)partes.push(c.texto.replace(/\(até (\d+)%.*\)/,"(chance de até $1 por cento)").replace(/~/g,""))}
-      var a=r[1].slice(0,4);if(a.length)partes.push("Para hoje: "+a.map(function(x){return (x.pre?x.pre+": ":"")+x.t+(x.sub?", "+x.sub.split(" · ")[0]:"")}).join(". ")+".");
-      else partes.push("Nada vencendo na agenda.");
+      var a=r[1].slice(0,4);if(a.length)partes.push("Para hoje: "+a.map(function(x){return (x.cid?"Follow-up: ":"")+x.titulo+", "+x.motivo.split(" · ")[0]}).join(". ")+".");
+      else partes.push("Tudo em dia. Nenhuma ação urgente agora.");
       var niver=(typeof withDates==="function"&&isOwner()?withDates():[]).filter(function(x){return x.dias===0});if(niver.length)partes.push("Hoje é aniversário de "+niver.map(function(x){return x.nome}).join(", ")+".");
       var novas=(VG.all||[]).filter(function(v){return v.d<=1}).length;if(novas)partes.push(novas+(novas===1?" vaga nova":" vagas novas")+" de dados apareceram desde ontem.");
       var j=r[2]&&r[2].dates&&r[2].dates[0]&&r[2].dates[0].games[0];

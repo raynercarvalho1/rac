@@ -168,7 +168,38 @@ Rede (a Rede já entra pela agenda e sai do site no roteiro).
 
 **Consultas repetidas eliminadas**: a Agenda e a Próxima ação do Início (e o resumo falado) liam a tabela `registros` inteira cada uma;
 agora quem pede enquanto uma leitura está em curso usa a mesma (`agendaColetar` em `js/sistema.js`; nada fica guardado depois).
-O RAC Hoje não chama a Próxima ação (tem as mesmas regras no núcleo), então não repete a leitura da agenda nem a do relógio.
+O RAC Hoje não chama a Próxima ação (usa a mesma régua do núcleo, `NUCLEO.pri*`), então não repete a leitura da agenda nem a do relógio.
+
+## Régua de prioridades (Próxima melhor ação, Agenda, resumo falado e RAC Hoje)
+
+Uma régua só, em `nucleo.js` (`NUCLEO.pri*`, funções puras que recebem a data de referência). Quem usa: o cartão **Próxima melhor ação** do Início
+(`proximasSelecao` em `js/sistema.js`), a Agenda do Início e a página Agenda, o resumo falado (`briefingTexto`, `js/app.js`) e o RAC Hoje
+(`hojePrioridade`/`hojeItem`/`hojeItens` chamam a mesma `priPontos`).
+
+| Prazo | O que é | Pontos | Validade |
+|---|---|---|---|
+| **real** | vencimento definido em registro ou compromisso (revisão, boleto, avaliação, lembrete, IPVA...) | atrasado 100+atraso (teto 20), hoje 90, amanhã 70, até 3 dias 50, até 7 dias 30, mais 10; mais o peso da área | nenhuma: um prazo real vencido continua à vista |
+| **calculado** | derivado de uma data: follow-up = candidatura + 5 dias (ou a data de "Fazer follow-up em"), avisos de backup e de posts da Rede | no máximo 46: sempre abaixo de real vencido, de hoje e dos próximos 3 dias | 10 dias corridos depois de vencer |
+| **informativo** | oportunidade ou sugestão: vaga compatível (≥70%), recuperação ou treino da Saúde | 25 + desempate | só com dado de ontem ou de hoje (Saúde) |
+
+Nível: **urgente** = real vencido ou de hoje; **importante** = real em até 3 dias, ou calculado vencido ainda dentro da validade; **informativo** = o resto.
+No RAC Hoje os mesmos níveis aparecem como alta, média e baixa.
+
+**Follow-up da candidatura** (`NUCLEO.priFollowup`): só a coluna "Candidatei" gera. Qualquer **resultado** preenchido (aprovado, recusado, sem retorno,
+vaga cancelada, desisti) ou o follow-up marcado como feito encerra. Vencido há mais de 10 dias, vira **sem retorno**: é só a apresentação (a Agenda mostra
+no grupo "Candidaturas sem retorno", sem alerta; o funil mostra "Sem retorno"); nada é gravado, o resultado e o histórico continuam como estão.
+Os cartões criados pelos e-mails usam a data do e-mail, então uma confirmação antiga já nasce "sem retorno" em vez de ficar pendente para sempre.
+
+**O cartão**: no máximo 1 destaque (só se for urgente ou importante) e 3 secundárias, com até 2 informativas; cada linha tem o nível e o motivo curto.
+Compromissos de 4 a 7 dias ficam só na Agenda. Sem nada urgente ou importante: "Tudo em dia. Nenhuma ação urgente agora." (uma vaga informativa
+pode aparecer abaixo, sem tom de urgência). Recolher usa a preferência de sempre. O que o cartão mostra não se repete nas primeiras linhas da Agenda do Início
+(com o cartão recolhido, a Agenda mostra tudo); a página Agenda continua completa.
+
+**Ações rápidas** (só do dono, pelos caminhos que já existem, `pessoalGravar`): *Feito* (follow-up feito, como o campo do editor; ou lembrete feito), *Adiar 3 dias*
+(muda "fazer follow-up em", como o botão do editor) e *Sem retorno / Encerrar* (marca o resultado "sem retorno", opção que já existe, e acrescenta uma linha ao histórico;
+nunca troca um resultado já marcado). Não há estado novo.
+
+**Limite conhecido**: a rotina das 6h (`garmin`, push) tem a sua própria lista de follow-ups e não foi alterada; ela ainda ignora o resultado da candidatura.
 
 ## Monitor de custos
 

@@ -2,6 +2,7 @@
 // Rodar: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 
 createRequire(import.meta.url)("../nucleo.js");
@@ -516,4 +517,103 @@ test("painel: despesas das três fontes, sem contar duas vezes a lata de fórmul
     [{ venc: "2026-10-10", v: 626.85, paga: true }, { venc: "2026-11-10", v: 626.85, paga: false }],
     (q) => (q === "civic" ? "Veículos" : q));
   assert.deepEqual(L.map((x) => [x.d, x.v, x.f]), [["2026-10-23", 189.9, "Mercado"], ["2026-10-20", 250, "Veículos"], ["2026-10-10", 626.85, "MBA"]]);
+});
+
+/* ---------------------------------------------------------------- régua de prioridades (Próxima melhor ação, Agenda, resumo falado, RAC Hoje) */
+const PH = "2026-11-10";
+const cand = (o = {}) => ({ id: "c1", t: "Técnico de Suporte N2", e: "Acme", coluna: "candidatei", datas: { candidatei: "2026-11-03" }, ...o }); /* follow-up em 08/11: 2 dias atrás */
+const ev = (o = {}) => ({ data: PH, t: "Revisão do Civic", tipo: "veiculo", href: "#veiculos/civic", ...o });
+
+test("prioridades: candidatura com resultado preenchido nunca gera ação (aprovado, recusado, vaga cancelada, desisti, sem retorno)", () => {
+  assert.equal(N.priFollowup(cand(), PH).estado, "ativo", "sem resultado: o follow-up existe");
+  for (const r of ["aprovado", "recusado", "vaga cancelada", "desisti", "sem retorno"]) assert.equal(N.priFollowup(cand({ resultado: r }), PH).estado, "nenhum", r);
+  assert.equal(N.priFollowup(cand({ resultado: "recusado", datas: { candidatei: "2026-11-08" } }), PH).estado, "nenhum", "nem a candidatura de ontem");
+});
+
+test("prioridades: só a coluna 'candidatei' gera follow-up; follow-up feito, sem data ou outra coluna não geram", () => {
+  for (const c of ["salva", "entrevista", "resposta"]) assert.equal(N.priFollowup(cand({ coluna: c }), PH).estado, "nenhum", c);
+  assert.equal(N.priFollowup(cand({ followup: "2026-11-05" }), PH).estado, "nenhum");
+  assert.equal(N.priFollowup(cand({ datas: {} }), PH).estado, "nenhum");
+  assert.equal(N.priFollowup(null, PH).estado, "nenhum");
+});
+
+test("prioridades: follow-up calculado vale até 10 dias corridos depois de vencer; com mais que isso é 'sem retorno' (candidatura + 5 dias)", () => {
+  const f = (d) => { const x = N.priFollowup(cand({ datas: { candidatei: d } }), PH); return [x.estado, x.dias, x.data]; };
+  assert.deepEqual(f("2026-11-10"), ["ativo", 5, "2026-11-15"], "ainda vai vencer");
+  assert.deepEqual(f("2026-11-05"), ["ativo", 0, "2026-11-10"], "vence hoje");
+  assert.deepEqual(f("2026-10-26"), ["ativo", -10, "2026-10-31"], "10 dias de atraso: ainda vale");
+  assert.deepEqual(f("2026-10-25"), ["sem_retorno", -11, "2026-10-30"], "11 dias: deixa de ser atraso ativo");
+  assert.equal(f("2026-09-20")[0], "sem_retorno", "o caso da página inicial (20/09)");
+  const m = N.priFollowup(cand({ datas: { candidatei: "2026-09-20" }, followupEm: "2026-11-08" }), PH);
+  assert.deepEqual([m.estado, m.data], ["ativo", "2026-11-08"], "adiar (followupEm) manda na data; a validade conta daí");
+});
+
+test("prioridades: prazo real vencido continua urgente (a validade de 10 dias NÃO vale para vencimentos reais)", () => {
+  const i = N.priItem(ev({ data: "2026-09-25" }), PH);
+  assert.deepEqual([i.prazo, i.nivel, i.dias, i.cartao], ["real", "urgente", -46, true]);
+  assert.match(i.motivo, /^venceu há 46 dias/);
+  assert.equal(N.priItem(ev({ data: PH }), PH).nivel, "urgente"); assert.equal(N.priItem(ev({ data: "2026-11-11" }), PH).nivel, "importante");
+  assert.equal(N.priItem(ev({ data: "2026-11-13" }), PH).nivel, "importante"); assert.equal(N.priItem(ev({ data: "2026-11-14" }), PH).nivel, "informativo", "4 a 7 dias: informativo");
+  assert.equal(N.priItem(ev({ data: "2026-11-14" }), PH).cartao, false, "e fora do cartão (fica na Agenda)");
+});
+
+test("prioridades: prazo real de hoje supera qualquer follow-up calculado, e o calculado nunca passa de real vencido, de hoje ou dos próximos 3 dias", () => {
+  const calc = (d, tipo = "carreira") => N.priItem(ev({ data: d, tipo, prazo: "calculado", acao: "followup", cid: "c1", t: "Técnico de Suporte N2" }), PH);
+  const maxCalc = Math.max(...["2026-09-01", "2026-10-31", PH, "2026-11-12"].flatMap((d) => ["carreira", "mba", "familia", "sistema"].map((t) => calc(d, t).p)));
+  const minReal3 = Math.min(...["mba", "familia", "veiculo", "carreira", "docs", "lembrete", "niver", "sistema"].flatMap((t) => [-30, -1, 0, 1, 2, 3].map((n) => N.priItem(ev({ tipo: t, data: N.somaDiasISO(PH, n) }), PH).p)));
+  assert.ok(maxCalc < minReal3, "calculado (" + maxCalc + ") abaixo do menor real de até 3 dias (" + minReal3 + ")");
+  const l = N.priSelecionar([calc("2026-10-31"), N.priItem(ev({ t: "Boleto do MBA", tipo: "mba" }), PH), N.priItem(ev({ t: "Seguro", tipo: "docs", data: "2026-11-09" }), PH)]);
+  assert.deepEqual([l.destaque.titulo, l.secundarias.map((x) => x.titulo)], ["Seguro", ["Boleto do MBA", "Técnico de Suporte N2"]], "real vencido, real de hoje, e só então o follow-up");
+  assert.equal(calc("2026-11-08").nivel, "importante"); assert.equal(calc("2026-11-12").nivel, "informativo", "follow-up que ainda vai vencer não é ação");
+});
+
+test("prioridades: empates e ordenação são determinísticos (pontos, natureza do prazo, proximidade, título e id)", () => {
+  const a = N.priItem(ev({ t: "B", tipo: "mba", data: "2026-11-11" }), PH), b = N.priItem(ev({ t: "A", tipo: "mba", data: "2026-11-11" }), PH), c = N.priItem(ev({ t: "C", tipo: "mba", data: "2026-11-12" }), PH);
+  const o1 = N.priOrdenar([a, b, c]).map((x) => x.titulo), o2 = N.priOrdenar([c, b, a]).map((x) => x.titulo);
+  assert.deepEqual(o1, ["A", "B", "C"]); assert.deepEqual(o1, o2, "a ordem não depende da entrada");
+  const x1 = N.priItem(ev({ t: "Mesmo nome", tipo: "mba", data: "2026-11-11", id: "z" }), PH), x2 = N.priItem(ev({ t: "Mesmo nome", tipo: "mba", data: "2026-11-11", id: "a" }), PH);
+  assert.deepEqual(N.priOrdenar([x1, x2]).map((x) => x.id), ["a", "z"], "empate total: pelo id");
+  assert.equal(N.priPontos("real", 0, "mba"), N.hojePrioridade({ dias: 0, area: "mba" }), "o RAC Hoje usa a mesma régua");
+});
+
+test("prioridades: vaga e treino são informativos, nunca destaque nem urgência; mostra no máximo 2", () => {
+  const v = (i, extra) => N.priOportunidade({ id: "vaga:" + i, area: "carreira", titulo: "Analista " + i, motivo: "80% compatível", href: "#vagas", extra });
+  assert.deepEqual([v(1, 5).nivel, v(1, 5).prazo, v(1, 5).cartao], ["informativo", "informativo", true]);
+  const s = N.priSelecionar([v(1, 5), v(2, 9), v(3, 1)]);
+  assert.equal(s.destaque, null); assert.equal(s.vazio, true); assert.equal(s.acoes, 0);
+  assert.deepEqual(s.mostrados.map((x) => x.titulo), ["Analista 2", "Analista 1"], "as mais compatíveis; só 2 informativas");
+  const m = N.priSelecionar([v(1, 5), N.priItem(ev({ data: PH }), PH)]);
+  assert.equal(m.destaque.titulo, "Revisão do Civic"); assert.deepEqual(m.secundarias.map((x) => x.nivel), ["informativo"]);
+});
+
+test("prioridades: sem nada relevante, vazio de verdade (nada inventado); 1 destaque + 3 secundárias no máximo", () => {
+  const z = N.priSelecionar([]); assert.deepEqual([z.destaque, z.mostrados.length, z.vazio, z.mais], [null, 0, true, 0]);
+  const fora = N.priSelecionar([N.priItem(ev({ data: "2026-11-16" }), PH), N.priItem(ev({ data: "2026-11-14" }), PH)]);
+  assert.equal(fora.vazio, true, "compromissos de 4 a 7 dias ficam na Agenda, não no cartão"); assert.equal(fora.mostrados.length, 0);
+  assert.equal(N.priItem({ ...ev(), semRetorno: true }, PH), null, "'sem retorno' não pede nada");
+  const seis = N.priSelecionar([1, 2, 3, 4, 5, 6].map((n) => N.priItem(ev({ t: "Item " + n, data: N.somaDiasISO(PH, -n) }), PH)));
+  assert.deepEqual([seis.destaque.titulo, seis.secundarias.length, seis.mais, seis.ids.length], ["Item 6", 3, 2, 4], "o mais atrasado primeiro (prazo real vencido); sobram 2 para a Agenda");
+});
+
+test("prioridades: cartão criado por e-mail — a confirmação antiga deixa de ser pendência sozinha, a recente segue válida", () => {
+  /* o formato exato que js/carreira.js grava ao aplicar uma confirmação de candidatura (data = a do e-mail) */
+  const doEmail = (data) => ({ id: "e19a", emailId: "19a", t: "(vaga sem nome no e-mail)", e: "Acme", fonte: "Gupy", coluna: "candidatei", datas: { candidatei: data }, followup: false, interacoes: [{ d: data, tipo: "E-mail", t: "Candidatura: Recebemos" }] });
+  assert.equal(N.priFollowup(doEmail("2026-10-01"), PH).estado, "sem_retorno", "e-mail de outubro: já nasce 'sem retorno'");
+  assert.equal(N.priFollowup(doEmail("2026-11-07"), PH).estado, "ativo");
+  assert.match(fs.readFileSync(new URL("../js/carreira.js", import.meta.url), "utf8"), /followup:alvo!=="candidatei"/, "o cartão do e-mail continua sendo criado como antes (nada de estado novo)");
+});
+
+test("prioridades: a régua não altera a candidatura nem o histórico (função pura)", () => {
+  const c = cand({ resultado: "", interacoes: [{ d: "2026-11-03", tipo: "E-mail", t: "x" }], datas: { candidatei: "2026-09-20" } }), antes = JSON.stringify(c);
+  Object.freeze(c); Object.freeze(c.datas); Object.freeze(c.interacoes);
+  assert.equal(N.priFollowup(c, PH).estado, "sem_retorno"); assert.equal(JSON.stringify(c), antes, "nada mudou: 'sem retorno' é só apresentação");
+  assert.equal(c.resultado, "", "o resultado real continua o que o dono marcou");
+});
+
+test("prioridades: a sugestão de Saúde só existe com dado de ontem ou hoje e com algo a recomendar", () => {
+  assert.equal(N.priSaude(null), null); assert.equal(N.priSaude({ semDados: true }), null);
+  assert.equal(N.priSaude({ prontidao: 30, atraso: 5, semTreino: 9 }), null, "dado velho não recomenda nada");
+  assert.equal(N.priSaude({ prontidao: 80, atraso: 0, semTreino: 1 }), null, "nada a recomendar");
+  assert.equal(N.priSaude({ prontidao: 80, atraso: 1, semTreino: null }), null, "sem treino registrado, não inventa");
+  assert.deepEqual([N.priSaude({ prontidao: 30, atraso: 0, semTreino: 1, alertas: ["sono curto"] }).tipo, N.priSaude({ prontidao: 72, atraso: 1, semTreino: 4 }).tipo, N.priSaude({ prontidao: 72, atraso: 1, semTreino: 4 }).forte], ["recuperacao", "treino", true]);
 });

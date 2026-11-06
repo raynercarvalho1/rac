@@ -18,7 +18,7 @@ Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atua
 | Saúde e treinos (`#saude`) | `js/saude.js` | — | `fit.test.mjs` | `007` | **`garmin` — intocável sem autorização expressa** |
 | MBA, Conexões (`#mba`, `#conexoes`) | `js/mba.js`, `js/conexoes.js` | — | — | `003` (`pessoal`) | `scripts/atualizar_tecdados.py` |
 | Carreira, Rede (`#carreira`, `#rede`) | `js/carreira.js`, `js/rede.js` | — | `nucleo.test.mjs` | `003`, `004` | `scripts/atualizar_vagas.py` |
-| Sistema, Agenda, Busca (`#sistema`, `#agenda`, `#busca`) | `js/sistema.js` | — | `estrutura.test.mjs` | `008`, `011`, `012`, `014` | `garmin` (rotina, push, backup) |
+| Sistema, Agenda, Busca (`#sistema`, `#agenda`, `#busca`) | `js/sistema.js` (Agenda e cartão Próxima melhor ação; régua em `nucleo.js`, `NUCLEO.pri*`) | `docs/hoje.md` (Régua de prioridades) | `estrutura.test.mjs`, `nucleo.test.mjs`, `hoje.test.mjs` | `008`, `011`, `012`, `014` | `garmin` (rotina, push, backup) |
 | Resumo (`#resumo`) | `js/resumo.js` | — | — | — | — |
 | Segurança (`#seguranca`) | `js/seguranca.js` | `docs/seguranca.md` | `central.test.mjs`, `seguranca.test.mjs` | `022` | — |
 | Painel (`#painel`) | `js/painel.js` | `docs/painel.md` | `painel.test.mjs` | — | — |

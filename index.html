@@ -179,6 +179,13 @@ img.ico{background:#fff;object-fit:contain;padding:2px;box-shadow:0 0 0 1px var(
 .star{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}.star dt{font-weight:700;color:var(--accent)}.star dd{margin:0}
 .omsg circle{cursor:pointer}
 .wprox li.top b{font-size:1.06em}
+/* Próxima melhor ação: compacta; só o urgente leva a barra vermelha, importante e informativo diferem pelo selo */
+.proxbox{display:grid;gap:8px}.proxok{margin:0;font-weight:600}
+.proxl li{align-items:flex-start;gap:8px}.proxl li.prox:not(.top) b{font-weight:600;font-size:.95em}
+.proxn{flex:none;font:600 calc(11px + var(--fz)) var(--f-ui);padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);white-space:nowrap}
+.proxn-urgente{border-color:var(--bad);color:var(--bad)}.proxn-importante{border-color:var(--warn);color:var(--warn)}
+.proxac{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.proxac .ghostbtn{padding:4px 10px;font-size:calc(12px + var(--fz))}.agl>li>.proxac{margin:0 0 0 8px}
+.proxmais{font-size:calc(13px + var(--fz))}
 /* Newsletter: cartões de leitura (manchete, fonte, hora, resumo), pensados primeiro para a tela do iPhone (375 px) */
 .nltabs{position:sticky;top:0;z-index:5;margin:0 0 14px;overflow-x:auto;scrollbar-width:none;box-shadow:var(--shadow)}.nltabs::-webkit-scrollbar{display:none}
 .nltabs a{min-width:max-content;padding:8px 10px;font-size:calc(13px + var(--fz))}

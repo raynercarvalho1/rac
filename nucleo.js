@@ -1019,11 +1019,62 @@
       resto=Object.keys(nomes).filter(function(k){return c[k]}).map(function(k){return c[k]+" "+nomes[k]});
     return {total:estados.length,ok:c.ok,contagem:c,problemas:prob,comRessalva:prob.length>0,
       resumo:c.ok+" de "+estados.length+" fontes lidas com dados"+(resto.length?"; "+resto.join(", "):"")}}
-  /* prioridade: atrasado > hoje > amanhã > 3 dias > semana > sem data, com peso por área (a mesma régua da Próxima ação) */
-  function hojePrioridade(it){var d=it.dias,base=d==null?20:d<0?100+Math.min(-d,20):d===0?90:d===1?70:d<=3?50:d<=7?30:10;return base+(HOJE_PESO[it.area]||0)+(it.extra||0)}
-  function hojeNivel(p){return p>=80?"alta":p>=45?"média":"baixa"}
-  function hojeItem(o,hoje){var it={area:o.area,titulo:String(o.titulo||"").trim(),data:o.data||null,sub:o.sub||"",fonte:o.fonte,extra:o.extra||0,href:o.href||""};
-    it.dias=it.data?hojeDias(hoje,String(it.data).slice(0,10)):null;it.p=hojePrioridade(it);it.nivel=hojeNivel(it.p);it.fontes=[o.fonte];return it}
+  /* ===== Régua de prioridades: a única, usada pela Próxima melhor ação, pela Agenda, pelo resumo falado e pelo RAC Hoje =====
+     Três naturezas de prazo (prazo):
+       real        = vencimento definido em um registro ou compromisso (revisão, boleto, avaliação, lembrete...): nunca perde a validade;
+       calculado   = derivado de uma data (follow-up = candidatura + 5 dias): vale PRI_VALIDADE_CALC dias depois de vencer e nunca passa de um prazo real;
+       informativo = oportunidade ou sugestão (vaga, treino): não exige ação, nunca é urgência.
+     Níveis: urgente (real vencido ou de hoje), importante (real em até 3 dias, ou calculado vencido ainda válido), informativo (o resto).
+     Tudo é função pura: a data de referência (hoje) é sempre um argumento. */
+  var PRI_VALIDADE_CALC=10,PRI_NIVEL_HOJE={urgente:"alta",importante:"média",informativo:"baixa"};
+  function priPontos(prazo,dias,area,extra){var peso=HOJE_PESO[area]||0,e=extra||0,d=dias==null?null:dias;
+    if(prazo==="informativo")return 25+e;
+    /* calculado: no máximo 46, abaixo de qualquer prazo real vencido, de hoje ou dos próximos 3 dias (que começam em 50) */
+    if(prazo==="calculado")return (d==null?15:d<=0?38:d<=3?30:20)+Math.min(peso,8)+e;
+    return (d==null?20:d<0?100+Math.min(-d,20):d===0?90:d===1?70:d<=3?50:d<=7?30:10)+peso+e}
+  function priNivel(prazo,dias,p){
+    if(prazo==="informativo")return "informativo";
+    if(prazo==="calculado")return dias!=null&&dias<=0?"importante":"informativo";
+    return p>=90?"urgente":p>=45?"importante":"informativo"}
+  /* prioridade: atrasado > hoje > amanhã > 3 dias > semana > sem data, com peso por área; vale só para o prazo real (os outros: priPontos) */
+  function hojePrioridade(it){return priPontos(it.prazo||"real",it.dias,it.area,it.extra)}
+  function hojeNivel(p){return p>=90?"alta":p>=45?"média":"baixa"}
+  function hojeItem(o,hoje){var it={area:o.area,titulo:String(o.titulo||"").trim(),data:o.data||null,sub:o.sub||"",fonte:o.fonte,extra:o.extra||0,href:o.href||"",prazo:o.prazo||"real"};
+    it.dias=it.data?hojeDias(hoje,String(it.data).slice(0,10)):null;it.p=hojePrioridade(it);it.nivel=PRI_NIVEL_HOJE[priNivel(it.prazo,it.dias,it.p)];it.fontes=[o.fonte];return it}
+  /* follow-up de uma candidatura do funil: "nenhum" (nada a fazer), "ativo" (vence até 10 dias atrás ou ainda vai vencer) ou "sem_retorno" (venceu há mais de 10 dias).
+     Só a coluna "candidatei" gera follow-up; qualquer resultado preenchido (aprovado, recusado, sem retorno, vaga cancelada, desisti) ou o follow-up já feito encerra.
+     Nada é gravado: "sem_retorno" é só como a candidatura é apresentada, o resultado real continua o que o dono marcou. */
+  function priFollowup(c,hoje){var nada={estado:"nenhum",data:null,dias:null,desde:null};
+    if(!c||c.coluna!=="candidatei"||c.followup||c.resultado)return nada;
+    var d=String((c.datas||{}).candidatei||"").slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return nada;
+    var data=String(c.followupEm||"").slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(data))data=somaDiasISO(d,5);
+    var dias=hojeDias(hoje,data);return {estado:dias<-PRI_VALIDADE_CALC?"sem_retorno":"ativo",data:data,dias:dias,desde:d}}
+  function priId(e){return e.id||(e.tipo||"")+"|"+(e.data||"")+"|"+norm(e.t).replace(/[^a-z0-9]+/g," ").trim()}
+  function priQuando(dias){return dias<0?"venceu há "+(-dias)+(dias===-1?" dia":" dias"):dias===0?"vence hoje":dias===1?"vence amanhã":"vence em "+dias+" dias"}
+  /* um evento da Agenda vira item da régua (ou null, se não pede nada: "sem retorno" é só informação da Agenda) */
+  function priItem(ev,hoje){if(!ev||!ev.data||ev.semRetorno)return null;
+    var prazo=ev.prazo||"real",dias=hojeDias(hoje,String(ev.data).slice(0,10)),p=priPontos(prazo,dias,ev.tipo,0),nivel=priNivel(prazo,dias,p),fu=ev.acao==="followup",
+      quando=fu?(dias<0?"follow-up previsto há "+(-dias)+(dias===-1?" dia":" dias"):dias===0?"follow-up previsto para hoje":"follow-up em "+dias+(dias===1?" dia":" dias")):priQuando(dias),
+      lid=ev.lembrete&&ev.lembrete.id||ev.lid||null;
+    return {id:priId(ev),area:ev.tipo,prazo:prazo,data:String(ev.data).slice(0,10),dias:dias,p:p,nivel:nivel,titulo:ev.t,pre:ev.pre||"",ico:ev.ico||"",
+      motivo:quando+(ev.sub?" · "+ev.sub:""),href:ev.href||"",ext:!!ev.ext,fonte:"agenda",cid:ev.cid||null,lid:lid,
+      acoes:fu?["feito","adiar","semretorno"]:lid?["feito"]:[],cartao:nivel!=="informativo"}}
+  /* oportunidade informativa (vaga compatível, sugestão de treino): nunca é urgência; extra só desempata entre elas */
+  function priOportunidade(o){return {id:o.id,area:o.area,prazo:"informativo",data:null,dias:null,p:priPontos("informativo",null,o.area,o.extra),nivel:"informativo",titulo:o.titulo,pre:o.pre||"",
+    ico:o.ico||"",motivo:o.motivo||"",href:o.href||"",ext:false,fonte:o.fonte||o.area,cid:null,lid:null,acoes:[],cartao:true}}
+  var PRI_ORDEM_PRAZO={real:0,calculado:1,informativo:2};
+  function priOrdenar(itens){return (itens||[]).slice().sort(function(a,b){return b.p-a.p||PRI_ORDEM_PRAZO[a.prazo]-PRI_ORDEM_PRAZO[b.prazo]||(a.dias==null?99999:a.dias)-(b.dias==null?99999:b.dias)||String(a.titulo).localeCompare(String(b.titulo))||String(a.id).localeCompare(String(b.id))})}
+  /* o que o cartão mostra: no máximo 1 destaque (só se for urgente ou importante) e 3 secundárias, com no máximo 2 informativos. Sem urgente nem importante: sem destaque. */
+  function priSelecionar(itens){var l=priOrdenar(itens).filter(function(i){return i.cartao}),destaque=l.length&&l[0].nivel!=="informativo"?l[0]:null,rest=destaque?l.slice(1):l,sec=[],info=0;
+    rest.forEach(function(i){if(sec.length>=3)return;if(i.nivel==="informativo"){if(info>=2)return;info++}sec.push(i)});
+    var mostrados=(destaque?[destaque]:[]).concat(sec);
+    return {destaque:destaque,secundarias:sec,mostrados:mostrados,ids:mostrados.map(function(i){return i.id}),mais:l.length-mostrados.length,
+      acoes:mostrados.filter(function(i){return i.nivel!=="informativo"}).length,vazio:!destaque}}
+  /* a sugestão de Saúde só existe com dado de ontem ou de hoje, e só quando há o que recomendar: prontidão baixa (recuperação) ou 3+ dias sem treino */
+  function priSaude(s){if(!s||s.semDados||s.prontidao==null||s.atraso==null||s.atraso>1)return null;
+    if(s.prontidao<45)return {tipo:"recuperacao",prontidao:s.prontidao,semTreino:s.semTreino,alertas:s.alertas||[]};
+    if(s.semTreino!=null&&s.semTreino>=3)return {tipo:"treino",prontidao:s.prontidao,semTreino:s.semTreino,forte:s.prontidao>=70,alertas:[]};
+    return null}
   /* o mesmo assunto que aparece em duas fontes (ex.: avaliação do MBA na Agenda e no MBA) vira um item só, com as duas fontes */
   function hojeChaveItem(it){return norm(it.titulo).replace(/[^a-z0-9]+/g," ").trim()+"|"+(it.data||"")}
   function hojeDedup(itens){var por={},ordem=[];(itens||[]).forEach(function(it){var k=hojeChaveItem(it),achou=por[k];
@@ -1064,8 +1115,9 @@
       .filter(function(v){return v.nota!=null&&v.nota>=60}).sort(function(a,b){return b.nota-a.nota||a.d-b.d}).slice(0,4)}
   /* o que pede atenção, de todas as fontes, sem repetição e em ordem */
   function hojeItens(f,hoje,extras){f=f||{};var l=[];
-    if(f.agenda&&f.agenda.ok)(f.agenda.v||[]).forEach(function(e){var d=hojeDias(hoje,e.data);if(d<-30||d>14)return;
-      l.push(hojeItem({area:e.tipo,titulo:(e.pre&&!/^(Aula|Boleto|Responder|Aniversário de)$/.test(e.pre)?e.pre+": ":"")+e.t,data:e.data,sub:e.sub,fonte:"agenda",href:e.href},hoje))});
+    /* "sem retorno" é só informação da Agenda; o prazo calculado (follow-up) já vem com a validade aplicada e nunca passa de um prazo real */
+    if(f.agenda&&f.agenda.ok)(f.agenda.v||[]).forEach(function(e){if(e.semRetorno)return;var d=hojeDias(hoje,e.data);if(d<-30||d>14)return;
+      l.push(hojeItem({area:e.tipo,titulo:(e.pre&&!/^(Aula|Boleto|Responder|Aniversário de)$/.test(e.pre)?e.pre+": ":"")+e.t,data:e.data,sub:e.sub,fonte:"agenda",href:e.href,prazo:e.prazo},hoje))});
     if(f.mba&&f.mba.ok){var M=f.mba.v||{};(M.avals||[]).forEach(function(a){if(!a.feita)l.push(hojeItem({area:"mba",titulo:a.t+(a.disc?" ("+a.disc+")":""),data:a.ate,sub:"responder a avaliação do MBA",fonte:"mba"},hoje))});
       (M.aulas||[]).filter(function(a){return a.data>=hoje}).slice(0,2).forEach(function(a){l.push(hojeItem({area:"mba",titulo:a.t,data:a.data,sub:"aula às "+a.hora,fonte:"mba"},hoje))})}
     if(f.tarefas&&f.tarefas.ok)(f.tarefas.v||[]).forEach(function(t){var idade=t.criado?hojeDias(String(t.criado).slice(0,10),hoje):0;
@@ -1073,12 +1125,12 @@
     if(f.compras&&f.compras.ok){var rec=(f.compras.v||[]).filter(function(c){return c.recorrencia_status==="a_confirmar"});
       if(rec.length)l.push(hojeItem({area:"financas",titulo:"Confirmar "+rec.length+(rec.length===1?" recorrência":" recorrências")+" nas compras online",sub:rec.slice(0,3).map(function(c){return c.recorrencia_texto||c.loja}).join(", "),fonte:"compras",extra:10,href:"#compras"},hoje))}
     extras=extras||{};
-    if(extras.saude&&extras.saude.prontidao!=null&&extras.saude.atraso<=1){var s=extras.saude;
-      if(s.prontidao<45)l.push(hojeItem({area:"saude",titulo:"Dia de recuperação (prontidão "+s.prontidao+")",data:hoje,sub:s.alertas.join("; "),fonte:"saude",extra:-30,href:"#saude"},hoje));
-      else if(s.semTreino!=null&&s.semTreino>=3)l.push(hojeItem({area:"saude",titulo:(s.prontidao>=70?"Bom dia para treinar forte":"Que tal um treino moderado")+" (prontidão "+s.prontidao+", "+s.semTreino+" dias sem treino)",data:hoje,fonte:"saude",extra:-40,href:"#saude"},hoje))}
+    var sg=priSaude(extras.saude); /* a mesma regra de relevância da Próxima melhor ação; sugestão de Saúde é informativa */
+    if(sg){if(sg.tipo==="recuperacao")l.push(hojeItem({area:"saude",titulo:"Dia de recuperação (prontidão "+sg.prontidao+")",data:hoje,sub:sg.alertas.join("; "),fonte:"saude",extra:15,href:"#saude",prazo:"informativo"},hoje));
+      else l.push(hojeItem({area:"saude",titulo:(sg.forte?"Bom dia para treinar forte":"Que tal um treino moderado")+" (prontidão "+sg.prontidao+", "+sg.semTreino+" dias sem treino)",data:hoje,fonte:"saude",extra:sg.forte?8:3,href:"#saude",prazo:"informativo"},hoje))}
     if(extras.financas&&extras.financas.orcamento&&extras.financas.orcamento.projecaoPct!=null&&extras.financas.orcamento.projecaoPct>100)
       l.push(hojeItem({area:"financas",titulo:"Gastos do mês a caminho de "+extras.financas.orcamento.projecaoPct+"% do orçamento",data:hoje,fonte:"mercado",extra:-30,href:"#painel/financas"},hoje));
-    (extras.vagas||[]).slice(0,2).forEach(function(v){if(v.nota>=70)l.push(hojeItem({area:"carreira",titulo:"Vaga "+v.nota+"% compatível: "+v.t+(v.e?" ("+v.e+")":""),sub:v.d<=1?"publicada hoje ou ontem":"há "+v.d+" dias",fonte:"vagas",extra:-20},hoje))});
+    (extras.vagas||[]).slice(0,2).forEach(function(v){if(v.nota>=70)l.push(hojeItem({area:"carreira",titulo:"Vaga "+v.nota+"% compatível: "+v.t+(v.e?" ("+v.e+")":""),sub:v.d<=1?"publicada hoje ou ontem":"há "+v.d+" dias",fonte:"vagas",extra:Math.round((v.nota-70)/2),prazo:"informativo"},hoje))});
     return hojeOrdenar(hojeDedup(l))}
   /* o que mudou desde ontem, só com contas do código (sem base, não compara) */
   function hojeMudancas(f,hoje,fin,saude){f=f||{};var l=[],ontem=somaDiasISO(hoje,-1);
@@ -1389,7 +1441,7 @@
     alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
     alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
     atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
-    TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
+    TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,PRI_VALIDADE_CALC:PRI_VALIDADE_CALC,priPontos:priPontos,priNivel:priNivel,priId:priId,priFollowup:priFollowup,priItem:priItem,priOportunidade:priOportunidade,priOrdenar:priOrdenar,priSelecionar:priSelecionar,priSaude:priSaude,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,

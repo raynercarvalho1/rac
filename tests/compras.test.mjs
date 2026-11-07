@@ -183,7 +183,8 @@ test("Gmail: anexos PDF e XML (DANFE, NF-e) no original, ligados ao pedido do e-
   assert.match(js, /if\(an\.bytes\.length>CC_GM_ANEXO_MAX\)\{docs\.push\(\{nome:an\.nome,erro:"anexo grande demais"\}\)/);
   assert.match(js, /d\.erro="XML que não é uma NF-e"/); assert.match(js, /if\(d\.ext&&!d\.ext\.numero&&!d\.ext\.chave_nfe&&e\.numero\)\{d\.ext\.numero=e\.numero/);
   assert.match(js, /var bytes=t\.bytes\|\|new TextEncoder\(\)\.encode\(raw\)/, "os bytes exatos do Gmail vão para o cofre");
-  assert.match(js, /if\(CC_TIPOS_DB\.indexOf\(tipoDb\)<0\)\{ext\.tipo=ext\.tipo\|\|tipoDb;tipoDb="outro"\}/, "sem SQL novo");
+  assert.match(ler("nucleo.js"), /if\(CO_DOC_TIPOS\.indexOf\(tipo\)<0\)\{ext\.tipo=ext\.tipo\|\|tipo;tipo="outro"\}/, "sem SQL novo (Lote 5.1: a regra de tipo está em coDocPayload)");
+  assert.match(js, /NUCLEO\.coDocPayload\(u\.d,u\.path\)/, "o site monta o documento pelo núcleo");
   assert.equal(N.coLerTexto("A nota fiscal do seu pedido 701-0000001-0000002 está disponível").tipo, "email_nota_fiscal");
   assert.equal(N.coLerTexto("Obrigado pelo seu pedido 701-0000001-0000002. A nota fiscal será enviada").tipo, "email_confirmacao");
   assert.equal(N.CO_DOC_NOME.email_nota_fiscal, "e-mail da nota fiscal");
@@ -200,7 +201,11 @@ test("Lote 1 · P1: o texto extraído é gravado sem CPF, telefone, e-mail, CEP,
   assert.match(t, /701-0000001-0000002/); assert.match(t, /Cabo USB R\$ 25,00/); assert.match(t, /Total do pedido: R\$ 95,00/);
   const e = N.coLimparExtraido({ numero: "701-0000001-0000002", total_pago: 95, texto: bruto, avisos: ["fale com a@b.com"], itens: [{ descricao: "Cabo", total: 25 }] });
   assert.equal(e.numero, "701-0000001-0000002"); assert.equal(e.total_pago, 95); assert.equal(e.itens[0].total, 25); assert.ok(!/@/.test(JSON.stringify(e)) && !/Fulano/.test(e.texto));
-  assert.match(ler("js/compras.js"), /ext=NUCLEO\.coLimparExtraido\(ext\);[\s\S]*?SB\.from\("compras_online_docs"\)\.insert/, "limpa antes de gravar");
+  /* Lote 5.1: a limpeza roda em coDocPayload, antes do que vai para a RPC; o site não grava mais linha de documento por conta própria */
+  const nu = ler("nucleo.js"), dp = nu.slice(nu.indexOf("function coDocPayload"), nu.indexOf("function coErroGravar"));
+  assert.match(dp, /ext=coLimparExtraido\(ext\);var tipo=/, "limpa antes de montar o documento");
+  assert.match(ler("js/compras.js"), /p_docs:up\.map\(function\(u\)\{return NUCLEO\.coDocPayload\(u\.d,u\.path\)\}\)/, "só o documento limpo vai para a RPC");
+  assert.doesNotMatch(ler("js/compras.js"), /SB\.from\("compras_online_docs"\)\.insert|SB\.from\("compras_online"\)\.insert|SB\.from\("compras_online_itens"\)\.insert/, "nenhuma gravação fora da RPC");
 });
 test("Lote 1 · D1: compra cancelada fica fora do Painel e do Hoje (e não pede recorrência)", () => {
   assert.match(ler("js/painel.js"), /fora_das_contas,status,canal,natureza,historico,origem,impostos_info,compras_online_itens\(descricao,total,desconto,categoria,natureza,total_linha,situacao\)"\)/); assert.match(ler("js/painel.js"), /return l\.map\(NUCLEO\.coDeBanco\)\}\)\)\]\)/);

@@ -288,3 +288,36 @@ No Resumo, cada barra de "Por categoria" e de "Por loja" é um link para uma tel
   gráfico (`RACmercado.grafico`), preços em todas as lojas e datas das compras com a situação (confirmada, histórico, provisório = cancelamento ou reembolso informado, reembolso recebido). A loja do clique vem marcada com ★, sem restringir o histórico a ela.
 - **Limites conhecidos:** o período do Resumo é fixo em 12 meses; produto = nome padronizado (sem junção de produtos nem unidade kg/L, exceto `base` quando o nome traz o tamanho); o histórico de preços inclui fora das contas, histórico físico e outros módulos,
   então o total de um produto no histórico pode diferir do detalhe da loja (que só conta o que entra nas despesas); sem dados reais ainda (1 pedido), o gráfico mostra um ponto.
+
+## Lote 5.1 · etapa 1: payload e erros de `compras_gravar` (07/11/2026, só núcleo; nada publicado, sem SQL, `js/compras.js` não mudou)
+O site ainda grava a compra, os produtos e os documentos em chamadas separadas. Esta etapa só prepara as funções puras (`nucleo.js`) para ligar a RPC `compras_gravar` (030, já em produção) na etapa 2:
+- **`coPayloadGravar(ant, form, cand, opc)`** → `{id, p_novo, p_compra, p_itens}`. **Edição:** a base é a LINHA INTEIRA já gravada, porque a RPC substitui todas as colunas do UPDATE (campo que faltasse virava NULL ou falso:
+  apagaria `status`, `canal`, `natureza`, `impostos_info`, `fora_das_contas`, `recorrencia_status`, os dados da nota e as divergências); por cima entra só o que o formulário traz (`undefined` = não mexeu; `null` = o usuário limpou).
+  `origem`, `historico` e `importacao_id` vêm sempre do gravado (a RPC os protege). **Compra nova:** só formulário e documento; `canal`, `natureza`, `status`, histórico e importação só se o documento disser; `opc.id` é obrigatório e deve ser o mesmo em toda
+  tentativa (a RPC trata o toque duplo). Os campos da nota (`chave_nfe`, `numero_nf`, `emitente`, `cnpj`) só entram se o documento trouxer valor.
+- **`coDocPayload(d, path)`**: o documento no formato da RPC, com `coLimparExtraido` (e-mail, CPF, telefone, CEP; linhas com dado pessoal saem do texto bruto), tipo desconhecido vira `outro` (o tipo original vai em `extraido`).
+- **`coErroGravar(e)`** → `{codigo, tipo, mensagem, repetir, tecnico, original}`: `23505` (pedido, NF, documento ou id repetidos), `22023` (dados inválidos, arquivo fora do cofre ou da pasta, campo protegido), `42501` (sessão ou 2ª etapa),
+  `P0002` (compra ou arquivo não encontrados), mais `23514` (conta, reembolso), `23503` e rede. `mensagem` é para a tela; `tecnico` (código | mensagem | detalhe | dica) é para o diário de erros.
+- **Provas:** `tests/compras_gravar.test.mjs` LÊ o SQL da 030 (sem executá-lo): as listas de campos, de produto, de documento e os tipos são comparados com as do SQL, e o UPDATE da edição é simulado a partir do texto do SQL para provar que uma edição sem mudanças
+  deixa todas as colunas iguais e que, sem a linha inteira, a RPC apagaria campos.
+- **Fora desta etapa:** ligar a RPC no site, o complemento dos campos fiscais ao anexar documento (possível migration 035, só com autorização) e o controle de edição simultânea (fora do Lote 5.1).
+
+## Lote 5.1 · etapa 2: o site grava por `compras_gravar` (07/11/2026, só no código local; nada publicado, sem SQL, sem migration 035)
+`ccGravar` (js/compras.js) deixou de gravar compra, produtos e documentos em chamadas separadas. O fluxo novo:
+1. **Preparo:** a imagem do produto (a do PDF ou do e-mail) vira um documento "foto do produto", enviado só se o mesmo conteúdo (SHA-256) ainda não estiver guardado. Ela fica **só como documento**: o item NÃO recebe `imagem_path` (limitação temporária, abaixo).
+   Os arquivos originais vão para o cofre privado `familia` (`<dono>/compras/<compra>/`), um por vez; o JSON vem de `NUCLEO.coPayloadGravar` (edição: a linha inteira gravada + o que o formulário mudou) e `NUCLEO.coDocPayload` (com a limpeza de dados pessoais).
+2. **Uma única chamada** `SB.rpc("compras_gravar", …)`: tudo ou nada.
+3. **Limpeza:** o que foi enviado e NÃO ficou registrado é apagado do cofre (documento repetido, compra que já existia, falha). Antes de apagar, o site só LÊ `compras_online_docs` e `compras_online_itens.imagem_path`: o que está registrado ou referenciado nunca é apagado e,
+   se a conferência falhar, nada é apagado (sobra um arquivo, não se perde um registrado).
+- **Nenhuma gravação direta:** nesse fluxo não há `insert`, `update` nem `delete` em `compras_online`, `compras_online_itens` ou `compras_online_docs`; tudo grava pela RPC (um teste proíbe e o banco simulado recusa qualquer gravação direta).
+- **ID estável:** o quadro de conferência cria o id da compra uma vez (`idNovo`) e o usa em toda tentativa: salvar de novo depois de um erro reaproveita a compra (a RPC devolve `ja_existia` no toque duplo).
+- **Erros:** `NUCLEO.coErroGravar` traduz o erro do banco ou da rede; a tela mostra a mensagem em português e "Os dados continuam aqui."; o detalhe técnico (código | mensagem | detalhe | dica) vai para o diário de erros (`logErro`).
+- **Anexar documentos a uma compra que já existe:** modo "só documentos" da RPC (`coPayloadSoDocs`: `p_itens` nulo e `p_compra` só com o id). Os campos da nota (chave, NF, emitente, CNPJ), as divergências e o status "cancelamento/reembolso informado" que o site
+  completava ao anexar **não são mais atualizados** (a RPC ainda não suporta; dependem da migration 035, só com autorização). `ccCompletar` ficou no código, sem uso.
+- **Provas:** `tests/compras_gravar_fluxo.test.mjs` roda o `js/compras.js` real contra um banco e um cofre de mentira que imitam a RPC (sucesso, falha de envio, pedido repetido, retentativa com o mesmo id, toque duplo, documento repetido, imagem repetida, resposta perdida pela rede,
+  conferência que falha, edição que preserva os campos, só documentos). O SQL de verdade continua provado pelo PGlite no GitHub.
+- **Limitação temporária das fotos:** a foto nova de um produto fica guardada como documento da compra, mas o item **não** ganha `imagem_path` (antes o site fazia um `update` do item depois de gravar). Motivo: a RPC pode descartar a foto por SHA-256 repetido e,
+  sem suporte transacional na RPC, não há como desfazer o vínculo sem uma gravação fora dela. Itens novos importados de PDF/e-mail ficam sem miniatura até a migration 035 (só com autorização). Na edição, o `imagem_path` já gravado é preservado
+  (`coPayloadGravar` o copia do produto de mesma descrição; produto renomeado deixa de herdá-lo, e a foto continua como documento).
+- **Fora deste fluxo:** os botões de uma linha só (confirmar cancelamento, recorrência, "já contada em outro lugar") e o apagar compra continuam fazendo `update`/`delete` diretos de um campo; não fazem parte da gravação de compra, itens e documentos.
+- **Limites:** edição simultânea fica como era (vence a última gravação); a primeira conferência real é depois da publicação; apagar compra com reembolso continua falhando por chave estrangeira (mensagem técnica) e não faz parte do 5.1.

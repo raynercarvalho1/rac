@@ -1619,6 +1619,79 @@
     if(its)c.itens=its.slice().sort(function(a,b){return (a.ordem||0)-(b.ordem||0)}).map(function(i){return {id:i.id,descricao:i.descricao,codigo:i.codigo,qtd:n(i.qtd),unitario:n(i.unitario),total:n(i.total),desconto:n(i.desconto)||0,
       categoria:i.categoria,imagem_path:i.imagem_path,natureza:i.natureza==null?null:i.natureza,total_linha:n(i.total_linha),situacao:i.situacao==null?null:i.situacao}});
     return c}
+  /* ===== Gravação atômica (Lote 5.1, etapa 1): o que o site manda para compras_gravar (migration 030) e como entender o erro =====
+     Só funções puras (sem rede, sem tela, sem banco): montam o JSON da RPC e traduzem os erros do PostgreSQL. As listas são as da RPC
+     (tests/compras_gravar.test.mjs compara com o SQL da 030). Nenhuma regra financeira aqui: os valores passam como vieram. */
+  var CO_GRAVAR_CAMPOS=["id","loja","canal","natureza","historico","numero","data","vendedor","status","subtotal","desconto","frete","taxas","impostos_info","total_pago","pagamento","categoria","recorrencia_texto","recorrencia_meses","recorrencia_status","chave_nfe","numero_nf","emitente","cnpj","fora_das_contas","motivo_fora","divergencias","observacoes","origem","importacao_id"];
+  var CO_GRAVAR_ITEM=["codigo","descricao","qtd","unitario","total","desconto","categoria","imagem_path","natureza","total_linha","situacao"];
+  var CO_GRAVAR_DOC=["tipo","nome","path","mime","tamanho","sha256","extraido"];
+  var CO_DOC_TIPOS=["resumo_pdf","danfe","nfe_xml","csv","zip","email_confirmacao","email_envio","email_entrega","email_pagamento","email_cancelamento","email_reembolso","imagem","foto_produto","comprovante","outro"];
+  /* o formulário só mexe nestes campos; origem, histórico e importação a RPC não deixa mudar na edição; os campos da nota vêm do documento (cand) */
+  var CO_GRAVAR_PROTEGIDOS=["origem","historico","importacao_id"],CO_GRAVAR_FORM=["loja","numero","data","vendedor","pagamento","categoria","observacoes","subtotal","desconto","frete","taxas","total_pago"],
+    CO_GRAVAR_FISCAL=["chave_nfe","numero_nf","emitente","cnpj"],CO_GRAVAR_NOVO=["canal","natureza","historico","status","impostos_info","importacao_id"];
+  /* como o dado entrou (compras_online.origem), pelo tipo do documento que o originou */
+  function coOrigemDe(cand){var t=cand&&cand.tipo;return t?({resumo_pdf:"pdf",danfe:"pdf",resumo:"pdf",nfe_xml:"xml",csv:"csv",imagem:"imagem"})[t]||(/^email_/.test(t)?"email":"manual"):"manual"}
+  /* um produto no formato da RPC (sem compra_id nem ordem: a RPC põe). unitario já gravado é mantido; sem ele, total ÷ quantidade, como o site sempre fez */
+  function coItemGravar(i){i=i||{};var q=+i.qtd>0?+i.qtd:1,o={descricao:String(i.descricao==null?"":i.descricao).trim().slice(0,200),qtd:q,total:i.total,desconto:i.desconto||0};
+    o.unitario=i.unitario!==undefined?i.unitario:i.total!=null?Math.round(i.total/q*100)/100:null;
+    ["codigo","categoria","imagem_path"].forEach(function(k){if(i[k]!==undefined)o[k]=i[k]});
+    ["natureza","total_linha","situacao"].forEach(function(k){if(i[k]!=null)o[k]=i[k]});return o}
+  /* O que vai para compras_gravar. ant = a compra já gravada (null = compra nova); form = o que o formulário coletou; cand = o que o documento trouxe;
+     opc = {id (obrigatório na compra nova: o mesmo id em toda tentativa), divs (divergências novas)}.
+     Edição: a base é a LINHA INTEIRA já gravada (a RPC substitui todas as colunas; campo que faltasse virava NULL ou falso) e só o que o formulário traz por cima:
+       undefined = não mexeu (fica o gravado); null = o usuário limpou o campo. origem, historico e importacao_id vêm sempre do gravado.
+     Compra nova: só o que o formulário e o documento trazem; canal, natureza, status, histórico e importação só se o documento disser. Devolve {id, p_novo, p_compra, p_itens}. */
+  function coPayloadGravar(ant,form,cand,opc){form=form||{};opc=opc||{};var novo=!ant,id=ant?ant.id:opc.id,p={};
+    if(!id)throw new Error("coPayloadGravar: falta o id da compra (opc.id) numa compra nova");
+    if(ant)CO_GRAVAR_CAMPOS.forEach(function(k){if(ant[k]!==undefined)p[k]=ant[k]});
+    CO_GRAVAR_FORM.forEach(function(k){if(form[k]!==undefined)p[k]=form[k]});
+    if(form.recorrencia!==undefined){var r=form.recorrencia;p.recorrencia_texto=r?r.texto:null;p.recorrencia_meses=r&&r.meses!=null?r.meses:null;
+      p.recorrencia_status=r?(ant&&ant.recorrencia_status?ant.recorrencia_status:"a_confirmar"):null}
+    if(cand)CO_GRAVAR_FISCAL.forEach(function(k){if(cand[k])p[k]=cand[k]});
+    if(novo){p.origem=coOrigemDe(cand);if(cand)CO_GRAVAR_NOVO.forEach(function(k){if(cand[k]!==undefined)p[k]=cand[k]})}
+    p.divergencias=(ant&&Array.isArray(ant.divergencias)?ant.divergencias:[]).concat(opc.divs||[]);
+    p.id=id;
+    var its=form.itens!==undefined?form.itens:ant&&ant.itens?ant.itens:[],antIt=ant&&ant.itens||[],usado={};
+    /* o imagem_path que já estava gravado no produto (mesma descrição) nunca se perde na edição, mesmo que o formulário não o traga */
+    return {id:id,p_novo:novo,p_compra:p,p_itens:its.map(function(i){var o=coItemGravar(i),d=o.descricao;
+      for(var j=0;j<antIt.length;j++)if(!usado[j]&&antIt[j]&&String(antIt[j].descricao==null?"":antIt[j].descricao).trim()===d){usado[j]=1;if(!o.imagem_path&&antIt[j].imagem_path)o.imagem_path=antIt[j].imagem_path;break}
+      return o})}}
+  /* um documento no formato da RPC: o texto bruto e o extraído passam por coLimparExtraido antes de gravar; tipo desconhecido vira "outro" (o tipo original fica em extraido) */
+  function coDocPayload(d,path){d=d||{};var ext=d.ext?JSON.parse(JSON.stringify(d.ext)):{};if(d.extras)ext={pedidos:d.extras.map(function(e){return e.numero})};if(d.texto)ext.texto=String(d.texto).slice(0,20000);
+    ext=coLimparExtraido(ext);var tipo=d.tipo==="resumo"?"resumo_pdf":d.tipo;if(CO_DOC_TIPOS.indexOf(tipo)<0){ext.tipo=ext.tipo||tipo;tipo="outro"}
+    return {tipo:tipo,nome:String(d.nome==null?"":d.nome).slice(0,200),path:path,mime:d.mime==null?null:d.mime,tamanho:d.tamanho!=null?d.tamanho:d.blob&&d.blob.size!=null?d.blob.size:null,sha256:d.sha,extraido:ext}}
+  /* só documentos numa compra que já existe (modo da RPC: p_itens nulo e p_compra só com o id): os campos da compra não mudam */
+  function coPayloadSoDocs(id,docs){if(!id)throw new Error("coPayloadSoDocs: falta o id da compra");return {id:id,p_novo:false,p_compra:{id:id},p_itens:null,p_docs:docs||[]}}
+  /* Os erros do PostgreSQL/PostgREST em português claro. Devolve {codigo, tipo, mensagem (para a tela), repetir (vale tentar de novo), tecnico (código | mensagem | detalhe | dica,
+     para o diário de erros), original}. A mensagem original nunca se perde: vai em "tecnico" e em "original". */
+  function coErroGravar(e){e=e||{};var cod=String(e.code||""),msg=String(e.message!=null?e.message:typeof e==="string"?e:""),det=e.details?String(e.details):"",dica=e.hint?String(e.hint):"",
+      tec=[cod,msg,det,dica].filter(Boolean).join(" | "),t=norm(msg+" "+det),rpc=msg.replace(/^compras_gravar:\s*/,""),
+      r=function(tipo,m,rep){return {codigo:cod||null,tipo:tipo,mensagem:m,repetir:!!rep,tecnico:tec,original:msg}};
+    if(!cod&&/failed to fetch|networkerror|network request failed|load failed|timeout|timed out|offline/.test(t))return r("rede","Sem conexão com o servidor. Nada foi gravado: tente de novo quando a internet voltar.",true);
+    if(cod==="23505"){
+      if(/compras_online_pedido_unico/.test(t))return r("duplicado_pedido","Este pedido já está registrado (mesma loja e mesmo número). Abra a compra existente e use “Adicionar documento”.");
+      if(/compras_online_nfe_unica/.test(t))return r("duplicado_nfe","Já existe uma compra com esta nota fiscal (mesma chave de acesso). Nada foi gravado.");
+      if(/compras_online_docs_arquivo_unico/.test(t))return r("duplicado_documento","Este documento (o mesmo arquivo) já está guardado em outra compra. Nada foi gravado.");
+      if(/compras_online_pkey/.test(t))return r("duplicado_id","Esta compra já foi gravada (toque duplo?). Atualize a lista para vê-la.");
+      return r("duplicado","Já existe um registro igual a este. Nada foi gravado.")}
+    if(cod==="22023"){
+      if(/nao esta no cofre/.test(t))return r("arquivo_ausente","Um arquivo não chegou ao cofre. Nada foi gravado: envie os arquivos de novo.",true);
+      if(/fora da pasta/.test(t))return r("arquivo_fora_da_pasta","Um arquivo está fora da pasta desta compra. Nada foi gravado.");
+      if(/(origem|historico|importacao_id) nao muda/.test(t))return r("campo_protegido","Origem, histórico e importação não mudam depois de gravados. Nada foi gravado.");
+      if(/campo nao permitido/.test(t))return r("campo_invalido","Um campo não aceito pelo banco foi enviado ("+rpc+"). Nada foi gravado.");
+      return r("dados_invalidos","Dados inválidos: "+(rpc||"confira os valores")+". Nada foi gravado.")}
+    if(cod==="42501"){
+      if(/faca login/.test(t))return r("sessao","A sessão expirou: entre de novo para gravar.");
+      return r("permissao","Sem permissão para gravar. Confirme a 2ª etapa (código) ou entre de novo.")}
+    if(cod==="P0002"){
+      if(/arquivo|cofre|objeto/.test(t))return r("arquivo_nao_encontrado","O arquivo não foi encontrado no cofre. Envie de novo.",true);
+      return r("nao_encontrado","A compra não foi encontrada (talvez tenha sido apagada em outro aparelho). Atualize a lista.")}
+    if(cod==="23514"){
+      if(/compras_online_conta_fecha/.test(t))return r("conta","A conta não fecha: o total pago precisa ser subtotal − desconto + frete + taxas (folga de 2 centavos).");
+      if(/reembolsado/.test(t))return r("reembolso","O total pago não pode ficar abaixo do que já foi reembolsado.");
+      return r("regra_do_banco","O banco recusou um valor (regra de conferência). Nada foi gravado.")}
+    if(cod==="23503")return r("vinculo","Esta compra tem registros ligados (como reembolsos) e não pode ser apagada.");
+    return r("desconhecido","Não consegui gravar"+(cod?" (código "+cod+")":"")+". Nada foi salvo e os dados continuam na tela.")}
   /* recorrências: a informada no documento (a confirmar) e a percebida (o mesmo produto comprado 2+ vezes, com o intervalo médio).
      A próxima data é só uma estimativa para conferir: nenhuma compra é criada. */
   function coRecorrencias(compras,hoje){var por={},L=[];
@@ -2035,7 +2108,7 @@
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
-    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coLimparTexto:coLimparTexto,coLimparExtraido:coLimparExtraido,coMesclar:coMesclar,coDespesas:coDespesas,coRegra:coRegra,coValorDespesa:coValorDespesa,coResumo:coResumo,coRotulo:coRotulo,coDeBanco:coDeBanco,coPrecoLiquido:coPrecoLiquido,coMultipack:coMultipack,coDescontos:coDescontos,coSegmentoDe:coSegmentoDe,coPedidoNoPreco:coPedidoNoPreco,coItemNoPreco:coItemNoPreco,coRecorrencias:coRecorrencias,coPrecos:coPrecos,coLojaDe:coLojaDe,coItemTotal:coItemTotal,coItemHist:coItemHist,coNatureza:coNatureza,coProdutoResumo:coProdutoResumo,coDetalhe:coDetalhe,coCategoriaItem:coCategoriaItem,coPedidoPartes:coPedidoPartes,coDetalheLoja:coDetalheLoja,coDetalheCategoria:coDetalheCategoria,
+    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coLimparTexto:coLimparTexto,coLimparExtraido:coLimparExtraido,coMesclar:coMesclar,coDespesas:coDespesas,coRegra:coRegra,coValorDespesa:coValorDespesa,coResumo:coResumo,coRotulo:coRotulo,coDeBanco:coDeBanco,coPrecoLiquido:coPrecoLiquido,coMultipack:coMultipack,coDescontos:coDescontos,coSegmentoDe:coSegmentoDe,coPedidoNoPreco:coPedidoNoPreco,coItemNoPreco:coItemNoPreco,coRecorrencias:coRecorrencias,coPrecos:coPrecos,CO_GRAVAR_CAMPOS:CO_GRAVAR_CAMPOS,CO_GRAVAR_ITEM:CO_GRAVAR_ITEM,CO_GRAVAR_DOC:CO_GRAVAR_DOC,CO_DOC_TIPOS:CO_DOC_TIPOS,CO_GRAVAR_PROTEGIDOS:CO_GRAVAR_PROTEGIDOS,coOrigemDe:coOrigemDe,coItemGravar:coItemGravar,coPayloadGravar:coPayloadGravar,coDocPayload:coDocPayload,coPayloadSoDocs:coPayloadSoDocs,coErroGravar:coErroGravar,coLojaDe:coLojaDe,coItemTotal:coItemTotal,coItemHist:coItemHist,coNatureza:coNatureza,coProdutoResumo:coProdutoResumo,coDetalhe:coDetalhe,coCategoriaItem:coCategoriaItem,coPedidoPartes:coPedidoPartes,coDetalheLoja:coDetalheLoja,coDetalheCategoria:coDetalheCategoria,
     CO_CANAIS:CO_CANAIS,CO_CAT_DIGITAL:CO_CAT_DIGITAL,coCanalDe:coCanalDe,coModuloDestino:coModuloDestino,coSituacao:coSituacao,coClassificar:coClassificar,
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,

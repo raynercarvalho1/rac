@@ -117,7 +117,7 @@ test("valores permitidos no SQL = os do núcleo (uma só fonte da verdade)", () 
   /* os tipos de documento de compras_gravar = os que o 026 aceita e os que o site usa */
   const tiposRpc = dentro(C30, /tipos_doc constant text\[\] := array\[([^\]]*)\]/), tiposTabela = dentro(semComent(ler("supabase/026_compras_emails.sql")), /check \(tipo in \(([^)]*)\)\)/);
   assert.deepEqual(tiposRpc, tiposTabela);
-  assert.deepEqual(tiposRpc, [...ler("js/compras.js").match(/CC_TIPOS_DB=\[([^\]]*)\]/)[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
+  assert.deepEqual(tiposRpc, [...ler("nucleo.js").match(/CO_DOC_TIPOS=\[([^\]]*)\]/)[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
   /* a origem nova existe e o leitor da Amazon a usa */
   assert.ok(dentro(C30, /compras_online_origem_check\s+check \(origem in \(([^)]*)\)\)/).includes("historico_amazon"));
   assert.equal(N.amLerHistorico("Order ID,Order Date,Total Amount,Product Name\n701-1-2222222,2023-01-01T00:00:00Z,1.00,X\n").pedidos[0].origem, "historico_amazon");

@@ -235,17 +235,16 @@
       var ps=c.docs.map(function(x){return x.path});SB.from("compras_online").delete().eq("id",c.id).then(sbOk).then(function(){return ps.length?SB.storage.from("familia").remove(ps).catch(function(){}):null})
         .then(function(){CC.aberto=null;ccEsquecer();renderCompras("lista")},function(e){ap.disabled=false;st.textContent="Não consegui apagar ("+e.message+")."})};
     d.appendChild(h("div",{class:"vfil"},h("label",{class:"ghostbtn ccadd"},"📎 Adicionar documento",add),h("a",{class:"ghostbtn pri",href:"#compras/editar/"+c.id,text:"Editar"}),fora,ap));d.appendChild(st);return d}
-  /* o que a nota fiscal traz e o pedido ainda não tem (chave, número, emitente, CNPJ): só preenche o que está vazio */
+  /* o que a nota fiscal traz e o pedido ainda não tem (chave, número, emitente, CNPJ): só preenche o que está vazio. Não é usado na gravação por RPC (o modo
+     "só documentos" não completa campos); volta com a migration 035, se for autorizada. */
   function ccCompletar(ex,fontes){var o={};(fontes||[]).forEach(function(e){if(!e)return;["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(!ex[k]&&!o[k]&&e[k])o[k]=e[k]});
       if(!ex.status&&!o.status&&(e.tipo==="email_cancelamento"||e.tipo==="email_reembolso"))o.status=e.tipo==="email_cancelamento"?"cancelamento_informado":"reembolso_informado"});return o}
   /* documentos novos de uma compra que já existe: só os que ainda não estão guardados (mesmo conteúdo = mesmo arquivo) */
   function ccAnexarDocs(c,docs,st){var ja={};c.docs.forEach(function(x){ja[x.sha256]=1});var novos=docs.filter(function(x){return !ja[x.sha]});
     if(!novos.length){st.textContent="Esses arquivos já estão guardados nesta compra.";return}
-    var div=[];novos.forEach(function(x){if(x.ext&&x.ext.numero&&NUCLEO.coNumeroPedido(x.ext.numero)!==NUCLEO.coNumeroPedido(c.numero))div.push({campo:"numero",texto:"O documento "+x.nome+" é do pedido "+x.ext.numero+"."});
-      var m=x.ext?NUCLEO.coMesclar({subtotal:c.subtotal,desconto:c.desconto,frete:c.frete,total_pago:c.total_pago,divergencias:[]},x.ext):null;if(m)div=div.concat(m.divergencias)});
     st.textContent="Guardando "+novos.length+(novos.length===1?" arquivo…":" arquivos…");
-    ccSubirDocs(c.id,novos).then(function(){var upd=ccCompletar(c,novos.map(function(x){return x.ext}));upd.atualizado_em=new Date().toISOString();if(div.length)upd.divergencias=(c.divergencias||[]).concat(div);
-      return SB.from("compras_online").update(upd).eq("id",c.id).then(sbOk)}).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){st.textContent="Não consegui guardar ("+e.message+")."})}
+    /* modo "só documentos" da RPC: chave da nota, NF, emitente, CNPJ, divergências e status não são completados daqui (dependem da migration 035) */
+    ccAnexar(c,novos,function(t){st.textContent=t}).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){st.textContent=ccErroTela(e,"")})}
 
   /* ---------- Produtos e recorrências ---------- */
   function ccProdutos(){var L=[],P=NUCLEO.coPrecos(CC.dados),imgs={};
@@ -439,7 +438,7 @@
       return h("li",null,h("span",{class:"grow"},h("b",{text:d.nome}),h("span",{class:"sub",text:d.erro?"não consegui ler ("+d.erro+")":d.ocrFalhou?"a leitura do print não carregou neste aparelho":"não achei número de pedido nem total; abra a compra e use “Adicionar documento”, ou lance em ＋ Manual"})))}))));
     return {salvarTodos:salvarTodos}}
   /* quadro de conferência: todos os campos editáveis; Salvar só com a conta fechada */
-  function ccConferencia(o){var c=o.cand||{},ex=o.existente,novo=!ex,sal=false,p=panel(ex?(o.avulso?"Editar compra":"Pedido já registrado: "+ccLoja(ex)+" "+ex.numero):"Pedido "+(c.numero||"(sem número)"),
+  function ccConferencia(o){var c=o.cand||{},ex=o.existente,novo=!ex,sal=false,idNovo=novoId(),p=panel(ex?(o.avulso?"Editar compra":"Pedido já registrado: "+ccLoja(ex)+" "+ex.numero):"Pedido "+(c.numero||"(sem número)"),
       ex&&!o.avulso?"Este pedido já existe. Só os documentos novos serão guardados nele; os valores registrados não mudam (diferenças viram divergências).":o.dup&&o.dup.nivel==="possivel"?"⚠ Parece repetido: "+o.dup.motivo+". Confira antes de salvar.":"Confira olhando os documentos. Nada é gravado antes do Salvar."),f=h("div",{class:"wform"});
     var campo=function(rot,el){return h("label",null,rot,el)},num=function(v){return h("input",{type:"text",inputmode:"decimal",placeholder:"0,00",value:v==null?"":String(v).replace(".",",")})};
     var loja=h("select",null,Object.keys(NUCLEO.CO_LOJAS).map(function(k){return h("option",{value:k,selected:c.loja===k?"":null,text:NUCLEO.CO_LOJAS[k]})}));
@@ -481,47 +480,51 @@
     salvar.onclick=function(){if(sal)return;var r=conf();if(!r.ok)return;if(!navigator.onLine){falta.textContent="Sem internet: não salvei. Os dados continuam aqui.";return}
       if(!dupOk){dupOk=true;salvar.textContent="Salvar mesmo assim";falta.textContent="Parece repetido: "+o.dup.motivo+". Se for outra compra, toque de novo.";return}
       sal=true;salvar.disabled=true;falta.textContent="Salvando…";var x0=editavel?coletar():{};
-      var feito=!editavel?ccSubirDocs(ex.id,docsNovos).then(function(){var upd=ccCompletar(ex,[c].concat(docsNovos.map(function(x){return x.ext})));if(divs.length)upd.divergencias=(ex.divergencias||[]).concat(divs.filter(function(x){return !(ex.divergencias||[]).some(function(y){return y.texto===x.texto})}));
-          if(!Object.keys(upd).length)return null;upd.atualizado_em=new Date().toISOString();return SB.from("compras_online").update(upd).eq("id",ex.id).then(sbOk)}).then(function(){return ex.id})
-        :ccGravar(x0,ex&&o.avulso?ex:null,o.cand,docsNovos,o.imagens||[],o.imagensUrl||[],divs,function(t){falta.textContent=t});
+      var feito=!editavel?ccAnexar(ex,docsNovos,function(t){falta.textContent=t}).then(function(){return ex.id})
+        :ccGravar(x0,ex&&o.avulso?ex:null,o.cand,docsNovos,o.imagens||[],o.imagensUrl||[],divs,function(t){falta.textContent=t},idNovo);
       return feito.then(function(id){ccEsquecer();CC.aberto=id;
         /* na edição e no manual, volta para a lista; no lote, o quadro vira "Salvo" e os outros continuam na tela */
         if(o.avulso){location.hash="#compras/lista";return}
         p.innerHTML="";p.classList.add("ccsalvo");p.appendChild(h("p",{class:"qrok",text:"✓ Salvo: "+(x0.numero||ex&&ex.numero||"")+" · "+brl(x0.total_pago!=null?x0.total_pago:ex.total_pago)}),h("a",{class:"ghostbtn",href:"#compras/lista",text:"Ver nas compras"}));
-        return ccCarregar(true)},function(e){sal=false;salvar.disabled=false;falta.textContent="Não consegui salvar ("+(e&&e.message||e)+"). Os dados continuam aqui.";logErro("compras",e)})};
+        return ccCarregar(true)},function(e){sal=false;salvar.disabled=false;falta.textContent=ccErroTela(e," Os dados continuam aqui.")})};
     p._salvar=function(){return salvar.disabled?Promise.resolve():salvar.onclick()||Promise.resolve()};return p}
-  /* grava (nova ou edição): compra, produtos, documentos originais e a imagem do produto. Edição guarda a versão anterior. */
-  function ccGravar(x,ant,cand,docs,imagens,imagensUrl,divs,st){var fimT=atuTarefa("a gravação da compra"),id=ant?ant.id:novoId(),agora=new Date().toISOString(),orig=cand&&cand.tipo?({resumo_pdf:"pdf",danfe:"pdf",resumo:"pdf",nfe_xml:"xml",csv:"csv",imagem:"imagem"})[cand.tipo]||(/^email_/.test(cand.tipo)?"email":"manual"):"manual";
-    var linha={loja:x.loja,numero:x.numero,data:x.data,vendedor:x.vendedor,subtotal:x.subtotal,desconto:x.desconto,frete:x.frete,taxas:x.taxas,total_pago:x.total_pago,pagamento:x.pagamento,categoria:x.categoria,
-      recorrencia_texto:x.recorrencia?x.recorrencia.texto:null,recorrencia_meses:x.recorrencia?x.recorrencia.meses:null,observacoes:x.observacoes,divergencias:(ant?ant.divergencias||[]:[]).concat(divs||[])};
-    if(x.recorrencia&&!(ant&&ant.recorrencia_status))linha.recorrencia_status="a_confirmar";if(!x.recorrencia)linha.recorrencia_status=null;
-    if(cand){["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(cand[k])linha[k]=cand[k]})}
-    var itens=x.itens.map(function(i,n){var o={compra_id:id,ordem:n,descricao:i.descricao.slice(0,200),codigo:i.codigo,qtd:i.qtd,unitario:i.total!=null?Math.round(i.total/i.qtd*100)/100:null,total:i.total,desconto:i.desconto||0,categoria:i.categoria,imagem_path:i.imagem_path};
-      if(i.natureza)o.natureza=i.natureza;if(i.total_linha!=null)o.total_linha=i.total_linha;if(i.situacao)o.situacao=i.situacao;return o});
-    var passo;
-    if(ant){var v={em:ant.atualizado_em||ant.criado_em,quando:agora};["numero","data","subtotal","desconto","frete","taxas","total_pago","pagamento","vendedor","categoria"].forEach(function(k){if(ant[k]!=null)v[k]=ant[k]});v.itens=ant.itens.map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total}});
-      linha.versoes=(ant.versoes||[]).concat([v]).slice(-10);linha.atualizado_em=agora;
-      passo=SB.from("compras_online").update(linha).eq("id",id).then(sbOk).then(function(){return SB.from("compras_online_itens").delete().eq("compra_id",id).then(sbOk)}).then(function(){return SB.from("compras_online_itens").insert(itens).then(sbOk)})}
-    else{linha.id=id;linha.origem=orig;st("Salvando a compra…");
-      passo=SB.from("compras_online").insert(linha).then(sbOk).then(function(){return SB.from("compras_online_itens").insert(itens).then(function(r){if(r.error)return SB.from("compras_online").delete().eq("id",id).then(function(){throw new Error(r.error.message)})})})}
-    return passo.then(function(){if(docs.length)st("Guardando os documentos originais…");return ccSubirDocs(id,docs)})
-      .then(function(){return ccImagemProduto(id,itens,imagens,imagensUrl,st)}).then(function(){fimT();return id},function(e){fimT();throw e})}
-  /* os tipos de documento que o banco aceita (025 e 026) */
-  var CC_TIPOS_DB=["resumo_pdf","danfe","nfe_xml","csv","zip","email_confirmacao","email_envio","email_entrega","email_pagamento","email_cancelamento","email_reembolso","imagem","foto_produto","comprovante","outro"];
+  /* Grava (nova ou edição) com UMA chamada da RPC compras_gravar (030): a compra, os produtos e os documentos numa transação só. Nenhuma gravação direta nas tabelas.
+     1) o preparo: a foto do produto e os arquivos vão para o cofre privado, um por vez; 2) a RPC grava tudo ou nada; 3) o que foi enviado e NÃO ficou
+     registrado é apagado do cofre (o que está em documentos ou numa imagem de produto nunca é apagado, e se não der para conferir, nada é apagado).
+     A foto nova fica só como DOCUMENTO da compra: o item NÃO recebe imagem_path (a RPC pode descartar a foto por SHA-256 repetido e não há como desfazer o vínculo
+     numa transação só; volta com a migration 035). Na edição, o imagem_path já gravado é preservado (coPayloadGravar).
+     idFixo = o mesmo id em toda tentativa do mesmo quadro (a RPC reconhece a compra já gravada). Em erro, devolve Error com .erro (NUCLEO.coErroGravar). */
+  function ccGravar(x,ant,cand,docs,imagens,imagensUrl,divs,st,idFixo){var fimT=atuTarefa("a gravação da compra"),id=ant?ant.id:idFixo,enviados=[],foto=null;
+    return ccFotoProduto(x,imagens,imagensUrl,st).then(function(f){foto=f;return ccEnviarArquivos(id,f?docs.concat([f]):docs,enviados,st)})
+      .then(function(up){var pl=NUCLEO.coPayloadGravar(ant,x,cand,{id:id,divs:divs});
+        st("Gravando a compra…");
+        return ccRpc({p_compra:pl.p_compra,p_itens:pl.p_itens,p_docs:up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}),p_novo:pl.p_novo}).then(function(){return ccLimparEnviados(enviados)})})
+      .then(function(){fimT();return id},function(e){fimT();return ccLimparEnviados(enviados).then(function(){throw e})})}
+  /* só documentos numa compra que já existe (modo "só documentos" da RPC) */
+  function ccAnexar(c,docs,st){var fimT=atuTarefa("o envio dos documentos"),enviados=[];
+    return ccEnviarArquivos(c.id,docs,enviados,st).then(function(up){
+      return ccRpc(NUCLEO.coPayloadSoDocs(c.id,up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}))).then(function(){return ccLimparEnviados(enviados)})})
+      .then(function(){fimT();return c.id},function(e){fimT();return ccLimparEnviados(enviados).then(function(){throw e})})}
+  /* a chamada da RPC; qualquer falha (do banco ou da rede) vira Error com .erro = NUCLEO.coErroGravar(...) */
+  function ccRpc(args){var falha=function(x){var er=NUCLEO.coErroGravar(x),e=new Error(er.mensagem);e.erro=er;return e};
+    return Promise.resolve(SB.rpc("compras_gravar",args)).then(function(r){if(r&&r.error)throw falha(r.error);return r.data},function(x){throw x&&x.erro?x:falha(x)})}
+  /* depois de gravar (ou falhar): documento repetido (mesmo SHA-256) não vira linha, e o arquivo de uma compra que já existia também não; apaga do cofre só o que foi
+     enviado e NÃO está registrado (nem em documentos, nem como imagem de produto). Só lê as tabelas. Sem conseguir conferir, não apaga nada. */
+  function ccLimparEnviados(paths){paths=(paths||[]).filter(Boolean);if(!paths.length)return Promise.resolve([]);
+    return Promise.all([SB.from("compras_online_docs").select("path").in("path",paths).then(sbOk),SB.from("compras_online_itens").select("imagem_path").in("imagem_path",paths).then(sbOk)]).then(function(r){
+      var uso={};r[0].forEach(function(x){uso[x.path]=1});r[1].forEach(function(x){uso[x.imagem_path]=1});var sobra=paths.filter(function(p){return !uso[p]});
+      return sobra.length?Promise.resolve(SB.storage.from("familia").remove(sobra)).then(function(){return sobra},function(){return []}):[]},function(){return []})}
   function ccNomeSeguro(n){return NUCLEO.norm(n).replace(/[^a-z0-9.]+/g,"-").replace(/^-+|-+$/g,"").slice(-80)||"arquivo"}
-  /* o arquivo original, como veio, no cofre; a linha em compras_online_docs com o que foi extraído (o mesmo arquivo não entra duas vezes) */
-  function ccSubirDocs(id,docs){return atuDurante("o envio dos documentos",function(){return docs.reduce(function(p,d){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+ccNomeSeguro(d.nome);
-      return SB.storage.from("familia").upload(path,d.blob,{contentType:d.mime,upsert:false}).then(function(r){if(r.error)throw new Error(d.nome+": "+r.error.message);
-        var ext=d.ext?JSON.parse(JSON.stringify(d.ext)):{};if(d.extras)ext={pedidos:d.extras.map(function(e){return e.numero})};if(d.texto)ext.texto=String(d.texto).slice(0,20000);
-        ext=NUCLEO.coLimparExtraido(ext);/* P1: nada pessoal vai para o banco (só o original, como veio, fica no cofre privado) */
-        var tipoDb=d.tipo==="resumo"?"resumo_pdf":d.tipo;if(CC_TIPOS_DB.indexOf(tipoDb)<0){ext.tipo=ext.tipo||tipoDb;tipoDb="outro"}
-        return SB.from("compras_online_docs").insert({compra_id:id,tipo:tipoDb,nome:d.nome.slice(0,200),path:path,mime:d.mime,tamanho:d.tamanho||d.blob.size,sha256:d.sha,extraido:ext}).then(function(x){
-          if(x.error&&x.error.code==="23505")return SB.storage.from("familia").remove([path]).catch(function(){});if(x.error)throw new Error(x.error.message)})})})},Promise.resolve())})}
-  /* imagem do produto: a que veio no PDF (ou no e-mail, quando a loja deixa baixar) vira um documento "foto do produto" e aparece no item */
-  function ccImagemProduto(id,itens,imagens,urls,st){var fontes=(imagens||[]).map(function(x){return Promise.resolve(x.blob)}).concat((urls||[]).slice(0,2).map(function(u){return fetch(u).then(function(r){return r.ok?r.blob():null},function(){return null})}));
-    if(!fontes.length||!itens.length)return Promise.resolve();
-    return Promise.all(fontes).then(function(bs){bs=bs.filter(Boolean);if(!bs.length)return;st("Guardando a imagem do produto…");var b=bs[0];
-      return b.arrayBuffer().then(ccSha).then(function(sha){var tipo=b.type||"image/png",nome="produto."+(/jpe?g/.test(tipo)?"jpg":"png");
-        return ccSubirDocs(id,[{nome:nome,mime:tipo,blob:b,tamanho:b.size,sha:sha,tipo:"foto_produto",ext:null}]).then(function(){
-          return SB.from("compras_online_docs").select("path").eq("compra_id",id).eq("tipo","foto_produto").limit(1).then(sbOk).then(function(l){if(!l.length)return;
-            return SB.from("compras_online_itens").update({imagem_path:l[0].path}).eq("compra_id",id).eq("ordem",0).is("imagem_path",null).then(sbOk)})})})}).catch(function(){})}
+  /* envia os arquivos originais, como vieram, para o cofre (<dono>/compras/<compra>/); "enviados" guarda o que já subiu, para a limpeza em caso de falha */
+  function ccEnviarArquivos(id,docs,enviados,st){return atuDurante("o envio dos documentos",function(){var up=[];if(docs.length)st("Enviando os documentos originais…");
+    return docs.reduce(function(p,d,k){return p.then(function(){var path=DONO+"/compras/"+id+"/"+Date.now()+"-"+(k+1)+"-"+ccNomeSeguro(d.nome);
+      return SB.storage.from("familia").upload(path,d.blob,{contentType:d.mime,upsert:false}).then(function(r){if(r.error)throw new Error(d.nome+": "+r.error.message);enviados.push(path);up.push({d:d,path:path})})})},Promise.resolve()).then(function(){return up})})}
+  /* a imagem do produto (a do PDF ou do e-mail) vira um documento "foto do produto". Fica de fora se o mesmo arquivo já está guardado: a RPC o descartaria
+     e o item apontaria para um arquivo que não existe. Falha na imagem nunca impede de salvar a compra. */
+  function ccFotoProduto(x,imagens,urls,st){var fontes=(imagens||[]).map(function(i){return Promise.resolve(i.blob)}).concat((urls||[]).slice(0,2).map(function(u){return fetch(u).then(function(r){return r.ok?r.blob():null},function(){return null})}));
+    if(!fontes.length||!x.itens.length)return Promise.resolve(null);
+    return Promise.all(fontes).then(function(bs){bs=bs.filter(Boolean);if(!bs.length)return null;st("Preparando a imagem do produto…");var b=bs[0];
+      return b.arrayBuffer().then(ccSha).then(function(sha){return SB.from("compras_online_docs").select("id").eq("sha256",sha).limit(1).then(sbOk).then(function(l){if(l.length)return null;
+        var tipo=b.type||"image/png";return {nome:"produto."+(/jpe?g/.test(tipo)?"jpg":"png"),mime:tipo,blob:b,tamanho:b.size,sha:sha,tipo:"foto_produto",ext:null}})})}).catch(function(){return null})}
+  /* a mensagem para a tela (em português) e o detalhe técnico para o diário de erros */
+  function ccErroTela(e,fim){if(e&&e.erro){logErro("compras",new Error(e.erro.tecnico));return e.erro.mensagem+(fim||"")}logErro("compras",e);return "Não consegui salvar ("+(e&&e.message||e)+")."+(fim||"")}

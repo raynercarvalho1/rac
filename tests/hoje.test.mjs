@@ -332,7 +332,7 @@ test("só o dono: a casa (Fernanda) não coleta nem analisa, e nenhuma consulta 
   await assert.rejects(s.ctx.hojeColetar(), /só da conta do dono/); await assert.rejects(s.ctx.hojeAnalisar(), /só da conta do dono/);
   assert.equal(s.b.log.length, 0);
   const app = ler("js/app.js");
-  assert.match(app, /var DA_CASA=\["mercado","alimentacao","compras","lista","eddie","olivia","veiculos","documentos","rede","seguranca"\];/, "as páginas da Fernanda são as mesmas");
+  assert.match(app, /var DA_CASA=\["mercado","alimentacao","compras","fiscal","lista","eddie","olivia","veiculos","documentos","rede","seguranca"\];/, "as páginas da Fernanda são as mesmas (a Central Fiscal entrou por decisão do dono em 07/11/2026)");
   assert.match(/var ROTA_MODS=\{[^}]*\}/.exec(app)[0], /rachoje:\["hoje"\]/, "o RAC Hoje tem página (#rachoje), mas só o dono chega nela");
   assert.ok(!/DA_CASA=\[[^\]]*(hoje|iacustos)/.test(app), "a Fernanda não vê o RAC Hoje nem os Custos de IA");
   assert.match(ler("supabase/028_hoje.sql"), /check \(not \('hoje\.analise' = any \(acoes_reais_casa\)\)\)/, "o banco proíbe o RAC Hoje para a casa");

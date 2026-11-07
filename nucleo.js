@@ -473,7 +473,7 @@
     {t:"pessoal",pk:["chave"]},{t:"garmin_dia",pk:["data"]},{t:"garmin_ativ",pk:["id"]},
     {t:"pedidos",pk:["id"]},{t:"pedido_itens",pk:["id"],fk:{pedido_id:"pedidos",produto_id:"produtos"},opc:{produto_id:1}},
     {t:"compras_importacoes",pk:["id"],nat:[["sha256"]]},{t:"compras_online",pk:["id"],fk:{importacao_id:"compras_importacoes"},opc:{importacao_id:1}},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos_estornos",pk:["id"],nat:[["reembolso_id"]],fk:{reembolso_id:"compras_reembolsos",compra_id:"compras_online"}},
-    {t:"notas_fiscais",pk:["id"],nat:[["chave"]]},{t:"notas_fiscais_itens",pk:["id"],fk:{nota_id:"notas_fiscais"}},{t:"notas_fiscais_docs",pk:["id"],nat:[["sha256"]],fk:{nota_id:"notas_fiscais"}},{t:"notas_fiscais_vinculos",pk:["id"],nat:[["nota_id","modulo","registro_id"]],fk:{nota_id:"notas_fiscais"}},
+    {t:"notas_fiscais",pk:["id"],nat:[["chave"]],cong:"conferida_em"},{t:"notas_fiscais_itens",pk:["id"],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"}},{t:"notas_fiscais_docs",pk:["id"],nat:[["sha256"]],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"},imutavel:true,docPath:true},{t:"notas_fiscais_vinculos",pk:["id"],nat:[["nota_id","modulo","registro_id"]],fk:{nota_id:"notas_fiscais"}},
     {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
@@ -532,17 +532,27 @@
   function segRepor(r,ex){if(Array.isArray(r)&&Array.isArray(ex))return r.map(function(x,i){return segRepor(x,ex[i])});
     if(!r||!ex||typeof r!=="object"||typeof ex!=="object"||Array.isArray(r)||Array.isArray(ex))return r;
     var o={};Object.keys(r).forEach(function(k){o[k]=segRepor(r[k],ex[k])});Object.keys(ex).forEach(function(k){if(SEG_SEGREDO.test(k)&&!(k in o))o[k]=ex[k]});return o}
+  /* documento fiscal do backup: por que não pode ser restaurado (ou null). anexos = {caminhoOriginal:{tamanho,sha256}} do pacote .zip, ou null quando o backup é só JSON */
+  function segDocInvalido(r0,o,res){
+    var ok=r0.tipo==="xml"?!!NF_MIMES_XML[r0.mime]:(r0.tipo==="pdf"||r0.tipo==="danfe")?r0.mime==="application/pdf":/^image\//.test(String(r0.mime||""));
+    if(!ok)return "tipo de arquivo não permitido ("+(r0.mime||"sem tipo")+")";
+    var an=o.anexos;if(an==null)return res.outraConta?"restaurar em outra conta exige o pacote .zip com os anexos (o arquivo não veio)":null;
+    var a=an[r0.path];if(!a)return "o arquivo do documento não está no pacote";
+    if(+a.tamanho!==+r0.tamanho)return "o tamanho do arquivo ("+a.tamanho+") difere do registro ("+r0.tamanho+")";
+    if(String(a.sha256)!==String(r0.sha256))return "o SHA-256 do arquivo não bate com o do registro";
+    return null}
   /* compara o backup com o que a conta tem hoje e monta o plano (nada é gravado aqui). Cada linha do backup vira:
      nova (não existe), igual (existe idêntica), diferente (existe com outro conteúdo: só muda se o dono pedir) ou inválida (aponta para
      um pai que não existe). Mesmo nome com outro id conta como o mesmo registro, e os filhos passam a apontar para o id de hoje. */
-  function segPlano(B,atual,o){o=o||{};var conta=o.conta||null,velha=B.conta||null,mapas={},validos={},
-    res={outraConta:!!(velha&&conta&&velha!==conta),tabelas:[],total:{novas:0,iguais:0,diferentes:0,invalidas:0,fora:0,soExportar:0}};
+  function segPlano(B,atual,o){o=o||{};var conta=o.conta||null,velha=B.conta||null,mapas={},validos={},congel={},fdocs={},
+    res={outraConta:!!(velha&&conta&&velha!==conta),tabelas:[],total:{novas:0,iguais:0,diferentes:0,invalidas:0,fora:0,soExportar:0},renomear:{},semDocumento:{},congeladas:0,docsInvalidos:0},renomear=res.renomear,semDoc=res.semDocumento;
     SEG_TABELAS.forEach(function(d){var l=B.tabelas[d.t],hoje=(atual&&atual[d.t])||[],porPk={},porNat={},mapa={},val={};
       mapas[d.t]=mapa;validos[d.t]=val;
       /* o que existe hoje vale como pai mesmo quando a tabela não está no backup */
-      hoje.forEach(function(r){var k=segChave(d,r);if(k!=null){porPk[k]=r;if(d.pk.length===1)val[k]=1}(d.nat||[]).forEach(function(c){var n=segNat(c,r);if(n)porNat[n]=r})});
+      hoje.forEach(function(r){var k=segChave(d,r);if(k!=null){porPk[k]=r;if(d.pk.length===1)val[k]=1}
+        if(d.cong&&r[d.cong]!=null)(congel[d.t]=congel[d.t]||{})[r.id]=1;if(d.docPath&&r.nota_id)fdocs[r.nota_id]=(fdocs[r.nota_id]||0)+1;(d.nat||[]).forEach(function(c){var n=segNat(c,r);if(n)porNat[n]=r})});
       if(!l)return;
-      var it={t:d.t,so:d.so||"",novas:[],iguais:0,diferentes:[],invalidas:[],remapeadas:0,fora:0,semPai:0};
+      var it={t:d.t,so:d.so||"",novas:[],iguais:0,diferentes:[],invalidas:[],remapeadas:0,fora:0,semPai:0,congeladas:0,semDocumento:0};
       if(d.so){it.soExportar=l.length;res.total.soExportar+=l.length;res.tabelas.push(it);return}
       var vistos={};
       l.forEach(function(r0){if(!r0||typeof r0!=="object")return;var k=segChave(d,r0);if(k==null||vistos[k])return;vistos[k]=1;
@@ -552,24 +562,52 @@
         if(d.fk)Object.keys(d.fk).forEach(function(c){if(r[c]==null||bad)return;var pai=d.fk[c],v=(mapas[pai]||{})[r[c]]||r[c];
           if((validos[pai]||{})[v])r[c]=v;else if(d.opc&&d.opc[c]){r[c]=null;it.semPai++}else bad=c+" aponta para "+pai+" que não existe"});
         if(bad){it.invalidas.push({linha:r0,motivo:bad});return}
+        if(d.congPai){var pid=r[d.congPai.fk];if(pid!=null&&(congel[d.congPai.pai]||{})[pid]){it.congeladas++;res.congeladas++;return}}
         var ex=porPk[k];
         if(!ex&&d.nat&&d.pk[0]==="id")d.nat.some(function(c){var n=segNat(c,r);if(n&&porNat[n]){ex=porNat[n];mapa[r.id]=ex.id;r.id=ex.id;it.remapeadas++;return true}return false});
+        if(ex&&d.cong&&ex[d.cong]!=null){it.congeladas++;res.congeladas++;return}
+        /* documento fiscal novo: confere tipo, arquivo, tamanho e SHA-256 antes de gravar; o caminho passa a ser o da conta de destino */
+        if(d.docPath&&!ex){var inv=segDocInvalido(r0,o,res);if(inv){it.invalidas.push({linha:r0,motivo:inv});res.docsInvalidos++;return}
+          var fim=String(r0.path||"").split("/").pop(),novo=conta&&r.nota_id?conta+"/notas-fiscais/"+r.nota_id+"/"+fim:r0.path;
+          renomear[r0.path]={path:novo,mime:r0.mime,tamanho:r0.tamanho,sha256:r0.sha256};r.path=novo;fdocs[r.nota_id]=(fdocs[r.nota_id]||0)+1}
         if(d.pk.length===1)val[String(r[d.pk[0]])]=1;
         /* duas linhas do backup que caem no mesmo registro por nome: a segunda não entra de novo */
         (d.nat||[]).forEach(function(c){var n=segNat(c,r);if(n&&!porNat[n])porNat[n]=r});
         if(!ex){it.novas.push(r);porPk[segChave(d,r)]=r;return}
         /* compara sem os segredos (o backup não os tem) e, se trocar, os segredos de hoje continuam na linha */
         var exL=segLimpar(d.t,[ex]).linhas[0]||{},campos=Object.keys(r).filter(function(c){return !SEG_IGNORA[c]&&segCanon(r[c])!==segCanon(exL[c]===undefined?null:exL[c])});
-        if(!campos.length)it.iguais++;else it.diferentes.push({linha:segRepor(r,ex),atual:ex,campos:campos})});
+        if(!campos.length)it.iguais++;else if(d.imutavel){it.congeladas++;res.congeladas++}else it.diferentes.push({linha:segRepor(r,ex),atual:ex,campos:campos})});
       ["novas","diferentes","invalidas"].forEach(function(c){res.total[c]+=it[c].length});res.total.iguais+=it.iguais;res.total.fora+=it.fora;
       res.tabelas.push(it)});
+    var tn=res.tabelas.filter(function(t){return t.t==="notas_fiscais"})[0],ti=res.tabelas.filter(function(t){return t.t==="notas_fiscais_itens"})[0];
+    if(tn)tn.novas.concat(tn.diferentes.map(function(x){return x.linha})).forEach(function(r){if(!(fdocs[r.id]>0)){semDoc[r.id]=1;tn.semDocumento++}});
+    if(ti){var fica=[];ti.novas.forEach(function(r){if(fdocs[r.nota_id]>0)fica.push(r);else{semDoc[r.nota_id]=1;ti.invalidas.push({linha:r,motivo:"a nota não tem documento original válido"});res.total.novas--;res.total.invalidas++}});ti.novas=fica}
     return res}
   /* o que será gravado, na ordem: novas sempre entram (insert, nunca sobrescreve); diferentes só com "substituir" (upsert) */
-  function segEscrita(plano,substituir){var l=[];
+  function segEscrita(plano,substituir){var l=[],confs=[];
     plano.tabelas.forEach(function(it){if(it.so)return;
-      if(it.novas.length)l.push({t:it.t,op:"insert",linhas:it.novas});
-      if(substituir&&it.diferentes.length)l.push({t:it.t,op:"upsert",linhas:it.diferentes.map(function(x){return x.linha})})});
+      /* Central Fiscal: nota conferida entra PENDENTE (itens e documentos só entram em nota ainda não conferida); a conferência original (quem e quando) volta no fim */
+      function sem(r){if(it.t!=="notas_fiscais"||r.conferida_em==null)return r;var c={};Object.keys(r).forEach(function(k){c[k]=r[k]});
+        if(!(plano.semDocumento&&plano.semDocumento[r.id]))confs.push(r);delete c.conferida_por;delete c.conferida_em;return c}
+      if(it.novas.length)l.push({t:it.t,op:"insert",linhas:it.novas.map(sem)});
+      if(substituir&&it.diferentes.length)l.push({t:it.t,op:"upsert",linhas:it.diferentes.map(function(x){return sem(x.linha)})})});
+    if(confs.length)l.push({t:"notas_fiscais",op:"conferencia",linhas:confs});
     return l}
+  /* para onde vai um anexo do .zip (nome = "anexos/<caminho original>"). Anexo fiscal (segmento 2 = notas-fiscais) só vai se estiver no mapa renomear do plano
+     (linha válida do backup), ao caminho novo e com o tipo do registro; os demais seguem a regra de sempre (trocar a pasta da conta antiga pela da nova). */
+  function segAnexoDestino(nome,ctx){ctx=ctx||{};var orig=String(nome||"").slice(7),seg=orig.split("/");
+    if(seg[1]==="notas-fiscais"){var r=ctx.renomear&&ctx.renomear[orig];
+      return r?{acao:"enviar",origem:orig,path:r.path,mime:r.mime||null}:{acao:"ignorar",origem:orig,path:null,mime:null,motivo:"anexo fiscal sem documento válido no plano"}}
+    var path=orig;if(ctx.velha&&ctx.velha!==ctx.conta)path=path.replace(ctx.velha+"/",ctx.conta+"/");
+    return {acao:"enviar",origem:orig,path:path,mime:null}}
+  /* envia os anexos, um por vez. enviar(path,bytes,mime) devolve Promise de {error}. Um anexo fiscal ignorado não interrompe os demais;
+     "já existe" conta como existente; qualquer outro erro de envio interrompe, como antes. */
+  function segAnexosEnviar(anexos,ctx,enviar,progresso){var r={anexos:0,anexosExistentes:0,ignorados:0,motivos:[]},n=0;
+    return (anexos||[]).reduce(function(p,a){return p.then(function(){var d=segAnexoDestino(a.nome,ctx);n++;
+      if(d.acao==="ignorar"){r.ignorados++;r.motivos.push(d.origem+": "+d.motivo);return}
+      if(progresso)progresso(n,anexos.length,d.path);
+      return Promise.resolve(enviar(d.path,a.dados,d.mime)).then(function(x){x=x||{};var e=x.error;if(!e){r.anexos++;return}
+        if(/exist|duplicate|409/i.test(e.message||"")||e.statusCode==="409"){r.anexosExistentes++;return}throw new Error("anexo "+d.path+": "+e.message)})})},Promise.resolve()).then(function(){return r})}
   /* nota da proteção da conta (0 a 100) a partir das conferências da Central */
   function segNota(c){var itens=[["senha",c.senha!==false,15],["mfa",!!c.mfa,25],["bancoMfa",!!c.bancoMfa,15],["reserva",!!c.reserva,10],
       ["backupManual",c.diasBackup!=null&&c.diasBackup<=30,15],["backupServidor",c.diasServidor!=null&&c.diasServidor<=9,10],["auditoria",!!c.auditoria,10]],
@@ -678,6 +716,30 @@
     r.inicio=r.lista[0].data;r.fim=r.lista[r.lista.length-1].data;
     var ult=r.lista[r.lista.length-1].res,k=0;for(var i=r.lista.length-1;i>=0&&r.lista[i].res===ult;i--)k++;r.seq=ult+k;
     return r}
+  /* atividade recente de um time (Central Esportiva): o jogo mais recente que começou e já terminou ou está ao vivo.
+     recente = ao vivo agora, ou jogo (terminado) que começou nas últimas "horas" horas (24 por padrão). Sem jogo, não há atividade. */
+  function espAtividade(jogos,agora,horas){
+    var lim=agora-(horas||24)*3600000,ult=null,vivo=false;
+    (jogos||[]).forEach(function(g){var t=g&&Date.parse(g.date);if(!g||!isFinite(t)||t>agora)return;
+      if(g.state==="live")vivo=true;
+      if((g.state==="post"||g.state==="live")&&(ult==null||t>ult))ult=t});
+    return {aoVivo:vivo,ultimo:ult,horasDesde:ult==null?null:Math.max(0,(agora-ult)/3600000),recente:vivo||(ult!=null&&ult>=lim)}}
+  /* ordem da Central: quem tem atividade recente vem primeiro (ao vivo antes, depois o mais recente); os demais, do mais recente ao mais antigo.
+     times: [{k, jogos}]. Empate mantém a ordem recebida. */
+  function espCentralOrdem(times,agora,horas){
+    var l=(times||[]).map(function(t,i){return {k:t.k,i:i,a:espAtividade(t.jogos,agora,horas)}});
+    l.sort(function(x,y){if(x.a.aoVivo!==y.a.aoVivo)return x.a.aoVivo?-1:1;
+      var ux=x.a.ultimo==null?-Infinity:x.a.ultimo,uy=y.a.ultimo==null?-Infinity:y.a.ultimo;
+      return uy>ux?1:uy<ux?-1:x.i-y.i});
+    return {recentes:l.filter(function(x){return x.a.recente}),demais:l.filter(function(x){return !x.a.recente})}}
+  /* "há 5 horas", "há 3 dias", "há 2 meses" (horas desde o último jogo; sem jogo: texto próprio) */
+  function espHa(horas){
+    if(horas==null)return "sem jogos nesta temporada";
+    if(horas<1)return "há menos de 1 hora";
+    if(horas<24){var hh=Math.floor(horas);return "há "+hh+(hh===1?" hora":" horas")}
+    var d=Math.floor(horas/24);
+    if(d<60)return "há "+d+(d===1?" dia":" dias");
+    var m=Math.floor(d/30);return "há "+m+(m===1?" mês":" meses")}
   /* variação de um período para o anterior, por jogo (positivo = mais pontos/corridas) */
   function espComparar(rec,ant){if(!rec||!ant||!rec.jogos||!ant.jogos)return null;return {pro:espUm(rec.mediaPro-ant.mediaPro),contra:espUm(rec.mediaContra-ant.mediaContra)}}
   /* pacote de fatos da IA: cada fato tem id (f01…), fonte e período, escritos pelo sistema; a IA só pode citar estes ids e os números deles */
@@ -1695,7 +1757,7 @@
     return {modelo:modelo,tipo:modelo?NF_MODELOS[modelo]:null,formato:formato,chave:val.chave.length===44?val.chave:null,chave_valida:val.ok,validacao:{ok:val.ok,erros:val.erros},
       numero:d.numero!=null&&d.numero!==""?String(+d.numero||d.numero):(camp?String(camp.numero):null),serie:d.serie!=null&&d.serie!==""?String(+d.serie):(camp?String(camp.serie):null),data_emissao:nfData(d.data_emissao),
       emitente:{nome:em.nome?String(em.nome).slice(0,120):null,cnpj:cnpj.length===14?cnpj:null,uf:em.uf||(camp&&camp.sigla_uf)||null},
-      situacao:sit.situacao,situacao_evidencia:sit.evidencia,denegada:sit.denegada===true,tp_emis:d.tp_emis!=null?+d.tp_emis:(camp?camp.tp_emis:null),
+      situacao:sit.situacao,situacao_evidencia:sit.evidencia,protocolo:(nfDigitos(d.protocolo).length===15?nfDigitos(d.protocolo):null),denegada:sit.denegada===true,tp_emis:d.tp_emis!=null?+d.tp_emis:(camp?camp.tp_emis:null),
       valores:V,diferenca_pagamento:difPag,pagamentos:pags,itens:itens,requer_conferencia:formato!=="xml"||!val.ok,avisos:av,gera_despesa:false}}
   /* lê o XML da nota (nfeProc); nunca lê destinatário, transporte nem informações adicionais */
   function nfLerXML(xml){var x=String(xml||"");if(!/<(?:\w+:)?infNFe\b/i.test(x))return null;
@@ -1710,6 +1772,57 @@
   function nfTemDadoPessoal(o){var ach=[];(function ve(v,cam){if(v==null)return;if(Array.isArray(v)){v.forEach(function(x,i){ve(x,cam+"["+i+"]")});return}
       if(typeof v==="object"){Object.keys(v).forEach(function(k){if(/cpf|consumidor|destinat|cliente|comprador|endereco|telefone|e-?mail|cvv|cartao_numero|pan$/i.test(k))ach.push(cam+"."+k);ve(v[k],cam+"."+k)});return}
       var s=String(v);if(/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(s)||/(^|\D)\d{11}(\D|$)/.test(s))ach.push(cam+": padrão de CPF")})(o,"nota");return {ok:!ach.length,achados:ach}}
+  /* ---- Lote B: gravação da nota (RPC nota_fiscal_salvar, migration 034) ---- */
+  var NF_MIMES_XML={"text/xml":1,"application/xml":1};
+  /* CPF: a MESMA regra do banco (nf_cpf_dv_ok e nf_tem_cpf, 034): 11 dígitos (com ou sem . - espaço) que não fazem parte de um número maior e cujos dígitos verificadores fecham */
+  function nfCpfDvOk(c){c=String(c==null?"":c);if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))return false;
+    var s=0,i;for(i=0;i<9;i++)s+=(+c.charAt(i))*(10-i);s=(s*10)%11;if(s===10)s=0;if(s!==+c.charAt(9))return false;
+    s=0;for(i=0;i<10;i++)s+=(+c.charAt(i))*(11-i);s=(s*10)%11;if(s===10)s=0;return s===+c.charAt(10)}
+  function nfCpfsValidos(t){var n=0,re=/(?:^|[^0-9])(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2})(?!\d)/g,m,x=String(t==null?"":t);
+    while((m=re.exec(x))!==null)if(nfCpfDvOk(m[1].replace(/\D/g,"")))n++;return n}
+  function nfTemCpf(t){return nfCpfsValidos(t)>0}
+  /* o original fica em <dono>/notas-fiscais/<nota>/<sha256>.<ext>, no cofre privado "familia" */
+  function nfCaminhoDoc(dono,nota,sha,ext){return dono+"/notas-fiscais/"+nota+"/"+sha+"."+(ext||"xml")}
+  /* só o erro 40001 (falha de serialização) repete, no máximo 3 vezes, com espera crescente; validação, permissão e duplicidade nunca repetem.
+     repeticoes = quantas já foram feitas; devolve a espera em ms ou null (não repetir) */
+  function nfRetentar(erro,repeticoes){if(!erro||String(erro.code)!=="40001")return null;var n=+repeticoes||0;return n>=3?null:[150,300,600][n]}
+  function nfArred(x,c){var f=Math.pow(10,c);return Math.round(x*f)/f}
+  /* monta os argumentos da RPC a partir do que o leitor de XML e o normalizador devolveram. Nenhum campo de CPF; chave só se confere; nunca inventa
+     identificador fiscal. o = {id, dono, nome, mime, tamanho, sha256, conferir}. Devolve {ok, erros, avisos, args:{p_nota,p_itens,p_docs,p_conferir}} */
+  function nfParaGravar(lido,n,o){o=o||{};n=n||{};lido=lido||{};var er=[],av=[],V=n.valores||{},em=n.emitente||{};
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(o.id||"")))er.push("Falta o identificador da nota.");
+    if(!o.dono)er.push("Falta o dono da casa.");
+    if(n.formato!=="xml")er.push("Nesta etapa só se grava nota lida de XML.");
+    if(!n.modelo)er.push("O modelo da nota (55 ou 65) não foi identificado.");
+    if(V.total==null)er.push("A nota não tem valor total.");
+    if(!/^[0-9a-f]{64}$/.test(String(o.sha256||"")))er.push("Falta o SHA-256 do arquivo.");
+    if(!NF_MIMES_XML[o.mime])er.push("O tipo do arquivo precisa ser text/xml ou application/xml.");
+    if(!(o.tamanho>=1&&o.tamanho<=2097152&&Math.floor(o.tamanho)===o.tamanho))er.push("O XML precisa ter entre 1 byte e 2 MB.");
+    var chave=n.chave_valida&&n.chave?n.chave:null,cnpj=em.cnpj&&nfCnpjValido(em.cnpj)?em.cnpj:null;
+    var itens=(n.itens||[]).map(function(i,k){i=i||{};var u=i.unidade||{},d=String(i.descricao||"").trim().slice(0,200);
+      if(!d)er.push("O item "+(k+1)+" não tem descrição.");
+      if(!(i.qtd>0))er.push("O item "+(k+1)+" não tem quantidade.");
+      if(i.total==null)er.push("O item "+(k+1)+" não tem valor total.");
+      var orig=String(u.original||"").slice(0,20);
+      return {codigo:i.codigo!=null&&i.codigo!==""?String(i.codigo).slice(0,60):null,descricao:d,qtd:i.qtd>0?nfArred(i.qtd,4):null,unidade:u.reconhecida&&u.cod?u.cod:"outra",
+        unidade_original:orig||null,unitario:i.unitario!=null?nfArred(i.unitario,4):null,total:i.total!=null?nfArred(i.total,2):null,desconto:nfArred(i.desconto||0,2)}});
+    if(!itens.length)er.push("A nota não tem itens.");
+    var pagamentos=(n.pagamentos||[]).map(function(p,k){p=p||{};if(p.valor==null)er.push("O pagamento "+(k+1)+" não tem valor.");
+      return {codigo:p.codigo!=null?String(p.codigo):null,forma:p.forma?String(p.forma).slice(0,40):null,valor:p.valor!=null?nfArred(p.valor,2):null,bandeira:p.bandeira?String(p.bandeira).slice(0,30):null,final:p.final||null}});
+    var protocolo=n.protocolo||(nfDigitos(lido.protocolo).length===15?nfDigitos(lido.protocolo):null);
+    var requer=chave==null?true:!!n.requer_conferencia,conferir=o.conferir===true&&chave!=null;
+    if(o.conferir===true&&chave==null)av.push("Nota sem chave de acesso válida fica pendente: a conferência é feita depois, em ação separada.");
+    var nota={id:o.id,modelo:n.modelo,chave:chave,numero:/^\d{1,9}$/.test(String(n.numero||""))?String(n.numero):null,serie:/^\d{1,3}$/.test(String(n.serie||""))?String(n.serie):null,
+      data_emissao:n.data_emissao||null,emitente_nome:em.nome?String(em.nome).slice(0,120):null,emitente_cnpj:cnpj,emitente_uf:/^[A-Z]{2}$/.test(String(em.uf||""))?em.uf:null,
+      tp_emis:n.tp_emis!=null&&n.tp_emis>=1&&n.tp_emis<=9?n.tp_emis:null,situacao:n.situacao,situacao_evidencia:n.situacao_evidencia?String(n.situacao_evidencia).slice(0,200):null,protocolo:protocolo,
+      denegada:!!n.denegada,valor_produtos:V.produtos!=null?nfArred(V.produtos,2):null,valor_descontos:V.descontos!=null?nfArred(V.descontos,2):null,valor_frete:V.frete!=null?nfArred(V.frete,2):null,
+      valor_outras:V.outras!=null?nfArred(V.outras,2):null,valor_impostos:V.impostos!=null?nfArred(V.impostos,2):null,valor_total:V.total!=null?nfArred(V.total,2):null,
+      valor_a_pagar:V.a_pagar!=null?nfArred(V.a_pagar,2):null,pagamentos:pagamentos,formato_origem:"xml",requer_conferencia:requer,observacoes:null};
+    /* o CPF fica só no arquivo original; se algum campo de texto o trouxer, não segue */
+    [nota.emitente_nome,nota.situacao_evidencia,JSON.stringify(pagamentos)].concat(itens.map(function(i){return (i.descricao||"")+" "+(i.unidade_original||"")})).forEach(function(t){if(nfTemCpf(t)&&er.indexOf("Um campo de texto da nota parece conter um CPF; ele fica só no arquivo original.")<0)er.push("Um campo de texto da nota parece conter um CPF; ele fica só no arquivo original.")});
+    var nome=String(o.nome||"").trim();if(!nome||nome.length>200||nfTemCpf(nome))nome="nota-"+String(o.sha256||"").slice(0,8)+".xml";
+    var docs=[{tipo:"xml",nome:nome,path:nfCaminhoDoc(o.dono,o.id,o.sha256,"xml"),mime:o.mime,tamanho:o.tamanho,sha256:o.sha256}];
+    return {ok:!er.length,erros:er,avisos:av,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_conferir:conferir}}}
   /* vínculo de conferência com um registro de outro módulo; nunca cria despesa */
   function nfVincular(nota,alvo,existentes){nota=nota||{};alvo=alvo||{};var e=[],a=[];
     if(!nota.chave)e.push("A nota não tem chave de acesso para identificá-la.");if(!NF_MODULOS[alvo.modulo])e.push("Módulo de destino inválido.");if(alvo.id==null||alvo.id==="")e.push("Informe o registro que a nota documenta.");
@@ -1724,9 +1837,9 @@
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
-    SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segNota:segNota,
+    SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,
     pnMeses:pnMeses,pnPorMes:pnPorMes,pnDespesas:pnDespesas,pnVariacao:pnVariacao,pnOrcamento:pnOrcamento,pnProjecao:pnProjecao,pnSemana:pnSemana,pnConsistencia:pnConsistencia,pnMediaMes:pnMediaMes,pnCompetencias:pnCompetencias,
-    ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar,
+    ESP_FASES:ESP_FASES,espTemporada:espTemporada,mlbDesfecho:mlbDesfecho,espDia:espDia,espUltimos:espUltimos,espAtividade:espAtividade,espCentralOrdem:espCentralOrdem,espHa:espHa,espComparar:espComparar,espFatos:espFatos,espChaveIA:espChaveIA,espNumeros:espNumeros,espAplicarIA:espAplicarIA,espCacheGuardar:espCacheGuardar,
     AB_COMBUST:AB_COMBUST,AB_KML:AB_KML,abLer:abLer,abConsumo:abConsumo,abPrecos:abPrecos,abPorMes:abPorMes,abResumo:abResumo,abDuplicado:abDuplicado,abConferir:abConferir,abDados:abDados,pnVeicCat:pnVeicCat,
     AL_PLATAFORMAS:AL_PLATAFORMAS,AL_MODOS:AL_MODOS,AL_CAT:AL_CAT,AL_CATEGORIAS:AL_CATEGORIAS,alCent:alCent,alBRL:alBRL,alItem:alItem,alPedidoConta:alPedidoConta,alConferir:alConferir,
     alCatMercado:alCatMercado,alModo:alModo,alPedidoDespesas:alPedidoDespesas,alMercadoDespesas:alMercadoDespesas,alSomar:alSomar,alTamanho:alTamanho,alProdutoInfo:alProdutoInfo,
@@ -1742,5 +1855,5 @@
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
     NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfVincular:nfVincular};
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular};
 })(typeof window!=="undefined"?window:globalThis);

@@ -555,14 +555,19 @@
   /* ---- Dodgers ---- */
   function viewDodgers(root){
     root.appendChild(dodgersBanner([["Elenco e estatísticas","#esportes/beisebol/time-"+DODGERS],["@Dodgers no X","https://x.com/Dodgers"],["Instagram","https://www.instagram.com/dodgers/"]]));
-    /* Central Esportiva (js/esportes-central.js): IA, últimos 10, estatísticas, comparação com a divisão, jogadores em fase, comparador e calendário */
-    dodgersCentral().forEach(function(x){root.appendChild(x)});
-    root.appendChild(mercadoDodgers());
-    root.appendChild(rumoresMlb("dodgers",10));
+    /* Central Esportiva (js/esportes-central.js). Ordem: faixa, Tabela da temporada (calendário e retrospecto), análise com IA, desempenho recente,
+       classificação (comparação com a divisão), últimos jogos; depois estatísticas, jogadores em fase, comparador, mercado e rumores */
+    var dc=dodgersCentral();
+    root.appendChild(dc.calendario);
+    if(dc.ia)root.appendChild(dc.ia);
+    root.appendChild(dc.forma);root.appendChild(dc.divisao);
     root.appendChild(section("Últimos jogos dos Dodgers",null,function(body){
       return dodgersGames(6).then(function(fin){body.innerHTML="";
         if(!fin.length){body.appendChild(h("p",{class:"empty",text:"Sem jogos recentes."}));return}
         body.appendChild(cards(fin,true))})}));
+    root.appendChild(dc.stats);root.appendChild(dc.fase);root.appendChild(dc.comparar);
+    root.appendChild(mercadoDodgers());
+    root.appendChild(rumoresMlb("dodgers",10));
     var p=panel("Ohtani em "+SEASON),b=h("div");p.appendChild(b);root.appendChild(p);ohtaniLine(b);
     root.appendChild(xCatHead(XCATS.filter(function(c){return c.k==="dodgers"})[0],true))}
 
@@ -808,10 +813,14 @@
 
   function viewEspnTeam(root,sport){
     var head=h("div",null,h("div",{class:"panel"},loading()));root.appendChild(head);
+    /* ordem: faixa, Destaque (1º item), Tabela da temporada (2º), análise com IA, desempenho recente, classificação (tudo em "topo"); depois Últimos resultados e
+       Próximos jogos; depois o resto ("meio": estatísticas, comparação, notícias) e o último jogo em detalhes */
     var heroB=h("div",null,loading()),resB=h("div"),nxtB=h("div",null,loading());
     root.appendChild(h("div",{class:"blk"},h("h2",{class:"sec",text:"Destaque"}),heroB));
+    var topo=h("div",{class:"stack"});root.appendChild(topo);
     var resBlk=h("div",{class:"blk"},h("h2",{class:"sec",text:"Últimos resultados"}),resB);root.appendChild(resBlk);
     root.appendChild(h("div",{class:"blk"},h("h2",{class:"sec"},"Próximos jogos",h("small",{text:WATCHNOTE})),nxtB));
+    var meio=h("div",{class:"stack"});root.appendChild(meio);
     var lastBox=h("div",{class:"stack"});root.appendChild(lastBox);
     function load(){
       espnSchedule(sport).then(function(d){
@@ -828,7 +837,8 @@
         if(nx.length)nxtB.appendChild(cards(nx.slice(0,6),false));else nxtB.appendChild(h("p",{class:"empty",text:"Nenhum jogo agendado."}));
         /* Central Esportiva (js/esportes-central.js): IA, desempenho recente, estatísticas, comparação, líderes e notícias da liga */
         var cx=espnCentral(sport,t,d.games);
-        cx.antes.concat([espnClassificacao(sport,t)],cx.meio,[espnTabela(sport,d.games),espnNoticias(sport,t)],cx.depois).forEach(function(x){root.insertBefore(x,lastBox)});
+        [espnTabela(sport,d.games)].concat(cx.antes,[espnClassificacao(sport,t)]).forEach(function(x){topo.appendChild(x)});
+        cx.meio.concat([espnNoticias(sport,t)],cx.depois).forEach(function(x){meio.appendChild(x)});
         var last=fin.filter(function(g){return g.state==="post"}).pop();
         if(last)espnSummary(sport,last.id).then(function(s){
           var g=espnFromSummary(sport,s);

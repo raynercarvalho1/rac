@@ -77,6 +77,9 @@ Os backups do Supabase não incluem os arquivos do Storage: as fotos e PDFs só 
 
 A restauração antiga (Sistema → Restaurar) fazia `upsert` direto, sobrescrevia anexos e trazia a chave dos atalhos: foi removida.
 
+### Central Fiscal na restauração (Lote B)
+Só as tabelas `notas_fiscais`, `notas_fiscais_itens` e `notas_fiscais_docs` têm regras próprias (veja docs/fiscal.md): nota conferida de hoje e os filhos dela não mudam (contados como "congelados" na prévia); o registro de documento nunca é trocado; a conferência original volta **depois** dos itens e documentos, com a autoria histórica; cada documento é conferido (tipo, arquivo no pacote, tamanho e SHA-256) antes de gravar e, em outra conta, ganha o caminho da conta nova. Anexo fiscal fora do plano é ignorado e contado, sem interromper os demais. **Nenhuma outra tabela e nenhum outro anexo mudou** (Compras, Eddie, Olivia, documentos).
+
 ## Verificação em duas etapas (TOTP)
 
 - Supabase Auth: TOTP é grátis e vem ligado em todos os projetos; MFA por SMS é pago (não usado). Não existem códigos de

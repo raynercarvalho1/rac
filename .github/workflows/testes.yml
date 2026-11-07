@@ -30,7 +30,7 @@ jobs:
       - name: "Grupo 1 · estrutura e regressão (sem Postgres simulado)"
         shell: bash
         run: |
-          ARQS=$(ls tests/*.test.mjs | grep -v -E 'tests/(banco_lote3|alimentacao_banco)\.test\.mjs')
+          ARQS=$(ls tests/*.test.mjs | grep -v -E 'tests/(banco_lote3|alimentacao_banco|banco_nota_salvar)\.test\.mjs')
           set +e
           node --test $ARQS > grupo1.txt 2>&1
           ST=$?
@@ -42,13 +42,13 @@ jobs:
             grep -E '^\s*✖|AssertionError|Error:|actual:|expected:|message:' grupo1.txt | head -40 | cut -c1-400 | while IFS= read -r L; do echo "::error::G1 $L"; done
           fi
           exit $ST
-      # Grupo 2: o SQL das migrations 027, 030, 031, 032 e 033 rodando de verdade no Postgres do PGlite (ver "Fidelidade" no cabeçalho de
+      # Grupo 2: o SQL das migrations 027, 030, 031, 032, 033 e 034 rodando de verdade no Postgres do PGlite (ver "Fidelidade" no cabeçalho de
       # tests/banco_lote3.test.mjs). Nenhum teste pode ficar ignorado aqui: se o PGlite não instalou, o teste falha em vez de pular.
-      - name: "Grupo 2 · banco (PGlite): migrations 027, 030, 031, 032, 033"
+      - name: "Grupo 2 · banco (PGlite): migrations 027, 030, 031, 032, 033, 034"
         shell: bash
         run: |
           set +e
-          node --test --test-reporter=spec tests/banco_lote3.test.mjs tests/alimentacao_banco.test.mjs > grupo2.txt 2>&1
+          node --test --test-reporter=spec tests/banco_lote3.test.mjs tests/alimentacao_banco.test.mjs tests/banco_nota_salvar.test.mjs > grupo2.txt 2>&1
           ST=$?
           set -e
           cat grupo2.txt

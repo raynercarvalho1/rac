@@ -9,10 +9,10 @@
 
   /* Rotas por hash: #esportes/beisebol/liga, #esportes/beisebol/time-119, #esportes/beisebol/jogo-849805,
      #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
-  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","alimentacao","compras","newsletter","rachoje","iacustos"];
-  var DA_CASA=["mercado","alimentacao","compras","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
-  /* #esportes abre a Central Esportiva; futebol e giro também moram na Central (js/esportes-central.js) */
-  var sports=["central","beisebol","basquete","futebol-americano","futebol","giro"],SP_CENTRAL=["central","futebol","giro"];
+  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","alimentacao","compras","fiscal","newsletter","rachoje","iacustos"];
+  var DA_CASA=["mercado","alimentacao","compras","fiscal","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
+  /* #esportes abre a Central Esportiva (o Giro mora dentro dela; #esportes/giro, de links antigos, também abre a Central); o futebol também mora na Central (js/esportes-central.js) */
+  var sports=["central","beisebol","basquete","futebol-americano","futebol"],SP_CENTRAL=["central","futebol"];
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
     if(a.dataset[attr]===val)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
   /* Marca o item da barra lateral e copia o ícone e o nome dele para o título da página */
@@ -25,10 +25,10 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-06.4",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-07.1",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
-    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],rachoje:["hoje"],iacustos:["iacustos"]};
+    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],fiscal:["fiscal"],rachoje:["hoje"],iacustos:["iacustos"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
     MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
@@ -113,6 +113,7 @@
     if(top==="painel"){sideMark("painel","painel");renderPainel(parts[1]);return}
     if(top==="alimentacao"){sideMark("alimentacao","alimentacao");renderAlimentacao(parts[1],parts[2]);return}
     if(top==="compras"){sideMark("compras","compras");renderCompras(parts[1],parts[2]);return}
+    if(top==="fiscal"){sideMark("fiscal","fiscal");renderFiscal();return}
     if(top==="rachoje"){sideMark("rachoje","rachoje");renderHoje();return}
     if(top==="iacustos"){sideMark("iacustos","iacustos");renderCustosIa();return}
     if(top==="busca"){sideMark("busca","busca");$("#ptitle").textContent="Busca";renderBusca(decodeURIComponent(parts.slice(1).join("/")||""));return}

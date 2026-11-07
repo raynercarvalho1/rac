@@ -7,12 +7,11 @@ Implementada em 01/11/2026. A IA funciona **só em DEMO** nesta etapa (decisão 
 
 | Rota | O que mostra | Arquivo |
 |---|---|---|
-| `#esportes` | Central: Dodgers em destaque (faixa, análise com IA, desempenho recente), cartões dos Lakers e dos Packers, giro do dia | `js/esportes-central.js` |
+| `#esportes` | Central: no topo, os **Destaques** de Lakers, Dodgers e Packers (o jogo mais recente de cada um, do mais recente ao mais antigo); logo abaixo o **Giro esportivo** (análise do dia com IA e as manchetes de todas as modalidades, com filtro); depois o que teve atividade nas últimas 24 horas e, por fim, os times sem jogos recentes (`NUCLEO.espCentralOrdem`). Não há aba própria do Giro: `#esportes/giro` abre a Central |
 | `#esportes/beisebol` | MLB: destaque, resultados, próximos jogos, Dodgers, **classificação completa** (6 divisões, NL e AL), **líderes** (AVG, OBP, SLG, OPS, HR, RBI, SB; ERA, WHIP, K, BB, IP), mercado, rumores, prêmios | `js/esportes.js` + central |
 | `#esportes/beisebol/dodgers` | Faixa, **análise com IA**, **desempenho recente**, **estatísticas do time com a posição na MLB**, **comparação com a divisão**, **jogadores em melhor fase**, **comparador de jogadores**, **calendário e retrospecto**, mercado, rumores, Ohtani | idem |
 | `#esportes/basquete` (Lakers) e `#esportes/futebol-americano` (Packers) | Faixa e jogos, **análise com IA**, **desempenho recente**, classificação (NFL agora com AFC e NFC), **estatísticas do time**, **comparação com os rivais**, tabela, notícias do time, **líderes da liga**, **notícias da liga**, último jogo | idem |
 | `#esportes/futebol` | Principais notícias, transferências e destaques, resultados dos últimos 3 dias (Brasileirão, Libertadores, Champions, Premier League, LaLiga, Serie A), classificação do Brasileirão e da Premier League | `js/esportes-central.js` |
-| `#esportes/giro` | Análise do dia com IA e as manchetes de MLB, NBA, NFL, futebol, tênis (ATP e WTA), automobilismo (F1), MMA (UFC) e outros (NHL, golfe), com filtro | idem |
 
 Em negrito, o que esta etapa acrescentou.
 
@@ -89,3 +88,8 @@ no aparelho, cache, as duas ações (Haiku, só dono, DEMO mesmo com o banco lib
 - As APIs da ESPN não têm documentação oficial e podem mudar sem aviso; cada quadro mostra "não consegui carregar" quando isso acontece.
 - Futebol cobre seis competições e só os últimos 3 dias de resultados.
 - Comparações entre jogadores existem só para os Dodgers (elenco da temporada); para Lakers e Packers, a comparação é entre times.
+
+## Ordem das páginas dos times (07/11/2026)
+
+- **Lakers e Packers** (`#esportes/basquete`, `#esportes/futebol-americano`): faixa, **Destaque** (1º item), **Tabela da temporada** (2º), análise com IA, **Desempenho recente**, **Classificação**, e só então **Últimos resultados e Próximos jogos**; depois estatísticas, comparação, notícias e o último jogo em detalhes.
+- **Dodgers** (`#esportes/beisebol/dodgers`): faixa, **Calendário e retrospecto** (a tabela da temporada), análise com IA, **Desempenho recente**, comparação com a divisão (a classificação), **Últimos jogos**; depois estatísticas, jogadores em melhor fase, comparador, mercado e rumores.

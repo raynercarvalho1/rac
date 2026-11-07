@@ -2,6 +2,11 @@
    backup em JSON, histórico, restauração com prévia e confirmação, auditoria das permissões e como recuperar o acesso (docs/seguranca.md).
    Usa as funções globais de js/app.js e o zip/backup de js/sistema.js. Nada é gravado sem o clique de confirmação. */
   var SEG={fatores:[],pendentes:[],passkeys:null,pkErro:null,aal:null,estado:null,semSql:false,eventos:null,servidor:null};
+  function segShaBytes(u8){return crypto.subtle.digest("SHA-256",u8).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ("0"+x.toString(16)).slice(-2)}).join("")})}
+  /* só os anexos da Central Fiscal (caminho com a pasta notas-fiscais): tamanho e SHA-256 do arquivo do pacote, para o plano conferir cada documento antes de gravar */
+  function segAnexosFiscais(anexos){var m={};
+    return (anexos||[]).reduce(function(p,a){return p.then(function(){var orig=String(a.nome).slice(7);if(orig.split("/")[1]!=="notas-fiscais")return;
+      return segShaBytes(a.dados).then(function(x){m[orig]={tamanho:a.dados.length,sha256:x}})})},Promise.resolve()).then(function(){return m})}
   function segSha(txt){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(txt)).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ("0"+x.toString(16)).slice(-2)}).join("")})}
   function segDias(iso){return iso?Math.floor((Date.now()-Date.parse(String(iso).slice(0,10)+"T12:00:00"))/864e5):null}
   function segN(n,um,varios){return n+" "+(n===1?um:varios)}
@@ -212,7 +217,7 @@
         var atual={};st.textContent="Comparando com o que existe hoje…";
         /* lê todas as tabelas (não só as do backup): um item do backup pode apontar para uma nota que já existe hoje */
         return NUCLEO.SEG_TABELAS.filter(function(d){return !d.so}).map(function(d){return d.t}).reduce(function(pr,t){return pr.then(function(){return lerTabela(t).then(function(l){atual[t]=l})})},Promise.resolve())
-          .then(function(){return NUCLEO.segPlano(B,atual,{conta:EU.id})})})})
+          .then(function(){return (/\.zip$/i.test(fonte.nome)?segAnexosFiscais(anexos):Promise.resolve(null)).then(function(fisc){return NUCLEO.segPlano(B,atual,{conta:EU.id,anexos:fisc})})})})})
     .then(function(plano){fimT();if(plano)segMostrarPlano(fonte,B,H,plano,anexos,area)})
     .catch(function(e){fimT();erro([e.message||String(e)],"Não consegui ler o backup");logErro("restaurar",e)})}
   function segMostrarPlano(fonte,B,H,plano,anexos,area){
@@ -228,6 +233,9 @@
       if(it.fora)av.push(it.t+": "+it.fora+" chaves secretas ignoradas (não voltam por restauração)");
       if(it.so)av.push(it.t+": as edições da Newsletter ficam só no backup (as com IA dependem do registro da chamada)")});
     if(T.iguais)av.push(T.iguais+(T.iguais===1?" linha já existe igual e fica como está.":" linhas já existem iguais e ficam como estão."));
+    if(plano.congeladas)av.push("Central Fiscal: "+plano.congeladas+(plano.congeladas===1?" linha já conferida (ou filha de nota conferida) não é alterada.":" linhas já conferidas (ou filhas de nota conferida) não são alteradas."));
+    if(plano.docsInvalidos)av.push("Central Fiscal: "+plano.docsInvalidos+(plano.docsInvalidos===1?" documento inválido não entra (veja o motivo em notas_fiscais_docs).":" documentos inválidos não entram (veja os motivos em notas_fiscais_docs)."));
+    plano.tabelas.forEach(function(it){if(it.semDocumento)av.push(it.t+": "+it.semDocumento+(it.semDocumento===1?" nota fica sem documento original válido: entra pendente, sem os itens e sem a conferência.":" notas ficam sem documento original válido: entram pendentes, sem os itens e sem a conferência."))});
     if(anexos.length)av.push(anexos.length+" fotos/PDFs no .zip: entram só os que não existem no cofre (nenhum é substituído).");
     if(av.length){var ul=h("ul",{class:"clean"});av.forEach(function(x){ul.appendChild(h("li",{class:"sub",text:"• "+x}))});area.appendChild(ul)}
     /* detalhes: o que entra e o que mudou, por tabela */
@@ -254,9 +262,9 @@
       var feito={inseridas:0,substituidas:0,anexos:0,anexosExistentes:0},fimT=atuTarefa("a restauração do backup");
       (cCopia.checked?segExportar(function(t){st.textContent="Cópia de hoje: "+t},"antes-de-restaurar"):Promise.resolve())
       .then(function(){return segGravar(NUCLEO.segEscrita(plano,cSub.checked),feito,function(t){st.textContent=t})})
-      .then(function(){return segAnexos(anexos,B.conta,feito,function(t){st.textContent=t})})
-      .then(function(){return segEvento("restauracao",{arquivo:fonte.nome,criado:B.criado,formato:B.versao,outraConta:plano.outraConta,inseridas:feito.inseridas,substituidas:feito.substituidas,anexos:feito.anexos})})
-      .then(function(){fimT();st.textContent="✓ Restaurado: "+segN(feito.inseridas,"linha nova","linhas novas")+(feito.substituidas?", "+segN(feito.substituidas,"trocada","trocadas"):"")+(feito.anexos||feito.anexosExistentes?", "+feito.anexos+" anexos enviados ("+feito.anexosExistentes+" já existiam)":"")+".";
+      .then(function(){return segAnexos(anexos,B.conta,plano,feito,function(t){st.textContent=t})})
+      .then(function(){return segEvento("restauracao",{arquivo:fonte.nome,criado:B.criado,formato:B.versao,outraConta:plano.outraConta,inseridas:feito.inseridas,substituidas:feito.substituidas,conferencias:feito.conferencias||0,anexos:feito.anexos,anexosIgnorados:feito.ignorados||0,congeladas:plano.congeladas||0,docsInvalidos:plano.docsInvalidos||0})})
+      .then(function(){fimT();st.textContent="✓ Restaurado: "+segN(feito.inseridas,"linha nova","linhas novas")+(feito.substituidas?", "+segN(feito.substituidas,"trocada","trocadas"):"")+(feito.conferencias?", "+feito.conferencias+(feito.conferencias===1?" conferência restaurada":" conferências restauradas"):"")+(feito.anexos||feito.anexosExistentes?", "+feito.anexos+" anexos enviados ("+feito.anexosExistentes+" já existiam)":"")+(feito.ignorados?"; "+feito.ignorados+(feito.ignorados===1?" anexo fiscal ignorado (sem documento válido)":" anexos fiscais ignorados (sem documento válido)"):"")+".";
         var r=h("button",{type:"button",text:"Recarregar o site"});r.onclick=function(){location.reload()};area.appendChild(h("div",{class:"vfil"},r))})
       .catch(function(e){fimT();st.textContent="Parou com erro: "+e.message+". Gravado até aqui: "+feito.inseridas+" novas, "+feito.substituidas+" trocadas. Nada foi apagado; pode abrir a prévia de novo (o que já entrou aparece como igual).";
         logErro("restaurar",e);segEvento("restauracao",{arquivo:fonte.nome,erro:String(e.message).slice(0,300),inseridas:feito.inseridas,substituidas:feito.substituidas})})};
@@ -264,14 +272,16 @@
   /* insert para as novas (se a linha passou a existir nesse meio-tempo, o banco recusa em vez de sobrescrever); upsert só no que o dono mandou trocar */
   function segGravar(ops,feito,st){
     return ops.reduce(function(p,op){return p.then(function(){var l=op.linhas;
-      function lote(i){if(i>=l.length)return Promise.resolve();st((op.op==="insert"?"Gravando ":"Trocando ")+op.t+"… "+Math.min(i+500,l.length)+" de "+l.length);
+      function lote(i){if(i>=l.length)return Promise.resolve();st((op.op==="insert"?"Gravando ":op.op==="conferencia"?"Restaurando a conferência de ":"Trocando ")+op.t+"… "+Math.min(i+500,l.length)+" de "+l.length);
         var q=op.op==="insert"?SB.from(op.t).insert(l.slice(i,i+500)):SB.from(op.t).upsert(l.slice(i,i+500));
-        return q.then(function(r){if(r.error)throw new Error(op.t+": "+r.error.message);if(op.op==="insert")feito.inseridas+=Math.min(500,l.length-i);else feito.substituidas+=Math.min(500,l.length-i);return lote(i+500)})}
+        return q.then(function(r){if(r.error)throw new Error(op.t+": "+r.error.message);if(op.op==="insert")feito.inseridas+=Math.min(500,l.length-i);else if(op.op==="conferencia")feito.conferencias=(feito.conferencias||0)+Math.min(500,l.length-i);else feito.substituidas+=Math.min(500,l.length-i);return lote(i+500)})}
       return lote(0)})},Promise.resolve())}
-  function segAnexos(anexos,velha,feito,st){var n=0;
-    return anexos.reduce(function(p,a){return p.then(function(){var path=a.nome.slice(7);if(velha&&velha!==EU.id)path=path.replace(velha+"/",EU.id+"/");n++;st("Enviando anexos… "+n+" de "+anexos.length);
-      return SB.storage.from("familia").upload(path,new Blob([a.dados]),{upsert:false}).then(function(r){if(!r.error){feito.anexos++;return}
-        if(/exist|duplicate|409/i.test(r.error.message||"")||r.error.statusCode==="409"){feito.anexosExistentes++;return}throw new Error("anexo "+path+": "+r.error.message)})})},Promise.resolve())}
+  function segAnexos(anexos,velha,plano,feito,st){
+    var ctx={velha:velha,conta:EU.id,renomear:(plano&&plano.renomear)||{}};
+    /* sem tipo (Compras e demais): exatamente como antes. Com tipo (anexo fiscal): o Blob e o contentType levam o mime do registro */
+    function enviar(path,dados,mime){return SB.storage.from("familia").upload(path,mime?new Blob([dados],{type:mime}):new Blob([dados]),mime?{upsert:false,contentType:mime}:{upsert:false})}
+    return NUCLEO.segAnexosEnviar(anexos,ctx,enviar,function(n,t){st("Enviando anexos… "+n+" de "+t)}).then(function(r){
+      feito.anexos+=r.anexos;feito.anexosExistentes+=r.anexosExistentes;feito.ignorados=(feito.ignorados||0)+r.ignorados})}
 
   /* ---------- 5. histórico ---------- */
   var SEG_TIPOS={exportacao:"Backup baixado",passkey_cadastrada:"Face ID cadastrado",passkey_removida:"Face ID removido",restauracao:"Restauração",teste_restauracao:"Teste de restauração",mfa_ativado:"Verificação em duas etapas ativada",mfa_desativado:"Verificação em duas etapas desativada",auditoria:"Auditoria"};

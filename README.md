@@ -2,7 +2,7 @@
 
 Painel pessoal e da casa do Rayner, publicado em <https://raynercarvalho.com.br> (GitHub Pages).
 Esportes, perfis no X, vagas e carreira, mercado, lista de compras, Olivia, Eddie, veículos, documentos,
-saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança, o Painel de Produtividade, Alimentação e Delivery e a Central de Compras.
+saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no celular, a Central de Segurança, o Painel de Produtividade, Alimentação e Delivery, a Central de Compras e a Central Fiscal.
 
 ## Como funciona
 
@@ -39,8 +39,8 @@ de cada número, só com dados que já existem no site. Tudo em [docs/painel.md]
 
 ## Central Esportiva
 
-Página `#esportes` (`js/esportes.js` + `js/esportes-central.js`): MLB com os Dodgers em destaque, Lakers, Packers, futebol e o giro das outras
-modalidades, com classificação, líderes, estatísticas, desempenho recente e comparações, e a análise com IA sobre um pacote de fatos
+Página `#esportes` (`js/esportes.js` + `js/esportes-central.js`): a Central abre com os Destaques de Lakers, Dodgers e Packers e o Giro das outras modalidades logo abaixo
+(depois, o que teve jogo nas últimas 24 horas); MLB, Lakers, Packers e futebol têm página própria, com classificação, líderes, estatísticas, desempenho recente e comparações, e a análise com IA sobre um pacote de fatos
 (ações `esportes.analise` e `esportes.giro`, só DEMO nesta etapa). Tudo em [docs/esportes.md](docs/esportes.md).
 
 ## Veículos e abastecimentos
@@ -54,6 +54,12 @@ nova); as contas ficam em `NUCLEO.ab*`. Tudo em [docs/veiculos.md](docs/veiculos
 Página `#alimentacao` (`js/alimentacao.js`): pedidos de iFood, 99Food e restaurantes (tabelas `pedidos` e `pedido_itens`, SQL 024), com
 itens, taxas, gorjeta, descontos, fotos e versões, e a comida do Mercado nas contas sem cópia (view `alimentacao_gastos`). Entra no
 Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo em [docs/alimentacao.md](docs/alimentacao.md).
+
+## Central Fiscal
+
+Página `#fiscal` (`js/fiscal.js`): lê o XML de NF-e/NFC-e no próprio aparelho, mostra a conferência e, ao clicar em Salvar, guarda o XML original no cofre privado e grava a nota,
+os itens e os pagamentos numa transação só (migration 034). Nota conferida fica congelada; o original registrado não se substitui nem se apaga; nada gera despesa; nenhum CPF vai
+para campo do banco. É da casa (Rayner e Fernanda). Fotos e PDF ainda não são lidos (sem OCR). Tudo em [docs/fiscal.md](docs/fiscal.md).
 
 ## Central de Compras
 

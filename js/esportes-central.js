@@ -173,14 +173,13 @@
     return nome+": "+ds.serie+" de "+SEASON+" em andamento contra o "+ds.adversario.nome+"."}
 
   /* ===== Página dos Dodgers e tela da liga: os quadros novos (chamados de js/esportes.js) ===== */
+  /* os quadros da página dos Dodgers, por nome: js/esportes.js (viewDodgers) escolhe a ordem na tela */
   function dodgersCentral(){
-    var jogosP=ecMlbJogos(DODGERS),out=[],ia=ecIABox({acao:"esportes.analise",foco:"dodgers",ctx:{foco:"dodgers"},nome:"Dodgers",fatos:ecFatosDodgers});
-    if(ia)out.push(ia);
-    var forma=h("div",null,h("div",{class:"panel"},loading()));out.push(forma);
+    var jogosP=ecMlbJogos(DODGERS),ia=ecIABox({acao:"esportes.analise",foco:"dodgers",ctx:{foco:"dodgers"},nome:"Dodgers",fatos:ecFatosDodgers});
+    var forma=h("div",null,h("div",{class:"panel"},loading()));
     jogosP.then(function(gs){forma.innerHTML="";forma.appendChild(ecFormaPanel("Dodgers","corridas",ecForma(gs,function(t){return t.id===DODGERS}),EC_MLB))})
       .catch(function(e){forma.innerHTML="";forma.appendChild(h("div",{class:"panel"},failed(function(){location.reload()},e)))});
-    out.push(ecMlbTimeStats(DODGERS,"Dodgers"),ecMlbDivisao(DODGERS),ecMlbFasePanel(DODGERS,jogosP),ecMlbComparar(DODGERS),ecMlbCalendario(DODGERS,jogosP));
-    return out}
+    return {ia:ia,forma:forma,stats:ecMlbTimeStats(DODGERS,"Dodgers"),divisao:ecMlbDivisao(DODGERS),fase:ecMlbFasePanel(DODGERS,jogosP),comparar:ecMlbComparar(DODGERS),calendario:ecMlbCalendario(DODGERS,jogosP)}}
   function mlbLigaCentral(){return [ecMlbClassificacao(),ecMlbLideres()]}
 
   /* ===== NBA e NFL: os quadros novos das páginas dos Lakers e dos Packers (chamados de js/esportes.js) ===== */
@@ -309,28 +308,52 @@
       p.appendChild(ul);p.appendChild(h("p",{class:"note"},h("a",{class:"link",href:href,text:"Página completa, com estatísticas, líderes e análise →"})))
     }).catch(function(e){p.innerHTML="";p.appendChild(failed(function(){p.replaceWith(ecTimeCard(sport,nome,href))},e))});
     return p}
-  function ecCentral(root){
-    var dodgers=h("div",{class:"blk"},h("h2",{class:"sec"},"Dodgers",h("small",{text:"prioridade máxima da Central"})));root.appendChild(dodgers);
+  /* a Central mostra primeiro o que teve atividade nas últimas 24 horas (jogo ao vivo ou terminado); o resto vem depois, do mais recente ao mais antigo.
+     Nenhum time é fixo no topo: a ordem sai de NUCLEO.espCentralOrdem sobre os jogos de cada fonte. */
+  function ecBlocoDodgers(){
+    var dodgers=h("div",{class:"blk"},h("h2",{class:"sec",text:"Dodgers"}));
     dodgers.appendChild(dodgersBanner([["Página dos Dodgers","#esportes/beisebol/dodgers"],["MLB, liga toda","#esportes/beisebol"]]));
     var forma=h("div",{class:"stack",style:"margin-top:16px"},h("div",{class:"panel"},loading()));dodgers.appendChild(forma);
     ecMlbJogos(DODGERS).then(function(gs){forma.innerHTML="";var ia=ecIABox({acao:"esportes.analise",foco:"dodgers",ctx:{foco:"dodgers"},nome:"Dodgers",fatos:ecFatosDodgers});
       if(ia)forma.appendChild(ia);forma.appendChild(ecFormaPanel("Dodgers","corridas",ecForma(gs,function(t){return t.id===DODGERS}),EC_MLB))})
       .catch(function(e){forma.innerHTML="";forma.appendChild(h("div",{class:"panel"},failed(function(){route()},e)))});
-    var times=h("div",{class:"blk"},h("h2",{class:"sec",text:"Lakers e Packers"}),h("div",{class:"cards"},ecTimeCard("nba","Los Angeles Lakers","#esportes/basquete"),ecTimeCard("nfl","Green Bay Packers","#esportes/futebol-americano")));
-    root.appendChild(times);
-    root.appendChild(section("Giro do dia","as manchetes mais recentes de cada modalidade",function(body){
-      return ecGiroDados().then(function(l){body.innerHTML="";var por={},sel=[];
-        l.forEach(function(a){if((por[a.k]||0)<2&&sel.length<10){por[a.k]=(por[a.k]||0)+1;sel.push(a)}});
-        if(!sel.length){body.appendChild(h("p",{class:"empty",text:"Sem notícias agora."}));return}
-        body.appendChild(h("div",{class:"panel"},h("ul",{class:"wl rumores"},sel.map(function(a){return ecNotLi(a,a.mod)})),
-          h("p",{class:"note"},h("a",{class:"link",href:"#esportes/giro",text:"Giro completo e análise do dia com IA →"})," · ",h("a",{class:"link",href:"#esportes/futebol",text:"Futebol →"}))))})}))}
+    return dodgers}
+  function ecBlocoEspn(sport,nome,href){return h("div",{class:"blk"},h("h2",{class:"sec",text:nome}),h("div",{class:"cards"},ecTimeCard(sport,nome,href)))}
+  /* Destaque de cada time: o jogo mais recente que começou (ao vivo ou terminado), no mesmo cartão grande da página do time */
+  function ecDestaque(nome,jogos){
+    var fin=(jogos||[]).filter(function(g){return g.state!=="pre"}),g=fin[fin.length-1];
+    return h("div",{class:"ecdest"},h("h3",{class:"dayh",text:nome}),g?hero(g):h("p",{class:"empty",text:nome+": a temporada ainda não começou."}))}
+  function ecCentral(root){
+    var TIMES=[{k:"dodgers",nome:"Dodgers",jogos:function(){return ecMlbJogos(DODGERS)},cheio:ecBlocoDodgers,compacto:dodgersSummary},
+      {k:"nba",nome:"Lakers",jogos:function(){return espnSchedule("nba").then(function(d){return d.games})},cheio:function(){return ecBlocoEspn("nba","Los Angeles Lakers","#esportes/basquete")},compacto:function(){return ecBlocoEspn("nba","Los Angeles Lakers","#esportes/basquete")}},
+      {k:"nfl",nome:"Packers",jogos:function(){return espnSchedule("nfl").then(function(d){return d.games})},cheio:function(){return ecBlocoEspn("nfl","Green Bay Packers","#esportes/futebol-americano")},compacto:function(){return ecBlocoEspn("nfl","Green Bay Packers","#esportes/futebol-americano")}}];
+    /* ordem na tela: Destaques (Lakers, Dodgers e Packers), Giro, o que teve atividade nas últimas 24 horas e, por fim, o resto */
+    var dest=h("div",{class:"blk"},h("h2",{class:"sec"},"Destaques",h("small",{text:"o jogo mais recente de cada time"})),h("div",{class:"stack"},loading())),
+      giroBox=h("div",{class:"stack"}),rec=h("div",{class:"stack"}),dem=h("div",{class:"stack"});
+    root.appendChild(dest);root.appendChild(giroBox);root.appendChild(rec);root.appendChild(dem);
+    ecGiro(giroBox);
+    Promise.all(TIMES.map(function(t){return t.jogos().then(function(gs){return {k:t.k,jogos:gs}},function(){return {k:t.k,jogos:null}})})).then(function(r){
+      var carregados=r.filter(function(x){return x.jogos}),ord=NUCLEO.espCentralOrdem(carregados,Date.now(),24),por={},jg={};TIMES.forEach(function(t){por[t.k]=t});r.forEach(function(x){jg[x.k]=x.jogos});
+      r.filter(function(x){return !x.jogos}).forEach(function(x){ord.demais.push({k:x.k,a:{ultimo:null,horasDesde:null,recente:false,aoVivo:false},semDados:true})});
+      var caixa=dest.querySelector(".stack");caixa.innerHTML="";
+      ord.recentes.concat(ord.demais).forEach(function(x){var t=por[x.k];
+        caixa.appendChild(x.semDados?h("div",{class:"ecdest"},h("h3",{class:"dayh",text:t.nome}),h("p",{class:"empty",text:"Não consegui carregar os jogos agora."})):ecDestaque(t.nome,jg[x.k]))});
+      if(ord.recentes.length){
+        rec.appendChild(h("div",{class:"blk"},h("h2",{class:"sec"},"Atualizados nas últimas 24 horas",h("small",{text:"jogos ao vivo ou terminados no último dia"}))));
+        ord.recentes.forEach(function(x){rec.appendChild(por[x.k].cheio())})}
+      else rec.appendChild(h("div",{class:"panel"},h("p",{class:"sub",text:"Nenhum dos times (Dodgers, Lakers e Packers) jogou nas últimas 24 horas. Abaixo, do mais recente ao mais antigo."})));
+      if(ord.demais.length){
+        dem.appendChild(h("div",{class:"blk"},h("h2",{class:"sec"},ord.recentes.length?"Sem jogos nas últimas 24 horas":"Últimas atividades",h("small",{text:"do jogo mais recente ao mais antigo"}))));
+        ord.demais.forEach(function(x){var t=por[x.k];
+          dem.appendChild(h("p",{class:"sub",style:"margin:0 0 -8px"},t.nome+(x.semDados?": não consegui carregar os jogos agora.":" · último jogo "+NUCLEO.espHa(x.a.horasDesde))));
+          dem.appendChild(t.compacto())})}
+    }).catch(function(e){var c=dest.querySelector(".stack");c.innerHTML="";c.appendChild(h("div",{class:"panel"},failed(function(){route()},e)))})}
   /* entrada das rotas novas (js/app.js): central, futebol e giro */
   function renderCentral(sp){
     var root=document.getElementById("esc-view");root.innerHTML="";
     if(sp==="futebol"){ecFutebol(root);return}
-    if(sp==="giro"){ecGiro(root);return}
     root.appendChild(h("div",{class:"panel"},loading()));
-    mlbTemporada().then(function(){var s=location.hash.split("/")[1]||"";if(s&&s!=="central")return;root.innerHTML="";ecCentral(root)})}
+    mlbTemporada().then(function(){var s=location.hash.split("/")[1]||"";if(["beisebol","basquete","futebol-americano","futebol"].indexOf(s)>=0)return;root.innerHTML="";ecCentral(root)})}
 
   /* ===== Pacotes de fatos da IA: só o que veio das fontes, com fonte e período escritos pelo sistema ===== */
   function ecFatosForma(F,f,nome,un,fonte){

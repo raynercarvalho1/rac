@@ -183,12 +183,13 @@ test("sem temporada fixa nem resultado escrito à mão no módulo de esportes", 
   assert.ok(!/getMonth\(\);return m>=10/.test(esp), "fora de temporada pelas datas oficiais");
   assert.match(esp, /MLB_TEMP\.fase==="fora"\|\|MLB_TEMP\.fase==="pre"\)mlbAbertura\(\)\.then\(function\(a\)\{if\(a\)/, "fora de temporada, a faixa dos Dodgers mostra a abertura oficial da próxima (se divulgada)");
 });
-test("rotas: #esportes abre a Central; futebol e giro existem; o módulo novo carrega com a seção", () => {
-  assert.match(app, /sports=\["central","beisebol","basquete","futebol-americano","futebol","giro"\]/);
+test("rotas: #esportes abre a Central (com o Giro dentro, sem aba própria); futebol existe; o módulo novo carrega com a seção", () => {
+  assert.match(app, /sports=\["central","beisebol","basquete","futebol-americano","futebol"\]/);
   assert.match(app, /esportes:\["esportes","esportes-central"\]/);
   assert.match(app, /"esportes-central":\["esportes"\]/);
   for (const id of ["sp-central", "esc-view", "sp-beisebol", "sp-basquete", "sp-futebol-americano"]) assert.ok(html.includes(`id="${id}"`), id);
-  for (const r of ["#esportes/futebol", "#esportes/giro"]) assert.ok(html.includes(`href="${r}"`), r);
+  assert.ok(html.includes('href="#esportes/futebol"'));
+  assert.ok(!html.includes('href="#esportes/giro"'), "sem aba nem item de menu do Giro");
 });
 test("a Central não grava no banco e só fala com a IA por racIA()", () => {
   assert.ok(!/SB\.|\.insert\(|\.upsert\(|\.update\(|\.delete\(/.test(cen), "nada de banco na Central");
@@ -204,4 +205,56 @@ test("a Central não grava no banco e só fala com a IA por racIA()", () => {
 test("toda notícia mostra fonte, data e link para a matéria original", () => {
   assert.match(cen, /function ecNotLi\(a,mod\)\{return h\("li",null,[^]*?href:a\.link,target:"_blank"[^]*?"ESPN · "\+quando\(a\.data\)/);
   assert.match(cen, /filter\(function\(a\)\{return a\.t&&a\.link&&a\.data\}\)/, "sem link ou sem data, a notícia não entra");
+});
+
+/* ---------- Central: o que teve atividade recente vem primeiro (nenhum time é fixo no topo) ---------- */
+const H = 3600000, AGORA = Date.parse("2026-11-07T15:00:00Z");
+const jg = (horasAtras, state = "post") => ({ date: new Date(AGORA - horasAtras * H).toISOString(), state });
+test("atividade recente: jogo terminado ou ao vivo nas últimas 24 horas; jogo futuro e jogo antigo não contam", () => {
+  assert.equal(N.espAtividade([jg(5)], AGORA).recente, true);
+  assert.equal(N.espAtividade([jg(23.9)], AGORA).recente, true);
+  assert.equal(N.espAtividade([jg(24.1)], AGORA).recente, false);
+  assert.equal(N.espAtividade([jg(-3, "pre")], AGORA).recente, false, "jogo que ainda vai acontecer não é atividade");
+  assert.equal(N.espAtividade([jg(40 * 24)], AGORA).recente, false, "os Dodgers sem jogar há mais de um mês");
+  const v = N.espAtividade([jg(30 * 24), jg(0.2, "live")], AGORA);
+  assert.deepEqual([v.aoVivo, v.recente], [true, true]);
+  assert.deepEqual(N.espAtividade([], AGORA), { aoVivo: false, ultimo: null, horasDesde: null, recente: false });
+  assert.equal(N.espAtividade([{ date: "lixo", state: "post" }, null], AGORA).ultimo, null, "dado ruim não quebra");
+  assert.equal(N.espAtividade([jg(30)], AGORA, 48).recente, true, "a janela pode ser maior");
+});
+test("ordem da Central: ao vivo primeiro, depois o mais recente; quem não jogou hoje vai para o fim (do mais recente ao mais antigo)", () => {
+  const o = N.espCentralOrdem([{ k: "dodgers", jogos: [jg(40 * 24)] }, { k: "nba", jogos: [jg(10)] }, { k: "nfl", jogos: [jg(2)] }], AGORA, 24);
+  assert.deepEqual(o.recentes.map((x) => x.k), ["nfl", "nba"]);
+  assert.deepEqual(o.demais.map((x) => x.k), ["dodgers"]);
+  const vivo = N.espCentralOrdem([{ k: "nfl", jogos: [jg(1)] }, { k: "nba", jogos: [jg(0.1, "live")] }], AGORA);
+  assert.deepEqual(vivo.recentes.map((x) => x.k), ["nba", "nfl"], "ao vivo passa na frente");
+  const nenhum = N.espCentralOrdem([{ k: "dodgers", jogos: [jg(40 * 24)] }, { k: "nba", jogos: [jg(60 * 24)] }, { k: "nfl", jogos: [] }], AGORA);
+  assert.deepEqual([nenhum.recentes.length, nenhum.demais.map((x) => x.k).join()], [0, "dodgers,nba,nfl"], "sem ninguém recente: mais recente primeiro, sem jogos por último");
+  assert.deepEqual(N.espCentralOrdem([{ k: "a", jogos: [] }, { k: "b", jogos: [] }], AGORA).demais.map((x) => x.k), ["a", "b"], "empate mantém a ordem");
+});
+test("texto 'há quanto tempo'", () => {
+  assert.deepEqual([null, 0.5, 1, 5.9, 24, 49, 70 * 24].map(N.espHa), ["sem jogos nesta temporada", "há menos de 1 hora", "há 1 hora", "há 5 horas", "há 1 dia", "há 2 dias", "há 2 meses"]);
+});
+test("Central: nenhum time fixo no topo, e as seções seguem a atividade recente", () => {
+  const c = ler("js/esportes-central.js");
+  assert.ok(!/prioridade máxima da Central/.test(c), "o Dodgers não é mais o centro por decreto");
+  assert.match(c, /NUCLEO\.espCentralOrdem\(/); assert.match(c, /Atualizados nas últimas 24 horas/); assert.match(c, /Sem jogos nas últimas 24 horas/);
+});
+test("páginas dos times: Destaque no topo, Tabela da temporada em segundo, Desempenho recente e Classificação antes de Últimos resultados e Próximos jogos", () => {
+  const e = ler("js/esportes.js");
+  const v = e.slice(e.indexOf("function viewEspnTeam"), e.indexOf("function load()", e.indexOf("function viewEspnTeam")));
+  const pos = (t) => v.indexOf(t);
+  assert.ok(pos('"Destaque"') > 0 && pos('"Destaque"') < pos("topo=h(") && pos("topo=h(") < pos('"Últimos resultados"') && pos('"Últimos resultados"') < pos('"Próximos jogos"') && pos('"Próximos jogos"') < pos("meio=h("), "Destaque primeiro, Tabela em segundo, Últimos resultados e Próximos jogos depois");
+  assert.match(e, /\[espnTabela\(sport,d\.games\)\]\.concat\(cx\.antes,\[espnClassificacao\(sport,t\)\]\)\.forEach\(function\(x\)\{topo\.appendChild\(x\)\}\)/, "Tabela primeiro, depois IA e Desempenho recente, depois Classificação");
+  const d = e.slice(e.indexOf("function viewDodgers"), e.indexOf("function viewMlbGame"));
+  const q = (t) => d.indexOf(t);
+  assert.ok(q("dc.calendario") > 0 && q("dc.calendario") < q("dc.forma") && q("dc.forma") < q("dc.divisao") && q("dc.divisao") < q('"Últimos jogos dos Dodgers"') && q('"Últimos jogos dos Dodgers"') < q("dc.stats"), "Dodgers: tabela, desempenho, divisão, últimos jogos, resto");
+});
+
+test("Central: Destaques dos três times no topo e o Giro logo abaixo, dentro da própria Central", () => {
+  const c = ler("js/esportes-central.js"), a = c.slice(c.indexOf("function ecCentral"), c.indexOf("function renderCentral"));
+  const p = (x) => a.indexOf(x);
+  assert.ok(p('"Destaques"') > 0 && p('"Destaques"') < p("ecGiro(giroBox)") && p("ecGiro(giroBox)") < p('"Atualizados nas últimas 24 horas"') && p('"Atualizados nas últimas 24 horas"') < p('"Sem jogos nas últimas 24 horas"'));
+  assert.match(a, /root\.appendChild\(dest\);root\.appendChild\(giroBox\);root\.appendChild\(rec\)/, "Destaques, Giro, depois o resto");
+  assert.match(c, /function ecDestaque\(nome,jogos\)/); assert.ok(!/if\(sp==="giro"\)/.test(c), "não há mais página de Giro separada");
 });

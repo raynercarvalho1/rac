@@ -73,7 +73,7 @@ test("backup: as tabelas do site são as do núcleo e cobrem o backup do servido
 test("restauração: só depois da prévia e do confirm; novas por insert, troca só se pedir; anexos sem sobrescrever; nada apagado", () => {
   assert.ok(!/function restaurarBackup/.test(sis), "a restauração antiga (que sobrescrevia) saiu");
   assert.ok(!/upsert:true/.test(sis + seg), "nenhum envio de arquivo sobrescreve");
-  assert.match(seg, /\.upload\(path,new Blob\(\[a\.dados\]\),\{upsert:false\}\)/);
+  assert.match(seg, /\.upload\(path,mime\?new Blob\(\[dados\],\{type:mime\}\):new Blob\(\[dados\]\),mime\?\{upsert:false,contentType:mime\}:\{upsert:false\}\)/, "sem tipo (Compras e demais): Blob e opções exatamente como antes; com tipo (anexo fiscal): o mime do registro");
   assert.ok(!/SB\.from\([^)]*\)\.(delete|update)\(|\.remove\(|\.truncate/.test(seg), "a Central não apaga nem altera linhas por fora do plano");
   assert.deepEqual([...seg.matchAll(/\.(delete|update)\(\{passkeyId/g)].length, 2, "só a passkey da própria conta é removida ou renomeada");
   assert.match(seg, /op\.op==="insert"\?SB\.from\(op\.t\)\.insert\(/);

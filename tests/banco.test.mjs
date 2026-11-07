@@ -28,7 +28,7 @@ const pendentes = [...new Set([...sqlPendente.matchAll(/create (?:or replace )?(
 /* parâmetros declarados de cada função (pelo .sql) → um valor de mentira do tipo certo */
 function argumentosFalsos(nome) {
   const m = new RegExp(`create or replace function public\\.${nome}\\(([^)]*)\\)`, "i").exec(sql);
-  const falso = { uuid: "00000000-0000-0000-0000-000000000000", text: "teste-banco-0001", numeric: 0, integer: 0, boolean: false, date: "2026-01-01" };
+  const falso = { uuid: "00000000-0000-0000-0000-000000000000", text: "teste-banco-0001", numeric: 0, integer: 0, boolean: false, date: "2026-01-01", "text[]": ["x"] };   // um array de verdade: "x" daria 22P02 antes do 42501
   const o = {};
   for (const p of (m ? m[1] : "").split(",").map((x) => x.trim()).filter(Boolean)) {
     const [arg, tipo] = p.split(/\s+/);

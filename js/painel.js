@@ -39,9 +39,8 @@
         .then(function(l){return l.map(function(p){var o={};Object.keys(p).forEach(function(k){o[k]=k==="pedido_itens"?undefined:p[k]});["subtotal","taxa_entrega","taxa_servico","gorjeta","desconto_loja","desconto_plataforma","total_pago"].forEach(function(k){o[k]=+p[k]});
           o.itens=(p.pedido_itens||[]).map(function(i){return {descricao:i.descricao,qtd:+i.qtd,total:+i.total,desconto:+i.desconto||0}});return o})})),
       /* compras online (Central de Compras): o total pago de cada pedido, uma vez; as marcadas como já contadas em outro lugar ficam fora */
-      seguro(pnPag(function(f){return SB.from("compras_online").select("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,compras_online_itens(descricao,total,desconto,categoria),status").gte("data",ini2).order("data").order("id").range(f,f+999)})
-        .then(function(l){return l.map(function(c){return {id:c.id,data:c.data,loja:c.loja,vendedor:c.vendedor,total_pago:+c.total_pago,categoria:c.categoria,fora_das_contas:c.fora_das_contas,status:c.status,
-          itens:(c.compras_online_itens||[]).map(function(i){return {descricao:i.descricao,total:+i.total,desconto:+i.desconto||0,categoria:i.categoria}})}})}))])
+      seguro(pnPag(function(f){return SB.from("compras_online").select("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,status,canal,natureza,historico,origem,impostos_info,compras_online_itens(descricao,total,desconto,categoria,natureza,total_linha,situacao)").gte("data",ini2).order("data").order("id").range(f,f+999)})
+        .then(function(l){return l.map(NUCLEO.coDeBanco)}))])
     .then(function(r){return {hoje:hoje,meses:meses,todos:todos,ini:meses[0]+"-01",iniAnt:todos[0]+"-01",fimAnt:maisDias(meses[0]+"-01",-1),
       compras:r[0],registros:r[1],tarefas:r[2],orcamentos:r[3],saude:r[4],agenda:r[5],pedidos:r[6],online:r[7]}});
     return P}
@@ -194,7 +193,7 @@
   /* compras online: o total pago por mês, por loja e por categoria (os mesmos números dos gastos acima, uma vez cada) */
   function pnOnline(D,B){var p=panel("Compras online","Pedidos da Central de Compras (Amazon, Mercado Livre e outras lojas), pelo total efetivamente pago.");
     if(D.online&&!D.online.ok){p.appendChild(pnVazio("Não consegui ler as compras online agora ("+D.online.erro+")."));p.appendChild(pnFonte("Central de Compras",D.ini,D.hoje));return p}
-    var L=NUCLEO.coDespesas(D.online?D.online.v:[]).filter(function(x){return x.d>=D.ini}),pm=NUCLEO.pnPorMes(L,D.meses);
+    var L=NUCLEO.coResumo(D.online?D.online.v:[]).despesas.filter(function(x){return x.d>=D.ini}),pm=NUCLEO.pnPorMes(L,D.meses);
     if(!L.length){p.appendChild(pnVazio("Nenhuma compra online no período."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#compras/importar",text:"Importar compras"})));p.appendChild(pnFonte("Central de Compras",D.ini,D.hoje));return p}
     var tot=L.reduce(function(s,x){return s+x.v},0),cat={};L.forEach(function(x){cat[x.cat]=(cat[x.cat]||0)+x.v});
     p.appendChild(rsKpis([["No período",brl(tot)],["Pedidos",L.length],["Ticket médio",brl(tot/L.length)]]));

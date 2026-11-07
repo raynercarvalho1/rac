@@ -1,6 +1,6 @@
 # Central de Notas Fiscais
 
-Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **preparada, ainda não aplicada**; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos).
+Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos).
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
@@ -78,7 +78,7 @@ e de vínculos com RLS e backup (`SEG_TABELAS`); cofre para os originais; tela d
 
 ## Lote B · gravação segura, conferência e proteção dos originais (migration 034 — APLICADA em produção em 07/11/2026)
 
-A 034 foi aplicada pelo dono no SQL Editor em 07/11/2026 e conferida por consulta somente leitura (15 funções, 2 colunas, 5 gatilhos, 4 constraints, as 5 políticas de `storage.objects`, nenhuma função executável por `anon`, as 2 RPCs só para `authenticated`). **O site que usa a gravação ainda NÃO foi publicado**, e a gravação ainda não foi exercitada com um XML real no Supabase (ver "Pendências"). A 034 só soma (colunas, funções, gatilhos, constraints, políticas); não cria tabela, não toca em Compras, Mercado, Eddie, Olivia, IA nem Garmin, e não altera migrations anteriores.
+A 034 foi aplicada pelo dono no SQL Editor em 07/11/2026 e conferida por consulta somente leitura (15 funções, 2 colunas, 5 gatilhos, 4 constraints, as 5 políticas de `storage.objects`, nenhuma função executável por `anon`, as 2 RPCs só para `authenticated`). **O site que usa a gravação já está no `origin/main`** (commit `33a49c6`, com `VERSAO` em `sw.js` e `MOD_VERSAO` em `js/app.js` iguais a `2026-11-07.1`; neste projeto o push é a publicação, conforme o CLAUDE.md; conferido em 07/11/2026 só pelo Git local, sem consultar o site no ar). A gravação **ainda não foi exercitada com um XML real no Supabase** (ver "Pendências"). A 034 só soma (colunas, funções, gatilhos, constraints, políticas); não cria tabela, não toca em Compras, Mercado, Eddie, Olivia, IA nem Garmin, e não altera migrations anteriores.
 
 ### Fluxo (tela `#fiscal`, `js/fiscal.js`)
 1. A pessoa escolhe o XML; a leitura e a conferência visual são no aparelho (Lote A). Só ao clicar em **Salvar na Central Fiscal** algo sai do aparelho.

@@ -9,18 +9,16 @@
   var CC_PDF="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",CC_PDF_W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   var CC_ZIP="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",CC_OCR="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var CC_MIME={pdf:"application/pdf",xml:"text/xml",csv:"text/csv",zip:"application/zip",eml:"message/rfc822",txt:"text/plain",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",gif:"image/gif"};
-  var CC_COLS="id,loja,numero,data,vendedor,status,subtotal,desconto,frete,taxas,total_pago,pagamento,categoria,recorrencia_texto,recorrencia_meses,recorrencia_status,chave_nfe,numero_nf,emitente,cnpj,fora_das_contas,motivo_fora,divergencias,observacoes,origem,versoes,criado_em,atualizado_em";
-  function ccNum(v){return v==null||v===""?null:+v}
-  function ccCompra(r){var c={};Object.keys(r).forEach(function(k){c[k]=r[k]});["subtotal","desconto","frete","taxas","total_pago","recorrencia_meses"].forEach(function(k){c[k]=ccNum(r[k])});
-    c.itens=(r.compras_online_itens||[]).slice().sort(function(a,b){return a.ordem-b.ordem}).map(function(i){return {id:i.id,descricao:i.descricao,codigo:i.codigo,qtd:ccNum(i.qtd),unitario:ccNum(i.unitario),total:ccNum(i.total),desconto:ccNum(i.desconto)||0,categoria:i.categoria,imagem_path:i.imagem_path}});
-    c.docs=(r.compras_online_docs||[]).slice().sort(function(a,b){return a.criado_em<b.criado_em?-1:1});delete c.compras_online_itens;delete c.compras_online_docs;return c}
+  var CC_COLS="id,loja,numero,data,vendedor,status,subtotal,desconto,frete,taxas,total_pago,pagamento,categoria,recorrencia_texto,recorrencia_meses,recorrencia_status,chave_nfe,numero_nf,emitente,cnpj,fora_das_contas,motivo_fora,divergencias,observacoes,origem,versoes,criado_em,atualizado_em,canal,natureza,historico,impostos_info";
+  /* a linha do banco no formato das regras (NUCLEO.coDeBanco: números, itens, canal, natureza, histórico, impostos_info); os documentos ficam em c.docs */
+  function ccCompra(r){var c=NUCLEO.coDeBanco(r);c.docs=(r.compras_online_docs||[]).slice().sort(function(a,b){return a.criado_em<b.criado_em?-1:1});delete c.compras_online_docs;return c}
   function ccPag(q){var acc=[];function pag(f){return Promise.resolve().then(function(){return q(f)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(f+1000):acc})}return pag(0)}
   function ccCarregar(forcar){
     if(CC.carregando&&!forcar)return CC.carregando;
     CC.carregando=ccLer().then(function(l){CC.dados=l;return CC.dados});
     CC.carregando.catch(function(){CC.carregando=null});return CC.carregando}
   /* só lê (não mexe em CC) */
-  function ccLer(){return ccPag(function(f){return SB.from("compras_online").select(CC_COLS+",compras_online_itens(id,ordem,descricao,codigo,qtd,unitario,total,desconto,categoria,imagem_path),compras_online_docs(id,tipo,nome,path,mime,tamanho,sha256,criado_em)")
+  function ccLer(){return ccPag(function(f){return SB.from("compras_online").select(CC_COLS+",compras_online_itens(id,ordem,descricao,codigo,qtd,unitario,total,desconto,categoria,imagem_path,natureza,total_linha,situacao),compras_online_docs(id,tipo,nome,path,mime,tamanho,sha256,criado_em)")
       .order("data",{ascending:false}).order("criado_em",{ascending:false}).order("id",{ascending:false}).range(f,f+999)}).then(function(l){return l.map(ccCompra)})}
   /* D2: as outras fontes para a checagem de duplicidade (só leitura; falhou → lista vazia, e a conferência segue sem elas).
      Mercado: notas agrupadas por data+mercado+número (total = soma das linhas); Alimentação: pedidos; Abastecimento: registros com custo.
@@ -42,6 +40,14 @@
     ocupado:function(){return CC.aba==="importar"&&CC.lote&&CC.lote.isConnected?"a conferência da importação (salve os pedidos ou saia de Importar)":""}});
   function ccLoja(c){return NUCLEO.CO_LOJAS[c.loja]||c.loja}
   function ccFonte(t){return h("p",{class:"sub pnfonte",text:"Fonte: "+t})}
+  /* por que o pedido entra ou não nas despesas, em uma frase (a regra é NUCLEO.coRegra, a mesma do Painel e do Hoje) */
+  function ccSituacaoTexto(c){var r=NUCLEO.coRegra(c),M={cancelada:"✕ Compra cancelada (confirmada por você): fora das despesas.",
+      fora_das_contas:"Compra registrada, fora das despesas (já contada em outro lugar"+(c.motivo_fora?": "+c.motivo_fora:"")+").",
+      pendente:"⏳ Pedido pendente (autorizado ou com status desconhecido): "+brl(r.pendente)+" fora das despesas até ser efetivado.",
+      referencia_historica:"Histórico da Amazon (compra física): só referência, não entra nas despesas.",
+      outro_modulo:"Este registro pertence a outro módulo (Mercado ou Veículos): não entra nas despesas de Compras.",
+      sem_valor:"Sem valor numérico: não entra nas despesas.",sem_data:"Sem data: não entra nas despesas."};
+    return r.conta?"✓ "+(r.valor!==+c.total_pago?"Parte digital do histórico":"Compra confirmada")+" · despesa de "+brl(r.valor)+" em "+dataBR(c.data):M[r.motivo]}
   function ccVazio(t){return h("p",{class:"empty",text:t})}
   function ccMes(m){return MES3[+m.slice(5,7)-1]+"/"+m.slice(0,4)}
   /* links temporários do cofre (1 hora), um pedido de cada vez */
@@ -66,18 +72,19 @@
 
   /* ---------- Resumo ---------- */
   function ccResumo(){
-    var L=[],meses=NUCLEO.pnMeses(hojeISO(),12),mes=meses[11],D=NUCLEO.coDespesas(CC.dados),doMes=D.filter(function(x){return x.d.slice(0,7)===mes}),ano=D.filter(function(x){return x.d>=meses[0]+"-01"});
-    var p=panel("Resumo","Pelo total efetivamente pago de cada pedido (com desconto, frete e taxas). Compras marcadas como já contadas em outro lugar ficam fora.");
+    var L=[],R=NUCLEO.coResumo(CC.dados,{hoje:hojeISO()}),P=R.periodo,meses=P.meses;
+    var p=panel("Resumo","Pelo total efetivamente pago de cada pedido (com desconto, frete e taxas). Ficam fora dos totais: cancelados, pedidos pendentes, compras marcadas como já contadas em outro lugar, histórico físico da Amazon e registros de outro módulo.");
     if(!CC.dados.length){p.appendChild(ccVazio("Nenhuma compra ainda. Use “Importar” para trazer o PDF, a nota fiscal, o CSV ou os e-mails da loja."));
       p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#compras/importar",text:"Importar compras"})));L.push(p);return L}
-    var soma=function(l){return l.reduce(function(s,x){return s+x.v},0)};
-    var econ=CC.dados.filter(function(c){return c.data>=meses[0]+"-01"&&!c.fora_das_contas}).reduce(function(s,c){return s+(c.desconto||0)},0);
-    p.appendChild(rsKpis([["Este mês",brl(soma(doMes))],["Pedidos no mês",doMes.length],["Últimos 12 meses",brl(soma(ano))],["Descontos (12 meses)",brl(econ)],["Ticket médio",ano.length?brl(soma(ano)/ano.length):""]]));
-    var B=meses.map(function(m){return {k:m,cima:MES3[+m.slice(5,7)-1],baixo:m.slice(2,4),nome:ccMes(m)}}),pm=NUCLEO.pnPorMes(D,meses);
+    p.appendChild(rsKpis([["Este mês",brl(P.doMes.total)],["Pedidos no mês",P.doMes.n],["Últimos 12 meses",brl(P.ano.total)],["Economia (12 meses)",brl(P.descontos.economia)],["Ticket médio",P.ano.ticket!=null?brl(P.ano.ticket):""]]));
+    var FN={cancelada:["cancelada","canceladas"],pendente:["pendente","pendentes"],fora_das_contas:["fora das contas","fora das contas"],referencia_historica:["de referência histórica","de referência histórica"],outro_modulo:["de outro módulo","de outro módulo"]},
+      nt=Object.keys(FN).filter(function(k){return R.fora[k].n}).map(function(k){return R.fora[k].n+" "+FN[k][R.fora[k].n===1?0:1]+" ("+brl(R.fora[k].valor)+")"});
+    if(nt.length)p.appendChild(h("p",{class:"sub",text:"Fora dos totais (todas as datas): "+nt.join(" · ")+"."}));
+    if(P.descontos.economia>0)p.appendChild(h("p",{class:"sub",text:"Economia sem duplicidade: desconto geral "+brl(P.descontos.gerais)+" + desconto nos itens "+brl(P.descontos.itens)+" = "+brl(P.descontos.economia)+(P.descontos.incertos?". Em "+P.descontos.incertos+(P.descontos.incertos===1?" pedido":" pedidos")+" não dá para provar se o desconto do pedido já inclui o dos itens: vale o maior dos dois, nunca a soma.":".")}));
+    var B=meses.map(function(m){return {k:m,cima:MES3[+m.slice(5,7)-1],baixo:m.slice(2,4),nome:ccMes(m)}}),pm=P.porMes;
     p.appendChild(h("h3",{class:"mbag",text:"Por mês"}));
     p.appendChild(rsColunas(B,meses.map(function(m){return pm[m].total}),function(v){return v>=1000?fmtN(Math.round(v/100)/10)+" mil":String(Math.round(v))},function(i,v){return [B[i].nome,v?brl(v)+" · "+pm[meses[i]].n+(pm[meses[i]].n===1?" pedido":" pedidos"):"sem compras"]}));
-    var cat={},loja={};ano.forEach(function(x){cat[x.cat]=(cat[x.cat]||0)+x.v});
-    CC.dados.forEach(function(c){if(c.fora_das_contas||c.data<meses[0]+"-01")return;var k=c.vendedor&&c.loja==="outra"?c.vendedor:ccLoja(c);loja[k]=(loja[k]||0)+(c.total_pago||0)});
+    var cat=P.porCategoria,loja=P.porLoja;
     var barras=function(o,suf){return rsBarras(Object.keys(o).sort(function(a,b){return o[b]-o[a]}).slice(0,10).map(function(k){return {nome:k,v:o[k],txt:brl(o[k]),dica:brl(o[k])+" "+suf}}))};
     if(Object.keys(cat).length){p.appendChild(h("h3",{class:"mbag",text:"Por categoria (12 meses)"}));p.appendChild(barras(cat,"em 12 meses"))}
     if(Object.keys(loja).length){p.appendChild(h("h3",{class:"mbag",text:"Por loja (12 meses)"}));p.appendChild(barras(loja,"em 12 meses"))}
@@ -96,13 +103,16 @@
     if(!CC.dados.length){p.appendChild(ccVazio("Nenhuma compra ainda."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#compras/importar",text:"Importar compras"})));return [p]}
     var q=h("input",{type:"search",placeholder:"Buscar (produto, loja ou número do pedido)","aria-label":"Buscar compras"}),lista=h("div");p.appendChild(q);p.appendChild(lista);
     function draw(){lista.innerHTML="";var nq=NUCLEO.norm(q.value.trim()),por={};
-      CC.dados.filter(function(c){return !nq||NUCLEO.norm([c.numero,c.vendedor,ccLoja(c),c.itens.map(function(i){return i.descricao}).join(" ")].join(" ")).indexOf(nq)>=0}).forEach(function(c){(por[c.data.slice(0,7)]=por[c.data.slice(0,7)]||[]).push(c)});
-      var ks=Object.keys(por).sort().reverse();if(!ks.length){lista.appendChild(ccVazio("Nada encontrado."));return}
-      ks.forEach(function(m){var l=por[m];lista.appendChild(h("h3",{class:"mbag",text:ccMes(m)+" · "+l.length+(l.length===1?" compra":" compras")+" · "+brl(l.reduce(function(s,c){return s+(c.fora_das_contas?0:c.total_pago)},0))}));
-        lista.appendChild(h("ul",{class:"wl"},l.map(function(c){var b=h("button",{type:"button",class:"ccitem","aria-expanded":String(CC.aberto===c.id)},h("span",{class:"when",text:dataBR(c.data).slice(0,5)}),
+      var vis=CC.dados.filter(function(c){return !nq||NUCLEO.norm([c.numero,c.vendedor,ccLoja(c),c.itens.map(function(i){return i.descricao}).join(" ")].join(" ")).indexOf(nq)>=0});
+      vis.forEach(function(c){(por[c.data.slice(0,7)]=por[c.data.slice(0,7)]||[]).push(c)});
+      var M=NUCLEO.coResumo(vis).mensal,ks=Object.keys(por).sort().reverse();if(!ks.length){lista.appendChild(ccVazio("Nada encontrado."));return}
+      ks.forEach(function(m){var l=por[m];lista.appendChild(h("h3",{class:"mbag",text:ccMes(m)+" · "+l.length+(l.length===1?" compra":" compras")+" · "+brl(M[m]?M[m].total:0)}));
+        lista.appendChild(h("ul",{class:"wl"},l.map(function(c){var rot=NUCLEO.coRotulo(c),chips=[rot.status].concat(rot.extras).map(function(x){return h("span",{class:"ccst ccst-"+x.tom,text:x.texto})});
+          var b=h("button",{type:"button",class:"ccitem","aria-expanded":String(CC.aberto===c.id)},h("span",{class:"when",text:dataBR(c.data).slice(0,5)}),
             h("span",{class:"grow"},h("b",{text:c.itens.length?c.itens[0].descricao+(c.itens.length>1?" + "+(c.itens.length-1):""):"Pedido "+c.numero}),
-              h("span",{class:"sub",text:ccLoja(c)+" · "+c.numero+(c.docs.length?" · 📎 "+c.docs.length:"")+(c.recorrencia_status==="a_confirmar"?" · 🔁 a confirmar":c.recorrencia_status==="confirmada"?" · 🔁":"")+((c.divergencias||[]).length?" · ⚠":"")+(c.fora_das_contas?" · fora das contas":"")})),
-            h("b",{class:"mkt",text:brl(c.total_pago)}));var li=h("li",{class:"ccli"},b);
+              h("span",{class:"sub",text:ccLoja(c)+" · "+c.numero+(c.docs.length?" · 📎 "+c.docs.length:"")+(c.recorrencia_status==="a_confirmar"?" · 🔁 a confirmar":c.recorrencia_status==="confirmada"?" · 🔁":"")+((c.divergencias||[]).length?" · ⚠":"")}),
+              h("span",{class:"cchips"},chips)),
+            h("b",{class:"mkt"+(rot.regra.conta?"":" ccfora"),text:brl(c.total_pago)}));var li=h("li",{class:"ccli"},b);
           b.onclick=function(){CC.aberto=CC.aberto===c.id?null:c.id;draw()};if(CC.aberto===c.id)li.appendChild(ccDetalhe(c));return li})))})}
     q.addEventListener("input",draw);draw();return [p]}
   function ccDetalhe(c){var d=h("div",{class:"ccdet"}),st=h("p",{class:"sub",role:"status"}),imgs={};
@@ -112,7 +122,7 @@
           h("td",{class:"num",text:brl(i.total)+(i.desconto?" (−"+brl(i.desconto)+")":"")}))}))));d.appendChild(tab);
     var conta=[["Subtotal",c.subtotal],["Desconto",c.desconto?-c.desconto:0],["Frete",c.frete],["Taxas",c.taxas]].filter(function(l){return l[1]||l[0]==="Subtotal"}).map(function(l){return h("li",null,h("span",{class:"grow",text:l[0]}),h("span",{text:(l[1]<0?"−":"")+brl(Math.abs(l[1]))}))});
     conta.push(h("li",null,h("b",{class:"grow",text:"Total pago (despesa)"}),h("b",{text:brl(c.total_pago)})));d.appendChild(h("ul",{class:"wl ccconta"},conta));
-    d.appendChild(h("p",{class:"ccok",text:c.status==="cancelado"?"✕ Compra cancelada (confirmada por você): fora das despesas.":c.fora_das_contas?"Compra registrada, fora das despesas (já contada em outro lugar"+(c.motivo_fora?": "+c.motivo_fora:"")+").":"✓ Compra confirmada · despesa de "+brl(c.total_pago)+" em "+dataBR(c.data)}));
+    d.appendChild(h("p",{class:"ccok",text:ccSituacaoTexto(c)}));
     if(c.status==="cancelamento_informado"||c.status==="reembolso_informado"){var cb=h("div",{class:"vfil"}),canc=c.status==="cancelamento_informado";
       d.appendChild(h("div",{class:"ccaviso"},h("b",{text:canc?"⚠ A loja informou um cancelamento":"⚠ A loja informou um reembolso"}),h("p",{class:"sub",text:canc?"Nada saiu das despesas sozinho. Se o pedido inteiro foi cancelado, confirme; se foi só uma parte, edite os valores.":"O valor não muda sozinho. Se o reembolso foi do pedido inteiro, confirme o cancelamento; se foi parcial, edite os valores."}),cb));
       [["cancelado","Confirmar cancelamento (sai das despesas)"],[null,"Não foi cancelado"]].forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
@@ -157,10 +167,10 @@
 
   /* ---------- Produtos e recorrências ---------- */
   function ccProdutos(){var L=[],P=NUCLEO.coPrecos(CC.dados),imgs={};
-    var p=panel("Produtos","Cada produto comprado (pelo nome padronizado): quantas vezes, o último preço, o menor e a variação.");
+    var p=panel("Produtos","Cada produto comprado (pelo nome padronizado): quantas vezes, o último preço, o menor e a variação. O preço é o pago por unidade, já com o desconto do item (o desconto geral do pedido não é rateado); pedidos cancelados e pendentes ficam de fora; entram as compras fora das contas, do histórico (físico e digital) e de outro módulo, identificadas na linha. O preço por kg ou litro só aparece quando o nome do produto traz o tamanho.");
     if(!P.length){p.appendChild(ccVazio("Nenhum produto ainda."));L.push(p);return L}
     p.appendChild(h("ul",{class:"wl"},P.slice(0,200).map(function(x){var im=h("span",{class:"ccthumb"});if(x.img)imgs[x.img]=im;
-      return h("li",null,im,h("span",{class:"grow"},h("b",{text:x.nome}),h("span",{class:"sub",text:x.vezes+(x.vezes===1?" compra":" compras")+" · último "+brl(x.ultimo.u)+" em "+dataBR(x.ultimo.d)+(x.vezes>1?" · menor "+brl(x.menor)+(x.variacao!=null?" · "+(x.variacao>0?"+":"")+Math.round(x.variacao)+"% desde a 1ª":""):"")})))})));
+      return h("li",null,im,h("span",{class:"grow"},h("b",{text:x.nome}),h("span",{class:"sub",text:x.vezes+(x.vezes===1?" compra":" compras")+" · último "+brl(x.ultimo.u)+" em "+dataBR(x.ultimo.d)+(x.vezes>1?" · menor "+brl(x.menor)+(x.variacao!=null?" · "+(x.variacao>0?"+":"")+Math.round(x.variacao)+"% desde a 1ª":""):"")+(x.base?" · "+brl(x.base.ultimo)+"/"+x.base.por+(x.base.menor<x.base.ultimo?" (menor "+brl(x.base.menor)+"/"+x.base.por+")":""):"")+(x.outros_modulos?" · inclui "+x.outros_modulos+(x.outros_modulos===1?" compra":" compras")+" de outro módulo ("+Object.keys(x.origens).filter(function(m){return m!=="compras"}).map(function(m){return m==="mercado"?"Mercado":"Veículos"}).join(", ")+")":"")+(x.historico.some(function(z){return z.reembolso})?" · há reembolso informado ou recebido (o preço continua no histórico)":"")})))})));
     ccUrls(Object.keys(imgs)).then(function(u){Object.keys(imgs).forEach(function(k){if(u[k])imgs[k].appendChild(h("img",{src:u[k],alt:"",loading:"lazy"}))})});
     p.appendChild(ccFonte("Central de Compras (preço unitário de cada compra)"));L.push(p);
     var R=NUCLEO.coRecorrencias(CC.dados);var pr=panel("Recorrências","Informadas pela loja (entrega automática, assinatura) ou percebidas (o mesmo produto comprado mais de uma vez). A próxima data é só uma estimativa: nenhuma compra é criada.");
@@ -378,7 +388,7 @@
     [numero,data,vend,pag].concat(Object.keys(V).map(function(k){return V[k]})).forEach(function(e){e.addEventListener("input",conf)});loja.addEventListener("change",conf);
     var dupOk=!(o.dup&&o.dup.nivel==="possivel");
     function coletar(){var x={id:ex?ex.id:null,loja:loja.value,numero:numero.value.trim(),data:data.value,vendedor:vend.value.trim()||null,pagamento:NUCLEO.coPagamento(pag.value)||(pag.value.trim().replace(/\d{5,}/g,"")||null),
-        categoria:cat.value||null,observacoes:obs.value.trim()||null,itens:regs.map(function(r){return {descricao:r.d.value.trim(),qtd:+String(r.q.value||"1").replace(",",".")||1,total:NUCLEO.coNum(r.t.value),desconto:NUCLEO.coNum(r.ds.value)||0,categoria:r.c.value,codigo:r.i.codigo||null,imagem_path:r.i.imagem_path||null}}).filter(function(i){return i.descricao})};
+        categoria:cat.value||null,observacoes:obs.value.trim()||null,itens:regs.map(function(r){return {descricao:r.d.value.trim(),qtd:+String(r.q.value||"1").replace(",",".")||1,total:NUCLEO.coNum(r.t.value),desconto:NUCLEO.coNum(r.ds.value)||0,categoria:r.c.value,codigo:r.i.codigo||null,imagem_path:r.i.imagem_path||null,natureza:r.i.natureza||null,total_linha:r.i.total_linha!=null?r.i.total_linha:null,situacao:r.i.situacao||null}}).filter(function(i){return i.descricao})};
       Object.keys(V).forEach(function(k){x[k]=NUCLEO.coNum(V[k].value)});if(x.desconto==null)x.desconto=0;if(x.frete==null)x.frete=0;if(x.taxas==null)x.taxas=0;
       var rr=NUCLEO.coRecorrencia(recEl.value)||(recEl.value.trim()?{texto:recEl.value.trim(),meses:null}:null);x.recorrencia=rr;return x}
     function conf(){if(!editavel){salvar.disabled=!docsNovos.length||sal;falta.textContent=docsNovos.length?"":"Todos os documentos deste pedido já estão guardados.";return {ok:!!docsNovos.length}}
@@ -404,7 +414,8 @@
       recorrencia_texto:x.recorrencia?x.recorrencia.texto:null,recorrencia_meses:x.recorrencia?x.recorrencia.meses:null,observacoes:x.observacoes,divergencias:(ant?ant.divergencias||[]:[]).concat(divs||[])};
     if(x.recorrencia&&!(ant&&ant.recorrencia_status))linha.recorrencia_status="a_confirmar";if(!x.recorrencia)linha.recorrencia_status=null;
     if(cand){["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(cand[k])linha[k]=cand[k]})}
-    var itens=x.itens.map(function(i,n){return {compra_id:id,ordem:n,descricao:i.descricao.slice(0,200),codigo:i.codigo,qtd:i.qtd,unitario:i.total!=null?Math.round(i.total/i.qtd*100)/100:null,total:i.total,desconto:i.desconto||0,categoria:i.categoria,imagem_path:i.imagem_path}});
+    var itens=x.itens.map(function(i,n){var o={compra_id:id,ordem:n,descricao:i.descricao.slice(0,200),codigo:i.codigo,qtd:i.qtd,unitario:i.total!=null?Math.round(i.total/i.qtd*100)/100:null,total:i.total,desconto:i.desconto||0,categoria:i.categoria,imagem_path:i.imagem_path};
+      if(i.natureza)o.natureza=i.natureza;if(i.total_linha!=null)o.total_linha=i.total_linha;if(i.situacao)o.situacao=i.situacao;return o});
     var passo;
     if(ant){var v={em:ant.atualizado_em||ant.criado_em,quando:agora};["numero","data","subtotal","desconto","frete","taxas","total_pago","pagamento","vendedor","categoria"].forEach(function(k){if(ant[k]!=null)v[k]=ant[k]});v.itens=ant.itens.map(function(i){return {descricao:i.descricao,qtd:i.qtd,total:i.total}});
       linha.versoes=(ant.versoes||[]).concat([v]).slice(-10);linha.atualizado_em=agora;

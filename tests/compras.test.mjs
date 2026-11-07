@@ -100,7 +100,7 @@ test("Painel: cada compra entra uma vez pelo total pago; marcada como já contad
   const compras = [{ data: "2026-10-01", valor_total: 30, categoria: "Mercearia" }];
   assert.deepEqual(N.pnDespesas(compras, [], [], null, [], c).slice(1), N.pnDespesas(compras, [], [], null, []));
   const pn = ler("js/painel.js");
-  assert.match(pn, /SB\.from\("compras_online"\)\.select\("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,compras_online_itens/);
+  assert.match(pn, /SB\.from\("compras_online"\)\.select\("id,data,loja,vendedor,total_pago,categoria,fora_das_contas,status,canal,natureza,historico,origem,impostos_info,compras_online_itens/);
   assert.match(pn, /D\.online&&D\.online\.ok\?D\.online\.v:\[\]\)/); assert.match(pn, /function pnOnline\(D,B\)/);
 });
 test("SQL 025: casa, RLS, trava da 2ª etapa, nada para anon, conta fechada, cofre com os originais; 022, backup e tela integrados", () => {
@@ -203,7 +203,7 @@ test("Lote 1 · P1: o texto extraído é gravado sem CPF, telefone, e-mail, CEP,
   assert.match(ler("js/compras.js"), /ext=NUCLEO\.coLimparExtraido\(ext\);[\s\S]*?SB\.from\("compras_online_docs"\)\.insert/, "limpa antes de gravar");
 });
 test("Lote 1 · D1: compra cancelada fica fora do Painel e do Hoje (e não pede recorrência)", () => {
-  assert.match(ler("js/painel.js"), /compras_online_itens\(descricao,total,desconto,categoria\),status"\)/); assert.match(ler("js/painel.js"), /fora_das_contas:c\.fora_das_contas,status:c\.status,/);
+  assert.match(ler("js/painel.js"), /fora_das_contas,status,canal,natureza,historico,origem,impostos_info,compras_online_itens\(descricao,total,desconto,categoria,natureza,total_linha,situacao\)"\)/); assert.match(ler("js/painel.js"), /return l\.map\(NUCLEO\.coDeBanco\)\}\)\)\]\)/);
   assert.match(ler("js/hoje.js"), /select\("data,loja,total_pago,fora_das_contas,status,recorrencia_status/);
   const f = { compras: { ok: true, v: [{ data: "2026-11-02", total_pago: 100 }, { data: "2026-11-03", total_pago: 40, status: "cancelado" }, { data: "2026-11-03", total_pago: 7, status: "cancelamento_informado" }] } };
   assert.equal(N.hojeFinancas(f, "2026-11-05").atual.compras, 107, "só o cancelado confirmado sai");
@@ -216,8 +216,8 @@ test("Lote 1 · D2/D4: duplicidade lê Mercado, Alimentação e Abastecimento; l
   for (const o of ["Mercado", "Alimentação", "Abastecimento"]) assert.match(js, new RegExp('origem:"' + o + '"'));
   assert.match(js, /SB\.from\("registros"\)\.select\("id,data,titulo,dados"\)\.eq\("tipo","abastecimento"\)/);
   assert.match(js, /\.order\("criado_em",\{ascending:false\}\)\.order\("id",\{ascending:false\}\)/);
-  assert.match(ler("js/painel.js"), /\.order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\n\s+\.then\(function\(l\)\{return l\.map\(function\(c\)\{return \{id:c\.id/);
-  assert.match(ler("js/hoje.js"), /order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\.then\(function\(l\)\{return \{v:l,vazio:!l\.length,ultimo:hojeUltimo\(l,"data"\),origem:"banco"\}\}\)\},\n\s+orcamentos/);
+  assert.match(ler("js/painel.js"), /\.order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\n\s+\.then\(function\(l\)\{return l\.map\(NUCLEO\.coDeBanco\)\}\)\)\]\)/);
+  assert.match(ler("js/hoje.js"), /order\("data"\)\.order\("id"\)\.range\(f,f\+999\)\}\)\.then\(function\(l\)\{l=l\.map\(NUCLEO\.coDeBanco\);return \{v:l,vazio:!l\.length,ultimo:hojeUltimo\(l,"data"\),origem:"banco"\}\}\)\},\r?\n\s+orcamentos/);
   assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Abastecimento", data: "2026-10-05", total: 30, nome: "Posto" }]).nivel, "possivel");
   assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Mercado", data: "2026-10-06", total: 30 }]), null);
 });

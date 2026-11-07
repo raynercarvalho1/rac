@@ -1,7 +1,7 @@
 # Central de Compras (compras online)
 
 Página `#compras` (menu → Compras online), código em `js/compras.js`, contas em `nucleo.js` (`NUCLEO.co*`, testes em
-`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`).
+`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`); a versão publicada mais recente é a `2026-11-07.1` (Central Fiscal). O Lote 5.0 (seção "Lote 5.0" abaixo) está só no código local, não publicado.
 
 ## O que faz
 
@@ -73,7 +73,7 @@ verificar o aplicativo: aparece o aviso de "app em teste" no consentimento, e o 
 - **Recorrência:** a informada pela loja ("entrega automática a cada 4 meses") fica **a confirmar** (Confirmar/Descartar na
   compra). A próxima data aparece só como estimativa; **nenhuma compra futura é criada**. Também aparecem as recorrências
   percebidas (o mesmo produto comprado mais de uma vez).
-- **Histórico de preços por produto** (`coPrecos`), pelo nome padronizado (`alChaveProduto`).
+- **Histórico de preços por produto** (`coPrecos`), pelo nome padronizado (`alChaveProduto`). Desde o Lote 5.0 o preço é o **pago**, com o desconto do item (seção "Lote 5.0").
 - **Categorias** (`CO_CATEGORIAS`): Pet, Saúde e farmácia, Casa, Eletrônicos, Higiene e beleza, Bebê, Alimentação, Livros e
   papelaria, Veículos, Vestuário, Presentes, Outros. São sugeridas pelo nome do produto e podem ser trocadas na conferência.
 - **Lote:** vários arquivos de uma vez; um quadro de conferência por pedido e "Salvar todos os que estão prontos".
@@ -191,9 +191,8 @@ Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Aplica
 - **Backup:** as tabelas novas estão em `NUCLEO.SEG_TABELAS` (pais antes dos filhos) e os originais das notas vão em `anexos/` do .zip do site. O
   **backup semanal do servidor** (dentro da função `garmin`, que não muda) não inclui nenhuma tabela de Compras nem fiscal: incluir exige alterar a
   função e fica como proposta separada.
-- **Pendências de interface (não implementadas):** os selects do **Painel e Hoje** (`js/painel.js`, `js/hoje.js`) precisam passar a trazer `canal`,
-  `natureza`, `historico`, `status` e os produtos (`natureza`, `total_linha`, `situacao`) para a classificação multiorigem valer sobre dados do banco;
-  ligar `compras_gravar`, a tela de reembolsos/estorno e a importação.
+- **Pendências de interface (não implementadas):** ligar `compras_gravar`, a tela de reembolsos/estorno e a importação. (Os selects do **Painel, Hoje e Compras** já trazem `canal`,
+  `natureza`, `historico`, `origem`, `impostos_info`, `status` e os produtos desde o Lote 5.0.)
 - **Revisão de segurança das vistas e dos privilégios:** vista comum não tem RLS própria; por isso `compras_creditos` e `compras_creditos_historico` usam
   `security_invoker = true` (PostgreSQL 15+; a 031 e a 033 param com erro claro em versão menor) e leem tabelas que têm RLS: a regra da casa e a política
   restritiva "mfa". **A trava da 2ª etapa vem dessa política das tabelas de baixo, não da vista** (RLS e MFA são coisas separadas: o RLS filtra por casa; o "mfa"
@@ -207,4 +206,72 @@ Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Aplica
 - **Antes:** Postgres 17.11; cadastro público e login anônimo do Auth desligados e e-mail confirmado ligado (informado pelo proprietário); 025, 026 e 027 aplicadas; bucket `familia` privado; nenhum objeto da 030 a 033 existia; 1 compra (status vazio, origem `manual`), 2 contas, 0 fatores TOTP. Backup feito pelo proprietário antes de aplicar.
 - **Depois (consulta só-leitura, tudo como esperado):** 7 tabelas e 2 views novas; as 2 views com `security_invoker`; RLS ligado nas 7 tabelas com a política restritiva `mfa` e as políticas da casa (8); `anon` sem nenhum privilégio nas 9 relações; `authenticated` só com `select` nas views e só `select`/`insert` nos estornos; 13 funções novas, nenhuma `security definer`, todas com `search_path` fixo e fechadas para `anon`; RPCs `compras_gravar`, `reembolso_confirmar` e `reembolso_estornar` executáveis por `authenticated`; 8 constraints, 7 gatilhos e 5 índices únicos novos; a regra de status é `NOT VALID`; `seguranca_estado()` cobre as tabelas novas; tabelas novas vazias; a compra antiga intacta (sem marca nova, mesmo status e origem), com seu item e documento; bucket e políticas do Storage intactos.
 - **Não comprovado (continua pendente):** sessão real com MFA/aal2 (não há conta com TOTP), acesso real ao Storage pela RPC (exigiria enviar um arquivo), concorrência real nos reembolsos, e uso das views e RPCs pela API (PostgREST) com uma sessão autenticada. Nenhum teste criou compra, nota ou reembolso reais.
-- **Interface:** nada do site usa as tabelas novas ainda; as consultas de Painel e Hoje precisam passar a trazer `canal`, `natureza`, `historico` e os campos dos produtos.
+- **Interface:** o site ainda não usa as tabelas e RPCs novas (`compras_gravar`, reembolsos, importações). As consultas de Painel, Hoje e Compras já trazem `canal`, `natureza`, `historico`, `origem`, `impostos_info` e os campos dos produtos (Lote 5.0, só no código local).
+
+## Lote 5.0 · uma só regra financeira (07/11/2026, só no código local; nada publicado, sem SQL)
+
+`NUCLEO.coResumo` (`nucleo.js`, testes em `tests/compras_resumo.test.mjs`) concentra as contas que antes estavam espalhadas em `compras.js`
+(Resumo e lista), `painel.js` e `hoje.js`. Resumo, cabeçalho da lista, Painel e Hoje passam pela mesma regra, então os totais batem.
+
+**Peças (todas puras, no núcleo):**
+
+| Função | Faz |
+|---|---|
+| `coRegra(c)` | decide se o pedido entra nas despesas, com que valor e, se não entra, o motivo |
+| `coValorDespesa(c)` | o valor que o pedido soma (0 quando fica de fora); é o que o Hoje usa |
+| `coResumo(lista, {hoje})` | linhas que contam, regra de cada pedido, total por mês (para a lista), o que ficou de fora por motivo e o período de 12 meses (mês, ano, ticket, por mês/categoria/loja, descontos) |
+| `coDespesas(lista)` | `coResumo(lista).despesas`: o Painel soma isto; o formato `{d, v, f, cat, id}` não mudou |
+| `coRotulo(c)` | selo de status e selos do tratamento financeiro, só com estados que já existem |
+| `coDeBanco(linha)` | linha do banco → formato das regras (números, `itens` com `natureza`, `total_linha`, `situacao`; os demais campos como vieram) |
+| `coPrecoLiquido`, `coMultipack` | preço pago do item; detector de pacote/kit (para o preço por kg/litro) |
+| `coDescontos(c)` | desconto de um pedido sem duplicidade: geral, itens e total, com o modo (contemplado, somado, incerto, sem_itens) |
+| `coSegmentoDe(c)` | deduz supermercado/combustível de campos que existem no banco (ver abaixo) |
+| `coPedidoNoPreco(c)`, `coItemNoPreco(i)` | quem entra no histórico de preços |
+
+**Regras (motivo → o que conta):**
+
+| Motivo | Quando | Despesa |
+|---|---|---|
+| `conta` | compra normal, de qualquer canal, e registro antigo (sem os campos novos); `cancelamento_informado` e `reembolso_informado` até o dono confirmar | total pago |
+| `conta` (digital) | Amazon histórico digital efetivado; no misto, só a parte digital | parte digital, em "Compras online · Digital" |
+| `cancelada` | status `cancelado` (confirmado pelo dono) | 0 |
+| `fora_das_contas` | o dono marcou "já está contada em outro lugar" | 0 |
+| `referencia_historica` | Amazon físico histórico (e a parte física do misto), em qualquer status | 0 (só indicadores da Amazon) |
+| `outro_modulo` | supermercado/combustível: `segmento` explícito (prevalece) ou, sem ele (dado do banco), canal `presencial` + categoria Supermercado/Mercado (→ Mercado) ou Combustível/Abastecimento (→ Veículos) | 0 (fica no Mercado/Veículos) |
+| `pendente` | `autorizado` e `desconhecido` (e histórico sem status); no histórico, também o **item digital autorizado ou desconhecido** dentro de pedido concluído (só o valor dele) | 0; o valor aparece como pendente |
+| `sem_data` / `sem_valor` | data ausente; total null, vazio ou não numérico | 0, e não conta como pedido |
+
+- **Os três mecanismos não se misturam:** `fora_das_contas` é decisão manual por pedido; `referencia_historica` é regra do histórico da Amazon; `outro_modulo` é
+  pertencimento a outro módulo. Cada um tem o seu próprio total em `coResumo().fora` (`{n, valor}`).
+- **Precedência do rótulo** quando mais de um vale (o valor é zero em todos): cancelada, fora_das_contas, outro_modulo, depois o resto.
+- **Descontos (decisão de 07/11/2026):** gerais e individuais ficam separados e a **economia total** nunca conta duas vezes (`coDescontos`). O desconto do pedido pode já
+  conter o dos itens (NF-e: o `vDesc` do total é a soma dos itens) ou ser outra camada; a evidência está nos valores gravados. Subtotal ≈ soma dos itens **brutos** e desconto do
+  pedido ≥ o dos itens → **contemplado** (economia = desconto do pedido; geral = o que passa dos itens). Subtotal ≈ soma dos itens **líquidos** → **somado** (as duas camadas).
+  Sem subtotal ou sem nenhuma das duas conferências → **incerto**: nunca se soma, vale o maior dos dois (piso) e a tela avisa quantos pedidos estão assim. Só entram pedidos que contam.
+  O indicador do Resumo passou a se chamar "Economia (12 meses)", com a nota "desconto geral + desconto nos itens = economia".
+- **Preço histórico (`coPrecos`, decisão de 07/11/2026):** preço pago = (total do item − desconto do item) ÷ quantidade; sem total, o unitário menos o desconto por unidade. O
+  desconto geral do pedido **não é rateado**. **Entram:** confirmadas (inclusive com cancelamento ou reembolso apenas *informado*), fora das contas, histórico físico e digital e
+  compras de outro módulo. **Saem:** canceladas, pendentes (autorizado e desconhecido) e os itens cancelados, autorizados ou desconhecidos. Cada ponto leva a
+  **origem** (`origem`: módulo, canal, histórico, natureza, tratamento, fora_das_contas) e cada produto leva `origens` (contagem por módulo) e `outros_modulos`; a tela escreve
+  "inclui N compras de outro módulo (Mercado, Veículos)". **Reembolso nunca apaga o preço:** informado marca o ponto como "informado"; recebido (só o confirmado e válido de
+  `coReembCreditos`, passado como 2º argumento) marca "recebido" e traz o evento (valor, mês) à parte em `eventos`. A tela ainda não lê a tabela de reembolsos, então hoje só aparece
+  o "informado". **Preço por kg/litro** (`base`, via `alPrecoBase`): só quando todas as compras do produto trazem o tamanho no nome, na mesma unidade, e o nome não indica pacote
+  ou kit; senão é `null` e nada é inventado.
+- **Status na tela:** selo de status (Confirmada, Concluída, Cancelada, Cancelamento informado, Reembolso informado, Autorizada · pendente, Status desconhecido ·
+  pendente) e, à parte, selo do tratamento (Fora das contas, Referência histórica, Digital · histórico, Histórico misto, Outro módulo). O valor de quem não conta
+  aparece riscado. Nenhum estado novo foi criado.
+- **Correção de leitura:** o `coClassificar` procurava `status_norm` no item, mas o banco grava `situacao`; item cancelado do histórico entrava na parte digital.
+  Agora lê `status_norm` ou `situacao`.
+- **Selects:** Painel, Hoje e Compras passaram a ler `canal`, `natureza`, `historico`, `origem` (o `coClassificar` usa para reconhecer `historico_amazon`),
+  `impostos_info` (só informativo: nunca entra no total) e `categoria` (no Hoje, para deduzir o módulo) e, nos produtos, `natureza`, `total_linha` e `situacao`. Antes o histórico físico lido do banco virava despesa comum.
+  A tela de edição não descarta mais `natureza`, `total_linha` e `situacao` do produto ao regravar.
+- **`segmento` sem coluna (decisão de 07/11/2026):** não existe coluna `segmento` no banco e não se criou migration. No dado do Supabase, `coSegmentoDe` deduz de `canal` e
+  `categoria`, que existem: só compra de canal **presencial** com categoria Supermercado/Mercado ou Combustível/Abastecimento (sem acento e sem diferenciar maiúsculas) sai de Compras.
+  Compra online (Amazon, Shopee, Mercado Livre…) **nunca** é deduzida, mesmo com essa categoria. Um `segmento` explícito, de qualquer valor preenchido, **prevalece** e nunca é deduzido: `supermercado`/`combustivel` levam ao módulo; qualquer outro valor (ex.: `compras`) mantém em Compras. A dedução só vale com o segmento vazio. Painel, Hoje e Compras
+  precisam trazer `canal` e `categoria` no select (o Hoje passou a trazer `categoria`). A tela de lançamento ainda não oferece essas categorias; uma coluna própria ficaria para uma migration futura.
+- **Item autorizado ou desconhecido em pedido concluído (histórico):** o valor do item digital autorizado ou desconhecido fica **pendente** (fora das despesas, avisado) e o resto do pedido segue o status dele; físico
+  autorizado continua só referência; item cancelado não é nada. O importador já marca o pedido inteiro como autorizado quando algum item está; esta regra cobre o que chega ao banco
+  com o pedido concluído. Pedido que não é histórico não olha a situação do item (o total pago não se divide por item). O item autorizado ou desconhecido também sai do histórico de preços, em pedido histórico ou não.
+- **Pedido com situação desconhecida:** é pendente (`status` `desconhecido`, `status_norm` do importador e histórico sem status reconhecido): fora das despesas e do histórico de preços, com o valor
+  em `pendente`; ao ser efetivado, entra normalmente. Registro antigo não muda: texto de status legado qualquer em pedido que não é histórico segue como confirmado.
+- **Limites conhecidos:** `compras_gravar`, reembolsos e a importação do histórico seguem sem tela (Lote 5.1 e seguintes).

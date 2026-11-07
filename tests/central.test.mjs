@@ -133,7 +133,7 @@ test("Face ID na Central: cada conta vê e cadastra só as suas; remover pede co
   assert.ok(!/auth\.admin/.test(seg + app), "o site não usa a API de administrador (lista de outra conta)");
   assert.equal((seg.match(/registerPasskey\(/g) || []).length, 1);
   assert.match(seg, /cad\.onclick=function\(\)\{[^]*?SB\.auth\.registerPasskey\(\)/, "cadastro só no toque");
-  const rm = /rm\.onclick=function\(\)\{([\s\S]*?)\};\n/.exec(seg)[1];
+  const rm = /rm\.onclick=function\(\)\{([\s\S]*?)\};\r?\n/.exec(seg)[1];   // aceita LF (commit) e CRLF (checkout no Windows com autocrlf)
   assert.ok(rm.indexOf("confirm(") >= 0 && rm.indexOf("confirm(") < rm.indexOf("passkey.delete("), "confirma antes de remover");
   assert.match(seg, /root\.appendChild\(segProtecao\(\)\);root\.appendChild\(segPasskeys\(\)\);root\.appendChild\(segMfa\(\)\);/, "quem é da casa também cadastra o seu Face ID");
   assert.match(sql, /'passkey_cadastrada', 'passkey_removida'/);

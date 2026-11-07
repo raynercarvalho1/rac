@@ -104,7 +104,7 @@ três páginas e falha se outra página com dados em memória ficar de fora):
 ## Banco (pasta `supabase/`)
 
 `schema.sql` e depois `002` a `029`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
-Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: o 028 e o 029 foram aplicados em 02/11/2026).
+Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje a `035_compras_anexar_foto.sql`, preparada em 07/11/2026 e ainda não executada; o 028 e o 029 foram aplicados em 02/11/2026; a ordem das migrations 030 a 034 está em `docs/compras.md` e `docs/fiscal.md`).
 
 ## Testes (`tests/`)
 

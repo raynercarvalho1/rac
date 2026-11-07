@@ -112,7 +112,7 @@
     if(top==="resumo"){sideMark("resumo","resumo");renderResumo(parts[1],parts[2]);return}
     if(top==="painel"){sideMark("painel","painel");renderPainel(parts[1]);return}
     if(top==="alimentacao"){sideMark("alimentacao","alimentacao");renderAlimentacao(parts[1],parts[2]);return}
-    if(top==="compras"){sideMark("compras","compras");renderCompras(parts[1],parts[2]);return}
+    if(top==="compras"){sideMark("compras","compras");renderCompras(parts[1],parts[2],parts[3]);return}
     if(top==="fiscal"){sideMark("fiscal","fiscal");renderFiscal();return}
     if(top==="rachoje"){sideMark("rachoje","rachoje");renderHoje();return}
     if(top==="iacustos"){sideMark("iacustos","iacustos");renderCustosIa();return}

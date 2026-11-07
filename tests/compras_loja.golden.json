@@ -1,0 +1,3201 @@
+{
+ "aviso": "Dados FICTÍCIOS. 'esperado' foi gerado com o nucleo.js do commit d019d16 (Lote 5.0), antes do Lote 5.2.",
+ "hoje": "2026-11-10",
+ "compras": [
+  {
+   "id": "a1",
+   "numero": "701-1",
+   "data": "2026-11-02",
+   "loja": "amazon",
+   "subtotal": 110,
+   "frete": 15,
+   "taxas": 0,
+   "desconto": 10,
+   "total_pago": 115,
+   "itens": [
+    {
+     "descricao": "Ração Golden 10kg",
+     "qtd": 2,
+     "total": 110,
+     "desconto": 10,
+     "categoria": "Pet"
+    }
+   ]
+  },
+  {
+   "id": "a2",
+   "numero": "701-2",
+   "data": "2026-09-15",
+   "loja": "amazon",
+   "subtotal": 100,
+   "frete": 0,
+   "taxas": 0,
+   "desconto": 0,
+   "total_pago": 100,
+   "itens": [
+    {
+     "descricao": "Ração Golden 10kg",
+     "qtd": 1,
+     "total": 100,
+     "categoria": "Pet"
+    },
+    {
+     "descricao": "Coleira",
+     "qtd": 1,
+     "total": 0,
+     "categoria": "Pet"
+    }
+   ]
+  },
+  {
+   "id": "a3",
+   "numero": "701-3",
+   "data": "2026-10-05",
+   "loja": "amazon",
+   "frete": 9.9,
+   "taxas": 1.1,
+   "total_pago": 75,
+   "categoria": "Casa",
+   "itens": [
+    {
+     "descricao": "Panela",
+     "qtd": 1,
+     "total": 40,
+     "categoria": "Casa"
+    },
+    {
+     "descricao": "Tampa",
+     "qtd": 2,
+     "unitario": 10,
+     "categoria": "Casa"
+    },
+    {
+     "descricao": "Faca",
+     "qtd": 1,
+     "total": 8,
+     "situacao": "cancelado",
+     "categoria": "Casa"
+    },
+    {
+     "descricao": "",
+     "qtd": 1,
+     "total": 5
+    }
+   ]
+  },
+  {
+   "id": "a4",
+   "numero": "701-4",
+   "data": "2026-08-20",
+   "loja": "amazon",
+   "total_pago": 33.33,
+   "categoria": "Casa",
+   "itens": []
+  },
+  {
+   "id": "x1",
+   "data": "2026-11-03",
+   "loja": "amazon",
+   "total_pago": 40,
+   "status": "cancelado",
+   "itens": [
+    {
+     "descricao": "Panela",
+     "qtd": 1,
+     "total": 40
+    }
+   ]
+  },
+  {
+   "id": "x2",
+   "data": "2026-11-04",
+   "loja": "amazon",
+   "total_pago": 60,
+   "fora_das_contas": true,
+   "itens": [
+    {
+     "descricao": "Cadeira",
+     "qtd": 1,
+     "total": 60
+    }
+   ]
+  },
+  {
+   "id": "x3",
+   "data": "2026-11-05",
+   "loja": "amazon",
+   "canal": "presencial",
+   "categoria": "Supermercado",
+   "total_pago": 90,
+   "itens": [
+    {
+     "descricao": "Arroz 5kg",
+     "qtd": 1,
+     "total": 90
+    }
+   ]
+  },
+  {
+   "id": "x4",
+   "data": "2026-11-06",
+   "loja": "amazon",
+   "total_pago": 55,
+   "status": "autorizado",
+   "itens": [
+    {
+     "descricao": "Fone",
+     "qtd": 1,
+     "total": 55
+    }
+   ]
+  },
+  {
+   "id": "h1",
+   "numero": "D01-1",
+   "data": "2026-07-10",
+   "loja": "amazon",
+   "canal": "amazon",
+   "historico": true,
+   "natureza": "digital",
+   "status": "concluido",
+   "total_pago": 100,
+   "itens": [
+    {
+     "descricao": "Livro Kindle A",
+     "qtd": 1,
+     "total": 20,
+     "natureza": "digital",
+     "situacao": null
+    },
+    {
+     "descricao": "Livro Kindle B",
+     "qtd": 1,
+     "total": 30,
+     "natureza": "digital",
+     "situacao": "autorizado"
+    },
+    {
+     "descricao": "Livro Kindle C",
+     "qtd": 1,
+     "total": 12,
+     "natureza": "digital",
+     "situacao": "cancelado"
+    },
+    {
+     "descricao": "Capa dura",
+     "qtd": 1,
+     "total": 38,
+     "natureza": "fisica"
+    }
+   ]
+  },
+  {
+   "id": "h2",
+   "numero": "D01-2",
+   "data": "2026-10-12",
+   "loja": "amazon",
+   "canal": "amazon",
+   "historico": true,
+   "natureza": "digital",
+   "status": "concluido",
+   "total_pago": 15,
+   "itens": [
+    {
+     "descricao": "Livro Kindle A",
+     "qtd": 1,
+     "total": 15,
+     "natureza": "digital",
+     "situacao": null
+    }
+   ]
+  },
+  {
+   "id": "h3",
+   "numero": "D01-3",
+   "data": "2026-10-13",
+   "loja": "amazon",
+   "canal": "amazon",
+   "historico": true,
+   "natureza": "fisica",
+   "status": "concluido",
+   "total_pago": 80,
+   "itens": [
+    {
+     "descricao": "Monitor",
+     "qtd": 1,
+     "total": 80,
+     "natureza": "fisica"
+    }
+   ]
+  },
+  {
+   "id": "h4",
+   "numero": "D01-4",
+   "data": "2026-10-14",
+   "loja": "amazon",
+   "canal": "amazon",
+   "historico": true,
+   "natureza": "digital",
+   "status": "concluido",
+   "total_pago": 9,
+   "itens": []
+  },
+  {
+   "id": "h5",
+   "numero": "D01-5",
+   "data": "2026-10-15",
+   "loja": "amazon",
+   "canal": "amazon",
+   "historico": true,
+   "natureza": "digital",
+   "status": "desconhecido",
+   "total_pago": 11,
+   "itens": [
+    {
+     "descricao": "Filme",
+     "qtd": 1,
+     "total": 11,
+     "natureza": "digital",
+     "situacao": null
+    }
+   ]
+  },
+  {
+   "id": "s1",
+   "numero": "S1",
+   "data": "2026-10-20",
+   "loja": "shopee",
+   "total_pago": 59.8,
+   "itens": [
+    {
+     "descricao": "Cabo USB",
+     "qtd": 2,
+     "total": 59.8,
+     "categoria": "Eletrônicos"
+    }
+   ]
+  },
+  {
+   "id": "m1",
+   "numero": "M1",
+   "data": "2026-11-08",
+   "loja": "mercadolivre",
+   "subtotal": 200,
+   "desconto": 20,
+   "total_pago": 180,
+   "itens": [
+    {
+     "descricao": "Cabo USB",
+     "qtd": 1,
+     "total": 100,
+     "desconto": 10,
+     "categoria": "Eletrônicos"
+    },
+    {
+     "descricao": "Suporte",
+     "qtd": 1,
+     "total": 100,
+     "desconto": 10,
+     "categoria": "Casa"
+    }
+   ]
+  },
+  {
+   "id": "g1",
+   "numero": "G1",
+   "data": "2026-09-02",
+   "loja": "magalu",
+   "total_pago": 300,
+   "itens": [
+    {
+     "descricao": "Ventilador",
+     "qtd": 1,
+     "total": 300,
+     "categoria": "Casa"
+    }
+   ]
+  },
+  {
+   "id": "o1",
+   "numero": "O1",
+   "data": "2026-10-02",
+   "loja": "outra",
+   "vendedor": "Loja do Zé",
+   "total_pago": 25,
+   "itens": [
+    {
+     "descricao": "Cabo USB",
+     "qtd": 1,
+     "total": 25,
+     "categoria": "Eletrônicos"
+    }
+   ]
+  },
+  {
+   "id": "o2",
+   "numero": "O2",
+   "data": "2026-10-03",
+   "loja": "outra",
+   "total_pago": 12,
+   "itens": [
+    {
+     "descricao": "Pilha",
+     "qtd": 4,
+     "total": 12,
+     "categoria": "Casa"
+    }
+   ]
+  },
+  {
+   "id": "v1",
+   "numero": "V1",
+   "data": "2025-01-10",
+   "loja": "amazon",
+   "total_pago": 500,
+   "itens": [
+    {
+     "descricao": "Ração Golden 10kg",
+     "qtd": 1,
+     "total": 500
+    }
+   ]
+  },
+  {
+   "id": "n1",
+   "loja": "amazon",
+   "total_pago": 10,
+   "itens": []
+  },
+  {
+   "id": "n2",
+   "data": "2026-11-01",
+   "loja": "amazon",
+   "total_pago": null,
+   "itens": []
+  },
+  {
+   "id": "r1",
+   "numero": "R1",
+   "data": "2026-10-25",
+   "loja": "amazon",
+   "status": "reembolso_informado",
+   "total_pago": 50,
+   "itens": [
+    {
+     "descricao": "Garrafa 750ml",
+     "qtd": 1,
+     "total": 50,
+     "categoria": "Casa"
+    }
+   ]
+  }
+ ],
+ "reembolsos": [
+  {
+   "id": "rb1",
+   "numero": "701-2",
+   "valor": 20,
+   "estado": "recebido",
+   "recebido_confirmado": true,
+   "recebido_em": "2026-10-30"
+  }
+ ],
+ "esperado": {
+  "resumo": {
+   "despesas": [
+    {
+     "d": "2026-11-02",
+     "v": 115,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a1"
+    },
+    {
+     "d": "2026-09-15",
+     "v": 100,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a2"
+    },
+    {
+     "d": "2026-10-05",
+     "v": 75,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a3"
+    },
+    {
+     "d": "2026-08-20",
+     "v": 33.33,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a4"
+    },
+    {
+     "d": "2026-07-10",
+     "v": 20,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h1"
+    },
+    {
+     "d": "2026-10-12",
+     "v": 15,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h2"
+    },
+    {
+     "d": "2026-10-14",
+     "v": 9,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h4"
+    },
+    {
+     "d": "2026-10-20",
+     "v": 59.8,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "s1"
+    },
+    {
+     "d": "2026-11-08",
+     "v": 180,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "m1"
+    },
+    {
+     "d": "2026-09-02",
+     "v": 300,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "g1"
+    },
+    {
+     "d": "2026-10-02",
+     "v": 25,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "o1"
+    },
+    {
+     "d": "2026-10-03",
+     "v": 12,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "o2"
+    },
+    {
+     "d": "2025-01-10",
+     "v": 500,
+     "f": "Compras online",
+     "cat": "Outros",
+     "id": "v1"
+    },
+    {
+     "d": "2026-10-25",
+     "v": 50,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "r1"
+    }
+   ],
+   "linhas": [
+    {
+     "d": "2026-11-02",
+     "v": 115,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-09-15",
+     "v": 100,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a2",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-05",
+     "v": 75,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a3",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-08-20",
+     "v": 33.33,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a4",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-07-10",
+     "v": 20,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-12",
+     "v": 15,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h2",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-14",
+     "v": 9,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h4",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-20",
+     "v": 59.8,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "s1",
+     "loja": "shopee"
+    },
+    {
+     "d": "2026-11-08",
+     "v": 180,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "m1",
+     "loja": "mercadolivre"
+    },
+    {
+     "d": "2026-09-02",
+     "v": 300,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "g1",
+     "loja": "magalu"
+    },
+    {
+     "d": "2026-10-02",
+     "v": 25,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "o1",
+     "loja": "outra",
+     "vendedor": "Loja do Zé"
+    },
+    {
+     "d": "2026-10-03",
+     "v": 12,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "o2",
+     "loja": "outra"
+    },
+    {
+     "d": "2025-01-10",
+     "v": 500,
+     "f": "Compras online",
+     "cat": "Outros",
+     "id": "v1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-25",
+     "v": 50,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "r1",
+     "loja": "amazon"
+    }
+   ],
+   "regras": [
+    {
+     "conta": true,
+     "valor": 115,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 100,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 75,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 33.33,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "cancelada",
+     "tratamento": "cancelado",
+     "situacao": "cancelada",
+     "excluido": 40,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "fora_das_contas",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 60,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "outro_modulo",
+     "tratamento": "outro_modulo",
+     "situacao": "efetiva",
+     "excluido": 90,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": [
+      "Este registro pertence ao módulo Mercado, não a Compras."
+     ]
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "pendente",
+     "tratamento": "pendente",
+     "situacao": "pendente",
+     "excluido": 55,
+     "referencia": 0,
+     "pendente": 55,
+     "categoria": null,
+     "avisos": [
+      "Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 20,
+     "motivo": "conta",
+     "tratamento": "misto",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 38,
+     "pendente": 30,
+     "categoria": "Compras online · Digital",
+     "avisos": [
+      "Item autorizado ou desconhecido em pedido concluído: o valor dele fica pendente, fora das despesas, até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 15,
+     "motivo": "conta",
+     "tratamento": "despesa_digital",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": "Compras online · Digital",
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "referencia_historica",
+     "tratamento": "referencia_historica",
+     "situacao": "efetiva",
+     "excluido": 80,
+     "referencia": 80,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 9,
+     "motivo": "conta",
+     "tratamento": "despesa_digital",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": "Compras online · Digital",
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "pendente",
+     "tratamento": "pendente",
+     "situacao": "pendente",
+     "excluido": 11,
+     "referencia": 0,
+     "pendente": 11,
+     "categoria": "Compras online · Digital",
+     "avisos": [
+      "Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 59.8,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 180,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 300,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 25,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 12,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 500,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "sem_data",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "sem_valor",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 50,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    }
+   ],
+   "mensal": {
+    "2026-11": {
+     "pedidos": 7,
+     "contam": 2,
+     "total": 295
+    },
+    "2026-09": {
+     "pedidos": 2,
+     "contam": 2,
+     "total": 400
+    },
+    "2026-10": {
+     "pedidos": 9,
+     "contam": 7,
+     "total": 245.8
+    },
+    "2026-08": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 33.33
+    },
+    "2026-07": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 20
+    },
+    "2025-01": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 500
+    }
+   },
+   "fora": {
+    "cancelada": {
+     "n": 1,
+     "valor": 40
+    },
+    "fora_das_contas": {
+     "n": 1,
+     "valor": 60
+    },
+    "outro_modulo": {
+     "n": 1,
+     "valor": 90
+    },
+    "pendente": {
+     "n": 3,
+     "valor": 96
+    },
+    "referencia_historica": {
+     "n": 2,
+     "valor": 118
+    }
+   },
+   "total": 1494.13,
+   "ignorados": 2,
+   "periodo": {
+    "meses": [
+     "2025-12",
+     "2026-01",
+     "2026-02",
+     "2026-03",
+     "2026-04",
+     "2026-05",
+     "2026-06",
+     "2026-07",
+     "2026-08",
+     "2026-09",
+     "2026-10",
+     "2026-11"
+    ],
+    "mes": "2026-11",
+    "ini": "2025-12-01",
+    "doMes": {
+     "total": 295,
+     "n": 2
+    },
+    "ano": {
+     "total": 994.13,
+     "n": 13,
+     "ticket": 76.47
+    },
+    "porMes": {
+     "2025-12": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-01": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-02": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-03": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-04": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-05": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-06": {
+      "total": 0,
+      "por": {},
+      "n": 0
+     },
+     "2026-07": {
+      "total": 20,
+      "por": {
+       "Compras online": 20
+      },
+      "n": 1
+     },
+     "2026-08": {
+      "total": 33.33,
+      "por": {
+       "Compras online": 33.33
+      },
+      "n": 1
+     },
+     "2026-09": {
+      "total": 400,
+      "por": {
+       "Compras online": 400
+      },
+      "n": 2
+     },
+     "2026-10": {
+      "total": 245.8,
+      "por": {
+       "Compras online": 245.8
+      },
+      "n": 7
+     },
+     "2026-11": {
+      "total": 295,
+      "por": {
+       "Compras online": 295
+      },
+      "n": 2
+     }
+    },
+    "porCategoria": {
+     "Pet": 215,
+     "Casa": 470.33,
+     "Compras online · Digital": 44,
+     "Eletrônicos": 264.8
+    },
+    "porLoja": {
+     "Amazon": 417.33,
+     "Shopee": 59.8,
+     "Mercado Livre": 180,
+     "Magazine Luiza": 300,
+     "Loja do Zé": 25,
+     "Outra loja": 12
+    },
+    "descontos": {
+     "gerais": 0,
+     "itens": 30,
+     "economia": 30,
+     "incertos": 0
+    }
+   }
+  },
+  "resumo_sem_periodo": {
+   "despesas": [
+    {
+     "d": "2026-11-02",
+     "v": 115,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a1"
+    },
+    {
+     "d": "2026-09-15",
+     "v": 100,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a2"
+    },
+    {
+     "d": "2026-10-05",
+     "v": 75,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a3"
+    },
+    {
+     "d": "2026-08-20",
+     "v": 33.33,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a4"
+    },
+    {
+     "d": "2026-07-10",
+     "v": 20,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h1"
+    },
+    {
+     "d": "2026-10-12",
+     "v": 15,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h2"
+    },
+    {
+     "d": "2026-10-14",
+     "v": 9,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h4"
+    },
+    {
+     "d": "2026-10-20",
+     "v": 59.8,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "s1"
+    },
+    {
+     "d": "2026-11-08",
+     "v": 180,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "m1"
+    },
+    {
+     "d": "2026-09-02",
+     "v": 300,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "g1"
+    },
+    {
+     "d": "2026-10-02",
+     "v": 25,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "o1"
+    },
+    {
+     "d": "2026-10-03",
+     "v": 12,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "o2"
+    },
+    {
+     "d": "2025-01-10",
+     "v": 500,
+     "f": "Compras online",
+     "cat": "Outros",
+     "id": "v1"
+    },
+    {
+     "d": "2026-10-25",
+     "v": 50,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "r1"
+    }
+   ],
+   "linhas": [
+    {
+     "d": "2026-11-02",
+     "v": 115,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-09-15",
+     "v": 100,
+     "f": "Compras online",
+     "cat": "Pet",
+     "id": "a2",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-05",
+     "v": 75,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a3",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-08-20",
+     "v": 33.33,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "a4",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-07-10",
+     "v": 20,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-12",
+     "v": 15,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h2",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-14",
+     "v": 9,
+     "f": "Compras online",
+     "cat": "Compras online · Digital",
+     "id": "h4",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-20",
+     "v": 59.8,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "s1",
+     "loja": "shopee"
+    },
+    {
+     "d": "2026-11-08",
+     "v": 180,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "m1",
+     "loja": "mercadolivre"
+    },
+    {
+     "d": "2026-09-02",
+     "v": 300,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "g1",
+     "loja": "magalu"
+    },
+    {
+     "d": "2026-10-02",
+     "v": 25,
+     "f": "Compras online",
+     "cat": "Eletrônicos",
+     "id": "o1",
+     "loja": "outra",
+     "vendedor": "Loja do Zé"
+    },
+    {
+     "d": "2026-10-03",
+     "v": 12,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "o2",
+     "loja": "outra"
+    },
+    {
+     "d": "2025-01-10",
+     "v": 500,
+     "f": "Compras online",
+     "cat": "Outros",
+     "id": "v1",
+     "loja": "amazon"
+    },
+    {
+     "d": "2026-10-25",
+     "v": 50,
+     "f": "Compras online",
+     "cat": "Casa",
+     "id": "r1",
+     "loja": "amazon"
+    }
+   ],
+   "regras": [
+    {
+     "conta": true,
+     "valor": 115,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 100,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 75,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 33.33,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "cancelada",
+     "tratamento": "cancelado",
+     "situacao": "cancelada",
+     "excluido": 40,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "fora_das_contas",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 60,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "outro_modulo",
+     "tratamento": "outro_modulo",
+     "situacao": "efetiva",
+     "excluido": 90,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": [
+      "Este registro pertence ao módulo Mercado, não a Compras."
+     ]
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "pendente",
+     "tratamento": "pendente",
+     "situacao": "pendente",
+     "excluido": 55,
+     "referencia": 0,
+     "pendente": 55,
+     "categoria": null,
+     "avisos": [
+      "Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 20,
+     "motivo": "conta",
+     "tratamento": "misto",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 38,
+     "pendente": 30,
+     "categoria": "Compras online · Digital",
+     "avisos": [
+      "Item autorizado ou desconhecido em pedido concluído: o valor dele fica pendente, fora das despesas, até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 15,
+     "motivo": "conta",
+     "tratamento": "despesa_digital",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": "Compras online · Digital",
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "referencia_historica",
+     "tratamento": "referencia_historica",
+     "situacao": "efetiva",
+     "excluido": 80,
+     "referencia": 80,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 9,
+     "motivo": "conta",
+     "tratamento": "despesa_digital",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": "Compras online · Digital",
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "pendente",
+     "tratamento": "pendente",
+     "situacao": "pendente",
+     "excluido": 11,
+     "referencia": 0,
+     "pendente": 11,
+     "categoria": "Compras online · Digital",
+     "avisos": [
+      "Pedido autorizado ou com status desconhecido: fora das despesas até ser efetivado."
+     ]
+    },
+    {
+     "conta": true,
+     "valor": 59.8,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 180,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 300,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 25,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 12,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 500,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "sem_data",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": false,
+     "valor": 0,
+     "motivo": "sem_valor",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    },
+    {
+     "conta": true,
+     "valor": 50,
+     "motivo": "conta",
+     "tratamento": "despesa",
+     "situacao": "efetiva",
+     "excluido": 0,
+     "referencia": 0,
+     "pendente": 0,
+     "categoria": null,
+     "avisos": []
+    }
+   ],
+   "mensal": {
+    "2026-11": {
+     "pedidos": 7,
+     "contam": 2,
+     "total": 295
+    },
+    "2026-09": {
+     "pedidos": 2,
+     "contam": 2,
+     "total": 400
+    },
+    "2026-10": {
+     "pedidos": 9,
+     "contam": 7,
+     "total": 245.8
+    },
+    "2026-08": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 33.33
+    },
+    "2026-07": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 20
+    },
+    "2025-01": {
+     "pedidos": 1,
+     "contam": 1,
+     "total": 500
+    }
+   },
+   "fora": {
+    "cancelada": {
+     "n": 1,
+     "valor": 40
+    },
+    "fora_das_contas": {
+     "n": 1,
+     "valor": 60
+    },
+    "outro_modulo": {
+     "n": 1,
+     "valor": 90
+    },
+    "pendente": {
+     "n": 3,
+     "valor": 96
+    },
+    "referencia_historica": {
+     "n": 2,
+     "valor": 118
+    }
+   },
+   "total": 1494.13,
+   "ignorados": 2,
+   "periodo": null
+  },
+  "precos": [
+   {
+    "chave": "cabo usb",
+    "nome": "Cabo USB",
+    "img": null,
+    "vezes": 3,
+    "ultimo": {
+     "d": "2026-11-08",
+     "u": 90,
+     "loja": "Mercado Livre",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "mercado_livre",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 25,
+    "variacao": 260,
+    "base": null,
+    "origens": {
+     "compras": 3
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-02",
+      "u": 25,
+      "loja": "Loja do Zé",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-10-20",
+      "u": 29.9,
+      "loja": "Shopee",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "shopee",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-11-08",
+      "u": 90,
+      "loja": "Mercado Livre",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "mercado_livre",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "golden racao 10000g",
+    "nome": "Ração Golden 10kg",
+    "img": null,
+    "vezes": 3,
+    "ultimo": {
+     "d": "2026-11-02",
+     "u": 50,
+     "loja": "Amazon",
+     "b": {
+      "v": 5,
+      "por": "kg"
+     },
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 50,
+    "variacao": -90,
+    "base": {
+     "por": "kg",
+     "ultimo": 5,
+     "menor": 5,
+     "variacao": -90
+    },
+    "origens": {
+     "compras": 3
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2025-01-10",
+      "u": 500,
+      "loja": "Amazon",
+      "b": {
+       "v": 50,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-09-15",
+      "u": 100,
+      "loja": "Amazon",
+      "b": {
+       "v": 10,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": "recebido",
+      "eventos": [
+       {
+        "tipo": "reembolso_recebido",
+        "valor": 20,
+        "mes": "2026-10",
+        "recebido_em": "2026-10-30",
+        "reembolso_id": "rb1"
+       }
+      ]
+     },
+     {
+      "d": "2026-11-02",
+      "u": 50,
+      "loja": "Amazon",
+      "b": {
+       "v": 5,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "a kindle livro",
+    "nome": "Livro Kindle A",
+    "img": null,
+    "vezes": 2,
+    "ultimo": {
+     "d": "2026-10-12",
+     "u": 15,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "digital",
+      "tratamento": "despesa_digital",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 15,
+    "variacao": -25,
+    "base": null,
+    "origens": {
+     "compras": 2
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-07-10",
+      "u": 20,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "misto",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-10-12",
+      "u": 15,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "despesa_digital",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "arroz 5000g",
+    "nome": "Arroz 5kg",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-05",
+     "u": 90,
+     "loja": "Amazon",
+     "b": {
+      "v": 18,
+      "por": "kg"
+     },
+     "origem": {
+      "modulo": "mercado",
+      "canal": "presencial",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "outro_modulo",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 90,
+    "variacao": null,
+    "base": {
+     "por": "kg",
+     "ultimo": 18,
+     "menor": 18,
+     "variacao": null
+    },
+    "origens": {
+     "mercado": 1
+    },
+    "outros_modulos": 1,
+    "historico": [
+     {
+      "d": "2026-11-05",
+      "u": 90,
+      "loja": "Amazon",
+      "b": {
+       "v": 18,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "mercado",
+       "canal": "presencial",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "outro_modulo",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "cadeira",
+    "nome": "Cadeira",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-04",
+     "u": 60,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": true
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 60,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-11-04",
+      "u": 60,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": true
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "capa dura",
+    "nome": "Capa dura",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-07-10",
+     "u": 38,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "digital",
+      "tratamento": "misto",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 38,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-07-10",
+      "u": 38,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "misto",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "coleira",
+    "nome": "Coleira",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-09-15",
+     "u": 0,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": "recebido",
+     "eventos": [
+      {
+       "tipo": "reembolso_recebido",
+       "valor": 20,
+       "mes": "2026-10",
+       "recebido_em": "2026-10-30",
+       "reembolso_id": "rb1"
+      }
+     ]
+    },
+    "menor": 0,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-09-15",
+      "u": 0,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": "recebido",
+      "eventos": [
+       {
+        "tipo": "reembolso_recebido",
+        "valor": 20,
+        "mes": "2026-10",
+        "recebido_em": "2026-10-30",
+        "reembolso_id": "rb1"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "chave": "garrafa 750ml",
+    "nome": "Garrafa 750ml",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-25",
+     "u": 50,
+     "loja": "Amazon",
+     "b": {
+      "v": 66.67,
+      "por": "L"
+     },
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": "informado",
+     "eventos": []
+    },
+    "menor": 50,
+    "variacao": null,
+    "base": {
+     "por": "L",
+     "ultimo": 66.67,
+     "menor": 66.67,
+     "variacao": null
+    },
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-25",
+      "u": 50,
+      "loja": "Amazon",
+      "b": {
+       "v": 66.67,
+       "por": "L"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": "informado",
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "monitor",
+    "nome": "Monitor",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-13",
+     "u": 80,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "fisica",
+      "tratamento": "referencia_historica",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 80,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-13",
+      "u": 80,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "fisica",
+       "tratamento": "referencia_historica",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "panela",
+    "nome": "Panela",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-05",
+     "u": 40,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 40,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-05",
+      "u": 40,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "pilha",
+    "nome": "Pilha",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-03",
+     "u": 3,
+     "loja": "Outra loja",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "outro_marketplace",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 3,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-03",
+      "u": 3,
+      "loja": "Outra loja",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "suporte",
+    "nome": "Suporte",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-08",
+     "u": 90,
+     "loja": "Mercado Livre",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "mercado_livre",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 90,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-11-08",
+      "u": 90,
+      "loja": "Mercado Livre",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "mercado_livre",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "tampa",
+    "nome": "Tampa",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-05",
+     "u": 10,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 10,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-05",
+      "u": 10,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "ventilador",
+    "nome": "Ventilador",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-09-02",
+     "u": 300,
+     "loja": "Magazine Luiza",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "outro_marketplace",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 300,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-09-02",
+      "u": 300,
+      "loja": "Magazine Luiza",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   }
+  ],
+  "precos_sem_reemb": [
+   {
+    "chave": "cabo usb",
+    "nome": "Cabo USB",
+    "img": null,
+    "vezes": 3,
+    "ultimo": {
+     "d": "2026-11-08",
+     "u": 90,
+     "loja": "Mercado Livre",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "mercado_livre",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 25,
+    "variacao": 260,
+    "base": null,
+    "origens": {
+     "compras": 3
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-02",
+      "u": 25,
+      "loja": "Loja do Zé",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-10-20",
+      "u": 29.9,
+      "loja": "Shopee",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "shopee",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-11-08",
+      "u": 90,
+      "loja": "Mercado Livre",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "mercado_livre",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "golden racao 10000g",
+    "nome": "Ração Golden 10kg",
+    "img": null,
+    "vezes": 3,
+    "ultimo": {
+     "d": "2026-11-02",
+     "u": 50,
+     "loja": "Amazon",
+     "b": {
+      "v": 5,
+      "por": "kg"
+     },
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 50,
+    "variacao": -90,
+    "base": {
+     "por": "kg",
+     "ultimo": 5,
+     "menor": 5,
+     "variacao": -90
+    },
+    "origens": {
+     "compras": 3
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2025-01-10",
+      "u": 500,
+      "loja": "Amazon",
+      "b": {
+       "v": 50,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-09-15",
+      "u": 100,
+      "loja": "Amazon",
+      "b": {
+       "v": 10,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-11-02",
+      "u": 50,
+      "loja": "Amazon",
+      "b": {
+       "v": 5,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "a kindle livro",
+    "nome": "Livro Kindle A",
+    "img": null,
+    "vezes": 2,
+    "ultimo": {
+     "d": "2026-10-12",
+     "u": 15,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "digital",
+      "tratamento": "despesa_digital",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 15,
+    "variacao": -25,
+    "base": null,
+    "origens": {
+     "compras": 2
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-07-10",
+      "u": 20,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "misto",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     },
+     {
+      "d": "2026-10-12",
+      "u": 15,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "despesa_digital",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "arroz 5000g",
+    "nome": "Arroz 5kg",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-05",
+     "u": 90,
+     "loja": "Amazon",
+     "b": {
+      "v": 18,
+      "por": "kg"
+     },
+     "origem": {
+      "modulo": "mercado",
+      "canal": "presencial",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "outro_modulo",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 90,
+    "variacao": null,
+    "base": {
+     "por": "kg",
+     "ultimo": 18,
+     "menor": 18,
+     "variacao": null
+    },
+    "origens": {
+     "mercado": 1
+    },
+    "outros_modulos": 1,
+    "historico": [
+     {
+      "d": "2026-11-05",
+      "u": 90,
+      "loja": "Amazon",
+      "b": {
+       "v": 18,
+       "por": "kg"
+      },
+      "origem": {
+       "modulo": "mercado",
+       "canal": "presencial",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "outro_modulo",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "cadeira",
+    "nome": "Cadeira",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-04",
+     "u": 60,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": true
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 60,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-11-04",
+      "u": 60,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": true
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "capa dura",
+    "nome": "Capa dura",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-07-10",
+     "u": 38,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "digital",
+      "tratamento": "misto",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 38,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-07-10",
+      "u": 38,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "digital",
+       "tratamento": "misto",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "coleira",
+    "nome": "Coleira",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-09-15",
+     "u": 0,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 0,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-09-15",
+      "u": 0,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "garrafa 750ml",
+    "nome": "Garrafa 750ml",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-25",
+     "u": 50,
+     "loja": "Amazon",
+     "b": {
+      "v": 66.67,
+      "por": "L"
+     },
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": "informado",
+     "eventos": []
+    },
+    "menor": 50,
+    "variacao": null,
+    "base": {
+     "por": "L",
+     "ultimo": 66.67,
+     "menor": 66.67,
+     "variacao": null
+    },
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-25",
+      "u": 50,
+      "loja": "Amazon",
+      "b": {
+       "v": 66.67,
+       "por": "L"
+      },
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": "informado",
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "monitor",
+    "nome": "Monitor",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-13",
+     "u": 80,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": true,
+      "natureza": "fisica",
+      "tratamento": "referencia_historica",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 80,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-13",
+      "u": 80,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": true,
+       "natureza": "fisica",
+       "tratamento": "referencia_historica",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "panela",
+    "nome": "Panela",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-05",
+     "u": 40,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 40,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-05",
+      "u": 40,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "pilha",
+    "nome": "Pilha",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-03",
+     "u": 3,
+     "loja": "Outra loja",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "outro_marketplace",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 3,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-03",
+      "u": 3,
+      "loja": "Outra loja",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "suporte",
+    "nome": "Suporte",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-11-08",
+     "u": 90,
+     "loja": "Mercado Livre",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "mercado_livre",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 90,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-11-08",
+      "u": 90,
+      "loja": "Mercado Livre",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "mercado_livre",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "tampa",
+    "nome": "Tampa",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-10-05",
+     "u": 10,
+     "loja": "Amazon",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "amazon",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 10,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-10-05",
+      "u": 10,
+      "loja": "Amazon",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "amazon",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   },
+   {
+    "chave": "ventilador",
+    "nome": "Ventilador",
+    "img": null,
+    "vezes": 1,
+    "ultimo": {
+     "d": "2026-09-02",
+     "u": 300,
+     "loja": "Magazine Luiza",
+     "b": null,
+     "origem": {
+      "modulo": "compras",
+      "canal": "outro_marketplace",
+      "historico": false,
+      "natureza": null,
+      "tratamento": "despesa",
+      "fora_das_contas": false
+     },
+     "reembolso": null,
+     "eventos": []
+    },
+    "menor": 300,
+    "variacao": null,
+    "base": null,
+    "origens": {
+     "compras": 1
+    },
+    "outros_modulos": 0,
+    "historico": [
+     {
+      "d": "2026-09-02",
+      "u": 300,
+      "loja": "Magazine Luiza",
+      "b": null,
+      "origem": {
+       "modulo": "compras",
+       "canal": "outro_marketplace",
+       "historico": false,
+       "natureza": null,
+       "tratamento": "despesa",
+       "fora_das_contas": false
+      },
+      "reembolso": null,
+      "eventos": []
+     }
+    ]
+   }
+  ]
+ }
+}

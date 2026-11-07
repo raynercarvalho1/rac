@@ -275,3 +275,16 @@ Ordem: **022 (já aplicado, não muda) → 030 → 031 → 032 → 033.** Aplica
 - **Pedido com situação desconhecida:** é pendente (`status` `desconhecido`, `status_norm` do importador e histórico sem status reconhecido): fora das despesas e do histórico de preços, com o valor
   em `pendente`; ao ser efetivado, entra normalmente. Registro antigo não muda: texto de status legado qualquer em pedido que não é histórico segue como confirmado.
 - **Limites conhecidos:** `compras_gravar`, reembolsos e a importação do histórico seguem sem tela (Lote 5.1 e seguintes).
+
+## Lote 5.2 · detalhe por loja, categoria e produto (07/11/2026, só no código local; nada publicado, sem SQL)
+No Resumo, cada barra de "Por categoria" e de "Por loja" é um link para uma tela própria (como o Mercado leva do painel ao produto); nenhuma conta nova, nenhuma tabela nova.
+- **Rotas:** `#compras/loja/<nome>`, `#compras/categoria/<nome>` e `#compras/produto/<chave>/<origem>` (origem = `loja:<nome>`, `categoria:<nome>` ou `produtos`). "Voltar" leva à origem do clique e devolve a rolagem de antes (pilha em `CC.nav`); o botão voltar do navegador também funciona.
+- **Loja:** produtos dos pedidos que contam (quantidade, total pago, preço médio = total ÷ quantidade) + "Ajustes dos pedidos" à parte. Produtos + ajustes = valor da barra (`coDetalheLoja`).
+- **Categoria:** cada produto está na categoria dele (a do item; sem ela, `coCategoria(descrição)`; sem identificação, "Outros"); a categoria do pedido não vale para os itens. O que o pedido paga fora dos produtos
+  (frete, taxas, descontos gerais, outros) **não é de nenhuma categoria**: vem numa linha independente, uma vez só, sem rateio (`periodo.ajustesPedidos`). Categorias + ajustes = total dos 12 meses; a tela confere a conta.
+  O histórico digital da Amazon continua em "Compras online · Digital". `porCategoria` mudou de distribuição, nunca de total.
+- **Ajustes:** frete, taxas, descontos gerais (só a parte que passa dos itens, `coDescontos`) e "outros" aberto em itens cancelados, itens sem identificação, pedidos sem itens e diferença não explicada (nada é forçado para fechar).
+- **Produto:** `coPrecos` (todas as lojas e origens, a regra do Lote 5.0 do histórico de preços) + `coProdutoResumo` (só soma o que o `coPrecos` já calculou): total gasto, quantidade e preço médio dos 12 meses, último preço, menor preço do histórico,
+  gráfico (`RACmercado.grafico`), preços em todas as lojas e datas das compras com a situação (confirmada, histórico, provisório = cancelamento ou reembolso informado, reembolso recebido). A loja do clique vem marcada com ★, sem restringir o histórico a ela.
+- **Limites conhecidos:** o período do Resumo é fixo em 12 meses; produto = nome padronizado (sem junção de produtos nem unidade kg/L, exceto `base` quando o nome traz o tamanho); o histórico de preços inclui fora das contas, histórico físico e outros módulos,
+  então o total de um produto no histórico pode diferir do detalhe da loja (que só conta o que entra nas despesas); sem dados reais ainda (1 pedido), o gráfico mostra um ponto.

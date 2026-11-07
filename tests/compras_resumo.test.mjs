@@ -73,7 +73,7 @@ test("coResumo: os totais do período saem das mesmas linhas, então todos batem
   assert.deepEqual(R.despesas.map((x) => x.id), ["a", "e", "i", "j", "m"]);
   assert.equal(P.doMes.total, 165); assert.equal(P.doMes.n, 4); assert.equal(P.ano.total, 215); assert.equal(P.ano.n, 5); assert.equal(P.ano.ticket, 43);
   const s = (o) => r2(Object.values(o).reduce((a, b) => a + b, 0));
-  assert.equal(s(P.porCategoria), P.ano.total); assert.equal(s(P.porLoja), P.ano.total);
+  assert.equal(r2(s(P.porCategoria) + P.ajustesPedidos.total), P.ano.total, "Lote 5.2: categorias (por produto) + ajustes dos pedidos = total"); assert.equal(s(P.porLoja), P.ano.total);
   assert.equal(r2(P.meses.reduce((a, m) => a + P.porMes[m].total, 0)), P.ano.total); assert.equal(P.porMes[MES].total, P.doMes.total);
   assert.deepEqual(P.porLoja, { [N.CO_LOJAS.amazon]: 135, "Loja X": 30, "Loja Y": 50 });
   assert.equal(P.porCategoria["Compras online · Digital"], 35, "digital do histórico (20 + 15 do misto)");
@@ -107,7 +107,7 @@ test("coDescontos: contemplado, somado, incerto e sem itens, sempre com geral + 
 test("cancelamento fica fora de TODOS os indicadores", () => {
   const cs = [A, B], R = N.coResumo(cs, { hoje: HOJE }), P = R.periodo;
   assert.deepEqual([P.doMes.total, P.doMes.n, P.ano.total, P.ano.n, P.ano.ticket], [100, 1, 100, 1, 100]);
-  assert.deepEqual(P.porLoja, { [N.CO_LOJAS.amazon]: 100 }); assert.deepEqual(P.porCategoria, { Pet: 100 }); assert.equal(P.descontos.economia, 10, "o desconto do cancelado (5) não entra"); assert.equal(P.porMes[MES].total, 100);
+  assert.deepEqual(P.porLoja, { [N.CO_LOJAS.amazon]: 100 }); assert.deepEqual(P.porCategoria, { Pet: 102 }, "Lote 5.2: o item vale 102 (110 − 8 do item); o desconto geral de 2 vai para os ajustes"); assert.deepEqual([P.ajustesPedidos.total, P.ajustesPedidos.desconto_geral], [-2, -2]); assert.equal(P.descontos.economia, 10, "o desconto do cancelado (5) não entra"); assert.equal(P.porMes[MES].total, 100);
   assert.equal(R.mensal[MES].total, 100); assert.deepEqual(R.despesas.map((x) => x.id), ["a"]);
   assert.equal(N.hojeFinancas({ compras: { ok: true, v: cs } }, HOJE).atual.compras, 100);
   assert.deepEqual(N.pnDespesas([], [], [], null, [], cs).map((x) => x.id), ["a"]);

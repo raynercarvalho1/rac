@@ -1517,28 +1517,80 @@
     if(m==="somado")return {geral:ger,itens:id,total:amR2(ger+id),modo:m};
     if(m==="contemplado")return {geral:amR2(Math.max(0,ger-id)),itens:id,total:ger,modo:m};
     var tot=Math.max(ger,id);return {geral:amR2(tot-id),itens:id,total:amR2(tot),modo:"incerto"}}
+  /* nome da loja como aparece nas barras do Resumo: o da loja; no marketplace "outra", o vendedor. Barras e detalhe usam esta mesma chave. */
+  function coLojaDe(c){c=c||{};return c.vendedor&&c.loja==="outra"?c.vendedor:(CO_LOJAS[c.loja]||c.loja)}
+  /* categoria de UM produto: a do próprio item; sem ela, coCategoria(descrição); sem identificação, "Outros". A categoria do pedido não manda nos itens. */
+  function coCategoriaItem(i){i=i||{};var k=String(i.categoria==null?"":i.categoria).trim();return k||coCategoria(i.descricao||"")}
+  /* ajustes dos pedidos: o que o pedido paga fora dos itens. total = valor que o pedido conta − soma dos itens listados; o resto da conta é aberto em:
+       frete e taxas (campos do pedido, só positivos), desconto_geral (negativo; só a parte que passa dos itens, coDescontos) e outros = total − frete − taxas − desconto_geral.
+     "outros" é aberto em detalhe: item_cancelado e item_sem_nome (identificados até o limite do que sobrou), sem_itens (pedido sem nenhum item listado)
+     e nao_explicado (o que sobrar, inclusive valor negativo). Nada é forçado: o valor do pedido é o de coRegra. */
+  function coAjZero(){return {total:0,frete:0,taxas:0,desconto_geral:0,outros:0,detalhe:{item_cancelado:0,item_sem_nome:0,sem_itens:0,nao_explicado:0}}}
+  function coAjSomar(a,b){["total","frete","taxas","desconto_geral","outros"].forEach(function(k){a[k]=amR2(a[k]+b[k])});Object.keys(a.detalhe).forEach(function(k){a.detalhe[k]=amR2(a.detalhe[k]+b.detalhe[k])});return a}
+  /* Partes de UM pedido que conta (r = coRegra do pedido): os itens que formam o valor, cada um com categoria, e os ajustes. Única fonte de coResumo e coDetalhe.
+     Pedido comum: todo item não cancelado, pelo valor líquido (coItemTotal). Histórico Amazon: só o item digital efetivado (coItemHist), na categoria do digital (CO_CAT_DIGITAL). */
+  function coPedidoPartes(c,r){c=c||{};r=r||coRegra(c);
+    var hist=r.tratamento==="despesa_digital"||r.tratamento==="misto",nat=coNatureza(c),itens=[],soma=0,canc=0,semNome=0;
+    (c.itens||[]).forEach(function(i){i=i||{};var k=alChaveProduto(i.descricao),v,cancelado=norm(i.status_norm||i.situacao||"")==="cancelado";
+      if(hist){var x=coItemHist(i,nat);if(x.destino!=="digital")return;v=x.v}else{v=coItemTotal(i);if(cancelado){if(v>0)canc+=v;return}}
+      if(!k){if(v>0)semNome+=v;return}
+      itens.push({chave:k,nome:i.descricao,qtd:+i.qtd>0?+i.qtd:1,v:v,cat:hist?CO_CAT_DIGITAL:coCategoriaItem(i)});soma=amR2(soma+v)});
+    var aj=coAjZero(),fr=0,tx=0,dg=0;aj.total=amR2(r.valor-soma);
+    if(!hist){fr=amR2(Math.max(0,+c.frete||0));tx=amR2(Math.max(0,+c.taxas||0));dg=0-coDescontos(c).geral}
+    aj.frete=fr;aj.taxas=tx;aj.desconto_geral=dg;aj.outros=amR2(aj.total-fr-tx-dg);
+    var d=aj.detalhe,sobra=aj.outros,a;
+    if(sobra>0&&canc>0){a=Math.min(sobra,amR2(canc));d.item_cancelado=a;sobra=amR2(sobra-a)}
+    if(sobra>0&&semNome>0){a=Math.min(sobra,amR2(semNome));d.item_sem_nome=a;sobra=amR2(sobra-a)}
+    if(sobra>0&&!itens.length)d.sem_itens=sobra;else d.nao_explicado=sobra;
+    return {itens:itens,aj:aj}}
+  /* Detalhe de uma barra do Resumo, com a mesma estrutura para loja e categoria. Só os pedidos que a regra manda contar (coRegra), no período (ctx.hoje, ctx.meses padrão 12).
+     filtro: {loja:nome} e/ou {categoria:nome}. Devolve {total, pedidos, produtos, ajustes, escopo_ajustes}:
+       produtos  por produto (alChaveProduto, a mesma chave de coPrecos): qtd, total, medio (total/qtd), compras, ultima, categoria, lojas (gasto por loja de origem);
+       por loja       total = valor dos pedidos da loja = produtos + ajustes; escopo_ajustes "pedidos" (os ajustes dos pedidos da loja);
+       por categoria  total = só os produtos da categoria (= porCategoria[categoria]); os ajustes NÃO são de nenhuma categoria: vêm separados, uma vez só, e cobrem todos os pedidos do período
+                      (escopo_ajustes "periodo", igual a periodo.ajustesPedidos do coResumo). Σ categorias + ajustes = total do período. Nunca há rateio. */
+  function coDetalhe(compras,ctx,filtro){ctx=ctx||{};filtro=filtro||{};if(!ctx.hoje)return null;
+    var ini=pnMeses(ctx.hoje,ctx.meses||12)[0]+"-01",por={},ped=0,tot=0,aj=coAjZero(),cat=filtro.categoria!=null;
+    (compras||[]).forEach(function(c){var r=coRegra(c);if(!r.conta)return;var l=coLinha(c,r);if(l.d<ini)return;
+      if(filtro.loja!=null&&coLojaDe(l)!==filtro.loja)return;
+      var pt=coPedidoPartes(c,r),contribui=false;
+      pt.itens.forEach(function(it){if(cat&&it.cat!==filtro.categoria)return;contribui=true;
+        var p=por[it.chave]||(por[it.chave]={chave:it.chave,nome:it.nome,categoria:it.cat,qtd:0,total:0,compras:0,ultima:null,lojas:{},_v:null});
+        p.qtd+=it.qtd;p.total=amR2(p.total+it.v);if(p._v!==c){p._v=c;p.compras++}
+        if(!p.ultima||c.data>p.ultima)p.ultima=c.data;
+        var lj=coLojaDe(l);p.lojas[lj]=amR2((p.lojas[lj]||0)+it.v);if(cat)tot=amR2(tot+it.v)});
+      if(!cat)tot=amR2(tot+r.valor);
+      if(!cat||contribui)ped++;
+      coAjSomar(aj,pt.aj)});
+    var prods=Object.keys(por).map(function(k){var p=por[k];delete p._v;p.qtd=Math.round(p.qtd*1000)/1000;p.medio=p.qtd>0?amR2(p.total/p.qtd):null;return p})
+      .sort(function(a,b){return b.total-a.total||(a.nome<b.nome?-1:1)});
+    return {filtro:filtro,ini:ini,total:tot,pedidos:ped,produtos:prods,ajustes:aj,escopo_ajustes:cat?"periodo":"pedidos"}}
+  function coDetalheLoja(compras,ctx,loja){return coDetalhe(compras,ctx,{loja:loja})}
+  function coDetalheCategoria(compras,ctx,categoria){return coDetalhe(compras,ctx,{categoria:categoria})}
   var CO_FORA=["cancelada","fora_das_contas","outro_modulo","pendente","referencia_historica"];
   /* Resumo único de uma lista de pedidos. ctx.hoje (AAAA-MM-DD) liga o período (ctx.meses, padrão 12). Devolve:
      despesas/linhas  os pedidos que contam (o Painel soma estas); regras  a regra de cada pedido, na mesma ordem da entrada;
      mensal           por mês do pedido: pedidos (todos os listados), contam e total (só o que conta); é o cabeçalho da lista;
      fora             o que ficou de fora, por motivo ({n, valor}), sem misturar os mecanismos;
      periodo          mês, 12 meses, por mês/categoria/loja e descontos; todos saem das mesmas linhas, então os totais batem.
+                      porCategoria é por PRODUTO (coCategoriaItem); o que o pedido paga fora dos itens (frete, taxas, desconto geral, outros) NÃO entra em nenhuma categoria:
+                      fica em ajustesPedidos (coAjZero), uma vez só. Σ porCategoria + ajustesPedidos.total = ano.total.
      Descontos (coDescontos, só dos pedidos que contam): gerais e itens separados, economia = total sem duplicidade, incertos = pedidos em que não dá para provar
      se o desconto do pedido já contém o dos itens (nesses a economia é o piso, nunca a soma). */
   function coResumo(compras,ctx){ctx=ctx||{};var linhas=[],regras=[],mensal={},fora={},sem=0,tot=0;
     CO_FORA.forEach(function(m){fora[m]={n:0,valor:0}});
     (compras||[]).forEach(function(c){var r=coRegra(c);regras.push(r);if(!c)return;
       if(c.data){var m=String(c.data).slice(0,7),mm=mensal[m]||(mensal[m]={pedidos:0,contam:0,total:0});mm.pedidos++;if(r.conta){mm.contam++;mm.total=amR2(mm.total+r.valor)}}
-      if(r.conta){var l=coLinha(c,r);l._c=c;linhas.push(l);tot+=r.valor;if(r.referencia>0){fora.referencia_historica.n++;fora.referencia_historica.valor=amR2(fora.referencia_historica.valor+r.referencia)}if(r.pendente>0){fora.pendente.n++;fora.pendente.valor=amR2(fora.pendente.valor+r.pendente)}}
+      if(r.conta){var l=coLinha(c,r);l._c=c;l._r=r;linhas.push(l);tot+=r.valor;if(r.referencia>0){fora.referencia_historica.n++;fora.referencia_historica.valor=amR2(fora.referencia_historica.valor+r.referencia)}if(r.pendente>0){fora.pendente.n++;fora.pendente.valor=amR2(fora.pendente.valor+r.pendente)}}
       else if(fora[r.motivo]){fora[r.motivo].n++;fora[r.motivo].valor=amR2(fora[r.motivo].valor+r.excluido)}
       else sem++});
-    var R={despesas:linhas.map(function(l){return {d:l.d,v:l.v,f:l.f,cat:l.cat,id:l.id}}),linhas:linhas.map(function(l){var o={};Object.keys(l).forEach(function(k){if(k!=="_c")o[k]=l[k]});return o}),
+    var R={despesas:linhas.map(function(l){return {d:l.d,v:l.v,f:l.f,cat:l.cat,id:l.id}}),linhas:linhas.map(function(l){var o={};Object.keys(l).forEach(function(k){if(k!=="_c"&&k!=="_r")o[k]=l[k]});return o}),
       regras:regras,mensal:mensal,fora:fora,total:amR2(tot),ignorados:sem,periodo:null};
-    if(ctx.hoje){var meses=pnMeses(ctx.hoje,ctx.meses||12),mes=meses[meses.length-1],ini=meses[0]+"-01",doMes=0,nMes=0,ano=0,nAno=0,cat={},loja={},gerais=0,itens=0,econ=0,inc=0;
+    if(ctx.hoje){var meses=pnMeses(ctx.hoje,ctx.meses||12),mes=meses[meses.length-1],ini=meses[0]+"-01",doMes=0,nMes=0,ano=0,nAno=0,cat={},loja={},ajp=coAjZero(),gerais=0,itens=0,econ=0,inc=0;
       linhas.forEach(function(l){if(l.d.slice(0,7)===mes){doMes+=l.v;nMes++}
-        if(l.d>=ini){ano+=l.v;nAno++;cat[l.cat]=(cat[l.cat]||0)+l.v;var k=l.vendedor&&l.loja==="outra"?l.vendedor:(CO_LOJAS[l.loja]||l.loja);loja[k]=(loja[k]||0)+l.v;
+        if(l.d>=ini){ano+=l.v;nAno++;var pt=coPedidoPartes(l._c,l._r);pt.itens.forEach(function(it){cat[it.cat]=amR2((cat[it.cat]||0)+it.v)});coAjSomar(ajp,pt.aj);var k=coLojaDe(l);loja[k]=(loja[k]||0)+l.v;
           var dc=coDescontos(l._c);gerais+=dc.geral;itens+=dc.itens;econ+=dc.total;if(dc.modo==="incerto")inc++}});
-      R.periodo={meses:meses,mes:mes,ini:ini,doMes:{total:amR2(doMes),n:nMes},ano:{total:amR2(ano),n:nAno,ticket:nAno?amR2(ano/nAno):null},porMes:pnPorMes(linhas,meses),porCategoria:cat,porLoja:loja,descontos:{gerais:amR2(gerais),itens:amR2(itens),economia:amR2(econ),incertos:inc}}}
+      R.periodo={meses:meses,mes:mes,ini:ini,doMes:{total:amR2(doMes),n:nMes},ano:{total:amR2(ano),n:nAno,ticket:nAno?amR2(ano/nAno):null},porMes:pnPorMes(linhas,meses),porCategoria:cat,ajustesPedidos:ajp,porLoja:loja,descontos:{gerais:amR2(gerais),itens:amR2(itens),economia:amR2(econ),incertos:inc}}}
     return R}
   /* despesas para o Painel: o total pago, uma vez por pedido, na data do pedido (a regra é a de coRegra) */
   function coDespesas(compras){return coResumo(compras).despesas}
@@ -1588,6 +1640,20 @@
      "recebido" e, no recebido, o evento (valor, mês) vem separado em "eventos" (só os reembolsos válidos de coReembCreditos, passados em "reembolsos").
      "base" é o preço por litro ou quilo (alPrecoBase), só quando todas as compras do produto têm o tamanho no nome, na mesma unidade, e o nome não indica pacote ou kit
      (nesse caso o tamanho do nome não é o da unidade): sem informação suficiente, fica null e nada é inventado. */
+  /* valor do item: total (ou unitário × qtd) menos o desconto do próprio item; é o que coPrecos e o detalhe usam (nenhum outro cálculo de item) */
+  function coItemTotal(i){i=i||{};var q=+i.qtd>0?+i.qtd:1,b=0;
+    if(i.total!=null&&i.total!==""&&isFinite(+i.total))b=+i.total;else if(i.unitario!=null&&i.unitario!==""&&isFinite(+i.unitario))b=+i.unitario*q;
+    return amR2(b-(+i.desconto||0))}
+  /* Resumo de UM produto de coPrecos para a tela (nenhuma regra nova: só soma o que coPrecos já calculou por compra, qtd e total líquido).
+     periodo  as compras com data >= ini (os 12 meses do Resumo): gasto, qtd, media (gasto/qtd), compras;
+     lojas    todo o histórico, uma linha por loja (loja_chave, a mesma das barras do Resumo): compras, qtd, gasto, media, menor, ultimo, ultima;
+              ordenadas pelo último preço (a mais barata primeiro), como "Onde saiu mais barato" do Mercado. */
+  function coProdutoResumo(p,ini){var l=(p&&p.historico)||[],ja=l.filter(function(x){return !ini||x.d>=ini}),g=0,q=0,por={},ks=[];
+    ja.forEach(function(x){g+=x.total;q+=x.qtd});g=amR2(g);q=Math.round(q*1000)/1000;
+    l.forEach(function(x){var k=x.loja_chave||x.loja||"",o=por[k];if(!o){o=por[k]={loja:k,compras:0,qtd:0,gasto:0,menor:null,ultimo:null,ultima:null};ks.push(k)}
+      o.compras++;o.qtd+=x.qtd;o.gasto=amR2(o.gasto+x.total);o.menor=o.menor==null?x.u:Math.min(o.menor,x.u);o.ultimo=x.u;o.ultima=x.d});
+    var lojas=ks.map(function(k){var o=por[k];o.qtd=Math.round(o.qtd*1000)/1000;o.media=o.qtd>0?amR2(o.gasto/o.qtd):null;return o}).sort(function(a,b){return a.ultimo-b.ultimo||(a.loja<b.loja?-1:1)});
+    return {periodo:{ini:ini||null,gasto:g,qtd:q,media:q>0?amR2(g/q):null,compras:ja.length},lojas:lojas}}
   function coPrecoLiquido(i){var q=+i.qtd>0?+i.qtd:1,d=+i.desconto||0,u=null;
     if(i.total!=null&&i.total!==""&&isFinite(+i.total))u=(+i.total-d)/q;else if(i.unitario!=null&&i.unitario!==""&&isFinite(+i.unitario))u=+i.unitario-d/q;
     return u==null||!isFinite(u)?null:Math.round(u*100)/100}
@@ -1600,11 +1666,13 @@
         eventos=(c.id&&ev[c.id])||[],reemb=eventos.length?"recebido":norm(c.status||"")==="reembolso_informado"?"informado":null;
       (c.itens||[]).forEach(function(i){if(!coItemNoPreco(i))return;
         var k=alChaveProduto(i.descricao),u=coPrecoLiquido(i);if(!k||u==null||!(u>=0))return;
-        (por[k]=por[k]||{nome:i.descricao,l:[],img:null}).l.push({d:c.data,u:u,loja:c.vendedor||CO_LOJAS[c.loja],b:coMultipack(i.descricao)?null:alPrecoBase(i.descricao,u),origem:origem,reembolso:reemb,eventos:eventos});if(i.imagem_path&&!por[k].img)por[k].img=i.imagem_path})});
+        (por[k]=por[k]||{nome:i.descricao,l:[],img:null}).l.push({d:c.data,u:u,loja:c.vendedor||CO_LOJAS[c.loja],b:coMultipack(i.descricao)?null:alPrecoBase(i.descricao,u),origem:origem,reembolso:reemb,eventos:eventos,
+          qtd:+i.qtd>0?+i.qtd:1,total:coItemTotal(i),compra_id:c.id||null,numero:c.numero||null,loja_chave:coLojaDe(c)});if(i.imagem_path&&!por[k].img)por[k].img=i.imagem_path})});
     return Object.keys(por).map(function(k){var p=por[k],l=p.l.sort(function(a,b){return a.d<b.d?-1:1}),u=l[l.length-1],base=null,og={};
       l.forEach(function(x){og[x.origem.modulo]=(og[x.origem.modulo]||0)+1});
       if(l.every(function(x){return x.b&&x.b.por===l[0].b.por})){var bs=l.map(function(x){return x.b.v});base={por:l[0].b.por,ultimo:bs[bs.length-1],menor:Math.min.apply(null,bs),variacao:bs.length>1&&bs[0]>0?(bs[bs.length-1]-bs[0])/bs[0]*100:null}}
-      return {chave:k,nome:p.nome,img:p.img,vezes:l.length,ultimo:u,menor:Math.min.apply(null,l.map(function(x){return x.u})),variacao:l.length>1&&l[0].u>0?(u.u-l[0].u)/l[0].u*100:null,base:base,origens:og,outros_modulos:l.length-(og.compras||0),historico:l}})
+      var gasto=amR2(l.reduce(function(s,x){return s+x.total},0)),qt=Math.round(l.reduce(function(s,x){return s+x.qtd},0)*1000)/1000;
+      return {chave:k,nome:p.nome,img:p.img,gasto:gasto,qtd:qt,media:qt>0?amR2(gasto/qt):null,vezes:l.length,ultimo:u,menor:Math.min.apply(null,l.map(function(x){return x.u})),variacao:l.length>1&&l[0].u>0?(u.u-l[0].u)/l[0].u*100:null,base:base,origens:og,outros_modulos:l.length-(og.compras||0),historico:l}})
       .sort(function(a,b){return b.vezes-a.vezes||(a.nome<b.nome?-1:1)})}
   /* ===== Compras multiorigem (Lote 2) =====
      O canal diz de onde veio a compra; natureza (física/digital) e histórico dizem o tratamento. Registro antigo, sem canal, continua
@@ -1641,16 +1709,23 @@
      - misto: histórico com itens digitais efetivados e físicos (só a parte digital entra);
      - outro_modulo: supermercado/combustível, que não são contados em Compras.
      Histórico Amazon sem natureza identificada fica como referência até alguém revisar (nunca entra por engano). */
+  /* natureza do pedido (digital ou fisica); qualquer outro valor é "não identificada" (null) */
+  function coNatureza(c){c=c||{};return c.natureza==="digital"||c.natureza==="fisica"?c.natureza:null}
+  /* destino de UM item de pedido histórico da Amazon, pela mesma regra de coClassificar (que usa esta função):
+     cancelado (fora de tudo); digital (despesa); pendente (digital autorizado/desconhecido); referencia (físico); indefinido (natureza não identificada). v = valor da linha. */
+  function coItemHist(i,nat){i=i||{};var n=i.natureza||nat,v=+(i.total_linha!=null?i.total_linha:i.total)||0,st=norm(i.status_norm||i.situacao||""),d;
+    if(st==="cancelado")d="cancelado";else if(n==="digital")d=st==="autorizado"||st==="desconhecido"?"pendente":"digital";else if(n==="fisica")d="referencia";else d="indefinido";
+    return {destino:d,v:v}}
   function coClassificar(c){c=c||{};var canal=coCanalDe(c),total=+c.total_pago,av=[],hist=c.historico===true||c.origem==="historico_amazon",
-      nat=c.natureza==="digital"||c.natureza==="fisica"?c.natureza:null,mod=coModuloDestino(c),sit=coSituacao(c);if(!isFinite(total))total=0;
+      nat=coNatureza(c),mod=coModuloDestino(c),sit=coSituacao(c);if(!isFinite(total))total=0;
     var o={canal:canal,modulo:mod,historico:hist,natureza:nat,situacao:sit,tratamento:"despesa",valor_despesa:total,valor_referencia:0,valor_pendente:0,categoria:null,avisos:av};
     if(mod!=="compras"){o.tratamento="outro_modulo";o.valor_despesa=0;av.push("Este registro pertence ao módulo "+(mod==="mercado"?"Mercado":"Veículos")+", não a Compras.");return o}
     if(sit==="cancelada"){o.tratamento="cancelado";o.valor_despesa=0;return o}
     if(hist&&canal==="amazon"){var dig=0,ref=0,ind=0,aut=0;
       /* item cancelado fica fora; item AUTORIZADO ou DESCONHECIDO (digital) é pendente mesmo dentro de pedido concluído: o valor dele não é despesa até ser efetivado.
          Físico autorizado ou desconhecido continua só referência (físico histórico nunca é despesa). O banco grava a situação do item em "situacao" (o importador, em "status_norm"). */
-      (c.itens||[]).forEach(function(i){var n=i.natureza||nat,v=+(i.total_linha!=null?i.total_linha:i.total)||0,st=norm(i.status_norm||i.situacao||"");if(st==="cancelado")return;
-        if(n==="digital"){if(st==="autorizado"||st==="desconhecido")aut+=v;else dig+=v}else if(n==="fisica")ref+=v;else ind+=v});
+      (c.itens||[]).forEach(function(i){var x=coItemHist(i,nat);
+        if(x.destino==="digital")dig+=x.v;else if(x.destino==="pendente")aut+=x.v;else if(x.destino==="referencia")ref+=x.v;else if(x.destino==="indefinido")ind+=x.v});
       if(!(dig+ref+ind+aut>0)){if(nat==="digital")dig=total;else if(nat==="fisica")ref=total;else ind=total}
       if(ind>0)av.push("Natureza (física ou digital) não identificada: fica só como referência até ser revisada.");
       o.valor_referencia=amR2(ref+ind);
@@ -1960,7 +2035,7 @@
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,
     CO_LOJAS:CO_LOJAS,CO_CATEGORIAS:CO_CATEGORIAS,CO_DOC_NOME:CO_DOC_NOME,coCategoria:coCategoria,coNum:coNum,coData:coData,coPagamento:coPagamento,coRecorrencia:coRecorrencia,coLerTexto:coLerTexto,
-    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coLimparTexto:coLimparTexto,coLimparExtraido:coLimparExtraido,coMesclar:coMesclar,coDespesas:coDespesas,coRegra:coRegra,coValorDespesa:coValorDespesa,coResumo:coResumo,coRotulo:coRotulo,coDeBanco:coDeBanco,coPrecoLiquido:coPrecoLiquido,coMultipack:coMultipack,coDescontos:coDescontos,coSegmentoDe:coSegmentoDe,coPedidoNoPreco:coPedidoNoPreco,coItemNoPreco:coItemNoPreco,coRecorrencias:coRecorrencias,coPrecos:coPrecos,
+    coLerNFe:coLerNFe,coLerCSV:coLerCSV,coConferir:coConferir,coNumeroPedido:coNumeroPedido,coDuplicata:coDuplicata,coLimparTexto:coLimparTexto,coLimparExtraido:coLimparExtraido,coMesclar:coMesclar,coDespesas:coDespesas,coRegra:coRegra,coValorDespesa:coValorDespesa,coResumo:coResumo,coRotulo:coRotulo,coDeBanco:coDeBanco,coPrecoLiquido:coPrecoLiquido,coMultipack:coMultipack,coDescontos:coDescontos,coSegmentoDe:coSegmentoDe,coPedidoNoPreco:coPedidoNoPreco,coItemNoPreco:coItemNoPreco,coRecorrencias:coRecorrencias,coPrecos:coPrecos,coLojaDe:coLojaDe,coItemTotal:coItemTotal,coItemHist:coItemHist,coNatureza:coNatureza,coProdutoResumo:coProdutoResumo,coDetalhe:coDetalhe,coCategoriaItem:coCategoriaItem,coPedidoPartes:coPedidoPartes,coDetalheLoja:coDetalheLoja,coDetalheCategoria:coDetalheCategoria,
     CO_CANAIS:CO_CANAIS,CO_CAT_DIGITAL:CO_CAT_DIGITAL,coCanalDe:coCanalDe,coModuloDestino:coModuloDestino,coSituacao:coSituacao,coClassificar:coClassificar,
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,

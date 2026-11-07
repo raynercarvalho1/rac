@@ -235,16 +235,12 @@
       var ps=c.docs.map(function(x){return x.path});SB.from("compras_online").delete().eq("id",c.id).then(sbOk).then(function(){return ps.length?SB.storage.from("familia").remove(ps).catch(function(){}):null})
         .then(function(){CC.aberto=null;ccEsquecer();renderCompras("lista")},function(e){ap.disabled=false;st.textContent="Não consegui apagar ("+e.message+")."})};
     d.appendChild(h("div",{class:"vfil"},h("label",{class:"ghostbtn ccadd"},"📎 Adicionar documento",add),h("a",{class:"ghostbtn pri",href:"#compras/editar/"+c.id,text:"Editar"}),fora,ap));d.appendChild(st);return d}
-  /* o que a nota fiscal traz e o pedido ainda não tem (chave, número, emitente, CNPJ): só preenche o que está vazio. Não é usado na gravação por RPC (o modo
-     "só documentos" não completa campos); volta com a migration 035, se for autorizada. */
-  function ccCompletar(ex,fontes){var o={};(fontes||[]).forEach(function(e){if(!e)return;["chave_nfe","numero_nf","emitente","cnpj"].forEach(function(k){if(!ex[k]&&!o[k]&&e[k])o[k]=e[k]});
-      if(!ex.status&&!o.status&&(e.tipo==="email_cancelamento"||e.tipo==="email_reembolso"))o.status=e.tipo==="email_cancelamento"?"cancelamento_informado":"reembolso_informado"});return o}
   /* documentos novos de uma compra que já existe: só os que ainda não estão guardados (mesmo conteúdo = mesmo arquivo) */
   function ccAnexarDocs(c,docs,st){var ja={};c.docs.forEach(function(x){ja[x.sha256]=1});var novos=docs.filter(function(x){return !ja[x.sha]});
     if(!novos.length){st.textContent="Esses arquivos já estão guardados nesta compra.";return}
     st.textContent="Guardando "+novos.length+(novos.length===1?" arquivo…":" arquivos…");
-    /* modo "só documentos" da RPC: chave da nota, NF, emitente, CNPJ, divergências e status não são completados daqui (dependem da migration 035) */
-    ccAnexar(c,novos,function(t){st.textContent=t}).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){st.textContent=ccErroTela(e,"")})}
+    /* compras_anexar (035): os documentos e o complemento (chave da nota, NF, emitente, CNPJ, aviso de cancelamento/reembolso e divergências) na mesma transação */
+    ccAnexar(c,novos,NUCLEO.coComplementoAnexo(c,novos.map(function(x){return x.ext}),NUCLEO.coDivergenciasAnexo(c,novos)),function(t){st.textContent=t}).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){st.textContent=ccErroTela(e,"")})}
 
   /* ---------- Produtos e recorrências ---------- */
   function ccProdutos(){var L=[],P=NUCLEO.coPrecos(CC.dados),imgs={};
@@ -480,7 +476,7 @@
     salvar.onclick=function(){if(sal)return;var r=conf();if(!r.ok)return;if(!navigator.onLine){falta.textContent="Sem internet: não salvei. Os dados continuam aqui.";return}
       if(!dupOk){dupOk=true;salvar.textContent="Salvar mesmo assim";falta.textContent="Parece repetido: "+o.dup.motivo+". Se for outra compra, toque de novo.";return}
       sal=true;salvar.disabled=true;falta.textContent="Salvando…";var x0=editavel?coletar():{};
-      var feito=!editavel?ccAnexar(ex,docsNovos,function(t){falta.textContent=t}).then(function(){return ex.id})
+      var feito=!editavel?ccAnexar(ex,docsNovos,NUCLEO.coComplementoAnexo(ex,[c].concat(docsNovos.map(function(x){return x.ext})),divs),function(t){falta.textContent=t}).then(function(){return ex.id})
         :ccGravar(x0,ex&&o.avulso?ex:null,o.cand,docsNovos,o.imagens||[],o.imagensUrl||[],divs,function(t){falta.textContent=t},idNovo);
       return feito.then(function(id){ccEsquecer();CC.aberto=id;
         /* na edição e no manual, volta para a lista; no lote, o quadro vira "Salvo" e os outros continuam na tela */
@@ -488,26 +484,27 @@
         p.innerHTML="";p.classList.add("ccsalvo");p.appendChild(h("p",{class:"qrok",text:"✓ Salvo: "+(x0.numero||ex&&ex.numero||"")+" · "+brl(x0.total_pago!=null?x0.total_pago:ex.total_pago)}),h("a",{class:"ghostbtn",href:"#compras/lista",text:"Ver nas compras"}));
         return ccCarregar(true)},function(e){sal=false;salvar.disabled=false;falta.textContent=ccErroTela(e," Os dados continuam aqui.")})};
     p._salvar=function(){return salvar.disabled?Promise.resolve():salvar.onclick()||Promise.resolve()};return p}
-  /* Grava (nova ou edição) com UMA chamada da RPC compras_gravar (030): a compra, os produtos e os documentos numa transação só. Nenhuma gravação direta nas tabelas.
+  /* Grava (nova ou edição) com UMA chamada da RPC compras_gravar_com_foto (035, que usa compras_gravar da 030): a compra, os produtos, os documentos e o vínculo da foto
+     numa transação só. Nenhuma gravação direta nas tabelas.
      1) o preparo: a foto do produto e os arquivos vão para o cofre privado, um por vez; 2) a RPC grava tudo ou nada; 3) o que foi enviado e NÃO ficou
      registrado é apagado do cofre (o que está em documentos ou numa imagem de produto nunca é apagado, e se não der para conferir, nada é apagado).
-     A foto nova fica só como DOCUMENTO da compra: o item NÃO recebe imagem_path (a RPC pode descartar a foto por SHA-256 repetido e não há como desfazer o vínculo
-     numa transação só; volta com a migration 035). Na edição, o imagem_path já gravado é preservado (coPayloadGravar).
+     A foto nova vira documento "foto do produto" e o BANCO liga o 1º produto a ela (imagem_path) só se ela ficou registrada e o produto ainda não tem imagem: foto repetida
+     (SHA-256) nunca é ligada, então nenhum item aponta para arquivo que sumiu. Na edição, o imagem_path já gravado é preservado (coPayloadGravar).
      idFixo = o mesmo id em toda tentativa do mesmo quadro (a RPC reconhece a compra já gravada). Em erro, devolve Error com .erro (NUCLEO.coErroGravar). */
   function ccGravar(x,ant,cand,docs,imagens,imagensUrl,divs,st,idFixo){var fimT=atuTarefa("a gravação da compra"),id=ant?ant.id:idFixo,enviados=[],foto=null;
     return ccFotoProduto(x,imagens,imagensUrl,st).then(function(f){foto=f;return ccEnviarArquivos(id,f?docs.concat([f]):docs,enviados,st)})
       .then(function(up){var pl=NUCLEO.coPayloadGravar(ant,x,cand,{id:id,divs:divs});
         st("Gravando a compra…");
-        return ccRpc({p_compra:pl.p_compra,p_itens:pl.p_itens,p_docs:up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}),p_novo:pl.p_novo}).then(function(){return ccLimparEnviados(enviados)})})
+        return ccRpc("compras_gravar_com_foto",{p_compra:pl.p_compra,p_itens:pl.p_itens,p_docs:up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}),p_novo:pl.p_novo,p_foto:foto?up[up.length-1].path:null}).then(function(){return ccLimparEnviados(enviados)})})
       .then(function(){fimT();return id},function(e){fimT();return ccLimparEnviados(enviados).then(function(){throw e})})}
-  /* só documentos numa compra que já existe (modo "só documentos" da RPC) */
-  function ccAnexar(c,docs,st){var fimT=atuTarefa("o envio dos documentos"),enviados=[];
+  /* documentos novos numa compra que já existe + o complemento da compra (coComplementoAnexo), pela RPC compras_anexar (035): tudo ou nada */
+  function ccAnexar(c,docs,complemento,st){var fimT=atuTarefa("o envio dos documentos"),enviados=[];
     return ccEnviarArquivos(c.id,docs,enviados,st).then(function(up){
-      return ccRpc(NUCLEO.coPayloadSoDocs(c.id,up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}))).then(function(){return ccLimparEnviados(enviados)})})
+      return ccRpc("compras_anexar",NUCLEO.coPayloadAnexar(c.id,up.map(function(u){return NUCLEO.coDocPayload(u.d,u.path)}),complemento)).then(function(){return ccLimparEnviados(enviados)})})
       .then(function(){fimT();return c.id},function(e){fimT();return ccLimparEnviados(enviados).then(function(){throw e})})}
   /* a chamada da RPC; qualquer falha (do banco ou da rede) vira Error com .erro = NUCLEO.coErroGravar(...) */
-  function ccRpc(args){var falha=function(x){var er=NUCLEO.coErroGravar(x),e=new Error(er.mensagem);e.erro=er;return e};
-    return Promise.resolve(SB.rpc("compras_gravar",args)).then(function(r){if(r&&r.error)throw falha(r.error);return r.data},function(x){throw x&&x.erro?x:falha(x)})}
+  function ccRpc(nome,args){var falha=function(x){var er=NUCLEO.coErroGravar(x),e=new Error(er.mensagem);e.erro=er;return e};
+    return Promise.resolve(SB.rpc(nome,args)).then(function(r){if(r&&r.error)throw falha(r.error);return r.data},function(x){throw x&&x.erro?x:falha(x)})}
   /* depois de gravar (ou falhar): documento repetido (mesmo SHA-256) não vira linha, e o arquivo de uma compra que já existia também não; apaga do cofre só o que foi
      enviado e NÃO está registrado (nem em documentos, nem como imagem de produto). Só lê as tabelas. Sem conseguir conferir, não apaga nada. */
   function ccLimparEnviados(paths){paths=(paths||[]).filter(Boolean);if(!paths.length)return Promise.resolve([]);

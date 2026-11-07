@@ -244,7 +244,8 @@ test("Compras, Painel e Hoje usam a função central e leem os campos da 030; ne
 });
 test("Lote 5.0 é só local: sem SQL novo, sem rede nova e sem tocar em Garmin, Esportes, Segurança nem recorrência/reembolso", () => {
   const cc = ler("js/compras.js");
-  assert.doesNotMatch(cc, /\.rpc\((?!"compras_gravar")|supabase\.co|fetch\(\s*["']http/, "a única RPC permitida é compras_gravar (Lote 5.1); nenhuma outra chamada nova");
+  assert.doesNotMatch(cc, /\.rpc\((?!nome,args\))|supabase\.co|fetch\(\s*["']http/, "só ccRpc chama SB.rpc(nome,args); nenhuma outra chamada nova (Lote 5.1)");
+  assert.deepEqual([...new Set([...cc.matchAll(/ccRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_anexar", "compras_gravar_com_foto"], "as únicas RPCs são as de compras_gravar_com_foto e compras_anexar (035)");
   assert.match(cc, /NUCLEO\.coRecorrencias\(CC\.dados\)\.filter\(function\(r\)\{return r\.informada&&r\.informada\.status==="a_confirmar"\}\)/, "recorrência intacta");
   assert.doesNotMatch(cc, /compras_reembolsos|reembolso_confirmar/);
 });
@@ -348,7 +349,7 @@ test("revisão do Lote 5.0: Hoje traz a categoria (para deduzir o módulo), Comp
   assert.match(hj, /impostos_info,categoria,compras_online_itens\(/); assert.match(cc, /categoria,recorrencia_texto/);
   assert.match(cc, /\["Economia \(12 meses\)",brl\(P\.descontos\.economia\)\]/); assert.match(cc, /Economia sem duplicidade/); assert.doesNotMatch(cc, /descontos\.gerais\)\],\["Ticket/);
   assert.match(cc, /x\.outros_modulos/); assert.match(cc, /o preço continua no histórico/);
-  assert.doesNotMatch(cc, /\.rpc\((?!"compras_gravar")/, "só compras_gravar (Lote 5.1)"); assert.doesNotMatch(cc, /compras_reembolsos/);
+  assert.doesNotMatch(cc, /\.rpc\((?!nome,args\))/, "só ccRpc chama a RPC (Lote 5.1)"); assert.doesNotMatch(cc, /compras_reembolsos/);
 });
 
 // ---------- situação desconhecida: pedido e item são pendentes ----------

@@ -141,7 +141,7 @@ test("e-mails de pagamento, cancelamento e reembolso; cancelamento só sai das d
   assert.equal(N.coDespesas([c("cancelado"), c("cancelamento_informado"), c("reembolso_informado"), c(null)]).length, 3);
   assert.match(ler("supabase/026_compras_emails.sql"), /'email_pagamento',\s+'email_cancelamento', 'email_reembolso'/);
   const js = ler("js/compras.js");
-  assert.match(js, /o\.status=e\.tipo==="email_cancelamento"\?"cancelamento_informado":"reembolso_informado"/, "o e-mail só avisa");
+  assert.match(ler("nucleo.js"), /o\.status=e\.tipo==="email_cancelamento"\?"cancelamento_informado":"reembolso_informado"/, "o e-mail só avisa (Lote 5.1: a regra está em coComplementoAnexo, no núcleo)");
   assert.match(js, /\["cancelado","Confirmar cancelamento \(sai das despesas\)"\]/);
   assert.match(js, /Recorrência \(separada da compra\)/); assert.match(js, /nenhuma compra nem despesa futura é criada/);
 });

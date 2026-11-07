@@ -290,3 +290,52 @@ test("edição: o imagem_path do produto já gravado é preservado mesmo que o f
   assert.deepEqual(N.coPayloadGravar(ant, {}, null).p_itens.map((i) => i.imagem_path ?? null), ant.itens.map((i) => i.imagem_path ?? null), "sem formulário de itens, todos os caminhos voltam iguais");
   assert.ok(!N.coPayloadGravar(null, FORM_NOVO(), null, { id: ID }).p_itens.some((i) => i.imagem_path), "compra nova: nenhum item ganha imagem_path");
 });
+
+// ---------- 9. etapa 3: complemento de compras_anexar (035) e mensagens dos prefixos novos ----------
+const S35 = ler("supabase/035_compras_anexar_foto.sql").replace(/\r\n/g, "\n");
+test("coComplementoAnexo: as chaves e os limites são os da RPC compras_anexar (lidos do SQL da 035)", () => {
+  const campos = [...S35.match(/campos constant text\[\] := array\[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(N.CO_COMPLEMENTO_CAMPOS, campos);
+  for (const t of ["'^\\d{44}$'", "'^\\d{14}$'", "length(v_nf) > 20", "length(v_em) > 160", "length(v_e->>'texto') > 300", "length(v_e->>'campo') > 40", "jsonb_array_length(v_comp->'divergencias') > 20", "in ('cancelamento_informado', 'reembolso_informado')"]) assert.ok(S35.includes(t), t);
+  const cheio = N.coComplementoAnexo({}, [{ chave_nfe: "1".repeat(44), numero_nf: "x".repeat(20), emitente: "e".repeat(160), cnpj: "1".repeat(14), tipo: "email_cancelamento" }], Array.from({ length: 25 }, (_, i) => ({ campo: "c", texto: "t" + i })));
+  assert.deepEqual(Object.keys(cheio).sort(), ["chave_nfe", "cnpj", "divergencias", "emitente", "numero_nf", "status"]);
+  assert.equal(cheio.divergencias.length, 20, "no máximo 20 por vez");
+  for (const k of Object.keys(cheio)) assert.ok(N.CO_COMPLEMENTO_CAMPOS.includes(k), k);
+});
+test("coComplementoAnexo: só o que a compra ainda não tem, só valores que a RPC aceita, status só de aviso e divergência sem repetir", () => {
+  const ex = { chave_nfe: null, numero_nf: "9", emitente: "", cnpj: null, status: null, divergencias: [{ campo: "a", texto: "já" }] };
+  const f = (...e) => N.coComplementoAnexo(ex, e, [{ texto: "já" }, { texto: "nova", campo: "x" }, { texto: "nova" }, { texto: "  " }, { texto: "t".repeat(400) }, null]);
+  assert.deepEqual(clone(f({ chave_nfe: "1".repeat(44), numero_nf: "OUTRO", emitente: "Loja", cnpj: "11222333000144" })), { chave_nfe: "1".repeat(44), emitente: "Loja", cnpj: "11222333000144", divergencias: [{ texto: "nova", campo: "x" }, { texto: "t".repeat(300) }] }, "NF já gravada não é mandada; divergência repetida, vazia e nula saem; texto longo é cortado");
+  for (const ruim of [{ chave_nfe: "123" }, { chave_nfe: "1".repeat(43) + "a" }, { cnpj: "12" }, { cnpj: "11.222.333/0001-44" }, { numero_nf: "x".repeat(21), emitente: "e".repeat(161) }]) assert.ok(!Object.keys(N.coComplementoAnexo({}, [ruim], [])).length, JSON.stringify(ruim).slice(0, 40) + ": valor que a RPC recusaria não é mandado");
+  assert.equal(N.coComplementoAnexo({}, [{ tipo: "email_cancelamento" }]).status, "cancelamento_informado"); assert.equal(N.coComplementoAnexo({}, [{ tipo: "email_reembolso" }]).status, "reembolso_informado");
+  assert.equal(N.coComplementoAnexo({ status: "concluido" }, [{ tipo: "email_cancelamento" }]).status, undefined, "compra com status: o aviso não troca");
+  assert.equal(N.coComplementoAnexo({}, [{ tipo: "email_confirmacao" }, { tipo: "danfe" }]).status, undefined, "só e-mail de cancelamento ou reembolso avisa");
+  assert.equal(N.coComplementoAnexo({}, [{ chave_nfe: "1".repeat(44) }, { chave_nfe: "2".repeat(44) }]).chave_nfe, "1".repeat(44), "o 1º documento com valor vale");
+  assert.deepEqual(N.coComplementoAnexo(null, null, null), {}); assert.deepEqual(N.coComplementoAnexo({}, [null, undefined], []), {});
+  const ex2 = { divergencias: [{ texto: "x" }] }, antes = clone(ex2); N.coComplementoAnexo(ex2, [], [{ texto: "y" }]); assert.deepEqual(ex2, antes, "não altera a compra recebida");
+});
+test("coDivergenciasAnexo: pedido diferente e valores diferentes entre o documento e a compra (a conta de coMesclar), sem tocar na compra", () => {
+  const c = { numero: "701-0000001-0000001", subtotal: 100, desconto: 0, frete: 0, total_pago: 100 };
+  assert.deepEqual(N.coDivergenciasAnexo(c, [{ nome: "a.pdf", ext: { numero: "701-0000001-0000001", subtotal: 100, total_pago: 100 } }]), [], "tudo igual: nenhuma divergência");
+  const d = N.coDivergenciasAnexo(c, [{ nome: "b.pdf", ext: { numero: "999-1", subtotal: 100, total_pago: 90 } }]);
+  assert.equal(d[0].campo, "numero"); assert.match(d[0].texto, /O documento b\.pdf é do pedido 999-1\./); assert.ok(d.some((x) => /total/i.test(x.texto)), "total pago diferente vira divergência");
+  assert.ok(d.every((x) => typeof x.texto === "string" && x.texto));
+  assert.deepEqual(N.coDivergenciasAnexo(c, [{ nome: "c.pdf" }, null]), [], "sem o que foi lido do documento: nada");
+  assert.deepEqual(N.coDivergenciasAnexo(null, []), []);
+});
+test("coPayloadAnexar: os argumentos de compras_anexar(p_id, p_docs, p_complemento)", () => {
+  assert.deepEqual(N.coPayloadAnexar(ID, [{ tipo: "csv" }], { cnpj: "11222333000144" }), { p_id: ID, p_docs: [{ tipo: "csv" }], p_complemento: { cnpj: "11222333000144" } });
+  assert.deepEqual(N.coPayloadAnexar(ID), { p_id: ID, p_docs: [], p_complemento: {} }); assert.throws(() => N.coPayloadAnexar(null, []), /falta o id/);
+  assert.match(S35, /create or replace function public\.compras_anexar\(p_id uuid, p_docs jsonb, p_complemento jsonb\)/);
+});
+test("coErroGravar: os prefixos de compras_anexar e compras_gravar_com_foto também saem das mensagens", () => {
+  const e = (code, m) => N.coErroGravar({ code, message: m });
+  assert.match(e("22023", "compras_anexar: chave da nota inválida").mensagem, /^Dados inválidos: chave da nota inválida\. Nada foi gravado\.$/);
+  assert.match(e("22023", "compras_gravar_com_foto: caminho da foto inválido").mensagem, /^Dados inválidos: caminho da foto inválido\./);
+  assert.match(e("22023", "compras_gravar: valor inválido em total_pago").mensagem, /^Dados inválidos: valor inválido em total_pago\./);
+  assert.equal(e("22023", "compras_anexar: campo não permitido no complemento: user_id").tipo, "campo_invalido"); assert.match(e("22023", "compras_anexar: campo não permitido no complemento: user_id").mensagem, /\(campo não permitido no complemento: user_id\)/);
+  assert.equal(e("42501", "compras_anexar: faça login").tipo, "sessao"); assert.equal(e("P0002", "compras_anexar: compra não encontrada").tipo, "nao_encontrado");
+  assert.equal(e("23505", 'duplicate key value violates unique constraint "compras_online_nfe_unica"').tipo, "duplicado_nfe", "chave de nota repetida vinda do complemento");
+  assert.equal(e("22023", "compras_anexar: divergências demais nesta compra (máximo 100)").tipo, "dados_invalidos");
+  assert.equal(e("42501", "permission denied for function compras_gravar_com_foto").tipo, "permissao");
+});

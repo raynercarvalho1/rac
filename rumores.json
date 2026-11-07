@@ -1,8 +1,20 @@
 {
- "coletado": "2026-11-07T05:54:38.531998+00:00",
+ "coletado": "2026-11-07T12:55:56.418095+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Nationals, Jacob Young Agree To Extension",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-extend-jacob-young-center-fielder.html",
+   "data": "2026-11-07T05:55:11+00:00",
+   "resumo": "The Nationals are locking center fielder Jacob Young in as a key part of the roster, as the two parties have reportedly agreed to a four-year, $23MM contract extension. The contract contains a fifth-year option that’s valued at $8MM, and Young would receive a $2MM assignment…",
+   "tags": [
+    "Newsstand",
+    "Transactions",
+    "Washington Nationals",
+    "Jacob Young"
+   ]
+  },
   {
    "t": "Royals, Hobie Harris Agree To Minor League Deal",
    "link": "https://www.mlbtraderumors.com/2026/11/royals-hobie-harris-agree-to-minor-league-deal.html",
@@ -131,18 +143,6 @@
     "Los Angeles Dodgers",
     "Aaron Bates",
     "Robert Van Scoyoc"
-   ]
-  },
-  {
-   "t": "Nationals, Jacob Young Agree To Extension",
-   "link": "https://www.mlbtraderumors.com/2026/11/nationals-extend-jacob-young-center-fielder.html",
-   "data": "2026-11-06T16:15:11+00:00",
-   "resumo": "The Nationals are locking center fielder Jacob Young in as a key part of the roster, as the two parties have reportedly agreed to a four-year, $23MM contract extension. The contract contains a fifth-year option that’s valued at $8MM, and Young would receive a $2MM assignment…",
-   "tags": [
-    "Newsstand",
-    "Transactions",
-    "Washington Nationals",
-    "Jacob Young"
    ]
   },
   {

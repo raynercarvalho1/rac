@@ -1,4 +1,4 @@
-// Lote 5.1 · migration 035 (compras_anexar e compras_gravar_com_foto): PREPARADA, não executada em produção.
+// Lote 5.1 · migration 035 (compras_anexar e compras_gravar_com_foto): aplicada em produção em 07/11/2026.
 // PARTE 1 (sempre roda, sem banco): o que está escrito no SQL (idempotência, segurança, escopo). PARTE 2 (precisa do PGlite, o Postgres que roda dentro do Node):
 // o SQL de verdade, com o ambiente do Supabase imitado (papéis, auth, casa, MFA), como em banco_lote3.test.mjs. Sem PGlite, a parte 2 fica ignorada (no GitHub nunca se pula).
 // Fidelidade e limites do PGlite: os mesmos descritos no começo de tests/banco_lote3.test.mjs. Nada disto fala com o Supabase. Todos os dados são fictícios.
@@ -13,8 +13,8 @@ const semComent = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "
 const S35 = ler("supabase/035_compras_anexar_foto.sql"), C35 = semComent(S35);
 
 // ---------- PARTE 1: o texto do SQL ----------
-test("035: arquivo numerado, status pendente na 1ª linha, em transação, e roda de novo sem erro (create or replace, nada de drop/truncate/delete)", () => {
-  assert.match(S35.split("\n")[0], /^-- status: pendente/);
+test("035: arquivo numerado, status \"aplicado em produção\" na 1ª linha, em transação, e roda de novo sem erro (create or replace, nada de drop/truncate/delete)", () => {
+  assert.match(S35.split("\n")[0], /^-- Aplicado em produção em 07\/11\/2026/); assert.doesNotMatch(S35.split("\n")[0], /status: pendente/, "não está mais pendente");
   assert.ok(fs.existsSync(new URL("../supabase/035_compras_anexar_foto.sql", import.meta.url)));
   assert.match(C35, /^\s*begin;/); assert.match(C35, /commit;\s*notify pgrst, 'reload schema';\s*$/);
   assert.equal((C35.match(/create or replace function/g) || []).length, 2);
@@ -45,7 +45,7 @@ test("035: o complemento só aceita o que o site completava (chave, NF, emitente
 });
 test("035: cabeçalho explica o que faz, a ordem e a segurança", () => {
   const cab = S35.split("\nbegin;")[0];
-  for (const t of ["Rode depois do 030", "Pode rodar de novo", "só preenchem o que está VAZIO", "security invoker", "NÃO foi executada"]) assert.ok(cab.includes(t), t);
+  for (const t of ["Rode depois do 030", "Pode rodar de novo", "só preenchem o que está VAZIO", "security invoker", "Aplicado em produção"]) assert.ok(cab.includes(t), t);
 });
 
 // ---------- PARTE 2: o SQL de verdade (PGlite) ----------

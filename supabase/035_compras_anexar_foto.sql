@@ -1,4 +1,4 @@
--- status: pendente (preparada em 07/11/2026; NÃO foi executada em lugar nenhum; o dono roda no SQL Editor)
+-- Aplicado em produção em 07/11/2026 (rodada pelo dono no SQL Editor; conferida por consulta só-leitura: as duas funções existem, anon sem EXECUTE e authenticated com EXECUTE)
 -- Compras · Lote 5.1, etapa 3 (docs/compras.md): completar a compra ao anexar documentos e vincular a foto ao produto, SEM gravação fora da transação.
 -- Rode depois do 030 e do 034 (precisa de compras_gravar, dono_da_casa() e das tabelas de Compras). Pode rodar de novo sem estragar nada.
 --

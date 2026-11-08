@@ -11,6 +11,13 @@ Sem IA e sem custo: regras fixas sobre o histórico real da view `compras`. "Men
   `estado.lidos` guarda os ids já lidos (máximo de 1500). Os alertas em si **não são gravados**: são recalculados do histórico e têm id fixo, então o "histórico de alertas" é o próprio histórico de compras.
   Limitações: só o dono vê/configura; não dá para consultar por SQL; sem envio fora do app.
 
+## Tela (painel navegável)
+Só a apresentação: o motor (`mkal*`), a leitura e a gravação em `pessoal` são os mesmos. A vista atual fica em `st.al.vista` e sobrevive ao redesenho (por exemplo, depois de marcar como lido).
+1. **Painel:** indicadores compactos e clicáveis (Novos + um por tipo, cada um com ícone e cor própria; tipo desligado aparece "desligado" e leva aos ajustes; o "menor no período" só aparece ligado), uma prévia de até 5 novos mais recentes, "⚙ Ajustes" e "Marcar todos como lidos". Nenhum detalhe é carregado aqui. No celular a grade vira 2 colunas.
+2. **Lista de um tipo (ou de todos):** título, quantidade de novos e no total, filtro por tipo, "Mostrar lidos e anteriores", "Marcar todos (deste tipo) como lidos". Linhas compactas: produto e unidade, estabelecimento, data, novo/lido, preços e variação.
+3. **Detalhe do alerta:** motivo, comparação de preços, compra que originou, "Ver histórico do produto" (abre Preços na unidade certa), "Marcar como lido" e os outros alertas do mesmo produto.
+4. **Ajustes:** tela própria (tipos, percentuais, janelas, janela de novos e limites por produto e unidade). Todas as vistas têm "← Painel".
+
 ## Identidade e comparabilidade
 Produto = nome + unidade (`mkcChaveProd`, `mkcUn`), a mesma identidade de Preços, Consumo e Comparar. kg, L, un e unidades desconhecidas (ex.: ml) nunca se misturam; embalagens diferentes são produtos de nomes diferentes.
 Preço = `valor_unitario` da linha; a ordem das compras é por data e id (`mkcOrd`).

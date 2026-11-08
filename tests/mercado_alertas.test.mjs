@@ -148,55 +148,130 @@ test("preferências individuais: ligar/desligar, percentuais e valores inválido
 });
 
 function abrir(pessoal) {
-  DONO = true; gravacoes = []; globalThis.PESSOAL = pessoal || {}; seq = seq; globalThis.location.hash = ""; T.usar(ROWS, { email: "dono@teste" });
+  DONO = true; gravacoes = []; globalThis.PESSOAL = pessoal || {}; globalThis.location.hash = ""; T.st.al = null; T.usar(ROWS, { email: "dono@teste" });
   const body = new El("div"); T.viewAlertas(body); return body;
 }
 const botao = (raiz, rot, i = 0) => achar(raiz, (e) => e.tag === "button" && texto(e).trim() === rot)[i];
-const raiz = () => ROOT;
+const tile = (raiz, aria) => achar(raiz, (e) => e.tag === "button" && (e.attrs["aria-label"] || "").startsWith(aria))[0];
+const linhas = (raiz) => achar(raiz, (e) => e.tag === "button" && /(^| )alrow( |$)/.test(e.className || ""));
+const inp = (rot) => achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === rot)[0];
+const rerender = () => { const b = new El("div"); T.viewAlertas(b); return b; };
 
-test("tela: alertas novos, cartões com produto, unidade, data, estabelecimento, preços, percentual e motivo", () => {
-  const body = abrir(); const t = texto(body);
-  assert.match(t, /Alertas de preço/); assert.match(t, /Novos\s+5/); assert.match(t, /Aumento de preço · novo/); assert.match(t, /Queda de preço · novo/); assert.match(t, /Menor preço histórico · novo/); assert.match(t, /Melhor preço em outro mercado · novo/);
-  assert.match(t, /Arroz · kg · 02\/11\/2026 · Confiança/); assert.match(t, /Antes R\$\s?5,00\/kg → agora R\$\s?5,80\/kg/); assert.match(t, /subiu 16%/); assert.match(t, /Reinaldo R\$\s?5,00\/kg × Confiança R\$\s?5,80\/kg/);
-  assert.match(t, /não é o menor preço do mercado|Não é o menor preço do mercado/i); assert.ok(!/Limite de preço atingido · novo/.test(t), "sem limite cadastrado não há alerta de limite");
-  assert.ok(achar(body, (e) => e.tag === "span" && /vt/.test(e.className || "")).length >= 4, "variação em ▲/▼");
+test("painel: indicadores compactos por tipo com a contagem de novos, sem cartões de detalhe na visão geral", () => {
+  const body = abrir(), t = texto(body);
+  assert.match(t, /Alertas de preço/); assert.match(t, /⚙ Ajustes/); assert.match(t, /Marcar todos como lidos/);
+  for (const [aria, n] of [["Novos: 5", "5"], ["Aumento de preço: 2 novos", "2"], ["Queda de preço: 1 novos", "1"], ["Menor preço histórico: 1 novos", "1"], ["Melhor preço em outro mercado: 1 novos", "1"], ["Limite de preço atingido: 0 novos", "0"]]) {
+    const b = tile(body, aria); assert.ok(b, aria); assert.match(texto(b), new RegExp("\\b" + n + "\\b")); assert.match(b.className, /altile/);
+  }
+  assert.equal(achar(body, (e) => /alkpis/.test(e.className || "")).length, 1); assert.equal(achar(body, (e) => /(^| )altile( |$)/.test(e.className || "")).length, 6, "Novos + os cinco tipos");
+  assert.ok(!tile(body, "Menor preço no período"), "o sexto tipo só aparece ligado");
+  assert.match(texto(tile(body, "Aumento de preço")), /2 no total · ver ›/, "indica que é clicável");
+  assert.match(tile(body, "Aumento de preço").className, /t-aumento/); assert.match(tile(body, "Queda de preço").className, /t-queda/); assert.notEqual(tile(body, "Queda de preço").className, tile(body, "Aumento de preço").className, "cada tipo tem a sua identidade");
+  assert.ok(!/Por que gerou este alerta|Comparação de preços|Compra que originou/.test(t), "detalhes só ao clicar");
+  assert.equal(linhas(body).length, 5, "só uma prévia compacta dos novos mais recentes"); assert.match(t, /Novos mais recentes/);
+  assert.equal(achar(body, (e) => e.tag === "input").length, 0, "o formulário de ajustes não fica na visão geral");
 });
 
-test("tela: ver histórico abre Preços no produto e unidade certos; marcar como lido grava e atualiza a contagem", () => {
-  const body = abrir();
-  botao(body, "Ver histórico do produto", 0).onclick();
-  assert.equal(globalThis.location.hash, "#mercado/precos");
-  /* o clique levou o produto certo (nome + unidade): a aba Preços abre o detalhe dele, e só da unidade do alerta */
-  const precos = new El("div"); T.viewPrecos(precos); const tp = texto(precos);
-  assert.match(tp, /Leite Integral 1L · un/); assert.match(tp, /3 compras/); assert.ok(!/Arroz · kg/.test(tp));
-  const b2 = abrir(); botao(b2, "Marcar como lido", 0).onclick();
-  assert.equal(gravacoes.length, 1); assert.equal(gravacoes[0][0], "mercado-alertas"); assert.equal(gravacoes[0][1].estado.lidos.length, 1);
-  assert.match(texto(ROOT), /Novos\s+4/); assert.match(texto(ROOT), /Alertas \(4\)/, "a aba mostra quantos são novos");
-  botao(ROOT, "Marcar todos como lidos").onclick(); assert.match(texto(ROOT), /Novos\s+0/); assert.match(texto(ROOT), /Nenhum alerta novo/); assert.ok(!/Alertas \(/.test(texto(ROOT)));
-  assert.equal(gravacoes.length, 2);
-  const chk = achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === "Mostrar lidos e anteriores")[0]; chk.checked = true; chk.onchange();
-  assert.match(texto(ROOT), /Lidos e anteriores \(5\)/);
+test("painel: contagem de novos e lidos usa os dados reais; tipo desligado aparece como desligado", () => {
+  const lidos = N.mkalGerar(ROWS, {}).filter((a) => a.tipo === "queda").map((a) => a.id);
+  const body = abrir({ "mercado-alertas": { v: 1, cfg: { tipos: { limite: { on: false } } }, estado: { lidos } } });
+  assert.match(texto(tile(body, "Novos: 4")), /1 lidos ou anteriores/); assert.match(texto(tile(body, "Queda de preço: 0 novos")), /1 no total/);
+  assert.match(tile(body, "Limite de preço atingido: desligado").className, /off/); assert.match(texto(tile(body, "Limite de preço atingido")), /desligado · ajustar ›/);
+  tile(body, "Limite de preço atingido").onclick(); assert.match(texto(body), /Ajustes dos alertas/, "tipo desligado leva aos ajustes");
 });
 
-test("tela: ajustes salvam preferências e limites, e o limite gera alerta; remover tira", () => {
-  abrir(); const sub = ROOT;
-  const inp = (rot) => achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === rot)[0];
-  const aumPct = inp("Aumento de preço: a partir de (%)"); aumPct.value = "30"; inp("Ativar: Queda de preço").checked = false; inp("Ativar: Aumento de preço").checked = true;
-  for (const rot of ["Ativar: Menor preço histórico", "Ativar: Menor preço no período", "Ativar: Melhor preço em outro mercado", "Ativar: Limite de preço definido por mim"]) inp(rot).checked = rot !== "Ativar: Menor preço no período";
-  botao(ROOT, "Salvar ajustes").onclick();
-  const salvo = globalThis.PESSOAL["mercado-alertas"]; assert.equal(salvo.cfg.tipos.aumento.pct, 0.3); assert.equal(salvo.cfg.tipos.queda.on, false); assert.equal(salvo.cfg.tipos.minimo_periodo.on, false);
-  assert.match(texto(ROOT), /Ajustes salvos/); assert.ok(!/Queda de preço · novo/.test(texto(ROOT)), "queda desligada");
+test("navegação: tipo → lista filtrada com título e quantidade → voltar ao painel; a vista sobrevive ao redesenho", () => {
+  const body = abrir(); tile(body, "Aumento de preço").onclick();
+  let t = texto(body);
+  assert.match(t, /▲ Aumento de preço/); assert.match(t, /2 novos · 2 alertas no total/); assert.match(t, /Arroz · kg/); assert.match(t, /Queijo Minas · kg/); assert.ok(!/Leite Integral/.test(t) && !/Queda de preço/.test(t), "só o tipo escolhido");
+  assert.equal(linhas(body).length, 2); assert.ok(!tile(body, "Novos"), "a visão geral sai de cena");
+  assert.equal(T.st.al.vista, "lista"); assert.equal(T.st.al.tipo, "aumento");
+  /* o app redesenha a tela (ex.: depois de gravar): continua na mesma lista */
+  const b2 = rerender(); assert.match(texto(b2), /▲ Aumento de preço/); assert.equal(linhas(b2).length, 2);
+  botao(b2, "← Painel").onclick(); t = texto(b2); assert.match(t, /Novos mais recentes/); assert.equal(T.st.al.vista, "painel"); assert.ok(tile(b2, "Aumento de preço"));
+});
+
+test("filtro por tipo dentro da lista e 'Todos'; mostrar lidos e anteriores", () => {
+  const body = abrir(); tile(body, "Novos: 5").onclick();
+  assert.match(texto(body), /Todos os alertas/); assert.equal(linhas(body).length, 5);
+  botao(body, "★ Menor").onclick(); assert.match(texto(body), /★ Menor preço histórico/); assert.equal(linhas(body).length, 1); assert.match(texto(body), /Leite Integral 1L · un/);
+  botao(body, "Todos").onclick(); assert.equal(linhas(body).length, 5);
+  const lidos = N.mkalGerar(ROWS, {}).filter((a) => a.tipo === "aumento").map((a) => a.id);
+  const b2 = abrir({ "mercado-alertas": { v: 1, cfg: {}, estado: { lidos } } }); tile(b2, "Aumento de preço").onclick();
+  assert.match(texto(b2), /0 novos · 2 alertas no total/); assert.match(texto(b2), /Nenhum alerta novo neste grupo/); assert.equal(linhas(b2).length, 0);
+  const chk = achar(b2, (e) => e.tag === "input" && e.attrs["aria-label"] === "Mostrar lidos e anteriores")[0]; chk.checked = true; chk.onchange();
+  assert.match(texto(b2), /Lidos e anteriores \(2\)/); assert.equal(linhas(b2).length, 2); assert.match(texto(b2), /· lido/);
+});
+
+test("detalhe do alerta: motivo, comparação de preços, compra de origem, histórico do produto e marcar como lido", () => {
+  const body = abrir(); tile(body, "Aumento de preço").onclick();
+  linhas(body).find((r) => /Arroz/.test(texto(r))).onclick(); const t = texto(body);
+  assert.match(t, /▲ Arroz · kg/); assert.match(t, /Aumento de preço · 02\/11\/2026 · Confiança · novo/);
+  assert.match(t, /Por que gerou este alerta/); assert.match(t, /subiu 16%/); assert.match(t, /Comparação de preços/); assert.match(t, /Antes\s+R\$\s?5,00\/kg\s+01\/11\/2026 · Reinaldo/); assert.match(t, /Agora\s+R\$\s?5,80\/kg\s+02\/11\/2026 · Confiança/);
+  assert.match(t, /Diferença\s+\+R\$\s?0,80\/kg/); assert.match(t, /Compra que originou/); assert.match(t, /categoria Mercearia/);
+  assert.match(t, /Outros alertas deste produto \(1\)/); assert.match(t, /Melhor preço em outro mercado/);
+  assert.ok(botao(body, "← Painel") && botao(body, "← ▲ Aumento de preço"), "sempre dá para voltar");
+  botao(body, "← ▲ Aumento de preço").onclick(); assert.equal(T.st.al.vista, "lista");
+  /* melhor preço: mostra onde comprou e onde era mais barato */
+  const m = abrir(); tile(m, "Melhor preço em outro mercado").onclick(); linhas(m)[0].onclick();
+  assert.match(texto(m), /Onde você comprou\s+R\$\s?5,80\/kg\s+02\/11\/2026 · Confiança/); assert.match(texto(m), /Mais barato em\s+R\$\s?5,00\/kg\s+01\/11\/2026 · Reinaldo/);
   /* limite */
-  const sel = achar(ROOT, (e) => e.tag === "select" && e.attrs["aria-label"] === "Produto do limite")[0], leite = N.mkalOpcoes(ROWS).find((o) => o.nome === "Leite Integral 1L");
-  sel.value = leite.chave; inp("Limite de preço (R$)").value = "5"; botao(ROOT, "Salvar limite").onclick();
-  assert.equal(globalThis.PESSOAL["mercado-alertas"].cfg.limites.length, 1); assert.match(texto(ROOT), /Limite de preço atingido · novo/); assert.match(texto(ROOT), /seu limite R\$\s?5,00\/un/); assert.match(texto(ROOT), /Leite Integral 1L\s+un\s+R\$\s?5,00/);
-  /* editar: salvar de novo com outro valor */
-  const sel2 = achar(ROOT, (e) => e.tag === "select" && e.attrs["aria-label"] === "Produto do limite")[0]; sel2.value = leite.chave; achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === "Limite de preço (R$)")[0].value = "4"; botao(ROOT, "Salvar limite").onclick();
-  assert.equal(globalThis.PESSOAL["mercado-alertas"].cfg.limites[0].max, 4); assert.ok(!/Limite de preço atingido · novo/.test(texto(ROOT)));
+  const l = abrir({ "mercado-alertas": { v: 1, cfg: { limites: [{ nome: "Leite Integral 1L", unidade: "un", max: 5 }] }, estado: { lidos: [] } } }); tile(l, "Limite de preço atingido: 1").onclick(); linhas(l)[0].onclick();
+  assert.match(texto(l), /Seu limite\s+R\$\s?5,00\/un/); assert.match(texto(l), /Preço pago\s+R\$\s?4,50\/un/);
+});
+
+test("detalhe: abrir o histórico no Preços (produto e unidade certos) e marcar como lido grava e mantém a vista", () => {
+  const body = abrir(); tile(body, "Queda de preço").onclick(); linhas(body)[0].onclick();
+  botao(body, "Ver histórico do produto").onclick(); assert.equal(globalThis.location.hash, "#mercado/precos");
+  const precos = new El("div"); T.viewPrecos(precos); assert.match(texto(precos), /Leite Integral 1L · un/); assert.match(texto(precos), /3 compras/); assert.ok(!/Arroz · kg/.test(texto(precos)));
+  const b2 = abrir(); tile(b2, "Queda de preço").onclick(); linhas(b2)[0].onclick(); botao(b2, "Marcar como lido").onclick();
+  assert.equal(gravacoes.length, 1); assert.equal(gravacoes[0][0], "mercado-alertas"); assert.equal(gravacoes[0][1].estado.lidos.length, 1);
+  assert.equal(T.st.al.vista, "produto", "continua no detalhe depois de gravar"); assert.match(texto(ROOT), /Queda de preço · 04\/11\/2026 · Confiança · lido/); assert.ok(!botao(ROOT, "Marcar como lido"));
+  assert.match(texto(ROOT), /Alertas \(4\)/, "a aba mostra quantos são novos");
+  botao(ROOT, "← Painel").onclick(); assert.match(texto(ROOT), /Novos: 4|Novos\s+4/);
+});
+
+test("marcar todos como lidos: no painel (todos) e dentro de um tipo (só o tipo)", () => {
+  const b = abrir(); tile(b, "Aumento de preço").onclick(); botao(b, "Marcar todos deste tipo como lidos").onclick();
+  assert.equal(gravacoes.at(-1)[1].estado.lidos.length, 2); assert.equal(T.st.al.vista, "lista"); assert.match(texto(ROOT), /0 novos · 2 alertas no total/);
+  botao(ROOT, "← Painel").onclick(); assert.match(texto(tile(ROOT, "Novos: 3")), /3/);
+  botao(ROOT, "Marcar todos como lidos").onclick(); assert.equal(gravacoes.at(-1)[1].estado.lidos.length, 5); assert.ok(tile(ROOT, "Novos: 0")); assert.ok(!/Alertas \(/.test(texto(ROOT)));
+  assert.ok(!botao(ROOT, "Marcar todos como lidos"), "nada novo: o botão some"); assert.match(texto(ROOT), /Nada novo/);
+});
+
+test("ajustes: ficam numa vista própria; preferências e limites salvam, editam e removem; voltar ao painel", () => {
+  const b = abrir(); botao(b, "⚙ Ajustes").onclick(); assert.equal(T.st.al.vista, "ajustes");
+  assert.match(texto(b), /Ajustes dos alertas/); assert.ok(!tile(b, "Novos"), "sem os indicadores na tela de ajustes"); assert.ok(botao(b, "← Painel"));
+  const root0 = b;
+  const i = (rot) => achar(root0, (e) => e.tag === "input" && e.attrs["aria-label"] === rot)[0];
+  i("Aumento de preço: a partir de (%)").value = "30"; i("Ativar: Queda de preço").checked = false; i("Ativar: Aumento de preço").checked = true;
+  for (const rot of ["Ativar: Menor preço histórico", "Ativar: Menor preço no período", "Ativar: Melhor preço em outro mercado", "Ativar: Limite de preço definido por mim"]) i(rot).checked = rot !== "Ativar: Menor preço no período";
+  botao(root0, "Salvar ajustes").onclick();
+  const salvo = globalThis.PESSOAL["mercado-alertas"]; assert.equal(salvo.cfg.tipos.aumento.pct, 0.3); assert.equal(salvo.cfg.tipos.queda.on, false); assert.equal(salvo.cfg.tipos.minimo_periodo.on, false);
+  assert.equal(T.st.al.vista, "ajustes"); assert.match(texto(ROOT), /Ajustes salvos/);
+  botao(ROOT, "← Painel").onclick(); assert.match(texto(ROOT), /Aumento de preço: 1 novos|Novos/); assert.ok(!tile(ROOT, "Queda de preço: 1"), "queda desligada");
+  assert.match(texto(tile(ROOT, "Queda de preço")), /desligado/);
+  /* limites */
+  botao(ROOT, "⚙ Ajustes").onclick();
+  const sel = (r) => achar(ROOT, (e) => e.tag === "select" && e.attrs["aria-label"] === "Produto do limite")[0], leite = N.mkalOpcoes(ROWS).find((o) => o.nome === "Leite Integral 1L");
+  const lim = () => achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === "Limite de preço (R$)")[0];
+  sel().value = leite.chave; lim().value = "5"; botao(ROOT, "Salvar limite").onclick();
+  assert.equal(globalThis.PESSOAL["mercado-alertas"].cfg.limites.length, 1); assert.match(texto(ROOT), /Leite Integral 1L\s+un\s+R\$\s?5,00/);
+  botao(ROOT, "← Painel").onclick(); assert.ok(tile(ROOT, "Limite de preço atingido: 1 novos"));
+  botao(ROOT, "⚙ Ajustes").onclick(); sel().value = leite.chave; lim().value = "4"; botao(ROOT, "Salvar limite").onclick(); assert.equal(globalThis.PESSOAL["mercado-alertas"].cfg.limites[0].max, 4);
   achar(ROOT, (e) => e.tag === "button" && e.attrs["aria-label"] === "Remover limite de Leite Integral 1L")[0].onclick();
   assert.equal(globalThis.PESSOAL["mercado-alertas"].cfg.limites.length, 0); assert.match(texto(ROOT), /Nenhum limite cadastrado/);
-  const ruim = achar(ROOT, (e) => e.tag === "select" && e.attrs["aria-label"] === "Produto do limite")[0]; ruim.value = ""; botao(ROOT, "Salvar limite").onclick();
-  assert.match(texto(ROOT), /Escolha o produto|Escolha o produto\./);
+  sel().value = ""; botao(ROOT, "Salvar limite").onclick(); assert.match(texto(ROOT), /Escolha o produto/);
+});
+
+test("responsividade estrutural: grade de indicadores, linhas compactas e regras de celular no CSS; padrão visual do RAC", () => {
+  const css = ler("index.html");
+  assert.match(css, /\.alkpis\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(150px,1fr\)\)/, "grade que vira 2 colunas no celular e mais no desktop");
+  assert.match(css, /@media\(max-width:560px\)\{\.alrow\{grid-template-columns:auto minmax\(0,1fr\)\}/, "linha em duas camadas no celular");
+  for (const v of ["--bad", "--good", "--accent", "--warn", "--line", "--hover", "--muted"]) assert.ok(css.slice(css.indexOf(".alkpis"), css.indexOf(".cmpt{")).includes(v) || v === "--muted" || v === "--warn", v);
+  assert.ok(!/#[0-9a-fA-F]{3,6}\b/.test(css.slice(css.indexOf(".alkpis"), css.indexOf(".cmpt{"))), "só as cores do tema, nada de cor nova");
+  const body = abrir(); assert.ok(achar(body, (e) => e.tag === "button" && /altile/.test(e.className || "")).every((b) => b.attrs["aria-label"]), "todo indicador tem rótulo acessível");
+  assert.equal(achar(body, (e) => e.tag === "div" && e.className === "alkpis").length, 1);
 });
 
 test("segurança: só o dono vê e grava; a casa não tem a aba nem altera nada", () => {

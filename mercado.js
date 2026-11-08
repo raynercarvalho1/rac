@@ -929,67 +929,121 @@
     var L = alLer(), N = NU(), hoje = new Date().toISOString().slice(0, 10);
     return N.mkalClassificar(N.mkalGerar(rows, L.cfg), L.estado, hoje, L.cfg).resumo.novos;
   }
+  /* Aba Alertas como painel: visão geral compacta (indicadores clicáveis por tipo) → lista do tipo → detalhe do alerta → ajustes.
+     Só muda a apresentação: as regras (mkalGerar), a leitura (mkalClassificar/mkalMarcarLido) e a gravação (alPersistir → pessoal) são as mesmas.
+     A vista atual fica em st.al.vista e sobrevive a marcar como lido (o app redesenha a tela). */
   function viewAlertas(body) {
     var N = NU(), hoje = new Date().toISOString().slice(0, 10), iconeDe = {}, rotuloDe = {};
     N.MKAL_TIPOS.forEach(function (t) { rotuloDe[t[0]] = t[1]; iconeDe[t[0]] = t[2]; });
     if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Os alertas de preço são só do dono." }))); return; }
     var L = alLer(), cfg = L.cfg, estado = L.estado;
-    var cl = N.mkalClassificar(N.mkalGerar(rows, cfg), estado, hoje, cfg), R = cl.resumo, todos = cl.alertas;
-    var c = st.al = st.al || { tipo: "", anteriores: false };
-    var top = panel("Alertas de preço", "Regras fixas, sem IA, sobre as compras registradas no RAC. “Menor preço” é o menor registrado aqui, não o menor do mercado. Cada compra gera no máximo um alerta de cada tipo, e só alerta de verdade novo aparece como novo.");
-    top.appendChild(h("div", { class: "kpis" }, [kpi("Novos", String(R.novos), R.novos ? "ainda não lidos, dos últimos " + cfg.novosDias + " dias" : "nada novo", R.novos ? "up" : "")].concat(
-      N.MKAL_TIPOS.filter(function (t) { return cfg.tipos[t[0]].on; }).map(function (t) { return kpi(t[1], String(R.porTipo[t[0]] || 0), "novos"); }))));
-    body.appendChild(top);
-    var lista = h("div", { class: "stack" });
-    var segT = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Tipo de alerta" }), segB = [];
-    [["", "Todos"]].concat(N.MKAL_TIPOS.filter(function (t) { return cfg.tipos[t[0]].on; }).map(function (t) { return [t[0], t[2] + " " + t[1].split(" ")[0]]; })).forEach(function (p) {
-      var b = h("button", { type: "button", text: p[1], title: p[0] ? rotuloDe[p[0]] : "Todos os tipos" }); b.onclick = function () { c.tipo = p[0]; pintar(); }; segB.push([b, p[0]]); segT.appendChild(b);
-    });
-    var mostrar = h("label", { class: "sub" }, h("input", { type: "checkbox", "aria-label": "Mostrar lidos e anteriores", checked: c.anteriores ? "" : null }), " Mostrar lidos e anteriores");
-    achar1(mostrar).onchange = function () { c.anteriores = achar1(mostrar).checked; pintar(); };
-    var todosLidos = h("button", { type: "button", class: "ghostbtn", text: "Marcar todos como lidos" });
-    todosLidos.onclick = function () { salvarEstado(N.mkalMarcarLido(estado, todos.filter(function (a) { return a.novo; }).map(function (a) { return a.id; }))); };
-    body.appendChild(h("div", { class: "panel" }, segT, h("div", { class: "vfil" }, mostrar, todosLidos)));
-    body.appendChild(lista);
-    var msg = h("p", { class: "sub", role: "status", text: st.alMsg || "" }); st.alMsg = ""; body.appendChild(msg);
-    function salvarEstado(e2) { alPersistir(cfg, e2, ""); }
-    function cartao(a) {
-      var su = a.unidade === "kg" ? "/kg" : a.unidade === "l" ? "/L" : a.unidade === "un" ? "/un" : "/" + a.unidade;
-      var p = h("div", { class: "panel mkdet" + (a.novo ? " novo" : "") });
-      p.appendChild(h("div", { class: "ulhead" }, h("div", null,
-        h("h3", { class: "dayh", text: iconeDe[a.tipo] + " " + rotuloDe[a.tipo] + (a.novo ? " · novo" : a.lido ? " · lido" : "") }),
-        h("p", { class: "sub", text: a.nome + " · " + (a.unidade === "l" ? "L" : a.unidade) + " · " + dataBR(a.data) + " · " + semCidade(a.mercado) })),
-        a.pct != null ? varTag(a.pct) : null));
-      p.appendChild(h("p", { text: a.tipo === "limite" ? "Pago " + money(a.atual) + su + " · seu limite " + money(a.anterior) + su
-        : a.tipo === "melhor" ? semCidade(a.mercado) + " " + money(a.atual) + su + " × " + semCidade(a.refMercado) + " " + money(a.anterior) + su
-        : "Antes " + money(a.anterior) + su + " → agora " + money(a.atual) + su }));
-      p.appendChild(h("p", { class: "sub", text: a.motivo }));
-      var ver = h("button", { type: "button", class: "ghostbtn", text: "Ver histórico do produto" });
-      ver.onclick = function () { st.prod = a.chave; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; };
-      var f = h("div", { class: "vfil" }, ver);
-      if (!a.lido) { var lido = h("button", { type: "button", class: "ghostbtn", text: "Marcar como lido" }); lido.onclick = function () { salvarEstado(N.mkalMarcarLido(estado, [a.id])); }; f.appendChild(lido); }
-      p.appendChild(f); return p;
+    var cl = N.mkalClassificar(N.mkalGerar(rows, cfg), estado, hoje, cfg), R = cl.resumo;
+    /* só os tipos ligados entram nas listas e nas contagens (como antes) */
+    var todos = cl.alertas.filter(function (a) { return cfg.tipos[a.tipo].on; });
+    var c = st.al = st.al || {}; c.vista = c.vista || "painel"; c.tipo = c.tipo || ""; c.anteriores = !!c.anteriores;
+    if (c.vista === "produto" && !todos.some(function (a) { return a.id === c.sel; })) c.vista = c.volta === "lista" ? "lista" : "painel";
+    var out = h("div", { class: "stack" }); body.appendChild(out);
+    function ir(vista, extra) { c.vista = vista; Object.keys(extra || {}).forEach(function (k) { c[k] = extra[k]; }); pintar(); window.scrollTo(0, 0); }
+    function unTxt(a) { return a.unidade === "kg" ? "/kg" : a.unidade === "l" ? "/L" : a.unidade === "un" ? "/un" : "/" + a.unidade; }
+    function salvarLidos(ids) { alPersistir(cfg, N.mkalMarcarLido(estado, ids), ""); }
+    function tipoRot() { return c.tipo ? iconeDe[c.tipo] + " " + rotuloDe[c.tipo] : "Todos os alertas"; }
+    function voltar(rot, fn) { var b = h("button", { type: "button", class: "ghostbtn", text: rot }); b.onclick = fn; return b; }
+    /* uma linha compacta do alerta: ponto de novo/lido, produto e unidade, onde e quando, preços e variação */
+    function linha(a, comTipo) {
+      var su = unTxt(a), precos = a.tipo === "limite" ? "limite " + money(a.anterior) + su + " · pago " + money(a.atual) + su
+        : a.tipo === "melhor" ? semCidade(a.mercado) + " " + money(a.atual) + su + " × " + semCidade(a.refMercado) + " " + money(a.anterior) + su : money(a.anterior) + su + " → " + money(a.atual) + su;
+      var b = h("button", { type: "button", class: "alrow t-" + a.tipo + (a.novo ? " novo" : " lido"), title: rotuloDe[a.tipo] + ": " + a.nome, "aria-label": (a.novo ? "Novo: " : a.lido ? "Lido: " : "Anterior: ") + rotuloDe[a.tipo] + ", " + a.nome },
+        h("span", { class: "aldot", "aria-hidden": "true" }),
+        h("span", { class: "alt" }, h("b", { text: a.nome + " · " + (a.unidade === "l" ? "L" : a.unidade) }),
+          h("span", { class: "sub", text: (c.tipo && c.vista === "lista" && !comTipo ? "" : iconeDe[a.tipo] + " " + rotuloDe[a.tipo] + " · ") + semCidade(a.mercado) + " · " + dataBR(a.data) + (a.novo ? " · novo" : a.lido ? " · lido" : "") })),
+        h("span", { class: "alp" }, a.pct != null ? varTag(a.pct) : null, h("span", { class: "sub", text: precos })));
+      b.onclick = function () { ir("produto", { sel: a.id, volta: c.vista === "painel" ? "painel" : "lista" }); };
+      return b;
     }
-    function pintar() {
-      segB.forEach(function (x) { x[0].setAttribute("aria-pressed", String(c.tipo === x[1])); });
-      lista.innerHTML = "";
-      var base = todos.filter(function (a) { return cfg.tipos[a.tipo].on && (!c.tipo || a.tipo === c.tipo); });
-      var novos = base.filter(function (a) { return a.novo; }), resto = base.filter(function (a) { return !a.novo; });
-      if (!novos.length) lista.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: base.length ? "Nenhum alerta novo. Os anteriores estão em “Mostrar lidos e anteriores”." : "Nenhum alerta com as regras de hoje." })));
-      novos.forEach(function (a) { lista.appendChild(cartao(a)); });
+    function vPainel() {
+      var novos = todos.filter(function (a) { return a.novo; }), resto = todos.length - novos.length;
+      var top = panel("Alertas de preço", "Regras fixas, sem IA, sobre as compras registradas no RAC. “Menor preço” é o menor registrado aqui, não o do mercado. Toque num tipo para ver os alertas dele.");
+      var bar = h("div", { class: "vfil" });
+      var aj = h("button", { type: "button", class: "ghostbtn", text: "⚙ Ajustes" }); aj.onclick = function () { ir("ajustes", { volta: "painel" }); }; bar.appendChild(aj);
+      if (novos.length) { var tl = h("button", { type: "button", class: "ghostbtn", text: "Marcar todos como lidos" }); tl.onclick = function () { salvarLidos(novos.map(function (a) { return a.id; })); }; bar.appendChild(tl); }
+      top.appendChild(bar);
+      /* indicadores: novos + um por tipo (o "menor no período" só aparece se estiver ligado) */
+      var tipos = N.MKAL_TIPOS.filter(function (t) { return t[0] !== "minimo_periodo" || cfg.tipos.minimo_periodo.on; });
+      var grade = h("div", { class: "alkpis", role: "group", "aria-label": "Alertas por tipo" });
+      var tn = h("button", { type: "button", class: "altile novos", "aria-label": "Novos: " + R.novos + ". Ver todos os alertas" },
+        h("span", { class: "alic", "aria-hidden": "true", text: "●" }), h("span", { class: "alnm", text: "Novos" }), h("b", { class: "alnum", text: String(R.novos) }), h("span", { class: "alsub", text: (resto ? resto + " lidos ou anteriores · " : "") + "ver todos ›" }));
+      tn.onclick = function () { ir("lista", { tipo: "" }); }; grade.appendChild(tn);
+      tipos.forEach(function (t) {
+        var on = cfg.tipos[t[0]].on, nNovos = R.porTipo[t[0]] || 0, nTot = cl.alertas.filter(function (a) { return a.tipo === t[0]; }).length;
+        var b = h("button", { type: "button", class: "altile t-" + t[0] + (on ? "" : " off"), "aria-label": t[1] + ": " + (on ? nNovos + " novos" : "desligado") },
+          h("span", { class: "alic", "aria-hidden": "true", text: t[2] }), h("span", { class: "alnm", text: t[1] }), h("b", { class: "alnum", text: on ? String(nNovos) : "—" }),
+          h("span", { class: "alsub", text: on ? (nTot ? nTot + " no total · ver ›" : "nenhum ainda") : "desligado · ajustar ›" }));
+        b.onclick = function () { on ? ir("lista", { tipo: t[0] }) : ir("ajustes", { volta: "painel" }); };
+        grade.appendChild(b);
+      });
+      top.appendChild(grade); out.appendChild(top);
+      var rec = h("div", { class: "panel" }, h("h2", { text: "Novos mais recentes" }));
+      if (!novos.length) rec.appendChild(h("p", { class: "empty", text: todos.length ? "Nada novo. Os alertas anteriores estão em cada tipo." : "Nenhum alerta com as regras de hoje." }));
+      novos.slice(0, 5).forEach(function (a) { rec.appendChild(linha(a, true)); });
+      if (novos.length > 5) { var vm = h("button", { type: "button", class: "ghostbtn", text: "Ver os " + novos.length + " novos" }); vm.onclick = function () { ir("lista", { tipo: "" }); }; rec.appendChild(h("div", { class: "vfil" }, vm)); }
+      out.appendChild(rec);
+    }
+    function vLista() {
+      var base = todos.filter(function (a) { return !c.tipo || a.tipo === c.tipo; }), novos = base.filter(function (a) { return a.novo; }), resto = base.filter(function (a) { return !a.novo; });
+      var p = panel(tipoRot(), novos.length + (novos.length === 1 ? " novo" : " novos") + " · " + base.length + (base.length === 1 ? " alerta" : " alertas") + " no total");
+      p.appendChild(h("div", { class: "vfil" }, voltar("← Painel", function () { ir("painel"); })));
+      var segT = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Tipo de alerta" });
+      [["", "Todos"]].concat(N.MKAL_TIPOS.filter(function (t) { return cfg.tipos[t[0]].on; }).map(function (t) { return [t[0], t[2] + " " + t[1].split(" ")[0]]; })).forEach(function (x) {
+        var b = h("button", { type: "button", text: x[1], "aria-pressed": String(c.tipo === x[0]), title: x[0] ? rotuloDe[x[0]] : "Todos os tipos" }); b.onclick = function () { ir("lista", { tipo: x[0] }); }; segT.appendChild(b);
+      });
+      p.appendChild(segT);
+      var mostrar = h("label", { class: "sub" }, h("input", { type: "checkbox", "aria-label": "Mostrar lidos e anteriores", checked: c.anteriores ? "" : null }), " Mostrar lidos e anteriores");
+      achar1(mostrar).onchange = function () { c.anteriores = achar1(mostrar).checked; pintar(); };
+      var f = h("div", { class: "vfil" }, mostrar);
+      if (novos.length) { var tl = h("button", { type: "button", class: "ghostbtn", text: c.tipo ? "Marcar todos deste tipo como lidos" : "Marcar todos como lidos" }); tl.onclick = function () { salvarLidos(novos.map(function (a) { return a.id; })); }; f.appendChild(tl); }
+      p.appendChild(f); out.appendChild(p);
+      var l = h("div", { class: "panel" });
+      if (!novos.length) l.appendChild(h("p", { class: "empty", text: base.length ? "Nenhum alerta novo neste grupo. Use “Mostrar lidos e anteriores” para ver o resto." : "Nenhum alerta com as regras de hoje." }));
+      novos.forEach(function (a) { l.appendChild(linha(a)); });
       if (c.anteriores && resto.length) {
-        lista.appendChild(h("h3", { class: "dayh", text: "Lidos e anteriores (" + resto.length + ")" }));
-        resto.slice(0, 60).forEach(function (a) { lista.appendChild(cartao(a)); });
-        if (resto.length > 60) lista.appendChild(h("p", { class: "sub", text: "Mostrando os 60 mais recentes de " + resto.length + "." }));
+        l.appendChild(h("h3", { class: "dayh", text: "Lidos e anteriores (" + resto.length + ")" }));
+        resto.slice(0, 60).forEach(function (a) { l.appendChild(linha(a)); });
+        if (resto.length > 60) l.appendChild(h("p", { class: "sub", text: "Mostrando os 60 mais recentes de " + resto.length + "." }));
       }
+      out.appendChild(l);
     }
+    function vProduto() {
+      var a = todos.filter(function (x) { return x.id === c.sel; })[0], su = unTxt(a), un = a.unidade === "l" ? "L" : a.unidade;
+      var p = panel(iconeDe[a.tipo] + " " + a.nome + " · " + un, rotuloDe[a.tipo] + " · " + dataBR(a.data) + " · " + semCidade(a.mercado) + (a.novo ? " · novo" : a.lido ? " · lido" : " · anterior"));
+      p.appendChild(h("div", { class: "vfil" }, voltar("← Painel", function () { ir("painel"); }), c.volta === "lista" ? voltar("← " + tipoRot(), function () { ir("lista"); }) : null));
+      p.appendChild(h("h3", { class: "dayh", text: "Por que gerou este alerta" })); p.appendChild(h("p", { text: a.motivo }));
+      p.appendChild(h("h3", { class: "dayh", text: "Comparação de preços" }));
+      var cmp = a.tipo === "limite" ? [["Seu limite", money(a.anterior) + su, "—"], ["Preço pago", money(a.atual) + su, dataBR(a.data) + " · " + semCidade(a.mercado)]]
+        : a.tipo === "melhor" ? [["Onde você comprou", money(a.anterior) + su, dataBR(a.refData) + " · " + semCidade(a.refMercado)], ["Mais barato em", money(a.atual) + su, dataBR(a.dataEncontrado) + " · " + semCidade(a.mercado)]]
+        : [["Antes", money(a.anterior) + su, (a.refData ? dataBR(a.refData) : "—") + (a.refMercado ? " · " + semCidade(a.refMercado) : "")], ["Agora", money(a.atual) + su, dataBR(a.data) + " · " + semCidade(a.mercado)]];
+      p.appendChild(tabela(["", "Preço", "Quando e onde"], cmp.concat([["Variação", a.pct != null ? varTag(a.pct) : "—", ""], ["Diferença", a.anterior != null ? sinalMoney(Math.round((a.atual - a.anterior) * 100) / 100) + su : "—", ""]]), 1));
+      p.appendChild(h("h3", { class: "dayh", text: "Compra que originou" }));
+      p.appendChild(h("p", { class: "sub", text: dataBR(a.data) + " · " + semCidade(a.mercado) + " · " + a.nome + " (" + un + ") a " + money(a.atual) + su + " · categoria " + a.categoria }));
+      var f = h("div", { class: "vfil" }), ver = h("button", { type: "button", text: "Ver histórico do produto" });
+      ver.onclick = function () { st.prod = a.chave; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; };
+      f.appendChild(ver);
+      if (!a.lido) { var lido = h("button", { type: "button", class: "ghostbtn", text: "Marcar como lido" }); lido.onclick = function () { salvarLidos([a.id]); }; f.appendChild(lido); }
+      p.appendChild(f); out.appendChild(p);
+      var outros = todos.filter(function (x) { return x.chave === a.chave && x.id !== a.id; });
+      if (outros.length) { var po = h("div", { class: "panel" }, h("h2", { text: "Outros alertas deste produto (" + outros.length + ")" })); outros.slice(0, 8).forEach(function (x) { po.appendChild(linha(x, true)); }); out.appendChild(po); }
+    }
+    function vAjustes() {
+      out.appendChild(h("div", { class: "vfil" }, voltar("← Painel", function () { ir("painel"); })));
+      out.appendChild(ajustesAlertas(N, cfg, estado, msg));
+    }
+    var msg = h("p", { class: "sub", role: "status", text: st.alMsg || "" }); st.alMsg = "";
+    function pintar() { out.innerHTML = ""; ({ painel: vPainel, lista: vLista, produto: vProduto, ajustes: vAjustes })[c.vista](); out.appendChild(msg); }
     pintar();
-    body.appendChild(ajustesAlertas(N, cfg, estado, msg));
   }
   function achar1(label) { return label.children[0]; }
   /* Ajustes: ligar/desligar cada tipo, percentuais, janelas, limites por produto e unidade (editar = salvar de novo; remover) */
   function ajustesAlertas(N, cfg, estado, msg) {
-    var d = h("details", { class: "famvals" }, h("summary", { text: "Ajustar os alertas" })), box = h("div", { class: "stack" }); d.appendChild(box);
+    var d = panel("Ajustes dos alertas", "Ligue ou desligue cada tipo, mude os percentuais e as janelas e cadastre limites por produto e unidade."), box = h("div", { class: "stack" }); d.appendChild(box);
     var T = cfg.tipos, ins = {};
     function linha(chave, rot, extra) {
       var on = h("input", { type: "checkbox", "aria-label": "Ativar: " + rot, checked: T[chave].on ? "" : null }); ins[chave] = { on: on };
@@ -1736,5 +1790,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

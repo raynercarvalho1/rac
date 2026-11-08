@@ -1,6 +1,7 @@
 -- ============================================================================================================================================
--- PROPOSTA NÃO APLICADA — NÃO RODAR EM PRODUÇÃO SEM AUTORIZAÇÃO ESPECÍFICA DO DONO (Lote 1.5, 08/11/2026). Fica em supabase/propostas/ de propósito:
--- nenhuma ferramenta, teste de ordem de migrations ou rotina do projeto a executa. Quando aprovada, vira supabase/037_notas_fiscais_foto_pdf.sql.
+-- APLICADA EM PRODUÇÃO em 08/11/2026 pelo dono, no SQL Editor ("Success. No rows returned"), e conferida por consultas só leitura (supabase/conferencias/037_conferir_producao.sql):
+-- 2 tabelas com RLS, 9 funções (4 definer, search_path vazio, anon sem execução), 4 gatilhos novos habilitados, as políticas previstas (inclusive 4 no Storage), authenticated só com SELECT
+-- nas tabelas novas, índices, 0 tentativas e 0 situações, e as funções do XML (034) intactas. Escrita no Lote 1.5; o código abaixo é o mesmo que foi aplicado (só este cabeçalho mudou depois).
 -- ============================================================================================================================================
 -- Central Fiscal: gravar nota lida de FOTO ou PDF (leitura por IA, Lote 1.4), com o documento original, o histórico de tentativas e o histórico de situação fiscal.
 -- Rode depois da 034 (e da 036 já aplicada). Pode rodar de novo sem estragar nada: só soma (tabelas, funções, gatilhos, políticas); não apaga nem altera dados existentes;

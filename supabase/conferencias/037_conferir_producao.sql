@@ -1,4 +1,4 @@
--- SOMENTE LEITURA. Conferência da migration 037 (supabase/propostas/037_notas_fiscais_foto_pdf.sql) depois de rodá-la no SQL Editor. Não altera nada.
+-- SOMENTE LEITURA. Conferência da migration 037 (supabase/037_notas_fiscais_foto_pdf.sql, aplicada em 08/11/2026) depois de rodá-la no SQL Editor. Não altera nada.
 -- Rode UM bloco por vez (o SQL Editor mostra só o resultado do último SELECT) e compare com "ESPERADO". O bloco 9 só vale depois de aplicar.
 -- Também serve ANTES de aplicar: se o bloco 1 já mostrar as duas tabelas, a 037 já foi aplicada (ela é idempotente, mas não rode de novo sem necessidade).
 

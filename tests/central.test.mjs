@@ -26,8 +26,11 @@ test("022: aplicado em produção em 31/10/2026 (sem a marca de pendente) e pode
 
 test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, como política restritiva", () => {
   const cobertas = listaMfa(sql), sql33 = ler("supabase/033_seguranca_compras_fiscal.sql"), cobertas33 = listaMfa(sql33);
-  /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 */
-  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t), `${t} sem a trava da 2ª etapa no 022 nem no 033`);
+  /* a 037 (Lote 1.5) cria as próprias tabelas e aplica a trava "mfa" no mesmo laço; seguranca_estado() ainda não as audita (entra na implementação) */
+  const cobertas37 = listaMfa(ler("supabase/037_notas_fiscais_foto_pdf.sql"));
+  assert.deepEqual(cobertas37, ["notas_fiscais_tentativas", "notas_fiscais_situacoes"]);
+  /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 e as da 037 por ela mesma */
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033 nem na 037`);
   assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
   assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);

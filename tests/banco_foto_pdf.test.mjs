@@ -1,4 +1,4 @@
-// Central Fiscal, Lote 1.5 · PROPOSTA da migration 037 (supabase/propostas/037_notas_fiscais_foto_pdf.sql, NÃO APLICADA) no Postgres de verdade (PGlite).
+// Central Fiscal, Lote 1.5 · migration 037 (supabase/037_notas_fiscais_foto_pdf.sql, APLICADA em produção em 08/11/2026) no Postgres de verdade (PGlite).
 // Valida o DESENHO: gravação de foto e de PDF, duplicidade por hash, reprocessamento, falhas, atualização de situação, cancelamento, bloqueios, acesso e concorrência,
 // e a regressão do XML. Nada disto fala com o Supabase; todos os dados são fictícios. Sem chamadas de IA.
 // FIDELIDADE: igual à do tests/banco_nota_salvar.test.mjs (motor do PostgreSQL; papéis, auth.* e storage.* simulados; as políticas do Storage em ação NÃO são provadas aqui).
@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
 const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
-const PROP = "supabase/propostas/037_notas_fiscais_foto_pdf.sql";
+const PROP = "supabase/037_notas_fiscais_foto_pdf.sql";
 
 let PGlite = null;
 try { PGlite = (await import(process.env.RAC_PGLITE ? pathToFileURL(path.resolve(process.env.RAC_PGLITE)).href : "@electric-sql/pglite")).PGlite; } catch (_) { /* sem PGlite: pula */ }
@@ -96,10 +96,10 @@ const sit = (db, id) => admin(db, "select de, para, origem, fonte, protocolo, te
 const atualizar = (db, uid, id, para, prot = null, evid = null, fonte = "foto", aal) => como(db, uid, "select public.nota_fiscal_atualizar_situacao($1, $2, $3, $4, $5) as r", [id, para, prot, evid, fonte], aal).then((l) => l[0].r);
 
 // ================= estático =================
-test("a proposta está identificada como NÃO APLICADA, fora da pasta das migrations, e não mexe no que já existe", () => {
+test("a 037 está registrada como aplicada, na pasta das migrations (depois da 036), e não mexe no que já existia", () => {
   const s = ler(PROP), sem = s.replace(/^--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.match(s.slice(0, 400), /PROPOSTA NÃO APLICADA/); assert.match(s, /NÃO RODAR EM PRODUÇÃO SEM AUTORIZAÇÃO/);
-  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /^037_/.test(f)), "nenhuma 037 na pasta das migrations: a proposta não roda sozinha");
+  assert.match(s.slice(0, 600), /APLICADA EM PRODUÇÃO em 08\/11\/2026/); assert.ok(!/PROPOSTA NÃO APLICADA/.test(s));
+  assert.ok(fs.existsSync(new URL("../supabase/037_notas_fiscais_foto_pdf.sql", import.meta.url)) && !fs.existsSync(new URL("../supabase/propostas/", import.meta.url)), "a 037 saiu de propostas/ e está entre as migrations");
   assert.ok(!/drop table|truncate|delete from|alter table public\.notas_fiscais\b(?!_)|ia_config|ia_uso\b.*references/i.test(sem), "só soma: nada apaga, nada altera tabela existente nem IA");
   assert.ok(!/create (or replace )?function public\.nota_fiscal_(salvar|conferir)\(/.test(sem), "nota_fiscal_salvar e nota_fiscal_conferir (XML) não são tocadas");
   assert.ok(!/\bacoes_reais\b|insert into public\.(compras_online|pedidos|registros|notas|itens|produtos|mercados)\b|criar_despesa|gera_despesa/i.test(sem.replace(/outras despesas/g, "")), "nada de despesa, Mercado, Alimentação nem liberação de IA");
@@ -415,7 +415,7 @@ test("PGlite · REGRESSÃO DO XML: a gravação, a conferência e o cancelamento
 
 test("PGlite · o roteiro de conferência de produção (037_conferir_producao.sql) é só leitura e responde o que promete depois de aplicar a proposta", { skip: pular }, async () => {
   const db = await banco(false);
-  const sql = ler("supabase/propostas/037_conferir_producao.sql"), sem = sql.replace(/^--.*$/gm, "");
+  const sql = ler("supabase/conferencias/037_conferir_producao.sql"), sem = sql.replace(/^--.*$/gm, "");
   assert.ok(!/\b(insert|update|delete|drop|alter|create|grant|revoke|truncate)\b/i.test(sem), "só SELECT");
   const stmts = sem.split(/;\s*\n/).map((x) => x.trim()).filter(Boolean);
   assert.equal(stmts.length, 10);

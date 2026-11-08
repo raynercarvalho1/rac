@@ -418,9 +418,11 @@ test("PGlite · o roteiro de conferência de produção (037_conferir_producao.s
   const sql = ler("supabase/propostas/037_conferir_producao.sql"), sem = sql.replace(/^--.*$/gm, "");
   assert.ok(!/\b(insert|update|delete|drop|alter|create|grant|revoke|truncate)\b/i.test(sem), "só SELECT");
   const stmts = sem.split(/;\s*\n/).map((x) => x.trim()).filter(Boolean);
-  assert.equal(stmts.length, 9);
-  /* antes de aplicar, o bloco 1 não acha as tabelas (serve para saber se já foi aplicada) */
-  assert.equal((await admin(db, stmts[0])).length, 0);
+  assert.equal(stmts.length, 10);
+  /* ANTES de aplicar, tudo roda sem erro (menos o último bloco, que é só para depois): o bloco 1 não acha as tabelas, o 7 devolve 0 linhas e o 8 conta o que já existia */
+  for (const q of stmts.slice(0, 9)) await admin(db, q);
+  assert.equal((await admin(db, stmts[0])).length, 0); assert.equal((await admin(db, stmts[6])).length, 0);
+  assert.match((await falha(admin(db, stmts[9]))).message, /does not exist/, "o bloco 9 só vale depois de aplicar");
   await db.exec(ler(PROP));
   const r = [];
   for (const q of stmts) r.push(await admin(db, q));
@@ -437,6 +439,6 @@ test("PGlite · o roteiro de conferência de produção (037_conferir_producao.s
   assert.deepEqual(r[5].map((x) => [x.grantee, x.table_name, x.privilege_type]).filter((x) => x[0] !== "service_role"), [["authenticated", "notas_fiscais_situacoes", "SELECT"], ["authenticated", "notas_fiscais_tentativas", "SELECT"]]);
   assert.ok(r[6].some((x) => x.contype === "p") && r[6].some((x) => /ON DELETE SET NULL/.test(x.definicao)) && r[6].some((x) => /ON DELETE CASCADE/.test(x.definicao)) && r[6].some((x) => /DEFERRABLE INITIALLY DEFERRED/.test(x.definicao)));
   assert.ok(r[7].some((x) => x.indexname === "notas_fiscais_tentativas_idem"));
-  assert.deepEqual([r[8][0].funcoes_xml_034, r[8][0].notas, r[8][0].tentativas, r[8][0].situacoes], [4, 0, 0, 0]);
+  assert.deepEqual([r[8][0].funcoes_xml_034, r[8][0].notas], [4, 0]); assert.deepEqual([r[9][0].tentativas, r[9][0].situacoes], [0, 0]);
   await db.close();
 });

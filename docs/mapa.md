@@ -11,7 +11,7 @@ Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atua
 
 | Módulo (rota) | JavaScript | Documento | Teste | SQL | Edge Function / robô |
 |---|---|---|---|---|---|
-| Mercado (`#mercado`) | `mercado.js`; categorias, nomes e classificação em `nucleo.js` (`mk*`) | `docs/mercado-classificacao.md`, `docs/mercado-consumo.md` (aba Consumo, `mkc*`), README | `mercado.test.mjs`, `mercado_classificacao.test.mjs`, `mercado_consumo.test.mjs` | `schema.sql`, `002`; `propostas/041_mercado_categorias_oficiais.sql` (**proposta, não aplicada**) e `conferencias/041_conferir_producao.sql` | — |
+| Mercado (`#mercado`) | `mercado.js`; categorias, nomes e classificação em `nucleo.js` (`mk*`) | `docs/mercado-classificacao.md`, `docs/mercado-consumo.md` (aba Consumo, `mkc*`), README | `mercado.test.mjs`, `mercado_classificacao.test.mjs`, `mercado_consumo.test.mjs`, `mercado_precos_unidade.test.mjs` | `schema.sql`, `002`; `propostas/041_mercado_categorias_oficiais.sql` (**proposta, não aplicada**) e `conferencias/041_conferir_producao.sql` | — |
 | Lista (`#lista`) | `js/lista.js` | — | `nucleo.test.mjs` | `009`, `013` | `garmin` (atalhos do iPhone) |
 | Eddie, Olivia, Documentos (`#eddie`, `#olivia`, `#documentos`) | `js/familia.js`, `js/bebe.js`, `js/oms.js` | — | `nucleo.test.mjs` | `004`, `005`, `010` | — |
 | Veículos (`#veiculos`) | `js/familia.js` | `docs/veiculos.md` | `veiculos.test.mjs` | `006` (usa `registros`) | `rac-ia` (`abastecimento.interpretar`) |

@@ -216,8 +216,8 @@
     if (st.voltarY != null) { var y = st.voltarY; st.voltarY = null; setTimeout(function () { window.scrollTo(0, y); }, 0); }
   }
   function agruparProdutos(l) {
-    return Object.entries(groupBy(l, function (x) { return x.produto; })).map(function (e) {
-      return { p: e[0], t: sum(e[1], function (x) { return x.valor_total; }), q: sum(e[1], function (x) { return x.quantidade; }), n: e[1].length, u: e[1][0].unidade, c: e[1][0].categoria };
+    return Object.entries(groupBy(l, function (x) { return NU().mkcChaveProd(x); })).map(function (e) {
+      return { p: e[1][0].produto, k: e[0], t: sum(e[1], function (x) { return x.valor_total; }), q: sum(e[1], function (x) { return x.quantidade; }), n: e[1].length, u: e[1][0].unidade, c: e[1][0].categoria };
     }).sort(function (a, b) { return b.t - a.t; });
   }
   /* Lista de produtos (nome, quantidade e total) que quebra linha em vez de cortar; cada um abre o histórico de preço */
@@ -227,7 +227,7 @@
         h("span", { class: "pln" }, h("b", { text: x.p }), h("span", { class: "sub", text: x.c })),
         h("span", { class: "plq", text: fmtQtd(x.q, x.u) }),
         h("span", { class: "plt", text: money(x.t) }));
-      b.onclick = function () { st.prod = x.p; st.q = ""; st.voltar = true; st.voltarY = window.scrollY; location.hash = "#mercado/precos"; };
+      b.onclick = function () { st.prod = x.k; st.q = ""; st.voltar = true; st.voltarY = window.scrollY; location.hash = "#mercado/precos"; };
       return b;
     }));
   }
@@ -370,28 +370,21 @@
 
   /* ---------- Preços: histórico por produto ---------- */
   /* rs: as compras consideradas (todas, ou só as de um mês) */
+  /* uma linha por produto E unidade (NUCLEO.mkcPrecos, a mesma identidade da aba Consumo): Arroz kg e Arroz un nunca se misturam */
+  function unRot(u) { return u === "kg" ? "kg" : u === "l" ? "L" : u === "un" ? "un" : u; }
   function produtos(rs) {
-    return Object.entries(groupBy(rs || rows, function (x) { return x.produto; })).map(function (e) {
-      var l = e[1].slice().sort(function (a, b) { return a.data.localeCompare(b.data); });
-      var ult = l[l.length - 1], pri = l[0], pen = l.length > 1 ? l[l.length - 2] : null;
-      var precos = l.map(function (x) { return x.valor_unitario; });
-      return { nome: e[0], cat: ult.categoria, u: ult.unidade, compras: l, ult: ult, pri: pri,
-        varTotal: pri.valor_unitario ? (ult.valor_unitario - pri.valor_unitario) / pri.valor_unitario : 0,
-        varUlt: pen && pen.valor_unitario ? (ult.valor_unitario - pen.valor_unitario) / pen.valor_unitario : 0,
-        min: Math.min.apply(null, precos), max: Math.max.apply(null, precos),
-        mercados: Object.keys(groupBy(l, function (x) { return x.mercado; })).length,
-        /* quanto já foi gasto nesse produto desde a primeira compra (valor pago, já sem desconto) */
-        gasto: sum(l, function (x) { return x.valor_total; }), qtd: sum(l, function (x) { return x.quantidade; }) };
+    return NU().mkcPrecos(rs || rows).map(function (p) {
+      return { chave: p.chave, nome: p.nome, cat: p.categoria, u: p.unidade, compras: p.compras, ult: p.ult, pri: p.pri, varTotal: p.varTotal, varUlt: p.varUlt, min: p.min, max: p.max, mercados: p.mercados, gasto: p.gasto, qtd: p.qtd };
     });
   }
   /* Ordenação da lista: clicando no cabeçalho (como no Excel) ou pelos atalhos do seletor. d: 1 = menor para maior, -1 = maior para menor */
   var ATALHOS = [["alta", "Mais subiram", "var", -1], ["baixa", "Mais baixaram", "var", 1], ["gasto", "Mais gasto", "gasto", -1], ["compras", "Mais comprados", "compras", -1], ["nome", "Nome (A a Z)", "nome", 1]];
-  var COLS = [["nome", "Produto"], ["ult", "Último preço"], ["min", "Menor preço"], ["var", "Variação"], ["compras", "Compras"], ["gasto", "Total gasto"]];
-  function valorCol(p, k) { return k === "ult" ? p.ult.valor_unitario : k === "pri" ? p.pri.valor_unitario : k === "min" ? p.min : k === "var" ? (p.compras.length > 1 ? p.varTotal : null) : k === "compras" ? p.compras.length : k === "gasto" ? p.gasto : p.nome; }
+  var COLS = [["nome", "Produto"], ["un", "Unidade"], ["ult", "Último preço"], ["min", "Menor preço"], ["var", "Variação"], ["compras", "Compras"], ["gasto", "Total gasto"]];
+  function valorCol(p, k) { return k === "un" ? p.u : k === "ult" ? p.ult.valor_unitario : k === "pri" ? p.pri.valor_unitario : k === "min" ? p.min : k === "var" ? (p.compras.length > 1 ? p.varTotal : null) : k === "compras" ? p.compras.length : k === "gasto" ? p.gasto : p.nome; }
   /* menor preço já pago; passando o mouse mostra quando e onde */
   function menorPreco(p) {
     var x = p.compras.filter(function (c) { return c.valor_unitario === p.min; }).sort(function (a, b) { return b.data.localeCompare(a.data); })[0];
-    return h("span", { title: x ? dataBR(x.data) + " · " + x.mercado.replace(/\s*\(.*\)$/, "") : null, text: money(p.min) + (p.u === "kg" ? "/kg" : "") });
+    return h("span", { title: x ? dataBR(x.data) + " · " + x.mercado.replace(/\s*\(.*\)$/, "") : null, text: precoTxt(p.min, p.u) });
   }
   function viewPrecos(body) {
     /* "all" é sempre o histórico inteiro (gráfico); a lista usa o período escolhido */
@@ -420,14 +413,14 @@
       l.sort(function (a, b) {
         var x = valorCol(a, k), y = valorCol(b, k);
         if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
-        return (typeof x === "string" ? x.localeCompare(y) : x - y) * d || a.nome.localeCompare(b.nome);
+        return (typeof x === "string" ? x.localeCompare(y) : x - y) * d || a.nome.localeCompare(b.nome) || a.u.localeCompare(b.u);
       });
       list.innerHTML = "";
       list.appendChild(h("p", { class: "sub", text: l.length + (l.length === 1 ? " produto" : " produtos") + (!l.length ? "" : " · " + money(sum(l, function (p) { return p.gasto; })) + " gastos" + (nq ? " nesses produtos" : "") + (st.pmes ? " em " + mesNome(st.pmes) : " desde " + dataBR(l.reduce(function (m, p) { return p.pri.data < m ? p.pri.data : m; }, "9999-12-31")))) }));
       var tb = tabela(COLS.map(function (c) { return c[0] === "gasto" && st.pmes ? "Gasto no mês" : c[1]; }), l.map(function (p) {
-        var b = h("button", { type: "button", class: "mkprod", text: p.nome }); b.onclick = function () { st.prod = p.nome; st.voltar = false; st.voltarY = null; showProd(); window.scrollTo({ top: 0, behavior: "smooth" }); };
-        return [h("span", null, b, h("span", { class: "sub", text: " · " + p.cat })), money(p.ult.valor_unitario) + (p.u === "kg" ? "/kg" : ""), menorPreco(p), varTag(p.compras.length > 1 ? p.varTotal : null), String(p.compras.length), h("b", { text: money(p.gasto) })];
-      }), 1);
+        var b = h("button", { type: "button", class: "mkprod", text: p.nome }); b.onclick = function () { st.prod = p.chave; st.voltar = false; st.voltarY = null; showProd(); window.scrollTo({ top: 0, behavior: "smooth" }); };
+        return [h("span", null, b, h("span", { class: "sub", text: " · " + p.cat })), h("span", { text: unRot(p.u) }), precoTxt(p.ult.valor_unitario, p.u), menorPreco(p), varTag(p.compras.length > 1 ? p.varTotal : null), String(p.compras.length), h("b", { text: money(p.gasto) })];
+      }), 2);
       /* cabeçalhos clicáveis: 1º clique do menor para o maior (nome de A a Z), o 2º inverte */
       tb.querySelectorAll("th").forEach(function (th, i) {
         var c = COLS[i][0], ativo = c === k;
@@ -444,9 +437,12 @@
     }
     function showProd() {
       detail.innerHTML = "";
-      var p = all.filter(function (x) { return x.nome === st.prod; })[0];
+      /* st.prod é nome+unidade; quem chega só com o nome (ex.: atalho antigo) vê a unidade com mais compras */
+      var cand = all.filter(function (x) { return x.chave === st.prod; });
+      if (!cand.length) cand = all.filter(function (x) { return x.nome === st.prod; }).sort(function (a, b) { return b.compras.length - a.compras.length; });
+      var p = cand[0];
       if (!p) return;
-      var d = panel(p.nome, p.cat + " · " + p.compras.length + (p.compras.length === 1 ? " compra" : " compras") + " · preço " + (p.u === "kg" ? "por kg" : "por unidade"));
+      var d = panel(p.nome + " · " + unRot(p.u), p.cat + " · " + p.compras.length + (p.compras.length === 1 ? " compra" : " compras") + " · preço " + (p.u === "kg" ? "por kg" : p.u === "l" ? "por litro" : p.u === "un" ? "por unidade" : "por " + p.u) + " (outras unidades deste produto têm histórico próprio)");
       d.appendChild(h("div", { class: "kgasto" },
         h("div", null, h("span", { class: "kl", text: "Total gasto desde " + dataBR(p.pri.data) }), h("b", { class: "kv", text: money(p.gasto) })),
         h("div", null, h("span", { class: "kl", text: "Quantidade comprada" }), h("b", { class: "kv", text: fmtQtd(p.qtd, p.u) })),
@@ -488,7 +484,7 @@
   /* Linha do preço unitário no tempo: uma série, eixo de valores em R$, pontos com o valor e o mercado no hover */
   function lineChart(p) {
     return graficoLinha(p.compras.map(function (x) {
-      return { data: x.data, v: x.valor_unitario, det: money(x.valor_unitario) + (p.u === "kg" ? "/kg" : "") + " · " + x.mercado.replace(/\s*\(.*\)$/, ""), aria: x.mercado };
+      return { data: x.data, v: x.valor_unitario, det: precoTxt(x.valor_unitario, p.u) + " · " + x.mercado.replace(/\s*\(.*\)$/, ""), aria: x.mercado };
     }), { fmt: money, aria: "Preço de " + p.nome + " ao longo do tempo" });
   }
   /* Gráfico de linha usado no site todo (preços do Mercado, peso do Eddie e da Olivia):
@@ -1389,5 +1385,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { usar: function (r) { rows = r; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { viewPrecos: viewPrecos, usar: function (r) { rows = r; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

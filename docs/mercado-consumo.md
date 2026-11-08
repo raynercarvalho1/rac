@@ -18,4 +18,8 @@ quantidade, total gasto, gráfico de evolução, comparação entre mercados e h
 - **Variação** = (último − anterior) ÷ anterior, dentro da mesma unidade. Com uma compra só, não há variação nem gráfico (a tela avisa; nada é inventado).
 - Comparação entre mercados: último, menor e médio por mercado, do mais barato ao mais caro no último preço.
 
-Preços e Painel continuam como estavam (a tabela de Preços ainda agrupa só pelo nome do produto).
+## Preços por produto e unidade
+A tabela **Mercado → Preços** (e a lista de produtos do Painel) usa a mesma identidade da aba Consumo: **nome + unidade** (`NUCLEO.mkcChaveProd`, `mkcPrecos`). Arroz kg e Arroz un são linhas separadas, cada uma com
+último preço, menor, variação (primeira → última), compras, total gasto, quantidade e histórico próprios; há a coluna **Unidade**. Mês, desde o início, busca e ordenação funcionam como antes (dá para ordenar por unidade).
+- O banco só aceita `un`, `kg` e `l`. Se aparecer outra unidade (ex.: `ml`), ela fica à parte, sem conversão. Embalagens diferentes ("Leite 1L" × "Leite 500ml") já são produtos com nomes diferentes e não se misturam.
+- Quem chega ao detalhe só com o nome (atalho antigo) vê a unidade com mais compras.

@@ -334,7 +334,7 @@ O site ainda grava a compra, os produtos e os documentos em chamadas separadas. 
 - **Conferência feita em 07/11/2026 (só leitura):** `compras_anexar` e `compras_gravar_com_foto` existem; `anon` sem EXECUTE (`false`) e `authenticated` com EXECUTE (`true`) nas duas. O site AINDA NÃO usa as funções (etapa seguinte). Roteiro usado: as duas funções existem (`select proname from pg_proc where proname in ('compras_anexar','compras_gravar_com_foto')`) e o `anon` recebe `42501` ao chamá-las. Só então trocar `-- status: pendente` por "Aplicado em produção em DD/MM/AAAA".
 - **Etapa seguinte (feita no código, ainda não publicada):** o site chama as duas funções e `coErroGravar` reconhece os prefixos novos: ver "Lote 5.1 · etapa 3".
 
-## Lote 5.1 · etapa 3: o site usa `compras_anexar` e `compras_gravar_com_foto` (07/11/2026; só no código local, nada publicado)
+## Lote 5.1 · etapa 3: o site usa `compras_anexar` e `compras_gravar_com_foto` (07/11/2026; publicada na versão 2026-11-07.5, validada em produção: ver "Validação funcional" abaixo)
 A migration 035 já está aplicada em produção; esta etapa liga o site a ela.
 - **Salvar (`ccGravar`):** chama `compras_gravar_com_foto` (uma só chamada): compra, produtos, documentos e o vínculo da foto na mesma transação. O site só diz qual é a foto (`p_foto`); quem liga o 1º produto a ela (`imagem_path`) é o BANCO, e só se ela ficou
   registrada como documento e o produto ainda não tem imagem. Foto repetida (SHA-256) nunca é ligada: nenhum item aponta para arquivo que sumiu, e não há gravação fora da RPC. Na edição, o `imagem_path` já gravado é preservado.
@@ -351,3 +351,19 @@ A migration 035 já está aplicada em produção; esta etapa liga o site a ela.
 São cinco abas, em `CC_ABAS`: Resumo, Compras, Importar, Produtos e recorrências e **＋ Manual** (`#compras/nova`, o cadastro manual; grava como qualquer conferência, por `ccGravar`). Até a 2026-11-07.5 a faixa rolava para o lado sem sinal nenhum e, em tela estreita, a ＋ Manual ficava fora da vista; agora a faixa quebra linha (`#compras .ccabas`) e as cinco aparecem. O botão azul flutuante "＋" do site é outro recurso ("Anotar rápido": item da lista da casa ou tarefa) e não cadastra compra. Prova: `tests/compras.test.mjs`.
 
 **2026-11-07.7 · tela Importar:** o seletor nativo de arquivo aparecia duplicado e o botão azul "Escolher arquivos" quebrava a linha (a etiqueta era "em linha" e o campo nativo ficava solto dentro dela, empurrando a caixa de texto). Agora o campo nativo fica escondido dentro do botão, a caixa de texto ocupa a linha inteira e, ao escolher, aparece "N arquivos escolhidos". Prova: `tests/compras.test.mjs`.
+
+## Validação funcional da Etapa 3 em produção (07/11/2026, versão 2026-11-07.5)
+Feita pelo dono, no site publicado (Supabase real, login do dono com MFA), com compras de teste. Resultado: **tudo funcionou, sem erro**.
+| Teste | RPC usada | Resultado |
+|---|---|---|
+| Criar compra | `compras_gravar_com_foto` | OK |
+| Anexar foto do produto | `compras_gravar_com_foto` (`p_foto`) | OK |
+| Editar compra | `compras_gravar_com_foto` | OK |
+| Anexar documento à compra | `compras_anexar` | OK |
+| Abrir e consultar o documento | leitura pelo cofre privado | OK |
+| Excluir as compras de teste | `delete` direto (fora da gravação, como antes) | OK |
+- **Fica de fora:** a limpeza do cofre (`familia`) depois da exclusão das compras não foi conferida por mim (sem acesso autenticado ao Storage); a conferência está pendente, só leitura, abaixo. Nenhum arquivo foi apagado por mim.
+- **Correções feitas depois da validação (não mudam a Etapa 3):** 2026-11-07.6 (abas da Central, `＋ Manual` à vista) e 2026-11-07.7 (seletor de arquivos da tela Importar).
+- **Conferência pendente do cofre (só leitura, no SQL Editor):** arquivos do bucket `familia` sem nenhum documento nem imagem de produto que os aponte (precisam ser olhados um a um antes de qualquer remoção):
+  `select o.name, o.created_at from storage.objects o where o.bucket_id='familia' and o.name not in (select path from public.compras_online_docs where path is not null) and o.name not in (select imagem_path from public.compras_online_itens where imagem_path is not null) order by o.created_at desc;`
+  (lista também arquivos de outros módulos: só os com caminho de Compras e criados no horário dos testes são candidatos).

@@ -353,7 +353,9 @@
     if(s==="autorizada")return {rotulo:n.conferida_em?"Validada · conferida":n.requer_conferencia?"Validada · falta conferir":"Validada",tom:"fxok"};
     if(s==="cancelada"||s==="rejeitada")return {rotulo:NUCLEO.NF_SITUACOES[s]+" · não vale como compra",tom:"fxruim"};
     return {rotulo:"Pendente fiscal · "+(NUCLEO.NF_SITUACOES[s]||s),tom:"fxpend"}}
-  function fxFmtDH(t){t=String(t||"");return t?dataBR(t.slice(0,10))+" "+t.slice(11,16):""}
+  function fxFmtDH(t){t=String(t||"");if(!t)return "";var d=new Date(t),p=function(n){return ("0"+n).slice(-2)};
+    if(isNaN(d.getTime()))return dataBR(t.slice(0,10))+" "+t.slice(11,16);     /* o banco guarda em UTC: mostra no horário do aparelho */
+    return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes())}
   function fxAbrirOriginal(path,st){
     st.textContent="Gerando o link temporário…";
     Promise.resolve(SB.storage.from("familia").createSignedUrl(path,300)).then(function(r){

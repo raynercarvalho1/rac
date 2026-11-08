@@ -320,3 +320,8 @@ test("escopo: só as quatro funções aprovadas, só o cofre familia, nada de de
   assert.ok(!/createSignedUrl\([^)]*,\s*(?:[4-9]\d\d|\d{4,})\)/.test(js), "link do original dura no máximo 5 minutos");
   const nuc = ler("nucleo.js"); assert.ok(!/nfParaGravarDoc[\s\S]{0,6000}(SB\.|document\.|window\.)/.test(nuc.slice(nuc.indexOf("function nfParaGravarDoc"), nuc.indexOf("function nfParaGravarDoc") + 9000)), "o núcleo não fala com tela nem banco");
 });
+test("hora das tentativas e do histórico: o banco guarda em UTC e a tela mostra no horário do aparelho", () => {
+  const { c } = ambiente(), d = new Date("2026-11-08T14:31:00Z"), p = (n) => ("0" + n).slice(-2);
+  assert.equal(c.fxFmtDH("2026-11-08T14:31:00Z"), `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`);
+  assert.equal(c.fxFmtDH(""), ""); assert.match(c.fxFmtDH("lixo"), /lixo|NaN|^\S*\s*$/);
+});

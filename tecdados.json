@@ -1,12 +1,19 @@
 {
-"coletado": "2026-11-07T19:24:35.927698+00:00",
+"coletado": "2026-11-08T00:32:45.963517+00:00",
 "noticias": [
 {
-"t": "DevPR Conf debate Inteligência Artificial, dados e mercado global hoje em Maringá",
-"u": "https://news.google.com/rss/articles/CBMiggFBVV95cUxPUHBQNlJuUURsR1pNeV9tY0ZzX2hmakkwNFdDdFZ6RnNwV1RJYlB2c0Zxc1liMm5uVkNMZHVWb0l0VmpRZkRmZHdLS3c0b0MyRUw3YkIzaGhFSU1MVWVWMTBFcE45eEpZZFNfY2x1Qkw1RkVFb05BajJFR2lfMDlGZHBR0gGHAUFVX3lxTE84X2o1OTVRVjAtWDJhaHpsSi1nTGIwZjdtX2pIREZad3dwcXNxU09GR0taUGxzSTlVTEw0emlmNHF1RVFORXhtcnFkZHZjbnNOSEdELWxRaHlUZHlFZXdSXzFVaUUxVUo3UzRPdVl2NHpPbGlpdk1ZalpRZWVUVDRTeVIyaUZ2SQ?oc=5",
-"f": "O Maringá",
-"d": "2026-11-07T13:41:07+00:00",
-"b": "engenharia de dados"
+"t": "Pedro Filipe segue, pela 4ª vez, na Lista dos Melhores Delegados de Polícia do Brasil! Censo 2026",
+"u": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxNQUpRWUpSN3NZdm9MajNyVFNHVEtVNTJvcXNZMXQxUWNCNWhsWWgxQ09sRDZmS0xIeUw1WENkVThBY2xvVmNfT3R5X0xLS0t4VEktbjhuTklXWVhNeXRDNE42X2pSbFVDZFpCd0ppM3AySEozSzVTSG54NUJ4WlhyLUMzUlhPR3Z5VjI3bk00LXI3N0xQQlVhMXdJcm5pcjdiaHBpcVRpMC15a2Vwd3FCRXNJWFMybW9lWEVxWG9JWExkN1RGbjNhNQ?oc=5",
+"f": "Portal Nacional dos Delegados",
+"d": "2026-11-07T23:09:52+00:00",
+"b": "business intelligence"
+},
+{
+"t": "Administração Pública abre portas a testes de IA antes de investir",
+"u": "https://news.google.com/rss/articles/CBMitAFBVV95cUxOWTJ5NlVvckhXTTFPTk5VS0F5Tk9QejhiLUNKMTVFdkhtV0ROYTRrSWpQekNxZ3lCWEY3VXRnb2haMXFLaWI2UDl1VzgyQ3VPc2JuNUNPd1FCSkRHMUFLSkNqMHNvalJxN0pGbjhLWHRmYUctVjBYSDNUTmg5dDY5XzVMSk9xNEtaWWI3aG51YjRxUG5wY3U3S3lxSXJGWE1oSmFaQmVwRkFaOVppaFBzcDdGalY?oc=5",
+"f": "SAPO",
+"d": "2026-11-07T21:00:00+00:00",
+"b": "metodologias ágeis"
 },
 {
 "t": "Confira os executivos de marketing finalistas do Prêmio Melhores do Nosso Meio 2026",
@@ -16,18 +23,18 @@
 "b": "business intelligence"
 },
 {
+"t": "PostgreSQL e NUMA na cloud: huge pages e CAP_SYS_NICE",
+"u": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxQVkpjOWJ5N1F6NHRBOVdIWkN5RzNyWlJsSnhEcXE3RUFUdXpXUlhhcFYtWEhKVUpUWVBBY3dZN3VFRGRxOF91MmdQc1NUQmt2NVdIazZ1aXMxbVJNSGtrWE43eFBvRG1ZbGxTRGRrazE1cjhINVdtMUprODhUZkJzemxTY28zS0luRDFUckFtOHhIeGNRUndOb2xpdVJvaXNPbmNtVWMyNkk1NVpfVnlzYkpsNGt3Y19Scy1j?oc=5",
+"f": "iMasters",
+"d": "2026-11-07T09:04:22+00:00",
+"b": "engenharia de dados"
+},
+{
 "t": "Maringá recebe conferência sobre IA e mercado de tecnologia",
 "u": "https://news.google.com/rss/articles/CBMinwFBVV95cUxQdTdRZlBiTlBXUm8tV2IxWWZpTjg4TG9vNUpmOHhGTGpIUTFsVEd2ZGlyY01fcmRmQ1ljMUl2VU80R0J5MjVrSk9TX0syQm40UmROUENJVDhSRldYR1BxR3BuZENUQ0ZDdkVWSDJkcWdvTmdPeWp0S1dpT0lCUnAtVlZJNGdfRXotazFDbzJ2N1FOZVlYR0VkbVBJZFFiWTA?oc=5",
 "f": "Maringá Post",
 "d": "2026-11-06T22:31:00+00:00",
 "b": "engenharia de dados"
-},
-{
-"t": "Camorim abre vagas de emprego em diferentes áreas em Niterói | SEGS Portal Nacional de Seguros, Saúde,...",
-"u": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxQNWh5bm9DVWNCWjZ1ZXN1SGw1dmFEQlYxR3l6VWVCZTN3S2NRVmNGbTRUU2I1c1RmZ3VuYlFwUzJYRU9YaWdjVkxLVURyaUZLWTUxRlJkRmVmMEtUcVFiM1AyQV8tcTFRbTd1MHlaeFBfUVRHbVZkN2dsNUVqTkdhbkVjd2Q3SW9OQm1sQm1SZGI0UXVhczJzN1RtUmJqM3dfZGFDazdIc0VvUdIBqgFBVV95cUxQNWh5bm9DVWNCWjZ1ZXN1SGw1dmFEQlYxR3l6VWVCZTN3S2NRVmNGbTRUU2I1c1RmZ3VuYlFwUzJYRU9YaWdjVkxLVURyaUZLWTUxRlJkRmVmMEtUcVFiM1AyQV8tcTFRbTd1MHlaeFBfUVRHbVZkN2dsNUVqTkdhbkVjd2Q3SW9OQm1sQm1SZGI0UXVhczJzN1RtUmJqM3dfZGFDazdIc0VvUQ?oc=5",
-"f": "SEGS Portal Nacional",
-"d": "2026-11-06T21:27:06+00:00",
-"b": "machine learning"
 },
 {
 "t": "Análise de dados revela relação entre despesas municipais e demandas sociais",
@@ -58,13 +65,6 @@
 "b": "metodologias ágeis"
 },
 {
-"t": "Investimento de bancos em IA e dados deve chegar a R$ 3 bi em 2026",
-"u": "https://news.google.com/rss/articles/CBMirgFBVV95cUxOOUx6SWg1ck9ybDg2ZW5qQVhWcGVjdWR4MjhWRGVRY04wMk1udXRwRHpVOXFZR0E1R2M5cFo1b19PN2EwUHNXTlBocmZtX1d6c0htU3hwMXVuZTI1bTBkVmU4dGcyREhBMHFqSFhCcXd2aUxuNE9NRXU2NEZfWlZ1WVJOLVB0bDlaNEoyRlJmd01NalFHNWZTWHJKQnAzYy03OG50YU1NZGRvX0o3NXc?oc=5",
-"f": "MundoCoop",
-"d": "2026-11-06T15:26:31+00:00",
-"b": "análise de dados"
-},
-{
 "t": "Inteligência Artificial Generativa e Infraestruturas de Controle",
 "u": "https://news.google.com/rss/articles/CBMipgFBVV95cUxNdV9ZYTFaVE9SOTJMaWZmMWVNM2xkV0t6QTYwYTg4MHNtWDIwSG5EZEZzcy1FSF9XakRJS1FNLVJhLUNPNWNncDRvdmE0Qk9hUWs4b0ZfWkt2MktTazdLRUt4NlAxUUFUMjlCZzBhc2J1QW45R2J6T3dzZlJuZG1NUU53UjVqcG5SbXloRU0yeGhGdUVFYkZfaUZ0WE1aeTZrc2VVaHJB?oc=5",
 "f": "Sesc São Paulo",
@@ -72,18 +72,18 @@
 "b": "inteligência artificial generativa"
 },
 {
-"t": "GFT Technologies obtém certificação AWS Data Competency para modernização de bancos de dados corporativos",
-"u": "https://news.google.com/rss/articles/CBMi0gFBVV95cUxNemtZY0VNaDgxUU5UWldULUFYYXo5d2Y5djR5a0ZqSm5td3Z3UEt4bkkzblZiVDRxQXJCNnpqMnRhMjF3Zjg1X0g0ajJzMm5pRGo5ZEhIQlRXR1JXTVZaSDZlZmZ1eW9aRk9UZU1iUWF0SW9Zb01BdkdVZW4wekRMYTcyUDFuX2FyRDBHWUFLTHJlWGJDai0zUW9wQkQtejVIWjltaEpyOVp3OTBDaHVNMVBMRC0tZWd5eEVIekk1Ym1IbVVjX29mVVJfNGVxSmt6RVE?oc=5",
-"f": "Brasil Inovador",
-"d": "2026-11-06T09:45:10+00:00",
-"b": "engenharia de dados"
-},
-{
 "t": "Notícias",
 "u": "https://news.google.com/rss/articles/CBMitwFBVV95cUxONUZXOXczbkZTX1hfTktNajg5VzY5eVNxNWUzZkFmUjdidjB1eFVuZ0xaUnpfZ01RVm4yd09YbTFaMnRvZm1RNV9mZG5UeEVTQ0Q0ZXktYmhrVEllYmZUNTluYzl6N2pEbHJwdmtsVjZRTlk4OXpBMG9WaEZ1WUFxWENOQllhY0RINFlEek40Q19IdzRlYUlBd0cwLU94SDdWQVBoaVExQkszaEhyaXNCb3RKX2ZsQlU?oc=5",
 "f": "Secretaria da Educação do Estado de SP",
 "d": "2026-11-05T22:59:21+00:00",
 "b": "ciência de dados"
+},
+{
+"t": "Grupo Stefanini apresenta hub de inteligência artificial voltado a ganhos operacionais no setor segurador",
+"u": "https://news.google.com/rss/articles/CBMi0gFBVV95cUxQVHNUVUpLMHQyRURJb0dvaTFsd3JfX0RkUF83RWVTajhaRWJCWjJZa29aRGVhTVVKa0dkSElrWnBoTzZoV0YwS3p6aV9UZWp5Qzh4QjN2S1U2NDJfUlNVcjh3RHNlcDFRa1hGWW5OYmFvZFZiUUlBeG5Gakg1cElxS2trNld0RlQxWTNrNlBuVXhvdW9FWjZRNUZBQVB0b3hxVXNZLWl5YmJSV2hfaGg4UVdnVEcxbG9JTFhNN2dCRDMtM0tIWEphM2RGcHJuNFhyMGc?oc=5",
+"f": "Brasil Inovador",
+"d": "2026-11-05T22:05:13+00:00",
+"b": "engenharia de dados"
 },
 {
 "t": "Experiência alagoana com painéis de BI é apresentada a corregedorias de todo o país",
@@ -128,6 +128,13 @@
 "b": "metodologias ágeis"
 },
 {
+"t": "Cetam prorroga inscrições para mais de 50 mil vagas em cursos on-line gratuitos no AM",
+"u": "https://news.google.com/rss/articles/CBMiggJBVV95cUxNWTQ5QmJjd0o3T0dPRUZMMTJ1cXdoYXJUUU9XZzVNUGx4VFp5YkJMbkNxZTVGMl9NMDhqQzNDS0JHRWFUSjJxTWV3UkFCTVg2Q0o3Qzd6MlNFdml1akpucTIyamhyc19VSEtEcWFoSDVRWFBhaGRzWkxJWG5mMy0wSjdPSll4RmNCVjk5Vlp3cVBLY3VlMWhnVE45RFNmcjZXY1NodjI0cXJ4UHgzV1kyeG9JRm1WTVlBXzFRbGkwelItQWNXaDFKVURLUkNPekhPbUxldkJBQl9MQ1NYV1RmVDVGZkRwN2dYMnh2bnR4UUpxb3V1LWcyb0lnVVBYMnBfOEHSAYICQVVfeXFMTVk0OUJiY3dKN09HT0VGTDEydXF3aGFyVFFPV2c1TVBseFRaeWJCTG5DcWU1RjJfTTA4akMzQ0tCR0VhVEoycU1ld1JBQk1YNkNKN0M3ejJTRXZpdWpKbnEyMmpocnNfVUhLRHFhaEg1UVhQYWhkc1pMSVhuZjMtMEo3T0pZeEZjQlY5OVZad3FQS2N1ZTFoZ1ROOURTZnI2V2NTaHYyNHFyeFB4M1dZMnhvSUZtVk1ZQV8xUWxpMHpSLUFjV2gxSlVES1JDT3pIT21MZXZCQUJfTENTWFdUZlQ1RmZEcDdnWDJ4dm50eFFKcW91dS1nMm9JZ1VQWDJwXzhB?oc=5",
+"f": "G1",
+"d": "2026-11-05T13:02:52+00:00",
+"b": "Power BI"
+},
+{
 "t": "Analista de BI (Business Intelligence): R$ 5.788 (nov/2026)",
 "u": "https://news.google.com/rss/articles/CBMif0FVX3lxTE1PdXg1X09ROXdfR0hSTWRFNDJER2Frc0o3S1N2M3RzZ21sQXNoUGtZRnd2UHllMTltel8wZ3hfVEZPYWI4ZGhJS1B3Q21Vc05mZXUtQU9hb3MzR0VWZ01qMVFBREVrOEptRUdNT0FkQXVrY3JUUVI2QVFGZ1RDOGs?oc=5",
 "f": "Portal Salário",
@@ -163,11 +170,11 @@
 "b": "business intelligence"
 },
 {
-"t": "Sistemas desconectados desafiam eficiência de centros de distribuição | SEGS Portal Nacional de Seguros,...",
-"u": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxOdXA2TG9wekFsUGRmdE5leHdaYTV5WElMamlrYjVXTVMtaEJSa1pYMjZKV0Z0TlRicnFJVlNZMlhSMXJBNWsyREcxWFcwVHhiT3NXelp5ZWsza1R3WmQzYWlkUnFOOXI2UlMtNzRaRFdxRjJ3RHZyTkVZVnBPTVJocWVqR2Exa2duYjNqOVdKMElVbXpCWVBpWWZlalJ5ZjVtNFRSOHBqT2s4a2fSAbABQVVfeXFMTXlkeGFGWVpRV19KVmp0Y3RoNk53ZlRycl9EWTR5aFlOcEV0b2tkeWc5Q2hWNEZmT3lrZGJPS09JT1pkUlBianVpajdxcEQzM01jdzE3SkswZGh4Tkl3c2hWLTlFQ3dzMTJxT1l5NnF1a0RYNUJ3b0VhcldTMllHTGRPYkV0ZHZiMHVOY3ZmQjhWWjZKY2s5NXM2dm9mZ2JRNTRUZGptMHh6dHZld2NrRkI?oc=5",
-"f": "SEGS Portal Nacional",
-"d": "2026-11-04T21:04:01+00:00",
-"b": "engenharia de dados"
+"t": "ENEPE 2026 reúne mais de 2,2 mil inscritos e debate o uso da inteligência artificial na produção científica",
+"u": "https://news.google.com/rss/articles/CBMi2gFBVV95cUxQM1dBYXRnOTJzVHZHT09ScGhwZHo4R3E1NTZwWUpmUlFMcXFyN0NQdkN6TTJhYVc0OWFSUExCY19iNm1KWHpDUFQ0RDNfU1I0WGJRaFZRZkN6Vll5Rjg4ZTB4aGMyR0ZRTExlOFh2RnZNZTQwc080R2dobnhZZTBxQ0ZhUXR4dldtWTdBY3ZKdHRmSllRQzVwaGM4b2RDYmdScUg0cUdhYlh4bjcwV01nY0xHa3RKdGhoNDV0eDlVX3o1SEdTX1Y3N1c0a013VmhHbkRQbzJzRGx4UQ?oc=5",
+"f": "Portal UFGD",
+"d": "2026-11-04T21:17:53+00:00",
+"b": "inteligência artificial generativa"
 },
 {
 "t": "Analista de dados ou de inteligência de mercado: qual carreira combina mais com seu perfil?",
@@ -184,17 +191,17 @@
 "b": "metodologias ágeis"
 },
 {
-"t": "O Futuro da Habitação em Braga",
-"u": "https://news.google.com/rss/articles/CBMiX0FVX3lxTFB4dnZ1SF9fQ28yZVV3RWlwdnlZUFdHLW50LUFkRFNMcmFrTzNQOUU4MzN3MGw1X3FlMjdnQzZBaU9nMUhKb011eDhGckcwX0lkc2IzaVZqbEZtQW00QWlN?oc=5",
-"f": "Braga TV",
-"d": "2026-11-04T17:43:33+00:00",
-"b": "metodologias ágeis"
-},
-{
 "t": "Inteligência Artificial pode gerar US$ 22,3 trilhões para economia global até 2030, mas alerta para aumento das desigualdades digitais entre países.",
 "u": "https://news.google.com/rss/articles/CBMihgJBVV95cUxPaTAwR2RtX3VrMVlBRTNmc0poSXdnWjlzMjlwbnk4QUlyMVQyS21rQnVhUTJjb1JBN3c4dmtVSDNiNnFMUDhKUGhoT3pVZXZIczJDWk03YVF6SmNTUk92N2toUnNqZ1ZIdDBQVk95bGlVbWtnVUswaFBDNngyemNJOFFGeC05ZnNERlhDRTZ1UFFkRU13am9jQzd6d0VBem9uRXRkeTh2cjlHbXIxdUhVS2dsM0NKT2hEQnJDNVo2TDV3Y2ZTZnVWZVdIN2ZtZ3AzOFZhMEFKX25NcnFJUkt4SFNaTEllQTFWWlhkVHpnUVlmaU9mUHlRWEU3WnUwcEpDNm1WZi1B?oc=5",
 "f": "Repórter Maceió",
 "d": "2026-11-04T14:18:00+00:00",
+"b": "machine learning"
+},
+{
+"t": "O consumidor não separa a experiência de compra da de cobrança, e as empresas também não deveriam - E-Commerce Brasil",
+"u": "https://news.google.com/rss/articles/CBMi1gFBVV95cUxQSUxwSkFNTzNDc0xNY3lCdlBwZXBmR1RKaDVITXE3RW1lNzlCQXAxcEg1aURFcV9KQ3ZCSWtQa0ZWckZTM3NYU1hoR2FBaUJPWlBqYjVuS0x2R0ppRWJkNDUyQ1liMWw2QWJYR0dVZldyNXRCcHR5Sjk5X0V1bGlFakV0Y3hPeVQxbmpSaHVmczVMck9CU2ZfMklLYU54UWhsbmxfZEx2bGpxZ1NKdGNIdEhlcHY2UExwTWxrN2VUR0dOQlpHZXcxQ3Z0LWhEODF1ekh0ekZ3?oc=5",
+"f": "E-Commerce Brasil",
+"d": "2026-11-04T14:00:00+00:00",
 "b": "machine learning"
 },
 {
@@ -210,13 +217,6 @@
 "f": "UFPI",
 "d": "2026-11-04T12:30:00+00:00",
 "b": "inteligência artificial generativa"
-},
-{
-"t": "Blip abre mais de 30 vagas de estágio em tecnologia e inteligência artificial; inscrições começam nesta quarta (4)",
-"u": "https://news.google.com/rss/articles/CBMi-wFBVV95cUxQTE0ydFFHWlRpamVqWVVvV3NLLUI2ampaMVk4RUxNNDM3T21raDBWVDBSc2RNYmpXZTBNYTRQS1YyV3E0Y20weldHSmU4NGhXYUVSOW41VjNlWFpua0N2ZV9ET1VRWE83V1BkcnZpNkNoNEdJWGNoUTF1MWNJUnZxdFNMdi1WYVhfT0dUc1dCYzJUU0wzcF9nRG9tUk12M3JfU2c3VmhpeWdwRmdfUVBDS1k5dDFRdm1pSU1QZmJVMEIzMmxQbDZiRzJoSkxMS0Y0c2VJOVBja0N0QllybnZzY21LUVVtalpYeHEwTDQ4S3RVa3V6UkYyUlduSQ?oc=5",
-"f": "Portal de Camaquã",
-"d": "2026-11-04T12:10:35+00:00",
-"b": "engenharia de dados"
 },
 {
 "t": "Alavancar a carreira: Senac abre inscrições para 1,7 mil vagas de cursos gratuitos",
@@ -254,6 +254,13 @@
 "b": "metodologias ágeis"
 },
 {
+"t": "Nubank e Mercedes-AMG F1 apresentam ativação de marca para o Grande Prêmio de São Paulo",
+"u": "https://news.google.com/rss/articles/CBMiugFBVV95cUxNYXZ0TkNPd2xSV0gwOWxtWU02SnktNkdjMVBlMmh5bkRCVjNYVXZkZkY2UkNraU5zOXk5dmltMmduQkgtanRfWUZDZjVDcGM3bmgyLUUxZlM5YVFIMS1peXdnQm1rN01vZzE0UU9zR2czUGNlS3VZMC1Jc1FHMVJpMUFBa0FpeGxyQWtodzBpd2RISVNLVHhQeXQzYkpJRlVJMExDVmdJZWFJSTFfdzgtR2xLXy1sWXlKb3c?oc=5",
+"f": "Brasil Inovador",
+"d": "2026-11-04T09:55:05+00:00",
+"b": "engenharia de dados"
+},
+{
 "t": "Concurso ABDI: 180 vagas; R$ 16 mil. Inscreva-se!",
 "u": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE0xRTJVa2JHQUhlcUFsTUV0bkwxUWhnZEI1eXBPTXpReUZLT2JXM09COTlYWmloRF9uRUQ2dE5OcHFJNzlobWtuQXJ6RVBCUUtwQklQOVREdUtIU0lWVUhzOA?oc=5",
 "f": "Blog Gran Cursos Online",
@@ -273,6 +280,13 @@
 "f": "Olhar Digital",
 "d": "2026-11-04T00:51:00+00:00",
 "b": "machine learning"
+},
+{
+"t": "OS PREPARATIVOS PARA LULA 4: O realismo algorítmico e a introdução da tecnologia versus regulação (por Claudival Clemente)",
+"u": "https://news.google.com/rss/articles/CBMi5wFBVV95cUxNWXR5WUh6dlQxdkc0YmZsSk1OQ2xwQ18ydWdqZ19RRHdpZ1ppOFhZS0UyaXJFazF1QWJuelAzcXBXRV9WdmFFcnVxZTc0c01Tbko5ZG1NLUl1ejU4alpNWXUyUEh5dDQ1WUpiWHdSel9ya3U0MUg0YS1BX3dYalFoUDYxWlRRcU52dDRVRDZyZGJVdjQ2N2YzVHNuSGpKWEU5ekFHNkJwTUNLOXVTYXJQb011ZU9QdWJrVjhrTWJDbkRwYzVxWDd1MDFJWDdBVTFYbldnUzByUnp2ZFV2YUgySHVyYkNBTE0?oc=5",
+"f": "Jorge Zanoni",
+"d": "2026-11-03T23:28:57+00:00",
+"b": "engenharia de dados"
 },
 {
 "t": "Cetam registra quase 23 mil inscrições em cursos gratuitos até as 14h",
@@ -296,6 +310,13 @@
 "b": "Power BI"
 },
 {
+"t": "Grande Prêmio de São Paulo de Fórmula 1 de 2026 define cronograma oficial e mobiliza cadeia de negócios",
+"u": "https://news.google.com/rss/articles/CBMizwFBVV95cUxOSjhUUHBBR0UxQjRWdWtfd1g3NFpqVjh2a2lhdW1HQ2taRlBlbzdmSjdRMlVhSDU0MV9VNk1vaTNnbDltR1RZUUhxNHpTeUpZa202NlZYOFJHU3l0Sl9RbmV6N01JcDRzd0FtSnQ5dGtwYjU3SC1kbG02U2NtUDFVTUZCVkx6MWdlVWlFSjZLb2NhQ2NYRlpyYWFwSjhkUUp3ai1HTjdfMElzTWJxWXl4Z1duMlRhSWl1LWcyNjJiaWdVeEUzNGtmdGlORmZKdW8?oc=5",
+"f": "Brasil Inovador",
+"d": "2026-11-03T20:55:36+00:00",
+"b": "engenharia de dados"
+},
+{
 "t": "Cetam abre inscrições para mais de 50 mil vagas gratuitas; prazo termina nesta quarta",
 "u": "https://news.google.com/rss/articles/CBMitwFBVV95cUxOMFVFbXM3UVpfMkhsQmE3ekludFlYRHdCR1JiQVZWS21QaDhabkVLQi13elVsLXAwbFlpcXdKbTRPbVBTNWMzcUJFMkI2NEZpLUgtSmE3V25xckQzbzBEdHhKTnhGOXBQN3JlS2IyS1hhR21UeHFXMFZEel9uVnJOd01jN2dzRi02UnliV1EzUFFLTXZRQTRNc1RNbnBQcW10eDZfRzllem5XOTJBMF9hVUJPcnpNcWc?oc=5",
 "f": "AM POST",
@@ -308,13 +329,6 @@
 "f": "TradingView",
 "d": "2026-11-03T17:25:00+00:00",
 "b": "machine learning"
-},
-{
-"t": "Inscrições para 50 mil vagas em cursos gratuitos on-line do Cetam começam nesta terça no AM",
-"u": "https://news.google.com/rss/articles/CBMiwgFBVV95cUxObzlLR2hkb2tEUGV0ZjJqZ2t4WGFVSllXQ29tWEk3R1JLRkpVLXZRZ3lvQ1ZqQ2hkWktaZVhTM1lPaHUzb09OdmJWRXloTGU1cURRaUxtRzJyZTdJRk9DRXhLbmxWUnlxaExPY3FMTVRZRXM5T3FVVTdwT2JXblYwWXN5cXNGTmhGTzcwa1ZfUXQ0dlhBZExyZHBlVlcxdXpSMWpHOFZFNUYzQ1hDSXJIRUNnai1QLU9MVFZEZjJrcEV1Zw?oc=5",
-"f": "18 Horas | Rádio Mix Manaus",
-"d": "2026-11-03T17:16:32+00:00",
-"b": "Power BI"
 },
 {
 "t": "Concursos TI: editais publicados e previstos em 2026! VEJA AQUI",
@@ -345,6 +359,13 @@
 "b": "machine learning"
 },
 {
+"t": "Inteligência artificial no mercado imobiliário: como prever a demanda",
+"u": "https://news.google.com/rss/articles/CBMivwFBVV95cUxNTE52NktGaUxMUWlaU3M1c25nM3NtYlNGaVA0T29TbEVfRUZFZ1JzSGQxaDR0TlNiaXNiT29KOVNEVldhejB5VjlEZDViY3h2QkktRWFfQnMwclhmLU9PYWZPWHZVaWdteHpKdjAyRTdkb0xwakk0WGdtNC1EV3hHSU1IZmxacUx6SnVTdVYtNFFuZDJvTkxQdU8wVFZRcVVRcEZ6MHpod19Kam5xY0wyUGFfMi1hVGdnazJBUExmOA?oc=5",
+"f": "CNN Brasil",
+"d": "2026-11-03T12:00:23+00:00",
+"b": "análise de dados"
+},
+{
 "t": "Cetam abre mais de 50 mil vagas em cursos online gratuitos; inscrições vão até quarta-feira",
 "u": "https://news.google.com/rss/articles/CBMizwFBVV95cUxOZVAyVUJlVm9OcUp4UFl1M0tiNzNEZ1U2UTMydFA2QlBqLVlteW5MdXFjSThxTkV6cFpIRnI4c2lOWlJIYkRHQXF0c1VrWnB3WEVVUERpOVhkOXI2WFRWMGcwTnBSWkoxYXZXT0pRVThVdFpLc1NnbWhMSTZXMFF3S3g1OHlGN3VUcFl4NXJTT3hvbjd6MFptdHhXOUdMakJLWUsweXpXM3VDVUlBWE5xWFRFeEVEZG9LSk1OQm1BYUhSUkF5YzBCeFdJS1lvZnM?oc=5",
 "f": "Portal do Holanda",
@@ -364,6 +385,13 @@
 "f": "Campo Grande News",
 "d": "2026-11-03T09:05:00+00:00",
 "b": "inteligência artificial generativa"
+},
+{
+"t": "DigiFest Dong Nai 2026: Trazendo soluções tecnológicas para problemas práticos de desenvolvimento.",
+"u": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxQQ0NSVUJENk9LZFIwejFBODM4Y0RjMFZOblh2cEdNSEc1eFp4RjJhcEhPTUIyRFltZl9yb1JKMUFoWTZwMExDMGF3SERzcjZZNml5RUJ1RkFRYVFkd0Q1UnBKeFo5NU5zRGl5LWtuN3N0UUljVTZKR3RSTGR3WC0yOXNYdmlIR3JXb1Q3MEl0d0pyVGhRVkpocWFVQUQ5ZWZrNHVMa3daa3ZIdw?oc=5",
+"f": "Vietnam.vn",
+"d": "2026-11-03T08:01:54+00:00",
+"b": "computação em nuvem dados"
 },
 {
 "t": "Seu investimento em infraestrutura de IA pode fazer mais com análise acelerada por GPUs",
@@ -387,13 +415,6 @@
 "b": "metodologias ágeis"
 },
 {
-"t": "Inscrições para graduações EAD em IA, Ciência de Dados e Software terminam dia 5",
-"u": "https://news.google.com/rss/articles/CBMivgFBVV95cUxOaDJoZVBvazBZbEhnZVlSZWNIVmNZTjdfR1BzQmRMdDA0TXFOeXRKTWQzNm9iWlZ4dUhQODRpam9pX1NtNDRaZGVsa1BKNHF6X2ZwTURmeXZKT0VOU1BWSW5TVUZiRFV6VUdXUjJxV3NxVHJzTk95ZUpYZ0dhQk56Q0l3T3NMdmE4dkYwLTNnSjJEQkpsNnVnVHNGY1BwYm9DRDBSZ2E0RkVRem9RT0RkSENoX2pHMTJUN3EyblZn?oc=5",
-"f": "Hora Brasil",
-"d": "2026-11-02T15:10:20+00:00",
-"b": "ciência de dados"
-},
-{
 "t": "Inscrições para o curso gratuito de análise de dados do EBANX se encerram no domingo",
 "u": "https://news.google.com/rss/articles/CBMisAFBVV95cUxQWDVETURkQV9TX0tTejdzMVZpanNWWVptX2w2aXdsOXFGVkJYTzB1QzVYMGJtMTlBdUVGSVBhZFJ4T2pPZnkxVDl3Q3ZUR0xsNFIyMG1nUDRCZVhNSVRqU0swVGVMdi1ZbEd3WEdfYnQzU3Fqak05TzRvN2VFUWlTdzNBQVRtd253N3MySkVaWm91bVI4bXBrWTMxdk9QdTVtSVlyZ0FVN2FPYTZuRnNrdw?oc=5",
 "f": "www.plural.jor.br",
@@ -415,32 +436,18 @@
 "b": "engenharia de dados"
 },
 {
+"t": "UFMT encerra inscrições para 3 Bacharelados EAD nesta semana",
+"u": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxQNlJTQlVZaVp3LVN1UFpvd1EzSm1MQzFlcnVHdElXbms2UTVSTjJjSmtOWWFQVmF5M0pYakFpLUlDcGwya2JqNDVVelVIdDU1VmI3c1BVUDN3aUtCOC1tdGVlbHNYcmxBZnBDRnZsSGxiMnRBaDJnTjlGNUoza1lSdjRYbEJadDJaWnJZ?oc=5",
+"f": "PEBSP",
+"d": "2026-11-01T13:46:48+00:00",
+"b": "ciência de dados"
+},
+{
 "t": "Shigeru Miyamoto, criador de The Legend of Zelda, sobre inteligência artificial generativa: \"Se a IA dominasse tudo, sempre haveria um papel para nós\"",
 "u": "https://news.google.com/rss/articles/CBMi0AFBVV95cUxPS0VWTnN2dUUzOGI2LWVZa3FpNkZxYTlqVm9yODk2dm1jWXd4UlZnTEpGWmxxTzdlOVBFSzBfY3dtOGxtMmxMZ3VZMnpqVmhxZDFkSnByZXB1WlltSmVtbVdQVEJrRDBXenEyNFoxZVdKQll1clZxRVFNRzV4R09MODBwRmlaS2hrQllySTNqa3ZPXzJqb1QxMG55dFd6Q0ZzYkxQVUZsejJmMnJseDhZeTMxZkt1a2RMUHNfNGJBMUpHRTRxQTZlOEhOYWJLc243?oc=5",
 "f": "IGN Brasil",
 "d": "2026-11-01T13:04:19+00:00",
 "b": "inteligência artificial generativa"
-},
-{
-"t": "PF prende mulher com 3 kg de cocaína no Aeroporto do Galeão/RJ — Polícia Federal",
-"u": "https://news.google.com/rss/articles/CBMiswFBVV95cUxOQnV5d2NjaXNCUFo2QkpzM2VGaEZKNEV6bG9YWlU2VExGRXlpMzViTXhHVHpjU1lCVGxKb2JIcUFnOWZ1b0tWWUVyNlk5SEVtYlIwblV1bW1LNGxYYXQya1BLVEpsX1d4cHNoSGxDVURNNFpVbmZGajhxSjVmMkpKSWZiOVdzbC10OVhyTGNUYkRtNzlFWUdsODZJd1hxT1FacWxYWU16N3pDVWNHc1pCUVRkRQ?oc=5",
-"f": "Governo Federal",
-"d": "2026-10-31T21:04:00+00:00",
-"b": "business intelligence"
-},
-{
-"t": "Shigeru Miyamoto (73 anos), sobre a inteligência artificial generativa: \"Mesmo que a IA venha a assumir tudo, sempre haverá um papel para nós\"",
-"u": "https://news.google.com/rss/articles/CBMiwAJBVV95cUxQdEVUN0kxbUM3eWFmS015WjFtSmRWNFNqVnBUb0NiQ05lWE1QblVaYzFEdnA2Zjk2RDloRkJBblRHSVBqT3YzRlM0UnFHLTA2TUswenFsOU5hQV91X0hsTkJSMm10X29WVVBlNDY5Qnlyd0p3Y205b0xaLU9ZWTVMUjctMnlibURNWUNVZ1FjUnIyOVUtY29QQ3lhb3BaR2k1LUxuMHB4OVhwdzhENjd5VWFDRHZXb1JPU3NjOE1QQ2RqRU5KRlM3SGRNWWVLUm9lSXg2VzFRazN3M09QcURvV1kzSEc0LVhsRTB3MFgyeUZ1LTZFZHdBYXdYeERfcVBWaXJWOEIybUdNSElOLUpaYzdCbk9IOVlocDRaR205VFBqS3dCUGVKR0dQTHptMGFXbjlEdzFvRzhYZDU5dkVkTw?oc=5",
-"f": "Terra",
-"d": "2026-10-31T19:39:00+00:00",
-"b": "inteligência artificial generativa"
-},
-{
-"t": "Cetam abre 50 mil vagas gratuitas em cursos on-line",
-"u": "https://news.google.com/rss/articles/CBMigwFBVV95cUxQcUcxWHlfYU5JM2stbFdVakdqSERvalBQNUk4VkxnNU5aTU9RMGhBRk1EeE5nU0U2RzE0aEtSTnNxWERKNjlkbVVYMnRoR1VjeGwxRjd6NFBTMjZKVlBVRDhaMDA4YWZaNGwzRDJicTV2d0hBLWhRQkprY3B3YTAyTWY3WQ?oc=5",
-"f": "Amazonas1",
-"d": "2026-10-31T19:25:00+00:00",
-"b": "Power BI"
 }
 ]
 }

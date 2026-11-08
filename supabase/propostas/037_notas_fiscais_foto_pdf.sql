@@ -16,8 +16,11 @@
 -- • gatilhos: histórico de situação (definer) e uma trava para foto/PDF só ser conferida depois de autorizada; imutabilidade das duas tabelas novas.
 -- • Storage: duas políticas RESTRITIVAS (somam-se às da 034) que impedem substituir/apagar original registrado em tentativa; ajudante nf_path_registrado() (definer).
 --
--- DECISÕES DO DESENHO (para revisão do dono):
--- 1) Nota bloqueada (divergente, baixa confiança, cancelada, rejeitada, sem chave) NÃO vira nota: vira só a tentativa, com o original guardado (p_proc.guardar_original, padrão verdadeiro).
+-- DECISÕES DO DONO (aprovadas na revisão de 08/11/2026) E DO DESENHO:
+-- 1) Nota bloqueada (divergente, baixa confiança, cancelada, rejeitada, sem chave) NÃO vira nota: vira só a tentativa, e o original e a tentativa são SEMPRE guardados para auditoria
+--    (não existe mais opção de não guardar). O mesmo arquivo bloqueado de novo reaproveita o original já guardado (a tentativa aponta para ele; a cópia nova é o único arquivo a apagar).
+-- 1b) Retenção: NADA aqui apaga original de nota nem de tentativa, e nenhum arquivo registrado em tentativa é devolvido em docs_para_apagar. A política de retenção fica para uma etapa futura.
+-- 1c) Fernanda: escrita direta em nota de foto/PDF (e em itens e documentos dela) é só do dono, por políticas RESTRITIVAS que não tocam em linha de XML (o fluxo XML dela continua igual).
 -- 2) Nota de foto/PDF gravada tem requer_conferencia = true (a 032 já exige para formato não XML) e NÃO é conferida na gravação. "validada" = leitura aprovada + situação autorizada
 --    (derivado; nada novo em notas_fiscais). Pendente/contingência fica pendente fiscal e a conferência é recusada até a nota ser autorizada.
 -- 3) nota_fiscal_salvar_doc é SECURITY DEFINER (diferente da 034) para que a trilha de auditoria não possa ser forjada por escrita direta: quem chama não tem INSERT nas tabelas
@@ -29,7 +32,8 @@
 -- b) A conta é refeita em cima do que o site manda: itens, descontos, frete, outras despesas e p_proc.componentes (soma líquida de ST, IPI, seguro, II… menos ICMS desonerado).
 --    O banco não consegue provar que os componentes existem na nota; só que a equação fecha.
 -- c) A confiança vem do modelo (ou revisada = verdadeiro, quando o dono conferiu e corrigiu); o banco só aplica o mínimo.
--- d) Fernanda (casa) continua com a política "casa" das tabelas da 032: lê e altera notas fiscais por escrita direta. As tabelas NOVAS são só do dono.
+-- d) Fernanda (casa) continua LENDO as notas (política "casa" da 032) e continua gravando/conferindo/excluindo notas de XML como antes; escrever direto em nota de foto/PDF, nos itens
+--    e nos documentos dela é só do dono (item 9b). Vínculos seguem como estavam. As tabelas NOVAS são só do dono.
 -- e) Sessões de administração (auth.uid() nulo) não passam pelas travas de imutabilidade (necessário para excluir uma conta em cascata).
 -- f) Backup/restauração do site e seguranca_estado() ainda não conhecem as duas tabelas novas: entram na implementação (NUCLEO.SEG_TABELAS), não nesta migration.
 begin;
@@ -111,7 +115,7 @@ create or replace function public.notas_fiscais_hist_situacao() returns trigger
   language plpgsql security definer set search_path = '' as $$
 declare
   v_origem text := coalesce(nullif(current_setting('rac.nf_origem', true), ''), case when tg_op = 'INSERT' then 'gravacao' else 'manual' end);
-  v_fonte  text := coalesce(nullif(current_setting('rac.nf_fonte', true), ''), case when tg_op = 'INSERT' then (case new.formato_origem when 'imagem' then 'foto' else new.formato_origem end) else 'manual' end);
+  v_fonte  text := coalesce(nullif(current_setting('rac.nf_fonte', true), ''), case when tg_op = 'INSERT' then (case new.formato_origem when 'imagem' then 'foto' when 'pdf' then 'pdf' else 'manual' end) else 'manual' end);
   v_tent   uuid := case when current_setting('rac.nf_tentativa', true) ~ '^[0-9a-f-]{36}$' then current_setting('rac.nf_tentativa', true)::uuid end;
   v_evid   text := nullif(current_setting('rac.nf_evidencia', true), '');
 begin
@@ -195,12 +199,12 @@ declare
   campos_item constant text[] := array['codigo','descricao','qtd','unidade','unidade_original','unitario','total','desconto'];
   campos_pag  constant text[] := array['codigo','forma','valor','bandeira','final'];
   campos_doc  constant text[] := array['tipo','nome','path','mime','tamanho','sha256'];
-  campos_proc constant text[] := array['idem','classe','confianca','revisada','diferenca','componentes','motivos','incertos','modelo_ia','ia_uso_id','guardar_original'];
+  campos_proc constant text[] := array['idem','classe','confianca','revisada','diferenca','componentes','motivos','incertos','modelo_ia','ia_uso_id'];   -- 'motivos' é informativo: o banco grava os motivos que ele mesmo calcula
   v_casa uuid; v_id uuid; v_k text; v_i jsonb; v_pags jsonb; v_d jsonb; v_meta jsonb; v_ex jsonb; v_av jsonb := '[]'::jsonb; v_mot jsonb := '[]'::jsonb; v_inc jsonb := '[]'::jsonb;
-  v_chave text; v_cnpj text; v_dt text; v_formato text; v_origem text; v_sit text; v_pasta text; v_idem uuid; v_conf numeric; v_rev boolean; v_comp numeric; v_guardar boolean;
-  v_classe text; v_resultado text; v_tid uuid := gen_random_uuid(); v_uso uuid; v_modelo text;
+  v_chave text; v_cnpj text; v_dt text; v_formato text; v_origem text; v_sit text; v_pasta text; v_idem uuid; v_conf numeric; v_rev boolean; v_comp numeric;
+  v_classe text; v_resultado text; v_tid uuid := gen_random_uuid(); v_uso uuid; v_modelo text; v_exist jsonb;
   v_paths text[] := '{}'; v_shas text[] := '{}'; v_docs jsonb := '[]'::jsonb; v_regs jsonb := '[]'::jsonb; v_sem jsonb;
-  v_tam bigint; v_mime text; v_ext text; v_sha text; v_path text; v_tipo text; v_fora boolean; v_n integer; v_ja boolean;
+  v_tam bigint; v_mime text; v_ext text; v_sha text; v_path text; v_tipo text; v_fora boolean; v_n integer;
   v_soma numeric := 0; v_desc_it numeric := 0; v_desc numeric; v_dif numeric; v_total numeric; v_qtd numeric; v_un numeric; v_it numeric; v_dsc numeric;
   v_baixa boolean := false; v_div boolean := false; v_travas bigint[]; v_lk bigint; v_prev public.notas_fiscais_tentativas%rowtype; v_lim bigint;
 begin
@@ -260,7 +264,6 @@ begin
   v_comp := coalesce(public.nf_v_num(p_proc, 'componentes', false, -m2, m2, 2), 0);
   v_modelo := public.nf_v_texto(p_proc, 'modelo_ia', false, 60, null);
   v_uso := public.nf_v_texto(p_proc, 'ia_uso_id', false, 36, uuid_re)::uuid;
-  v_guardar := coalesce(public.nf_v_bool(p_proc, 'guardar_original', false), true);
   if p_proc ? 'motivos' and jsonb_typeof(p_proc->'motivos') not in ('array', 'null') then raise exception 'nota_fiscal_salvar_doc: motivos precisa ser uma lista' using errcode = '22023'; end if;
   if jsonb_typeof(p_proc->'motivos') = 'array' then
     if jsonb_array_length(p_proc->'motivos') > 10 then raise exception 'nota_fiscal_salvar_doc: motivos demais' using errcode = '22023'; end if;
@@ -358,16 +361,13 @@ begin
 
   -- originais que esta tentativa guarda: os que ainda não estão guardados em outra tentativa (mesmo arquivo lido de novo não ocupa o cofre duas vezes)
   for v_d in select e from jsonb_array_elements(v_docs) e loop
-    select exists (select 1 from public.notas_fiscais_tentativas t, jsonb_array_elements(t.docs) x where x->>'sha256' = v_d->>'sha256') into v_ja;
-    if not v_ja then v_regs := v_regs || jsonb_build_array(v_d); end if;
+    select x into v_exist from public.notas_fiscais_tentativas t, jsonb_array_elements(t.docs) x where t.user_id = v_casa and x->>'sha256' = v_d->>'sha256' limit 1;
+    if found then v_regs := v_regs || jsonb_build_array(v_exist);        -- o mesmo arquivo já está guardado: a tentativa aponta para ele e a cópia nova é a única a apagar
+    else v_regs := v_regs || jsonb_build_array(v_d); end if;
   end loop;
 
   if v_resultado = 'bloqueada' then
-    if v_guardar then
-      perform public.nf_tentativa_gravar(v_tid, v_casa, v_idem, null, v_origem, 'bloqueada', v_classe, v_sit, v_conf, v_rev, v_dif, v_comp, v_mot, v_inc, v_modelo, v_uso, v_regs);
-    else
-      perform public.nf_tentativa_gravar(v_tid, v_casa, v_idem, null, v_origem, 'bloqueada', v_classe, v_sit, v_conf, v_rev, v_dif, v_comp, v_mot, v_inc, v_modelo, v_uso, '[]'::jsonb);
-    end if;
+    perform public.nf_tentativa_gravar(v_tid, v_casa, v_idem, null, v_origem, 'bloqueada', v_classe, v_sit, v_conf, v_rev, v_dif, v_comp, v_mot, v_inc, v_modelo, v_uso, v_regs);
     return jsonb_build_object('id', null, 'criado', false, 'bloqueada', true, 'resultado', 'bloqueada', 'classe', v_classe, 'situacao', v_sit, 'motivos', v_mot, 'tentativa_id', v_tid,
       'docs_para_apagar', coalesce((select jsonb_agg(p) from unnest(v_paths) p where not public.nf_path_registrado(p)), '[]'::jsonb));
   end if;
@@ -442,6 +442,35 @@ begin
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select on public.%I to authenticated', t);
     execute format('grant select on public.%I to service_role', t);
+  end loop;
+end $$;
+
+-- 9b) Fernanda: escrever DIRETO em nota de foto/PDF, nos itens e nos documentos dela é só do dono. As políticas são RESTRITIVAS (somam-se à "casa" e à "mfa"; nada é afrouxado) e
+--     só valem para linha que não é de XML: gravar, conferir e excluir XML pela Fernanda continua exatamente como antes. As RPCs desta migration gravam como dono da função (sem RLS).
+drop policy if exists "foto so dono insere" on public.notas_fiscais;
+create policy "foto so dono insere" on public.notas_fiscais as restrictive for insert to authenticated
+  with check (formato_origem = 'xml' or (select auth.uid()) = (select public.dono_da_casa()));
+drop policy if exists "foto so dono altera" on public.notas_fiscais;
+create policy "foto so dono altera" on public.notas_fiscais as restrictive for update to authenticated
+  using (formato_origem = 'xml' or (select auth.uid()) = (select public.dono_da_casa()))
+  with check (formato_origem = 'xml' or (select auth.uid()) = (select public.dono_da_casa()));
+drop policy if exists "foto so dono apaga" on public.notas_fiscais;
+create policy "foto so dono apaga" on public.notas_fiscais as restrictive for delete to authenticated
+  using (formato_origem = 'xml' or (select auth.uid()) = (select public.dono_da_casa()));
+do $$
+declare t text;
+begin
+  foreach t in array array['notas_fiscais_itens', 'notas_fiscais_docs'] loop
+    execute format('drop policy if exists "foto so dono insere" on public.%I', t);
+    execute format('create policy "foto so dono insere" on public.%I as restrictive for insert to authenticated with check ((select auth.uid()) = (select public.dono_da_casa())
+      or exists (select 1 from public.notas_fiscais n where n.id = nota_id and n.formato_origem = ''xml''))', t);
+    execute format('drop policy if exists "foto so dono altera" on public.%I', t);
+    execute format('create policy "foto so dono altera" on public.%I as restrictive for update to authenticated using ((select auth.uid()) = (select public.dono_da_casa())
+      or exists (select 1 from public.notas_fiscais n where n.id = nota_id and n.formato_origem = ''xml''))
+      with check ((select auth.uid()) = (select public.dono_da_casa()) or exists (select 1 from public.notas_fiscais n where n.id = nota_id and n.formato_origem = ''xml''))', t);
+    execute format('drop policy if exists "foto so dono apaga" on public.%I', t);
+    execute format('create policy "foto so dono apaga" on public.%I as restrictive for delete to authenticated using ((select auth.uid()) = (select public.dono_da_casa())
+      or exists (select 1 from public.notas_fiscais n where n.id = nota_id and n.formato_origem = ''xml''))', t);
   end loop;
 end $$;
 

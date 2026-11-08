@@ -85,7 +85,7 @@ function preparar(n, o = {}) {
   if (sit === "cancelada" || sit === "rejeitada") nota.protocolo = sit === "cancelada" ? "131260000000001" : null;
   const docs = arqs.map((a) => ({ tipo: formato, nome: "nota." + a.ext, path: `${R}/notas-fiscais/${id}/${a.sha}.${a.ext}`, mime: a.mime, tamanho: a.tamanho, sha256: a.sha }));
   const proc = { idem: o.idem || idem(n), classe: "consistente", confianca: o.confianca ?? 0.96, revisada: !!o.revisada, diferenca: 0, componentes: o.componentes ?? 0, motivos: [], incertos: [{ campo: "hora", motivo: "ilegível" }],
-    modelo_ia: "claude-sonnet-5-5", ia_uso_id: null, guardar_original: o.guardar !== false, ...(o.proc || {}) };
+    modelo_ia: "claude-sonnet-5-5", ia_uso_id: null, ...(o.proc || {}) };
   return { id, nota, itens, docs, proc, arqs };
 }
 const noCofre = (db, p, meta) => admin(db, "insert into storage.objects (bucket_id, name, metadata) values ('familia', $1, $2::jsonb)", [p, meta === undefined ? null : JSON.stringify(meta)]);
@@ -250,12 +250,15 @@ test("PGlite · divergente, baixa confiança, cancelada, rejeitada e sem chave N
   assert.equal((await gravar(db, 172, { confianca: 0.9 })).r.resultado, "validada"); assert.equal((await salvarDoc(db, R, await subir(db, preparar(173, { confianca: 0.899 })))).classe, "baixa_confianca");
   /* componentes fiscais declarados fecham a conta (ST + IPI) */
   assert.equal((await gravar(db, 174, { total: 31, componentes: 5.5 })).r.resultado, "validada");
-  /* sem guardar o original: a tentativa não registra o arquivo e o site pode apagá-lo */
-  const sg = await subir(db, preparar(175, { total: 99, guardar: false })); const rs = await salvarDoc(db, R, sg); assert.deepEqual([rs.bloqueada, rs.docs_para_apagar], [true, [sg.docs[0].path]]);
-  assert.equal((await admin(db, "select public.nf_path_registrado($1) as r", [sg.docs[0].path]))[0].r, false);
-  /* o mesmo arquivo bloqueado de novo não ocupa o cofre duas vezes */
-  const outra = preparar(176, { total: 99, arqs: [(await admin(db, "select docs->0->>'sha256' as s from public.notas_fiscais_tentativas where classe = 'divergente' limit 1"))[0].s].map((s) => ({ ext: "jpg", sha: s, tamanho: 3000, mime: "image/jpeg" })) });
-  await subir(db, outra); const ro = await salvarDoc(db, R, outra); assert.equal(ro.bloqueada, true); assert.deepEqual(ro.docs_para_apagar, [outra.docs[0].path]);
+  /* decisão do dono: o original da nota bloqueada é SEMPRE guardado; a opção de não guardar não existe mais */
+  const sg = preparar(175, { total: 99, proc: { guardar_original: false } }); await subir(db, sg); assert.match((await falha(salvarDoc(db, R, sg))).message, /campo não permitido em processamento: guardar_original/);
+  /* o mesmo arquivo bloqueado de novo não ocupa o cofre duas vezes: a nova tentativa APONTA para o original já guardado e só a cópia nova é devolvida para apagar */
+  const antes = (await admin(db, "select docs->0->>'sha256' as s, docs->0->>'path' as p from public.notas_fiscais_tentativas where classe = 'divergente' limit 1"))[0];
+  const outra = preparar(176, { total: 99, arqs: [{ ext: "jpg", sha: antes.s, tamanho: 3000, mime: "image/jpeg" }] });
+  await subir(db, outra); const ro = await salvarDoc(db, R, outra); assert.equal(ro.bloqueada, true); assert.deepEqual(ro.docs_para_apagar, [outra.docs[0].path], "só a cópia nova");
+  const t2 = (await admin(db, "select docs from public.notas_fiscais_tentativas where id = $1", [ro.tentativa_id]))[0];
+  assert.equal(t2.docs.length, 1); assert.equal(t2.docs[0].path, antes.p, "a tentativa aponta para o original já guardado"); assert.equal((await admin(db, "select public.nf_path_registrado($1) as r", [antes.p]))[0].r, true);
+  assert.equal((await admin(db, "select public.nf_path_registrado($1) as r", [outra.docs[0].path]))[0].r, false);
   await db.close();
 });
 test("PGlite · acesso: só o dono grava, atualiza e lê a trilha; MFA exigida; ninguém escreve direto nem altera a auditoria", { skip: pular }, async () => {
@@ -284,6 +287,68 @@ test("PGlite · acesso: só o dono grava, atualiza e lê a trilha; MFA exigida; 
   const m = await subir(db, preparar(183)); assert.match((await falha(salvarDoc(db, R, m, "aal1"))).message, /MFA/); assert.match((await falha(atualizar(db, R, g.id, "cancelada", null, null, "xml", "aal1"))).message, /MFA/);
   assert.equal((await salvarDoc(db, R, m, "aal2")).criado, true);
   assert.equal((await atualizar(db, R, g.id, "cancelada", null, null, "xml", "aal2")).para, "cancelada");
+  await db.close();
+});
+test("PGlite · revisão das funções SECURITY DEFINER: search_path vazio, ninguém além de quem entrou executa, o gravador da trilha é inalcançável e nada é dinâmico", { skip: pular }, async () => {
+  const db = await banco();
+  const f = await admin(db, `select p.proname, p.prosecdef as def, p.proconfig as cfg, has_function_privilege('anon', p.oid, 'execute') as anon, has_function_privilege('authenticated', p.oid, 'execute') as auth, p.prorettype::regtype::text as ret
+    from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('nota_fiscal_salvar_doc','nota_fiscal_atualizar_situacao','nf_tentativa_gravar','nf_existente_casa','nf_path_registrado','notas_fiscais_hist_situacao','nf_tentativas_imutavel','nf_situacoes_imutavel','notas_fiscais_foto_regras')`);
+  assert.equal(f.length, 9);
+  const por = Object.fromEntries(f.map((x) => [x.proname, x]));
+  for (const nome of ["nota_fiscal_salvar_doc", "nf_tentativa_gravar", "nf_path_registrado", "notas_fiscais_hist_situacao"]) { assert.equal(por[nome].def, true, nome + " é definer"); assert.ok(por[nome].cfg.some((c) => c.startsWith("search_path=")), nome + ": search_path fixo vazio"); }
+  for (const x of f) { assert.ok(x.cfg && x.cfg.some((c) => /^search_path=("")?$/.test(c)), x.proname + ": search_path vazio"); assert.equal(x.anon, false, x.proname + " não é de anon"); }
+  assert.deepEqual(f.filter((x) => x.auth && x.ret !== "trigger").map((x) => x.proname).sort(), ["nf_path_registrado", "nota_fiscal_atualizar_situacao", "nota_fiscal_salvar_doc"], "só estas três são chamáveis por quem entrou (as funções de gatilho não são chamáveis direto)");
+  assert.equal(por.nota_fiscal_atualizar_situacao.def, false, "a atualização de situação é invoker (RLS e MFA valem)");
+  /* tudo qualificado e sem SQL dinâmico dentro das funções */
+  const corpo = trecho(PROP, "create or replace function public.nota_fiscal_salvar_doc", "grant execute on function public.nota_fiscal_salvar_doc");
+  assert.ok(!/\bexecute\b\s+(format|')/i.test(corpo), "sem EXECUTE dinâmico"); assert.ok(!/\bfrom\s+(?!public\.|storage\.|unnest|jsonb_array_elements|\()[a-z_]+\s+(where|order|limit)/i.test(corpo.replace(/from unnest\(.*?\) \w+/g, "")), "tabelas sempre qualificadas");
+  /* sem executar como outra pessoa: sem login, sem dono e sem MFA nada grava */
+  const p = await subir(db, preparar(301));
+  for (const [uid, aal] of [[null, "aal1"], [F, "aal1"], [X, "aal1"]]) { const e = await falha(salvarDoc(db, uid, p, aal)); assert.ok(e.message); }
+  assert.equal(await contar(db, "notas_fiscais"), 0); assert.equal(await contar(db, "notas_fiscais_tentativas"), 0); assert.equal(await contar(db, "notas_fiscais_situacoes"), 0);
+  assert.match((await falha(como(db, R, "select public.nf_tentativa_gravar(gen_random_uuid(), $1, gen_random_uuid(), null, 'foto', 'validada', 'consistente', 'autorizada', 1, false, 0, 0, '[]', '[]', null, null, '[]')", [R]))).message, /permission denied/, "ninguém forja a trilha chamando o gravador");
+  await db.close();
+});
+test("PGlite · Fernanda: não escreve direto em nota de foto/PDF (nem itens, nem documentos), mas o fluxo de XML dela segue igual (gravar pela RPC, conferir, escrita direta, excluir)", { skip: pular }, async () => {
+  const db = await banco();
+  const g = await gravar(db, 311);                                                    // nota de foto do dono
+  const nega = async (sql, params = []) => { const e = await falha(como(db, F, sql, params)); assert.match(e.message, /row-level security|violates|permission/, sql); };
+  /* escrita direta: INSERT de nota "de foto" é recusado; UPDATE/DELETE de nota de foto não enxerga linha nenhuma (0 afetadas) */
+  await nega("insert into public.notas_fiscais (id, modelo, valor_total, formato_origem, requer_conferencia) values (gen_random_uuid(), '65', 10, 'imagem', true)");
+  assert.equal((await como(db, F, "update public.notas_fiscais set situacao = 'cancelada' where id = $1 returning id", [g.id])).length, 0, "não altera nota de foto");
+  assert.equal((await como(db, F, "delete from public.notas_fiscais where id = $1 returning id", [g.id])).length, 0, "não exclui nota de foto");
+  assert.equal((await como(db, F, "update public.notas_fiscais_itens set total = 1 where nota_id = $1 returning id", [g.id])).length, 0, "não altera itens da nota de foto");
+  assert.equal((await como(db, F, "delete from public.notas_fiscais_docs where nota_id = $1 returning id", [g.id])).length, 0, "não apaga o documento da nota de foto");
+  await nega(`insert into public.notas_fiscais_itens (nota_id, descricao, qtd, total) values ('${g.id}', 'X', 1, 1)`);
+  await nega(`insert into public.notas_fiscais_docs (nota_id, tipo, nome, path, sha256) values ('${g.id}', 'imagem', 'x', '${R}/notas-fiscais/${g.id}/x.jpg', '${"a".repeat(64)}')`);
+  assert.equal(await contar(db, "notas_fiscais", `id = '${g.id}' and situacao = 'autorizada'`), 1); assert.equal(await contar(db, "notas_fiscais_itens", `nota_id = '${g.id}'`), 2);
+  assert.match((await falha(como(db, F, "select public.nota_fiscal_conferir($1)", [g.id]))).message, /não encontrada|row-level|violates/, "a Fernanda não confere nota de foto");
+  assert.equal((await como(db, F, "select count(*)::int as n from public.notas_fiscais where id = $1", [g.id]))[0].n, 1, "mas continua LENDO a nota");
+  assert.equal(await contar(db, "notas_fiscais_tentativas", `nota_id = '${g.id}'`), 1);
+  /* o dono segue escrevendo direto (restauração de backup) */
+  assert.equal((await como(db, R, "update public.notas_fiscais set observacoes = 'ok' where id = $1 returning id", [g.id])).length, 1);
+  /* XML da Fernanda: igual a antes — grava pela RPC da 034 (invoker), escreve direto e exclui */
+  const b43 = "31" + "2611" + CNPJ + "55" + "001" + "000000411" + "1" + "12345678", chave = b43 + N.nfDvChave(b43);
+  const xml = `<nfeProc><NFe><infNFe Id="NFe${chave}" versao="4.00"><ide><mod>55</mod><serie>1</serie><nNF>411</nNF><dhEmi>2026-11-06T10:00:00-03:00</dhEmi><tpEmis>1</tpEmis></ide><emit><CNPJ>${CNPJ}</CNPJ><xNome>LOJA</xNome><enderEmit><UF>MG</UF></enderEmit></emit>
+<det nItem="1"><prod><cProd>1</cProd><xProd>ITEM</xProd><qCom>1.0000</qCom><uCom>UN</uCom><vUnCom>10.00</vUnCom><vProd>10.00</vProd></prod></det><total><ICMSTot><vProd>10.00</vProd><vNF>10.00</vNF></ICMSTot></total><pag><detPag><tPag>03</tPag><vPag>10.00</vPag></detPag></pag></infNFe>
+<protNFe><infProt><cStat>100</cStat><nProt>131260000000001</nProt><chNFe>${chave}</chNFe></infProt></protNFe></NFe></nfeProc>`;
+  const lido = N.nfLerXML(xml), norm = N.nfNormalizar(lido), bytes = Buffer.from(xml), sha = createHash("sha256").update(bytes).digest("hex"), id = uuid(411);
+  const gg = N.nfParaGravar(lido, norm, { id, dono: R, nome: "n.xml", mime: "text/xml", tamanho: bytes.length, sha256: sha, conferir: false }); assert.ok(gg.ok, gg.erros.join(" "));
+  await noCofre(db, gg.args.p_docs[0].path, { size: bytes.length, mimetype: "text/xml" });
+  const r = (await como(db, F, "select public.nota_fiscal_salvar($1::jsonb, $2::jsonb, $3::jsonb, $4) as r", [JSON.stringify(gg.args.p_nota), JSON.stringify(gg.args.p_itens), JSON.stringify(gg.args.p_docs), false]))[0].r;
+  assert.equal(r.criado, true, "a Fernanda ainda grava XML"); assert.equal((await como(db, F, "select public.nota_fiscal_conferir($1) as r", [id]))[0].r.ja_conferida, false, "e confere");
+  assert.equal((await como(db, F, "update public.notas_fiscais set situacao = 'cancelada' where id = $1 returning id", [id])).length, 1, "e cancela (única exceção do congelamento)");
+  assert.equal((await como(db, F, "delete from public.notas_fiscais where id = $1 returning id", [id])).length, 1, "e exclui");
+  /* o dono não consegue nem quer: converter XML em 'imagem' pela Fernanda é recusado */
+  const x2 = await como(db, R, "insert into public.notas_fiscais (id, modelo, valor_total, formato_origem, requer_conferencia) values (gen_random_uuid(), '55', 10, 'xml', true) returning id");
+  await nega("update public.notas_fiscais set formato_origem = 'imagem' where id = $1", [x2[0].id]);
+  await db.close();
+});
+test("PGlite · fonte do histórico nunca quebra a escrita do dono (formato 'danfe' direto vira fonte 'manual')", { skip: pular }, async () => {
+  const db = await banco();
+  const id = uuid(321);
+  await como(db, R, "insert into public.notas_fiscais (id, modelo, valor_total, formato_origem, requer_conferencia) values ($1, '65', 10, 'danfe', true)", [id]);
+  assert.deepEqual((await sit(db, id)).map((x) => [x.de, x.para, x.fonte]), [[null, "pendente", "manual"]]);
   await db.close();
 });
 test("PGlite · concorrência: o concorrente fecha a mesma nota entre a checagem e a gravação (corrida simulada) → uma só nota e uma tentativa 'duplicada'", { skip: pular }, async () => {

@@ -1,6 +1,6 @@
 # Central de Notas Fiscais
 
-Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos). Lote 1.2 (08/11/2026, só código local): conferência aritmética e duplicidade no núcleo (seção abaixo).
+Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos). Lote 1.2 (08/11/2026, publicado): conferência aritmética e duplicidade no núcleo. Lote 1.3 (08/11/2026): a tela `#fiscal` e a gravação passam a seguir essa validação (seção "Lote 1.3").
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
@@ -94,13 +94,47 @@ total_pago, loja, vendedor`), Mercado (`id, chave, data, total, mercado` ou `mer
 - **Limites conhecidos**: chave ilegível numa foto (caso real da contingência) cai em `baixa_confianca` — não dá para identificar nem evitar duplicidade sem ela; a conta de uma foto depende da leitura do item estar bruta (sem desconto embutido); valores de entrada negativos já chegam sem sinal (`coNum`).
 - **Não feito (depende de lotes futuros)**: histórico de mudanças de status em tabela própria (hoje a atualização de situação é regra do banco 034, sem trilha de versões); registro persistente da tentativa bloqueada (o veredito só indica `registrar_tentativa`); ligação à tela e ao Financeiro, que **precisa exigir** `fiscal.situacao = autorizada` e `classe = consistente`.
 
+## Lote 1.3 · validação integrada à tela `#fiscal` e à gravação (08/11/2026)
+
+Sem migration, sem SQL e sem mudança no Supabase: tudo é JavaScript do site e do núcleo. Versão `2026-11-08.1` (`sw.js` e `js/app.js` juntos).
+
+### `NUCLEO.nfDecisaoGravacao(nota, dup)` — uma decisão só para a tela e para a gravação
+Junta `nfVeredito` e `nfDuplicidade` e devolve `modo`: `validada`, `pendente_fiscal` ou `bloqueada` (+ `bloqueios[]`, `avisos[]`, `conferir_permitido`, `gera_despesa: false`).
+`nfParaGravar` chama a mesma função, então qualquer chamador (a tela, um teste, um lote futuro) recebe a mesma recusa: **o núcleo não depende de a tela esconder o botão**.
+
+| Caso | Resultado na gravação |
+|---|---|
+| Autorizada e conta consistente | `validada`: grava; a pessoa pode marcar "Conferi" (fluxo de antes) |
+| Pendente ou contingência, conta consistente | `pendente_fiscal`: grava com `requer_conferencia = true`, **nunca conferida** (`p_conferir` sempre falso), aviso "pendente de validação fiscal". Não vale como validada nem alimenta o Financeiro. Botão "Salvar como pendente fiscal" |
+| Conta divergente | `bloqueada`: nada é enviado nem gravado; a tela mostra a diferença em reais e o motivo |
+| Baixa confiança (item sem quantidade/total, sem itens, sem total, **chave ausente ou inválida**) | `bloqueada`, com o motivo |
+| Cancelada ou rejeitada | `bloqueada`, "não vale como compra fiscal validada e não alimenta o Financeiro" |
+| Mesma nota já gravada (chave, arquivo ou emitente + modelo + série + número) | `bloqueada` ("não é gravada de novo"), nada é enviado |
+| Possível duplicidade (nota parecida, Mercado, pedido) ou compra online que já cita a chave | grava e **avisa**; a nota nunca cria despesa |
+
+### Tela (`js/fiscal.js`)
+- Cartão da nota: linha **Situação fiscal** (com "pendente de validação fiscal" ou "não vale como compra") e bloco **Validação da nota** em separado: conta dos itens (Consistente / Divergente / Baixa confiança), total calculado pelos itens, total fiscal, diferença em reais, motivos e a linha "Gravação" (validada, só pendente fiscal ou bloqueada). Classe CSS `fxbloq` para o que bloqueia.
+- Bloqueada: o botão não existe; aparece o motivo, "refaça a leitura com outro arquivo ou trate a compra por outra via" e "nada foi enviado nem gravado". Pendente fiscal: a caixa "Conferi" fica desligada.
+- Ao clicar em salvar, **antes de enviar qualquer arquivo**, `fxExistentes` lê (só leitura) `notas_fiscais` (por chave e por CNPJ do emitente), `notas_fiscais_docs` (SHA-256 do arquivo), `compras_online` (por chave e por data), `notas` do Mercado (por data) e `pedidos` (por data) e entrega ao `nfDuplicidade`. As duas primeiras são obrigatórias (se falharem, nada é enviado); as demais são melhor esforço (avisam "Não consegui conferir duplicidade com …" e vale a conferência do banco).
+- Mensagem de sucesso só quando `estado = gravada`. Estados: `gravada`, `ja_existia`, `duplicada` (inclui o bloqueio por duplicidade e a atualização de situação reconhecida), `bloqueada`, `invalido`, `erro`.
+- Segue valendo: o banco (034) confere de novo chave, arquivo e id, e CPF; a tela nunca cria despesa; só as funções `nota_fiscal_salvar` e `nota_fiscal_conferir` escrevem.
+
+### Decisões e limites deste lote
+- **Cancelada, rejeitada, divergente e baixa confiança não são gravadas** (nem como pendente). O documento original continua no aparelho e nada é descartado; o **registro persistente da tentativa** (auditoria) e a **trilha de status** exigem tabela nova, ou seja migration: ficam para um lote com autorização de SQL.
+- **Mudança de comportamento:** nota com chave inválida/ausente deixou de ser gravada "pendente" (era o caminho do Lote B); agora é baixa confiança e bloqueia. A leitura de foto/PDF com OCR (lote futuro) voltará a tratar chave ilegível.
+- **Atualização de situação** (contingência/pendente → autorizada, autorizada → cancelada) é **reconhecida e explicada**, mas ainda não é gravada pela tela (não há função de banco para isso; criar uma é migration). Hoje o aviso diz isso e nada é enviado.
+- A duplicidade com despesas olha `pedidos` (Alimentação) e `notas` (Mercado) e `compras_online`; gastos de `registros` (veículos, Eddie, Olivia) não são consultados.
+- Vínculo da nota com a compra existente continua sendo etapa futura (`nfVincular` existe); este lote só avisa.
+- A regra de Financeiro está pronta no veredito (`pode_alimentar_financeiro` = consistente + autorizada) mas **nenhum código cria despesa a partir de nota**.
+- Testes: `tests/fiscal_validacao.test.mjs` (16: autorizada, pendente, contingência, divergente, baixa confiança, cancelada, rejeitada, duplicidade confirmada, possível, atualização de situação, leitura que falha, cartão e botão com DOM de teste, nada de despesa) e ajustes em `tests/fiscal_tela.test.mjs`. A tela real não foi aberta com login nesta máquina; a verificação visual no site publicado fica com o dono (tela `#fiscal`, no celular e no computador).
+
 ### Planejamento (Prioridade 1 — Central Fiscal + Mercado + Financeiro)
-**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1 em produção; **Lote 1.2 em código local, testado, sem commit**: `nfValidarSoma`, `nfVeredito`, `nfDuplicidade`
-(situação fiscal separada da conta; pendente guardável; cancelada/rejeitada bloqueada; atualização de situação), unitário com 4 casas e componentes fiscais no normalizador/leitor de XML;
-25 testes novos em `tests/fiscal.test.mjs` (41 no arquivo). Suíte completa local com PGlite 0.5.10 (08/11/2026): 889 testes, 878 aprovados, 0 falhas, 11 ignorados (7 precisam do Playwright, que roda no GitHub; 4 são guardas "só no GitHub" que checam a instalação do PGlite/navegador). Sem o PGlite eram 813 aprovados e 76 ignorados. No computador: instalar o PGlite fora do repositório (`npm install --no-save --no-package-lock @electric-sql/pglite@0.5.10`) e apontar `RAC_PGLITE` para o **arquivo** `.../@electric-sql/pglite/dist/index.js` (apontar para a pasta falha com ERR_UNSUPPORTED_DIR_IMPORT e os testes de banco voltam a ser ignorados).
-**EM ANDAMENTO** — Lote 1.2 aguardando autorização do dono para commit (o push é dele). Pendências gerais: limpeza do Storage de testes do Lote 5.1; confirmar a liberação de `abastecimento.interpretar` em produção; rodar a suíte completa onde há PGlite.
-**FUTURO** (sem antecipar) — validação na tela `#fiscal` (mostrar classe, situação, diferença e bloqueio; gravar pendente); gravação com bloqueio de nota divergente/baixa confiança e trilha de tentativas e de status;
-OCR + IA para foto/PDF (mascarando CPF); integração Fiscal → Mercado/Financeiro (vincular compra existente, criar só se não existir, idempotente, só nota autorizada e consistente); IA real em `mercado.nota`, `alimentacao.pedido`, `esportes.*`.
+**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1; Lote 1.2 (núcleo, publicado em `41e4981`); **Lote 1.3**: validação, situação fiscal, diferença em reais e duplicidade
+integradas à tela `#fiscal` e a `nfParaGravar`; pendente fiscal gravável sem validar; bloqueios de divergente/baixa confiança/cancelada/rejeitada; nada cria despesa.
+Suíte completa local com PGlite: 905 testes, 894 aprovados, 0 falhas, 11 ignorados (7 Playwright + 4 guardas "só no GitHub").
+**EM ANDAMENTO** — conferir a tela no site publicado (celular e computador); pendências gerais: limpeza do Storage de testes do Lote 5.1 e confirmar `abastecimento.interpretar` em produção.
+**FUTURO** (precisa de autorização própria quando envolver banco) — função de banco para atualizar a situação da nota e trilha de status/tentativas (migration); OCR + IA para foto/PDF (mascarando CPF);
+integração Fiscal → Mercado → Financeiro (vincular compra existente, criar só se não existir, idempotente, só nota autorizada e consistente); IA real em `mercado.nota`, `alimentacao.pedido`, `esportes.*`.
 
 ## Ainda depende de
 

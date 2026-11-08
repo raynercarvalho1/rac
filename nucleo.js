@@ -2087,7 +2087,12 @@
     var pagamentos=(n.pagamentos||[]).map(function(p,k){p=p||{};if(p.valor==null)er.push("O pagamento "+(k+1)+" não tem valor.");
       return {codigo:p.codigo!=null?String(p.codigo):null,forma:p.forma?String(p.forma).slice(0,40):null,valor:p.valor!=null?nfArred(p.valor,2):null,bandeira:p.bandeira?String(p.bandeira).slice(0,30):null,final:p.final||null}});
     var protocolo=n.protocolo||(nfDigitos(lido.protocolo).length===15?nfDigitos(lido.protocolo):null);
-    var requer=chave==null?true:!!n.requer_conferencia,conferir=o.conferir===true&&chave!=null;
+    /* Lote 1.3: a mesma decisão da tela vale aqui (o núcleo não depende de quem chama): conta divergente, baixa confiança, cancelada e rejeitada não são gravadas;
+       contingência/pendente consistente é gravada como pendente fiscal (nunca conferida, nunca validada) */
+    var dec=nfDecisaoGravacao(n,null);dec.bloqueios.forEach(function(b){er.push("Gravação bloqueada: "+b)});
+    var requer=chave==null?true:!!n.requer_conferencia,conferir=o.conferir===true&&chave!=null&&dec.conferir_permitido;
+    if(dec.modo==="pendente_fiscal")requer=true;
+    if(o.conferir===true&&dec.modo==="pendente_fiscal")av.push("Nota em "+dec.veredito.fiscal.rotulo.toLowerCase()+": fica pendente fiscal, sem conferência nem validação até a autorização.");
     if(o.conferir===true&&chave==null)av.push("Nota sem chave de acesso válida fica pendente: a conferência é feita depois, em ação separada.");
     var nota={id:o.id,modelo:n.modelo,chave:chave,numero:/^\d{1,9}$/.test(String(n.numero||""))?String(n.numero):null,serie:/^\d{1,3}$/.test(String(n.serie||""))?String(n.serie):null,
       data_emissao:n.data_emissao||null,emitente_nome:em.nome?String(em.nome).slice(0,120):null,emitente_cnpj:cnpj,emitente_uf:/^[A-Z]{2}$/.test(String(em.uf||""))?em.uf:null,
@@ -2099,7 +2104,7 @@
     [nota.emitente_nome,nota.situacao_evidencia,JSON.stringify(pagamentos)].concat(itens.map(function(i){return (i.descricao||"")+" "+(i.unidade_original||"")})).forEach(function(t){if(nfTemCpf(t)&&er.indexOf("Um campo de texto da nota parece conter um CPF; ele fica só no arquivo original.")<0)er.push("Um campo de texto da nota parece conter um CPF; ele fica só no arquivo original.")});
     var nome=String(o.nome||"").trim();if(!nome||nome.length>200||nfTemCpf(nome))nome="nota-"+String(o.sha256||"").slice(0,8)+".xml";
     var docs=[{tipo:"xml",nome:nome,path:nfCaminhoDoc(o.dono,o.id,o.sha256,"xml"),mime:o.mime,tamanho:o.tamanho,sha256:o.sha256}];
-    return {ok:!er.length,erros:er,avisos:av,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_conferir:conferir}}}
+    return {ok:!er.length,erros:er,avisos:av,modo:dec.modo,veredito:dec.veredito,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_conferir:conferir}}}
   /* vínculo de conferência com um registro de outro módulo; nunca cria despesa */
   function nfVincular(nota,alvo,existentes){nota=nota||{};alvo=alvo||{};var e=[],a=[];
     if(!nota.chave)e.push("A nota não tem chave de acesso para identificá-la.");if(!NF_MODULOS[alvo.modulo])e.push("Módulo de destino inválido.");if(alvo.id==null||alvo.id==="")e.push("Informe o registro que a nota documenta.");
@@ -2197,6 +2202,22 @@
     var acao=atualiza?"atualizar_situacao":jaGravada?"ja_gravada":alvo?(alvo.nivel==="confirmada"?"vincular":"confirmar_vinculo"):"gravar_nova";
     return {duplicada:jaGravada,atualizar_situacao:atualiza,possivel_duplicada:!!(jaNota&&jaNota.nivel==="possivel"),acao:acao,vinculo_sugerido:alvo?{modulo:alvo.origem,id:alvo.id,nivel:alvo.nivel,motivo:alvo.motivo}:null,
       pode_criar_despesa:false,tem_despesa:ach.some(function(a){return a.origem==="despesa"||a.origem==="compras"||a.origem==="mercado"}),achados:ach.map(function(a){return {origem:a.origem,nivel:a.nivel,id:a.id,motivo:a.motivo}})}}
+  /* ===== Lote 1.3: a decisão de gravação que a tela #fiscal e nfParaGravar seguem (veredito + duplicidade; só regras puras) =====
+     modo: "validada" (conta consistente E nota autorizada), "pendente_fiscal" (conta consistente, contingência/pendente: guarda sem validar nem conferir)
+     ou "bloqueada" (conta divergente, baixa confiança, cancelada, rejeitada ou nota que já existe). Nunca gera despesa. dup = resultado de nfDuplicidade (ou null). */
+  var NF_ORIGENS={nota:"na Central Fiscal",compras:"em Compras online",mercado:"no Mercado",despesa:"nas despesas"};
+  function nfDecisaoGravacao(nota,dup){var ve=nfVeredito(nota),bl=[],av=ve.avisos.slice();
+    if(ve.acao==="bloquear")ve.bloqueios.forEach(function(b){bl.push(b.texto)});
+    else if(ve.classe!=="consistente")ve.motivos.forEach(function(m){bl.push((ve.classe==="divergente"?"A conta não fecha: ":"Baixa confiança: ")+m.texto)});
+    if(dup){
+      if(dup.duplicada){var at=dup.atualizar_situacao;
+        bl.push(at?"Esta nota já está na Central Fiscal como "+(NF_SITUACOES[at.de]||at.de).toLowerCase()+" e o arquivo traz a situação "+(NF_SITUACOES[at.para]||at.para).toLowerCase()+": a atualização da situação ainda não é feita por esta tela.":"Esta nota já está na Central Fiscal: não é gravada de novo.")}
+      else (dup.achados||[]).forEach(function(a){
+        if(a.origem==="nota")av.push("Possível duplicidade: já há nota do mesmo emitente, data e valor na Central Fiscal ("+a.motivo+"). Confira antes de seguir.");
+        else if(a.nivel==="confirmada")av.push("Esta compra já existe "+NF_ORIGENS[a.origem]+" ("+a.motivo+"). Nenhuma despesa será criada pela nota.");
+        else av.push("Possível duplicidade "+NF_ORIGENS[a.origem]+": "+a.motivo+". Nenhuma despesa será criada pela nota.")})}
+    var modo=bl.length?"bloqueada":ve.fiscal.definitiva?"validada":"pendente_fiscal";
+    return {pode:!bl.length,modo:modo,bloqueios:bl,avisos:av,conferir_permitido:modo==="validada",gera_despesa:false,veredito:ve,duplicidade:dup||null}}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
@@ -2218,5 +2239,5 @@
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
     NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade};
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao};
 })(typeof window!=="undefined"?window:globalThis);

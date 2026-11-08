@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-07.7",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-08.1",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],fiscal:["fiscal"],rachoje:["hoje"],iacustos:["iacustos"]};

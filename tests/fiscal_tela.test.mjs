@@ -80,7 +80,8 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
   assert.ok(!/fetch\(|XMLHttpRequest|racIA|tesseract|createWorker|localStorage|sessionStorage|pessoalGravar|\.insert\(|\.update\(|\.upsert\(|\.delete\(/i.test(js), "nada de rede solta, IA, OCR nem escrita direta em tabela");
   assert.ok(!/\.(?:cpf|dest)\b|infCpl/i.test(js), "a tela não toca em CPF nem em destinatário");
   assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_conferir", "nota_fiscal_salvar"]);
-  assert.deepEqual([...js.matchAll(/SB\.from\("([a-z_]+)"\)/g)].map((m) => m[1]), ["notas_fiscais"], "só uma leitura de notas_fiscais (a conferência de duplicidade)");
+  assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura (fxLer), só com select");
+  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "notas", "notas_fiscais", "notas_fiscais_docs", "pedidos"], "as leituras da conferência de duplicidade, todas só leitura");
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true, "só o cofre familia");
   assert.match(js, /NUCLEO\.nfLerXML/); assert.match(js, /NUCLEO\.nfNormalizar/); assert.match(js, /NUCLEO\.nfParaGravar/); assert.match(js, /NUCLEO\.nfRetentar/);
   assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); assert.ok(!/f\.type|\.type===/.test(js.replace(/\/\*[\s\S]*?\*\//g, "")), "o tipo que o navegador deu ao arquivo não decide nada no envio");
@@ -106,10 +107,10 @@ test("nenhuma ação da tela fiscal gera despesa e o texto diz quando algo é gr
 const DONO = "11111111-1111-4111-8111-111111111111";
 function sbFalso(o = {}) {
   const ch = { rpc: [], upload: [], remove: [], select: [] }, fila = (o.rpc || []).slice();
-  const limite = { limit: () => Promise.resolve(o.existente || { data: [] }) };
+  const limite = (t, c, v) => ({ limit: () => Promise.resolve((o.erroLeitura || {})[t] ? { error: { message: "falhou " + t } } : { data: ((o.tab || {})[t] || []).filter((r) => r[c] === v) }) });
   const sb = {
     rpc: (nome, args) => { ch.rpc.push([nome, args]); return Promise.resolve(fila.length ? fila.shift() : { data: o.dados }); },
-    from: (t) => ({ select: () => ({ eq: (c, v) => { ch.select.push([t, c, v]); return limite; } }) }),
+    from: (t) => ({ select: () => ({ eq: (c, v) => { ch.select.push([t, c, v]); return limite(t, c, v); } }) }),
     storage: { from: (b) => ({
       upload: (p, blob, opt) => { ch.upload.push({ b, p, blob, opt }); return Promise.resolve(o.upload || {}); },
       remove: (ps) => { ch.remove.push(ps); return Promise.resolve({}); } }) },
@@ -142,8 +143,8 @@ test("gravar: o XML sobe SEMPRE como text/xml, seja qual for o tipo que o navega
   }
 });
 test("gravar: chave já gravada = nada é enviado (evita arquivo solto)", async () => {
-  const { c, ch } = sbFalso({ existente: { data: [{ id: "ja" }] } }); const x = await c.fxSalvar(await lerNota(c), false);
-  assert.equal(x.estado, "duplicada"); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.remove.length], [0, 0, 0]); assert.deepEqual(ch.select[0], ["notas_fiscais", "chave", CHAVE]);
+  const { c, ch } = sbFalso({ tab: { notas_fiscais: [{ id: "ja", chave: CHAVE, situacao: "autorizada" }] } }); const x = await c.fxSalvar(await lerNota(c), false);
+  assert.equal(x.estado, "duplicada"); assert.equal(x.id, "ja"); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.remove.length], [0, 0, 0]); assert.deepEqual(ch.select[0], ["notas_fiscais", "chave", CHAVE]);
 });
 test("gravar: erro de validação, permissão ou duplicidade NÃO repete; o arquivo enviado nesta tentativa é apagado", async () => {
   for (const code of ["22023", "42501", "23514", "23505", "P0002"]) {
@@ -178,15 +179,14 @@ test("gravar: falha no envio não chama o banco; arquivo que já estava lá (409
 });
 test("gravar: nota que o núcleo não aceita (sem total, sem modelo) não envia nem grava nada", async () => {
   const { c, ch } = sbFalso(); const r = await lerNota(c); r.nota.valores.total = null; r.nota.modelo = null;
-  const x = await c.fxSalvar(r, false); assert.equal(x.estado, "invalido"); assert.deepEqual([ch.upload.length, ch.rpc.length], [0, 0]); assert.ok(x.erros.length >= 2);
+  const x = await c.fxSalvar(r, false); assert.equal(x.estado, "bloqueada", "sem total a conta nem se confere: baixa confiança"); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.select.length], [0, 0, 0]); assert.ok(x.erros.length >= 2);
 });
-test("nota sem chave válida: grava pendente (nunca conferida na gravação) e avisa; a conferência é uma ação separada", async () => {
+test("nota sem chave válida é baixa confiança: não grava nem envia nada (Lote 1.3); a conferência segue sendo uma ação separada", async () => {
   const sem = XML.split(CHAVE).join(CHAVE.slice(0, 43) + ((+CHAVE[43] + 1) % 10));
   const { c, ch } = sbFalso({ rpc: [OK("x")] }); const r = await lerNota(c, sem);
   assert.equal(r.nota.chave_valida, false);
   const x = await c.fxSalvar(r, true);
-  const a = ch.rpc[0][1]; assert.equal(a.p_nota.chave, null, "chave inválida nunca vai ao banco"); assert.equal(a.p_nota.requer_conferencia, true); assert.equal(a.p_conferir, false);
-  assert.ok((x.avisos || []).some((m) => /sem chave/i.test(m)));
+  assert.equal(x.estado, "bloqueada"); assert.match(x.mensagem, /Baixa confiança.*chave de acesso/); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.remove.length, ch.select.length], [0, 0, 0, 0]);
   const conf = sbFalso({ rpc: [{ data: { ja_conferida: false } }] }), y = await conf.c.fxConferir("id-1");
   assert.equal(y.estado, "conferida"); assert.equal(JSON.stringify(conf.ch.rpc[0]), JSON.stringify(["nota_fiscal_conferir", { p_id: "id-1" }]));
 });

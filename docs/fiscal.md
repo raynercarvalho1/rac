@@ -1,6 +1,6 @@
 # Central de Notas Fiscais
 
-Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos). Lote 1.2 (08/11/2026, publicado): conferência aritmética e duplicidade no núcleo. Lote 1.3 (08/11/2026): a tela `#fiscal` e a gravação passam a seguir essa validação (seção "Lote 1.3").
+Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Fotos e PDF: ver o Lote 1.4 (lidos pela IA, só o dono, sem gravação ainda). Lote 1.2 (08/11/2026, publicado): conferência aritmética e duplicidade no núcleo. Lote 1.3 (08/11/2026): a tela `#fiscal` e a gravação passam a seguir essa validação (seção "Lote 1.3"). Lote 1.4 (08/11/2026): leitura de foto e PDF pela IA (seção "Lote 1.4"), código pronto, IA real ainda não ligada.
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
@@ -44,7 +44,7 @@ campo (o que não está na lista descarta). `nfTemDadoPessoal` audita o resultad
 Recusa nota cancelada ou rejeitada e vínculo repetido; avisa para contingência/pendente, chave inválida, nota já ligada a outro registro do
 módulo e valor do registro diferente do da nota.
 
-## Lote 1.2 · conferência aritmética e prevenção de duplicidade (08/11/2026) — só código local
+## Lote 1.2 · conferência aritmética e prevenção de duplicidade (08/11/2026) — publicado em `41e4981`
 
 Três regras puras em `nucleo.js` (`NUCLEO.nfValidarSoma`, `nfVeredito`, `nfDuplicidade`), testadas em `tests/fiscal.test.mjs`. **Nada é gravado, enviado ou
 cobrado**, e nenhuma tela usa ainda: a ligação à tela e à gravação é o próximo lote. Tudo em centavos inteiros; tolerância de arredondamento de **1 centavo**.
@@ -128,12 +128,46 @@ Junta `nfVeredito` e `nfDuplicidade` e devolve `modo`: `validada`, `pendente_fis
 - A regra de Financeiro está pronta no veredito (`pode_alimentar_financeiro` = consistente + autorizada) mas **nenhum código cria despesa a partir de nota**.
 - Testes: `tests/fiscal_validacao.test.mjs` (16: autorizada, pendente, contingência, divergente, baixa confiança, cancelada, rejeitada, duplicidade confirmada, possível, atualização de situação, leitura que falha, cartão e botão com DOM de teste, nada de despesa) e ajustes em `tests/fiscal_tela.test.mjs`. A tela real não foi aberta com login nesta máquina; a verificação visual no site publicado fica com o dono (tela `#fiscal`, no celular e no computador).
 
+## Lote 1.4 · nota em foto ou PDF lida pela IA (08/11/2026) — código pronto, IA real AINDA NÃO ligada
+
+**Estado honesto:** a leitura por IA está implementada e testada com a Anthropic **simulada**. Nenhuma chamada real à IA foi feita neste lote e **não foi demonstrado, com uma foto ou PDF de verdade, que o Claude lê a nota**. Para isso faltam três passos do dono (abaixo). Até lá o botão do dono responde "ainda não está liberada no servidor", sem custo e sem gravar nada.
+
+### O que foi construído
+| Peça | Arquivo | O que faz |
+|---|---|---|
+| Ação `fiscal.nota` | `supabase/functions/rac-ia/acoes.ts` | Sonnet 5.5, **só o dono**, **só REAL** (sem demonstração: em DEMO a função responde `sem_real`), até 4 imagens + 6.000 caracteres de texto, 12.000 tokens de saída. Devolve JSON validado: emitente, chave, número/série, data, modelo, protocolo, situação (só se impressa), totais, frete/seguro/ST/IPI/II…, pagamentos, itens (unitário **sem arredondar**), `confianca` (0 a 1), `incertos` e `incerto` por item. A validação recusa número fora da faixa, remove CPF de qualquer texto, descarta chave sem 44 dígitos |
+| Migration proposta | `supabase/036_ia_fiscal.sql` (**NÃO aplicada**) | Só acrescenta `'fiscal.nota'` à lista que o banco aceita em `acoes_reais` e proíbe a casa. **Não liga** a ação |
+| Núcleo | `nucleo.js` | `nfTipoReal` (conteúdo pelos bytes), `nfArquivoIA`, `nfLoteIA`, `nfPdfAtivo`, `nfMascararCpf`, `nfLerIA` (JSON da IA → formato do leitor de XML), `nfCorrigir`, `nfConfiancaIA`; `nfDecisaoGravacao(nota, dup, {confianca})` |
+| Tela | `js/fiscal.js` | Para o dono: escolher foto(s)/PDF ou fotografar, "Ler foto ou PDF com IA", cartão da nota com confiança, campos incertos, validação, duplicidade e **formulário de correção** |
+
+### Como funciona (arquitetura)
+1. **Arquivo:** tipo pelo **conteúdo** (JPEG, PNG, WebP, PDF); extensão ou tipo declarado que contradizem o conteúdo → recusado; HEIC, SVG, executável e texto → recusados; imagem até 12 MB, PDF até 10 MB, **um PDF sozinho ou 1 a 4 fotos**; PDF com mais de 4 páginas ou com `/JavaScript`, `/Launch`, arquivo embutido… → recusado (melhor esforço sobre os bytes; o pdf.js só **desenha** a página, com `isEvalSupported:false`, nunca executa).
+2. **Preparo no aparelho:** foto reduzida a 1.568 px (JPEG); PDF → texto (com **CPF mascarado**) + imagem de cada página. Nada sai antes do clique.
+3. **IA:** só pela porta `racIA("fiscal","fiscal.nota")` → função `rac-ia` (chave nos Secrets, reserva de orçamento, idempotência por clique, sem repetição paga, registro de consumo em `ia_uso`, sem conteúdo nos logs). A tela nunca fala com a Anthropic.
+4. **Validação (a IA nunca aprova):** `nfLerIA` → `nfNormalizar` → `nfVeredito`/`nfDecisaoGravacao` com as **mesmas** regras do XML, mais a confiança: **mínimo 0,90** (inclusive); sem confiança informada = baixa confiança; a IA marcar um item ou campo crítico (chave, total, itens, data, CNPJ, descontos, modelo) como incerto **limita a confiança a 0,85**; situação "autorizada" só vale com protocolo legível de 15 dígitos (senão, pendente); pendente/contingência consistente = só pendente fiscal; cancelada/rejeitada, divergente e baixa confiança bloqueiam; duplicidade (`nfDuplicidade`) é conferida na própria leitura (só leitura no banco).
+5. **Revisão manual:** o formulário refaz a nota (`nfCorrigir` → `nfNormalizar`) e **roda tudo de novo**. Marcar "Conferi com o documento original" vale como revisão humana (confiança 100%) — decisão minha, para a correção ter efeito; **não relaxa** a conta, a situação fiscal nem a duplicidade. Sem erro nenhum, não há confirmação extra.
+6. **Duplo envio:** um documento por vez; o mesmo documento (SHA-256 dos arquivos) na mesma tela não vai de novo; o botão fica travado enquanto lê; uma falha libera nova tentativa.
+
+### Limites e dependências (o que NÃO está pronto)
+- **Gravar nota de foto/PDF não existe.** A função do banco `nota_fiscal_salvar` (034) só aceita `formato_origem = 'xml'` e arquivo `text/xml`. Gravar foto/PDF e guardar o original no cofre exige **migration nova** (não autorizada neste lote). A tela diz isso e **não tem botão de salvar** para foto/PDF; nada vai ao Storage; o original fica no aparelho.
+- **Ligar a IA real depende do dono, nesta ordem:** (1) rodar `036_ia_fiscal.sql` no SQL Editor; (2) republicar a função `rac-ia`; (3) acrescentar `'fiscal.nota'` em `acoes_reais` (update comentado no fim do 036), com a casa em REAL, e fazer **um teste controlado** com uma nota de teste. Antes disso o site publicado só mostra "ainda não está liberada".
+- **OCR local não foi incluído:** o Claude lê a imagem diretamente (visão). Por isso o CPF **não pode ser apagado da imagem** de uma foto ou página de PDF antes do envio; só o texto do PDF é mascarado. A IA é instruída a não copiá-lo e a resposta é filtrada. Evite enquadrar o CPF.
+- A confiança é a que o próprio modelo informa (limitada por regras); não é medida independente. O que protege é a conta, a situação, a chave e a duplicidade conferidas pelo RAC.
+- Precisão: o unitário passa por `nfDec` (até 4 casas); valores de 5 ou mais casas são arredondados na 5ª.
+- Atualização de situação (contingência → autorizada) continua só reconhecida, não gravada (precisa de função de banco).
+- Mercado e Financeiro: nada foi integrado, nenhum código cria despesa.
+- Gastos de `registros` não entram na checagem de duplicidade.
+
+### Testes (`tests/fiscal_ia.test.mjs`, 29; sem rede e sem custo)
+Foto legível; baixa qualidade (confiança < 0,90); parcialmente cortada; PDF de 1 e de várias páginas (pdf.js simulado, CPF mascarado no texto enviado); mais de 4 páginas; PDF com script; campos ausentes; vários itens com desconto, frete, seguro, ST e IPI; confiança alta e baixa (0,89 / 0,90); divergência de soma; pendente, contingência, cancelada e rejeitada; duplicidade confirmada, possível e atualização de situação; arquivo inválido, disfarçado, HEIC, vazio e acima do limite; erro e indisponibilidade da Anthropic (inclusive `sem_real`, DEMO e ação desconhecida); correção manual e revalidação; proteção contra envio duplicado; servidor ponta a ponta com a Anthropic falsa; 036 só soma e não liga; sem chave no site, sem Storage, sem despesa. O teste da validação do servidor achou e corrigiu um defeito: valores monetários fora da faixa passavam (a checagem vinha antes de serem lidos).
+
 ### Planejamento (Prioridade 1 — Central Fiscal + Mercado + Financeiro)
-**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1; Lote 1.2 (núcleo, publicado em `41e4981`); **Lote 1.3**: validação, situação fiscal, diferença em reais e duplicidade
-integradas à tela `#fiscal` e a `nfParaGravar`; pendente fiscal gravável sem validar; bloqueios de divergente/baixa confiança/cancelada/rejeitada; nada cria despesa.
-Suíte completa local com PGlite: 905 testes, 894 aprovados, 0 falhas, 11 ignorados (7 Playwright + 4 guardas "só no GitHub").
-**EM ANDAMENTO** — conferir a tela no site publicado (celular e computador); pendências gerais: limpeza do Storage de testes do Lote 5.1 e confirmar `abastecimento.interpretar` em produção.
-**FUTURO** (precisa de autorização própria quando envolver banco) — função de banco para atualizar a situação da nota e trilha de status/tentativas (migration); OCR + IA para foto/PDF (mascarando CPF);
+**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1; Lote 1.2 (núcleo, `41e4981`); Lote 1.3 (validação, situação fiscal e duplicidade na tela e na gravação, `339d033`);
+**Lote 1.4 (código)**: ação `fiscal.nota` na `rac-ia` (REAL-only, dono, Sonnet 5.5), proposta de SQL 036, leitura de foto/PDF na tela do dono (arquivo conferido pelo conteúdo, PDF desenhado sem executar, CPF mascarado no texto),
+confiança mínima 0,90, validação e duplicidade iguais às do XML, correção manual com revalidação, proteção contra envio duplicado. Suíte completa local com PGlite sem falhas (números no relatório do lote).
+**EM ANDAMENTO** — a IA real de foto/PDF **ainda não foi exercitada**: depende do dono rodar o 036, republicar a `rac-ia` e liberar `fiscal.nota` para um teste controlado; **gravar nota de foto/PDF** (e guardar o original no cofre)
+depende de migration nova; conferir a tela no site publicado; pendências gerais: limpeza do Storage de testes do Lote 5.1 e confirmar `abastecimento.interpretar` em produção.
+**FUTURO** (cada item que tocar banco precisa de autorização própria) — migration para gravar nota de foto/PDF e atualizar a situação da nota, com trilha de tentativas e de status; teste real controlado da leitura (nota de teste, saldo pré-pago);
 integração Fiscal → Mercado → Financeiro (vincular compra existente, criar só se não existir, idempotente, só nota autorizada e consistente); IA real em `mercado.nota`, `alimentacao.pedido`, `esportes.*`.
 
 ## Ainda depende de

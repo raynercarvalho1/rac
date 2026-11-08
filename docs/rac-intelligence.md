@@ -66,6 +66,7 @@ o modo da casa nunca esteve em REAL, e em DEMO a função responde antes de qual
 | `newsletter.resumo` | newsletter | `claude-haiku-5-5` (nunca Sonnet) | só dono | sim, se liberada (020 + 021; autorizado em 31/10/2026) | 4.000 tokens | só texto (15.000 caracteres, grupos com id, sem links); contexto `data` |
 | `esportes.analise` | esportes | `claude-haiku-5-5` | só dono | **não (DEMO fixo nesta etapa)** | 3.000 tokens | só texto (14.000 caracteres, pacote de fatos com id); contexto `foco` (dodgers, lakers, packers) |
 | `esportes.giro` | esportes | `claude-haiku-5-5` | só dono | **não (DEMO fixo nesta etapa)** | 3.000 tokens | só texto (14.000 caracteres, pacote de fatos com id); contexto `data` |
+| `fiscal.nota` | fiscal | `claude-sonnet-5-5` | só dono | **só REAL, sem demonstração** (Lote 1.4, 08/11/2026; precisa do `036_ia_fiscal.sql`, da função republicada e de `fiscal.nota` em `acoes_reais`; **ainda não ligada**) | 12.000 tokens | até 4 imagens (fotos ou páginas de PDF) + texto do PDF sem CPF (6.000 caracteres); sem contexto. Saída com `confianca` e `incertos`; a validação (`docs/fiscal.md`) é do RAC, a IA não aprova |
 | `alimentacao.pedido` | alimentacao | `claude-sonnet-5-5` | dono e casa | **não (DEMO fixo nesta etapa; o banco nem aceita em REAL)** | 6.000 tokens | até 4 fotos e texto (4.000 caracteres); pedido ou recibo com itens, taxas, gorjeta e descontos |
 
 As ações da Central Esportiva (`docs/esportes.md`) só aceitam respostas que citam ids de fatos enviados e cujos números aparecem

@@ -182,7 +182,7 @@ test("SQL 024: pedidos e itens na casa, com RLS, trava da 2ª etapa, nada para a
 test("IA: alimentacao.pedido só em DEMO (no código e no banco); a resposta simulada nunca preenche nada", () => {
   const a = ACOES["alimentacao.pedido"];
   assert.equal(a.real, false); assert.deepEqual(a.papeis, ["dono", "casa"]); assert.equal(a.modelo, ACOES["mercado.nota"].modelo, "o mesmo modelo da nota do Mercado");
-  assert.deepEqual(Object.values(ACOES).filter((x) => x.real).map((x) => x.id).sort(), ["abastecimento.interpretar", "hoje.analise", "newsletter.resumo"]);
+  assert.deepEqual(Object.values(ACOES).filter((x) => x.real).map((x) => x.id).sort(), ["abastecimento.interpretar", "fiscal.nota", "hoje.analise", "newsletter.resumo"]);
   assert.ok(!/alimentacao/.test(ler("supabase/028_hoje.sql").replace(/^--.*$/gm, "")), "o 028 também não aceita a Alimentação em REAL");
   assert.match(ler("supabase/020_newsletter_real.sql"), /check \(acoes_reais <@ array\['abastecimento\.interpretar', 'newsletter\.resumo'\]::text\[\]\)/, "o banco nem aceita a Alimentação em REAL");
   const r = respostaDemo("alimentacao.pedido", {}, "", []);

@@ -2206,18 +2206,80 @@
      modo: "validada" (conta consistente E nota autorizada), "pendente_fiscal" (conta consistente, contingência/pendente: guarda sem validar nem conferir)
      ou "bloqueada" (conta divergente, baixa confiança, cancelada, rejeitada ou nota que já existe). Nunca gera despesa. dup = resultado de nfDuplicidade (ou null). */
   var NF_ORIGENS={nota:"na Central Fiscal",compras:"em Compras online",mercado:"no Mercado",despesa:"nas despesas"};
-  function nfDecisaoGravacao(nota,dup){var ve=nfVeredito(nota),bl=[],av=ve.avisos.slice();
+  function nfDecisaoGravacao(nota,dup,opts){var ve=nfVeredito(nota,opts),bl=[],av=ve.avisos.slice(),bd=[],ad=[];
     if(ve.acao==="bloquear")ve.bloqueios.forEach(function(b){bl.push(b.texto)});
     else if(ve.classe!=="consistente")ve.motivos.forEach(function(m){bl.push((ve.classe==="divergente"?"A conta não fecha: ":"Baixa confiança: ")+m.texto)});
     if(dup){
       if(dup.duplicada){var at=dup.atualizar_situacao;
-        bl.push(at?"Esta nota já está na Central Fiscal como "+(NF_SITUACOES[at.de]||at.de).toLowerCase()+" e o arquivo traz a situação "+(NF_SITUACOES[at.para]||at.para).toLowerCase()+": a atualização da situação ainda não é feita por esta tela.":"Esta nota já está na Central Fiscal: não é gravada de novo.")}
+        bd.push(at?"Esta nota já está na Central Fiscal como "+(NF_SITUACOES[at.de]||at.de).toLowerCase()+" e o arquivo traz a situação "+(NF_SITUACOES[at.para]||at.para).toLowerCase()+": a atualização da situação ainda não é feita por esta tela.":"Esta nota já está na Central Fiscal: não é gravada de novo.")}
       else (dup.achados||[]).forEach(function(a){
-        if(a.origem==="nota")av.push("Possível duplicidade: já há nota do mesmo emitente, data e valor na Central Fiscal ("+a.motivo+"). Confira antes de seguir.");
-        else if(a.nivel==="confirmada")av.push("Esta compra já existe "+NF_ORIGENS[a.origem]+" ("+a.motivo+"). Nenhuma despesa será criada pela nota.");
-        else av.push("Possível duplicidade "+NF_ORIGENS[a.origem]+": "+a.motivo+". Nenhuma despesa será criada pela nota.")})}
+        if(a.origem==="nota")ad.push("Possível duplicidade: já há nota do mesmo emitente, data e valor na Central Fiscal ("+a.motivo+"). Confira antes de seguir.");
+        else if(a.nivel==="confirmada")ad.push("Esta compra já existe "+NF_ORIGENS[a.origem]+" ("+a.motivo+"). Nenhuma despesa será criada pela nota.");
+        else ad.push("Possível duplicidade "+NF_ORIGENS[a.origem]+": "+a.motivo+". Nenhuma despesa será criada pela nota.")})}
+    bl=bl.concat(bd);av=av.concat(ad);
     var modo=bl.length?"bloqueada":ve.fiscal.definitiva?"validada":"pendente_fiscal";
-    return {pode:!bl.length,modo:modo,bloqueios:bl,avisos:av,conferir_permitido:modo==="validada",gera_despesa:false,veredito:ve,duplicidade:dup||null}}
+    return {pode:!bl.length,modo:modo,bloqueios:bl,avisos:av,bloqueios_dup:bd,avisos_dup:ad,conferir_permitido:modo==="validada",gera_despesa:false,veredito:ve,duplicidade:dup||null}}
+  /* ===== Lote 1.4: nota em foto ou PDF lida pela IA (ação fiscal.nota da rac-ia). Aqui só regras puras: o arquivo, o mascaramento, o mapa do JSON da IA para o leitor
+     de XML, a confiança e a correção manual. A IA nunca aprova: o resultado entra em nfNormalizar e passa por nfVeredito/nfDuplicidade como qualquer nota. ===== */
+  var NF_IA_MAX_IMG=12*1024*1024,NF_IA_MAX_PDF=10*1024*1024,NF_IA_MAX_PAG=4,NF_IA_CRITICOS=["chave","total","total_produtos","itens","data_emissao","emitente_cnpj","descontos","modelo"];
+  /* tipo REAL do arquivo pelos primeiros bytes (a extensão e o tipo declarado não decidem nada) */
+  function nfTipoReal(b){b=b||[];var s=function(i,n){var t="";for(var k=0;k<n;k++)t+=String.fromCharCode(b[i+k]||0);return t};
+    if(b[0]===0xFF&&b[1]===0xD8&&b[2]===0xFF)return {tipo:"jpeg",mime:"image/jpeg"};
+    if(b[0]===0x89&&s(1,3)==="PNG"&&b[4]===0x0D&&b[5]===0x0A&&b[6]===0x1A&&b[7]===0x0A)return {tipo:"png",mime:"image/png"};
+    if(s(0,4)==="RIFF"&&s(8,4)==="WEBP")return {tipo:"webp",mime:"image/webp"};
+    if(s(0,5)==="%PDF-")return {tipo:"pdf",mime:"application/pdf"};
+    if(s(4,4)==="ftyp"&&/^(heic|heix|hevc|hevx|mif1|msf1)/.test(s(8,4)))return {tipo:"heic",mime:"image/heic"};
+    return null}
+  var NF_IA_EXT={jpg:"jpeg",jpeg:"jpeg",png:"png",webp:"webp",pdf:"pdf"},NF_IA_MIME={"image/jpeg":"jpeg","image/jpg":"jpeg","image/png":"png","image/webp":"webp","application/pdf":"pdf"};
+  /* confere UM arquivo antes de qualquer envio: tamanho, conteúdo real e coerência com a extensão e o tipo declarado. info = {nome, tamanho, cabecalho (primeiros bytes), tipoDeclarado} */
+  function nfArquivoIA(info){info=info||{};var nome=String(info.nome||"arquivo").slice(0,120),t=+info.tamanho;
+    function no(e){return {ok:false,erro:nome+": "+e,tipo:null,mime:null}}
+    if(!(t>0))return no("arquivo vazio.");
+    var real=nfTipoReal(info.cabecalho);
+    if(!real)return no("formato não suportado. Envie uma foto JPEG, PNG ou WebP, ou um PDF.");
+    if(real.tipo==="heic")return no("foto em HEIC não é aceita. Tire a foto em JPEG (Ajustes > Câmera > Formatos > Mais compatível) ou exporte como JPEG.");
+    var ext=(/\.([A-Za-z0-9]+)$/.exec(nome)||[])[1],e=ext?NF_IA_EXT[ext.toLowerCase()]:null,d=info.tipoDeclarado?NF_IA_MIME[String(info.tipoDeclarado).toLowerCase().split(";")[0].trim()]:null;
+    if(e&&e!==real.tipo)return no("o conteúdo é "+real.tipo.toUpperCase()+", mas o nome diz "+ext.toUpperCase()+". Por segurança o arquivo não foi usado.");
+    if(d&&d!==real.tipo)return no("o conteúdo é "+real.tipo.toUpperCase()+", mas o tipo informado pelo aparelho é outro. Por segurança o arquivo não foi usado.");
+    if(real.tipo==="pdf"&&t>NF_IA_MAX_PDF)return no("PDF grande demais (limite de 10 MB).");
+    if(real.tipo!=="pdf"&&t>NF_IA_MAX_IMG)return no("imagem grande demais (limite de 12 MB).");
+    return {ok:true,erro:null,tipo:real.tipo==="pdf"?"pdf":"imagem",formato:real.tipo,mime:real.mime}}
+  /* o conjunto escolhido: um PDF OU de 1 a 4 fotos (nunca misturados) */
+  function nfLoteIA(lista){var L=lista||[];if(!L.length)return {ok:false,erro:"Escolha uma foto ou um PDF da nota.",tipo:null};
+    var ruins=L.filter(function(x){return !x||!x.ok});if(ruins.length)return {ok:false,erro:ruins.map(function(x){return x&&x.erro||"arquivo inválido"}).join(" "),tipo:null};
+    var pdfs=L.filter(function(x){return x.tipo==="pdf"}).length;
+    if(pdfs&&L.length>1)return {ok:false,erro:"Envie um PDF sozinho ou até 4 fotos da mesma nota; não misture.",tipo:null};
+    if(L.length>NF_IA_MAX_PAG)return {ok:false,erro:"No máximo "+NF_IA_MAX_PAG+" fotos por nota.",tipo:null};
+    return {ok:true,erro:null,tipo:pdfs?"pdf":"imagem"}}
+  /* PDF com conteúdo ativo (script, ação de lançar, arquivo embutido…): melhor esforço sobre os bytes lidos como texto latino; o PDF só é desenhado em imagem, nunca executado */
+  function nfPdfAtivo(t){return /\/(JavaScript|JS|Launch|EmbeddedFiles?|RichMedia|SubmitForm|ImportData)(?![A-Za-z])/.test(String(t==null?"":t))}
+  /* CPF válido no texto vira máscara antes de ir à IA */
+  function nfMascararCpf(t){return String(t==null?"":t).replace(/(^|[^0-9])(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2})(?!\d)/g,function(m,a,b){return nfCpfDvOk(b.replace(/\D/g,""))?a+"***.***.***-**":m})}
+  /* JSON validado da IA → o mesmo formato do leitor de XML (entra em nfNormalizar). Situação só com evidência: "autorizada" exige protocolo de 15 dígitos legível.
+     A confiança da IA é limitada a 0,85 quando ela mesma marca como incerto um item ou um campo crítico. */
+  function nfLerIA(res,formato){res=res||{};var av=[],c=+res.confianca;if(!isFinite(c)||c<0||c>1)c=0;
+    var inc=(Array.isArray(res.incertos)?res.incertos:[]).map(function(x){return {campo:String(x&&x.campo||"").slice(0,60),motivo:String(x&&x.motivo||"").slice(0,200)}}).filter(function(x){return x.campo});
+    var comp=res.componentes||{},itens=(Array.isArray(res.itens)?res.itens:[]).map(function(i){i=i||{};return {descricao:i.descricao,codigo:i.codigo,qtd:i.qtd,unidade:i.unidade,unitario:i.unitario,total:i.total,desconto:i.desconto}}),
+      itIncertos=(Array.isArray(res.itens)?res.itens:[]).map(function(i,k){return i&&i.incerto===true?k+1:0}).filter(Boolean);
+    var critico=inc.some(function(x){return NF_IA_CRITICOS.indexOf(x.campo)>=0});
+    if((itIncertos.length||critico)&&c>0.85){c=0.85;av.push("A IA marcou item ou campo importante como incerto: a confiança foi limitada a 85%.")}
+    var sit=res.situacao,prot=nfDigitos(res.protocolo),fmt=formato==="pdf"?"pdf":"imagem";
+    if(sit==="autorizada"&&prot.length!==15){av.push("A IA leu a nota como autorizada, mas sem um protocolo legível de 15 dígitos: tratada como pendente.");sit="pendente"}
+    var lido={formato:fmt,chave:res.chave,modelo:res.modelo,serie:res.serie,numero:res.numero,data_emissao:res.data_emissao,emitente:{nome:res.emitente_nome,cnpj:res.emitente_cnpj,uf:res.emitente_uf},
+      protocolo:prot.length===15?prot:null,cStat:sit==="autorizada"?100:sit==="rejeitada"?204:null,cancelada:sit==="cancelada",contingencia:sit==="contingencia",
+      valores:{produtos:res.total_produtos,descontos:res.descontos,frete:res.frete,outras:res.outras,impostos:res.impostos,total:res.total,a_pagar:res.valor_pago,seguro:comp.seguro,st:comp.st,fcp_st:comp.fcp_st,ipi:comp.ipi,ii:comp.ii,ipi_devol:comp.ipi_devol,deson:comp.deson},
+      pagamentos:(Array.isArray(res.pagamentos)?res.pagamentos:[]).map(function(p){p=p||{};return {forma:p.forma,valor:p.valor}}),itens:itens};
+    return {lido:lido,confianca:c,incertos:inc,itens_incertos:itIncertos,avisos:av,formato:fmt}}
+  /* correção manual: aplica o que a pessoa digitou (texto, como na tela) sobre o lido; vazio vira ausente. Quem chama roda nfNormalizar de novo e revalida tudo. */
+  function nfCorrigir(lido,c){var l=JSON.parse(JSON.stringify(lido||{}));c=c||{};l.emitente=l.emitente||{};l.valores=l.valores||{};
+    var tx=function(v){v=v==null?"":String(v).trim();return v?v:null};
+    if("emitente_nome" in c)l.emitente.nome=tx(c.emitente_nome);if("emitente_cnpj" in c)l.emitente.cnpj=nfDigitos(c.emitente_cnpj)||null;
+    if("chave" in c)l.chave=nfDigitos(c.chave)||null;["data_emissao","numero","serie","modelo"].forEach(function(k){if(k in c)l[k]=tx(c[k])});
+    ["produtos","descontos","frete","outras","total"].forEach(function(k){if(c.valores&&k in c.valores)l.valores[k]=tx(c.valores[k])});
+    if(Array.isArray(c.itens))l.itens=c.itens.map(function(i){i=i||{};return {descricao:tx(i.descricao),codigo:tx(i.codigo),qtd:tx(i.qtd),unidade:tx(i.unidade),unitario:tx(i.unitario),total:tx(i.total),desconto:tx(i.desconto)}});
+    return l}
+  /* confiança que vale para a regra dos 0,90: a da IA, ou 1 depois que a pessoa corrigiu e confirmou que conferiu com o documento original */
+  function nfConfiancaIA(ia){ia=ia||{};return ia.revisada===true?1:(+ia.confianca>=0&&+ia.confianca<=1?+ia.confianca:0)}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
@@ -2239,5 +2301,5 @@
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
     NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao};
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao,nfTipoReal:nfTipoReal,nfArquivoIA:nfArquivoIA,nfLoteIA:nfLoteIA,nfPdfAtivo:nfPdfAtivo,nfMascararCpf:nfMascararCpf,nfLerIA:nfLerIA,nfCorrigir:nfCorrigir,nfConfiancaIA:nfConfiancaIA,NF_IA_MAX_PAG:NF_IA_MAX_PAG};
 })(typeof window!=="undefined"?window:globalThis);

@@ -614,10 +614,120 @@ const hojeAnalise: Acao = {
   },
 };
 
+/* ---------- Central Fiscal: nota em foto ou PDF (Sonnet 5.5; só o dono; só REAL, sem demonstração) ---------- */
+/* Lote 1.4 (docs/fiscal.md). A IA só LÊ: o RAC valida a conta (nfValidarSoma/nfVeredito), a situação e a duplicidade, e a confiança mínima de 0,90 vale
+   para a gravação como validada. Sem demonstração: em DEMO a função responde sem_real (como o RAC Hoje). */
+const FISCAL_COMP = ["seguro", "st", "fcp_st", "ipi", "ii", "ipi_devol", "deson"];
+const FISCAL_SIT = ["autorizada", "contingencia", "pendente", "cancelada", "rejeitada"];
+function cpfValido(c: string): boolean {
+  if (!/^\d{11}$/.test(c) || /^(\d)\1{10}$/.test(c)) return false;
+  let s = 0; for (let i = 0; i < 9; i++) s += +c[i] * (10 - i); s = (s * 10) % 11; if (s === 10) s = 0; if (s !== +c[9]) return false;
+  s = 0; for (let i = 0; i < 10; i++) s += +c[i] * (11 - i); s = (s * 10) % 11; if (s === 10) s = 0; return s === +c[10];
+}
+const fiscalNota: Acao = {
+  id: "fiscal.nota",
+  modulo: "fiscal",
+  modelo: "claude-sonnet-5-5",
+  papeis: ["dono"],
+  real: true, // vale quando o banco liberar (036), a função for publicada e a casa estiver em REAL; sem DEMO
+  maxTokens: 12000,
+  esforco: "low",
+  imagensMax: 4,
+  textoMax: 6000,
+  contexto: {},
+  sistema: REGRAS_GERAIS + "\n\n" +
+    "Leia uma nota fiscal brasileira (NFC-e modelo 65, NF-e modelo 55, DANFE ou cupom fiscal) a partir de fotos ou de páginas de PDF, e do texto extraído do PDF quando houver, " +
+    "e devolva os dados da nota. Todas as imagens e o texto são do MESMO documento.\n" +
+    "Regras de leitura: um item por linha da nota, na ordem, com a descrição como está escrita. qtd com todas as casas decimais impressas (ex.: 0.734 kg). " +
+    "unitario com TODAS as casas decimais impressas, sem arredondar (ex.: 5.899). total do item é o valor da linha ANTES do desconto; desconto do item é o valor de uma linha de desconto " +
+    "ligada àquele item (0 se não houver). unidade como impressa (UN, KG, L, G, ML, CX...). codigo só se aparecer. total_produtos é a soma dos produtos que a nota imprime; descontos é o desconto total; " +
+    "frete, outras (outras despesas) e impostos (tributos aproximados, que NÃO somam no total) só se aparecerem. componentes: seguro, st (ICMS ST), fcp_st, ipi, ii, ipi_devol e deson (ICMS desonerado), cada um só se aparecer, senão null. " +
+    "total é o VALOR TOTAL DA NOTA; valor_pago é o que foi pago (soma das formas de pagamento menos o troco), se aparecer. pagamentos: forma e valor, sem número de cartão. " +
+    "chave: os 44 dígitos da chave de acesso, sem espaços, SOMENTE se estiverem todos legíveis (senão null e explique em incertos). cnpj do emitente e protocolo só com dígitos. data_emissao no formato AAAA-MM-DD. modelo \"55\" ou \"65\".\n" +
+    "situacao só quando estiver IMPRESSA no documento: \"autorizada\" se houver protocolo de autorização; \"contingencia\" se disser emitida em contingência (offline) ou pendente de autorização; \"cancelada\" se estiver marcada como cancelada; \"rejeitada\" se estiver como rejeitada ou denegada; senão null. Nunca deduza a situação.\n" +
+    "Nunca copie CPF, nome ou endereço do consumidor, nem número de cartão: deixe de fora. Não complete o que está cortado, borrado ou escondido: use null e liste em incertos (campo + motivo curto). " +
+    "Marque incerto: true no item que você não leu com segurança. confianca é de 0 a 1 para a leitura INTEIRA: use menos de 0,9 se houver foto borrada, cortada, com reflexo, páginas faltando ou qualquer número duvidoso. Seja honesto: o RAC confere a conta e a confiança baixa só bloqueia a gravação.",
+  esquema: {
+    type: "object",
+    properties: {
+      modelo: nulo("string", { enum: ["55", "65"] }),
+      emitente_nome: nulo("string"), emitente_cnpj: nulo("string"), emitente_uf: nulo("string"),
+      numero: nulo("string"), serie: nulo("string"), chave: nulo("string"), data_emissao: nulo("string"), hora_emissao: nulo("string"), protocolo: nulo("string"),
+      situacao: nulo("string", { enum: FISCAL_SIT }),
+      total_produtos: nulo("number"), descontos: nulo("number"), frete: nulo("number"), outras: nulo("number"), impostos: nulo("number"), total: nulo("number"), valor_pago: nulo("number"),
+      componentes: { type: "object", properties: Object.fromEntries(FISCAL_COMP.map((k) => [k, nulo("number")])), required: FISCAL_COMP, additionalProperties: false },
+      pagamentos: { type: "array", items: { type: "object", properties: { forma: nulo("string"), valor: nulo("number") }, required: ["forma", "valor"], additionalProperties: false } },
+      itens: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            descricao: { type: "string" }, codigo: nulo("string"), qtd: nulo("number"), unidade: nulo("string"), unitario: nulo("number"), total: nulo("number"), desconto: nulo("number"), incerto: { type: "boolean" },
+          },
+          required: ["descricao", "codigo", "qtd", "unidade", "unitario", "total", "desconto", "incerto"],
+          additionalProperties: false,
+        },
+      },
+      confianca: { type: "number" },
+      incertos: { type: "array", items: { type: "object", properties: { campo: { type: "string" }, motivo: { type: "string" } }, required: ["campo", "motivo"], additionalProperties: false } },
+    },
+    required: ["modelo", "emitente_nome", "emitente_cnpj", "emitente_uf", "numero", "serie", "chave", "data_emissao", "hora_emissao", "protocolo", "situacao", "total_produtos", "descontos", "frete", "outras",
+      "impostos", "total", "valor_pago", "componentes", "pagamentos", "itens", "confianca", "incertos"],
+    additionalProperties: false,
+  },
+  validar(r) {
+    const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+    const erros: string[] = [], avisos: string[] = [];
+    if (!Array.isArray(o.itens) || !o.itens.length) return { ok: false, motivo: "nenhum item lido" };
+    if (o.itens.length > 300) return { ok: false, motivo: "itens demais (" + o.itens.length + ")" };
+    /* CPF (formatado, ou 11 dígitos) em qualquer texto: removido e avisado; a IA não deveria ter copiado */
+    let cpfs = 0;
+    const limpo = (v: unknown, max: number) => txt(v, max).replace(/(^|[^0-9])(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2})(?!\d)/g, (m, a, b) => {
+      if (cpfValido(String(b).replace(/\D/g, ""))) { cpfs++; return a + "[removido]"; }
+      return m;
+    });
+    const itens = o.itens.map((x, i) => {
+      const it = objeto(x) ?? {};
+      return {
+        descricao: limpo(it.descricao, 200) || "item " + (i + 1), codigo: txtOuNulo(it.codigo, 60), qtd: num(it.qtd, 0, 100000, "quantidade do item " + (i + 1), erros), unidade: txtOuNulo(it.unidade, 20),
+        unitario: num(it.unitario, 0, 1000000, "unitário do item " + (i + 1), erros), total: num(it.total, 0, 10000000, "total do item " + (i + 1), erros),
+        desconto: num(it.desconto, 0, 10000000, "desconto do item " + (i + 1), erros) ?? 0, incerto: it.incerto === true,
+      };
+    });
+    const dinheiro = (k: string) => num(o[k], 0, 100000000, k, erros);
+    const valores = Object.fromEntries(["total_produtos", "descontos", "frete", "outras", "impostos", "total", "valor_pago"].map((k) => [k, dinheiro(k)]));
+    const comp = objeto(o.componentes) ?? {};
+    const componentes = Object.fromEntries(FISCAL_COMP.map((k) => [k, num(comp[k], 0, 100000000, k, erros)]));
+    const pagamentos = (Array.isArray(o.pagamentos) ? o.pagamentos : []).slice(0, 10).map((x, i) => {
+      const p = objeto(x) ?? {}; return { forma: txtOuNulo(p.forma, 40), valor: num(p.valor, 0, 100000000, "pagamento " + (i + 1), erros) };
+    });
+    const confianca = typeof o.confianca === "number" && isFinite(o.confianca) ? Math.min(1, Math.max(0, o.confianca)) : null;
+    if (confianca === null) erros.push("confiança ausente");
+    if (erros.length) return { ok: false, motivo: erros.slice(0, 5).join("; ") };
+    const soDig = (v: unknown, n: number) => { const d = typeof v === "string" ? v.replace(/\D/g, "") : ""; return d.length === n ? d : null; };
+    const incertos = (Array.isArray(o.incertos) ? o.incertos : []).slice(0, 20).map((x) => {
+      const q = objeto(x) ?? {}; return { campo: txt(q.campo, 60), motivo: txt(q.motivo, 200) };
+    }).filter((q) => q.campo);
+    const chaveTxt = typeof o.chave === "string" ? o.chave.replace(/\D/g, "") : "";
+    if (chaveTxt && chaveTxt.length !== 44) avisos.push("A chave de acesso não veio com 44 dígitos; foi descartada.");
+    if (cpfs) avisos.push("Um CPF apareceu no texto lido e foi removido do resultado.");
+    const sit = typeof o.situacao === "string" && FISCAL_SIT.includes(o.situacao) ? o.situacao : null;
+    return {
+      ok: true, avisos, resultado: {
+        modelo: o.modelo === "55" || o.modelo === "65" ? o.modelo : null, emitente_nome: txtOuNulo(limpo(o.emitente_nome, 120), 120), emitente_cnpj: soDig(o.emitente_cnpj, 14),
+        emitente_uf: typeof o.emitente_uf === "string" && /^[A-Za-z]{2}$/.test(o.emitente_uf.trim()) ? o.emitente_uf.trim().toUpperCase() : null,
+        numero: txtOuNulo(o.numero, 20), serie: txtOuNulo(o.serie, 10), chave: soDig(o.chave, 44), data_emissao: dataISO(o.data_emissao),
+        hora_emissao: typeof o.hora_emissao === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(o.hora_emissao) ? o.hora_emissao : null,
+        protocolo: soDig(o.protocolo, 15), situacao: sit, ...valores, componentes, pagamentos, itens, confianca, incertos,
+      },
+    };
+  },
+};
+
 export const ACOES: Record<string, Acao> = {
   [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo,
   [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro, [alimentacaoPedido.id]: alimentacaoPedido,
-  [hojeAnalise.id]: hojeAnalise,
+  [hojeAnalise.id]: hojeAnalise, [fiscalNota.id]: fiscalNota,
 };
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */

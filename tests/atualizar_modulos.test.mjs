@@ -325,7 +325,8 @@ test("todo módulo com dados em memória está ligado ao botão (os nove da Etap
   const MEMORIA = /if\(!?[A-Z_]{2,}\.[a-zA-Z]+[^)]{0,40}\)return [A-Za-z_.]*(Promise\.resolve|[A-Z_]{2,}\.)|\(?[A-Z_]{2,}\.[a-z]+\?Promise\.resolve\([^)]*\):[a-zA-Z]+Carregar|\bonce\("/;
   /* fora da Etapa B (pendentes, ver o relatório): o Resumo e o Esportes guardam leituras; a Lista guarda sugestões e histórico */
   const FORA = { "resumo.js": "usa o relógio da memória (SAUDE); o ↻ cai no caminho padrão da Etapa A", "esportes.js": "APIs públicas de esportes guardadas por once()",
-    "esportes-central.js": "APIs públicas de esportes guardadas por once()", "lista.js": "sugestões e histórico da Lista" };
+    "esportes-central.js": "APIs públicas de esportes guardadas por once()", "lista.js": "sugestões e histórico da Lista",
+    "fiscal.js": "só a trava de \"lendo\" e os documentos já lidos nesta tela, identificados pelo conteúdo (Lote 1.4); não guarda leitura do banco, então nada fica velho" };
   const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js"]));
   /* o RAC Hoje ainda não tem página: a coleta vale 10 minutos e o ↻ (ATU.fresco) faz ler de novo (tests/hoje.test.mjs) */
   ligados.add("hoje.js"); assert.match(ler("js/hoje.js"), /typeof ATU!=="undefined"&&ATU\.fresco/);

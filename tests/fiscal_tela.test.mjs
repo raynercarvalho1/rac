@@ -77,14 +77,16 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, "");
   const leitura = js.slice(js.indexOf("function fxLerArquivo"), js.indexOf("function fxHex"));
   assert.ok(!/\bSB\b|supabase|storage|fetch\(|rpc/i.test(leitura), "ler o XML não fala com o banco nem com o Storage");
-  assert.ok(!/fetch\(|XMLHttpRequest|racIA|tesseract|createWorker|localStorage|sessionStorage|pessoalGravar|\.insert\(|\.update\(|\.upsert\(|\.delete\(/i.test(js), "nada de rede solta, IA, OCR nem escrita direta em tabela");
+  assert.ok(!/fetch\(|XMLHttpRequest|tesseract|createWorker|localStorage|sessionStorage|pessoalGravar|\.insert\(|\.update\(|\.upsert\(|\.delete\(/i.test(js), "nada de rede solta, IA, OCR nem escrita direta em tabela");
   assert.ok(!/\.(?:cpf|dest)\b|infCpl/i.test(js), "a tela não toca em CPF nem em destinatário");
+  assert.deepEqual([...js.matchAll(/racIA\(([^)]*)\)/g)].map((m) => m[1].split(",").slice(0, 2).join(",")), ['"fiscal","fiscal.nota"'], "a única chamada de IA da tela é a ação fiscal.nota, pela porta racIA (Lote 1.4)");
   assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_conferir", "nota_fiscal_salvar"]);
   assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura (fxLer), só com select");
   assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "notas", "notas_fiscais", "notas_fiscais_docs", "pedidos"], "as leituras da conferência de duplicidade, todas só leitura");
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true, "só o cofre familia");
   assert.match(js, /NUCLEO\.nfLerXML/); assert.match(js, /NUCLEO\.nfNormalizar/); assert.match(js, /NUCLEO\.nfParaGravar/); assert.match(js, /NUCLEO\.nfRetentar/);
-  assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); assert.ok(!/f\.type|\.type===/.test(js.replace(/\/\*[\s\S]*?\*\//g, "")), "o tipo que o navegador deu ao arquivo não decide nada no envio");
+  assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); const envio = js.slice(js.indexOf("function fxSalvar"), js.indexOf("function fxConferir"));
+  assert.ok(envio.length > 500 && !/f\.type|\.type===/.test(envio), "o tipo que o navegador deu ao arquivo não decide nada no envio do XML (na leitura por IA ele só é conferido contra o conteúdo real)");
 });
 
 test("ligação ao site: rota, menu, seção, módulo no sw.js e acesso da Fernanda (papel casa)", () => {

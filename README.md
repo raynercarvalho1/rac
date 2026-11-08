@@ -59,7 +59,7 @@ Painel, no backup e é da casa (a Fernanda vê e lança). IA só em DEMO. Tudo e
 
 Página `#fiscal` (`js/fiscal.js`): lê o XML de NF-e/NFC-e no próprio aparelho, mostra a conferência e, ao clicar em Salvar, guarda o XML original no cofre privado e grava a nota,
 os itens e os pagamentos numa transação só (migration 034). Nota conferida fica congelada; o original registrado não se substitui nem se apaga; nada gera despesa; nenhum CPF vai
-para campo do banco. É da casa (Rayner e Fernanda). Fotos e PDF ainda não são lidos (sem OCR). Tudo em [docs/fiscal.md](docs/fiscal.md).
+para campo do banco. É da casa (Rayner e Fernanda). Foto e PDF (só o dono): lidos pela IA, validados pelas mesmas regras e gravados com o original no cofre privado, o histórico de tentativas e a situação fiscal (Lote 1.6; migrations 037 e 038). Tudo em [docs/fiscal.md](docs/fiscal.md).
 
 ## Central de Compras
 

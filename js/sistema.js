@@ -34,12 +34,12 @@
     var enc=new TextEncoder(),arqs=[],man={versao:1,criado:new Date().toISOString(),dono:EU.id,site:"Dia a Dia RAC",tabelas:{},fora:[]},regs=[];
     return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");return lerTabela(t).then(function(l0){
       var c=NUCLEO.segLimpar(t,l0),l=c.linhas;man.fora=man.fora.concat(c.fora);
-      man.tabelas[t]=l.length;if(t==="registros"||t==="pedidos"||t==="compras_online_docs"||t==="notas_fiscais_docs")regs=regs.concat(l);
+      man.tabelas[t]=l.length;if(t==="registros"||t==="pedidos"||t==="compras_online_docs"||t==="notas_fiscais_docs"||t==="notas_fiscais_tentativas")regs=regs.concat(l);
       arqs.push({nome:"dados/"+t+".json",dados:enc.encode(JSON.stringify(l))},{nome:"dados/"+t+".csv",dados:enc.encode(paraCsv(l))})}).catch(function(e){man.tabelas[t]="não lida: "+e.message})})},Promise.resolve())
     .then(function(){
       if(!comAnexos)return;
       /* os anexos dos registros, dos pedidos (Alimentação) e os originais da Central de Compras, no mesmo caminho do cofre */
-      var paths=[];regs.forEach(function(r){(r.arquivos||[]).forEach(function(a){if(a.path)paths.push(a.path)});if(typeof r.path==="string"&&r.sha256)paths.push(r.path)});man.anexos=paths.length;
+      var paths=[];regs.forEach(function(r){(r.arquivos||[]).forEach(function(a){if(a.path)paths.push(a.path)});if(typeof r.path==="string"&&r.sha256)paths.push(r.path);if(r.origem&&Array.isArray(r.docs))r.docs.forEach(function(a){if(a&&a.path)paths.push(a.path)})});paths=paths.filter(function(x,i){return paths.indexOf(x)===i});man.anexos=paths.length;
       var feitos=0;
       return paths.reduce(function(p,path){return p.then(function(){return SB.storage.from("familia").download(path).then(function(r){
         feitos++;st("Baixando anexos… "+feitos+" de "+paths.length);if(r.error||!r.data)return;

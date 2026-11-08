@@ -80,9 +80,9 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
   assert.ok(!/fetch\(|XMLHttpRequest|tesseract|createWorker|localStorage|sessionStorage|pessoalGravar|\.insert\(|\.update\(|\.upsert\(|\.delete\(/i.test(js), "nada de rede solta, IA, OCR nem escrita direta em tabela");
   assert.ok(!/\.(?:cpf|dest)\b|infCpl/i.test(js), "a tela não toca em CPF nem em destinatário");
   assert.deepEqual([...js.matchAll(/racIA\(([^)]*)\)/g)].map((m) => m[1].split(",").slice(0, 2).join(",")), ['"fiscal","fiscal.nota"'], "a única chamada de IA da tela é a ação fiscal.nota, pela porta racIA (Lote 1.4)");
-  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_conferir", "nota_fiscal_salvar"]);
+  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
   assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura (fxLer), só com select");
-  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "notas", "notas_fiscais", "notas_fiscais_docs", "pedidos"], "as leituras da conferência de duplicidade, todas só leitura");
+  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "notas", "notas_fiscais", "notas_fiscais_docs", "notas_fiscais_situacoes", "notas_fiscais_tentativas", "pedidos"], "as leituras da conferência de duplicidade, todas só leitura");
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true, "só o cofre familia");
   assert.match(js, /NUCLEO\.nfLerXML/); assert.match(js, /NUCLEO\.nfNormalizar/); assert.match(js, /NUCLEO\.nfParaGravar/); assert.match(js, /NUCLEO\.nfRetentar/);
   assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); const envio = js.slice(js.indexOf("function fxSalvar"), js.indexOf("function fxConferir"));

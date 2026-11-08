@@ -77,6 +77,9 @@ Os backups do Supabase não incluem os arquivos do Storage: as fotos e PDFs só 
 
 A restauração antiga (Sistema → Restaurar) fazia `upsert` direto, sobrescrevia anexos e trazia a chave dos atalhos: foi removida.
 
+### Central Fiscal: tentativas e histórico no backup (Lote 1.6)
+`notas_fiscais_tentativas` e `notas_fiscais_situacoes` (migration 037) entram no backup (JSON, `.zip` e pacote completo) como `so:"exportar"`: o banco só deixa a função `nota_fiscal_salvar_doc` gravá-las, então a restauração **não** as escreve; `nota_id` e `tentativa_id` guardam o vínculo no arquivo. O pacote "com fotos e PDFs" inclui os originais guardados em tentativas (inclusive de nota bloqueada). Nada fiscal vai a destino público. A auditoria `seguranca_estado()` só enxerga a trava "mfa" dessas tabelas depois da migration 038 (proposta: rode `supabase/038_seguranca_estado_tentativas.sql` e confira com `supabase/conferencias/038_conferir_producao.sql`).
+
 ### Central Fiscal na restauração (Lote B)
 Só as tabelas `notas_fiscais`, `notas_fiscais_itens` e `notas_fiscais_docs` têm regras próprias (veja docs/fiscal.md): nota conferida de hoje e os filhos dela não mudam (contados como "congelados" na prévia); o registro de documento nunca é trocado; a conferência original volta **depois** dos itens e documentos, com a autoria histórica; cada documento é conferido (tipo, arquivo no pacote, tamanho e SHA-256) antes de gravar e, em outra conta, ganha o caminho da conta nova. Anexo fiscal fora do plano é ignorado e contado, sem interromper os demais. **Nenhuma outra tabela e nenhum outro anexo mudou** (Compras, Eddie, Olivia, documentos).
 

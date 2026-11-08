@@ -100,7 +100,7 @@ test("nota divergente, de baixa confiança, cancelada ou rejeitada: nada é envi
 });
 test("nenhum caminho da tela cria despesa: só a função de gravar e a de conferir; sem escrita direta", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_conferir", "nota_fiscal_salvar"]);
+  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|gera_despesa|despesa\s*[:=]/i.test(js.replace(/Nenhuma nota gera despesa|Não gera despesa|despesas?\./gi, "")), "sem escrita em tabela nem criação de despesa");
 });
 

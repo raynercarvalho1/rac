@@ -474,6 +474,7 @@
     {t:"pedidos",pk:["id"]},{t:"pedido_itens",pk:["id"],fk:{pedido_id:"pedidos",produto_id:"produtos"},opc:{produto_id:1}},
     {t:"compras_importacoes",pk:["id"],nat:[["sha256"]]},{t:"compras_online",pk:["id"],fk:{importacao_id:"compras_importacoes"},opc:{importacao_id:1}},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos_estornos",pk:["id"],nat:[["reembolso_id"]],fk:{reembolso_id:"compras_reembolsos",compra_id:"compras_online"}},
     {t:"notas_fiscais",pk:["id"],nat:[["chave"]],cong:"conferida_em"},{t:"notas_fiscais_itens",pk:["id"],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"}},{t:"notas_fiscais_docs",pk:["id"],nat:[["sha256"]],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"},imutavel:true,docPath:true},{t:"notas_fiscais_vinculos",pk:["id"],nat:[["nota_id","modulo","registro_id"]],fk:{nota_id:"notas_fiscais"}},
+    {t:"notas_fiscais_tentativas",pk:["id"],fk:{nota_id:"notas_fiscais"},opc:{nota_id:1},so:"exportar"},{t:"notas_fiscais_situacoes",pk:["id"],fk:{nota_id:"notas_fiscais",tentativa_id:"notas_fiscais_tentativas"},opc:{tentativa_id:1},so:"exportar"},
     {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
@@ -2105,6 +2106,71 @@
     var nome=String(o.nome||"").trim();if(!nome||nome.length>200||nfTemCpf(nome))nome="nota-"+String(o.sha256||"").slice(0,8)+".xml";
     var docs=[{tipo:"xml",nome:nome,path:nfCaminhoDoc(o.dono,o.id,o.sha256,"xml"),mime:o.mime,tamanho:o.tamanho,sha256:o.sha256}];
     return {ok:!er.length,erros:er,avisos:av,modo:dec.modo,veredito:dec.veredito,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_conferir:conferir}}}
+  /* ---- Lote 1.6: gravação de nota lida de FOTO ou PDF (RPC nota_fiscal_salvar_doc, migration 037) ----
+     O banco refaz a conta, aplica a confiança mínima (0,90) e a regra da situação; aqui só se monta o payload com os nomes EXATOS dos campos da 037 e se prevê o resultado
+     (a tela mostra o que o banco decidiu, não o que previu). Nota bloqueada não vira nota: o banco guarda só a tentativa e o original, para auditoria.
+     o = {id, dono, idem, tipo:"imagem"|"pdf", arquivos:[{nome,mime,tamanho,sha256}], confianca, revisada, incertos, modelo_ia, ia_uso_id}.
+     Devolve {ok, erros, avisos, modo, pode_nota, veredito, args:{p_nota,p_itens,p_docs,p_proc}}. ok = payload válido para enviar (inclusive o de uma tentativa bloqueada). */
+  var NF_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,NF_DOC_MIMES={"image/jpeg":"jpg","image/png":"png","image/webp":"webp","application/pdf":"pdf"};
+  function nfParaGravarDoc(lido,n,o){o=o||{};n=n||{};lido=lido||{};var er=[],av=[],V=n.valores||{},em=n.emitente||{},tipo=o.tipo==="pdf"?"pdf":"imagem",arqs=Array.isArray(o.arquivos)?o.arquivos:[];
+    if(!NF_UUID.test(String(o.id||"")))er.push("Falta o identificador da nota.");
+    if(!NF_UUID.test(String(o.idem||"")))er.push("Falta o identificador desta gravação.");
+    if(!o.dono)er.push("Falta o dono da casa.");
+    if(n.formato!==tipo)er.push("O formato da nota ("+(n.formato||"?")+") não combina com o dos arquivos ("+tipo+").");
+    if(!n.modelo)er.push("O modelo da nota (55 ou 65) não foi identificado.");
+    if(V.total==null)er.push("A nota não tem valor total.");
+    if(n.data_emissao&&(n.data_emissao<"1995-01-01"||n.data_emissao>nfDataAmanha()))er.push("A data da nota está fora do esperado.");
+    if(!arqs.length||(tipo==="pdf"&&arqs.length!==1)||arqs.length>NF_IA_MAX_PAG)er.push(tipo==="pdf"?"O PDF é um arquivo só.":"Envie de 1 a "+NF_IA_MAX_PAG+" fotos.");
+    var vistos={};
+    var docs=arqs.map(function(a){a=a||{};var ext=NF_DOC_MIMES[a.mime],lim=tipo==="pdf"?NF_IA_MAX_PDF:NF_IA_MAX_IMG;
+      if(!ext||(tipo==="pdf")!==(a.mime==="application/pdf"))er.push("O tipo do arquivo ("+(a.mime||"sem tipo")+") não combina com a nota.");
+      if(!/^[0-9a-f]{64}$/.test(String(a.sha256||"")))er.push("Falta o SHA-256 de um arquivo.");else if(vistos[a.sha256])er.push("O mesmo arquivo foi escolhido duas vezes.");else vistos[a.sha256]=1;
+      if(!(a.tamanho>=1&&a.tamanho<=lim&&Math.floor(a.tamanho)===a.tamanho))er.push("Tamanho de arquivo inválido (limite de "+(lim/1048576)+" MB).");
+      var nome=String(a.nome||"").trim();if(!nome||nome.length>200||nfTemCpf(nome))nome="nota-"+String(a.sha256||"").slice(0,8)+"."+(ext||"jpg");
+      return {tipo:tipo,nome:nome,path:ext&&o.dono&&o.id?nfCaminhoDoc(o.dono,o.id,a.sha256,ext):null,mime:a.mime,tamanho:a.tamanho,sha256:a.sha256}});
+    var chave=n.chave_valida&&n.chave?n.chave:null,cnpj=em.cnpj&&nfCnpjValido(em.cnpj)?em.cnpj:null;
+    var itens=(n.itens||[]).map(function(i,k){i=i||{};var u=i.unidade||{},d=String(i.descricao||"").trim().slice(0,200);
+      if(!d)er.push("O item "+(k+1)+" não tem descrição.");if(!(i.qtd>0))er.push("O item "+(k+1)+" não tem quantidade.");if(i.total==null)er.push("O item "+(k+1)+" não tem valor total.");
+      var orig=String(u.original||"").slice(0,20);
+      return {codigo:i.codigo!=null&&i.codigo!==""?String(i.codigo).slice(0,60):null,descricao:d,qtd:i.qtd>0?nfArred(i.qtd,4):null,unidade:u.reconhecida&&u.cod?u.cod:"outra",unidade_original:orig||null,
+        unitario:i.unitario!=null?nfArred(i.unitario,4):null,total:i.total!=null?nfArred(i.total,2):null,desconto:nfArred(i.desconto||0,2)}});
+    if(!itens.length||itens.length>990)er.push("A nota precisa de 1 a 990 itens.");
+    var pagamentos=(n.pagamentos||[]).slice(0,10).map(function(p,k){p=p||{};if(p.valor==null)er.push("O pagamento "+(k+1)+" não tem valor.");
+      return {codigo:null,forma:p.forma?String(p.forma).slice(0,40):null,valor:p.valor!=null?nfArred(p.valor,2):null,bandeira:p.bandeira?String(p.bandeira).slice(0,30):null,final:p.final||null}});
+    var conf=nfConfiancaIA({confianca:o.confianca,revisada:o.revisada}),dec=nfDecisaoGravacao(n,null,{confianca:conf}),ve=dec.veredito,s=ve.soma;
+    var comp=nfArred(((s.acrescimos||0)-((V.frete||0)+(V.outras||0)))-(s.desonerado||0),2);
+    var protocolo=n.protocolo||null;
+    var nota={id:o.id,modelo:n.modelo,chave:chave,numero:/^\d{1,9}$/.test(String(n.numero||""))?String(n.numero):null,serie:/^\d{1,3}$/.test(String(n.serie||""))?String(n.serie):null,
+      data_emissao:n.data_emissao||null,emitente_nome:em.nome?String(em.nome).slice(0,120):null,emitente_cnpj:cnpj,emitente_uf:/^[A-Z]{2}$/.test(String(em.uf||""))?em.uf:null,
+      tp_emis:n.tp_emis!=null&&n.tp_emis>=1&&n.tp_emis<=9?n.tp_emis:null,situacao:n.situacao,situacao_evidencia:n.situacao_evidencia?String(n.situacao_evidencia).slice(0,200):null,protocolo:protocolo,
+      denegada:!!n.denegada,valor_produtos:V.produtos!=null?nfArred(V.produtos,2):null,valor_descontos:V.descontos!=null?nfArred(V.descontos,2):null,valor_frete:V.frete!=null?nfArred(V.frete,2):null,
+      valor_outras:V.outras!=null?nfArred(V.outras,2):null,valor_impostos:V.impostos!=null?nfArred(V.impostos,2):null,valor_total:V.total!=null?nfArred(V.total,2):null,
+      valor_a_pagar:V.a_pagar!=null?nfArred(V.a_pagar,2):null,pagamentos:pagamentos,formato_origem:tipo,requer_conferencia:true,observacoes:null};
+    [nota.emitente_nome,nota.situacao_evidencia,JSON.stringify(pagamentos)].concat(itens.map(function(i){return (i.descricao||"")+" "+(i.unidade_original||"")})).forEach(function(t){
+      if(nfTemCpf(t)&&er.indexOf("Um campo de texto da nota parece conter um CPF; corrija antes de gravar.")<0)er.push("Um campo de texto da nota parece conter um CPF; corrija antes de gravar.")});
+    var inc=(Array.isArray(o.incertos)?o.incertos:[]).slice(0,20).map(function(x){return {campo:String(x&&x.campo||"").slice(0,60),motivo:String(x&&x.motivo||"").slice(0,200)}}).filter(function(x){return x.campo&&!nfTemCpf(x.campo+" "+x.motivo)}),
+      mot=ve.motivos.map(function(m){return String(m.texto).slice(0,200)}).concat(ve.bloqueios.map(function(b){return String(b.texto).slice(0,200)})).slice(0,10);
+    var proc={idem:o.idem,classe:ve.classe,confianca:nfArred(Math.min(1,Math.max(0,+o.confianca>=0?+o.confianca:0)),3),revisada:o.revisada===true,diferenca:s.diferenca!=null?nfArred(s.diferenca,2):null,componentes:comp,motivos:mot,incertos:inc,
+      modelo_ia:o.modelo_ia?String(o.modelo_ia).slice(0,60):null,ia_uso_id:NF_UUID.test(String(o.ia_uso_id||""))?o.ia_uso_id:null};
+    if(dec.modo==="pendente_fiscal")av.push("Nota em "+ve.fiscal.rotulo.toLowerCase()+": será guardada como pendente fiscal, sem conferência nem validação até a autorização.");
+    return {ok:!er.length,erros:er,avisos:av,modo:dec.modo,pode_nota:dec.pode,veredito:ve,decisao:dec,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_proc:proc}}}
+  function nfDataAmanha(){var d=new Date(Date.now()+86400000+(-3*3600000));return d.toISOString().slice(0,10)}
+  /* o que a resposta do banco quer dizer (nota_fiscal_salvar_doc): estado para a tela, texto e se a nota foi realmente gravada */
+  function nfResultadoDoc(d){d=d||{};var r=d.resultado;
+    if(d.criado===true&&(r==="validada"||r==="pendente_fiscal"))return {estado:r,gravada:true,id:d.id||null,texto:r==="validada"?"Nota gravada como validada (autorizada e consistente). Falta a sua conferência com o documento.":"Nota gravada como pendente fiscal: fica guardada sem conferência e sem validação até a autorização."};
+    if(r==="bloqueada"||d.bloqueada===true)return {estado:"bloqueada",gravada:false,id:null,texto:"Bloqueada: a nota NÃO foi criada. O original e a tentativa ficaram registrados para auditoria."+((d.motivos||[]).length?" "+d.motivos.join(" "):"")};
+    if(r==="duplicada"||d.duplicada===true)return {estado:"duplicada",gravada:false,id:d.id||null,texto:"Já existe uma nota igual na Central Fiscal ("+(d.motivo==="arquivo"?"o mesmo arquivo":d.motivo==="chave"?"a mesma chave de acesso":"o mesmo identificador")+"): nenhuma nota nova foi criada."};
+    if(d.ja_existia===true)return {estado:r||"ja_existia",gravada:r==="validada"||r==="pendente_fiscal",id:d.id||null,texto:"Esta leitura já tinha sido processada ("+(r==="validada"?"validada":r==="pendente_fiscal"?"pendente fiscal":r==="bloqueada"?"bloqueada":r==="duplicada"?"duplicada":"registrada")+"): nada mudou."};
+    return {estado:"desconhecido",gravada:false,id:null,texto:"O banco respondeu algo inesperado: não considere a nota gravada."}}
+  /* atualizar a situação fiscal (RPC nota_fiscal_atualizar_situacao): o banco decide; aqui só se impede o que ele recusaria. nota = {id, situacao}; o = {para, protocolo, evidencia, fonte} */
+  function nfAtualizarSituacao(nota,o){nota=nota||{};o=o||{};var er=[],para=o.para,prot=nfDigitos(o.protocolo),ev=o.evidencia==null?"":String(o.evidencia).trim(),fonte=o.fonte||"manual";
+    if(!NF_UUID.test(String(nota.id||"")))er.push("Falta o identificador da nota.");
+    if(["autorizada","cancelada","rejeitada"].indexOf(para)<0)er.push("A nova situação é autorizada, cancelada ou rejeitada.");
+    else if((NF_TRANSICOES[nota.situacao]||[]).indexOf(para)<0)er.push("De "+(NF_SITUACOES[nota.situacao]||nota.situacao||"?").toLowerCase()+" para "+(NF_SITUACOES[para]||para).toLowerCase()+" não é permitido.");
+    if(para==="autorizada"&&prot.length!==15)er.push("Autorizar exige o protocolo de 15 dígitos.");
+    if(["foto","pdf","xml","manual"].indexOf(fonte)<0)er.push("Fonte inválida.");
+    if(ev.length>200)er.push("A evidência passa de 200 caracteres.");if(ev&&nfTemCpf(ev))er.push("A evidência parece conter um CPF.");
+    return {ok:!er.length,erros:er,args:{p_id:nota.id,p_situacao:para,p_protocolo:para==="autorizada"?prot:(prot.length===15?prot:null),p_evidencia:ev||null,p_fonte:fonte}}}
   /* vínculo de conferência com um registro de outro módulo; nunca cria despesa */
   function nfVincular(nota,alvo,existentes){nota=nota||{};alvo=alvo||{};var e=[],a=[];
     if(!nota.chave)e.push("A nota não tem chave de acesso para identificá-la.");if(!NF_MODULOS[alvo.modulo])e.push("Módulo de destino inválido.");if(alvo.id==null||alvo.id==="")e.push("Informe o registro que a nota documenta.");
@@ -2300,6 +2366,6 @@
     CO_CANAIS:CO_CANAIS,CO_CAT_DIGITAL:CO_CAT_DIGITAL,coCanalDe:coCanalDe,coModuloDestino:coModuloDestino,coSituacao:coSituacao,coClassificar:coClassificar,
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
-    NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao,nfTipoReal:nfTipoReal,nfArquivoIA:nfArquivoIA,nfLoteIA:nfLoteIA,nfPdfAtivo:nfPdfAtivo,nfMascararCpf:nfMascararCpf,nfLerIA:nfLerIA,nfCorrigir:nfCorrigir,nfConfiancaIA:nfConfiancaIA,NF_IA_MAX_PAG:NF_IA_MAX_PAG};
+    NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_TRANSICOES:NF_TRANSICOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravarDoc:nfParaGravarDoc,nfResultadoDoc:nfResultadoDoc,nfAtualizarSituacao:nfAtualizarSituacao,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao,nfTipoReal:nfTipoReal,nfArquivoIA:nfArquivoIA,nfLoteIA:nfLoteIA,nfPdfAtivo:nfPdfAtivo,nfMascararCpf:nfMascararCpf,nfLerIA:nfLerIA,nfCorrigir:nfCorrigir,nfConfiancaIA:nfConfiancaIA,NF_IA_MAX_PAG:NF_IA_MAX_PAG};
 })(typeof window!=="undefined"?window:globalThis);

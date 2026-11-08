@@ -232,9 +232,9 @@ test("foto legível: um envio à IA com a foto reduzida, nota lida e validada, n
   assert.equal(x.r.nota.formato, "imagem"); assert.equal(x.r.ia.confianca, 0.96); assert.equal(x.r.arquivo, null, "nada do arquivo vira gravável");
   assert.deepEqual([ch.rpc, ch.upload], [0, 0], "nenhuma gravação nem envio ao cofre");
   const t = texto(c.fxCartao(x.r, false));
-  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Mínimo para validar.*90%/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Atende às regras \(a gravação de foto ou PDF ainda não existe\)/);
-  assert.match(t, /Gravação de foto ou PDF: ainda não disponível/); assert.match(t, /Corrigir os dados lidos/);
-  assert.equal(achar(c.fxCartao(x.r, false), (n) => n.tag === "button" && /Salvar/.test(n.attrs.text || "")).length, 0, "não existe botão de salvar para foto");
+  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Mínimo para validar.*90%/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Pode ser gravada como validada \(fica pendente da sua conferência\)/);
+  assert.doesNotMatch(t, /ainda não disponível/); assert.match(t, /Corrigir os dados lidos/);
+  assert.equal(achar(c.fxCartao(x.r, false), (n) => n.tag === "button" && /Salvar na Central Fiscal/.test(n.attrs.text || "")).length, 1, "Lote 1.6: a foto lida tem o botão de salvar; só o clique grava");
 });
 test("PDF de uma página e de várias: o texto vai SEM CPF, as páginas viram imagens (até 4) e o pdf.js só desenha", async () => {
   for (const pag of [1, 3]) {
@@ -297,7 +297,7 @@ test("a tela mostra cada caso: baixa confiança, divergência, pendente e cancel
   const b60 = await mostrar(resposta({ confianca: 0.6 }));
   assert.match(b60, /Conta dos itens Baixa confiança/); assert.match(b60, /Baixa confiança: Confiança da leitura \(60%\) abaixo do mínimo \(90%\)/); assert.match(b60, /Confiança da leitura 60%/); assert.match(b60, /Gravação Bloqueada/);
   assert.match(await mostrar(resposta({ total: 60 })), /Conta dos itens.*Divergente[\s\S]*R\$ 6,00 a menos que o total fiscal/);
-  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente de validação fiscal[\s\S]*Atende às regras/);
+  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente de validação fiscal[\s\S]*Só como pendente fiscal/);
   assert.match(await mostrar(resposta({ situacao: "cancelada" })), /Situação fiscal.*Cancelada — não vale como compra[\s\S]*não vale como compra fiscal validada[\s\S]*Gravação.*Bloqueada/);
   assert.match(await mostrar(resposta({ incertos: [{ campo: "total", motivo: "cortado" }] })), /Incerto — total: cortado/);
 });
@@ -309,7 +309,7 @@ test("correção manual na tela: o formulário refaz a nota, roda tudo de novo e
   const btn = achar(cartao, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0]; btn.onclick();
   for (let i = 0; i < 30 && !x.r.ultimoCartao; i++) await new Promise((r) => setImmediate(r));
   const depois = texto(x.r.ultimoCartao);
-  assert.equal(x.r.nota.valores.total, 54); assert.equal(x.r.ia.revisada, true); assert.match(depois, /Confiança da leitura.*100% \(você conferiu com o documento; a IA tinha 70%\)/); assert.match(depois, /Conta dos itens.*Consistente/); assert.match(depois, /Atende às regras/);
+  assert.equal(x.r.nota.valores.total, 54); assert.equal(x.r.ia.revisada, true); assert.match(depois, /Confiança da leitura.*100% \(você conferiu com o documento; a IA tinha 70%\)/); assert.match(depois, /Conta dos itens.*Consistente/); assert.match(depois, /Pode ser gravada como validada/);
   // revisar sem corrigir um erro de conta NÃO libera
   const { c: c2 } = ambiente({ ia: { ok: true, versao: 1, modo: "REAL", resultado: resposta({ total: 60 }), avisos: [], id: "u" } }); const y = await c2.fxIA([arq("n.jpg", JPG, "corrigir2", "image/jpeg")]);
   const cart2 = c2.fxCartao(y.r, false); achar(cart2, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(cart2, (n) => n.tag === "button" && /Aplicar/.test(n.attrs.text || ""))[0].onclick();
@@ -323,7 +323,7 @@ test("a tela só oferece a leitura por IA ao dono; a Fernanda continua vendo só
   assert.match(sem, /"Fotos e PDF ainda não são lidos \(sem OCR\)\. "/, "quem não é dono vê o texto de antes");
 });
 test("segurança e escopo: nenhuma chave no site, nenhuma rede solta, IA só pela porta racIA; a leitura por IA não grava, não envia ao Storage e não cria despesa", () => {
-  const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, ""), ia = js.slice(js.indexOf("var FX_PDF="), js.indexOf("function fxResultado("));
+  const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, ""), ia = js.slice(js.indexOf("var FX_PDF="), js.indexOf("function fxUpload("));
   assert.ok(ia.length > 3000); assert.ok(!/anthropic|api\.anthropic|x-api-key|sk-ant|fetch\(|XMLHttpRequest|localStorage|sessionStorage|\.insert\(|\.update\(|\.upsert\(|\.delete\(|storage|fxRpc|gera_despesa/i.test(ia), "o bloco da leitura por IA só usa racIA e leituras");
   assert.ok(!/eval\(|new Function|innerHTML\s*=\s*[^"'\s]/.test(ia), "nada de execução dinâmica nem HTML de fora"); assert.match(ia, /isEvalSupported:false/);
   assert.match(js, /cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js\/3\.11\.174\/pdf\.min\.js/, "biblioteca de CDN com versão exata (a mesma do Compras)");

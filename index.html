@@ -353,6 +353,8 @@ form.add{display:grid;grid-template-columns:1fr 70px 130px auto;gap:8px;margin:1
 .hbf{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .hbv{font:600 calc(13px + var(--fz)) var(--f-ui);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .hbv small{font-weight:500;color:var(--muted)}
+.cmpt{display:grid;gap:3px;min-width:0}.cmpt .hbt{height:9px}.hbf.b{background:var(--muted)}
+@media(max-width:560px){.hb.cmp{grid-template-columns:minmax(0,1fr)}.hb.cmp .hbv{text-align:left;white-space:normal}}
 .vbars{display:flex;align-items:flex-end;gap:8px;height:200px}
 .vb{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;background:none;padding:0;color:var(--ink)}
 .vbv{font:600 calc(11px + var(--fz)) var(--f-ui);color:var(--muted);font-variant-numeric:tabular-nums}

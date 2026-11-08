@@ -2427,7 +2427,7 @@
     return (rows||[]).filter(function(x){
       if(f.de&&x.data<f.de)return false;if(f.ate&&x.data>f.ate)return false;
       if(!sem.categoria&&f.categoria&&mkCatOficial(x.categoria)!==f.categoria)return false;
-      if(f.mercado&&x.mercado!==f.mercado)return false;
+      if(f.mercado&&!sem.mercado&&x.mercado!==f.mercado)return false;
       if(q&&norm(x.produto).indexOf(q)<0)return false;return true})}
   function mkcAgrupa(l,f){var m={},o=[];l.forEach(function(x){var k=f(x);if(!m[k]){m[k]=[];o.push(k)}m[k].push(x)});return {m:m,o:o}}
   function mkcQtd(l){var q={};l.forEach(function(x){var u=mkcUn(x.unidade);q[u]=Math.round(((q[u]||0)+(+x.quantidade||0))*1000)/1000});return q}
@@ -2476,10 +2476,84 @@
         varTotal:l.length>1&&pr[0]?(u-pr[0])/pr[0]:null,varUlt:pen&&(+pen.valor_unitario)?(u-(+pen.valor_unitario))/(+pen.valor_unitario):null,
         min:Math.min.apply(null,pr),max:Math.max.apply(null,pr),mercados:mkcAgrupa(l,function(x){return x.mercado}).o.length,
         gasto:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),qtd:Math.round(l.reduce(function(s,x){return s+(+x.quantidade||0)},0)*1000)/1000}})}
+  /* ===== Mercado: comparação entre dois períodos (docs/mercado-comparar.md). A = período analisado, B = período de comparação (a base).
+     diferença = A − B; variação % = (A − B) ÷ B, só com B > 0 (sem base: "novo" ou "sem base", nunca um número inventado). Mesmos filtros nos dois períodos.
+     Produto = nome + unidade (mkcChaveProd): kg, L, un e unidades desconhecidas nunca se misturam. Só lê as linhas da view "compras". */
+  function mkcP2(n){return n<10?"0"+n:""+n}
+  function mkcDia(iso,n){var d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)+n));return d.getUTCFullYear()+"-"+mkcP2(d.getUTCMonth()+1)+"-"+mkcP2(d.getUTCDate())}
+  function mkcIsoOk(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||"")&&mkcDia(s,0)===s}
+  /* atalhos → {a:{de,ate}, b:{de,ate}}: "mes" (este mês até hoje × mês anterior inteiro), "30d", "3m", "6m" (os N meses civis até hoje × os N anteriores inteiros). Outro id: null (personalizado) */
+  function mkcAtalho(id,hoje){var a=+hoje.slice(0,4),m=+hoje.slice(5,7);
+    if(id==="30d")return {a:{de:mkcDia(hoje,-29),ate:hoje},b:{de:mkcDia(hoje,-59),ate:mkcDia(hoje,-30)}};
+    var n=id==="mes"?1:id==="3m"?3:id==="6m"?6:0;if(!n)return null;
+    function mm(k){var x=m-k,y=a;while(x<1){x+=12;y--}return [y,x]}
+    function ini(k){var t=mm(k);return t[0]+"-"+mkcP2(t[1])+"-01"}
+    function fim(k){var t=mm(k);return t[0]+"-"+mkcP2(t[1])+"-"+mkcP2(new Date(Date.UTC(t[0],t[1],0)).getUTCDate())}
+    return {a:{de:ini(n-1),ate:hoje},b:{de:ini(2*n-1),ate:fim(n)}}}
+  /* período válido: as duas datas existem e de ≤ ate. dias = duração inclusiva (os dois períodos podem ter durações diferentes) */
+  function mkcPeriodoInfo(p){p=p||{};if(!mkcIsoOk(p.de)||!mkcIsoOk(p.ate))return {ok:false,erro:"Escolha a data inicial e a final.",dias:0};
+    if(p.de>p.ate)return {ok:false,erro:"A data inicial é depois da final.",dias:0};return {ok:true,erro:"",dias:mkcDias(p.de,p.ate)+1}}
+  function mkcSobrepoe(a,b){return a.de<=b.ate&&b.de<=a.ate}
+  /* indicador comparativo: a, b, dif, pct (null sem base) e estado: subiu|caiu|igual|novo (B zero)|sumiu (A zero)|zero (os dois zero)|sem_base (algum valor não existe) */
+  function mkcMetric(a,b){if(a==null||b==null)return {a:a,b:b,dif:null,pct:null,estado:"sem_base"};
+    var d=mkcR(a-b);return {a:a,b:b,dif:d,pct:b>0?(a-b)/b:null,estado:!a&&!b?"zero":!b?"novo":!a?"sumiu":d>0?"subiu":d<0?"caiu":"igual"}}
+  function mkcSomaV(l){return mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0))}
+  function mkcPeriodoResumo(l,info){var t=mkcSomaV(l),n=mkcAgrupa(l,mkcNota).o.length;
+    return {total:t,compras:n,itens:l.length,produtos:mkcAgrupa(l,mkcChaveProd).o.length,qtd:mkcQtd(l),ticket:n?mkcR(t/n):null,porDia:info.dias?mkcR(t/info.dias):null,dias:info.dias}}
+  function mkcLado(l){if(!l||!l.length)return null;var q=0,pq=0;l.forEach(function(x){q+=+x.quantidade||0;pq+=(+x.valor_unitario||0)*(+x.quantidade||0)});
+    return {total:mkcSomaV(l),qtd:Math.round(q*1000)/1000,compras:mkcAgrupa(l,mkcNota).o.length,n:l.length,preco:q?mkcR(pq/q):null}}
+  var MK_TOL=0.005;
+  function mkcDir(p){return p==null?0:p>MK_TOL?1:p<-MK_TOL?-1:0}
+  /* leitura do gasto de um produto presente nos dois períodos: o que explica a diferença (preço unitário, quantidade, os dois, ou efeitos que se compensam) */
+  function mkcLeitura(g,preco,qtd){if(!g.dif||(g.pct!=null&&Math.abs(g.pct)<=MK_TOL))return "estavel";
+    var s=g.dif>0?1:-1,p=mkcDir(preco?preco.pct:null)*s,q=mkcDir(qtd.pct)*s;
+    return p>0&&q>0?"ambos":p>0&&q>=0?"preco":q>0&&p>=0?"quantidade":p>0?"preco":q>0?"quantidade":"misto"}
+  /* a comparação inteira. rows = linhas da view compras; A e B = {de, ate}; f = {categoria, mercado, produto} aplicados igualmente aos dois períodos.
+     Cada quadro usa o filtro sem a própria dimensão (categorias sem categoria, estabelecimentos sem mercado), para dar para trocar de uma para outra. */
+  function mkcComparar(rows,A,B,f){f=f||{};var ia=mkcPeriodoInfo(A),ib=mkcPeriodoInfo(B);
+    if(!ia.ok||!ib.ok)return {ok:false,erro:!ia.ok?"Período A: "+ia.erro:"Período B: "+ib.erro};
+    function flt(p,sem){return mkcFiltrar(rows,{de:p.de,ate:p.ate,categoria:f.categoria,mercado:f.mercado,produto:f.produto},sem)}
+    var ra=flt(A),rb=flt(B),sa=mkcPeriodoResumo(ra,ia),sb=mkcPeriodoResumo(rb,ib),un={};
+    Object.keys(sa.qtd).concat(Object.keys(sb.qtd)).forEach(function(u){un[u]=1});
+    var geral={total:mkcMetric(sa.total,sb.total),porDia:mkcMetric(sa.porDia,sb.porDia),compras:mkcMetric(sa.compras,sb.compras),itens:mkcMetric(sa.itens,sb.itens),produtos:mkcMetric(sa.produtos,sb.produtos),
+      ticket:mkcMetric(sa.ticket,sb.ticket),qtd:Object.keys(un).sort().map(function(u){return {unidade:u,m:mkcMetric(sa.qtd[u]||0,sb.qtd[u]||0)}})};
+    /* categorias: as oficiais (mesmo sem compra) + qualquer outra com compra */
+    var ca=flt(A,{categoria:1}),cb=flt(B,{categoria:1}),ta=mkcSomaV(ca),tb=mkcSomaV(cb),cn=MK_CATEGORIAS.slice(),ga=mkcAgrupa(ca,function(x){return mkCatOficial(x.categoria)||"Outros"}),gb=mkcAgrupa(cb,function(x){return mkCatOficial(x.categoria)||"Outros"});
+    ga.o.concat(gb.o).forEach(function(c){if(cn.indexOf(c)<0)cn.push(c)});
+    var categorias=cn.map(function(c){var a=mkcSomaV(ga.m[c]||[]),b=mkcSomaV(gb.m[c]||[]),pa=ta?a/ta:0,pb=tb?b/tb:0;
+      return {categoria:c,m:mkcMetric(a,b),partA:pa,partB:pb,dPart:pa-pb,produtosA:mkcAgrupa(ga.m[c]||[],mkcChaveProd).o.length,produtosB:mkcAgrupa(gb.m[c]||[],mkcChaveProd).o.length}})
+      .sort(function(x,y){return Math.max(y.m.a,y.m.b)-Math.max(x.m.a,x.m.b)||x.categoria.localeCompare(y.categoria)});
+    /* produtos (nome + unidade) */
+    var pa2=mkcAgrupa(ra,mkcChaveProd),pb2=mkcAgrupa(rb,mkcChaveProd),chaves=pa2.o.slice();pb2.o.forEach(function(k){if(chaves.indexOf(k)<0)chaves.push(k)});
+    var produtos=chaves.map(function(k){var la=pa2.m[k]||[],lb=pb2.m[k]||[],a=mkcLado(la),b=mkcLado(lb),ref=(la.concat(lb)).sort(mkcOrd),u=ref[ref.length-1];
+      var gasto=mkcMetric(a?a.total:0,b?b.total:0),qtd=mkcMetric(a?a.qtd:0,b?b.qtd:0),ambos=!!(a&&b);
+      var preco=ambos&&a.preco!=null&&b.preco!=null?mkcMetric(a.preco,b.preco):null;
+      return {chave:k,nome:u.produto,unidade:mkcUn(u.unidade),categoria:mkCatOficial(u.categoria),a:a,b:b,estado:ambos?"ambos":a?"so_a":"so_b",gasto:gasto,qtd:qtd,preco:preco,
+        leitura:ambos?mkcLeitura(gasto,preco,qtd):(a?"so_a":"so_b")}})
+      .sort(function(x,y){return Math.abs(y.gasto.dif)-Math.abs(x.gasto.dif)||x.nome.localeCompare(y.nome)||x.unidade.localeCompare(y.unidade)});
+    /* estabelecimentos: gasto, participação e produtos de cada um (sem afirmar qual é mais barato: produtos e quantidades diferem) */
+    var ma=flt(A,{mercado:1}),mb=flt(B,{mercado:1}),tma=mkcSomaV(ma),tmb=mkcSomaV(mb),mga=mkcAgrupa(ma,function(x){return x.mercado}),mgb=mkcAgrupa(mb,function(x){return x.mercado}),mn=mga.o.slice();
+    mgb.o.forEach(function(m){if(mn.indexOf(m)<0)mn.push(m)});
+    var mercados=mn.map(function(m){var a=mkcSomaV(mga.m[m]||[]),b=mkcSomaV(mgb.m[m]||[]),pa=tma?a/tma:0,pb=tmb?b/tmb:0;
+      return {mercado:m,m:mkcMetric(a,b),partA:pa,partB:pb,dPart:pa-pb,comprasA:mkcAgrupa(mga.m[m]||[],mkcNota).o.length,comprasB:mkcAgrupa(mgb.m[m]||[],mkcNota).o.length,
+        produtosA:mkcAgrupa(mga.m[m]||[],mkcChaveProd).o.length,produtosB:mkcAgrupa(mgb.m[m]||[],mkcChaveProd).o.length}})
+      .sort(function(x,y){return Math.max(y.m.a,y.m.b)-Math.max(x.m.a,x.m.b)||x.mercado.localeCompare(y.mercado)});
+    return {ok:true,a:{de:A.de,ate:A.ate,dias:ia.dias,resumo:sa},b:{de:B.de,ate:B.ate,dias:ib.dias,resumo:sb},sobrepoe:mkcSobrepoe(A,B),geral:geral,categorias:categorias,produtos:produtos,mercados:mercados}}
+  /* listas prontas a partir dos produtos: as que a tela mostra. n = quantos por lista (padrão 10). Quantidade só entre os que aparecem nos dois períodos (mesma unidade). */
+  function mkcCompRank(produtos,n){n=n||10;var P=produtos||[];function top(l,f){return l.slice().sort(f).slice(0,n)}
+    var ambos=P.filter(function(x){return x.estado==="ambos"});
+    return {maiorAumentoGasto:top(P.filter(function(x){return x.gasto.dif>0}),function(x,y){return y.gasto.dif-x.gasto.dif||x.nome.localeCompare(y.nome)}),
+      maiorReducaoGasto:top(P.filter(function(x){return x.gasto.dif<0}),function(x,y){return x.gasto.dif-y.gasto.dif||x.nome.localeCompare(y.nome)}),
+      aumentoQtd:top(ambos.filter(function(x){return x.qtd.pct!=null&&x.qtd.pct>MK_TOL}),function(x,y){return y.qtd.pct-x.qtd.pct||x.nome.localeCompare(y.nome)}),
+      reducaoQtd:top(ambos.filter(function(x){return x.qtd.pct!=null&&x.qtd.pct<-MK_TOL}),function(x,y){return x.qtd.pct-y.qtd.pct||x.nome.localeCompare(y.nome)}),
+      precoSubiu:top(P.filter(function(x){return x.preco&&x.preco.pct!=null&&x.preco.pct>MK_TOL}),function(x,y){return y.preco.pct-x.preco.pct||x.nome.localeCompare(y.nome)}),
+      precoCaiu:top(P.filter(function(x){return x.preco&&x.preco.pct!=null&&x.preco.pct<-MK_TOL}),function(x,y){return x.preco.pct-y.preco.pct||x.nome.localeCompare(y.nome)}),
+      soA:top(P.filter(function(x){return x.estado==="so_a"}),function(x,y){return y.a.total-x.a.total||x.nome.localeCompare(y.nome)}),
+      soB:top(P.filter(function(x){return x.estado==="so_b"}),function(x,y){return y.b.total-x.b.total||x.nome.localeCompare(y.nome)})}}
   /* gasto por mês (só meses com compra; mês sem compra não aparece e nada é inventado) */
   function mkcPorMes(rows){var g=mkcAgrupa(rows||[],function(x){return x.data.slice(0,7)});
     return g.o.sort().map(function(k){var l=g.m[k];return {mes:k,total:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})}
-  raiz.RACnucleo={mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  raiz.RACnucleo={mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

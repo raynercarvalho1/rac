@@ -118,7 +118,7 @@
   }
 
   /* ---------- casca: abas internas e sair ---------- */
-  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
+  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
   function drawApp(sub) {
     var v = VIEWS.some(function (x) { return x[0] === sub; }) ? sub : (rows.length ? "painel" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
@@ -137,7 +137,7 @@
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));
       return;
     }
-    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
+    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
     window.scrollTo(0, y);
   }
 
@@ -685,6 +685,207 @@
         tabela(["Data", "Mercado", "Qtd", "Unit.", "Total"], u.historico.slice().reverse().map(function (x) { return [dataBR(x.data), semCidade(x.mercado), fmtQtd(x.quantidade, x.unidade), precoTxt(x.unitario, x.unidade), money(x.total)]; }), 2));
       p.appendChild(hist);
     });
+    return p;
+  }
+
+  /* ---------- Comparar períodos (docs/mercado-comparar.md) ----------
+     A = período analisado, B = período de comparação (a base). Contas em NUCLEO.mkcComparar (puro); aqui só desenha. Só lê as linhas já carregadas. */
+  var LEITURA = { ambos: "preço e quantidade", preco: "preço", quantidade: "quantidade", misto: "efeitos opostos", estavel: "estável", so_a: "só no período A", so_b: "só no período B" };
+  function sinalMoney(v) { return (v > 0 ? "+" : "") + money(v); }
+  function pctTxt(m) { return m.pct == null ? "—" : (m.pct > 0 ? "+" : "") + PCT.format(m.pct); }
+  /* variação como o site já faz (▲/▼); sem base não inventa percentual */
+  function varMetric(m) {
+    if (m.pct != null) return varTag(m.pct);
+    var t = m.estado === "novo" ? "novo (sem base)" : m.estado === "sumiu" ? "sem compras em A" : "—";
+    return h("span", { class: "sub", text: t });
+  }
+  function estadoGasto(m) {
+    return m.estado === "subiu" ? "▲ gastou mais" : m.estado === "caiu" ? "▼ gastou menos" : m.estado === "novo" ? "sem compras no período B: sem base para variação" :
+      m.estado === "sumiu" ? "sem compras no período A" : m.estado === "zero" ? "sem compras nos dois períodos" : "= igual";
+  }
+  /* tabela ordenável pelo cabeçalho (como em Preços): cols = [{ t, v: item → número/texto/null, c: item → célula }]; ord = { k, d } (k < 0 mantém a ordem dada) */
+  function tabelaOrd(cols, itens, ord, repintar, lim) {
+    var l = itens.slice(), k = ord.k, d = ord.d;
+    if (k >= 0) l.sort(function (a, b) {
+      var x = cols[k].v(a), y = cols[k].v(b);
+      if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * d;
+    });
+    if (lim) l = l.slice(0, lim);
+    var tb = tabela(cols.map(function (c) { return c.t; }), l.map(function (it) { return cols.map(function (c) { return c.c(it); }); }), 1);
+    tb.querySelectorAll("th").forEach(function (th, i) {
+      var ativo = i === k;
+      th.classList.add("ordcol"); if (ativo) th.classList.add("on");
+      th.setAttribute("aria-sort", ativo ? (d === 1 ? "ascending" : "descending") : "none");
+      th.tabIndex = 0; th.title = "Ordenar por " + cols[i].t.toLowerCase();
+      th.appendChild(h("span", { class: "ordseta", "aria-hidden": "true", text: ativo ? (d === 1 ? " ▲" : " ▼") : " ↕" }));
+      function ordenar() { ord.k = i; ord.d = ativo ? -d : 1; repintar(); }
+      th.onclick = ordenar; th.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ordenar(); } };
+    });
+    return tb;
+  }
+  function viewComparar(body) {
+    var N = NU(), hoje = new Date().toISOString().slice(0, 10);
+    function novo(id) { var a = N.mkcAtalho(id, hoje); return { atalho: id, a: a.a, b: a.b, categoria: "", mercado: "", produto: "", lista: "todos", prod: null, ordP: { k: -1, d: -1 }, ordM: { k: -1, d: -1 }, todos: false }; }
+    var c = st.cmp = st.cmp || novo("mes");
+    var mercs = Object.keys(groupBy(rows, function (x) { return x.mercado; })).sort();
+    var cats = N.MK_CATEGORIAS.slice(); rows.forEach(function (x) { var k = catOf(x.categoria); if (cats.indexOf(k) < 0) cats.push(k); });
+    var top = panel("Comparar períodos", "A é o período analisado e B é o de comparação (a base). Diferença = A − B; variação = (A − B) ÷ B. Os mesmos filtros valem para os dois.");
+    var selA = h("select", { "aria-label": "Atalho de períodos" }, [["mes", "Este mês × mês anterior"], ["30d", "Últimos 30 dias × 30 dias anteriores"], ["3m", "Últimos 3 meses × 3 meses anteriores"], ["6m", "Últimos 6 meses × 6 meses anteriores"], ["custom", "Escolha personalizada"]]
+      .map(function (o) { return h("option", { value: o[0], selected: c.atalho === o[0] ? "" : null, text: o[1] }); }));
+    function data(rot, p, k) {
+      var i = h("input", { type: "date", value: p[k], "aria-label": rot });
+      i.addEventListener("change", function () { p[k] = i.value; c.atalho = "custom"; c.prod = null; draw(); });
+      return i;
+    }
+    var da = [data("Período A: data inicial", c.a, "de"), data("Período A: data final", c.a, "ate")], db = [data("Período B: data inicial", c.b, "de"), data("Período B: data final", c.b, "ate")];
+    selA.onchange = function () {
+      if (selA.value === "custom") { c.atalho = "custom"; draw(); return; }
+      var a = N.mkcAtalho(selA.value, hoje); c.atalho = selA.value; c.a = a.a; c.b = a.b; c.prod = null; draw();
+    };
+    var selCat = h("select", { "aria-label": "Categoria" }, h("option", { value: "", text: "Todas as categorias" }), cats.map(function (k) { return h("option", { value: k, selected: c.categoria === k ? "" : null, text: k }); }));
+    selCat.onchange = function () { c.categoria = selCat.value; c.prod = null; draw(); };
+    var selMerc = h("select", { "aria-label": "Mercado" }, h("option", { value: "", text: "Todos os mercados" }), mercs.map(function (m) { return h("option", { value: m, selected: c.mercado === m ? "" : null, text: semCidade(m) }); }));
+    selMerc.onchange = function () { c.mercado = selMerc.value; c.prod = null; draw(); };
+    var busca = h("input", { type: "search", placeholder: "Buscar produto", "aria-label": "Buscar produto", value: c.produto, autocomplete: "off" });
+    busca.addEventListener("input", function () { c.produto = busca.value; c.prod = null; draw(); });
+    var limpar = h("button", { type: "button", class: "ghostbtn", text: "Limpar filtros" });
+    limpar.onclick = function () { st.cmp = null; drawApp("comparar"); };
+    top.appendChild(h("div", { class: "vfil" }, selA));
+    top.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Período A" }), da[0], h("span", { class: "sub", text: "até" }), da[1]));
+    top.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Período B" }), db[0], h("span", { class: "sub", text: "até" }), db[1]));
+    top.appendChild(h("div", { class: "vfil" }, selCat, selMerc, busca, limpar));
+    body.appendChild(top);
+    var out = h("div", { class: "stack" }); body.appendChild(out);
+
+    function draw() {
+      selA.value = c.atalho; selCat.value = c.categoria; selMerc.value = c.mercado;
+      da[0].value = c.a.de; da[1].value = c.a.ate; db[0].value = c.b.de; db[1].value = c.b.ate;
+      out.innerHTML = "";
+      var f = { categoria: c.categoria, mercado: c.mercado, produto: c.produto };
+      var r = N.mkcComparar(rows, c.a, c.b, f);
+      if (!r.ok) { out.appendChild(h("div", { class: "panel" }, h("p", { class: "qrwarn", text: r.erro }))); return; }
+      var G = r.geral, rotA = dataBR(r.a.de) + " a " + dataBR(r.a.ate) + " · " + r.a.dias + (r.a.dias === 1 ? " dia" : " dias"), rotB = dataBR(r.b.de) + " a " + dataBR(r.b.ate) + " · " + r.b.dias + (r.b.dias === 1 ? " dia" : " dias");
+      var avisos = h("div");
+      if (r.sobrepoe) avisos.appendChild(h("p", { class: "qrwarn", text: "Os períodos A e B se sobrepõem: as compras das datas em comum entram nos dois." }));
+      if (r.a.dias !== r.b.dias) avisos.appendChild(h("p", { class: "sub", text: "Os períodos têm durações diferentes (A: " + r.a.dias + " dias, B: " + r.b.dias + " dias). Olhe também o gasto por dia." }));
+      if (c.categoria || c.mercado || c.produto) avisos.appendChild(h("p", { class: "sub", text: "Filtros nos dois períodos:" + (c.categoria ? " categoria " + c.categoria + ";" : "") + (c.mercado ? " mercado " + semCidade(c.mercado) + ";" : "") + (c.produto ? " produto “" + c.produto + "”;" : "") }));
+      out.appendChild(avisos);
+      out.appendChild(h("div", { class: "kpis" },
+        kpi("Gasto no período A", money(G.total.a), rotA),
+        kpi("Gasto no período B", money(G.total.b), rotB),
+        kpi("Diferença (A − B)", G.total.dif == null ? "—" : sinalMoney(G.total.dif), estadoGasto(G.total), G.total.estado === "subiu" ? "up" : G.total.estado === "caiu" ? "down" : ""),
+        kpi("Variação", pctTxt(G.total), G.total.pct == null ? "sem base para percentual" : "sobre o gasto do período B", G.total.estado === "subiu" ? "up" : G.total.estado === "caiu" ? "down" : "")));
+      /* quadro geral */
+      var linhasG = [["Total gasto", G.total, money], ["Gasto por dia", G.porDia, money], ["Compras", G.compras, String], ["Itens comprados", G.itens, String], ["Produtos diferentes", G.produtos, String], ["Gasto médio por compra", G.ticket, money]]
+        .concat(G.qtd.map(function (q) { return ["Quantidade (" + unRot(q.unidade) + ")", q.m, function (v) { return fmtQtd(v, q.unidade); }]; }));
+      var pg = panel("Comparação geral", "Quantidades ficam separadas por unidade (kg, L, un): nunca somadas entre si.");
+      pg.appendChild(tabela(["Indicador", "Período A", "Período B", "Diferença", "Variação"], linhasG.map(function (x) {
+        var m = x[1], fm = x[2];
+        return [x[0], m.a == null ? "—" : fm(m.a), m.b == null ? "—" : fm(m.b), m.dif == null ? "—" : (m.dif > 0 ? "+" : "") + (fm === money ? money(m.dif) : fm(m.dif)), varMetric(m)];
+      }), 1));
+      out.appendChild(pg);
+      /* categorias: barras lado a lado (A em destaque, B em cinza), clicáveis */
+      var comCompra = r.categorias.filter(function (x) { return x.m.a > 0 || x.m.b > 0; }), sem = r.categorias.filter(function (x) { return !x.m.a && !x.m.b; });
+      var pc = panel("Por categoria", "Barra de cima: período A. Barra de baixo (cinza): período B. Clique numa categoria para ver só ela, com os produtos; clique de novo para voltar.");
+      if (comCompra.length) {
+        var max = Math.max.apply(null, comCompra.map(function (x) { return Math.max(x.m.a, x.m.b); }).concat([1]));
+        pc.appendChild(h("div", { class: "hbars" }, comCompra.map(function (x) {
+          var on = c.categoria === x.categoria;
+          var b = h("button", { type: "button", class: "hb cmp" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", title: x.categoria + ": A " + money(x.m.a) + " · B " + money(x.m.b) },
+            h("span", { class: "hbl" }, x.categoria, h("small", { text: "A " + PCT.format(x.partA) + " · B " + PCT.format(x.partB) + " do gasto" })),
+            h("span", { class: "cmpt" }, h("span", { class: "hbt" }, h("span", { class: "hbf", style: "width:" + (x.m.a / max * 100).toFixed(1) + "%" })), h("span", { class: "hbt" }, h("span", { class: "hbf b", style: "width:" + (x.m.b / max * 100).toFixed(1) + "%" }))),
+            h("span", { class: "hbv" }, "A " + money(x.m.a), h("small", { text: " · B " + money(x.m.b) }), h("small", { class: "vt " + (x.m.dif > 0 ? "up" : x.m.dif < 0 ? "down" : "flat"), text: " · " + (x.m.pct == null ? estadoGasto(x.m).split(":")[0] : (x.m.pct > 0 ? "▲ " : x.m.pct < 0 ? "▼ " : "= ") + PCT.format(Math.abs(x.m.pct))) })));
+          b.onclick = function () { c.categoria = on ? "" : x.categoria; c.prod = null; c.todos = false; draw(); };
+          if (window.racDica) window.racDica.ligar(b, function () { return [x.categoria, "A " + money(x.m.a) + " (" + PCT.format(x.partA) + ") · B " + money(x.m.b) + " (" + PCT.format(x.partB) + ") · diferença " + sinalMoney(x.m.dif || 0) + " · " + pctTxt(x.m)]; });
+          return b;
+        })));
+      } else pc.appendChild(h("p", { class: "empty", text: "Nenhuma compra nos dois períodos com esses filtros." }));
+      if (sem.length) pc.appendChild(h("p", { class: "sub", text: "Sem compras nos dois períodos: " + sem.map(function (x) { return x.categoria; }).join(", ") + "." }));
+      out.appendChild(pc);
+
+      /* detalhe de um produto (nome + unidade) */
+      if (c.prod) { var det = detalheComparar(N, c, r, f); if (det) out.appendChild(det); }
+
+      /* produtos */
+      var rk = N.mkcCompRank(r.produtos, 1000);
+      var LISTAS = [["todos", "Todos (maior diferença de gasto primeiro)", r.produtos], ["aumento", "Maior aumento de gasto", rk.maiorAumentoGasto], ["reducao", "Maior redução de gasto", rk.maiorReducaoGasto],
+        ["qtdmais", "Aumento de quantidade", rk.aumentoQtd], ["qtdmenos", "Redução de quantidade", rk.reducaoQtd], ["precomais", "Preço unitário subiu", rk.precoSubiu], ["precomenos", "Preço unitário caiu", rk.precoCaiu],
+        ["soa", "Só no período A", rk.soA], ["sob", "Só no período B", rk.soB]];
+      var lista = LISTAS.filter(function (x) { return x[0] === c.lista; })[0] || LISTAS[0];
+      var pp = panel("Produtos", "Cada linha é um produto numa unidade. Gasto, quantidade e preço unitário são lidos separadamente: gastar mais pode ser só comprar mais.");
+      var selL = h("select", { "aria-label": "Lista de produtos" }, LISTAS.map(function (x) { return h("option", { value: x[0], selected: x[0] === lista[0] ? "" : null, text: x[1] + " (" + x[2].length + ")" }); }));
+      selL.onchange = function () { c.lista = selL.value; c.ordP = { k: -1, d: -1 }; c.todos = false; draw(); };
+      pp.appendChild(h("div", { class: "vfil" }, selL));
+      var holder = h("div"); pp.appendChild(holder);
+      var COLS = [
+        { t: "Produto", v: function (x) { return x.nome; }, c: function (x) { var b = h("button", { type: "button", class: "mkprod", text: x.nome }); b.onclick = function () { c.prod = c.prod === x.chave ? null : x.chave; draw(); window.scrollTo({ top: 0, behavior: "smooth" }); }; return h("span", null, b, h("span", { class: "sub", text: " · " + unRot(x.unidade) + " · " + x.categoria })); } },
+        { t: "Gasto A", v: function (x) { return x.gasto.a; }, c: function (x) { return x.a ? money(x.a.total) : "—"; } },
+        { t: "Gasto B", v: function (x) { return x.gasto.b; }, c: function (x) { return x.b ? money(x.b.total) : "—"; } },
+        { t: "Dif. gasto", v: function (x) { return x.gasto.dif; }, c: function (x) { return h("span", { class: "vt " + (x.gasto.dif > 0 ? "up" : x.gasto.dif < 0 ? "down" : "flat"), text: sinalMoney(x.gasto.dif) + (x.gasto.pct != null ? " (" + pctTxt(x.gasto) + ")" : "") }); } },
+        { t: "Qtd A", v: function (x) { return x.a ? x.a.qtd : null; }, c: function (x) { return x.a ? fmtQtd(x.a.qtd, x.unidade) : "—"; } },
+        { t: "Qtd B", v: function (x) { return x.b ? x.b.qtd : null; }, c: function (x) { return x.b ? fmtQtd(x.b.qtd, x.unidade) : "—"; } },
+        { t: "Var. qtd", v: function (x) { return x.estado === "ambos" ? x.qtd.pct : null; }, c: function (x) { return x.estado === "ambos" ? varMetric(x.qtd) : h("span", { class: "sub", text: "—" }); } },
+        { t: "Preço A", v: function (x) { return x.a && x.a.preco != null ? x.a.preco : null; }, c: function (x) { return x.a && x.a.preco != null ? precoTxt(x.a.preco, x.unidade) : "—"; } },
+        { t: "Preço B", v: function (x) { return x.b && x.b.preco != null ? x.b.preco : null; }, c: function (x) { return x.b && x.b.preco != null ? precoTxt(x.b.preco, x.unidade) : "—"; } },
+        { t: "Var. preço", v: function (x) { return x.preco ? x.preco.pct : null; }, c: function (x) { return x.preco ? varMetric(x.preco) : h("span", { class: "sub", title: "preço só é comparado com compra nos dois períodos", text: "—" }); } },
+        { t: "Explicação", v: function (x) { return LEITURA[x.leitura]; }, c: function (x) { return LEITURA[x.leitura]; } }];
+      function pintarP() {
+        holder.innerHTML = "";
+        var itens = lista[2];
+        if (!itens.length) { holder.appendChild(h("p", { class: "empty", text: "Nenhum produto nesta lista com esses filtros." })); return; }
+        var lim = c.todos ? itens.length : 40;
+        holder.appendChild(tabelaOrd(COLS, itens, c.ordP, pintarP, lim));
+        if (itens.length > lim) { var mais = h("button", { type: "button", class: "ghostbtn", text: "Mostrar todos (" + itens.length + ")" }); mais.onclick = function () { c.todos = true; pintarP(); }; holder.appendChild(h("div", { class: "vfil" }, mais)); }
+      }
+      pintarP();
+      out.appendChild(pp);
+
+      /* estabelecimentos */
+      var pe = panel("Estabelecimentos", "Gasto e participação de cada mercado. Gasto maior não quer dizer preço maior (produtos e quantidades mudam); para comparar preço use o produto, na lista acima.");
+      var holderM = h("div"); pe.appendChild(holderM);
+      var COLM = [
+        { t: "Mercado", v: function (x) { return semCidade(x.mercado); }, c: function (x) { var b = h("button", { type: "button", class: "mkprod", title: "Filtrar a página por este mercado", text: semCidade(x.mercado) }); b.onclick = function () { c.mercado = c.mercado === x.mercado ? "" : x.mercado; c.prod = null; draw(); }; return b; } },
+        { t: "Gasto A", v: function (x) { return x.m.a; }, c: function (x) { return money(x.m.a); } },
+        { t: "Gasto B", v: function (x) { return x.m.b; }, c: function (x) { return money(x.m.b); } },
+        { t: "Diferença", v: function (x) { return x.m.dif; }, c: function (x) { return h("span", { class: "vt " + (x.m.dif > 0 ? "up" : x.m.dif < 0 ? "down" : "flat"), text: sinalMoney(x.m.dif) }); } },
+        { t: "Variação", v: function (x) { return x.m.pct; }, c: function (x) { return varMetric(x.m); } },
+        { t: "Part. A", v: function (x) { return x.partA; }, c: function (x) { return PCT.format(x.partA); } },
+        { t: "Part. B", v: function (x) { return x.partB; }, c: function (x) { return PCT.format(x.partB); } },
+        { t: "Mudança de part.", v: function (x) { return x.dPart; }, c: function (x) { return (x.dPart > 0 ? "+" : "") + (x.dPart * 100).toFixed(1).replace(".", ",") + " p.p."; } },
+        { t: "Compras A/B", v: function (x) { return x.comprasA; }, c: function (x) { return x.comprasA + " / " + x.comprasB; } },
+        { t: "Produtos A/B", v: function (x) { return x.produtosA; }, c: function (x) { return x.produtosA + " / " + x.produtosB; } }];
+      function pintarM() { holderM.innerHTML = ""; holderM.appendChild(tabelaOrd(COLM, r.mercados, c.ordM, pintarM)); }
+      if (r.mercados.length) { pintarM(); out.appendChild(pe); }
+    }
+    draw();
+  }
+  /* Detalhe de um produto (nome + unidade) nos dois períodos, lado a lado. Reaproveita NUCLEO.mkcProduto em cada período. */
+  function detalheComparar(N, c, r, f) {
+    var item = r.produtos.filter(function (x) { return x.chave === c.prod; })[0];
+    var fechar = h("button", { type: "button", class: "ghostbtn", text: "Fechar" });
+    fechar.onclick = function () { c.prod = null; drawApp("comparar"); };
+    var p = h("div", { class: "panel mkdet" });
+    if (!item) { p.appendChild(h("p", { class: "empty", text: "Este produto não aparece com os filtros atuais." })); p.appendChild(fechar); return p; }
+    function bloco(per) {
+      var l = N.mkcFiltrar(rows, { de: per.de, ate: per.ate, mercado: f.mercado }, { categoria: 1, produto: 1 }).filter(function (x) { return N.mkcChaveProd(x) === item.chave; });
+      var d = N.mkcProduto(l);
+      return d ? d.unidades.filter(function (u) { return u.unidade === item.unidade; })[0] || null : null;
+    }
+    var A = bloco(c.a), B = bloco(c.b), un = item.unidade;
+    p.appendChild(h("div", { class: "ulhead" }, h("div", null, h("h2", { text: item.nome + " · " + unRot(un) }), h("p", { class: "sub", text: item.categoria + " · explicação do gasto: " + LEITURA[item.leitura] })), fechar));
+    function ponto(u, k) { return u && u[k] ? precoTxt(u[k].preco, un) + " · " + dataBR(u[k].data) + " · " + semCidade(u[k].mercado) : "—"; }
+    var linhas = [
+      ["Gasto total", A ? money(A.total) : "—", B ? money(B.total) : "—", sinalMoney(item.gasto.dif) + (item.gasto.pct != null ? " (" + pctTxt(item.gasto) + ")" : "")],
+      ["Quantidade", A ? fmtQtd(A.qtd, un) : "—", B ? fmtQtd(B.qtd, un) : "—", item.estado === "ambos" ? pctTxt(item.qtd) : "—"],
+      ["Compras", A ? String(A.compras) : "—", B ? String(B.compras) : "—", ""],
+      ["Preço médio (ponderado)", A && A.precoMedio != null ? precoTxt(A.precoMedio, un) : "—", B && B.precoMedio != null ? precoTxt(B.precoMedio, un) : "—", item.preco ? pctTxt(item.preco) : "sem preço comparável"],
+      ["Menor preço", ponto(A, "menor"), ponto(B, "menor"), ""], ["Maior preço", ponto(A, "maior"), ponto(B, "maior"), ""], ["Último preço no período", ponto(A, "ultimo"), ponto(B, "ultimo"), ""]];
+    p.appendChild(tabela(["", "Período A", "Período B", "Variação"], linhas, 1));
+    if (!item.preco) p.appendChild(h("p", { class: "sub", text: "O preço só é comparado quando o produto foi comprado nos dois períodos, na mesma unidade (" + unRot(un) + ")." }));
+    function onde(u) { return u ? u.mercados.map(function (x) { return semCidade(x.mercado) + " (" + x.compras + (x.compras === 1 ? " compra" : " compras") + (x.medio != null ? ", médio " + precoTxt(x.medio, un) : "") + ")"; }).join("; ") : "sem compras"; }
+    p.appendChild(h("p", { class: "sub", text: "Onde comprou em A: " + onde(A) }));
+    p.appendChild(h("p", { class: "sub", text: "Onde comprou em B: " + onde(B) }));
     return p;
   }
 
@@ -1385,5 +1586,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { viewPrecos: viewPrecos, usar: function (r) { rows = r; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r) { rows = r; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

@@ -226,3 +226,11 @@ test("Lote 1 · D2/D4: duplicidade lê Mercado, Alimentação e Abastecimento; l
   assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Abastecimento", data: "2026-10-05", total: 30, nome: "Posto" }]).nivel, "possivel");
   assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Mercado", data: "2026-10-06", total: 30 }]), null);
 });
+
+test("as cinco abas da Central de Compras, inclusive ＋ Manual, ficam todas à vista (a faixa quebra linha, não esconde a última à direita)", () => {
+  const js = ler("js/compras.js"), css = ler("index.html");
+  assert.match(js, /var CC_ABAS=\[\["resumo","Resumo"\],\["lista","Compras"\],\["importar","Importar"\],\["produtos","Produtos e recorrências"\],\["nova","＋ Manual"\]\];/);
+  assert.match(js, /if\(CC\.aba==="nova"\)\{corpo\.appendChild\(ccConferencia\(/);
+  assert.match(css, /#compras \.ccabas\{flex-wrap:wrap;overflow-x:visible\}/);
+  assert.doesNotMatch(css, /#compras \.ccabas\{[^}]*flex-wrap:nowrap/);
+});

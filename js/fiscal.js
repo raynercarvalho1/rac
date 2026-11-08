@@ -96,7 +96,7 @@
   function fxLinha(r,v){return h("div",{class:"row"},h("span",{class:"grow",text:r}),h("b",{text:v}))}
   /* validação à vista: a conta (consistente / divergente / baixa confiança), o total calculado contra o fiscal, a diferença em reais e o que a gravação pode fazer. A situação fiscal tem linha própria no cartão. */
   function fxValidacao(n,r){
-    var d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,r&&r.ia?{confianca:NUCLEO.nfConfiancaIA(r.ia)}:undefined),v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
+    var d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,r&&r.ia?{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true}:undefined),v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
     box.appendChild(h("h4",{text:"Validação da nota"}));
     box.appendChild(fxLinha("Conta dos itens",v.rotulo));
     if(s.total_calculado!=null&&s.total_fiscal!=null){box.appendChild(fxLinha("Total calculado pelos itens",fxMoeda(s.total_calculado)));box.appendChild(fxLinha("Total fiscal",fxMoeda(s.total_fiscal)));box.appendChild(fxLinha("Diferença",v.diferenca_texto||"—"))}
@@ -279,7 +279,7 @@
               g=NUCLEO.nfParaGravarDoc(r.lido,r.nota,{id:id,dono:DONO,idem:idem,tipo:r.tipoDoc,arquivos:arqs,confianca:r.ia.confianca,revisada:r.ia.revisada===true,incertos:r.ia.incertos,modelo_ia:r.ia.modelo,ia_uso_id:r.ia.idChamada});
             if(!g.ok)return fim("invalido","Não dá para gravar: "+g.erros.join(" ")+" Nada foi enviado nem gravado.",{erros:g.erros});
             return fxDuplicidadeDoc(r.nota,shas).then(function(dx){
-              var dec=NUCLEO.nfDecisaoGravacao(r.nota,dx.dup,{confianca:NUCLEO.nfConfiancaIA(r.ia)});
+              var dec=NUCLEO.nfDecisaoGravacao(r.nota,dx.dup,{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true});
               r.dup=dx.dup;
               if(dec.bloqueios_dup.length){var a0=dx.dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0];
                 /* a nota que já existe é desta mesma leitura (a resposta anterior se perdeu depois de gravar): não é duplicidade, é a mesma gravação */
@@ -320,7 +320,7 @@
   function fxBlocoSalvarDoc(r){
     var box=h("div",{class:"fxsalvar"}),st=h("p",{class:"sub",role:"status"}),g=r.gravado;
     if(g&&g.gravada){box.appendChild(h("div",{class:"fxaviso",role:"status",text:"✓ "+g.texto+(g.confirmacao?" "+g.confirmacao:"")}));return box}
-    var dec=NUCLEO.nfDecisaoGravacao(r.nota,r.dup||null,{confianca:NUCLEO.nfConfiancaIA(r.ia)}),negocio=!dec.bloqueios_dup.length&&!dec.pode,pend=dec.modo==="pendente_fiscal";
+    var dec=NUCLEO.nfDecisaoGravacao(r.nota,r.dup||null,{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true}),negocio=!dec.bloqueios_dup.length&&!dec.pode,pend=dec.modo==="pendente_fiscal";
     if(g)box.appendChild(h("div",{class:"fxaviso"+(g.estado==="bloqueada"?" fxbloq":""),role:"status",text:g.texto}));
     if(dec.bloqueios_dup.length){
       box.appendChild(h("div",{class:"fxaviso fxbloq",text:dec.bloqueios_dup.join(" ")+" Nada será enviado."}));

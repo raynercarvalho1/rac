@@ -325,3 +325,26 @@ test("hora das tentativas e do histórico: o banco guarda em UTC e a tela mostra
   assert.equal(c.fxFmtDH("2026-11-08T14:31:00Z"), `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`);
   assert.equal(c.fxFmtDH(""), ""); assert.match(c.fxFmtDH("lixo"), /lixo|NaN|^\S*\s*$/);
 });
+
+// ================= Lote 1.6 · gravar sem chave (pedido do dono, migration 039) =================
+test("sem chave: só com a revisão do dono; então vira SEMPRE pendente fiscal (situação gravada 'pendente'), nunca validada; sem revisão continua bloqueando", () => {
+  const sem = resposta({ chave: null });
+  const bloq = montar({}, sem); assert.equal(bloq.modo, "bloqueada"); assert.match(bloq.args.p_proc.motivos.join(" "), /chave/i);
+  const rev = montar({ revisada: true, confianca: 0.45 }, sem);
+  assert.equal(rev.ok, true, rev.erros.join("|")); assert.equal(rev.modo, "pendente_fiscal"); assert.equal(rev.pode_nota, true); assert.equal(rev.veredito.sem_chave_revisada, true); assert.equal(rev.veredito.gravar_validada, false);
+  assert.equal(rev.args.p_nota.chave, null); assert.equal(rev.args.p_nota.situacao, "pendente", "autorizada sem chave não se prova: grava pendente"); assert.equal(rev.args.p_nota.requer_conferencia, true);
+  assert.match(rev.veredito.avisos.join(" "), /sem chave.*revisão do dono.*pendente fiscal/i); assert.deepEqual([rev.args.p_proc.revisada, rev.args.p_proc.classe], [true, "consistente"]);
+  assert.equal(montar({ revisada: true }, resposta({ chave: null, situacao: "contingencia", protocolo: null })).args.p_nota.situacao, "contingencia", "contingência continua contingência");
+  for (const res of [resposta({ chave: null, situacao: "cancelada" }), resposta({ chave: null, total: 60 })]) assert.equal(montar({ revisada: true }, res).modo, "bloqueada", "cancelada e conta errada continuam bloqueando mesmo com a revisão");
+  assert.equal(montar({ revisada: true }, resposta()).modo, "validada", "com chave nada mudou");
+  const xml = N.nfDecisaoGravacao({ ...dados().nota, formato: "xml", chave: null, chave_valida: false }, null, { revisada: true });
+  assert.equal(xml.modo, "bloqueada", "a regra nova não vale para XML");
+});
+test("sem chave na tela: depois do 'Conferi' o botão vira 'Salvar como pendente fiscal' e a gravação segue pela função do banco, sem conferir", async () => {
+  const a = ambiente({ res: resposta({ chave: null, confianca: 0.45 }) }), r = await lerFoto(a);
+  assert.equal(achar(a.c.fxBlocoSalvarDoc(r), (n) => n.tag === "button" && /Registrar tentativa bloqueada/.test(n.attrs.text || "")).length, 1, "antes do Conferi: bloqueada");
+  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0];
+  achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
+  const t = texto(r.ultimoCartao); assert.match(t, /Só como pendente fiscal/); assert.match(t, /sem chave de acesso válida.*revisão do dono/i); assert.equal(achar(r.ultimoCartao, (n) => n.tag === "button" && /Salvar como pendente fiscal/.test(n.attrs.text || "")).length, 1);
+  const x = await a.c.fxSalvarDoc(r); assert.equal(x.estado, "pendente_fiscal", x.mensagem); const args = a.ch.rpc[0].args; assert.equal(args.p_nota.chave, null); assert.equal(args.p_nota.situacao, "pendente"); assert.equal(args.p_proc.revisada, true); assert.ok(!("p_conferir" in args));
+});

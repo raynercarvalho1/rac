@@ -231,3 +231,41 @@ test("PGlite · regressão do XML: gravar e conferir nota de XML (034) seguem ig
   const dup = await gravar(db, 60, { idem: idem(600), id: uuid(601) }); assert.deepEqual([dup.r.criado, dup.r.duplicada, dup.r.motivo, dup.r.id], [false, true, "chave", uuid(60)]); assert.equal(await contar(db, "notas_fiscais"), 1);
   await db.close();
 });
+
+// ================= Lote 1.6 · 039: gravar sem chave (só com a revisão do dono) =================
+const P39 = "supabase/039_nota_foto_sem_chave.sql";
+test("a 039 é a função da 037 com UMA diferença (chave ausente + revisada deixa de bloquear); mesmas permissões; só a função; não foi aplicada", () => {
+  const s = ler(P39), sem = s.replace(/^--.*$/gm, "");
+  assert.match(s.slice(0, 200), /PROPOSTA 039 · NÃO APLICADA EM PRODUÇÃO/);
+  assert.ok(!/create table|alter table|drop |delete from|create policy|create trigger|grant (insert|update|delete)/i.test(sem), "só a função");
+  const f37 = trecho(PROP, "create or replace function public.nota_fiscal_salvar_doc", "grant execute on function public.nota_fiscal_salvar_doc(jsonb, jsonb, jsonb, jsonb) to authenticated;");
+  const f39 = trecho(P39, "create or replace function public.nota_fiscal_salvar_doc", "grant execute on function public.nota_fiscal_salvar_doc(jsonb, jsonb, jsonb, jsonb) to authenticated;");
+  const velho = "  if v_chave is null then v_baixa := true; v_mot := v_mot || to_jsonb('A chave de acesso está ausente ou inválida.'::text); end if;";
+  assert.ok(f37.includes(velho)); const resto39 = f39.replace(/  if v_chave is null then\n    if v_rev then[\s\S]*?\n    end if;\n  end if;/, "@@"), resto37 = f37.replace(velho, "@@");
+  assert.equal(resto39, resto37, "nada mais mudou na função");
+  assert.match(f39, /if v_sit = 'autorizada' then v_sit := 'pendente'; end if;/); assert.match(sem, /revoke all on function public\.nota_fiscal_salvar_doc\(jsonb, jsonb, jsonb, jsonb\) from public, anon;/); assert.match(sem, /begin;[\s\S]*commit;/);
+  const conf = ler("supabase/conferencias/039_conferir_producao.sql"); assert.ok(!/\b(insert|update|delete|drop|alter|create|grant|revoke|truncate)\b/i.test(conf.replace(/^--.*$/gm, "")), "a conferência é só leitura");
+});
+test("PGlite · com a 039: sem chave + revisão do dono vira PENDENTE fiscal (situação 'pendente'), sem conferir; sem revisão continua bloqueada; cancelada e conta errada continuam bloqueando", { skip: pular }, async () => {
+  const db = await banco(); await db.exec(ler(P39)); await db.exec(ler(P39));     // idempotente
+  const sem = (n, o = {}) => gravar(db, n, { ...o, res: { chave: null, ...(o.res || {}) } });
+  const a = await sem(70, { revisada: true, confianca: 0.45 });
+  assert.equal(a.g.modo, "pendente_fiscal", "o site previu o mesmo"); assert.deepEqual([a.r.criado, a.r.resultado, a.r.classe], [true, "pendente_fiscal", "consistente"], JSON.stringify(a.r)); assert.match((a.r.avisos || []).join(" "), /sem chave.*revisão do dono/i);
+  const n = (await admin(db, "select chave, situacao, requer_conferencia, conferida_em, formato_origem from public.notas_fiscais where id = $1", [a.id]))[0]; assert.deepEqual([n.chave, n.situacao, n.requer_conferencia, n.conferida_em, n.formato_origem], [null, "pendente", true, null, "imagem"]);
+  assert.equal(await contar(db, "notas_fiscais_itens", `nota_id = '${a.id}'`), 2, "os itens ficam para o balanço"); assert.equal(await contar(db, "notas_fiscais_docs", `nota_id = '${a.id}'`), 1);
+  assert.deepEqual((await admin(db, "select de, para from public.notas_fiscais_situacoes where nota_id = $1", [a.id])).map((x) => [x.de, x.para]), [[null, "pendente"]]);
+  const b = await sem(71); assert.deepEqual([b.g.modo, b.r.resultado, b.r.criado], ["bloqueada", "bloqueada", false]);
+  for (const [n2, res] of [[72, { situacao: "cancelada" }], [73, { total: 60 }]]) { const c = await sem(n2, { revisada: true, res }); assert.deepEqual([c.g.modo, c.r.resultado], ["bloqueada", "bloqueada"], String(n2)); }
+  const d = await sem(74, { revisada: true, confianca: 0.45, arqs: [a.arqs[0]], idem: idem(740), id: uuid(740) }); assert.deepEqual([d.r.criado, d.r.duplicada, d.r.motivo], [false, true, "arquivo"], "sem chave a duplicidade pelo arquivo continua valendo");
+  const e = await sem(75, { revisada: true, confianca: 0.45, res: { situacao: "contingencia", protocolo: null } }); assert.equal(e.r.resultado, "pendente_fiscal"); assert.equal((await admin(db, "select situacao as s from public.notas_fiscais where id = $1", [e.id]))[0].s, "contingencia");
+  /* depois dá para autorizar com o protocolo (histórico preservado) e a nota continua sem conferência automática */
+  const v = N.nfAtualizarSituacao({ id: a.id, situacao: "pendente" }, { para: "autorizada", protocolo: "131260000000007", fonte: "manual" }); assert.equal(v.ok, true); assert.equal((await atualizarSit(db, R, v.args)).para, "autorizada");
+  assert.equal((await admin(db, "select conferida_em as c from public.notas_fiscais where id = $1", [a.id]))[0].c, null);
+  assert.equal(await contar(db, "registros") + await contar(db, "pedidos") + await contar(db, "notas"), 0, "nenhuma despesa");
+  await db.close();
+});
+test("PGlite · SEM a 039 (como em produção hoje) o banco bloqueia nota sem chave mesmo revisada: o site prevê pendente, mas vale a resposta do banco", { skip: pular }, async () => {
+  const db = await banco(); const a = await gravar(db, 80, { revisada: true, confianca: 0.45, res: { chave: null } });
+  assert.equal(a.g.modo, "pendente_fiscal", "o site prevê pendente"); assert.deepEqual([a.r.criado, a.r.resultado], [false, "bloqueada"], "o banco sem a 039 não deixa"); assert.equal(await contar(db, "notas_fiscais"), 0);
+  await db.close();
+});

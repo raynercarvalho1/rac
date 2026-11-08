@@ -2137,12 +2137,12 @@
     if(!itens.length||itens.length>990)er.push("A nota precisa de 1 a 990 itens.");
     var pagamentos=(n.pagamentos||[]).slice(0,10).map(function(p,k){p=p||{};if(p.valor==null)er.push("O pagamento "+(k+1)+" não tem valor.");
       return {codigo:null,forma:p.forma?String(p.forma).slice(0,40):null,valor:p.valor!=null?nfArred(p.valor,2):null,bandeira:p.bandeira?String(p.bandeira).slice(0,30):null,final:p.final||null}});
-    var conf=nfConfiancaIA({confianca:o.confianca,revisada:o.revisada}),dec=nfDecisaoGravacao(n,null,{confianca:conf}),ve=dec.veredito,s=ve.soma;
+    var conf=nfConfiancaIA({confianca:o.confianca,revisada:o.revisada}),dec=nfDecisaoGravacao(n,null,{confianca:conf,revisada:o.revisada===true}),ve=dec.veredito,s=ve.soma;
     var comp=nfArred(((s.acrescimos||0)-((V.frete||0)+(V.outras||0)))-(s.desonerado||0),2);
     var protocolo=n.protocolo||null;
     var nota={id:o.id,modelo:n.modelo,chave:chave,numero:/^\d{1,9}$/.test(String(n.numero||""))?String(n.numero):null,serie:/^\d{1,3}$/.test(String(n.serie||""))?String(n.serie):null,
       data_emissao:n.data_emissao||null,emitente_nome:em.nome?String(em.nome).slice(0,120):null,emitente_cnpj:cnpj,emitente_uf:/^[A-Z]{2}$/.test(String(em.uf||""))?em.uf:null,
-      tp_emis:n.tp_emis!=null&&n.tp_emis>=1&&n.tp_emis<=9?n.tp_emis:null,situacao:n.situacao,situacao_evidencia:n.situacao_evidencia?String(n.situacao_evidencia).slice(0,200):null,protocolo:protocolo,
+      tp_emis:n.tp_emis!=null&&n.tp_emis>=1&&n.tp_emis<=9?n.tp_emis:null,situacao:ve.sem_chave_revisada&&n.situacao==="autorizada"?"pendente":n.situacao,situacao_evidencia:n.situacao_evidencia?String(n.situacao_evidencia).slice(0,200):null,protocolo:protocolo,
       denegada:!!n.denegada,valor_produtos:V.produtos!=null?nfArred(V.produtos,2):null,valor_descontos:V.descontos!=null?nfArred(V.descontos,2):null,valor_frete:V.frete!=null?nfArred(V.frete,2):null,
       valor_outras:V.outras!=null?nfArred(V.outras,2):null,valor_impostos:V.impostos!=null?nfArred(V.impostos,2):null,valor_total:V.total!=null?nfArred(V.total,2):null,
       valor_a_pagar:V.a_pagar!=null?nfArred(V.a_pagar,2):null,pagamentos:pagamentos,formato_origem:tipo,requer_conferencia:true,observacoes:null};
@@ -2225,17 +2225,20 @@
     if(nota.formato!=="xml"){var c=opts.confianca,min=opts.minimo!=null?+opts.minimo:NF_CONF_MIN;
       if(typeof c!=="number"||!isFinite(c))baixa.push({codigo:"confianca_ausente",texto:"Leitura de foto ou PDF sem medida de confiança: não dá para validar sozinha.",item:null});
       else if(c<min)baixa.push({codigo:"confianca_baixa",texto:"Confiança da leitura ("+Math.round(c*100)+"%) abaixo do mínimo ("+Math.round(min*100)+"%).",item:null})}
-    if(!nota.chave||nota.chave_valida===false)baixa.push({codigo:"chave_invalida",texto:"A chave de acesso está ausente ou não passou na validação.",item:null});
+    /* Lote 1.6 (pedido do dono, migration 039): foto/PDF sem chave válida só deixa de ser baixa confiança quando o dono revisou (opts.revisada); então vira SEMPRE pendente fiscal, nunca validada */
+    var semChaveOk=nota.formato!=="xml"&&opts.revisada===true&&!(nota.chave&&nota.chave_valida!==false);
+    if(semChaveOk)av.push("Nota sem chave de acesso válida, gravada por revisão do dono: fica pendente fiscal, sem validação e sem conferência da duplicidade pela chave.");
+    else if(!nota.chave||nota.chave_valida===false)baixa.push({codigo:"chave_invalida",texto:"A chave de acesso está ausente ou não passou na validação.",item:null});
     /* situação fiscal é independente da conta: valores certos não tornam a nota autorizada, e nota autorizada pode ter a conta errada */
     var sit=NF_SITUACOES[nota.situacao]?nota.situacao:"pendente",fiscal={situacao:sit,rotulo:NF_SITUACOES[sit],definitiva:sit==="autorizada",pendente:sit==="contingencia"||sit==="pendente",bloqueada:sit==="cancelada"||sit==="rejeitada"},bloqueios=[];
     if(fiscal.bloqueada)bloqueios.push({codigo:"situacao_"+sit,texto:"Nota "+(sit==="cancelada"?"cancelada":"rejeitada")+": não vale como compra fiscal validada e não alimenta o Financeiro. Refaça a leitura ou trate a compra por outra via; o documento e a tentativa ficam registrados para auditoria."});
     else if(fiscal.pendente)av.push("A nota está "+NF_SITUACOES[sit].toLowerCase()+": pode ser guardada como pendente de validação fiscal, mas não vale como validada até a autorização.");
     if(nota.diferenca_pagamento!=null&&Math.abs(nfCent(nota.diferenca_pagamento))>NF_TOL_CENT)av.push("O valor a pagar difere do total da nota em "+nfReais(nfCent(nota.diferenca_pagamento))+".");
     var classe=baixa.length?"baixa_confianca":div.length?"divergente":"consistente",motivos=baixa.map(function(x){return {tipo:"baixa_confianca",codigo:x.codigo,texto:x.texto,item:x.item}}).concat(div.map(function(x){return {tipo:"divergencia",codigo:x.codigo,texto:x.texto,item:x.item}}));
-    var validada=classe==="consistente"&&fiscal.definitiva,pendente=classe==="consistente"&&fiscal.pendente;
-    var acao=fiscal.bloqueada?"bloquear":classe==="consistente"?(fiscal.definitiva?"gravar":"gravar_pendente_fiscal"):classe==="divergente"?"corrigir":"nova_leitura";
+    var validada=classe==="consistente"&&fiscal.definitiva&&!semChaveOk,pendente=classe==="consistente"&&(fiscal.pendente||(fiscal.definitiva&&semChaveOk));
+    var acao=fiscal.bloqueada?"bloquear":classe==="consistente"?(fiscal.definitiva&&!semChaveOk?"gravar":"gravar_pendente_fiscal"):classe==="divergente"?"corrigir":"nova_leitura";
     var d=s.diferenca,txt=d==null?null:nfCent(d)===0?"Os itens fecham com o total fiscal.":nfReais(nfCent(d))+" "+(d>0?"a mais":"a menos")+" que o total fiscal.";
-    return {classe:classe,rotulo:{consistente:"Consistente",divergente:"Divergente",baixa_confianca:"Baixa confiança"}[classe],fiscal:fiscal,acao:acao,
+    return {classe:classe,rotulo:{consistente:"Consistente",divergente:"Divergente",baixa_confianca:"Baixa confiança"}[classe],fiscal:fiscal,sem_chave_revisada:semChaveOk,acao:acao,
       gravar_validada:validada,gravar_pendente:pendente,pode_alimentar_financeiro:validada,bloqueios:bloqueios,auditoria:{preservar_documento:true,registrar_tentativa:!validada},
       diferenca:d,diferenca_texto:txt,motivos:motivos,avisos:av,soma:s}}
   /* duplicidade da nota contra o que já existe: notas fiscais, compras online, notas do Mercado e despesas. existentes = {notas, compras, mercado, despesas}
@@ -2283,7 +2286,7 @@
         else if(a.nivel==="confirmada")ad.push("Esta compra já existe "+NF_ORIGENS[a.origem]+" ("+a.motivo+"). Nenhuma despesa será criada pela nota.");
         else ad.push("Possível duplicidade "+NF_ORIGENS[a.origem]+": "+a.motivo+". Nenhuma despesa será criada pela nota.")})}
     bl=bl.concat(bd);av=av.concat(ad);
-    var modo=bl.length?"bloqueada":ve.fiscal.definitiva?"validada":"pendente_fiscal";
+    var modo=bl.length?"bloqueada":ve.fiscal.definitiva&&!ve.sem_chave_revisada?"validada":"pendente_fiscal";
     return {pode:!bl.length,modo:modo,bloqueios:bl,avisos:av,bloqueios_dup:bd,avisos_dup:ad,conferir_permitido:modo==="validada",gera_despesa:false,veredito:ve,duplicidade:dup||null}}
   /* ===== Lote 1.4: nota em foto ou PDF lida pela IA (ação fiscal.nota da rac-ia). Aqui só regras puras: o arquivo, o mascaramento, o mapa do JSON da IA para o leitor
      de XML, a confiança e a correção manual. A IA nunca aprova: o resultado entra em nfNormalizar e passa por nfVeredito/nfDuplicidade como qualquer nota. ===== */

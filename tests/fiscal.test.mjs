@@ -183,3 +183,244 @@ test("o núcleo fiscal não cria lançamento: nada na API exporta despesa e as d
   assert.deepEqual(N.coDespesas([]), []);
   assert.equal(AUTORIZADA().gera_despesa, false);
 });
+
+// ---------- Lote 1.2 · validação aritmética (nfValidarSoma, nfVeredito) e duplicidade (nfDuplicidade) ----------
+// Notas e valores FICTÍCIOS. Diferença (reais) = calculado − total fiscal: positivo = os itens somam mais que a nota.
+const NOTA = (itens, valores, extra = {}) => N.nfNormalizar({ formato: "xml", chave: K65, modelo: "65", serie: 2, numero: 678, data_emissao: "2026-10-20",
+  emitente: { nome: "MERCADO EXEMPLO LTDA", cnpj: "11222333000181", uf: "SP" }, cStat: 100, protocolo: "135260000000123", itens, valores, ...extra });
+const it = (descricao, qtd, unidade, unitario, total, desconto) => ({ descricao, qtd, unidade, unitario, total, desconto });
+const cods = (v) => v.motivos.map((m) => m.codigo);
+
+test("XML no formato real: a conta dos itens fecha com o total fiscal e a nota é consistente", () => {
+  const v = N.nfVeredito(normXML(xmlNFCe()));
+  assert.equal(v.classe, "consistente"); assert.equal(v.gravar_validada, true); assert.equal(v.acao, "gravar");
+  assert.equal(v.diferenca, 0); assert.equal(v.soma.soma_itens, 56.13); assert.equal(v.soma.descontos, 2.13); assert.equal(v.soma.total_calculado, 54); assert.equal(v.soma.total_fiscal, 54);
+  assert.deepEqual(v.motivos, []);
+  assert.match(v.avisos.join(" "), /valor a pagar difere do total da nota em R\$ 4,00/, "aviso, não bloqueio");
+  assert.ok(v.soma.itens.every((i) => i.ok && i.verificado), "os 5 itens foram conferidos");
+});
+test("desconto por item: líquido fecha com o total; desconto maior que o item e soma de descontos errada são divergência", () => {
+  const ok = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "3.00"), it("B", 1, "UN", "5.50", "5.50")], { produtos: 25.5, descontos: 3, total: 22.5 }));
+  assert.equal(ok.classe, "consistente"); assert.equal(ok.soma.descontos, 3);
+  const sem = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "3.00"), it("B", 1, "UN", "5.50", "5.50")], { total: 22.5 }));
+  assert.equal(sem.classe, "consistente", "sem os totais de produtos e descontos, vale a soma dos itens");
+  const maior = N.nfVeredito(NOTA([it("A", 1, "UN", "4.00", "4.00", "5.00")], { produtos: 4, descontos: 5, total: 0 }));
+  assert.equal(maior.classe, "divergente"); assert.ok(cods(maior).includes("item_desconto"));
+  const soma = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "3.00")], { produtos: 20, descontos: 1, total: 19 }));
+  assert.equal(soma.classe, "divergente"); assert.ok(cods(soma).includes("soma_descontos"));
+});
+test("produto pesado com três casas: quantidade × unitário confere; total trocado é divergência do item", () => {
+  const ok = N.nfVeredito(NOTA([it("BANANA", "0.734", "KG", "6.99", "5.13"), it("QUEIJO", "0.333", "KG", "9.99", "3.32")], { produtos: 8.45, total: 8.45 }));
+  assert.equal(ok.classe, "consistente", "5,13066 arredonda; 3,32667 truncado em 3,32 cabe na tolerância de 1 centavo");
+  const errado = N.nfVeredito(NOTA([it("BANANA", "0.734", "KG", "6.99", "6.13")], { produtos: 6.13, total: 6.13 }));
+  assert.equal(errado.classe, "divergente"); assert.deepEqual(cods(errado), ["item_conta"]);
+  assert.equal(errado.soma.divergencias[0].item, 1); assert.equal(errado.soma.divergencias[0].diferenca, 1);
+  assert.match(errado.motivos[0].texto, /Item 1 \(BANANA\).*0,734 × R\$ 6,99 dá R\$ 5,13.*traz R\$ 6,13/);
+});
+test("combustível em litros: unitário com 4 casas (R$ 5,899) não perde o milésimo e a conta fecha com desconto", () => {
+  const n = NOTA([it("GASOLINA COMUM", "37.123", "LT", "5.8990", "218.99", "1.50")], { produtos: 218.99, descontos: 1.5, total: 217.49 });
+  assert.equal(n.itens[0].unitario, 5.899, "o normalizador mantém 4 casas");
+  assert.equal(n.itens[0].qtd_base.unidade, "l");
+  const v = N.nfVeredito(n); assert.equal(v.classe, "consistente"); assert.equal(v.diferenca, 0);
+  const errado = N.nfVeredito(NOTA([it("GASOLINA COMUM", "37.123", "LT", "5.8990", "228.99")], { produtos: 228.99, total: 228.99 }));
+  assert.equal(errado.classe, "divergente"); assert.ok(cods(errado).includes("item_conta"));
+});
+test("acréscimos e componentes fiscais: frete, outras, seguro, ST, FCP ST, IPI somam; ICMS desonerado subtrai", () => {
+  const itens = [it("A", 2, "UN", "10.00", "20.00"), it("B", 1, "UN", "30.00", "30.00")];
+  const val = { produtos: 50, descontos: 5, frete: 10, outras: 3, seguro: 2, st: 4.5, fcp_st: 0.5, ipi: 1.25, deson: 3, total: 63.25 };
+  const v = N.nfVeredito(NOTA(itens, val)); assert.equal(v.classe, "consistente"); assert.equal(v.soma.acrescimos, 21.25); assert.equal(v.soma.desonerado, 3); assert.equal(v.soma.total_calculado, 63.25);
+  assert.ok(!/não fecha/.test(NOTA(itens, val).avisos.join(" ")), "o aviso do normalizador também conhece os componentes");
+  const sem = N.nfVeredito(NOTA(itens, { ...val, total: 50 })); assert.equal(sem.classe, "divergente"); assert.equal(sem.diferenca, 13.25);
+  assert.equal(N.nfVeredito(NOTA(itens, { produtos: 50, frete: 8, total: 50 })).diferenca, 8, "frete que não está no total aparece como diferença");
+});
+test("XML lê os componentes do ICMSTot (seguro, ST, IPI, desonerado) e a conta fecha com eles", () => {
+  const xml = xmlNFCe().replace("<vTotTrib>9.50</vTotTrib><vNF>54.00</vNF>", "<vST>3.00</vST><vIPI>1.00</vIPI><vSeg>0.50</vSeg><vICMSDeson>0.50</vICMSDeson><vTotTrib>9.50</vTotTrib><vNF>58.00</vNF>");
+  const l = N.nfLerXML(xml); assert.deepEqual([l.valores.st, l.valores.ipi, l.valores.seguro, l.valores.deson], ["3.00", "1.00", "0.50", "0.50"]);
+  const v = N.nfVeredito(N.nfNormalizar(l)); assert.equal(v.classe, "consistente"); assert.equal(v.soma.total_calculado, 58);
+  assert.equal(N.nfVeredito(normXML(xmlNFCe())).soma.acrescimos, 0, "XML sem esses campos não muda");
+});
+test("um centavo é arredondamento aceito (com aviso); dois centavos ou mais é divergência com a diferença em reais", () => {
+  const itens = [it("A", 3, "UN", "4.00", "12.00")];
+  const um = N.nfVeredito(NOTA(itens, { produtos: 12, total: 12.01 }));
+  assert.equal(um.classe, "consistente"); assert.equal(um.soma.arredondamento, true); assert.equal(um.diferenca, -0.01); assert.match(um.avisos.join(" "), /arredondamento aceito/);
+  const um2 = N.nfVeredito(NOTA(itens, { produtos: 12, total: 11.99 })); assert.equal(um2.classe, "consistente"); assert.equal(um2.diferenca, 0.01);
+  const dois = N.nfVeredito(NOTA(itens, { produtos: 12, total: 12.02 }));
+  assert.equal(dois.classe, "divergente"); assert.equal(dois.diferenca, -0.02); assert.equal(dois.acao, "corrigir"); assert.equal(dois.gravar_validada, false);
+  assert.equal(dois.diferenca_texto, "R$ 0,02 a menos que o total fiscal.");
+  const grande = N.nfVeredito(NOTA(itens, { produtos: 12, total: 6 }));
+  assert.equal(grande.diferenca, 6); assert.equal(grande.diferenca_texto, "R$ 6,00 a mais que o total fiscal."); assert.match(grande.motivos[0].texto, /R\$ 6,00 a mais/);
+  assert.equal(N.nfVeredito(NOTA(itens, { produtos: 12, total: 12 })).soma.arredondamento, false);
+});
+test("soma dos itens diferente do total de produtos declarado é divergência própria", () => {
+  const v = N.nfVeredito(NOTA([it("A", 1, "UN", "10.00", "10.00"), it("B", 1, "UN", "5.00", "5.00")], { produtos: 20, total: 15 }));
+  assert.equal(v.classe, "divergente"); assert.deepEqual(cods(v), ["soma_produtos"]); assert.equal(v.soma.divergencias[0].diferenca, -5);
+});
+test("baixa confiança: falta quantidade/valor do item, total ausente, nota sem itens ou chave inválida pedem nova leitura", () => {
+  const semQtd = N.nfVeredito(NOTA([it("A", null, "UN", "10.00", "10.00")], { total: 10 }));
+  assert.equal(semQtd.classe, "baixa_confianca"); assert.equal(semQtd.acao, "nova_leitura"); assert.deepEqual(cods(semQtd), ["item_incompleto"]); assert.equal(semQtd.gravar_validada, false);
+  assert.equal(N.nfVeredito(NOTA([it("A", 1, "UN", "10.00", null)], { total: 10 })).classe, "baixa_confianca");
+  assert.deepEqual(cods(N.nfVeredito(NOTA([it("A", 1, "UN", "10.00", "10.00")], {}))), ["sem_total"]);
+  assert.deepEqual(cods(N.nfVeredito(NOTA([], { total: 10 }))), ["sem_itens"]);
+  const chave = N.nfVeredito(NOTA([it("A", 1, "UN", "10.00", "10.00")], { total: 10 }, { chave: K65.slice(0, 43) + "9" }));
+  assert.equal(chave.classe, "baixa_confianca"); assert.deepEqual(cods(chave), ["chave_invalida"]);
+  assert.equal(N.nfVeredito(null).classe, "baixa_confianca", "entrada vazia nunca vira consistente");
+});
+test("foto ou PDF: só vale com a confiança da leitura informada e no mínimo 0,9; baixa confiança vem antes da divergência", () => {
+  const foto = (v) => NOTA([it("A", 2, "UN", "5.00", "10.00")], v || { produtos: 10, total: 10 }, { formato: "imagem" });
+  assert.equal(N.nfVeredito(foto()).classe, "baixa_confianca"); assert.deepEqual(cods(N.nfVeredito(foto())), ["confianca_ausente"]);
+  const b = N.nfVeredito(foto(), { confianca: 0.62 }); assert.deepEqual(cods(b), ["confianca_baixa"]); assert.match(b.motivos[0].texto, /62%.*90%/);
+  assert.equal(N.nfVeredito(foto(), { confianca: 0.95 }).classe, "consistente");
+  assert.equal(N.nfVeredito(foto(), { confianca: 0.9 }).classe, "consistente", "o mínimo é inclusivo");
+  assert.equal(N.nfVeredito(foto(), { confianca: 0.85, minimo: 0.8 }).classe, "consistente");
+  const ambos = N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.5 });
+  assert.equal(ambos.classe, "baixa_confianca"); assert.deepEqual(cods(ambos), ["confianca_baixa", "total"]);
+  assert.equal(N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.97 }).classe, "divergente", "leitura confiável que não fecha é divergência real");
+  assert.equal(N.nfVeredito(normXML(xmlNFCe()), { confianca: 0.1 }).classe, "consistente", "XML não depende de confiança de leitura");
+});
+test("nfValidarSoma não altera a nota, usa só centavos inteiros e devolve a conta item a item", () => {
+  const n = NOTA([it("A", 3, "UN", "0.10", "0.30"), it("B", 3, "UN", "0.20", "0.60")], { produtos: 0.9, total: 0.9 }), copia = JSON.stringify(n);
+  const s = N.nfValidarSoma(n); assert.equal(JSON.stringify(n), copia);
+  assert.equal(s.ok, true); assert.equal(s.soma_itens, 0.9, "0,3 + 0,6 não gera 0,8999999999999999"); assert.equal(s.total_calculado, 0.9);
+  assert.deepEqual(s.itens.map((i) => [i.indice, i.ok, i.esperado, i.informado]), [[1, true, 0.3, 0.3], [2, true, 0.6, 0.6]]);
+  assert.equal(s.tolerancia, 0.01);
+  assert.equal(N.nfValidarSoma().ok, false);
+});
+
+// ---------- duplicidade ----------
+const NOTA_DUP = () => NOTA([it("A", 1, "UN", "54.00", "54.00")], { produtos: 54, total: 54 });
+const gravada = (o = {}) => ({ id: "n1", chave: K65, modelo: "65", serie: 2, numero: 678, emitente_cnpj: "11222333000181", data_emissao: "2026-10-20", valor_total: 54, sha256: "a".repeat(64), ...o });
+test("duplicidade entre notas: a mesma chave (mesmo formatada), o mesmo arquivo ou emitente+modelo+série+número é a mesma nota", () => {
+  const nota = NOTA_DUP();
+  const porChave = N.nfDuplicidade(nota, { notas: [gravada({ chave: K65.replace(/(.{4})/g, "$1 ") })] });
+  assert.equal(porChave.duplicada, true); assert.equal(porChave.acao, "ja_gravada"); assert.equal(porChave.achados[0].origem, "nota"); assert.equal(porChave.achados[0].nivel, "confirmada"); assert.match(porChave.achados[0].motivo, /chave/);
+  const porSha = N.nfDuplicidade(nota, { notas: [gravada({ chave: null, numero: 1, sha256: "B".repeat(64) })] }, { sha256: "b".repeat(64) });
+  assert.equal(porSha.duplicada, true); assert.match(porSha.achados[0].motivo, /SHA-256/);
+  const porNumero = N.nfDuplicidade(nota, { notas: [gravada({ chave: null, sha256: null })] });
+  assert.equal(porNumero.duplicada, true); assert.match(porNumero.achados[0].motivo, /emitente, modelo, série e número/);
+  assert.equal(N.nfDuplicidade(nota, { notas: [gravada({ chave: null, sha256: null, numero: 999 })] }).duplicada, false, "outro número: outra nota");
+  assert.equal(N.nfDuplicidade(nota, { notas: [gravada({ chave: null, sha256: null, modelo: "55" })] }).duplicada, false, "outro modelo: outra nota");
+  assert.equal(N.nfDuplicidade(nota, { notas: [gravada()] }, { ignorar_id: "n1" }).duplicada, false, "regravar a própria nota não é duplicidade");
+});
+test("mesma data, valor e emitente em outra nota é só 'possível': não bloqueia", () => {
+  const p = N.nfDuplicidade(NOTA_DUP(), { notas: [gravada({ chave: null, sha256: null, numero: 999, valor_total: 54.01 })] });
+  assert.equal(p.duplicada, false); assert.equal(p.possivel_duplicada, true); assert.equal(p.achados[0].nivel, "possivel"); assert.equal(p.acao, "gravar_nova");
+  assert.equal(N.nfDuplicidade(NOTA_DUP(), { notas: [gravada({ chave: null, sha256: null, numero: 999, valor_total: 54.5 })] }).possivel_duplicada, false);
+  assert.equal(N.nfDuplicidade(NOTA_DUP(), { notas: [gravada({ chave: null, sha256: null, numero: 999, emitente_cnpj: "45543915000181" })] }).possivel_duplicada, false);
+});
+test("compra online e Mercado: chave citada vincula; mesma data, valor e estabelecimento pede confirmação; nunca cria despesa", () => {
+  const nota = NOTA_DUP();
+  const c = N.nfDuplicidade(nota, { compras: [{ id: "c1", chave_nfe: K65, total_pago: 99, data: "2026-01-01", loja: "amazon" }] });
+  assert.equal(c.acao, "vincular"); assert.deepEqual(c.vinculo_sugerido, { modulo: "compras", id: "c1", nivel: "confirmada", motivo: "a compra online já cita esta nota fiscal" }); assert.equal(c.duplicada, false);
+  const m = N.nfDuplicidade(nota, { mercado: [{ id: "m1", data: "2026-10-20", total: 54, mercados: { nome: "Mercado Exemplo" } }] });
+  assert.equal(m.acao, "confirmar_vinculo"); assert.equal(m.vinculo_sugerido.modulo, "mercado"); assert.equal(m.vinculo_sugerido.nivel, "possivel");
+  const mc = N.nfDuplicidade(nota, { mercado: [{ id: "m2", chave: K65, data: "2026-10-01", total: 1, mercado: "Outro" }] });
+  assert.equal(mc.acao, "vincular"); assert.equal(mc.vinculo_sugerido.id, "m2");
+  const outroNome = N.nfDuplicidade(nota, { mercado: [{ id: "m3", data: "2026-10-20", total: 54, mercado: "Padaria Qualquer" }] });
+  assert.equal(outroNome.acao, "gravar_nova", "mesmo dia e valor, mas outro estabelecimento");
+  const diaDiferente = N.nfDuplicidade(nota, { mercado: [{ id: "m4", data: "2026-10-21", total: 54, mercado: "Mercado Exemplo" }] }); assert.equal(diaDiferente.acao, "gravar_nova");
+  const comp = N.nfDuplicidade(nota, { compras: [{ id: "c2", total_pago: 54, data: "2026-10-20", vendedor: "Mercado Exemplo Ltda" }] });
+  assert.equal(comp.acao, "confirmar_vinculo"); assert.equal(comp.vinculo_sugerido.modulo, "compras");
+  const ambos = N.nfDuplicidade(nota, { mercado: [{ id: "m1", data: "2026-10-20", total: 54, mercado: "Mercado Exemplo" }], compras: [{ id: "c1", chave_nfe: K65 }] });
+  assert.equal(ambos.vinculo_sugerido.modulo, "compras", "a confirmada vence a possível");
+  for (const r of [c, m, mc, outroNome, comp, ambos]) assert.equal(r.pode_criar_despesa, false);
+});
+test("despesa já lançada com a mesma data e valor impede segunda despesa; sem nada parecido grava como nova", () => {
+  const nota = NOTA_DUP();
+  const d = N.nfDuplicidade(nota, { despesas: [{ id: "d1", data: "2026-10-20", valor: 54, descricao: "Mercado Exemplo" }] });
+  assert.equal(d.tem_despesa, true); assert.equal(d.pode_criar_despesa, false); assert.equal(d.achados[0].origem, "despesa");
+  const livre = N.nfDuplicidade(nota, { notas: [gravada({ chave: null, sha256: null, numero: 5, data_emissao: "2026-09-01", valor_total: 10 })], compras: [], mercado: [], despesas: [{ id: "d2", data: "2026-10-20", valor: 70 }] });
+  assert.equal(livre.acao, "gravar_nova"); assert.equal(livre.tem_despesa, false); assert.deepEqual(livre.achados, []); assert.equal(livre.vinculo_sugerido, null); assert.equal(livre.pode_criar_despesa, false);
+  assert.equal(N.nfDuplicidade(nota).acao, "gravar_nova"); assert.equal(N.nfDuplicidade().acao, "gravar_nova");
+});
+test("o Lote 1.2 só exporta regras puras: nada de despesa, gravação ou rede na API", () => {
+  for (const f of ["nfValidarSoma", "nfVeredito", "nfDuplicidade"]) assert.equal(typeof N[f], "function", f);
+  assert.deepEqual(Object.keys(N).filter((k) => /^nf/.test(k) && /desp|lanc|credito|gravar_validada/i.test(k)), []);
+});
+
+// ---------- revisão final do Lote 1.2 ----------
+test("situação fiscal e conta são independentes: contingência/pendente consistentes são guardáveis como pendentes, nunca como validadas", () => {
+  const itens = [it("A", 1, "UN", "10.00", "10.00")];
+  const cont = N.nfVeredito(NOTA(itens, { total: 10 }, { chave: K65_CONT, numero: 679, tp_emis: 9, cStat: null, protocolo: null }));
+  assert.equal(cont.classe, "consistente", "a conta está certa"); assert.equal(cont.fiscal.situacao, "contingencia"); assert.equal(cont.fiscal.pendente, true); assert.equal(cont.fiscal.definitiva, false);
+  assert.equal(cont.acao, "gravar_pendente_fiscal"); assert.equal(cont.gravar_pendente, true); assert.equal(cont.gravar_validada, false); assert.equal(cont.pode_alimentar_financeiro, false);
+  assert.match(cont.avisos.join(" "), /contingência.*pendente de validação fiscal.*até a autorização/i); assert.deepEqual(cont.bloqueios, []);
+  const pend = N.nfVeredito(NOTA(itens, { total: 10 }, { cStat: null, protocolo: null }));
+  assert.equal(pend.fiscal.situacao, "pendente"); assert.equal(pend.acao, "gravar_pendente_fiscal"); assert.equal(pend.gravar_validada, false);
+  const aut = N.nfVeredito(NOTA(itens, { total: 10 }));
+  assert.equal(aut.fiscal.situacao, "autorizada"); assert.equal(aut.fiscal.definitiva, true); assert.equal(aut.acao, "gravar"); assert.equal(aut.gravar_validada, true); assert.equal(aut.pode_alimentar_financeiro, true); assert.equal(aut.gravar_pendente, false);
+  // o inverso: autorizada com a conta errada continua autorizada, mas não é validada
+  const errada = N.nfVeredito(NOTA(itens, { total: 99 }));
+  assert.equal(errada.fiscal.situacao, "autorizada"); assert.equal(errada.classe, "divergente"); assert.equal(errada.gravar_validada, false); assert.equal(errada.pode_alimentar_financeiro, false); assert.equal(errada.gravar_pendente, false);
+  // pendente com a conta errada não vira "gravar pendente"
+  const pErrada = N.nfVeredito(NOTA(itens, { total: 99 }, { cStat: null, protocolo: null })); assert.equal(pErrada.acao, "corrigir"); assert.equal(pErrada.gravar_pendente, false);
+  assert.equal(N.nfVeredito({ ...NOTA(itens, { total: 10 }), situacao: undefined }).fiscal.situacao, "pendente", "sem situação conhecida, nunca definitiva");
+});
+test("pendente é gravável sem ser conferida nem 'autorizada': nfParaGravar leva a situação e não confere sozinha", () => {
+  const lido = N.nfLerXML(xmlNFCe({ chave: K65_CONT, numero: 679, tpEmis: "9", prot: "" })), n = N.nfNormalizar(lido);
+  const g = N.nfParaGravar(lido, n, { id: "11111111-1111-4111-8111-111111111111", dono: "u", nome: "n.xml", mime: "text/xml", tamanho: 100, sha256: "c".repeat(64), conferir: false });
+  assert.equal(g.ok, true, g.erros.join(" ")); assert.equal(g.args.p_nota.situacao, "contingencia"); assert.equal(g.args.p_nota.protocolo, null); assert.equal(g.args.p_conferir, false);
+});
+test("nota cancelada ou rejeitada: bloqueada com motivo, auditoria preservada, nada de Financeiro (mesmo com a conta certa)", () => {
+  const itens = [it("A", 1, "UN", "10.00", "10.00")];
+  for (const [rot, extra] of [["cancelada", { cancelada: true }], ["rejeitada", { cStat: 204 }]]) {
+    const v = N.nfVeredito(NOTA(itens, { total: 10 }, extra));
+    assert.equal(v.classe, "consistente", rot + ": a conta continua sendo só a conta"); assert.equal(v.fiscal.situacao, rot); assert.equal(v.fiscal.bloqueada, true);
+    assert.equal(v.acao, "bloquear"); assert.equal(v.gravar_validada, false); assert.equal(v.gravar_pendente, false); assert.equal(v.pode_alimentar_financeiro, false);
+    assert.equal(v.bloqueios[0].codigo, "situacao_" + rot); assert.match(v.bloqueios[0].texto, /não vale como compra fiscal validada.*Financeiro.*nova leitura|não alimenta o Financeiro.*Refaça a leitura/);
+    assert.deepEqual(v.auditoria, { preservar_documento: true, registrar_tentativa: true });
+    assert.equal(N.nfVincular(NOTA(itens, { total: 10 }, extra), { modulo: "mercado", id: 1 }).ok, false, "nem vínculo");
+  }
+  assert.equal(N.nfVeredito(NOTA(itens, { total: 99 }, { cancelada: true })).acao, "bloquear", "o bloqueio vence a correção");
+});
+test("nenhum veredito deixa a nota alimentar o Financeiro sem ser consistente E autorizada", () => {
+  const itens = [it("A", 1, "UN", "10.00", "10.00")];
+  const casos = [[{ total: 10 }, {}, true], [{ total: 10 }, { cancelada: true }, false], [{ total: 10 }, { cStat: 204 }, false], [{ total: 10 }, { cStat: null, protocolo: null }, false], [{ total: 11 }, {}, false], [{}, {}, false], [{ total: 10 }, { chave: "123" }, false]];
+  for (const [val, extra, esperado] of casos) { const v = N.nfVeredito(NOTA(itens, val, extra)); assert.equal(v.pode_alimentar_financeiro, esperado, JSON.stringify([val, extra])); assert.equal(v.pode_alimentar_financeiro, v.gravar_validada); }
+  assert.equal(N.nfVeredito(NOTA(itens, { total: 10 }, { formato: "imagem" })).pode_alimentar_financeiro, false, "foto sem confiança informada");
+});
+test("desconto não é subtraído duas vezes: total do item é bruto; item já líquido não fecha e é apontado", () => {
+  const bruto = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "5.00")], { produtos: 20, descontos: 5, total: 15 }));
+  assert.equal(bruto.classe, "consistente"); assert.equal(bruto.soma.total_calculado, 15);
+  const liquido = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "15.00", "5.00")], { produtos: 15, descontos: 5, total: 10 }));
+  assert.equal(liquido.classe, "divergente"); assert.ok(cods(liquido).includes("item_conta"), "20 ≠ 15: o item já vinha líquido");
+  const dupla = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "5.00")], { produtos: 20, descontos: 5, total: 10 }));
+  assert.equal(dupla.diferenca, 5); assert.equal(dupla.classe, "divergente", "desconto contado duas vezes no total da nota aparece como R$ 5,00");
+  const doCabecalho = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00")], { produtos: 20, descontos: 5, total: 15 }));
+  assert.equal(doCabecalho.classe, "consistente", "desconto só no cabeçalho (sem desconto por item) vale uma vez");
+});
+test("item sem preço unitário é somado, mas avisa que a conta do item não foi conferida; item incompleto nunca é ignorado", () => {
+  const v = N.nfVeredito(NOTA([it("A", 2, "UN", null, "20.00")], { total: 20 }));
+  assert.equal(v.classe, "consistente"); assert.match(v.avisos.join(" "), /Item 1 \(A\): sem preço unitário/); assert.equal(v.soma.itens[0].verificado, false);
+  const inc = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00"), it("B", null, "UN", "5.00", "5.00")], { produtos: 25, total: 25 }));
+  assert.equal(inc.classe, "baixa_confianca"); assert.deepEqual(inc.soma.divergencias, [], "sem somar parcial: não inventa divergência"); assert.equal(inc.soma.total_calculado, null);
+});
+test("nota legítima com ST, IPI e FCP ST (NF-e modelo 55) não é recusada; sem o componente no total ela divergiria", () => {
+  const itens = [it("PECA", 10, "UN", "100.0000", "1000.00"), it("PARAFUSO", 100, "UN", "0.5000", "50.00")];
+  const val = { produtos: 1050, frete: 20, seguro: 5, st: 120.55, fcp_st: 2.4, ipi: 52.5, ii: 0, outras: 1.5, total: 1251.95 };
+  assert.equal(N.nfVeredito(NOTA(itens, val, { modelo: "55", chave: K55, serie: 1, numero: 12345 })).classe, "consistente");
+  const soST = N.nfVeredito(NOTA(itens, { ...val, st: 0, fcp_st: 0, ipi: 0 }));
+  assert.equal(soST.classe, "divergente"); assert.equal(soST.diferenca, -175.45, "o que falta é exatamente ST + FCP ST + IPI");
+  assert.equal(N.nfVeredito(NOTA(itens, { ...val, ipi_devol: 10, total: 1261.95 })).classe, "consistente", "IPI devolvido soma");
+  assert.equal(N.nfVeredito(NOTA(itens, { produtos: 1050, ii: 30, total: 1080 })).classe, "consistente", "imposto de importação soma");
+});
+test("atualização posterior da situação: pendente/contingência → autorizada/cancelada mantém a mesma nota; autorizada só pode ser cancelada; cancelada é definitiva", () => {
+  const nota = (extra) => NOTA([it("A", 1, "UN", "54.00", "54.00")], { produtos: 54, total: 54 }, extra);
+  const guardada = (situacao) => gravada({ situacao });
+  const a = N.nfDuplicidade(nota(), { notas: [guardada("contingencia")] });
+  assert.equal(a.duplicada, true); assert.equal(a.acao, "atualizar_situacao"); assert.deepEqual(a.atualizar_situacao, { id: "n1", de: "contingencia", para: "autorizada" });
+  assert.deepEqual(N.nfDuplicidade(nota({ cancelada: true }), { notas: [guardada("pendente")] }).atualizar_situacao, { id: "n1", de: "pendente", para: "cancelada" });
+  assert.deepEqual(N.nfDuplicidade(nota({ cancelada: true }), { notas: [guardada("autorizada")] }).atualizar_situacao, { id: "n1", de: "autorizada", para: "cancelada" });
+  assert.equal(N.nfDuplicidade(nota(), { notas: [guardada("autorizada")] }).acao, "ja_gravada", "nada mudou");
+  assert.equal(N.nfDuplicidade(nota(), { notas: [guardada("cancelada")] }).acao, "ja_gravada", "cancelada nunca volta");
+  assert.equal(N.nfDuplicidade(nota({ cStat: null, protocolo: null }), { notas: [guardada("autorizada")] }).acao, "ja_gravada", "autorizada não volta a pendente");
+  assert.equal(N.nfDuplicidade(nota(), { notas: [gravada()] }).acao, "ja_gravada", "sem situação guardada, não presume transição");
+  assert.equal(N.nfDuplicidade(nota(), { notas: [] }).atualizar_situacao, null);
+});
+test("duplicidade sem falso positivo: mesmo valor no mesmo dia em outro estabelecimento, outra data ou outro valor não aponta nada", () => {
+  const nota = NOTA([it("A", 1, "UN", "54.00", "54.00")], { produtos: 54, total: 54 });
+  const outros = { notas: [gravada({ chave: null, sha256: null, numero: 7, emitente_cnpj: "45543915000181" })], compras: [{ id: "c", total_pago: 54, data: "2026-10-20", vendedor: "Livraria Tal" }],
+    mercado: [{ id: "m", data: "2026-10-20", total: 54.02, mercado: "Mercado Exemplo" }, { id: "m2", data: "2026-10-19", total: 54, mercado: "Mercado Exemplo" }], despesas: [{ id: "d", data: "2026-10-20", valor: 53.9, descricao: "Mercado Exemplo" }] };
+  const r = N.nfDuplicidade(nota, outros); assert.deepEqual(r.achados, []); assert.equal(r.acao, "gravar_nova");
+  const semNome = N.nfDuplicidade({ ...nota, emitente: { nome: null, cnpj: null } }, { mercado: [{ id: "m", data: "2026-10-20", total: 54, mercado: "Qualquer" }] });
+  assert.deepEqual(semNome.achados, [], "sem nome do emitente não se adivinha");
+});

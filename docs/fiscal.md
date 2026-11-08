@@ -1,6 +1,6 @@
 # Central de Notas Fiscais
 
-Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos).
+Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.mjs`. O banco (032) foi aplicado em produção em 06/11/2026 e conferido (ver docs/compras.md, "Aplicação em produção"). Lote A (07/11/2026): a tela `#fiscal` lê XML. Lote B: a gravação segura (migration 034, **aplicada em produção em 07/11/2026** e publicada no site na versão `2026-11-07.1`; seção abaixo). Sem OCR (fotos e PDF ainda não são lidos). Lote 1.2 (08/11/2026, só código local): conferência aritmética e duplicidade no núcleo (seção abaixo).
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
@@ -43,6 +43,64 @@ campo (o que não está na lista descarta). `nfTemDadoPessoal` audita o resultad
 
 Recusa nota cancelada ou rejeitada e vínculo repetido; avisa para contingência/pendente, chave inválida, nota já ligada a outro registro do
 módulo e valor do registro diferente do da nota.
+
+## Lote 1.2 · conferência aritmética e prevenção de duplicidade (08/11/2026) — só código local
+
+Três regras puras em `nucleo.js` (`NUCLEO.nfValidarSoma`, `nfVeredito`, `nfDuplicidade`), testadas em `tests/fiscal.test.mjs`. **Nada é gravado, enviado ou
+cobrado**, e nenhuma tela usa ainda: a ligação à tela e à gravação é o próximo lote. Tudo em centavos inteiros; tolerância de arredondamento de **1 centavo**.
+
+### `nfValidarSoma(nota)` — a conta
+Recebe a nota de `nfNormalizar`. Confere (1) cada item: quantidade × unitário = total (folga de 1 centavo mais 0,005 por unidade de quantidade, por causa do
+unitário de 4 casas); o desconto do item não passa do item; (2) soma dos itens × total de produtos declarado; (3) soma dos descontos dos itens × desconto
+total; (4) **soma dos itens − descontos + frete + outras + seguro + ST + FCP ST + IPI + II + IPI devolvido − ICMS desonerado = total fiscal** (`vNF`).
+Devolve `diferenca` em reais (**calculado − fiscal**: positivo = os itens somam mais que a nota), a conta item a item, `lacunas` (falta dado para
+conferir) e `divergencias` (a conta não fecha). Com lacuna a soma não é comparada (não dá para somar item que não foi lido).
+`nfNormalizar` passou a manter o unitário com **4 casas** (antes arredondava em 2: combustível a R$ 5,899 virava 5,90) e a levar os componentes acima;
+`nfLerXML` os lê de `ICMSTot` (`vSeg`, `vST`, `vFCPST`, `vIPI`, `vII`, `vIPIDevol`, `vICMSDeson`). `nfParaGravar` não usa esses campos novos (nada muda na RPC).
+
+### `nfVeredito(nota, {confianca, minimo})` — conta e situação fiscal são independentes
+Duas perguntas separadas: **a conta fecha?** (`classe`) e **a nota vale fiscalmente?** (`fiscal`). Valores certos não tornam a nota autorizada, e nota autorizada pode ter a conta errada.
+
+| `classe` (só a conta) | Quando |
+|---|---|
+| `consistente` | a conta fecha (até 1 centavo; 1 centavo vira aviso de arredondamento) |
+| `divergente` | a conta não fecha ou o desconto passa do item |
+| `baixa_confianca` | falta quantidade/total de item, sem itens, sem total, chave ausente/inválida, ou foto/PDF sem confiança informada ou abaixo de 0,9 |
+
+Baixa confiança vem antes de divergência (leitura incerta explica a conta errada). XML não depende de `confianca`.
+
+| `fiscal.situacao` | Efeito (decisão do dono, 08/11/2026) |
+|---|---|
+| `autorizada` | definitiva. Com conta consistente: `acao: "gravar"`, `gravar_validada`, `pode_alimentar_financeiro` |
+| `contingencia`, `pendente` | **não descarta nem bloqueia**: com conta consistente, `acao: "gravar_pendente_fiscal"` (`gravar_pendente`), com aviso. **Não** é validada nem alimenta o Financeiro até a autorização |
+| `cancelada`, `rejeitada` | **bloqueada** (`acao: "bloquear"`, `bloqueios[]` com o motivo e a orientação de nova leitura/outra tratativa). Nunca validada, nunca Financeiro, mesmo com a conta certa. `auditoria`: documento preservado e tentativa a registrar |
+
+`gravar_validada = pode_alimentar_financeiro = conta consistente E nota autorizada`. Valor a pagar diferente do total só avisa. `diferenca_texto` vem pronto ("R$ 6,00 a mais que o total fiscal.").
+Uma compra real com nota cancelada/rejeitada pode ser registrada por outra via, mas nunca como compra fiscal validada.
+
+### `nfDuplicidade(nota, {notas, compras, mercado, despesas}, {sha256, ignorar_id})` — nunca duas despesas
+Linhas como o banco devolve: notas (`id, chave, modelo, serie, numero, emitente_cnpj, data_emissao, valor_total, sha256, situacao`), compras online (`id, chave_nfe, data,
+total_pago, loja, vendedor`), Mercado (`id, chave, data, total, mercado` ou `mercados.nome`), despesas (`id, data, valor, descricao`).
+- **Confirmada** (mesma nota): mesma chave (com ou sem espaços), mesmo SHA-256, ou emitente + modelo + série + número; compra/Mercado que já cita a chave.
+- **Possível**: mesma data e valor a 1 centavo (contra total fiscal ou valor a pagar) e mesmo estabelecimento (conjunto de palavras sem LTDA/SA/ME). Só pede confirmação, nunca bloqueia. Sem nome do emitente não se adivinha.
+- `acao`: `atualizar_situacao` (mesma nota guardada como pendente/contingência e agora com situação definida, ou autorizada que foi cancelada; devolve `{id, de, para}` e o histórico fica), `ja_gravada`, `vincular` (compra confirmada), `confirmar_vinculo` (só possível) ou `gravar_nova`. Transições: pendente/contingência → autorizada, cancelada ou rejeitada; autorizada → cancelada; cancelada e rejeitada são definitivas.
+- `pode_criar_despesa` é **sempre falso**: a nota continua sem criar despesa; o vínculo com compra existente é decisão do lote de integração.
+
+### Revisão técnica do Lote 1.2 (08/11/2026)
+- **ST, IPI, FCP ST, seguro, II, IPI devolvido, ICMS desonerado**: seguem a fórmula do `vNF` da NF-e; nota legítima com eles fecha (teste com NF-e 55). Sem o componente no total a diferença é exatamente o que falta.
+- **Desconto uma vez só**: `total` do item é o valor bruto (`vProd`); o desconto sai uma vez (do cabeçalho, ou da soma dos itens se o cabeçalho não o traz). Item que já vem líquido não fecha em quantidade × unitário e é apontado.
+- **Quantidade × unitário**: folga de 1 centavo (arredondar ou truncar) mais 0,005 por unidade de quantidade (o unitário tem 4 casas; é a folga matemática de arredondar em 4 casas, e fica maior em quantidades grandes).
+- **Item incompleto** (sem quantidade ou total) é `baixa_confianca` e a soma não é comparada (sem inventar divergência). Item sem unitário é somado, com aviso de que a conta do item não foi conferida.
+- **Limites conhecidos**: chave ilegível numa foto (caso real da contingência) cai em `baixa_confianca` — não dá para identificar nem evitar duplicidade sem ela; a conta de uma foto depende da leitura do item estar bruta (sem desconto embutido); valores de entrada negativos já chegam sem sinal (`coNum`).
+- **Não feito (depende de lotes futuros)**: histórico de mudanças de status em tabela própria (hoje a atualização de situação é regra do banco 034, sem trilha de versões); registro persistente da tentativa bloqueada (o veredito só indica `registrar_tentativa`); ligação à tela e ao Financeiro, que **precisa exigir** `fiscal.situacao = autorizada` e `classe = consistente`.
+
+### Planejamento (Prioridade 1 — Central Fiscal + Mercado + Financeiro)
+**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1 em produção; **Lote 1.2 em código local, testado, sem commit**: `nfValidarSoma`, `nfVeredito`, `nfDuplicidade`
+(situação fiscal separada da conta; pendente guardável; cancelada/rejeitada bloqueada; atualização de situação), unitário com 4 casas e componentes fiscais no normalizador/leitor de XML;
+25 testes novos em `tests/fiscal.test.mjs` (41 no arquivo). Suíte completa local com PGlite 0.5.10 (08/11/2026): 889 testes, 878 aprovados, 0 falhas, 11 ignorados (7 precisam do Playwright, que roda no GitHub; 4 são guardas "só no GitHub" que checam a instalação do PGlite/navegador). Sem o PGlite eram 813 aprovados e 76 ignorados. No computador: instalar o PGlite fora do repositório (`npm install --no-save --no-package-lock @electric-sql/pglite@0.5.10`) e apontar `RAC_PGLITE` para o **arquivo** `.../@electric-sql/pglite/dist/index.js` (apontar para a pasta falha com ERR_UNSUPPORTED_DIR_IMPORT e os testes de banco voltam a ser ignorados).
+**EM ANDAMENTO** — Lote 1.2 aguardando autorização do dono para commit (o push é dele). Pendências gerais: limpeza do Storage de testes do Lote 5.1; confirmar a liberação de `abastecimento.interpretar` em produção; rodar a suíte completa onde há PGlite.
+**FUTURO** (sem antecipar) — validação na tela `#fiscal` (mostrar classe, situação, diferença e bloqueio; gravar pendente); gravação com bloqueio de nota divergente/baixa confiança e trilha de tentativas e de status;
+OCR + IA para foto/PDF (mascarando CPF); integração Fiscal → Mercado/Financeiro (vincular compra existente, criar só se não existir, idempotente, só nota autorizada e consistente); IA real em `mercado.nota`, `alimentacao.pedido`, `esportes.*`.
 
 ## Ainda depende de
 

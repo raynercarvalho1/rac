@@ -1965,6 +1965,8 @@
   var NF_SITUACOES={autorizada:"Autorizada",contingencia:"Contingência",pendente:"Pendente",rejeitada:"Rejeitada",cancelada:"Cancelada"};
   var NF_BANDEIRAS={"01":"Visa","02":"Mastercard","03":"American Express","04":"Sorocred","05":"Diners","06":"Elo","07":"Hipercard","08":"Aura","09":"Cabal","99":"Outra"};
   var NF_MODULOS={compras:"Compras online",mercado:"Mercado",alimentacao:"Alimentação",veiculos:"Veículos/Abastecimento"};
+  /* componentes do total da nota além de produtos, descontos, frete e outras: seguro, ST, FCP ST, IPI, II, IPI devolvido (somam) e ICMS desonerado (subtrai) */
+  var NF_COMP=["seguro","st","fcp_st","ipi","ii","ipi_devol","deson"];
   var NF_UNID={un:["un","und","unid","unidade","unidades","u","unit"],pc:["pc","pca","peca","pecas"],cx:["cx","caixa","caixas"],pct:["pct","pacote","pacotes"],par:["par","pares"],
     kg:["kg","kgs","kilo","kilos","quilo","quilos","quilograma","quilogramas"],g:["g","gr","grs","grama","gramas"],l:["l","lt","lts","litro","litros"],ml:["ml","mililitro","mililitros"],m:["m","metro","metros"]};
   var NF_FAMILIA={un:"contagem",pc:"contagem",cx:"contagem",pct:"contagem",par:"contagem",kg:"massa",g:"massa",l:"volume",ml:"volume",m:"comprimento"};
@@ -2019,13 +2021,13 @@
       val=nfValidarChave(d.chave,{cnpj:cnpj||null,modelo:d.modelo,serie:d.serie,numero:d.numero,mes:(nfData(d.data_emissao)||"").slice(0,7)||null,uf:em.uf}),camp=val.campos,
       modelo=String(d.modelo||(camp&&camp.modelo)||"");if(!NF_MODELOS[modelo]){av.push("Modelo da nota não identificado.");modelo=null}
     var formato=NF_FORMATOS[d.formato]?d.formato:"imagem",din=function(x){return x==null||x===""?null:coNum(x)};
-    var itens=(d.itens||[]).map(function(i){i=i||{};var u=nfUnidade(i.unidade),it={descricao:String(i.descricao||"").trim().slice(0,200),codigo:i.codigo!=null&&i.codigo!==""?String(i.codigo).slice(0,60):null,qtd:nfDec(i.qtd),unidade:u,unitario:din(i.unitario),total:din(i.total),desconto:din(i.desconto)||0};
+    var itens=(d.itens||[]).map(function(i){i=i||{};var u=nfUnidade(i.unidade),it={descricao:String(i.descricao||"").trim().slice(0,200),codigo:i.codigo!=null&&i.codigo!==""?String(i.codigo).slice(0,60):null,qtd:nfDec(i.qtd),unidade:u,unitario:i.unitario==null||i.unitario===""?null:(nfDec(i.unitario)==null?null:Math.abs(nfDec(i.unitario))),total:din(i.total),desconto:din(i.desconto)||0};
       if(it.qtd==null)av.push("Item sem quantidade: "+(it.descricao||"sem descrição")+".");if(!u.reconhecida&&u.cod)av.push("Unidade não reconhecida: "+u.original+".");it.qtd_base=nfQtdBase(it);return it});
     var pags=(d.pagamentos||[]).map(function(p){p=p||{};var cod=p.codigo!=null?String(p.codigo):null,fin=nfDigitos(p.final);
       return {codigo:cod,forma:CO_TPAG[cod]||(p.forma?String(p.forma).slice(0,40):null),valor:din(p.valor),bandeira:NF_BANDEIRAS[p.bandeira_codigo]||(p.bandeira?String(p.bandeira).slice(0,30):null),final:fin.length>=4?fin.slice(-4):null}});
     var troco=din(d.troco)||0,somaPag=pags.length&&pags.every(function(p){return p.valor!=null})?amR2(pags.reduce(function(s,p){return s+p.valor},0)-troco):null;
-    var V={produtos:din(v0.produtos),descontos:din(v0.descontos),frete:din(v0.frete),outras:din(v0.outras),impostos:din(v0.impostos),total:din(v0.total),a_pagar:din(v0.a_pagar)};if(V.a_pagar==null)V.a_pagar=somaPag;
-    if(V.produtos!=null&&V.total!=null){var calc=amR2(V.produtos-(V.descontos||0)+(V.frete||0)+(V.outras||0));if(Math.abs(calc-V.total)>0.02)av.push("A conta dos valores da nota não fecha (produtos − descontos + frete + outras = R$ "+calc.toFixed(2).replace(".",",")+"; total R$ "+V.total.toFixed(2).replace(".",",")+"). Impostos como IPI e ST podem explicar.")}
+    var V={produtos:din(v0.produtos),descontos:din(v0.descontos),frete:din(v0.frete),outras:din(v0.outras),impostos:din(v0.impostos),total:din(v0.total),a_pagar:din(v0.a_pagar)};NF_COMP.forEach(function(k){var x=din(v0[k]);if(x!=null)V[k]=x});if(V.a_pagar==null)V.a_pagar=somaPag;
+    if(V.produtos!=null&&V.total!=null){var calc=amR2(V.produtos-(V.descontos||0)-(V.deson||0)+(V.frete||0)+(V.outras||0)+(V.seguro||0)+(V.st||0)+(V.fcp_st||0)+(V.ipi||0)+(V.ii||0)+(V.ipi_devol||0));if(Math.abs(calc-V.total)>0.02)av.push("A conta dos valores da nota não fecha (produtos − descontos + frete + outras = R$ "+calc.toFixed(2).replace(".",",")+"; total R$ "+V.total.toFixed(2).replace(".",",")+"). Impostos como IPI e ST podem explicar.")}
     var sit=nfSituacao({cStat:d.cStat,protocolo:d.protocolo,tp_emis:d.tp_emis!=null?d.tp_emis:camp&&camp.tp_emis,cancelada:d.cancelada,contingencia:d.contingencia,situacao_texto:d.situacao_texto});
     var difPag=V.a_pagar!=null&&V.total!=null?amR2(V.a_pagar-V.total):null;if(difPag!=null&&Math.abs(difPag)>0.02)av.push("O valor a pagar difere do total da nota.");
     if(!val.ok)av.push("A chave de acesso não passou na validação.");
@@ -2040,7 +2042,7 @@
     var canc=coTags(x,"retEvento").some(function(r){var cs=+coTag(r,"cStat");return coTag(r,"tpEvento")==="110111"&&(cs===135||cs===155||cs===151)});
     return {formato:"xml",chave:(id&&id[1])||coTag(prot,"chNFe"),modelo:coTag(ide,"mod"),serie:coTag(ide,"serie"),numero:coTag(ide,"nNF"),data_emissao:(coTag(ide,"dhEmi")||coTag(ide,"dEmi")||"").slice(0,10)||null,tp_emis:coTag(ide,"tpEmis"),
       emitente:{nome:coTag(emit,"xNome"),cnpj:coTag(emit,"CNPJ"),uf:coTag(ender,"UF")},cStat:coTag(prot,"cStat"),protocolo:coTag(prot,"nProt"),cancelada:canc,
-      valores:{produtos:coTag(tot,"vProd"),descontos:coTag(tot,"vDesc"),frete:coTag(tot,"vFrete"),outras:coTag(tot,"vOutro"),impostos:coTag(tot,"vTotTrib"),total:coTag(tot,"vNF")},troco:coTag(pag,"vTroco"),
+      valores:{produtos:coTag(tot,"vProd"),descontos:coTag(tot,"vDesc"),frete:coTag(tot,"vFrete"),outras:coTag(tot,"vOutro"),impostos:coTag(tot,"vTotTrib"),total:coTag(tot,"vNF"),seguro:coTag(tot,"vSeg"),st:coTag(tot,"vST"),fcp_st:coTag(tot,"vFCPST"),ipi:coTag(tot,"vIPI"),ii:coTag(tot,"vII"),ipi_devol:coTag(tot,"vIPIDevol"),deson:coTag(tot,"vICMSDeson")},troco:coTag(pag,"vTroco"),
       pagamentos:coTags(pag,"detPag").map(function(p){return {codigo:coTag(p,"tPag"),valor:coTag(p,"vPag"),bandeira_codigo:coTag(p,"tBand")}}),
       itens:coTags(x,"det").map(function(dt){var p=coTag(dt,"prod")||"";return {descricao:coTag(p,"xProd"),codigo:coTag(p,"cProd"),qtd:coTag(p,"qCom"),unidade:coTag(p,"uCom"),unitario:coTag(p,"vUnCom"),total:coTag(p,"vProd"),desconto:coTag(p,"vDesc")}})}}
   /* auditoria de privacidade do objeto normalizado: chave de campo de consumidor, CPF formatado ou sequência de 11 dígitos */
@@ -2109,6 +2111,92 @@
     if(dif!=null&&Math.abs(dif)>0.02)a.push("O valor do registro difere do valor da nota em R$ "+Math.abs(dif).toFixed(2).replace(".",",")+".");
     if(e.length)return {ok:false,erros:e,avisos:a,vinculo:null};
     return {ok:true,erros:[],avisos:a,vinculo:{chave:nota.chave,modulo:alvo.modulo,registro_id:alvo.id,tipo:"conferencia",confere:dif==null?null:Math.abs(dif)<=0.02,diferenca:dif,gera_despesa:false}}}
+  /* ===== Lote 1.2: conferência aritmética e prevenção de duplicidade da nota (só regras puras; não grava, não envia, não cria despesa) =====
+     Tudo em centavos inteiros. Tolerância de arredondamento: 1 centavo (NF_TOL_CENT). Confiança mínima de uma leitura de foto/PDF: 0,9. */
+  var NF_TOL_CENT=1,NF_CONF_MIN=0.9,NF_TRANSICOES={pendente:["autorizada","cancelada","rejeitada"],contingencia:["autorizada","cancelada","rejeitada"],autorizada:["cancelada"]};
+  /* palavras do nome sem termos societários (LTDA, SA, ME…), para comparar "Mercado Exemplo Ltda" com "Mercado Exemplo" */
+  function nfPalavras(k){return String(k||"").split(" ").filter(function(w){return w&&!/^(ltda|sa|s|a|me|epp|eireli|cia|comercio|de|da|do|e)$/.test(w)})}
+  function nfCent(x){if(x==null||x==="")return null;var n=+x;return isFinite(n)?Math.round(n*100):null}
+  function nfReais(c){return "R$ "+(Math.abs(c)/100).toFixed(2).replace(".",",")}
+  /* confere a conta da nota normalizada (nfNormalizar): cada item (quantidade × unitário = total; desconto não passa do item), a soma dos itens
+     contra o total de produtos e os descontos declarados, e (soma dos itens − descontos + frete + outras + seguro + ST + IPI + II … − ICMS desonerado)
+     contra o total fiscal. `lacunas` = falta dado para conferir (baixa confiança); `divergencias` = a conta não fecha.
+     diferenca (reais) = calculado − total fiscal: positivo, os itens somam mais que a nota. */
+  function nfValidarSoma(nota){nota=nota||{};var V=nota.valores||{},its=Array.isArray(nota.itens)?nota.itens:[],lac=[],div=[],av=[],itens=[],bruta=0,descIt=0;
+    function L(c,t,k){lac.push({codigo:c,texto:t,item:k||null})}
+    function D(c,t,dif,k){div.push({codigo:c,texto:t,diferenca:dif==null?null:dif/100,item:k||null})}
+    if(!its.length)L("sem_itens","A nota não tem itens para conferir.");
+    its.forEach(function(i,k){i=i||{};var n=k+1,rot="Item "+n+(i.descricao?" ("+i.descricao+")":""),tot=nfCent(i.total),desc=nfCent(i.desconto)||0,q=+i.qtd,un=i.unitario==null||i.unitario===""?null:+i.unitario,r={indice:n,descricao:i.descricao||"",verificado:false,ok:true,esperado:null,informado:tot==null?null:tot/100,diferenca:null,desconto:desc/100};
+      if(!(q>0)||tot==null){r.ok=false;L("item_incompleto",rot+": falta "+(!(q>0)?"a quantidade":"o valor total")+".",n);itens.push(r);return}
+      if(un==null||!isFinite(un))av.push(rot+": sem preço unitário; a conta do item não foi conferida.");
+      if(un!=null&&isFinite(un)){var esp=Math.round(q*un*100);r.verificado=true;r.esperado=esp/100;
+        /* o total da nota é arredondado (ou truncado) em centavos; o unitário tem 4 casas, o que deixa uma folga proporcional à quantidade */
+        if(Math.abs(tot-q*un*100)>NF_TOL_CENT+q*0.005+1e-6){r.ok=false;r.diferenca=(tot-esp)/100;D("item_conta",rot+": "+String(q).replace(".",",")+" × "+nfReais(Math.round(un*100))+" dá "+nfReais(esp)+", mas a nota traz "+nfReais(tot)+".",tot-esp,n)}}
+      if(desc>tot){r.ok=false;D("item_desconto",rot+": o desconto ("+nfReais(desc)+") é maior que o valor do item ("+nfReais(tot)+").",desc-tot,n)}
+      bruta+=tot;descIt+=desc;itens.push(r)});
+    var prodD=nfCent(V.produtos),descD=nfCent(V.descontos),totD=nfCent(V.total),soma=!lac.length;
+    if(soma&&prodD!=null&&Math.abs(bruta-prodD)>NF_TOL_CENT)D("soma_produtos","A soma dos itens ("+nfReais(bruta)+") difere do total de produtos da nota ("+nfReais(prodD)+").",bruta-prodD);
+    if(soma&&descD!=null&&descIt>0&&Math.abs(descD-descIt)>NF_TOL_CENT)D("soma_descontos","A soma dos descontos dos itens ("+nfReais(descIt)+") difere do desconto total da nota ("+nfReais(descD)+").",descIt-descD);
+    var desc=descD!=null?descD:descIt,mais=0,menos=nfCent(V.deson)||0;
+    ["frete","outras"].concat(NF_COMP.filter(function(k){return k!=="deson"})).forEach(function(k){mais+=nfCent(V[k])||0});
+    var calc=bruta-desc+mais-menos,dif=null,arred=false;
+    if(totD==null)L("sem_total","A nota não tem valor total para comparar.");
+    else if(soma){dif=calc-totD;if(Math.abs(dif)>NF_TOL_CENT)D("total","A conta dos itens ("+nfReais(calc)+") difere do total fiscal ("+nfReais(totD)+") em "+nfReais(dif)+" "+(dif>0?"a mais":"a menos")+".",dif);
+      else if(dif!==0){arred=true;av.push("Diferença de "+nfReais(dif)+" entre a conta dos itens e o total fiscal: arredondamento aceito.")}}
+    return {ok:!lac.length&&!div.length,verificavel:!lac.length,itens:itens,soma_itens:bruta/100,descontos:desc/100,acrescimos:mais/100,desonerado:menos/100,total_calculado:soma?calc/100:null,total_fiscal:totD==null?null:totD/100,
+      diferenca:dif==null?null:dif/100,arredondamento:arred,tolerancia:NF_TOL_CENT/100,lacunas:lac,divergencias:div,avisos:av}}
+  /* decide o que fazer com a nota. `classe` é só a CONTA: "consistente" (fecha), "divergente" (não fecha) ou "baixa_confianca" (falta dado, chave inválida ou
+     leitura de foto/PDF incerta: pede nova leitura). `fiscal` é só a SITUAÇÃO (autorizada = definitiva; contingência/pendente = guardável como pendente de validação
+     fiscal; cancelada/rejeitada = bloqueada). gravar_validada e pode_alimentar_financeiro exigem as duas coisas: conta consistente E nota autorizada.
+     Baixa confiança vem primeiro: leitura incerta explica a divergência. opts.confianca (0 a 1) é a confiança da leitura de foto/PDF; XML não precisa. */
+  function nfVeredito(nota,opts){nota=nota||{};opts=opts||{};var s=nfValidarSoma(nota),baixa=[],div=[],av=s.avisos.slice();
+    s.lacunas.forEach(function(x){baixa.push(x)});s.divergencias.forEach(function(x){div.push(x)});
+    if(nota.formato!=="xml"){var c=opts.confianca,min=opts.minimo!=null?+opts.minimo:NF_CONF_MIN;
+      if(typeof c!=="number"||!isFinite(c))baixa.push({codigo:"confianca_ausente",texto:"Leitura de foto ou PDF sem medida de confiança: não dá para validar sozinha.",item:null});
+      else if(c<min)baixa.push({codigo:"confianca_baixa",texto:"Confiança da leitura ("+Math.round(c*100)+"%) abaixo do mínimo ("+Math.round(min*100)+"%).",item:null})}
+    if(!nota.chave||nota.chave_valida===false)baixa.push({codigo:"chave_invalida",texto:"A chave de acesso está ausente ou não passou na validação.",item:null});
+    /* situação fiscal é independente da conta: valores certos não tornam a nota autorizada, e nota autorizada pode ter a conta errada */
+    var sit=NF_SITUACOES[nota.situacao]?nota.situacao:"pendente",fiscal={situacao:sit,rotulo:NF_SITUACOES[sit],definitiva:sit==="autorizada",pendente:sit==="contingencia"||sit==="pendente",bloqueada:sit==="cancelada"||sit==="rejeitada"},bloqueios=[];
+    if(fiscal.bloqueada)bloqueios.push({codigo:"situacao_"+sit,texto:"Nota "+(sit==="cancelada"?"cancelada":"rejeitada")+": não vale como compra fiscal validada e não alimenta o Financeiro. Refaça a leitura ou trate a compra por outra via; o documento e a tentativa ficam registrados para auditoria."});
+    else if(fiscal.pendente)av.push("A nota está "+NF_SITUACOES[sit].toLowerCase()+": pode ser guardada como pendente de validação fiscal, mas não vale como validada até a autorização.");
+    if(nota.diferenca_pagamento!=null&&Math.abs(nfCent(nota.diferenca_pagamento))>NF_TOL_CENT)av.push("O valor a pagar difere do total da nota em "+nfReais(nfCent(nota.diferenca_pagamento))+".");
+    var classe=baixa.length?"baixa_confianca":div.length?"divergente":"consistente",motivos=baixa.map(function(x){return {tipo:"baixa_confianca",codigo:x.codigo,texto:x.texto,item:x.item}}).concat(div.map(function(x){return {tipo:"divergencia",codigo:x.codigo,texto:x.texto,item:x.item}}));
+    var validada=classe==="consistente"&&fiscal.definitiva,pendente=classe==="consistente"&&fiscal.pendente;
+    var acao=fiscal.bloqueada?"bloquear":classe==="consistente"?(fiscal.definitiva?"gravar":"gravar_pendente_fiscal"):classe==="divergente"?"corrigir":"nova_leitura";
+    var d=s.diferenca,txt=d==null?null:nfCent(d)===0?"Os itens fecham com o total fiscal.":nfReais(nfCent(d))+" "+(d>0?"a mais":"a menos")+" que o total fiscal.";
+    return {classe:classe,rotulo:{consistente:"Consistente",divergente:"Divergente",baixa_confianca:"Baixa confiança"}[classe],fiscal:fiscal,acao:acao,
+      gravar_validada:validada,gravar_pendente:pendente,pode_alimentar_financeiro:validada,bloqueios:bloqueios,auditoria:{preservar_documento:true,registrar_tentativa:!validada},
+      diferenca:d,diferenca_texto:txt,motivos:motivos,avisos:av,soma:s}}
+  /* duplicidade da nota contra o que já existe: notas fiscais, compras online, notas do Mercado e despesas. existentes = {notas, compras, mercado, despesas}
+     (linhas como o banco devolve; ver docs/fiscal.md). "confirmada" = é a mesma nota (chave, arquivo ou emitente + modelo + série + número) ou a compra/nota
+     já cita a chave; "possivel" = mesma data e valor (a 1 centavo) do mesmo estabelecimento. Só aponta: nunca grava, nunca cria despesa.
+     acao: "atualizar_situacao" (mesma nota, guardada como pendente/contingência e agora com situação definida: o histórico fica), "ja_gravada" (nada a fazer), "vincular" (compra confirmada), "confirmar_vinculo" (só possível), "gravar_nova". */
+  function nfDuplicidade(nota,existentes,opts){nota=nota||{};existentes=existentes||{};opts=opts||{};var ig=opts.ignorar_id,ach=[],V=nota.valores||{},em=nota.emitente||{},
+      chave=nfDigitos(nota.chave),sha=String(opts.sha256||"").toLowerCase(),cnpj=nfDigitos(em.cnpj),data=nota.data_emissao||null,estab_p=nfPalavras(alEstab(em.nome)),
+      tots=[nfCent(V.total),nfCent(V.a_pagar)].filter(function(x){return x!=null});
+    function perto(v){var c=nfCent(v);return c!=null&&tots.some(function(t){return Math.abs(t-c)<=NF_TOL_CENT})}
+    function nomeBate(n){var a=nfPalavras(alEstab(n)),b=estab_p;if(!a.length||!b.length)return false;var m=a.length<=b.length?a:b,g=a.length<=b.length?b:a;return m.every(function(w){return g.indexOf(w)>=0})}
+    function add(o,n,id,motivo,x){ach.push({origem:o,nivel:n,id:id==null?null:id,motivo:motivo,registro:x})}
+    (existentes.notas||[]).forEach(function(x){if(!x||(ig!=null&&x.id===ig))return;
+      if(chave.length===44&&nfDigitos(x.chave)===chave)add("nota","confirmada",x.id,"a chave de acesso já está gravada",x);
+      else if(sha&&String(x.sha256||"").toLowerCase()===sha)add("nota","confirmada",x.id,"o mesmo arquivo (SHA-256) já foi gravado",x);
+      else if(cnpj.length===14&&nfDigitos(x.emitente_cnpj)===cnpj&&nota.numero!=null&&String(+x.numero)===String(+nota.numero)&&String(+x.serie||0)===String(+nota.serie||0)&&String(x.modelo||"")===String(nota.modelo||""))add("nota","confirmada",x.id,"mesmo emitente, modelo, série e número",x);
+      else if(data&&x.data_emissao===data&&perto(x.valor_total)&&(cnpj.length===14?nfDigitos(x.emitente_cnpj)===cnpj:false))add("nota","possivel",x.id,"mesmo emitente, mesma data e mesmo valor",x)});
+    (existentes.compras||[]).forEach(function(x){if(!x)return;
+      if(chave.length===44&&nfDigitos(x.chave_nfe)===chave)add("compras","confirmada",x.id,"a compra online já cita esta nota fiscal",x);
+      else if(data&&x.data===data&&perto(x.total_pago)&&nomeBate(x.vendedor||CO_LOJAS[x.loja]))add("compras","possivel",x.id,"mesma data, mesmo valor e mesmo estabelecimento em Compras online",x)});
+    (existentes.mercado||[]).forEach(function(x){if(!x)return;var nome=x.mercado!=null?x.mercado:x.mercados&&x.mercados.nome;
+      if(chave.length===44&&nfDigitos(x.chave)===chave)add("mercado","confirmada",x.id,"a compra do Mercado já cita esta nota fiscal",x);
+      else if(data&&x.data===data&&perto(x.total)&&nomeBate(nome))add("mercado","possivel",x.id,"mesma data, mesmo valor e mesmo estabelecimento no Mercado",x)});
+    (existentes.despesas||[]).forEach(function(x){if(!x)return;var nome=x.estabelecimento||x.descricao||"";
+      if(data&&x.data===data&&perto(x.valor!=null?x.valor:x.total)&&(!nome||nomeBate(nome)))add("despesa","possivel",x.id,"já há uma despesa com a mesma data e o mesmo valor",x)});
+    var rank={confirmada:2,possivel:1},melhor=function(o){var r=null;ach.forEach(function(a){if(a.origem===o&&(!r||rank[a.nivel]>rank[r.nivel]))r=a});return r};
+    var jaNota=melhor("nota"),jaGravada=!!(jaNota&&jaNota.nivel==="confirmada"),alvo=null;
+    ["compras","mercado"].forEach(function(o){var a=melhor(o);if(a&&(!alvo||rank[a.nivel]>rank[alvo.nivel]))alvo=a});
+    var reg=jaGravada?jaNota.registro:null,trans=reg&&NF_TRANSICOES[reg.situacao],atualiza=trans&&trans.indexOf(nota.situacao)>=0?{id:reg.id,de:reg.situacao,para:nota.situacao}:null;
+    var acao=atualiza?"atualizar_situacao":jaGravada?"ja_gravada":alvo?(alvo.nivel==="confirmada"?"vincular":"confirmar_vinculo"):"gravar_nova";
+    return {duplicada:jaGravada,atualizar_situacao:atualiza,possivel_duplicada:!!(jaNota&&jaNota.nivel==="possivel"),acao:acao,vinculo_sugerido:alvo?{modulo:alvo.origem,id:alvo.id,nivel:alvo.nivel,motivo:alvo.motivo}:null,
+      pode_criar_despesa:false,tem_despesa:ach.some(function(a){return a.origem==="despesa"||a.origem==="compras"||a.origem==="mercado"}),achados:ach.map(function(a){return {origem:a.origem,nivel:a.nivel,id:a.id,motivo:a.motivo}})}}
   raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
@@ -2130,5 +2218,5 @@
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
     NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular};
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade};
 })(typeof window!=="undefined"?window:globalThis);

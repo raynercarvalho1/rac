@@ -171,13 +171,83 @@ O dono autorizou aplicar o 036, publicar a `rac-ia`, liberar `fiscal.nota` e faz
 ### Testes (`tests/fiscal_ia.test.mjs`, 29; sem rede e sem custo)
 Foto legível; baixa qualidade (confiança < 0,90); parcialmente cortada; PDF de 1 e de várias páginas (pdf.js simulado, CPF mascarado no texto enviado); mais de 4 páginas; PDF com script; campos ausentes; vários itens com desconto, frete, seguro, ST e IPI; confiança alta e baixa (0,89 / 0,90); divergência de soma; pendente, contingência, cancelada e rejeitada; duplicidade confirmada, possível e atualização de situação; arquivo inválido, disfarçado, HEIC, vazio e acima do limite; erro e indisponibilidade da Anthropic (inclusive `sem_real`, DEMO e ação desconhecida); correção manual e revalidação; proteção contra envio duplicado; servidor ponta a ponta com a Anthropic falsa; 036 só soma e não liga; sem chave no site, sem Storage, sem despesa. O teste da validação do servidor achou e corrigiu um defeito: valores monetários fora da faixa passavam (a checagem vinha antes de serem lidos).
 
+## Lote 1.5 · PROPOSTA de persistência de nota de foto e PDF (08/11/2026) — NÃO APLICADA, aguardando revisão e autorização
+
+A proposta está em `supabase/propostas/037_notas_fiscais_foto_pdf.sql` (fora da pasta das migrations de propósito: nenhuma rotina a roda sozinha) e é provada no Postgres de teste (PGlite) por `tests/banco_foto_pdf.test.mjs`. **Nada foi aplicado em produção e o site não mudou.**
+
+### 1. Diagnóstico do que já existe (conferido nos arquivos, não presumido)
+- `notas_fiscais.formato_origem` **já aceita** `xml`, `pdf`, `danfe` e `imagem`; `notas_fiscais_docs.tipo` idem; a constraint `notas_fiscais_nao_xml_confere` já obriga `requer_conferencia = true` para tudo que não é XML. Ou seja, **as tabelas já comportam foto/PDF; o que bloqueia é a RPC `nota_fiscal_salvar` (034)**, que só aceita `formato_origem = 'xml'`, 1 documento e `text/xml`.
+- Índice único `(user_id, chave)` em `notas_fiscais` e `(user_id, sha256)` em `notas_fiscais_docs` (duplicidade por chave e por arquivo já garantida pelo banco).
+- 034: congelamento da nota conferida (única mudança de situação: autorizada → cancelada), registro do original imutável, políticas restritivas do Storage para arquivo registrado, travas por advisory lock, `unique_violation` tratada com savepoint.
+- 032: cancelada é definitiva; nota que vira cancelada/rejeitada invalida os vínculos.
+- Acesso: as tabelas fiscais são da **casa** (Rayner e Fernanda) + trava `mfa`. A leitura por IA e esta proposta são **só do dono** (`auth.uid() = dono_da_casa()`).
+- Storage: bucket `familia` (privado, 50 MB por arquivo, aceita `image/*` e `application/pdf`); caminho `<dono>/notas-fiscais/<nota>/<sha256>.<ext>`.
+- Falta no banco: lugar para o **resultado do processamento** (confiança, campos incertos, conta), o **histórico de tentativas** (inclusive as bloqueadas) e o **histórico de mudanças de situação**.
+
+### 2. Modelo de dados proposto (separando as seis coisas)
+| O quê | Onde fica |
+|---|---|
+| **Documento original** | Storage `familia` + `notas_fiscais_docs` (nota gravada) ou `notas_fiscais_tentativas.docs` (tentativa bloqueada); SHA-256 por arquivo |
+| **Resultado da extração** | `notas_fiscais` + `notas_fiscais_itens` (as colunas de sempre); `confianca` e `incertos` na tentativa |
+| **Situação fiscal** | `notas_fiscais.situacao` (+ `protocolo`, evidência) e seu histórico em `notas_fiscais_situacoes` |
+| **Resultado aritmético** | `notas_fiscais_tentativas.classe` (`consistente`/`divergente`/`baixa_confianca`), `diferenca`, `componentes`, `motivos` — **calculado pelo banco** |
+| **Estado de persistência** | `notas_fiscais_tentativas.resultado`: `validada`, `pendente_fiscal`, `bloqueada`, `duplicada` (só `validada` e `pendente_fiscal` têm nota) |
+| **Histórico de processamento** | `notas_fiscais_tentativas` (uma linha por leitura; `idem` único por clique; não se altera nem se apaga) |
+
+Nada novo em `notas_fiscais` (nenhuma coluna): "validada" é derivada (nota de foto/PDF gravada + `situacao = 'autorizada'`); "pendente fiscal" = `pendente`/`contingencia`. Assim o XML fica intocado.
+
+### 3. Relacionamentos e constraints
+- `notas_fiscais_tentativas`: `user_id` → `auth.users` (cascade); `nota_id` → `notas_fiscais` **`on delete set null`** (a auditoria sobrevive à exclusão da nota); `unique (user_id, idem)`; `confianca` 0 a 1 (3 casas); `resultado`, `classe`, `situacao_fiscal`, `origem` com listas fechadas; `motivos`, `incertos` e `docs` com tamanho máximo; **sem CPF** (`nf_tem_cpf`); `ia_uso_id` sem FK (sobrevive à limpeza de `ia_uso`).
+- `notas_fiscais_situacoes`: `nota_id` → `notas_fiscais` (cascade: o histórico sai com a nota, que só some por exclusão deliberada); `de`/`para` fechados; `origem` (`gravacao`, `atualizacao`, `cancelamento`, `rejeicao`, `manual`) e `fonte` (`foto`, `pdf`, `xml`, `manual`); `tentativa_id` com FK adiada (a tentativa nasce na mesma transação).
+- Imutabilidade por gatilho (`nf_tentativas_imutavel`, `nf_situacoes_imutavel`) além da falta de privilégio: só a ação "nota_id vira nulo" (exclusão da nota) e a administração/cascata passam.
+
+### 4. Storage e RLS
+- **RLS das tabelas novas: só o dono lê** (`user_id = auth.uid() and user_id = dono_da_casa()`) + a trava restritiva `mfa`; `revoke all from anon, authenticated` e **`grant select` apenas**: ninguém insere, atualiza nem apaga direto (a Fernanda não vê nada).
+- Originais de nota de foto/PDF: mesmo caminho do XML (`<dono>/notas-fiscais/<nota>/<sha256>.<jpg|png|webp|pdf>`), sem sobrescrever; a política "casa" do Storage e as duas restritivas da 034 continuam valendo.
+- Originais de **tentativa bloqueada** ficam no mesmo caminho e são registrados em `tentativas.docs`; duas políticas **restritivas novas** (somam-se às da 034) impedem substituir/apagar arquivo registrado em nota **ou** em tentativa, via `nf_path_registrado()` (definer, para valer também para a Fernanda). O mesmo arquivo bloqueado de novo **não ocupa o cofre duas vezes** (o site apaga a cópia nova; `docs_para_apagar`).
+
+### 5. RPCs transacionais
+- **`nota_fiscal_salvar_doc(p_nota, p_itens, p_docs, p_proc)`** — `security definer` (para a trilha não ser forjável por escrita direta), `search_path` vazio, dono + MFA. Valida tudo no banco (campos, limites, CPF), confere cada original contra o `metadata` do Storage (tamanho e tipo), **refaz a conta** (itens, descontos, frete, outras e `p_proc.componentes`), aplica a **confiança mínima 0,90** (ou `revisada`), exige **chave válida** e decide:
+  - cancelada/rejeitada, divergente, baixa confiança, sem chave → **`bloqueada`**: grava só a tentativa (+ original, se `guardar_original`); **não é erro**, então a auditoria persiste;
+  - autorizada consistente → **`validada`**; pendente/contingência consistente → **`pendente_fiscal`**;
+  - id/chave/arquivo já existentes → **`duplicada`** (tentativa registrada, arquivo novo para apagar); mesmo `idem` → devolve a decisão anterior sem gravar.
+  Nota + itens + documentos + tentativa + histórico inicial numa transação (savepoint); `unique_violation` lê o vencedor. Foto/PDF **nunca** é conferida na gravação.
+- **`nota_fiscal_atualizar_situacao(p_id, p_situacao, p_protocolo, p_evidencia, p_fonte)`** — dono + MFA; transições: `pendente`/`contingencia` → `autorizada` (exige protocolo de 15 dígitos), `cancelada` ou `rejeitada`; `autorizada` → `cancelada`; o resto é recusado; repetir é inofensivo. Respeita o congelamento da 034 (nota conferida só vai a cancelada e a evidência fica no histórico, não na nota).
+- Gatilho `notas_fiscais_hist_situacao` (definer): grava o histórico em **qualquer** mudança de situação (inclusive de XML, só em UPDATE) e na criação de nota de foto/PDF; o gravar de XML **não** escreve histórico.
+- Gatilho `notas_fiscais_foto_regras`: foto/PDF só se confere depois de **autorizada**; o formato não muda.
+
+### 6. Atualização de situação, auditoria e deduplicação
+- Fluxo: nota em contingência é guardada → quando houver prova da autorização (novo XML/foto/PDF ou consulta), o site chama `nota_fiscal_atualizar_situacao`; o histórico mostra gravação → autorização → cancelamento, com protocolo, evidência, fonte e a tentativa de origem.
+- Auditoria: tentativas (inclusive bloqueadas e duplicadas) e situações são append-only e só do dono. Dedupe: chave (índice único), arquivo (índice único por SHA), id, `idem` (retentativa de rede) e as travas de advisory lock; o hash é o do navegador (o banco não recalcula).
+
+### 7. Testes (PGlite, `tests/banco_foto_pdf.test.mjs`, 13)
+Proposta idempotente e só soma; gravação de foto (1 e 2 imagens; 5 recusadas) e de PDF; duplicidade por hash, chave e id; reprocessamento do mesmo clique; falha no upload (sem arquivo, tamanho, tipo, sem metadata); falha nos metadados (item inválido, CPF, falha no meio da gravação: nada fica pela metade); contingência → autorizada → conferida → cancelada com histórico; bloqueios (divergente, item, baixa confiança, sem chave, cancelada, rejeitada) com original guardado, 0,90 inclusivo, revisão que não relaxa a conta, componentes fiscais, `guardar_original = false`; acesso (Fernanda, estranho, anon, MFA, escrita direta e adulteração da auditoria); concorrência simulada; exclusão de nota e de conta; **regressão do XML**. Sem chamadas de IA.
+
+### 8. Riscos, compatibilidade e impacto no XML
+- **XML:** nenhuma função, tabela, política ou gatilho das migrations 032 a 034 é alterada. Único efeito sobre o XML: um gatilho novo **depois** de `UPDATE OF situacao` registra o histórico (ex.: o cancelamento de uma nota XML conferida passa a deixar rastro); gravar/conferir XML continua igual (provado).
+- **Risco:** a Fernanda continua podendo alterar/excluir `notas_fiscais` por escrita direta (política "casa" da 032) — inclusive notas de foto/PDF; só a trilha nova é blindada. Decisão a tomar: restringir a escrita direta ao dono numa migration separada.
+- **Risco:** o banco confia no hash, no tipo e nos `componentes` informados pelo site (só prova que a equação fecha); a confiança vem do modelo.
+- **Risco:** `security definer` (diferente da 034) — por isso o filtro explícito de casa e o dono/MFA dentro da função; revisar com atenção.
+- **Pendente na implementação (não nesta migration):** `NUCLEO.SEG_TABELAS` (backup/restauração conhecem as duas tabelas, com `pk`/`fk`), `seguranca_estado()`, `nfParaGravar` e `js/fiscal.js` para montar `p_proc` e chamar as RPCs (e apagar `docs_para_apagar`), testes do site.
+- **Reversão:** a proposta só soma; desfazer = `drop` das duas tabelas, das funções e dos gatilhos (nenhum dado de XML envolvido).
+
+### 9. Storage: estimativa e limites (hipóteses, não medidas)
+- Foto de celular sem reduzir ≈ 2 a 6 MB; PDF de nota ≈ 0,1 a 2 MB; limites: 12 MB por imagem, 10 MB por PDF, 4 imagens por nota. Exemplo: 150 notas/ano × 3 MB ≈ 0,5 GB/ano; no pior caso (4 fotos de 6 MB) ≈ 3,6 GB/ano.
+- O original da nota **bloqueada** também fica (padrão); o mesmo arquivo não é guardado duas vezes. Retenção: sem expiração automática; para liberar espaço, só excluindo a nota (registrados na nota) — **os originais de tentativas não têm exclusão pelo site** (decisão de retenção a tomar). O plano do Supabase e a cota de Storage não foram consultados.
+
+### 10. O que exigirá a SUA autorização depois
+1. **Aplicar a 037 no Supabase de produção** (mover o arquivo para `supabase/`, rodar no SQL Editor, conferir por consulta só leitura). Não há deploy de função: a `rac-ia` não muda.
+2. Decisões de negócio abertas: guardar o original da nota **bloqueada** (padrão: sim); restringir a escrita direta da Fernanda; retenção dos originais de tentativas.
+3. A implementação no site (`js/fiscal.js`, `nucleo.js`, backup) e a publicação seguem a rotina de entrega permanente, **mas só depois** da 037 aplicada e conferida.
+4. Integração Fiscal → Mercado → Financeiro: continua fora (lote próprio).
+
 ### Planejamento (Prioridade 1 — Central Fiscal + Mercado + Financeiro)
-**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1; Lote 1.2 (núcleo, `41e4981`); Lote 1.3 (validação, situação fiscal e duplicidade na tela e na gravação, `339d033`);
+**FEITO** — leitura de XML NF-e/NFC-e; gravação segura (034, em produção); Compras Lote 5.1; **Lote 1.5 (proposta técnica + SQL + 13 testes em PGlite, nada aplicado)**; Lote 1.2 (núcleo, `41e4981`); Lote 1.3 (validação, situação fiscal e duplicidade na tela e na gravação, `339d033`);
 **Lote 1.4 (código)**: ação `fiscal.nota` na `rac-ia` (REAL-only, dono, Sonnet 5.5), proposta de SQL 036, leitura de foto/PDF na tela do dono (arquivo conferido pelo conteúdo, PDF desenhado sem executar, CPF mascarado no texto),
 confiança mínima 0,90, validação e duplicidade iguais às do XML, correção manual com revalidação, proteção contra envio duplicado. Suíte completa local com PGlite sem falhas (números no relatório do lote).
-**EM ANDAMENTO** — a IA real de foto/PDF **está ativa em produção para o dono** (036 aplicado, `rac-ia` publicada, `fiscal.nota` liberada, uma leitura real bem-sucedida); falta medir a qualidade em mais notas (fotos ruins, PDF de várias páginas, nota com desconto e acréscimos) e registrar o consumo médio por leitura; **gravar nota de foto/PDF** (e guardar o original no cofre)
+**EM ANDAMENTO** — **Lote 1.5: proposta da migration 037 (gravar foto/PDF, tentativas e histórico de situação) pronta e testada em banco simulado, aguardando revisão e autorização específica do dono**; a IA real de foto/PDF **está ativa em produção para o dono** (036 aplicado, `rac-ia` publicada, `fiscal.nota` liberada, uma leitura real bem-sucedida); falta medir a qualidade em mais notas (fotos ruins, PDF de várias páginas, nota com desconto e acréscimos) e registrar o consumo médio por leitura; **gravar nota de foto/PDF** (e guardar o original no cofre)
 depende de migration nova; conferir a tela no site publicado; pendências gerais: limpeza do Storage de testes do Lote 5.1 e confirmar `abastecimento.interpretar` em produção.
-**FUTURO** (cada item que tocar banco precisa de autorização própria) — migration para gravar nota de foto/PDF e atualizar a situação da nota, com trilha de tentativas e de status; teste real controlado da leitura (nota de teste, saldo pré-pago);
+**FUTURO** (cada item que tocar banco precisa de autorização própria) — aplicar a 037 (depois de revisada) e implementar o site para usá-la (`js/fiscal.js`, `nfParaGravar`, backup/`SEG_TABELAS`); teste real controlado da leitura (nota de teste, saldo pré-pago);
 integração Fiscal → Mercado → Financeiro (vincular compra existente, criar só se não existir, idempotente, só nota autorizada e consistente); IA real em `mercado.nota`, `alimentacao.pedido`, `esportes.*`.
 
 ## Ainda depende de

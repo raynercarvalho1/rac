@@ -2562,7 +2562,7 @@
   function mkalP(v){return (Math.round(Math.abs(v)*1000)/10).toString().replace(".",",")+"%"}
   function mkalU(u){return u==="kg"?"/kg":u==="l"?"/L":u==="un"?"/un":"/"+u}
   /* configuração segura: valores fora do intervalo voltam ao padrão; limites inválidos saem; nunca lança */
-  function mkalConfig(raw){raw=raw&&typeof raw==="object"?raw:{};var t=raw.tipos&&typeof raw.tipos==="object"?raw.tipos:{},P=MKAL_PADRAO.tipos,o={tipos:{},novosDias:Math.round(mkalNum(raw.novosDias,7,180,MKAL_PADRAO.novosDias)),limites:[]};
+  function mkalConfig(raw){raw=raw&&typeof raw==="object"?raw:{};var t=raw.tipos&&typeof raw.tipos==="object"?raw.tipos:{},P=MKAL_PADRAO.tipos,o={tipos:{},novosDias:Math.round(mkalNum(raw.novosDias,7,180,MKAL_PADRAO.novosDias)),limites:[],push:{on:!!raw.push&&typeof raw.push.on==="boolean"?raw.push.on:true}};
     Object.keys(P).forEach(function(k){var r=t[k]&&typeof t[k]==="object"?t[k]:{},p=P[k],c={on:typeof r.on==="boolean"?r.on:p.on};
       if(p.pct!=null)c.pct=mkalNum(r.pct,0.01,5,p.pct);if(p.dias!=null)c.dias=Math.round(mkalNum(r.dias,7,730,p.dias));o.tipos[k]=c});
     var vistos={};(Array.isArray(raw.limites)?raw.limites:[]).forEach(function(l){if(!l||typeof l.nome!=="string"||!l.nome.trim())return;var max=+l.max;if(!isFinite(max)||max<=0||max>100000)return;

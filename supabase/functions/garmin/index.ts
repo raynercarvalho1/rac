@@ -2,6 +2,7 @@
 // A chave fica só no segredo GARMIN_PERSONAL_API_KEY do projeto (Edge Functions → Secrets); nunca vai para o site.
 // O site chama com { tipo: "dias" } e { tipo: "ativ" } até a resposta trazer mais: false.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resumoAlertasPreco } from "./alertas_preco.ts";
 
 const BASE = "https://personal.connectapi.garmin.com";
 /* CORS: só o site (e o teste local) podem chamar pelo navegador. Atalhos do iPhone e a rotina do banco não são navegador
@@ -589,6 +590,8 @@ async function rotina(req: Request) {
     return { itens: ev.length, telegram: await telegram("Dia a Dia RAC\n\n" + partes.join("\n\n")),
       push: await pushPara(adm, uid, { titulo: domingo ? "Dia a Dia RAC — resumo da semana" : "Dia a Dia RAC — hoje", corpo: corpoPush, url: domingo && semana.length ? "./#resumo" : compra && !linhas.length ? "./#lista" : "./#agenda", tag: "rotina" }) };
   });
+  /* resumo diário dos alertas de preço do Mercado: só para o dono (uid acima), em passo próprio; não mexe em nada do relógio (alertas_preco.ts) */
+  await passo("alertas_preco", () => resumoAlertasPreco(adm, uid, hoje, (msg) => pushPara(adm, uid, msg)));
   if (domingo) await passo("backup", () => backupSemanal(adm, uid, hoje));
   await adm.from("rotina_log").insert({ user_id: uid, ok: tudoOk, resumo: res });
   return responder({ ok: tudoOk, ...res });

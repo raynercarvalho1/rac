@@ -36,7 +36,12 @@ export function classificarPorFormato(e: unknown): ErroProvedor {
   const x = e as { status?: unknown; name?: unknown } | null;
   const nome = typeof x?.name === "string" ? x.name : "";
   if (nome === "AbortError" || nome === "TimeoutError" || nome === "APIUserAbortError" || nome === "APIConnectionTimeoutError") return { tipo: "tempo" };
-  if (typeof x?.status === "number") return { tipo: "http", status: x.status };
+  if (typeof x?.status === "number") {
+    /* só o motivo curto que a API dá (ex.: esquema inválido); nunca o pedido. Vai para o log do servidor para achar a causa de um 4xx */
+    const y = e as { error?: { error?: { message?: unknown } }; message?: unknown };
+    const m = y?.error?.error?.message ?? y?.message;
+    return typeof m === "string" && m ? { tipo: "http", status: x.status, mensagem: m.replace(/\s+/g, " ").slice(0, 300) } : { tipo: "http", status: x.status };
+  }
   if (nome === "APIConnectionError" || nome === "TypeError") return { tipo: "rede" };
   return { tipo: "desconhecido" };
 }

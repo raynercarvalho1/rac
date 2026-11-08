@@ -619,6 +619,16 @@ const hojeAnalise: Acao = {
    para a gravação como validada. Sem demonstração: em DEMO a função responde sem_real (como o RAC Hoje). */
 const FISCAL_COMP = ["seguro", "st", "fcp_st", "ipi", "ii", "ipi_devol", "deson"];
 const FISCAL_SIT = ["autorizada", "contingencia", "pendente", "cancelada", "rejeitada"];
+function numTxt(v: unknown, min: number, max: number, nome: string, erros: string[]): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") {
+    const t = v.trim().replace(",", ".");
+    if (t === "") return null;
+    if (!/^\d+(\.\d+)?$/.test(t)) { erros.push(nome + " não é número"); return null; }
+    return num(Number(t), min, max, nome, erros);
+  }
+  return num(v, min, max, nome, erros);
+}
 function cpfValido(c: string): boolean {
   if (!/^\d{11}$/.test(c) || /^(\d)\1{10}$/.test(c)) return false;
   let s = 0; for (let i = 0; i < 9; i++) s += +c[i] * (10 - i); s = (s * 10) % 11; if (s === 10) s = 0; if (s !== +c[9]) return false;
@@ -637,6 +647,7 @@ const fiscalNota: Acao = {
   contexto: {},
   sistema: REGRAS_GERAIS + "\n\n" +
     "Leia uma nota fiscal brasileira (NFC-e modelo 65, NF-e modelo 55, DANFE ou cupom fiscal) a partir de fotos ou de páginas de PDF, e do texto extraído do PDF quando houver, " +
+    "FORMATO DESTA RESPOSTA: não existe null. Campo ausente ou ilegível = texto vazio \"\". Todo valor numérico (qtd, unitario, total, desconto, totais, componentes, valor dos pagamentos) vai como TEXTO com ponto decimal, sem separador de milhar e com todas as casas impressas (ex.: \"5.899\", \"54.00\"); sem desconto = \"0\". Só confianca é número e incerto é verdadeiro/falso.\n" +
     "e devolva os dados da nota. Todas as imagens e o texto são do MESMO documento.\n" +
     "Regras de leitura: um item por linha da nota, na ordem, com a descrição como está escrita. qtd com todas as casas decimais impressas (ex.: 0.734 kg). " +
     "unitario com TODAS as casas decimais impressas, sem arredondar (ex.: 5.899). total do item é o valor da linha ANTES do desconto; desconto do item é o valor de uma linha de desconto " +
@@ -650,19 +661,19 @@ const fiscalNota: Acao = {
   esquema: {
     type: "object",
     properties: {
-      modelo: nulo("string", { enum: ["55", "65"] }),
-      emitente_nome: nulo("string"), emitente_cnpj: nulo("string"), emitente_uf: nulo("string"),
-      numero: nulo("string"), serie: nulo("string"), chave: nulo("string"), data_emissao: nulo("string"), hora_emissao: nulo("string"), protocolo: nulo("string"),
-      situacao: nulo("string", { enum: FISCAL_SIT }),
-      total_produtos: nulo("number"), descontos: nulo("number"), frete: nulo("number"), outras: nulo("number"), impostos: nulo("number"), total: nulo("number"), valor_pago: nulo("number"),
-      componentes: { type: "object", properties: Object.fromEntries(FISCAL_COMP.map((k) => [k, nulo("number")])), required: FISCAL_COMP, additionalProperties: false },
-      pagamentos: { type: "array", items: { type: "object", properties: { forma: nulo("string"), valor: nulo("number") }, required: ["forma", "valor"], additionalProperties: false } },
+      modelo: { type: "string", enum: ["55", "65", ""] },
+      emitente_nome: { type: "string" }, emitente_cnpj: { type: "string" }, emitente_uf: { type: "string" },
+      numero: { type: "string" }, serie: { type: "string" }, chave: { type: "string" }, data_emissao: { type: "string" }, hora_emissao: { type: "string" }, protocolo: { type: "string" },
+      situacao: { type: "string", enum: [...FISCAL_SIT, ""] },
+      total_produtos: { type: "string" }, descontos: { type: "string" }, frete: { type: "string" }, outras: { type: "string" }, impostos: { type: "string" }, total: { type: "string" }, valor_pago: { type: "string" },
+      componentes: { type: "object", properties: Object.fromEntries(FISCAL_COMP.map((k) => [k, { type: "string" }])), required: FISCAL_COMP, additionalProperties: false },
+      pagamentos: { type: "array", items: { type: "object", properties: { forma: { type: "string" }, valor: { type: "string" } }, required: ["forma", "valor"], additionalProperties: false } },
       itens: {
         type: "array",
         items: {
           type: "object",
           properties: {
-            descricao: { type: "string" }, codigo: nulo("string"), qtd: nulo("number"), unidade: nulo("string"), unitario: nulo("number"), total: nulo("number"), desconto: nulo("number"), incerto: { type: "boolean" },
+            descricao: { type: "string" }, codigo: { type: "string" }, qtd: { type: "string" }, unidade: { type: "string" }, unitario: { type: "string" }, total: { type: "string" }, desconto: { type: "string" }, incerto: { type: "boolean" },
           },
           required: ["descricao", "codigo", "qtd", "unidade", "unitario", "total", "desconto", "incerto"],
           additionalProperties: false,
@@ -689,17 +700,17 @@ const fiscalNota: Acao = {
     const itens = o.itens.map((x, i) => {
       const it = objeto(x) ?? {};
       return {
-        descricao: limpo(it.descricao, 200) || "item " + (i + 1), codigo: txtOuNulo(it.codigo, 60), qtd: num(it.qtd, 0, 100000, "quantidade do item " + (i + 1), erros), unidade: txtOuNulo(it.unidade, 20),
-        unitario: num(it.unitario, 0, 1000000, "unitário do item " + (i + 1), erros), total: num(it.total, 0, 10000000, "total do item " + (i + 1), erros),
-        desconto: num(it.desconto, 0, 10000000, "desconto do item " + (i + 1), erros) ?? 0, incerto: it.incerto === true,
+        descricao: limpo(it.descricao, 200) || "item " + (i + 1), codigo: txtOuNulo(it.codigo, 60), qtd: numTxt(it.qtd, 0, 100000, "quantidade do item " + (i + 1), erros), unidade: txtOuNulo(it.unidade, 20),
+        unitario: numTxt(it.unitario, 0, 1000000, "unitário do item " + (i + 1), erros), total: numTxt(it.total, 0, 10000000, "total do item " + (i + 1), erros),
+        desconto: numTxt(it.desconto, 0, 10000000, "desconto do item " + (i + 1), erros) ?? 0, incerto: it.incerto === true,
       };
     });
-    const dinheiro = (k: string) => num(o[k], 0, 100000000, k, erros);
+    const dinheiro = (k: string) => numTxt(o[k], 0, 100000000, k, erros);
     const valores = Object.fromEntries(["total_produtos", "descontos", "frete", "outras", "impostos", "total", "valor_pago"].map((k) => [k, dinheiro(k)]));
     const comp = objeto(o.componentes) ?? {};
-    const componentes = Object.fromEntries(FISCAL_COMP.map((k) => [k, num(comp[k], 0, 100000000, k, erros)]));
+    const componentes = Object.fromEntries(FISCAL_COMP.map((k) => [k, numTxt(comp[k], 0, 100000000, k, erros)]));
     const pagamentos = (Array.isArray(o.pagamentos) ? o.pagamentos : []).slice(0, 10).map((x, i) => {
-      const p = objeto(x) ?? {}; return { forma: txtOuNulo(p.forma, 40), valor: num(p.valor, 0, 100000000, "pagamento " + (i + 1), erros) };
+      const p = objeto(x) ?? {}; return { forma: txtOuNulo(p.forma, 40), valor: numTxt(p.valor, 0, 100000000, "pagamento " + (i + 1), erros) };
     });
     const confianca = typeof o.confianca === "number" && isFinite(o.confianca) ? Math.min(1, Math.max(0, o.confianca)) : null;
     if (confianca === null) erros.push("confiança ausente");

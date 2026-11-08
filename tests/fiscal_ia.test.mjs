@@ -10,6 +10,7 @@ import { ACOES } from "../supabase/functions/rac-ia/acoes.ts";
 import { temDemo } from "../supabase/functions/rac-ia/demo.ts";
 import * as O from "../supabase/functions/rac-ia/orcamento.ts";
 import { atenderPedido } from "../supabase/functions/rac-ia/servico.ts";
+import { classificarPorFormato } from "../supabase/functions/rac-ia/provedores.ts";
 import { cpfDe, BASES } from "./fixtures/fiscal/cpf_casos.mjs";
 
 createRequire(import.meta.url)("../nucleo.js");
@@ -149,9 +150,31 @@ test("ação fiscal.nota valida a resposta: preserva as casas do unitário, desc
   assert.match(v.avisos.join(" "), /CPF.*removido/); assert.match(v.avisos.join(" "), /44 dígitos/); assert.equal(v.resultado.confianca, 0.96);
   const ok = ACOES["fiscal.nota"].validar(resposta(), {}); assert.equal(ok.ok, true); assert.equal(ok.resultado.chave, CHAVE); assert.equal(ok.resultado.emitente_cnpj, CNPJ); assert.equal(ok.resultado.protocolo, "131260000000001");
   const r = (o) => ACOES["fiscal.nota"].validar({ ...resposta(), ...o }, {});
-  assert.equal(r({ itens: [] }).ok, false); assert.equal(r({ confianca: undefined }).ok, false); assert.equal(r({ total: -1 }).ok, false); assert.equal(r({ total: "54" }).ok, false);
+  assert.equal(r({ itens: [] }).ok, false); assert.equal(r({ confianca: undefined }).ok, false); assert.equal(r({ total: -1 }).ok, false); assert.equal(r({ total: "abc" }).ok, false); assert.equal(r({ total: "54,00" }).resultado.total, 54, "texto com vírgula ou ponto vale"); assert.equal(r({ total: "" }).resultado.total, null, "vazio = ausente");
   assert.equal(r({ situacao: "aprovada" }).resultado.situacao, null, "situação fora da lista vira ausente"); assert.equal(r({ confianca: 7 }).resultado.confianca, 1, "confiança é limitada a 0..1");
   assert.equal(r({ data_emissao: "2026-02-31" }).resultado.data_emissao, null); assert.equal(ACOES["fiscal.nota"].validar("texto", {}).ok, false);
+});
+test("formato da resposta sem null nem união (o esquema que a Anthropic aceita): números como texto, ausente = vazio, e a validação devolve os mesmos números", () => {
+  const a = ACOES["fiscal.nota"], contar = (n) => (n && typeof n === "object" ? (Array.isArray(n.anyOf) ? 1 : 0) + Object.values(n.properties ?? {}).reduce((t, x) => t + contar(x), 0) + contar(n.items) : 0);
+  assert.equal(contar(a.esquema), 0, "nenhum campo com anyOf: o esquema anterior tinha 33 e foi recusado pela API");
+  const tipos = []; (function ver(n) { if (n && typeof n === "object") { if (n.type) tipos.push(n.type); Object.values(n.properties ?? {}).forEach(ver); ver(n.items); } })(a.esquema);
+  assert.ok(!tipos.includes("null") && JSON.stringify(a.esquema).indexOf('"null"') < 0, "sem tipo null");
+  assert.match(a.sistema, /não existe null.*texto vazio/s); assert.match(a.sistema, /\\"5\.899\\"|"5\.899"/);
+  const txt = { ...resposta(), total_produtos: "56.13", descontos: "2.13", frete: "", outras: "", impostos: "9.50", total: "54.00", valor_pago: "54.00", modelo: "65", situacao: "autorizada",
+    componentes: Object.fromEntries(["seguro", "st", "fcp_st", "ipi", "ii", "ipi_devol", "deson"].map((k) => [k, ""])), pagamentos: [{ forma: "Cartão de crédito", valor: "54.00" }],
+    itens: resposta().itens.map((i) => ({ ...i, codigo: i.codigo ?? "", qtd: String(i.qtd), unitario: String(i.unitario), total: String(i.total), desconto: String(i.desconto) })) };
+  const v = a.validar(txt, {}), n = a.validar(resposta(), {});
+  assert.equal(v.ok, true, v.motivo); assert.deepEqual(v.resultado, { ...n.resultado, itens: n.resultado.itens }, "texto e número dão o mesmo resultado"); assert.equal(v.resultado.itens[3].unitario, 5.899); assert.equal(v.resultado.frete, null);
+  assert.equal(a.validar({ ...txt, modelo: "", situacao: "" }, {}).resultado.modelo, null);
+  assert.equal(a.validar({ ...txt, itens: [{ ...txt.itens[0], qtd: "1,5kg" }] }, {}).ok, false, "texto que não é número recusa");
+});
+test("diagnóstico: o motivo curto que a API dá para um 4xx vai para o log (sem o pedido), e o formato antigo do erro não muda", () => {
+  assert.deepEqual(classificarPorFormato({ status: 429 }), { tipo: "http", status: 429 });
+  const e = classificarPorFormato({ status: 400, error: { error: { message: "output_config.format.schema:   too many union types" } } });
+  assert.deepEqual(e, { tipo: "http", status: 400, mensagem: "output_config.format.schema: too many union types" });
+  assert.equal(classificarPorFormato({ status: 400, message: "x".repeat(900) }).mensagem.length, 300);
+  const sv = ler("supabase/functions/rac-ia/servico.ts"); assert.match(sv, /motivo: erro\.tipo === "http" \? erro\.mensagem : undefined/);
+  assert.ok(!/log\([^)]*(texto|imagens|base64|entrada)/.test(sv.replace(/\/\*[\s\S]*?\*\//g, "")), "o log nunca leva o conteúdo");
 });
 function bancoRac(cfg, papel = "dono") {
   const b = { reservas: [], concluidas: [] };

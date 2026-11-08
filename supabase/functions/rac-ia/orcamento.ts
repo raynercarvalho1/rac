@@ -121,7 +121,7 @@ export function nivelAlerta(percentual: number): 0 | 50 | 80 | 100 {
   return percentual >= 100 ? 100 : percentual >= 80 ? 80 : percentual >= 50 ? 50 : 0;
 }
 
-export type ErroProvedor = { tipo: "http"; status: number } | { tipo: "tempo" } | { tipo: "rede" } | { tipo: "desconhecido" };
+export type ErroProvedor = { tipo: "http"; status: number; mensagem?: string } | { tipo: "tempo" } | { tipo: "rede" } | { tipo: "desconhecido" };
 export type Destino = "falhou_sem_envio" | "concluido_sem_custo" | "incerto";
 
 /* para onde vai a chamada quando dá erro. Antes do envio: libera. Depois do envio, só uma recusa explícita da API

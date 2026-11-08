@@ -87,7 +87,7 @@ export async function atenderPedido(userId: string, corpoBruto: unknown, d: Depe
     const ms = agora() - t0, codigo = codigoDoErro(erro), destino = destinoAposErro("depois_do_envio", erro);
     if (destino === "concluido_sem_custo") {
       await d.banco.concluir(id, 0, 0, 0, ms, codigo).catch(() => d.banco.marcarIncerto(id, codigo, ms).catch(() => {}));
-      log({ id, acao: a.id, estado: "concluido", erro: codigo, ms });
+      log({ id, acao: a.id, estado: "concluido", erro: codigo, ms, http: erro.tipo === "http" ? erro.status : undefined, motivo: erro.tipo === "http" ? erro.mensagem : undefined });
       return respostaErro(codigo, { ...base, modo, id, estado: "concluido" });
     }
     /* pode ter havido cobrança: fica incerto, com a reserva cheia, e NÃO é repetido */

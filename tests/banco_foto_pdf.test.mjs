@@ -99,7 +99,7 @@ const atualizar = (db, uid, id, para, prot = null, evid = null, fonte = "foto", 
 test("a 037 está registrada como aplicada, na pasta das migrations (depois da 036), e não mexe no que já existia", () => {
   const s = ler(PROP), sem = s.replace(/^--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.match(s.slice(0, 600), /APLICADA EM PRODUÇÃO em 08\/11\/2026/); assert.ok(!/PROPOSTA NÃO APLICADA/.test(s));
-  assert.ok(fs.existsSync(new URL("../supabase/037_notas_fiscais_foto_pdf.sql", import.meta.url)) && !fs.existsSync(new URL("../supabase/propostas/", import.meta.url)), "a 037 saiu de propostas/ e está entre as migrations");
+  assert.ok(fs.existsSync(new URL("../supabase/037_notas_fiscais_foto_pdf.sql", import.meta.url)) && !fs.existsSync(new URL("../supabase/propostas/037_notas_fiscais_foto_pdf.sql", import.meta.url)), "a 037 saiu de propostas/ e está entre as migrations");
   assert.ok(!/drop table|truncate|delete from|alter table public\.notas_fiscais\b(?!_)|ia_config|ia_uso\b.*references/i.test(sem), "só soma: nada apaga, nada altera tabela existente nem IA");
   assert.ok(!/create (or replace )?function public\.nota_fiscal_(salvar|conferir)\(/.test(sem), "nota_fiscal_salvar e nota_fiscal_conferir (XML) não são tocadas");
   assert.ok(!/\bacoes_reais\b|insert into public\.(compras_online|pedidos|registros|notas|itens|produtos|mercados)\b|criar_despesa|gera_despesa/i.test(sem.replace(/outras despesas/g, "")), "nada de despesa, Mercado, Alimentação nem liberação de IA");

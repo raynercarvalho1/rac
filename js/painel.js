@@ -260,11 +260,11 @@
       p.appendChild(rsBarras(o.linhas.filter(function(x){return x.orcado!=null}).map(function(x){return {nome:x.categoria,v:Math.min(x.pct||0,150),txt:Math.round(x.pct||0)+"%"+(x.estado==="acima"?" ⚠":""),
         sub:brl(x.gasto)+" de "+brl(x.orcado),dica:brl(x.gasto)+" de "+brl(x.orcado)+(x.estado==="acima"?" · acima do orçamento":x.estado==="perto"?" · perto do limite":" · dentro")}})))}
     /* ajuste: uma linha por categoria que aparece no Mercado (ou já tem orçamento); grava só no Salvar */
-    var cats={};if(D.compras.ok)D.compras.v.forEach(function(x){if(x.categoria)cats[x.categoria]=1});D.orcamentos.v.forEach(function(x){cats[x.categoria]=1});
+    var cats={};if(D.compras.ok)D.compras.v.forEach(function(x){if(x.categoria)cats[NUCLEO.mkCatOficial(x.categoria)]=1});D.orcamentos.v.forEach(function(x){cats[NUCLEO.mkCatOficial(x.categoria)]=1});
     var lista=Object.keys(cats).sort();
-    if(lista.length&&isOwner()){var atual={};D.orcamentos.v.forEach(function(x){atual[x.categoria]=+x.valor});
+    if(lista.length&&isOwner()){var atual={};D.orcamentos.v.forEach(function(x){var k=NUCLEO.mkCatOficial(x.categoria);atual[k]=(atual[k]||0)+(+x.valor)});
       var det=h("details",{class:"famvals"},h("summary",{text:o.temOrcamento?"Ajustar os orçamentos":"Definir orçamentos"})),tb=h("div",{class:"pnorc"}),ins={},st=h("p",{class:"sub",role:"status"});
-      var med={};D.todos.slice(-4,-1).forEach(function(m){if(D.compras.ok)D.compras.v.forEach(function(x){if(x.data.slice(0,7)===m&&x.categoria)med[x.categoria]=(med[x.categoria]||0)+(+x.valor_total||0)/3})});
+      var med={};D.todos.slice(-4,-1).forEach(function(m){if(D.compras.ok)D.compras.v.forEach(function(x){if(x.data.slice(0,7)===m&&x.categoria){var k=NUCLEO.mkCatOficial(x.categoria);med[k]=(med[k]||0)+(+x.valor_total||0)/3}})});
       lista.forEach(function(c){var i=h("input",{type:"number",min:"0",step:"10",inputmode:"decimal","aria-label":"Orçamento de "+c,placeholder:med[c]?"média "+Math.round(med[c]):"sem orçamento"});
         if(atual[c]!=null)i.value=String(atual[c]);ins[c]=i;tb.appendChild(h("label",null,h("span",{text:c}),i))});
       var sv=h("button",{type:"button",text:"Salvar orçamentos"});

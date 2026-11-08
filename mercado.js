@@ -111,7 +111,7 @@
         });
     }
     loadingRows = page(0).then(function (d) {
-      d.forEach(function (x) { x.valor_total = +x.valor_total; x.valor_unitario = +x.valor_unitario; x.quantidade = +x.quantidade; x.desconto = +x.desconto; x.mk = mesKey(x.data); x.nota = x.data + "|" + x.mercado + "|" + (x.numero || ""); });
+      d.forEach(function (x) { x.categoria = catOf(x.categoria); x.valor_total = +x.valor_total; x.valor_unitario = +x.valor_unitario; x.quantidade = +x.quantidade; x.desconto = +x.desconto; x.mk = mesKey(x.data); x.nota = x.data + "|" + x.mercado + "|" + (x.numero || ""); });
       rows = d; loadingRows = null; return rows;
     });
     return loadingRows;
@@ -584,12 +584,12 @@
     var list = h("div", { class: "mkplist" }); p.appendChild(list);
     body.appendChild(p);
     var prods = [], sel = {};
-    var cats = Object.keys(groupBy(rows, function (x) { return x.categoria; })).sort();
+    var cats = listaCats(rows);
     var stats = groupBy(rows, function (x) { return x.produto_id || ""; });
     function carregar() {
       info.textContent = "Carregando…";
       return sb.from("produtos").select("id,nome,categoria,unidade").order("nome").then(ok).then(function (d) {
-        prods = d; info.textContent = d.length + " produtos"; draw();
+        d.forEach(function (x) { x.categoria = catOf(x.categoria); }); prods = d; cats = listaCats(rows.concat(d)); info.textContent = d.length + " produtos"; draw();
       }).catch(function (e) { info.textContent = "Não consegui carregar os produtos: " + e.message; });
     }
     function selecionados() { return prods.filter(function (x) { return sel[x.id]; }); }
@@ -650,18 +650,6 @@
      erra demais. Então a pessoa manda a foto para o Claude, cola a resposta aqui e confere.
      CPF e demais dados do consumidor são ignorados. */
   var ABREV = { refrig: "refrigerante", min: "mineral", fgo: "frango", frgo: "frango", ling: "linguica", tosc: "toscana", rep: "refil", liq: "liquido", cong: "congelado", choc: "chocolate", bisc: "biscoito", qj: "queijo", mus: "mussarela", mussar: "mussarela", pres: "presunto", sab: "sabonete", amac: "amaciante", deterg: "detergente", lav: "lava", pao: "pao", fr: "frances", trad: "tradicional", integ: "integral", desn: "desnatado", sach: "sache", bov: "bovino", sui: "suino", peit: "peito", file: "file", agua: "agua", cerv: "cerveja", lt: "lata" };
-  var CATS_PALAVRAS = [
-    ["Bebidas", /refrig|coca|guarana|agua|suco|cerveja|cerv|energet|cha |sprite|pepsi|schweppes/],
-    ["Açougue/Frios", /carne|bov|acem|miolo|frango|fgo|peito|coxa|lingui|ling\.|presunto|pres\.|mussarela|queijo|salsicha|mortadela|bacon|suin|bisteca|fraldinha|picanha|patinho/],
-    ["Peixaria", /peixe|tilapia|salmao|corvina|bacalhau|camarao/],
-    ["Hortifruti", /banana|tomate|cebola|batata|alface|limao|uva|maca |mamao|cenoura|abobr|pepino|pimentao|alho|mandioca|laranja|morango|berinjela|couve|\Dkg\)?$/],
-    ["Padaria", /pao |pao$|paes|bisnag|salgado|coxinha|empada|rosca|pao de queijo/],
-    ["Chocolates/Doces", /chocolate|choc|bombom|doce|bolo|torta|pudim|biscoito wafer|trident|nutella|petit/],
-    ["Limpeza", /detergente|deterg|amaciante|sabao|desinfet|agua sanit|limpador|veja|cif|omo|lava |raid|inseticida/],
-    ["Higiene Pessoal", /sabonete|shampoo|condicionador|creme dental|escova|desodor|papel hig|absorvente|listerine|fio d(ental)?[ .]/],
-    ["Limpeza/Descartáveis", /guardanapo|papel toalha|toalha de papel|esponja|saco lixo|hastes/],
-    ["Mercearia", /arroz|feijao|macarrao|oleo|azeite|acucar|cafe|leite|manteiga|margarina|molho|maionese|biscoito|farinha|sal |tempero|atum|milho|requeij|creme de leite/]
-  ];
   function tokens(t) {
     /* "REFRIG.COCA COLA 200ML" -> refrigerante coca cola 200ml; o decimal (32,9g) vira "p" para não quebrar o número */
     return norm(t).replace(/(\d)[.,](\d)/g, "$1p$2").split(/[^a-z0-9]+/).map(function (w) { return ABREV[w] || w; })
@@ -677,17 +665,13 @@
     if (ta.length && tb.length && !ta.some(function (x) { return tb.indexOf(x) >= 0; })) nota *= 0.5;
     return nota;
   }
-  /* Nome legível para produto novo: tira o "kg" da balança, expande abreviações comuns do cupom e capitaliza */
-  var EXPANDE = { refrig: "Refrigerante", min: "Mineral", fgo: "Frango", frgo: "Frango", ling: "Linguiça", tosc: "Toscana", rep: "Refil", liq: "Líquido", cong: "Congelado", agua: "Água", file: "Filé", pao: "Pão", choc: "Chocolate", bisc: "Biscoito", qj: "Queijo", pres: "Presunto", sab: "Sabonete", amac: "Amaciante", deterg: "Detergente", bov: "Bovino", sui: "Suíno", feijao: "Feijão", acucar: "Açúcar", cafe: "Café", limao: "Limão", macarrao: "Macarrão", oleo: "Óleo", sabao: "Sabão", trad: "Tradicional", integ: "Integral" };
-  function nomeBonito(t) {
-    return String(t).replace(/(\D)[\s.]*kg$/i, "$1").replace(/(\D)\.(?=\S)/g, "$1 ").replace(/\s+/g, " ").trim().split(" ").map(function (w) {
-      var k = norm(w).replace(/[^a-z0-9]/g, "");
-      if (EXPANDE[k]) return EXPANDE[k];
-      if (/^\d/.test(w)) return w.toLowerCase();
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-    }).join(" ");
-  }
-  function categoriaPalpite(t) { var n = norm(t); for (var i = 0; i < CATS_PALAVRAS.length; i++) if (CATS_PALAVRAS[i][1].test(n)) return CATS_PALAVRAS[i][0]; return "Mercearia"; }
+  /* Nome legível e classificação do produto novo: a lógica pura fica em nucleo.js (NUCLEO.mkNome, mkClassificar, MK_CATEGORIAS; docs/mercado-classificacao.md) */
+  function NU() { return window.RACnucleo; }
+  function nomeBonito(t) { return NU().mkNome(t); }
+  function catOf(c) { return NU().mkCatOficial(c); }
+  var CATS_OFICIAIS = function () { return NU().MK_CATEGORIAS.slice(); };
+  /* categorias da lista: as oficiais + qualquer outra que o dono já tenha usado (sem repetir "Limpeza/Descartáveis") */
+  function listaCats(prods) { var l = CATS_OFICIAIS(); (prods || []).forEach(function (x) { var c = catOf(x.categoria); if (c && l.indexOf(c) < 0) l.push(c); }); return l; }
 
   /* Espalha o desconto da nota entre os itens, proporcional ao valor de cada um, para a soma bater com o que foi pago */
   function ratearDesconto(nota) {
@@ -960,11 +944,11 @@
         sb.from("itens").select("descricao,produto_id").then(ok),
         nota.data ? sb.from("notas").select("id,mercado_id,total").eq("data", nota.data).then(ok) : Promise.resolve([])]).then(function (r) {
         var mercs = r[0], prods = r[1], apelidos = {};
-        r[3].forEach(function (x) { if (x.produto_id) apelidos[norm(x.descricao)] = x.produto_id; });
+        prods.forEach(function (x) { x.categoria = catOf(x.categoria); });
+        r[3].forEach(function (x) { if (x.produto_id) apelidos[NU().mkChave(x.descricao)] = x.produto_id; });
         info.textContent = "";
         if (r[2].length) { passo2.appendChild(h("p", { class: "qrwarn", text: "Essa nota já está cadastrada na sua conta." })); return; }
-        var cats = Object.keys(groupBy(prods, function (x) { return x.categoria; })).sort();
-        CATS_PALAVRAS.forEach(function (c) { if (cats.indexOf(c[0]) < 0) cats.push(c[0]); }); cats.sort();
+        var cats = listaCats(prods);
         /* mercado: pelo CNPJ guardado, senão pelo nome parecido */
         var merc = mercs.filter(function (m) { return m.cnpj && m.cnpj === nota.cnpj; })[0] ||
           mercs.map(function (m) { return [m, semelhanca(nota.mercado, m.nome)]; }).sort(function (a, b) { return b[1] - a[1]; }).filter(function (x) { return x[1] >= 0.5; }).map(function (x) { return x[0]; })[0] ||
@@ -990,13 +974,16 @@
         var lista = h("div", { class: "qrlist" }); passo2.appendChild(lista);
 
         function linha(it) {
-          var pid = apelidos[norm(it.desc)], prod = pid && prods.filter(function (x) { return x.id === pid; })[0];
+          var pid = apelidos[NU().mkChave(it.desc)], prod = pid && prods.filter(function (x) { return x.id === pid; })[0];
           if (!prod && it.desc) {
             var best = prods.filter(function (x) { return x.unidade === it.un || it.un === "un"; }).map(function (x) { return [x, semelhanca(it.desc, x.nome)]; }).sort(function (a, b) { return b[1] - a[1]; })[0];
             if (best && best[1] >= 0.6) prod = best[0];
           }
           var inp = h("input", { type: "text", list: "nf-prods", value: prod ? prod.nome : (it.desc ? nomeBonito(it.desc) : ""), placeholder: "Produto", "aria-label": "Produto" });
-          var cat = h("select", { "aria-label": "Categoria" }, cats.map(function (c) { return h("option", { value: c, selected: c === (prod ? prod.categoria : categoriaPalpite(it.desc || "")) ? "" : null, text: c }); }));
+          /* produto novo: regras do núcleo; ambíguo não ganha categoria, fica em "Escolher categoria" até o dono decidir */
+          var cl = prod ? null : NU().mkClassificar(it.desc || "", it.desc ? nomeBonito(it.desc) : "", { produtos: prods, apelidos: apelidos });
+          var cat0 = prod ? prod.categoria : (cl.categoria || "");
+          var cat = h("select", { "aria-label": "Categoria" }, [h("option", { value: "", selected: cat0 === "" ? "" : null, text: "Escolher categoria…" })].concat(cats.map(function (c) { return h("option", { value: c, selected: c === cat0 ? "" : null, text: c }); })));
           var qtd = h("input", { type: "text", inputmode: "decimal", class: "nfnum", value: String(it.qtd).replace(".", ","), "aria-label": "Quantidade" });
           var un = h("select", { class: "nfun", "aria-label": "Unidade" }, [["un", "un"], ["kg", "kg"], ["l", "L"]].map(function (u) { return h("option", { value: u[0], selected: u[0] === it.un ? "" : null, text: u[1] }); }));
           var vt = h("input", { type: "text", inputmode: "decimal", class: "nfnum", value: it.vt ? it.vt.toFixed(2).replace(".", ",") : "", placeholder: "0,00", "aria-label": "Valor do item" });
@@ -1004,10 +991,10 @@
           var tira = h("button", { type: "button", class: "ghostbtn nfx", title: "Tirar este item", "aria-label": "Tirar este item", text: "×" });
           function marcar() {
             var p2 = prods.filter(function (x) { return x.nome === inp.value.trim(); })[0];
-            tag.textContent = p2 ? "existente" : "novo"; tag.className = "qrtag " + (p2 ? "old" : "new");
+            tag.textContent = p2 ? "existente" : (cl && cl.revisar && !cat.value ? "novo · revisar" : "novo"); tag.className = "qrtag " + (p2 ? "old" : "new");
             if (p2) { cat.value = p2.categoria; cat.disabled = true; } else cat.disabled = false;
           }
-          inp.addEventListener("input", marcar); marcar();
+          inp.addEventListener("input", marcar); cat.addEventListener("change", marcar); marcar();
           var row = h("div", { class: "qritem nfitem" + (it.duvida ? " duvida" : "") },
             h("div", { class: "qrdesc" }, h("span", { class: "sub", text: it.desc || "Item adicionado à mão" }),
               h("span", { class: "sub", text: it.duvida ? "Confira: quantidade × preço não bate com o total lido" : fmtQtd(it.qtd, it.un) + " × " + money(it.vu) + (it.descItem ? " · desconto de " + money(it.descItem) : "") })),
@@ -1042,6 +1029,8 @@
           var vazios = regs.filter(function (g) { return !g.inp.value.trim() || !(num(g.vt.value) > 0); });
           if (!regs.length) { st3.textContent = "Não há itens para salvar."; return; }
           if (vazios.length) { st3.textContent = "Preencha o produto e o valor de todos os itens (ou tire com ×)."; vazios[0].inp.focus(); return; }
+          var semCat = regs.filter(function (g) { return !g.sel.value; });
+          if (semCat.length) { st3.textContent = "Escolha a categoria de " + (semCat.length === 1 ? "1 item marcado" : semCat.length + " itens marcados") + " como “revisar”: o sistema não adivinha o que é ambíguo."; semCat[0].sel.focus(); return; }
           if (!dataI.value) { st3.textContent = "Preencha a data da compra."; dataI.focus(); return; }
           if (selMerc.value === "novo" && !novoNome.value.trim()) { st3.textContent = "Escreva o nome do mercado."; novoNome.focus(); return; }
           /* soma dos itens longe do total pago (quase sempre resposta cortada): pede um segundo toque */
@@ -1182,7 +1171,7 @@
     linhas.slice(1).forEach(function (r) {
       var d = isoData(r[C.data]); if (!d || !r[C.item]) return;
       var u = String(r[C.un] || "un").toLowerCase().trim(); if (u !== "kg" && u !== "l") u = "un";
-      itens.push({ data: d, mercado: String(r[C.merc]).trim(), nf: r[C.nf] != null ? String(r[C.nf]).trim() : null, categoria: String(r[C.cat] || "Outros").trim(),
+      itens.push({ data: d, mercado: String(r[C.merc]).trim(), nf: r[C.nf] != null ? String(r[C.nf]).trim() : null, categoria: catOf(String(r[C.cat] || "Outros").trim()),
         item: String(r[C.item]).trim(), qtd: num(r[C.qtd]) || 1, un: u, vu: num(r[C.vu]), vt: num(r[C.vt]), pag: r[C.pag] ? String(r[C.pag]).trim() : null, obs: r[C.obs] ? String(r[C.obs]).trim() : null });
     });
     var notas = Object.values(groupBy(itens, function (x) { return x.data + "|" + x.mercado + "|" + (x.nf || ""); }));
@@ -1264,5 +1253,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

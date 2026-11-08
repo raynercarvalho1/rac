@@ -56,15 +56,15 @@ test("categorias: as oito de alimentação; limpeza, higiene, descartáveis e fr
   assert.deepEqual(N.AL_CATEGORIAS, ["Alimentação · Supermercado", "Alimentação · Açougue/Peixaria", "Alimentação · Padaria", "Alimentação · Hortifrúti",
     "Alimentação · Delivery", "Alimentação · Restaurante", "Alimentação · Taxas de entrega e serviço", "Alimentação · Gorjeta"]);
   /* toda categoria que o Mercado sugere hoje tem destino explícito (comida ou fora), nunca "sem classificação" */
-  const cats = [...ler("mercado.js").matchAll(/^\s+\["([^"]+)", \//gm)].map((m) => m[1]);
-  assert.ok(cats.length >= 10);
+  const cats = N.MK_CATEGORIAS;
+  assert.equal(cats.length, 11);
   for (const c of cats) assert.notEqual(N.alCatMercado(c, "x"), null, c);
   assert.equal(N.alCatMercado("Mercearia", "Arroz 5kg"), "Alimentação · Supermercado");
   assert.equal(N.alCatMercado("Açougue/Frios", "Fraldinha bovina"), "Alimentação · Açougue/Peixaria", "fraldinha é carne");
   assert.equal(N.alCatMercado("Hortifruti", "Banana"), "Alimentação · Hortifrúti"); assert.equal(N.alCatMercado("Padaria", "Pão"), "Alimentação · Padaria");
   for (const [c, p] of [["Limpeza", "Detergente"], ["Higiene Pessoal", "Sabonete"], ["Limpeza/Descartáveis", "Guardanapo"], ["Mercearia", "Fralda Pampers G"], ["Mercearia", "Lenço umedecido"]])
     assert.equal(N.alCatMercado(c, p), "", c + " / " + p);
-  assert.equal(N.alCatMercado("Bebê", "NAN"), null, "categoria nova fica sem classificação (aparece à parte, não some)");
+  assert.equal(N.alCatMercado("Brinquedos", "Carrinho"), null, "categoria nova fica sem classificação (aparece à parte, não some)");
   const m = N.alMercadoDespesas([{ data: "2026-10-01", categoria: "Mercearia", produto: "Arroz", valor_total: 30 }, { data: "2026-10-01", categoria: "Limpeza", produto: "Omo", valor_total: 20 }]);
   assert.equal(m.linhas.length, 1); assert.equal(m.fora, 20);
 });

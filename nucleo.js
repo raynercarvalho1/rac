@@ -631,7 +631,7 @@
      (alPedidoDespesas). Não se cruza com o Mercado: compra de mercado fica no Mercado, pedido fica em pedidos. */
   function pnDespesas(compras,registros,parcelas,fonteDe,pedidos,comprasOnline){var L=coDespesas(comprasOnline);
     (pedidos||[]).forEach(function(p){L=L.concat(alPedidoDespesas(p))});
-    (compras||[]).forEach(function(x){var v=+x.valor_total;if(x.data&&isFinite(v))L.push({d:x.data,v:v,f:"Mercado",cat:x.categoria||"Outros"})});
+    (compras||[]).forEach(function(x){var v=+x.valor_total;if(x.data&&isFinite(v))L.push({d:x.data,v:v,f:"Mercado",cat:mkCatOficial(x.categoria)||"Outros"})});
     (registros||[]).forEach(function(r){var d=r.dados||{};if(typeof d.custo!=="number"||!isFinite(d.custo)||d.compra||!r.data)return;L.push({d:r.data,v:d.custo,f:fonteDe?fonteDe(r.quem):r.quem,cat:r.tipo})});
     (parcelas||[]).forEach(function(p){if(p&&p.paga&&p.venc&&typeof p.v==="number")L.push({d:p.venc,v:p.v,f:"MBA",cat:"mensalidade"})});
     return L}
@@ -639,8 +639,8 @@
   function pnVariacao(atual,anterior){if(atual==null||anterior==null||!isFinite(atual)||!isFinite(anterior)||anterior===0)return null;
     return {dif:atual-anterior,pct:(atual-anterior)/Math.abs(anterior)*100}}
   /* orçamento × gasto do mês: gastos {categoria:valor}, orcamentos [{categoria, valor}] → linhas e totais (só categorias com orçamento ou gasto) */
-  function pnOrcamento(gastos,orcamentos){var orc={},cats={};(orcamentos||[]).forEach(function(o){if(o&&o.categoria&&+o.valor>=0){orc[o.categoria]=+o.valor;cats[o.categoria]=1}});
-    Object.keys(gastos||{}).forEach(function(c){cats[c]=1});
+  function pnOrcamento(gastos0,orcamentos){var orc={},cats={},gastos={};(orcamentos||[]).forEach(function(o){if(o&&o.categoria&&+o.valor>=0){var k=mkCatOficial(o.categoria);orc[k]=(orc[k]||0)+(+o.valor);cats[k]=1}});
+    Object.keys(gastos0||{}).forEach(function(c){var k=mkCatOficial(c);gastos[k]=(gastos[k]||0)+(+gastos0[c]||0);cats[k]=1});
     var L=Object.keys(cats).map(function(c){var g=+(gastos||{})[c]||0,v=orc[c];
       return {categoria:c,gasto:g,orcado:v==null?null:v,pct:v?g/v*100:null,estado:v==null?"sem":g>v?"acima":g>=v*0.8?"perto":"ok"}})
       .sort(function(a,b){return b.gasto-a.gasto||a.categoria.localeCompare(b.categoria)});
@@ -908,7 +908,7 @@
   var AL_CATEGORIAS=["supermercado","acougue","padaria","hortifruti","delivery","restaurante","taxas","gorjeta"].map(function(k){return AL_CAT[k]});
   /* as categorias do Mercado de hoje (nenhuma muda): em qual grupo a comida entra */
   var AL_MERC_COMIDA={"bebidas":"supermercado","acougue/frios":"acougue","peixaria":"acougue","hortifruti":"hortifruti","padaria":"padaria","chocolates/doces":"supermercado","mercearia":"supermercado"};
-  var AL_NAO_COMIDA=/limpeza|higiene|descartave|fralda|farmacia|remedio|utilidade|papelaria|cosmetic|perfum|bazar|racao|pet\b/;
+  var AL_NAO_COMIDA=/limpeza|higiene|descartave|bebe|infantil|fralda|farmacia|remedio|utilidade|papelaria|cosmetic|perfum|bazar|racao|pet\b/;
   /* fraldas e lenços umedecidos nunca são comida, mesmo numa categoria de comida ("fraldinha" é carne e continua) */
   var AL_PROD_NAO_COMIDA=/(^|[^a-z])(fralda|fraldas|pampers|huggies)([^a-z]|$)|umedecid/;
   /* item do Mercado → categoria de alimentação; "" = não é comida; null = categoria desconhecida (aparece como "sem classificação") */
@@ -2349,7 +2349,63 @@
     return l}
   /* confiança que vale para a regra dos 0,90: a da IA, ou 1 depois que a pessoa corrigiu e confirmou que conferiu com o documento original */
   function nfConfiancaIA(ia){ia=ia||{};return ia.revisada===true?1:(+ia.confianca>=0&&+ia.confianca<=1?+ia.confianca:0)}
-  raiz.RACnucleo={norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  /* ===== Mercado: categorias oficiais, nome normalizado e classificação de produto (docs/mercado-classificacao.md).
+     Puro: sem tela e sem banco. A decisão segue a ordem: produto já cadastrado (inclui a correção manual feita em Mercado → Produtos, que grava
+     produtos.categoria) → regras pelo tipo do produto → ambíguo: categoria null e revisar:true, nunca um palpite. Sem IA e sem chamada paga. */
+  var MK_CATEGORIAS=["Mercearia","Padaria","Açougue/Frios","Hortifruti","Chocolates/Doces","Bebidas","Limpeza","Higiene Pessoal","Peixaria","Casa/Utilidades","Bebê/Infantil"];
+  /* nomes antigos que viram uma categoria oficial (a unificação de "Limpeza/Descartáveis" em "Limpeza") */
+  var MK_CAT_ANTIGAS={"limpeza/descartaveis":"Limpeza","descartaveis":"Limpeza","bebe":"Bebê/Infantil","infantil":"Bebê/Infantil"};
+  function mkCatOficial(c){var t=String(c==null?"":c).trim(),n=norm(t).replace(/\s*\/\s*/g,"/");if(!t)return t;
+    for(var i=0;i<MK_CATEGORIAS.length;i++)if(norm(MK_CATEGORIAS[i])===n)return MK_CATEGORIAS[i];
+    return MK_CAT_ANTIGAS[n]||t}
+  /* abreviações do cupom → palavra inteira (só as sem dúvida: "SAB" pode ser sabão ou sabonete e fica como veio) */
+  var MK_ABREV={refrig:"Refrigerante",refr:"Refrigerante",min:"Mineral",fgo:"Frango",frgo:"Frango",ling:"Linguiça",tosc:"Toscana",rep:"Refil",liq:"Líquido",cong:"Congelado",choc:"Chocolate",
+    bisc:"Biscoito",qj:"Queijo",qjo:"Queijo",mus:"Mussarela",mussar:"Mussarela",pres:"Presunto",amac:"Amaciante",deterg:"Detergente",desinf:"Desinfetante",guard:"Guardanapo",
+    bov:"Bovino",sui:"Suíno",trad:"Tradicional",integ:"Integral",desn:"Desnatado",sach:"Sachê",cerv:"Cerveja",achoc:"Achocolatado",extr:"Extrato",gde:"Grande",cx:"Caixa",pct:"Pacote",
+    feijao:"Feijão",acucar:"Açúcar",cafe:"Café",limao:"Limão",macarrao:"Macarrão",oleo:"Óleo",sabao:"Sabão",agua:"Água",file:"Filé",pao:"Pão",requeijao:"Requeijão",guarana:"Guaraná",
+    frances:"Francês",higienico:"Higiênico",linguica:"Linguiça",salmao:"Salmão",tilapia:"Tilápia",camarao:"Camarão",pure:"Purê",cha:"Chá",hig:"Higiênico",sanitaria:"Sanitária",fat:"Fatiado"};
+  var MK_LIGA=/^(de|da|do|das|dos|com|sem|e|para|em|a|o)$/;
+  /* o que o cupom escreve sobrando: código no começo, parênteses de código, "kg" da balança no fim */
+  function mkLimpar(t){return String(t==null?"":t).replace(/\([^)]*\d{4,}[^)]*\)/g," ").replace(/^\s*\d{4,}[\s\-.:]+/,"").replace(/(\D)[\s.]*(kg|un|und)\s*$/i,"$1").replace(/\bc\//gi,"com ").replace(/\bs\//gi,"sem ")
+    .replace(/(\D)\.(?=\S)/g,"$1 ").replace(/\s+/g," ").trim()}
+  /* "BISC WAFER TUBIN CHOCO" → "Biscoito Wafer Tubin Choco": expande o conhecido, mantém marca e sabor, não inventa o que falta */
+  function mkNome(t){return mkLimpar(t).split(" ").filter(Boolean).map(function(w,i){var k=norm(w).replace(/[^a-z0-9]/g,"");
+      if(MK_ABREV[k])return MK_ABREV[k];if(/^\d/.test(w))return w.toLowerCase().replace(/(\d)l$/,"$1L");if(i&&MK_LIGA.test(k))return w.toLowerCase();
+      return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()}).join(" ")}
+  /* texto sem acento e com abreviações expandidas, para casar regras e comparar produtos */
+  function mkTexto(t){return norm(mkNome(t)).replace(/[^a-z0-9]+/g," ").trim()}
+  /* chave de igualdade de produto: ignora caixa, acento, abreviatura e pontuação (não mistura tamanhos: "200ml" ≠ "1,5l") */
+  function mkChave(t){return norm(mkNome(String(t==null?"":t).replace(/(\d)[.,](\d)/g,"$1p$2"))).replace(/[^a-z0-9]+/g," ").trim()}
+  var MK_NAO_FRESCO=/\b(molho|extrato|polpa|ketchup|catchup|palha|chips|em po|seco|seca|lata|conserva|enlatad[oa]|congelad[oa]|geleia|sorvete|pure|temperado)\b/;
+  /* regras em ordem; [categoria, regex, exceção]. categoria null = ambíguo, vai para revisão */
+  var MK_REGRAS=[
+    ["Bebê/Infantil",/\b(fraldas?|pampers|huggies|lencos? umedecidos?|mamadeiras?|chupetas?|formula infantil|papinhas?|infantil|bebe)\b/],
+    ["Limpeza",/\b(detergentes?|amaciantes?|desinfetantes?|sabao|saboes|lava (loucas?|roupas?)|esponjas?|guardanapos?|papel toalha|toalhas? de papel|hastes? flexiveis?|cotonetes?|agua sanitaria|alvejantes?|cloro|limpador|multiuso|inseticidas?|saco de lixo|sacos? (de )?lixo|papel aluminio|filme pvc|desengordurante|descartaveis?|veja|cif|omo|ype|bombril|lysoform|pinho sol)\b/],
+    ["Higiene Pessoal",/\b(papel higienico|sabonetes?|fio dental|listerine|enxaguante bucal|shampoo|condicionador|creme dental|pasta de dente|escova dental|desodorante|absorventes?|barbear|hidratante|protetor solar)\b/],
+    [null,/\b(sab|alcool|agua oxigenada|bolo|racao|sacola|embalagem)\b/],
+    ["Chocolates/Doces",/\b(wafer|trident|nutella|petit four|goma de mascar|chicletes?|pudim|bombons?|balas?|chocolates?|doces?|pirulitos?|pacoca)\b/],
+    ["Bebidas",/\b(agua( mineral| com gas| de coco)?|refrigerantes?|refri|sucos?|cervejas?|coca cola|guarana|sprite|fanta|pepsi|schweppes|energetico|isotonico|vinho|vodka|whisky|cachaca)\b/],
+    ["Padaria",/\b(pao de forma|pao frances|pao de queijo|paes?|pao|bisnaguinhas?|bisnagas?|empadas?|coxinhas?|pasteis|pastel|salgados?|esfihas?|croissants?)\b/],
+    ["Mercearia",/\b(atum|sardinha)\b.*\b(lata|oleo|ralado)\b|\b(lata|oleo)\b.*\b(atum|sardinha)\b/],
+    [null,/\b(atum|sardinha)\b/],
+    ["Peixaria",/\b(peixes?|tilapia|salmao|merluza|pescada|corvina|bacalhau|camarao|lulas?|polvo|mariscos?|filet de peixe)\b/],
+    ["Mercearia",/\bqueijo ralado\b/],
+    ["Açougue/Frios",/\b(carnes?|bovin[oa]|acem|miolo|patinho|alcatra|picanha|fraldinha|contrafile|costela|costelinha|cupim|maminha|frango|sobrecoxa|coxa|asa|linguica|salsichas?|embutidos?|presunto|apresuntado|mussarela|mortadela|salame|peru|bacon|toucinho|calabresa|hamburguer|suin[oa]|pernil|lombo|bisteca|queijo)\b/],
+    ["Hortifruti",/\b(bananas?|tomates?|cebolas?|batatas?|alface|limao|limoes|uvas?|macas?|mamao|cenouras?|abobora|abobrinha|pepinos?|pimentao|alho|mandioca|laranjas?|morangos?|berinjelas?|couve|brocolis|repolho|beterraba|chuchu|abacates?|abacaxi|melancia|melao|mangas?|peras?|kiwi|goiabas?|mexerica|tangerina|cheiro verde|salsa|salsinha|cebolinha|coentro|manjericao|hortela|rucula|agriao|espinafre|gengibre|inhame|vagem)\b/,MK_NAO_FRESCO],
+    ["Casa/Utilidades",/\b(pilhas?|lampadas?|velas?|fosforos?|isqueiros?|copos?|pratos?|talheres?|vassouras?|rodo|baldes?|pano de (prato|chao)|cabides?|potes?|marmitas?|baterias?|fita adesiva|carvao|panelas?|frigideiras?|jarras?)\b/],
+    ["Mercearia",/\b(arroz|feijao|macarrao|massa|espaguete|oleo|azeite|vinagre|acucar|adocante|cafe|leite|manteiga|margarina|requeijao|creme de leite|molho|extrato|polpa|maionese|ketchup|catchup|mostarda|biscoitos?|bolachas?|cream cracker|torradas?|farinha|fuba|sal|tempero|oregano|pimenta do reino|colorau|milho|ervilha|ovos?|aveia|cereal|granola|achocolatado|gelatina|fermento|amendoim|batata palha|batata frita|salgadinho|chips|geleia|mel|cha|sopa|lentilha|farofa|tapioca)\b/]
+  ];
+  /* classifica um item do cupom. ctx (opcional): {produtos:[{id,nome,categoria}], apelidos:{chaveDaDescricao:produto_id}}.
+     Devolve {categoria|null, origem:"produto"|"regra"|"revisar", revisar, produto_id?, motivo?} */
+  function mkClassificar(desc,nome,ctx){ctx=ctx||{};var prods=ctx.produtos||[],ch=mkChave(desc),pid=(ctx.apelidos||{})[ch],pr=null,i;
+    if(pid)for(i=0;i<prods.length;i++)if(prods[i].id===pid){pr=prods[i];break}
+    if(!pr&&ch)for(i=0;i<prods.length;i++)if(mkChave(prods[i].nome)===ch||(nome&&mkChave(prods[i].nome)===mkChave(nome))){pr=prods[i];break}
+    if(pr&&pr.categoria)return {categoria:mkCatOficial(pr.categoria),origem:"produto",revisar:false,produto_id:pr.id};
+    var tx=mkTexto(desc)+" "+mkTexto(nome||"");if(!tx.trim())return {categoria:null,origem:"revisar",revisar:true,motivo:"sem descrição"};
+    for(i=0;i<MK_REGRAS.length;i++){var r=MK_REGRAS[i];if(r[1].test(tx)&&!(r[2]&&r[2].test(tx))){
+      return r[0]?{categoria:r[0],origem:"regra",revisar:false}:{categoria:null,origem:"revisar",revisar:true,motivo:"nome ambíguo: escolha a categoria"}}}
+    return {categoria:null,origem:"revisar",revisar:true,motivo:"sem regra para este produto"}}
+  raiz.RACnucleo={MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

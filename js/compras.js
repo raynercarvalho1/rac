@@ -410,7 +410,7 @@
     var p=panel("Importar compras","Escolha vários arquivos de uma vez: PDF do pedido, DANFE, XML da nota, CSV ou ZIP exportado pela loja, e-mail (.eml) ou print. Tudo é lido neste aparelho; nada é gravado antes do Salvar.");
     var arq=h("input",{type:"file",multiple:"",accept:".pdf,.xml,.csv,.zip,.eml,.txt,image/*","aria-label":"Arquivos das compras"}),txt=h("textarea",{rows:"4",placeholder:"Ou cole aqui o texto do e-mail de confirmação ou do pedido"});
     var ler=h("button",{type:"button",class:"ghostbtn pri",text:"Ler os arquivos"}),st=h("p",{class:"sub",role:"status"}),saida=h("div",{class:"stack"});
-    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler));
+    p.appendChild(h("label",{class:"filebtn"},"📂 Escolher arquivos",arq));arq.onchange=function(){var n=(arq.files||[]).length;st.textContent=n?n+(n===1?" arquivo escolhido.":" arquivos escolhidos."):""};p.appendChild(txt);p.appendChild(h("div",{class:"vfil"},ler));
     if(isOwner()&&typeof gmApi==="function")p.appendChild(ccGmailBloco(saida,st));p.appendChild(st);
     p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Como trazer o histórico da Amazon (oficial, sem senha)"}),h("ol",null,
       h("li",{text:"Na Amazon, abra Conta → Seus pedidos e baixe o PDF (Imprimir resumo do pedido) ou a nota fiscal (DANFE/XML) de cada pedido."}),

@@ -234,3 +234,12 @@ test("as cinco abas da Central de Compras, inclusive ＋ Manual, ficam todas à 
   assert.match(css, /#compras \.ccabas\{flex-wrap:wrap;overflow-x:visible\}/);
   assert.doesNotMatch(css, /#compras \.ccabas\{[^}]*flex-wrap:nowrap/);
 });
+
+test("Importar: o seletor nativo de arquivo fica escondido dentro do botão azul e a caixa de texto não divide linha com ele", () => {
+  const css = ler("index.html"), js = ler("js/compras.js");
+  assert.match(css, /#compras label\.filebtn\{position:relative;overflow:hidden;display:inline-block/);
+  assert.match(css, /#compras label\.filebtn input\{position:absolute;opacity:0/);
+  assert.match(css, /#compras textarea\{display:block;/);
+  assert.doesNotMatch(css, /#compras label\.filebtn input\{display:block/);
+  assert.match(js, /arq\.onchange=function\(\)\{var n=\(arq\.files\|\|\[\]\)\.length;/);
+});

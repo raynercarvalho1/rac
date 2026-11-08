@@ -349,3 +349,5 @@ A migration 035 já está aplicada em produção; esta etapa liga o site a ela.
 
 ## Abas da Central de Compras (07/11/2026, versão 2026-11-07.6)
 São cinco abas, em `CC_ABAS`: Resumo, Compras, Importar, Produtos e recorrências e **＋ Manual** (`#compras/nova`, o cadastro manual; grava como qualquer conferência, por `ccGravar`). Até a 2026-11-07.5 a faixa rolava para o lado sem sinal nenhum e, em tela estreita, a ＋ Manual ficava fora da vista; agora a faixa quebra linha (`#compras .ccabas`) e as cinco aparecem. O botão azul flutuante "＋" do site é outro recurso ("Anotar rápido": item da lista da casa ou tarefa) e não cadastra compra. Prova: `tests/compras.test.mjs`.
+
+**2026-11-07.7 · tela Importar:** o seletor nativo de arquivo aparecia duplicado e o botão azul "Escolher arquivos" quebrava a linha (a etiqueta era "em linha" e o campo nativo ficava solto dentro dela, empurrando a caixa de texto). Agora o campo nativo fica escondido dentro do botão, a caixa de texto ocupa a linha inteira e, ao escolher, aparece "N arquivos escolhidos". Prova: `tests/compras.test.mjs`.

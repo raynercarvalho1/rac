@@ -118,7 +118,7 @@
   }
 
   /* ---------- casca: abas internas e sair ---------- */
-  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
+  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
   function drawApp(sub) {
     var v = VIEWS.some(function (x) { return x[0] === sub; }) ? sub : (rows.length ? "painel" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
@@ -126,7 +126,11 @@
     var bar = h("div", { class: "mkbar" });
     var tabs = h("div", { class: "pills mkpills", "aria-label": "Mercado" });
     /* "Adicionar nota" fica fora das abas, como botão de destaque no topo */
-    VIEWS.forEach(function (x) { if (x[0] !== "importar") tabs.appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] })); });
+    VIEWS.forEach(function (x) {
+      if (x[0] === "importar" || (x[0] === "alertas" && !ehDono())) return;
+      var n = x[0] === "alertas" ? alContar() : 0;
+      tabs.appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
+    });
     var add = h("a", { class: "mkadd", href: "#mercado/importar", "aria-current": v === "importar" ? "page" : null }, h("span", { "aria-hidden": "true", text: "+" }), " Adicionar nota");
     var out = h("button", { type: "button", class: "ghostbtn", text: "Sair" });
     out.onclick = function () { sb.auth.signOut().then(function () { location.reload(); }); };
@@ -137,7 +141,7 @@
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));
       return;
     }
-    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
+    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
     window.scrollTo(0, y);
   }
 
@@ -889,6 +893,139 @@
     return p;
   }
 
+  /* ---------- Alertas de preço (docs/mercado-alertas.md) ----------
+     Regras fixas em NUCLEO.mkal* (sem IA). Configurações, limites e o que já foi lido ficam em PESSOAL["mercado-alertas"] (tabela pessoal: só o dono, com a trava MFA e no backup).
+     Só o dono vê esta aba. Não há envio por Web Push neste lote (docs/mercado-alertas.md). */
+  function ehDono() { return typeof isOwner === "function" && isOwner(); }
+  function alLer() {
+    var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-alertas"]) || {};
+    return { cfg: NU().mkalConfig(raw.cfg), estado: { lidos: Array.isArray(raw.estado && raw.estado.lidos) ? raw.estado.lidos : [] } };
+  }
+  function alGravar(cfg, estado, pronto) {
+    if (typeof pessoalGravar !== "function") { if (pronto) pronto("Não consegui guardar agora."); return; }
+    pessoalGravar("mercado-alertas", { v: 1, cfg: cfg, estado: estado }, pronto);
+  }
+  /* grava e redesenha na hora (PESSOAL já mudou); se a conta recusar depois, a mensagem aparece na próxima tela */
+  function alPersistir(cfg, estado, ok) {
+    st.alMsg = ok || "";
+    alGravar(cfg, estado, function (erro) { if (erro) { st.alMsg = erro; drawApp("alertas"); } });
+    drawApp("alertas");
+  }
+  function alContar() {
+    if (!ehDono() || !rows) return 0;
+    var L = alLer(), N = NU(), hoje = new Date().toISOString().slice(0, 10);
+    return N.mkalClassificar(N.mkalGerar(rows, L.cfg), L.estado, hoje, L.cfg).resumo.novos;
+  }
+  function viewAlertas(body) {
+    var N = NU(), hoje = new Date().toISOString().slice(0, 10), iconeDe = {}, rotuloDe = {};
+    N.MKAL_TIPOS.forEach(function (t) { rotuloDe[t[0]] = t[1]; iconeDe[t[0]] = t[2]; });
+    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Os alertas de preço são só do dono." }))); return; }
+    var L = alLer(), cfg = L.cfg, estado = L.estado;
+    var cl = N.mkalClassificar(N.mkalGerar(rows, cfg), estado, hoje, cfg), R = cl.resumo, todos = cl.alertas;
+    var c = st.al = st.al || { tipo: "", anteriores: false };
+    var top = panel("Alertas de preço", "Regras fixas, sem IA, sobre as compras registradas no RAC. “Menor preço” é o menor registrado aqui, não o menor do mercado. Cada compra gera no máximo um alerta de cada tipo, e só alerta de verdade novo aparece como novo.");
+    top.appendChild(h("div", { class: "kpis" }, [kpi("Novos", String(R.novos), R.novos ? "ainda não lidos, dos últimos " + cfg.novosDias + " dias" : "nada novo", R.novos ? "up" : "")].concat(
+      N.MKAL_TIPOS.filter(function (t) { return cfg.tipos[t[0]].on; }).map(function (t) { return kpi(t[1], String(R.porTipo[t[0]] || 0), "novos"); }))));
+    body.appendChild(top);
+    var lista = h("div", { class: "stack" });
+    var segT = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Tipo de alerta" }), segB = [];
+    [["", "Todos"]].concat(N.MKAL_TIPOS.filter(function (t) { return cfg.tipos[t[0]].on; }).map(function (t) { return [t[0], t[2] + " " + t[1].split(" ")[0]]; })).forEach(function (p) {
+      var b = h("button", { type: "button", text: p[1], title: p[0] ? rotuloDe[p[0]] : "Todos os tipos" }); b.onclick = function () { c.tipo = p[0]; pintar(); }; segB.push([b, p[0]]); segT.appendChild(b);
+    });
+    var mostrar = h("label", { class: "sub" }, h("input", { type: "checkbox", "aria-label": "Mostrar lidos e anteriores", checked: c.anteriores ? "" : null }), " Mostrar lidos e anteriores");
+    achar1(mostrar).onchange = function () { c.anteriores = achar1(mostrar).checked; pintar(); };
+    var todosLidos = h("button", { type: "button", class: "ghostbtn", text: "Marcar todos como lidos" });
+    todosLidos.onclick = function () { salvarEstado(N.mkalMarcarLido(estado, todos.filter(function (a) { return a.novo; }).map(function (a) { return a.id; }))); };
+    body.appendChild(h("div", { class: "panel" }, segT, h("div", { class: "vfil" }, mostrar, todosLidos)));
+    body.appendChild(lista);
+    var msg = h("p", { class: "sub", role: "status", text: st.alMsg || "" }); st.alMsg = ""; body.appendChild(msg);
+    function salvarEstado(e2) { alPersistir(cfg, e2, ""); }
+    function cartao(a) {
+      var su = a.unidade === "kg" ? "/kg" : a.unidade === "l" ? "/L" : a.unidade === "un" ? "/un" : "/" + a.unidade;
+      var p = h("div", { class: "panel mkdet" + (a.novo ? " novo" : "") });
+      p.appendChild(h("div", { class: "ulhead" }, h("div", null,
+        h("h3", { class: "dayh", text: iconeDe[a.tipo] + " " + rotuloDe[a.tipo] + (a.novo ? " · novo" : a.lido ? " · lido" : "") }),
+        h("p", { class: "sub", text: a.nome + " · " + (a.unidade === "l" ? "L" : a.unidade) + " · " + dataBR(a.data) + " · " + semCidade(a.mercado) })),
+        a.pct != null ? varTag(a.pct) : null));
+      p.appendChild(h("p", { text: a.tipo === "limite" ? "Pago " + money(a.atual) + su + " · seu limite " + money(a.anterior) + su
+        : a.tipo === "melhor" ? semCidade(a.mercado) + " " + money(a.atual) + su + " × " + semCidade(a.refMercado) + " " + money(a.anterior) + su
+        : "Antes " + money(a.anterior) + su + " → agora " + money(a.atual) + su }));
+      p.appendChild(h("p", { class: "sub", text: a.motivo }));
+      var ver = h("button", { type: "button", class: "ghostbtn", text: "Ver histórico do produto" });
+      ver.onclick = function () { st.prod = a.chave; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; };
+      var f = h("div", { class: "vfil" }, ver);
+      if (!a.lido) { var lido = h("button", { type: "button", class: "ghostbtn", text: "Marcar como lido" }); lido.onclick = function () { salvarEstado(N.mkalMarcarLido(estado, [a.id])); }; f.appendChild(lido); }
+      p.appendChild(f); return p;
+    }
+    function pintar() {
+      segB.forEach(function (x) { x[0].setAttribute("aria-pressed", String(c.tipo === x[1])); });
+      lista.innerHTML = "";
+      var base = todos.filter(function (a) { return cfg.tipos[a.tipo].on && (!c.tipo || a.tipo === c.tipo); });
+      var novos = base.filter(function (a) { return a.novo; }), resto = base.filter(function (a) { return !a.novo; });
+      if (!novos.length) lista.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: base.length ? "Nenhum alerta novo. Os anteriores estão em “Mostrar lidos e anteriores”." : "Nenhum alerta com as regras de hoje." })));
+      novos.forEach(function (a) { lista.appendChild(cartao(a)); });
+      if (c.anteriores && resto.length) {
+        lista.appendChild(h("h3", { class: "dayh", text: "Lidos e anteriores (" + resto.length + ")" }));
+        resto.slice(0, 60).forEach(function (a) { lista.appendChild(cartao(a)); });
+        if (resto.length > 60) lista.appendChild(h("p", { class: "sub", text: "Mostrando os 60 mais recentes de " + resto.length + "." }));
+      }
+    }
+    pintar();
+    body.appendChild(ajustesAlertas(N, cfg, estado, msg));
+  }
+  function achar1(label) { return label.children[0]; }
+  /* Ajustes: ligar/desligar cada tipo, percentuais, janelas, limites por produto e unidade (editar = salvar de novo; remover) */
+  function ajustesAlertas(N, cfg, estado, msg) {
+    var d = h("details", { class: "famvals" }, h("summary", { text: "Ajustar os alertas" })), box = h("div", { class: "stack" }); d.appendChild(box);
+    var T = cfg.tipos, ins = {};
+    function linha(chave, rot, extra) {
+      var on = h("input", { type: "checkbox", "aria-label": "Ativar: " + rot, checked: T[chave].on ? "" : null }); ins[chave] = { on: on };
+      var l = h("label", { class: "sub" }, on, " " + rot); var row = h("div", { class: "vfil" }, l);
+      (extra || []).forEach(function (x) { var i = h("input", { type: "number", min: x.min, step: x.step, value: String(x.v), "aria-label": rot + ": " + x.rot, inputmode: "decimal" }); ins[chave][x.k] = i; row.appendChild(h("span", { class: "sub", text: x.rot })); row.appendChild(i); });
+      box.appendChild(row);
+    }
+    linha("aumento", "Aumento de preço", [{ k: "pct", rot: "a partir de (%)", v: Math.round(T.aumento.pct * 1000) / 10, min: 1, step: 1 }]);
+    linha("queda", "Queda de preço", [{ k: "pct", rot: "a partir de (%)", v: Math.round(T.queda.pct * 1000) / 10, min: 1, step: 1 }]);
+    linha("minimo", "Menor preço histórico");
+    linha("minimo_periodo", "Menor preço no período", [{ k: "dias", rot: "janela (dias)", v: T.minimo_periodo.dias, min: 7, step: 1 }]);
+    linha("melhor", "Melhor preço em outro mercado", [{ k: "pct", rot: "diferença mínima (%)", v: Math.round(T.melhor.pct * 1000) / 10, min: 1, step: 1 }, { k: "dias", rot: "registros a até (dias)", v: T.melhor.dias, min: 7, step: 1 }]);
+    linha("limite", "Limite de preço definido por mim");
+    var nd = h("input", { type: "number", min: 7, step: 1, value: String(cfg.novosDias), "aria-label": "Considerar novos os alertas dos últimos (dias)", inputmode: "numeric" });
+    box.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Considerar novos os alertas dos últimos (dias)" }), nd));
+    var salvar = h("button", { type: "button", text: "Salvar ajustes" });
+    salvar.onclick = function () {
+      function pct(k) { return +ins[k].pct.value / 100; }
+      var novo = N.mkalConfig({ tipos: {
+        aumento: { on: ins.aumento.on.checked, pct: pct("aumento") }, queda: { on: ins.queda.on.checked, pct: pct("queda") }, minimo: { on: ins.minimo.on.checked },
+        minimo_periodo: { on: ins.minimo_periodo.on.checked, dias: +ins.minimo_periodo.dias.value }, melhor: { on: ins.melhor.on.checked, pct: pct("melhor"), dias: +ins.melhor.dias.value }, limite: { on: ins.limite.on.checked } },
+        novosDias: +nd.value, limites: cfg.limites });
+      alPersistir(novo, estado, "Ajustes salvos.");
+    };
+    box.appendChild(h("div", { class: "vfil" }, salvar));
+    /* limites por produto e unidade */
+    box.appendChild(h("h3", { class: "dayh", text: "Limites de preço por produto" }));
+    box.appendChild(h("p", { class: "sub", text: "Gera alerta quando uma compra registrada tiver preço igual ou menor que o limite. Vale para o produto naquela unidade." }));
+    if (cfg.limites.length) box.appendChild(tabela(["Produto", "Unidade", "Limite", ""], cfg.limites.map(function (l) {
+      var rem = h("button", { type: "button", class: "ghostbtn", text: "Remover", "aria-label": "Remover limite de " + l.nome });
+      rem.onclick = function () { alPersistir(N.mkalLimiteRemover(cfg, l.chave), estado, "Limite removido."); };
+      return [l.nome, l.unidade === "l" ? "L" : l.unidade, money(l.max), rem];
+    }), 2));
+    else box.appendChild(h("p", { class: "sub", text: "Nenhum limite cadastrado." }));
+    var opc = N.mkalOpcoes(rows);
+    var sel = h("select", { "aria-label": "Produto do limite" }, h("option", { value: "", text: "Escolha o produto" }), opc.map(function (o) { return h("option", { value: o.chave, text: o.nome + " · " + (o.unidade === "l" ? "L" : o.unidade) }); }));
+    var max = h("input", { type: "number", min: "0", step: "0.01", placeholder: "Limite (R$)", "aria-label": "Limite de preço (R$)", inputmode: "decimal" });
+    var add = h("button", { type: "button", text: "Salvar limite" });
+    add.onclick = function () {
+      var o = opc.filter(function (x) { return x.chave === sel.value; })[0];
+      var r = N.mkalLimiteSalvar(cfg, { nome: o ? o.nome : "", unidade: o ? o.unidade : "", max: +max.value });
+      if (r.erro) { msg.textContent = r.erro; return; }
+      alPersistir(r.cfg, estado, "Limite salvo.");
+    };
+    box.appendChild(h("div", { class: "vfil" }, sel, max, add));
+    box.appendChild(h("p", { class: "sub", text: "Os ajustes e o que você já leu ficam na sua conta, só visíveis para você." }));
+    return d;
+  }
+
   /* ---------- Notas ---------- */
   function viewNotas(body) {
     var g = Object.values(groupBy(rows, function (x) { return x.nota; })).map(function (l) {
@@ -1586,5 +1723,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r) { rows = r; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

@@ -2550,10 +2550,69 @@
       precoCaiu:top(P.filter(function(x){return x.preco&&x.preco.pct!=null&&x.preco.pct<-MK_TOL}),function(x,y){return x.preco.pct-y.preco.pct||x.nome.localeCompare(y.nome)}),
       soA:top(P.filter(function(x){return x.estado==="so_a"}),function(x,y){return y.a.total-x.a.total||x.nome.localeCompare(y.nome)}),
       soB:top(P.filter(function(x){return x.estado==="so_b"}),function(x,y){return y.b.total-x.b.total||x.nome.localeCompare(y.nome)})}}
+  /* ===== Mercado: alertas de preço (docs/mercado-alertas.md). Regras fixas e auditáveis, sem IA, só sobre o histórico registrado no RAC.
+     Produto = nome + unidade (mkcChaveProd); preço = valor_unitario da linha de compra. "Menor preço" é o menor REGISTRADO aqui, nunca o menor do mercado.
+     Cada alerta tem um id determinístico (tipo | produto+unidade | compra que o originou [| regra]): rodar de novo não duplica; compra nova gera alerta novo. */
+  var MKAL_TIPOS=[["aumento","Aumento de preço","▲"],["queda","Queda de preço","▼"],["minimo","Menor preço histórico","★"],["minimo_periodo","Menor preço no período","☆"],["melhor","Melhor preço em outro mercado","⇄"],["limite","Limite de preço atingido","⚑"]];
+  /* padrões conservadores: variações de 15%+, melhor preço só com 10%+ de diferença e registros de até 60 dias entre si; "menor no período" começa desligado */
+  var MKAL_PADRAO={tipos:{aumento:{on:true,pct:0.15},queda:{on:true,pct:0.15},minimo:{on:true},minimo_periodo:{on:false,dias:90},melhor:{on:true,pct:0.10,dias:60},limite:{on:true}},novosDias:30,limites:[]};
+  function mkalNum(v,min,max,pad){v=+v;return isFinite(v)&&v>=min&&v<=max?v:pad}
+  function mkalM(v){return "R$ "+(+v).toFixed(2).replace(".",",")}
+  function mkalD(iso){return iso.slice(8,10)+"/"+iso.slice(5,7)+"/"+iso.slice(0,4)}
+  function mkalP(v){return (Math.round(Math.abs(v)*1000)/10).toString().replace(".",",")+"%"}
+  function mkalU(u){return u==="kg"?"/kg":u==="l"?"/L":u==="un"?"/un":"/"+u}
+  /* configuração segura: valores fora do intervalo voltam ao padrão; limites inválidos saem; nunca lança */
+  function mkalConfig(raw){raw=raw&&typeof raw==="object"?raw:{};var t=raw.tipos&&typeof raw.tipos==="object"?raw.tipos:{},P=MKAL_PADRAO.tipos,o={tipos:{},novosDias:Math.round(mkalNum(raw.novosDias,7,180,MKAL_PADRAO.novosDias)),limites:[]};
+    Object.keys(P).forEach(function(k){var r=t[k]&&typeof t[k]==="object"?t[k]:{},p=P[k],c={on:typeof r.on==="boolean"?r.on:p.on};
+      if(p.pct!=null)c.pct=mkalNum(r.pct,0.01,5,p.pct);if(p.dias!=null)c.dias=Math.round(mkalNum(r.dias,7,730,p.dias));o.tipos[k]=c});
+    var vistos={};(Array.isArray(raw.limites)?raw.limites:[]).forEach(function(l){if(!l||typeof l.nome!=="string"||!l.nome.trim())return;var max=+l.max;if(!isFinite(max)||max<=0||max>100000)return;
+      var u=mkcUn(l.unidade),ch=mkcChaveProd({produto:l.nome.trim(),unidade:u});vistos[ch]={chave:ch,nome:l.nome.trim(),unidade:u,max:Math.round(max*100)/100}});
+    Object.keys(vistos).forEach(function(k){o.limites.push(vistos[k])});return o}
+  function mkalLimiteSalvar(cfg,l){var max=+(l&&l.max);if(!l||!String(l.nome||"").trim())return {erro:"Escolha o produto."};if(!isFinite(max)||max<=0)return {erro:"O limite precisa ser maior que zero."};
+    var c=mkalConfig(cfg);c.limites=c.limites.filter(function(x){return x.chave!==mkcChaveProd({produto:String(l.nome).trim(),unidade:l.unidade})});
+    c.limites.push({nome:String(l.nome).trim(),unidade:l.unidade,max:max});return {cfg:mkalConfig(c)}}
+  function mkalLimiteRemover(cfg,chave){var c=mkalConfig(cfg);c.limites=c.limites.filter(function(x){return x.chave!==chave});return c}
+  /* produtos que já existem no histórico (nome + unidade), para escolher o limite sem inventar produto */
+  function mkalOpcoes(rows){var g=mkcAgrupa(rows||[],mkcChaveProd);return g.o.map(function(k){var x=g.m[k][0];return {chave:k,nome:x.produto,unidade:mkcUn(x.unidade)}}).sort(function(a,b){return a.nome.localeCompare(b.nome)||a.unidade.localeCompare(b.unidade)})}
+  /* todos os eventos que as regras reconhecem no histórico (inclusive antigos), mais novos primeiro. Sem histórico suficiente não há alerta:
+     aumento/queda precisam de uma compra anterior; menor preço (histórico e no período) precisam de pelo menos 2 anteriores. */
+  function mkalGerar(rows,cfg0){var cfg=mkalConfig(cfg0),T=cfg.tipos,out=[],g=mkcAgrupa(rows||[],mkcChaveProd);
+    function ev(tipo,k,cur,o){var id=tipo+"|"+k+"|"+cur.id+(o.regra?"|"+o.regra:"");
+      out.push({id:id,tipo:tipo,chave:k,nome:cur.produto,unidade:mkcUn(cur.unidade),categoria:mkCatOficial(cur.categoria),data:cur.data,mercado:cur.mercado,atual:+cur.valor_unitario,anterior:o.anterior==null?null:o.anterior,
+        pct:o.pct==null?null:o.pct,refMercado:o.refMercado||"",refData:o.refData||"",motivo:o.motivo})}
+    g.o.forEach(function(k){var l=g.m[k].slice().sort(mkcOrd),un=mkcUn(l[0].unidade),su=mkalU(un);
+      for(var i=1;i<l.length;i++){var prev=l[i-1],cur=l[i],pp=+prev.valor_unitario,pc=+cur.valor_unitario;if(!(pp>0)||!(pc>0))continue;var v=(pc-pp)/pp;
+        if(T.aumento.on&&v>=T.aumento.pct)ev("aumento",k,cur,{anterior:pp,pct:v,refMercado:prev.mercado,refData:prev.data,motivo:"O preço subiu "+mkalP(v)+" em relação à compra anterior ("+mkalM(pp)+su+" em "+mkalD(prev.data)+" → "+mkalM(pc)+su+"). Regra: aumento de "+mkalP(T.aumento.pct)+" ou mais."});
+        if(T.queda.on&&v<=-T.queda.pct)ev("queda",k,cur,{anterior:pp,pct:v,refMercado:prev.mercado,refData:prev.data,motivo:"O preço caiu "+mkalP(v)+" em relação à compra anterior ("+mkalM(pp)+su+" em "+mkalD(prev.data)+" → "+mkalM(pc)+su+"). Regra: queda de "+mkalP(T.queda.pct)+" ou mais."});
+        if(i>=2){var mn=null,mx=null;for(var j=0;j<i;j++){var q=+l[j].valor_unitario;if(q>0&&(mn===null||q<mn.v))mn={v:q,x:l[j]}}
+          if(mn&&T.minimo.on&&pc<mn.v)ev("minimo",k,cur,{anterior:mn.v,pct:(pc-mn.v)/mn.v,refMercado:mn.x.mercado,refData:mn.x.data,motivo:"Menor preço registrado no RAC para este produto ("+mkalM(pc)+su+"), abaixo do mínimo anterior ("+mkalM(mn.v)+su+" em "+mkalD(mn.x.data)+"), com "+i+" compras anteriores. Não é o menor preço do mercado, só do seu histórico."});
+          else if(mn&&T.minimo_periodo.on){var corte=mkcDia(cur.data,-T.minimo_periodo.dias),w=null,n=0;for(var m=0;m<i;m++){if(l[m].data>=corte&&+l[m].valor_unitario>0){n++;if(w===null||+l[m].valor_unitario<w.v)w={v:+l[m].valor_unitario,x:l[m]}}}
+            if(n>=2&&pc<w.v)ev("minimo_periodo",k,cur,{anterior:w.v,pct:(pc-w.v)/w.v,refMercado:w.x.mercado,refData:w.x.data,motivo:"Menor preço registrado nos últimos "+T.minimo_periodo.dias+" dias ("+mkalM(pc)+su+"; antes "+mkalM(w.v)+su+" em "+mkalD(w.x.data)+"), com "+n+" compras no período."})}}
+      }
+      /* melhor preço em outro estabelecimento: para cada compra, a compra mais recente (até então) em cada OUTRO mercado, dentro da janela de dias */
+      if(T.melhor.on)for(var a=1;a<l.length;a++){var ref=l[a],pr=+ref.valor_unitario;if(!(pr>0))continue;var corteM=mkcDia(ref.data,-T.melhor.dias),melhor=null,vistoM={};
+        for(var b=a-1;b>=0;b--){var c=l[b];if(c.mercado===ref.mercado||vistoM[c.mercado])continue;vistoM[c.mercado]=1;var pcnd=+c.valor_unitario;if(pcnd>0&&c.data>=corteM&&(melhor===null||pcnd<melhor.v))melhor={v:pcnd,x:c}}
+        if(melhor&&(pr-melhor.v)/pr>=T.melhor.pct){var d=(pr-melhor.v)/pr;
+          out.push({id:"melhor|"+k+"|"+ref.id+"|"+melhor.x.id,tipo:"melhor",chave:k,nome:ref.produto,unidade:un,categoria:mkCatOficial(ref.categoria),data:ref.data,mercado:melhor.x.mercado,atual:melhor.v,anterior:pr,pct:-d,refMercado:ref.mercado,refData:ref.data,
+            dataEncontrado:melhor.x.data,motivo:"Em "+semCidadeMk(melhor.x.mercado)+" o mesmo produto ("+mkalM(melhor.v)+su+" em "+mkalD(melhor.x.data)+") saiu "+mkalP(d)+" mais barato que em "+semCidadeMk(ref.mercado)+" ("+mkalM(pr)+su+" em "+mkalD(ref.data)+"). Mesma unidade, registros a no máximo "+T.melhor.dias+" dias um do outro. Regra: diferença de "+mkalP(T.melhor.pct)+" ou mais."})}}
+    });
+    /* limite definido por você: toda compra com preço igual ou menor que o limite */
+    if(T.limite.on)cfg.limites.forEach(function(lim){(g.m[lim.chave]||[]).slice().sort(mkcOrd).forEach(function(cur){var p=+cur.valor_unitario;if(p>0&&p<=lim.max)
+      ev("limite",lim.chave,cur,{anterior:lim.max,pct:(p-lim.max)/lim.max,regra:String(lim.max),motivo:"Preço pago "+mkalM(p)+mkalU(mkcUn(cur.unidade))+" ficou igual ou abaixo do seu limite de "+mkalM(lim.max)+mkalU(mkcUn(cur.unidade))+"."})})});
+    var ordem={};MKAL_TIPOS.forEach(function(t,i){ordem[t[0]]=i});
+    return out.sort(function(x,y){return x.data<y.data?1:x.data>y.data?-1:ordem[x.tipo]-ordem[y.tipo]||x.nome.localeCompare(y.nome)||(x.id<y.id?-1:1)})}
+  function semCidadeMk(n){return String(n||"").replace(/\s*\(.*\)$/,"")}
+  /* estado de leitura: lido por id; novo = ainda não lido e de uma compra dos últimos novosDias. Quem já passou da janela fica em "anteriores". */
+  function mkalClassificar(alertas,estado,hoje,cfg0){var cfg=mkalConfig(cfg0),lidos={};((estado&&estado.lidos)||[]).forEach(function(i){lidos[i]=1});var corte=mkcDia(hoje,-cfg.novosDias),porTipo={},novos=0;
+    var l=(alertas||[]).map(function(a){var lido=!!lidos[a.id],recente=a.data>=corte,novo=recente&&!lido;if(novo){novos++;porTipo[a.tipo]=(porTipo[a.tipo]||0)+1}
+      return Object.assign({},a,{lido:lido,recente:recente,novo:novo})});
+    return {alertas:l,resumo:{novos:novos,total:l.length,porTipo:porTipo}}}
+  /* marca como lidos (sem repetir; guarda os 1500 mais recentes) */
+  function mkalMarcarLido(estado,ids){var l=((estado&&estado.lidos)||[]).slice();(ids||[]).forEach(function(i){if(l.indexOf(i)<0)l.push(i)});return {lidos:l.slice(-1500)}}
   /* gasto por mês (só meses com compra; mês sem compra não aparece e nada é inventado) */
   function mkcPorMes(rows){var g=mkcAgrupa(rows||[],function(x){return x.data.slice(0,7)});
     return g.o.sort().map(function(k){var l=g.m[k];return {mes:k,total:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})}
-  raiz.RACnucleo={mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  raiz.RACnucleo={MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

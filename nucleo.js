@@ -2405,7 +2405,72 @@
     for(i=0;i<MK_REGRAS.length;i++){var r=MK_REGRAS[i];if(r[1].test(tx)&&!(r[2]&&r[2].test(tx))){
       return r[0]?{categoria:r[0],origem:"regra",revisar:false}:{categoria:null,origem:"revisar",revisar:true,motivo:"nome ambíguo: escolha a categoria"}}}
     return {categoria:null,origem:"revisar",revisar:true,motivo:"sem regra para este produto"}}
-  raiz.RACnucleo={MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  /* ===== Mercado: consumo e histórico de preços por categoria e por produto (docs/mercado-consumo.md).
+     Puro: recebe as linhas da view "compras" e devolve números. Nunca inventa dado: sem histórico suficiente o campo vem null.
+     Preço sempre por unidade de medida: produto vendido em kg e em un tem um bloco para cada, nunca misturados. */
+  function mkcR(v){return Math.round((+v||0)*100)/100}
+  function mkcNota(x){return x.nota||(x.data+"|"+x.mercado+"|"+(x.numero||""))}
+  function mkcUn(u){return u==="kg"||u==="l"?u:"un"}
+  function mkcDias(a,b){return Math.round((Date.UTC(+b.slice(0,4),+b.slice(5,7)-1,+b.slice(8,10))-Date.UTC(+a.slice(0,4),+a.slice(5,7)-1,+a.slice(8,10)))/86400000)}
+  function mkcOrd(a,b){return a.data<b.data?-1:a.data>b.data?1:String(a.id||"")<String(b.id||"")?-1:1}
+  /* período → {de, ate} em AAAA-MM-DD ("" = sem limite): "tudo", "3m"/"6m"/"12m" (meses fechados até o de hoje) ou "AAAA-MM" */
+  function mkcPeriodo(p,hoje){var m=/^(\d{4})-(\d{2})$/.exec(p||"");
+    if(m){var u=new Date(+m[1],+m[2],0).getDate();return {de:p+"-01",ate:p+"-"+(u<10?"0":"")+u}}
+    var n=/^(\d+)m$/.exec(p||"");
+    if(n&&hoje){var a=+hoje.slice(0,4),b=+hoje.slice(5,7)-(+n[1]-1);while(b<1){b+=12;a--}return {de:a+"-"+(b<10?"0":"")+b+"-01",ate:""}}
+    return {de:"",ate:""}}
+  /* um filtro só para a tela inteira: período (de/ate), categoria, mercado e texto do produto, todos juntos. sem.categoria/sem.produto os deixa de fora
+     (as barras de categoria precisam ver todas as categorias; o detalhe do produto não depende da busca) */
+  function mkcFiltrar(rows,f,sem){f=f||{};sem=sem||{};var q=sem.produto?"":norm(f.produto||"").trim();
+    return (rows||[]).filter(function(x){
+      if(f.de&&x.data<f.de)return false;if(f.ate&&x.data>f.ate)return false;
+      if(!sem.categoria&&f.categoria&&mkCatOficial(x.categoria)!==f.categoria)return false;
+      if(f.mercado&&x.mercado!==f.mercado)return false;
+      if(q&&norm(x.produto).indexOf(q)<0)return false;return true})}
+  function mkcAgrupa(l,f){var m={},o=[];l.forEach(function(x){var k=f(x);if(!m[k]){m[k]=[];o.push(k)}m[k].push(x)});return {m:m,o:o}}
+  function mkcQtd(l){var q={};l.forEach(function(x){var u=mkcUn(x.unidade);q[u]=Math.round(((q[u]||0)+(+x.quantidade||0))*1000)/1000});return q}
+  /* categorias do período: total, participação (sobre o total de todas as linhas recebidas), produtos diferentes, itens, compras e quantidade por unidade */
+  function mkcCategorias(rows){var tot=mkcR((rows||[]).reduce(function(s,x){return s+(+x.valor_total||0)},0)),g=mkcAgrupa(rows||[],function(x){return mkCatOficial(x.categoria)||"Outros"});
+    var linhas=g.o.map(function(c){var l=g.m[c],t=mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0));
+      return {categoria:c,total:t,pct:tot?t/tot:0,produtos:mkcAgrupa(l,function(x){return x.produto}).o.length,itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})
+      .sort(function(a,b){return b.total-a.total||a.categoria.localeCompare(b.categoria)});
+    return {total:tot,linhas:linhas}}
+  /* resumo da seleção (KPIs): total, produtos diferentes, itens, compras; base = total sem o filtro de categoria, para a participação */
+  function mkcResumo(rows,base){var t=mkcR((rows||[]).reduce(function(s,x){return s+(+x.valor_total||0)},0)),b=mkcR((base||[]).reduce(function(s,x){return s+(+x.valor_total||0)},0));
+    return {total:t,base:b,pct:b?t/b:0,produtos:mkcAgrupa(rows||[],function(x){return x.produto}).o.length,itens:(rows||[]).length,compras:mkcAgrupa(rows||[],mkcNota).o.length}}
+  /* produtos de um conjunto de linhas; ordem: "gasto" (maior), "nome" (A a Z) ou "frequencia" (mais compras). freqDias = intervalo médio entre dias de compra (null com menos de 2 dias) */
+  function mkcProdutos(rows,ordem){var g=mkcAgrupa(rows||[],function(x){return x.produto});
+    var l=g.o.map(function(p){var r=g.m[p].slice().sort(mkcOrd),u=r[r.length-1],dias=mkcAgrupa(r,function(x){return x.data}).o;
+      return {nome:p,categoria:mkCatOficial(u.categoria),total:mkcR(r.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:r.length,compras:mkcAgrupa(r,mkcNota).o.length,qtd:mkcQtd(r),
+        unidades:Object.keys(mkcQtd(r)),ultimaData:u.data,freqDias:dias.length>1?Math.round(mkcDias(dias[0],dias[dias.length-1])/(dias.length-1)):null}});
+    var o=ordem||"gasto";
+    l.sort(function(a,b){var d=o==="nome"?a.nome.localeCompare(b.nome):o==="frequencia"?b.compras-a.compras||b.total-a.total:b.total-a.total;return d||a.nome.localeCompare(b.nome)});
+    return l}
+  /* detalhe de UM produto: um bloco por unidade (kg, l, un). preço médio = média dos preços unitários pagos ponderada pela quantidade (Σ preço×qtd ÷ Σ qtd);
+     o desconto da nota não entra no preço unitário, só no total gasto. suficiente = pelo menos 2 compras na unidade (sem isso não há variação nem evolução) */
+  function mkcProduto(rows){var r=(rows||[]).slice().sort(mkcOrd);if(!r.length)return null;
+    var ug=mkcAgrupa(r,function(x){return mkcUn(x.unidade)});
+    var blocos=ug.o.map(function(u){var l=ug.m[u],q=0,pq=0,ts=0;
+      l.forEach(function(x){q+=+x.quantidade||0;pq+=(+x.valor_unitario||0)*(+x.quantidade||0);ts+=+x.valor_total||0});
+      function ponto(x){return x?{data:x.data,preco:+x.valor_unitario||0,mercado:x.mercado}:null}
+      var menor=null,maior=null;l.forEach(function(x){var v=+x.valor_unitario||0;if(!menor||v<=menor.v)menor={v:v,x:x};if(!maior||v>=maior.v)maior={v:v,x:x}});
+      var ult=l[l.length-1],ant=l.length>1?l[l.length-2]:null,pa=ant?+ant.valor_unitario||0:0;
+      var mg=mkcAgrupa(l,function(x){return x.mercado});
+      var mercados=mg.o.map(function(m){var z=mg.m[m],zq=0,zp=0,zu=z[z.length-1],zmin=null;
+        z.forEach(function(x){zq+=+x.quantidade||0;zp+=(+x.valor_unitario||0)*(+x.quantidade||0);if(zmin===null||+x.valor_unitario<zmin)zmin=+x.valor_unitario});
+        return {mercado:m,compras:z.length,ultimo:+zu.valor_unitario||0,data:zu.data,menor:zmin,medio:zq?mkcR(zp/zq):null}})
+        .sort(function(a,b){return a.ultimo-b.ultimo||a.mercado.localeCompare(b.mercado)});
+      return {unidade:u,compras:l.length,qtd:Math.round(q*1000)/1000,total:mkcR(ts),precoMedio:q?mkcR(pq/q):null,ultimo:ponto(ult),anterior:ponto(ant),
+        variacaoUltimo:ant&&pa?(((+ult.valor_unitario||0)-pa)/pa):null,menor:menor?ponto(menor.x):null,maior:maior?ponto(maior.x):null,suficiente:l.length>1,
+        serie:l.map(function(x){return {data:x.data,v:+x.valor_unitario||0,mercado:x.mercado}}),mercados:mercados,
+        historico:l.map(function(x){return {data:x.data,mercado:x.mercado,quantidade:+x.quantidade||0,unidade:mkcUn(x.unidade),unitario:+x.valor_unitario||0,total:+x.valor_total||0}})}})
+      .sort(function(a,b){return b.compras-a.compras||a.unidade.localeCompare(b.unidade)});
+    return {nome:r[r.length-1].produto,categoria:mkCatOficial(r[r.length-1].categoria),compras:mkcAgrupa(r,mkcNota).o.length,total:mkcR(r.reduce(function(s,x){return s+(+x.valor_total||0)},0)),
+      mercados:mkcAgrupa(r,function(x){return x.mercado}).o,unidades:blocos}}
+  /* gasto por mês (só meses com compra; mês sem compra não aparece e nada é inventado) */
+  function mkcPorMes(rows){var g=mkcAgrupa(rows||[],function(x){return x.data.slice(0,7)});
+    return g.o.sort().map(function(k){var l=g.m[k];return {mes:k,total:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})}
+  raiz.RACnucleo={mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

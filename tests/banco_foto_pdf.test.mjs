@@ -412,3 +412,31 @@ test("PGlite · REGRESSÃO DO XML: a gravação, a conferência e o cancelamento
   assert.equal((await como(db, R, "select public.nota_fiscal_conferir($1) as r", [id2]))[0].r.ja_conferida, false, "XML em contingência continua conferível (regra só para foto/PDF)");
   await db.close();
 });
+
+test("PGlite · o roteiro de conferência de produção (037_conferir_producao.sql) é só leitura e responde o que promete depois de aplicar a proposta", { skip: pular }, async () => {
+  const db = await banco(false);
+  const sql = ler("supabase/propostas/037_conferir_producao.sql"), sem = sql.replace(/^--.*$/gm, "");
+  assert.ok(!/\b(insert|update|delete|drop|alter|create|grant|revoke|truncate)\b/i.test(sem), "só SELECT");
+  const stmts = sem.split(/;\s*\n/).map((x) => x.trim()).filter(Boolean);
+  assert.equal(stmts.length, 9);
+  /* antes de aplicar, o bloco 1 não acha as tabelas (serve para saber se já foi aplicada) */
+  assert.equal((await admin(db, stmts[0])).length, 0);
+  await db.exec(ler(PROP));
+  const r = [];
+  for (const q of stmts) r.push(await admin(db, q));
+  assert.deepEqual(r[0].map((x) => [x.tabela, x.rls]), [["notas_fiscais_situacoes", true], ["notas_fiscais_tentativas", true]]);
+  assert.equal(r[1].length, 9); assert.deepEqual(r[1].filter((x) => x.definer).map((x) => x.proname).sort(), ["nf_path_registrado", "nf_tentativa_gravar", "nota_fiscal_salvar_doc", "notas_fiscais_hist_situacao"]);
+  assert.ok(r[1].every((x) => x.exec_anon === false && x.config.some((c) => c.startsWith("search_path="))));
+  assert.deepEqual(r[1].filter((x) => x.exec_authenticated && x.retorna !== "trigger").map((x) => x.proname).sort(), ["nf_path_registrado", "nota_fiscal_atualizar_situacao", "nota_fiscal_salvar_doc"]);
+  assert.equal(r[2].length, 0, "nenhum objeto duplicado");
+  const novosTg = r[3].filter((x) => /^(nf_tentativas_imutavel|nf_situacoes_imutavel|notas_fiscais_hist_situacao|notas_fiscais_foto_regras)$/.test(x.gatilho)); assert.equal(novosTg.length, 4); assert.ok(novosTg.every((x) => x.habilitado === "O"));
+  assert.ok(r[3].some((x) => x.gatilho === "notas_fiscais_congelar"), "os da 034 continuam");
+  const pol = r[4].map((x) => `${x.tablename}:${x.policyname}:${x.cmd}:${x.permissive}`);
+  for (const p of ["notas_fiscais_tentativas:dono:SELECT:PERMISSIVE", "notas_fiscais_tentativas:mfa:ALL:RESTRICTIVE", "notas_fiscais_situacoes:dono:SELECT:PERMISSIVE", "notas_fiscais:foto so dono insere:INSERT:RESTRICTIVE", "notas_fiscais:foto so dono altera:UPDATE:RESTRICTIVE", "notas_fiscais:foto so dono apaga:DELETE:RESTRICTIVE",
+    "notas_fiscais_itens:foto so dono apaga:DELETE:RESTRICTIVE", "notas_fiscais_docs:foto so dono insere:INSERT:RESTRICTIVE", "objects:nf tentativa original nao apaga:DELETE:RESTRICTIVE", "objects:nf tentativa original nao substitui:UPDATE:RESTRICTIVE", "objects:nf original registrado nao apaga:DELETE:RESTRICTIVE"]) assert.ok(pol.includes(p), p);
+  assert.deepEqual(r[5].map((x) => [x.grantee, x.table_name, x.privilege_type]).filter((x) => x[0] !== "service_role"), [["authenticated", "notas_fiscais_situacoes", "SELECT"], ["authenticated", "notas_fiscais_tentativas", "SELECT"]]);
+  assert.ok(r[6].some((x) => x.contype === "p") && r[6].some((x) => /ON DELETE SET NULL/.test(x.definicao)) && r[6].some((x) => /ON DELETE CASCADE/.test(x.definicao)) && r[6].some((x) => /DEFERRABLE INITIALLY DEFERRED/.test(x.definicao)));
+  assert.ok(r[7].some((x) => x.indexname === "notas_fiscais_tentativas_idem"));
+  assert.deepEqual([r[8][0].funcoes_xml_034, r[8][0].notas, r[8][0].tentativas, r[8][0].situacoes], [4, 0, 0, 0]);
+  await db.close();
+});

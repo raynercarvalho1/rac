@@ -269,3 +269,69 @@ test("PGlite · SEM a 039 (como em produção hoje) o banco bloqueia nota sem ch
   assert.equal(a.g.modo, "pendente_fiscal", "o site prevê pendente"); assert.deepEqual([a.r.criado, a.r.resultado], [false, "bloqueada"], "o banco sem a 039 não deixa"); assert.equal(await contar(db, "notas_fiscais"), 0);
   await db.close();
 });
+
+// ================= Lote 1.6 · 040: dar entrada da nota no Mercado =================
+const P40 = "supabase/040_nota_fiscal_entrada_mercado.sql";
+test("a 040 só cria a função de entrada no Mercado: invoker, MFA, sem anon, sem despesa, sem tabela/política/gatilho novos; não foi aplicada", () => {
+  const s = ler(P40), sem = s.replace(/^--.*$/gm, "");
+  assert.match(s.slice(0, 200), /PROPOSTA 040 · NÃO APLICADA EM PRODUÇÃO/);
+  assert.ok(!/create table|alter table|drop |delete from|create policy|create trigger|truncate/i.test(sem), "só a função");
+  assert.match(sem, /security invoker set search_path = ''/); assert.match(sem, /public\.rac_aal_ok\(\)/); assert.match(sem, /if p_conferi is not true then raise/);
+  assert.match(sem, /revoke all on function public\.nota_fiscal_entrada_mercado\(uuid, boolean\) from public, anon;/); assert.match(sem, /grant execute on function public\.nota_fiscal_entrada_mercado\(uuid, boolean\) to authenticated;/);
+  assert.ok(!/insert into public\.(registros|pedidos|compras_online)|financeiro|despesa\b/i.test(sem.replace(/gera_despesa/g, "").replace(/sem despesa/gi, "")), "nada de Financeiro nem despesa");
+  assert.match(sem, /'conferencia', false, true/, "vínculo com gera_despesa = false");
+  const conf = ler("supabase/conferencias/040_conferir_producao.sql"); assert.ok(!/\b(insert|update|delete|drop|alter|create|grant|revoke|truncate)\b/i.test(conf.replace(/^--.*$/gm, "")), "a conferência é só leitura");
+});
+async function bancoMercado() {
+  const db = await banco(); await db.exec(ler(P39));
+  await execAdmin(db, "drop table public.notas cascade;");
+  await db.exec(ler("supabase/schema.sql").split("\n").slice(8, 64).join("\n"));        // as tabelas reais do Mercado: mercados, produtos, notas, itens
+  for (const t of ["mercados", "produtos", "notas", "itens"]) await db.exec(`alter table public.${t} enable row level security; create policy "casa" on public.${t} for all to authenticated using (user_id = public.dono_da_casa()) with check (user_id = public.dono_da_casa());
+    create policy "mfa" on public.${t} as restrictive for all to authenticated using ((select public.rac_aal_ok())) with check ((select public.rac_aal_ok()));`);
+  await db.exec(ler(P40)); await db.exec(ler(P40));    // idempotente
+  return db;
+}
+const entrar = (db, uid, id, conferi = true, aal) => como(db, uid, "select public.nota_fiscal_entrada_mercado($1, $2) as r", [id, conferi], aal).then((l) => l[0].r);
+test("PGlite · entrada no Mercado de nota pendente SEM chave: cria mercado, produtos, compra e itens (g/ml convertidos, desconto no item), vínculo sem despesa, situação fiscal intacta; clicar de novo não duplica", { skip: pular }, async () => {
+  const db = await bancoMercado();
+  const g = await gravar(db, 90, { revisada: true, confianca: 0.45, res: { chave: null, emitente_nome: "TAUSTE SUPERMERCADOS LTDA", total_produtos: 26, descontos: 0.5, total: 25.5, valor_pago: 25.5,
+    itens: [{ descricao: "ARROZ TIPO 1 5KG", qtd: 1, unidade: "UN", unitario: 20, total: 20, desconto: 0.5 }, { descricao: "QUEIJO MUSSARELA", qtd: 300, unidade: "G", unitario: 0.02, total: 6, desconto: 0 }] } });
+  assert.equal(g.r.resultado, "pendente_fiscal", JSON.stringify(g.r));
+  const a = await entrar(db, R, g.id); assert.deepEqual([a.criado, a.itens], [true, 2], JSON.stringify(a)); assert.equal(+a.total, 25.5);
+  const nm = (await admin(db, "select n.data, n.total, n.fonte, n.chave_nfce, m.nome from public.notas n join public.mercados m on m.id = n.mercado_id where n.id = $1", [a.mercado_nota_id]))[0];
+  assert.deepEqual([+nm.total, nm.fonte, nm.chave_nfce, nm.nome], [25.5, "foto", null, "TAUSTE SUPERMERCADOS LTDA"]); assert.equal((await admin(db, "select to_char(data, 'YYYY-MM-DD') as d from public.notas where id = $1", [a.mercado_nota_id]))[0].d, "2026-11-06");
+  const it = await admin(db, "select descricao, categoria, quantidade, unidade, valor_unitario, valor_total, desconto from public.itens where nota_id = $1 order by descricao", [a.mercado_nota_id]);
+  assert.deepEqual(it.map((x) => [x.descricao, x.categoria, +x.quantidade, x.unidade, +x.valor_unitario, +x.valor_total, +x.desconto]), [["ARROZ TIPO 1 5KG", "Mercearia", 1, "un", 20, 19.5, 0.5], ["QUEIJO MUSSARELA", "Mercearia", 0.3, "kg", 20, 6, 0]], "300 g viram 0,3 kg a R$ 20/kg; o desconto fica no item");
+  assert.equal(await contar(db, "produtos"), 2); assert.equal((await admin(db, "select count(*)::int as n from public.itens where produto_id is not null"))[0].n, 2);
+  const v = (await admin(db, "select modulo, registro_id, gera_despesa, valido from public.notas_fiscais_vinculos where nota_id = $1", [g.id])); assert.deepEqual([v.length, v[0].modulo, v[0].gera_despesa, v[0].valido], [1, "mercado", false, true]);
+  assert.equal((await admin(db, "select situacao as s from public.notas_fiscais where id = $1", [g.id]))[0].s, "pendente", "a situação fiscal não mudou com a entrada");
+  assert.equal((await admin(db, "select situacao as s, conferida_em as c from public.notas_fiscais where id = $1", [g.id]))[0].c, null);
+  const b = await entrar(db, R, g.id); assert.deepEqual([b.criado, b.ja_existia, b.mercado_nota_id], [false, true, a.mercado_nota_id]); assert.equal(await contar(db, "notas"), 1); assert.equal(await contar(db, "itens"), 2); assert.equal(await contar(db, "notas_fiscais_vinculos"), 1);
+  assert.equal(await contar(db, "registros") + await contar(db, "pedidos"), 0, "nenhuma despesa");
+  await db.close();
+});
+test("PGlite · entrada: reaproveita produto e mercado já existentes; chave já no Mercado = duplicada; exige Conferi, dono e MFA; cancelada e sem itens/data/total não entram", { skip: pular }, async () => {
+  const db = await bancoMercado();
+  await admin(db, `insert into public.mercados (user_id, nome, cnpj) values ('${R}', 'Mercado Exemplo', '11222333000181')`); const merc = (await admin(db, "select id from public.mercados"))[0].id;
+  await admin(db, `insert into public.produtos (user_id, nome, categoria, unidade) values ('${R}', 'Item A Bonito', 'Bebidas', 'un')`); const prod = (await admin(db, "select id from public.produtos"))[0].id;
+  await admin(db, `insert into public.notas (user_id, mercado_id, data, total, fonte) values ('${R}', '${merc}', '2026-10-01', 5, 'manual')`); const antiga = (await admin(db, "select id from public.notas"))[0].id;
+  await admin(db, `insert into public.itens (user_id, nota_id, produto_id, descricao, categoria, quantidade, valor_unitario, valor_total) values ('${R}', '${antiga}', '${prod}', 'ITEM A', 'Bebidas', 1, 5, 5)`);
+  const g = await gravar(db, 91); assert.equal(g.r.resultado, "validada");
+  const a = await entrar(db, R, g.id); assert.equal(a.criado, true, JSON.stringify(a)); assert.equal(await contar(db, "mercados"), 1, "o mercado do mesmo CNPJ foi reaproveitado"); assert.equal(await contar(db, "produtos"), 2, "ITEM A reaproveitou o produto; ITEM B é novo");
+  assert.deepEqual((await admin(db, "select categoria from public.itens where nota_id = $1 and descricao = 'ITEM A'", [a.mercado_nota_id])).map((x) => x.categoria), ["Bebidas"], "a categoria do produto já conhecido");
+  assert.equal((await admin(db, "select chave_nfce as c from public.notas where id = $1", [a.mercado_nota_id]))[0].c, chaveDe(91), "com chave, a compra leva a chave");
+  const g2 = await gravar(db, 92); await admin(db, `insert into public.notas (user_id, mercado_id, data, total, chave_nfce, fonte) values ('${R}', '${merc}', '2026-11-06', 25.5, '${chaveDe(92)}', 'qr')`);
+  const d = await entrar(db, R, g2.id); assert.deepEqual([d.criado, d.duplicada, d.motivo], [false, true, "chave"]); assert.equal(await contar(db, "notas_fiscais_vinculos", `nota_id = '${g2.id}'`), 0);
+  const g4 = await gravar(db, 94); const g3 = await gravar(db, 93); assert.match((await falha(entrar(db, R, g3.id, false))).message, /confirme que conferiu/); assert.match((await falha(entrar(db, R, g3.id, null))).message, /confirme que conferiu/);
+  await admin(db, `insert into auth.mfa_factors values ('${R}', 'verified')`); assert.match((await falha(entrar(db, R, g3.id, true, "aal1"))).message, /MFA/); assert.equal((await entrar(db, R, g3.id, true, "aal2")).criado, true);
+  for (const uid of [F, X, null]) assert.ok((await falha(entrar(db, uid, g.id, true, "aal2"))).message, String(uid));
+  await admin(db, `update public.notas_fiscais set situacao = 'cancelada' where id = '${g4.id}'`); assert.match((await falha(entrar(db, R, g4.id, true, "aal2"))).message, /cancelada/);
+  assert.match((await falha(entrar(db, R, "00000000-0000-4000-8000-000000000000", true, "aal2"))).message, /não encontrada/);
+  await db.close();
+});
+test("PGlite · entrada: duas entradas ao mesmo tempo da mesma nota criam UMA compra só", { skip: pular }, async () => {
+  const db = await bancoMercado(); const g = await gravar(db, 95);
+  const r = await Promise.allSettled([entrar(db, R, g.id), entrar(db, R, g.id)]);
+  assert.equal(r.filter((x) => x.status === "fulfilled" && x.value.criado === true).length, 1, JSON.stringify(r.map((x) => x.value || x.reason?.message))); assert.equal(await contar(db, "notas"), 1); assert.equal(await contar(db, "notas_fiscais_vinculos"), 1);
+  await db.close();
+});

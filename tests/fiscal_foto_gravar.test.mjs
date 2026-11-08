@@ -47,6 +47,9 @@ function ambiente(o = {}) {
       return { data: { id: n.id, criado: true, resultado, classe: "consistente", tentativa_id: "t1", avisos: [], docs_para_apagar: [] } };
     }
     if (nome === "nota_fiscal_atualizar_situacao") { const nf = (tab.notas_fiscais || []).filter((x) => x.id === a.p_id)[0]; const de = nf.situacao; if (de === a.p_situacao) return { data: { id: a.p_id, sem_mudanca: true, situacao: de } }; nf.situacao = a.p_situacao; return { data: { id: a.p_id, sem_mudanca: false, de, para: a.p_situacao } }; }
+    if (nome === "nota_fiscal_entrada_mercado") { tab.notas_fiscais_vinculos = tab.notas_fiscais_vinculos || []; const j = tab.notas_fiscais_vinculos.filter((v) => v.nota_id === a.p_nota_id && v.modulo === "mercado")[0]; if (j) return { data: { criado: false, ja_existia: true, mercado_nota_id: j.registro_id } };
+      const id = "bbbbbbbb-0000-4000-8000-000000000001"; (tab.notas = tab.notas || []).push({ id, total: 21.89 }); (tab.itens = tab.itens || []).push({ id: "i1", nota_id: id }, { id: "i2", nota_id: id }); tab.notas_fiscais_vinculos.push({ nota_id: a.p_nota_id, modulo: "mercado", registro_id: id, valido: true, criado_em: "2026-11-08T15:00:00Z" });
+      return { data: { criado: true, ja_existia: false, mercado_nota_id: id, mercado_id: "m1", itens: 2, total: 21.89, soma_itens: 21.89, avisos: [] } }; }
     if (nome === "nota_fiscal_conferir") { const nf = (tab.notas_fiscais || []).filter((x) => x.id === a.p_id)[0]; nf.conferida_em = "2026-11-08T10:00:00Z"; return { data: { id: a.p_id } }; }
     return { data: {} };
   };
@@ -312,7 +315,7 @@ test("lista: erro ao ler as notas aparece como erro (não como lista vazia); ten
 // ================= escopo e segurança do código =================
 test("escopo: só as quatro funções aprovadas, só o cofre familia, nada de despesa, de Mercado/Financeiro, de escrita direta nem de conferência automática", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
+  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
   assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura"); assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|criar_despesa|gera_despesa\s*[:=]\s*true/.test(js));
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true);
   const doc = js.slice(js.indexOf("function fxSalvarDoc("), js.indexOf("function fxAtualizarSituacao(")); assert.ok(doc.length > 1500); assert.ok(!/p_conferir|conferir:\s*true|fxConferir/.test(doc), "salvar foto/PDF nunca confere");
@@ -347,4 +350,45 @@ test("sem chave na tela: depois do 'Conferi' o botão vira 'Salvar como pendente
   achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
   const t = texto(r.ultimoCartao); assert.match(t, /Só como pendente fiscal/); assert.match(t, /sem chave de acesso válida.*revisão do dono/i); assert.equal(achar(r.ultimoCartao, (n) => n.tag === "button" && /Salvar como pendente fiscal/.test(n.attrs.text || "")).length, 1);
   const x = await a.c.fxSalvarDoc(r); assert.equal(x.estado, "pendente_fiscal", x.mensagem); const args = a.ch.rpc[0].args; assert.equal(args.p_nota.chave, null); assert.equal(args.p_nota.situacao, "pendente"); assert.equal(args.p_proc.revisada, true); assert.ok(!("p_conferir" in args));
+});
+
+// ================= Lote 1.6 · dar entrada da nota no Mercado (migration 040) =================
+const NP = { id: "7a7a7a7a-0000-4000-8000-000000000001", emitente_nome: "TAUSTE SUPERMERCADOS LTDA", valor_total: 21.89, data_emissao: "2026-11-05", situacao: "contingencia", formato_origem: "imagem", requer_conferencia: true, conferida_em: null, chave: null, protocolo: null };
+test("entrada no Mercado: exige o 'Conferi', chama a função do banco (sem esperar protocolo) e só diz 'entrou' depois de ler a compra de volta; não cria despesa nem muda a situação fiscal", async () => {
+  const a = ambiente({ tab: { notas_fiscais: [NP] } });
+  const sem = await a.c.fxEntradaMercado(NP.id, false); assert.equal(sem.estado, "invalido"); assert.equal(a.ch.rpc.length, 0);
+  const x = await a.c.fxEntradaMercado(NP.id, true); assert.equal(x.estado, "entrou", x.mensagem); assert.match(x.mensagem, /Entrada feita no Mercado: 2 itens.*Conferido no banco: a compra e 2 itens foram lidos de volta/);
+  assert.deepEqual(J(a.ch.rpc), [{ nome: "nota_fiscal_entrada_mercado", args: { p_nota_id: NP.id, p_conferi: true } }]); assert.ok(!a.ch.rpc.some((q) => /atualizar_situacao/.test(q.nome)), "não mexe na situação fiscal");
+  assert.ok(a.ch.sel.some(([t]) => t === "notas") && a.ch.sel.some(([t]) => t === "itens"), "leu a compra e os itens de volta");
+  const y = await a.c.fxEntradaMercado(NP.id, true); assert.equal(y.estado, "ja_existia"); assert.match(y.mensagem, /já deu entrada.*nada foi criado de novo/); assert.equal((a.tab.notas || []).length, 1, "clicar de novo não duplica");
+});
+test("entrada no Mercado: duplicada pela chave, resposta inesperada, erro de permissão e de nota cancelada aparecem como erro, nunca como 'entrou'", async () => {
+  const d = ambiente({ rpc: () => ({ data: { criado: false, duplicada: true, motivo: "chave", mercado_nota_id: "m9" } }) }); assert.equal((await d.c.fxEntradaMercado(NP.id, true)).estado, "duplicada");
+  const i = ambiente({ rpc: () => ({ data: { criado: false } }) }); const r = await i.c.fxEntradaMercado(NP.id, true); assert.equal(r.estado, "erro"); assert.match(r.mensagem, /inesperado/);
+  const p = ambiente({ rpc: () => ({ error: { message: "confirme o código (MFA)", code: "42501" } }) }); const rp = await p.c.fxEntradaMercado(NP.id, true); assert.equal(rp.estado, "erro"); assert.match(rp.mensagem, /Não dei entrada: Sem permissão/);
+  const c = ambiente({ rpc: () => ({ error: { message: "entrada no Mercado: nota cancelada não vale como compra", code: "22023" } }) }); assert.match((await c.c.fxEntradaMercado(NP.id, true)).mensagem, /Não dei entrada.*cancelada/);
+  const s = ambiente({ rpc: () => ({ data: { criado: true, mercado_nota_id: "m1", itens: 1, total: 5, avisos: ["A soma dos itens difere"] } }) }); const rs = await s.c.fxEntradaMercado(NP.id, true); assert.equal(rs.estado, "entrou"); assert.match(rs.mensagem, /não consegui ler a compra de volta agora/); assert.match(rs.mensagem, /A soma dos itens difere/);
+});
+test("entrada no Mercado na tela: a nota pendente sem chave oferece o botão; só vale com o Conferi; compra parecida pede confirmação; quem já entrou mostra a data; cancelada não oferece", async () => {
+  const a = ambiente({ tab: { notas_fiscais: [NP, { ...NP, id: "7a7a7a7a-0000-4000-8000-000000000002", situacao: "cancelada" }, { ...NP, id: "7a7a7a7a-0000-4000-8000-000000000003" }], notas_fiscais_tentativas: [], notas_fiscais_situacoes: [], notas_fiscais_docs: [],
+    notas_fiscais_vinculos: [{ nota_id: "7a7a7a7a-0000-4000-8000-000000000003", modulo: "mercado", registro_id: "m5", valido: true, criado_em: "2026-11-08T15:00:00Z" }], notas: [{ id: "m0", data: "2026-11-05", total: 21.89 }] } });
+  const { det } = await aberta(a); assert.equal(det.length, 3);
+  const abrir = async (d) => { d.open = true; d.ontoggle(); for (let i = 0; i < 10; i++) await new Promise((q) => setImmediate(q)); return d; };
+  await abrir(det[0]); const bt = (d) => achar(d, (n) => n.tag === "button" && /Dar entrada no Mercado/.test(n.attrs.text || ""))[0], ck = (d) => achar(d, (n) => n.tag === "input" && n.attrs.type === "checkbox").slice(-1)[0];
+  assert.ok(bt(det[0])); assert.match(texto(det[0]), /sem esperar protocolo.*Não cria despesa e não muda a situação fiscal/);
+  bt(det[0]).onclick(); assert.equal(a.ch.rpc.length, 0, "sem o Conferi não chama");
+  ck(det[0]).checked = true; a.c.confirm = () => false; bt(det[0]).onclick(); for (let i = 0; i < 10; i++) await new Promise((q) => setImmediate(q)); assert.equal(a.ch.rpc.length, 0, "compra parecida (mesma data e valor): dono recusou, nada foi criado"); assert.match(texto(det[0]), /Entrada cancelada/);
+  a.c.confirm = () => true; bt(det[0]).onclick(); for (let i = 0; i < 12; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_entrada_mercado"]); assert.match(texto(det[0]), /Entrada feita no Mercado/);
+  await abrir(det[1]); assert.equal(bt(det[1]), undefined, "cancelada não entra");
+  await abrir(det[2]); assert.equal(bt(det[2]), undefined); assert.match(texto(det[2]), /✓ Esta nota já deu entrada no Mercado em/);
+});
+test("entrada no Mercado logo depois de salvar: o aviso de gravada traz o botão; depois da entrada mostra o resultado", async () => {
+  const a = ambiente({ res: resposta({ chave: null, confianca: 0.45 }) }), r = await lerFoto(a);
+  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0];
+  achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
+  const x = await a.c.fxSalvarDoc(r); assert.equal(x.estado, "pendente_fiscal", x.mensagem);
+  const bloco = a.c.fxBlocoSalvarDoc(r), b = achar(bloco, (n) => n.tag === "button" && /Dar entrada no Mercado/.test(n.attrs.text || ""))[0]; assert.ok(b, "o botão aparece na nota já gravada");
+  a.c.confirm = () => true; achar(bloco, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; b.onclick(); for (let i = 0; i < 14; i++) await new Promise((q) => setImmediate(q));
+  assert.equal(a.ch.rpc.at(-1).nome, "nota_fiscal_entrada_mercado"); assert.equal(a.ch.rpc.at(-1).args.p_nota_id, r.idNota); assert.ok(r.entrouMercado && /Entrada feita no Mercado/.test(r.entrouMercado));
+  assert.match(texto(a.c.fxBlocoSalvarDoc(r)), /✓ Entrada feita no Mercado/);
 });

@@ -151,11 +151,16 @@
     var meses = Object.keys(groupBy(rows, function (x) { return x.mk; })).sort();
     if (!st.mes || meses.indexOf(st.mes) < 0) st.mes = meses[meses.length - 1];
     var doMes = rows.filter(function (x) { return x.mk === st.mes; });
-    var i = meses.indexOf(st.mes), ant = i > 0 ? rows.filter(function (x) { return x.mk === meses[i - 1]; }) : [];
-    var total = sum(doMes, function (x) { return x.valor_total; }), totAnt = sum(ant, function (x) { return x.valor_total; });
+    var i = meses.indexOf(st.mes);
+    var total = sum(doMes, function (x) { return x.valor_total; });
     var notasMes = groupBy(doMes, function (x) { return x.nota; }), notas = Object.keys(notasMes).length;
     var desc = sum(doMes, function (x) { return x.desconto || 0; });
     if (st.pick && st.pick.mes !== st.mes) st.pick = null;
+    /* comparação com o MESMO PERÍODO do mês anterior (hoje dia 8 → dia 1 a 8 do mês passado), em R$, % e quantidades */
+    var Nn = NU(), P = Nn.mkcMesmoDia(st.mes, hojeLocal()), nomeAnt = MESES[+P.mesAnterior.slice(5) - 1];
+    var rc = Nn.mkcResumo(Nn.mkcFiltrar(doMes, P.atual), []), rp = Nn.mkcResumo(Nn.mkcFiltrar(rows, P.anterior), []);
+    var rotAnt = P.anteriorInteiro ? "o mês inteiro de " + nomeAnt : "1 a " + P.diaAnterior + " de " + nomeAnt;
+    function difTxt(a, b, fmt, pct) { var d = Math.round((a - b) * 100) / 100; return (d > 0 ? "▲ +" : d < 0 ? "▼ −" : "= ") + fmt(Math.abs(d)) + (pct && b > 0 && d !== 0 ? " (" + PCT.format(Math.abs(d) / b) + ")" : ""); }
 
     var seg = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Mês" });
     meses.slice(-12).forEach(function (k) {
@@ -170,7 +175,9 @@
       .map(function (e) { var its = doMes.filter(function (x) { return x.mercado === e[0]; }); return { m: e[0], n: e[1].length, t: sum(its, function (x) { return x.valor_total; }) }; })
       .sort(function (a, b) { return b.t - a.t; });
 
-    var delta = totAnt ? (total - totAnt) / totAnt : null;
+    var gNota = i === 0 && !rp.itens ? "primeiro mês registrado" : !rp.itens ? "sem compras em " + rotAnt : difTxt(rc.total, rp.total, money, true) + " vs " + rotAnt + " (" + money(rp.total) + ")";
+    var gCls = i === 0 && !rp.itens || !rp.itens ? "" : rc.total > rp.total ? "up" : rc.total < rp.total ? "down" : "";
+    function cmpLinha(a, b, un1, unN) { return (P.anteriorInteiro ? "Em " + nomeAnt + " (mês inteiro)" : "Até o dia " + P.diaAnterior + " de " + nomeAnt) + ": " + b + " " + (b === 1 ? un1 : unN) + " · " + difTxt(a, b, String, false); }
     /* os quadros do topo abrem o detalhe: os três do mês mostram as compras do mês; o total mostra mês a mês */
     /* abre e fecha no lugar, sem redesenhar a página: redesenhar mexia na rolagem e o 2º clique caía em outro quadro */
     var kdet = h("div"), kbtns = [];
@@ -182,11 +189,14 @@
     }
     function abrir(qual) { return function () { st.kpi = st.kpi === qual ? null : qual; st.kpiNota = null; mostrarKpi(); }; }
     var kCompras = kpi("Compras no mês", String(notas), notas ? "média de " + money(total / notas) + " por compra" : "", "", abrir("mes"), st.kpi === "mes");
+    kCompras.appendChild(h("span", { class: "kn", text: cmpLinha(rc.compras, rp.compras, "compra", "compras") }));
     kCompras.appendChild(h("div", { class: "kmerc" }, porMercado.map(function (x) { return h("span", { text: semCidade(x.m).split(" ")[0] + " " + x.n }); })));
+    var kItens = kpi("Itens comprados", String(doMes.length), desc ? money(desc) + " em descontos" : "sem descontos registrados", "", abrir("mes"), st.kpi === "mes");
+    kItens.appendChild(h("span", { class: "kn", text: cmpLinha(rc.itens, rp.itens, "item", "itens") }));
     body.appendChild(h("div", { class: "kpis" },
-      kpi("Gasto em " + mesNome(st.mes), money(total), delta === null ? "primeiro mês registrado" : (delta >= 0 ? "▲ " : "▼ ") + PCT.format(Math.abs(delta)) + " vs " + MESES[+meses[i - 1].slice(5) - 1], delta === null ? "" : delta > 0 ? "up" : "down", abrir("mes"), st.kpi === "mes"),
+      kpi("Gasto em " + mesNome(st.mes), money(total), gNota, gCls, abrir("mes"), st.kpi === "mes"),
       kCompras,
-      kpi("Itens comprados", String(doMes.length), desc ? money(desc) + " em descontos" : "sem descontos registrados", "", abrir("mes"), st.kpi === "mes"),
+      kItens,
       kpi("Total desde " + mesNome(meses[0]).split(" ")[0], money(sum(rows, function (x) { return x.valor_total; })), meses.length + (meses.length === 1 ? " mês" : " meses"), "", abrir("total"), st.kpi === "total")));
     body.querySelectorAll(".kbtn").forEach(function (b, n) { kbtns.push([b, n === 3 ? "total" : "mes"]); });
     body.appendChild(kdet); mostrarKpi();
@@ -219,6 +229,9 @@
     /* voltando do gráfico de um produto: volta para o mesmo ponto do painel */
     if (st.voltarY != null) { var y = st.voltarY; st.voltarY = null; setTimeout(function () { window.scrollTo(0, y); }, 0); }
   }
+  var hojeFixo = null;
+  /* data de hoje no fuso do aparelho (o toISOString viraria o dia às 21h no Brasil) */
+  function hojeLocal() { if (hojeFixo) return hojeFixo; var d = new Date(), p = function (n) { return n < 10 ? "0" + n : "" + n; }; return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
   function agruparProdutos(l) {
     return Object.entries(groupBy(l, function (x) { return NU().mkcChaveProd(x); })).map(function (e) {
       return { p: e[1][0].produto, k: e[0], t: sum(e[1], function (x) { return x.valor_total; }), q: sum(e[1], function (x) { return x.quantidade; }), n: e[1].length, u: e[1][0].unidade, c: e[1][0].categoria };
@@ -1723,5 +1736,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

@@ -2617,7 +2617,103 @@
   /* gasto por mês (só meses com compra; mês sem compra não aparece e nada é inventado) */
   function mkcPorMes(rows){var g=mkcAgrupa(rows||[],function(x){return x.data.slice(0,7)});
     return g.o.sort().map(function(k){var l=g.m[k];return {mes:k,total:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})}
-  raiz.RACnucleo={mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  /* ===== Mercado: exportação de relatórios em CSV (docs/mercado-exportar.md).
+     Só monta texto a partir das linhas JÁ carregadas da conta, com os mesmos filtros e as mesmas funções mkc e mkal das telas (nada de tela, banco ou rede aqui).
+     Cada relatório aplica o filtro de novo (mkcFiltrar), então linha fora do filtro nunca sai. Só colunas escolhidas: ids, usuário, observação e nº da nota ficam de fora.
+     Excel pt-BR: separador ";", decimal com vírgula, UTF-8 com BOM, datas AAAA-MM-DD, dinheiro como número (sem "R$"), percentual como número (12,5 = 12,5%). ===== */
+  var MKX_REL={consumo:"Consumo",comparar:"Comparação entre períodos",painel:"Painel mensal",precos:"Preços",alertas:"Alertas de preço"};
+  var MKX_NOME={consumo:"consumo",comparar:"comparacao",painel:"painel",precos:"precos",alertas:"alertas"};
+  var MKX_LEITURA={ambos:"preço e quantidade",preco:"preço",quantidade:"quantidade",misto:"efeitos opostos",estavel:"estável",so_a:"só no período A",so_b:"só no período B"};
+  var MKX_ESTADO={subiu:"subiu",caiu:"caiu",igual:"igual",novo:"sem compras no período B (sem base)",sumiu:"sem compras no período A",zero:"sem compras nos dois períodos",sem_base:"sem base"};
+  var MKX_LISTAS={todos:"Todos os produtos",aumento:"Maior aumento de gasto",reducao:"Maior redução de gasto",qtdmais:"Aumento de quantidade",qtdmenos:"Redução de quantidade",precomais:"Preço unitário subiu",precomenos:"Preço unitário caiu",soa:"Só no período A",sob:"Só no período B"};
+  function mkxNum(v){if(typeof v!=="number"||!isFinite(v))return "";var s=String(Math.round(v*1e6)/1e6);if(/e/i.test(s))s=v.toFixed(6).replace(/0+$/,"").replace(/\.$/,"");return s.replace(".",",")}
+  function mkxPct(p){return p==null||!isFinite(p)?null:Math.round(p*1e6)/1e4}
+  /* texto que começaria com = + - @ vira fórmula no Excel: ganha um apóstrofo na frente (números não passam por aqui) */
+  function mkxCelula(v){if(typeof v==="number")return mkxNum(v);if(v==null)return "";var s=String(v).replace(/\u0000/g,"");if(/^[=+\-@\t\r]/.test(s))s="'"+s;return /[;,"\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+  function mkxLinha(a){return a.map(mkxCelula).join(";")}
+  /* arquivo final: bloco de informações (relatório, período, filtros), depois cada seção com título, cabeçalho e linhas */
+  function mkxCsv(rep){var L=[];(rep.meta||[]).forEach(function(m){L.push(mkxLinha(m))});
+    (rep.secoes||[]).forEach(function(s){L.push("");if(s.titulo)L.push(mkxLinha([s.titulo]));L.push(mkxLinha(s.cab));s.linhas.forEach(function(r){L.push(mkxLinha(r))})});
+    return "﻿"+L.join("\r\n")+"\r\n"}
+  function mkxVazio(rel,aviso,negado){return {ok:false,vazio:!negado,negado:!!negado,relatorio:rel,aviso:aviso||"Não há dados para exportar."}}
+  function mkxFinal(rel,meta,secoes,periodo,desc){var n=0;secoes.forEach(function(s){n+=s.linhas.length});
+    return {ok:true,relatorio:rel,titulo:MKX_REL[rel],nome:"rac-mercado-"+MKX_NOME[rel]+"_"+periodo+".csv",csv:mkxCsv({meta:meta,secoes:secoes}),linhas:n,descricao:desc}}
+  function mkxUn(u){u=mkcUn(u);return u==="l"?"L":u}
+  function mkxQtdTxt(q){return Object.keys(q||{}).sort().map(function(u){return mkxNum(q[u])+" "+mkxUn(u)}).join(" + ")}
+  function mkxPeriodo(de,ate,hoje){if(!de&&!ate)return {txt:"Todo o histórico",slug:"todo-historico"};var a=ate||hoje||"hoje";return {txt:(de||"início")+" a "+a,slug:(de||"inicio")+"_a_"+a}}
+  function mkxFiltros(f){return [["Categoria",f.categoria||"Todas"],["Estabelecimento",f.mercado||"Todos"],["Produto (busca)",f.produto||"Todos"]]}
+  function mkxFiltrosTxt(f){return [f.categoria,f.mercado?semCidadeMk(f.mercado):"",f.produto?"“"+f.produto+"”":""].filter(Boolean).join(" · ")}
+  /* gasto, participação, compras e itens por estabelecimento (compras = notas distintas) */
+  function mkxPorMercado(l){var tot=mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),g=mkcAgrupa(l,function(x){return x.mercado});
+    return g.o.map(function(m){var z=g.m[m],t=mkcR(z.reduce(function(s,x){return s+(+x.valor_total||0)},0));return [m,t,mkxPct(tot?t/tot:0),mkcAgrupa(z,mkcNota).o.length,z.length]})
+      .sort(function(a,b){return b[1]-a[1]||String(a[0]).localeCompare(String(b[0]))})}
+  var MKX_COL_MERC=["Estabelecimento","Gasto (R$)","Participação (%)","Compras","Itens"];
+
+  /* 1. Consumo: f = {de, ate, categoria, mercado, produto} (os da tela); opc = {hoje, ord}. Um produto por unidade (kg, L e un nunca se misturam). */
+  function mkxConsumo(rows,f,opc){f=f||{};opc=opc||{};var sel=mkcFiltrar(rows,f);if(!sel.length)return mkxVazio("consumo");
+    var R=mkcResumo(sel,mkcFiltrar(rows,f,{categoria:1})),per=mkxPeriodo(f.de,f.ate,opc.hoje);
+    var ps=mkcPrecos(sel).map(function(p){return {p:p,d:mkcProduto(p.compras).unidades[0],n:mkcAgrupa(p.compras,mkcNota).o.length}});
+    var o=opc.ord;ps.sort(function(a,b){var d=o==="nome"?a.p.nome.localeCompare(b.p.nome):o==="frequencia"?b.n-a.n||b.d.total-a.d.total:b.d.total-a.d.total;return d||a.p.nome.localeCompare(b.p.nome)||a.p.unidade.localeCompare(b.p.unidade)});
+    var meta=[["Relatório","Consumo"],["Período consultado",per.txt]].concat(mkxFiltros(f),[["Total gasto (R$)",R.total],["Compras",R.compras],["Itens",R.itens],["Produtos diferentes",R.produtos]],
+      f.categoria?[["Participação da categoria no gasto do período (%)",mkxPct(R.pct)]]:[],[["Gerado em",opc.hoje||""]]);
+    var secoes=[{titulo:"Produtos (um por unidade)",cab:["Produto","Categoria","Unidade","Compras","Quantidade","Gasto (R$)","Preço médio (R$ por unidade)","Menor preço (R$)","Maior preço (R$)","Último preço (R$)","Data da última compra","Estabelecimentos"],
+      linhas:ps.map(function(x){var d=x.d;return [x.p.nome,x.p.categoria,mkxUn(x.p.unidade),x.n,d.qtd,d.total,d.precoMedio,d.menor.preco,d.maior.preco,d.ultimo.preco,d.ultimo.data,d.mercados.map(function(m){return m.mercado}).sort().join(" | ")]})},
+      {titulo:"Por categoria",cab:["Categoria","Gasto (R$)","Participação (%)","Produtos","Itens","Compras","Quantidades"],
+        linhas:mkcCategorias(sel).linhas.map(function(c){return [c.categoria,c.total,mkxPct(c.pct),c.produtos,c.itens,c.compras,mkxQtdTxt(c.qtd)]})},
+      {titulo:"Por estabelecimento",cab:MKX_COL_MERC,linhas:mkxPorMercado(sel)},
+      {titulo:"Mês a mês",cab:["Mês","Gasto (R$)","Compras","Itens","Quantidades"],linhas:mkcPorMes(sel).map(function(m){return [m.mes,m.total,m.compras,m.itens,mkxQtdTxt(m.qtd)]})}];
+    return mkxFinal("consumo",meta,secoes,per.slug,"Consumo · "+per.txt+(mkxFiltrosTxt(f)?" · "+mkxFiltrosTxt(f):"")+" · "+ps.length+(ps.length===1?" produto":" produtos"))}
+
+  /* 2. Comparação entre períodos: A e B = {de, ate}; f = {categoria, mercado, produto}; opc = {hoje, lista} (lista = a escolhida na tela, ver MKX_LISTAS) */
+  function mkxComparar(rows,A,B,f,opc){f=f||{};opc=opc||{};var r=mkcComparar(rows,A,B,f);if(!r.ok)return mkxVazio("comparar",r.erro);
+    if(!r.a.resumo.itens&&!r.b.resumo.itens)return mkxVazio("comparar");
+    var rk=mkcCompRank(r.produtos,1000),L={todos:r.produtos,aumento:rk.maiorAumentoGasto,reducao:rk.maiorReducaoGasto,qtdmais:rk.aumentoQtd,qtdmenos:rk.reducaoQtd,precomais:rk.precoSubiu,precomenos:rk.precoCaiu,soa:rk.soA,sob:rk.soB};
+    var id=L[opc.lista]?opc.lista:"todos",prods=L[id],G=r.geral;
+    function lm(rot,m){return [rot,m.a,m.b,m.dif,mkxPct(m.pct),MKX_ESTADO[m.estado]||""]}
+    var geral=[lm("Gasto total (R$)",G.total),lm("Gasto por dia (R$)",G.porDia),lm("Compras",G.compras),lm("Itens comprados",G.itens),lm("Produtos diferentes",G.produtos),lm("Gasto médio por compra (R$)",G.ticket)]
+      .concat(G.qtd.map(function(q){return lm("Quantidade ("+mkxUn(q.unidade)+")",q.m)}));
+    var meta=[["Relatório","Comparação entre períodos"],["Período A (analisado)",A.de+" a "+A.ate],["Dias do período A",r.a.dias],["Período B (comparação)",B.de+" a "+B.ate],["Dias do período B",r.b.dias]]
+      .concat(r.sobrepoe?[["Aviso","Os períodos A e B se sobrepõem: as compras das datas em comum entram nos dois."]]:[],mkxFiltros(f),[["Lista de produtos",MKX_LISTAS[id]],["Diferença","A − B; variação (%) = (A − B) ÷ B, em branco quando B não tem compras"],["Gerado em",opc.hoje||""]]);
+    var secoes=[{titulo:"Comparação geral",cab:["Indicador","Período A","Período B","Diferença (A − B)","Variação (%)","Situação"],linhas:geral},
+      {titulo:"Por categoria",cab:["Categoria","Gasto A (R$)","Gasto B (R$)","Diferença (R$)","Variação (%)","Participação A (%)","Participação B (%)","Mudança de participação (p.p.)","Produtos A","Produtos B","Situação"],
+        linhas:r.categorias.filter(function(x){return x.m.a>0||x.m.b>0}).map(function(x){return [x.categoria,x.m.a,x.m.b,x.m.dif,mkxPct(x.m.pct),mkxPct(x.partA),mkxPct(x.partB),mkxPct(x.dPart),x.produtosA,x.produtosB,MKX_ESTADO[x.m.estado]||""]})},
+      {titulo:"Produtos: "+MKX_LISTAS[id],cab:["Produto","Unidade","Categoria","Gasto A (R$)","Gasto B (R$)","Diferença de gasto (R$)","Variação do gasto (%)","Quantidade A","Quantidade B","Variação da quantidade (%)","Preço médio A (R$)","Preço médio B (R$)","Variação do preço (%)","Explicação"],
+        linhas:prods.map(function(x){return [x.nome,mkxUn(x.unidade),x.categoria,x.a?x.a.total:null,x.b?x.b.total:null,x.gasto.dif,mkxPct(x.gasto.pct),x.a?x.a.qtd:null,x.b?x.b.qtd:null,x.estado==="ambos"?mkxPct(x.qtd.pct):null,
+          x.a&&x.a.preco!=null?x.a.preco:null,x.b&&x.b.preco!=null?x.b.preco:null,x.preco?mkxPct(x.preco.pct):null,MKX_LEITURA[x.leitura]||""]})},
+      {titulo:"Estabelecimentos",cab:["Estabelecimento","Gasto A (R$)","Gasto B (R$)","Diferença (R$)","Variação (%)","Participação A (%)","Participação B (%)","Mudança de participação (p.p.)","Compras A","Compras B","Produtos A","Produtos B"],
+        linhas:r.mercados.map(function(x){return [x.mercado,x.m.a,x.m.b,x.m.dif,mkxPct(x.m.pct),mkxPct(x.partA),mkxPct(x.partB),mkxPct(x.dPart),x.comprasA,x.comprasB,x.produtosA,x.produtosB]})}];
+    return mkxFinal("comparar",meta,secoes,"A-"+A.de+"_a_"+A.ate+"_B-"+B.de+"_a_"+B.ate,"Comparação · A "+A.de+" a "+A.ate+" × B "+B.de+" a "+B.ate+(mkxFiltrosTxt(f)?" · "+mkxFiltrosTxt(f):"")+" · "+MKX_LISTAS[id]+" ("+prods.length+")")}
+
+  /* 3. Painel mensal: o mês (AAAA-MM) com o mesmo critério da tela, inclusive a comparação com o MESMO período do mês anterior */
+  function mkxPainel(rows,mes,opc){opc=opc||{};var ok=/^\d{4}-\d{2}$/.test(mes||""),doMes=ok?(rows||[]).filter(function(x){return String(x.data).slice(0,7)===mes}):[];if(!doMes.length)return mkxVazio("painel");
+    var P=mkcMesmoDia(mes,opc.hoje||""),rc=mkcResumo(mkcFiltrar(doMes,P.atual),[]),rp=mkcResumo(mkcFiltrar(rows,P.anterior),[]),m=mkcMetric(rc.total,rp.total),R=mkcResumo(doMes,[]);
+    var meta=[["Relatório","Painel mensal"],["Mês",mes],["Total gasto no mês (R$)",R.total],["Compras no mês",R.compras],["Itens comprados",R.itens],["Descontos (R$)",mkcR(doMes.reduce(function(s,x){return s+(+x.desconto||0)},0))],
+      ["Período de comparação (mesmo período do mês anterior)",P.anterior.de+" a "+P.anterior.ate],["Gasto no período de comparação (R$)",rp.total],["Diferença (R$)",m.dif],["Variação (%)",mkxPct(m.pct)],["Compras no período de comparação",rp.compras],["Gerado em",opc.hoje||""]];
+    var secoes=[{titulo:"Por categoria",cab:["Categoria","Gasto (R$)","Participação (%)","Compras","Itens","Produtos"],linhas:mkcCategorias(doMes).linhas.map(function(c){return [c.categoria,c.total,mkxPct(c.pct),c.compras,c.itens,c.produtos]})},
+      {titulo:"Por estabelecimento",cab:MKX_COL_MERC,linhas:mkxPorMercado(doMes)}];
+    var nCat=secoes[0].linhas.length;
+    return mkxFinal("painel",meta,secoes,mes,"Painel mensal · "+mes+" · "+nCat+(nCat===1?" categoria":" categorias")+" · "+R.compras+(R.compras===1?" compra":" compras"))}
+
+  /* 4. Preços: f = {mes ("" = desde o início), q (busca)}, os mesmos da aba. Uma linha por produto E unidade, mais o histórico de cada compra */
+  function mkxPrecos(rows,f,opc){f=f||{};opc=opc||{};var mes=/^\d{4}-\d{2}$/.test(f.mes||"")?f.mes:"",base=mes?(rows||[]).filter(function(x){return String(x.data).slice(0,7)===mes}):(rows||[]),nq=norm(f.q||"");
+    var l=mkcPrecos(base).filter(function(p){return !nq||norm(p.nome+" "+p.categoria).indexOf(nq)>=0});if(!l.length)return mkxVazio("precos");
+    l.sort(function(a,b){return a.nome.localeCompare(b.nome)||a.unidade.localeCompare(b.unidade)});
+    var meta=[["Relatório","Preços"],["Período consultado",mes||"Desde o início"],["Produto (busca)",f.q||"Todos"],["Produtos e unidades",l.length],["Gerado em",opc.hoje||""]];
+    var secoes=[{titulo:"Produtos e unidades",cab:["Produto","Unidade","Categoria","Compras","Primeira compra","Preço na primeira compra (R$)","Última compra","Último preço (R$)","Estabelecimento da última compra","Menor preço (R$)","Maior preço (R$)","Variação do primeiro ao último preço (%)","Quantidade comprada","Gasto (R$)"],
+      linhas:l.map(function(p){return [p.nome,mkxUn(p.unidade),p.categoria,p.compras.length,p.pri.data,+p.pri.valor_unitario,p.ult.data,+p.ult.valor_unitario,p.ult.mercado,p.min,p.max,p.compras.length>1?mkxPct(p.varTotal):null,p.qtd,p.gasto]})},
+      {titulo:"Histórico de preços",cab:["Produto","Unidade","Categoria","Data da compra","Estabelecimento","Quantidade","Preço unitário (R$)","Valor total (R$)"],linhas:[]}];
+    l.forEach(function(p){p.compras.forEach(function(x){secoes[1].linhas.push([p.nome,mkxUn(p.unidade),p.categoria,x.data,x.mercado,+x.quantidade,+x.valor_unitario,+x.valor_total])})});
+    return mkxFinal("precos",meta,secoes,mes||"todo-historico","Preços · "+(mes||"desde o início")+(f.q?" · “"+f.q+"”":"")+" · "+l.length+(l.length===1?" produto":" produtos")+" · "+secoes[1].linhas.length+(secoes[1].linhas.length===1?" compra":" compras"))}
+
+  /* 5. Alertas (só do dono): alertas = os já classificados e escolhidos na tela (mkalGerar + mkalClassificar); opc = {dono, hoje, tipo, filtro} */
+  function mkxAlertas(alertas,opc){opc=opc||{};if(opc.dono!==true)return mkxVazio("alertas","Os alertas de preço são só do dono.",true);var l=alertas||[];if(!l.length)return mkxVazio("alertas");
+    var rot={};MKAL_TIPOS.forEach(function(t){rot[t[0]]=t[1]});
+    var meta=[["Relatório","Alertas de preço"],["Filtro",opc.filtro||"Todos os tipos ligados"],["Alertas",l.length],["Gerado em",opc.hoje||""]];
+    var secoes=[{titulo:"Alertas",cab:["Tipo","Produto","Unidade","Categoria","Data do alerta","Estabelecimento do preço atual","Data do preço atual","Preço atual (R$)","Estabelecimento de referência","Data de referência","Preço de referência (R$)","Diferença (R$)","Variação (%)","Situação","Motivo"],
+      linhas:l.map(function(a){var mel=a.tipo==="melhor";return [rot[a.tipo]||a.tipo,a.nome,mkxUn(a.unidade),a.categoria,a.data,a.mercado,mel?a.dataEncontrado:a.data,a.atual,a.refMercado||"",a.refData||"",a.anterior,a.anterior!=null?mkcR(a.atual-a.anterior):null,mkxPct(a.pct),a.novo?"Novo":a.lido?"Lido":"Anterior",a.motivo]})}];
+    return mkxFinal("alertas",meta,secoes,(opc.tipo||"todos")+"_"+(opc.hoje||""),"Alertas · "+(opc.filtro||"todos os tipos ligados")+" · "+l.length+(l.length===1?" alerta":" alertas"))}
+
+  raiz.RACnucleo={mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

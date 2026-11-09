@@ -475,7 +475,10 @@
     {t:"compras_importacoes",pk:["id"],nat:[["sha256"]]},{t:"compras_online",pk:["id"],fk:{importacao_id:"compras_importacoes"},opc:{importacao_id:1}},{t:"compras_online_itens",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_online_docs",pk:["id"],nat:[["sha256"]],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos",pk:["id"],fk:{compra_id:"compras_online"}},{t:"compras_reembolsos_estornos",pk:["id"],nat:[["reembolso_id"]],fk:{reembolso_id:"compras_reembolsos",compra_id:"compras_online"}},
     {t:"notas_fiscais",pk:["id"],nat:[["chave"]],cong:"conferida_em"},{t:"notas_fiscais_itens",pk:["id"],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"}},{t:"notas_fiscais_docs",pk:["id"],nat:[["sha256"]],fk:{nota_id:"notas_fiscais"},congPai:{fk:"nota_id",pai:"notas_fiscais"},imutavel:true,docPath:true},{t:"notas_fiscais_vinculos",pk:["id"],nat:[["nota_id","modulo","registro_id"]],fk:{nota_id:"notas_fiscais"}},
     {t:"notas_fiscais_tentativas",pk:["id"],fk:{nota_id:"notas_fiscais"},opc:{nota_id:1},so:"exportar"},{t:"notas_fiscais_situacoes",pk:["id"],fk:{nota_id:"notas_fiscais",tentativa_id:"notas_fiscais_tentativas"},opc:{tentativa_id:1},so:"exportar"},
-    {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"}];
+    {t:"newsletter_edicoes",pk:["id"],nat:[["data","turno"]],dono:"dono",so:"exportar"},
+    {t:"radar_config",pk:["id"],dono:"dono",so:"exportar"},{t:"radar_lojas",pk:["id"],dono:"dono",so:"exportar"},{t:"radar_itens",pk:["id"],dono:"dono",so:"exportar"},
+    {t:"radar_ofertas",pk:["id"],dono:"dono",fk:{item_id:"radar_itens",loja_id:"radar_lojas"},so:"exportar"},{t:"radar_coletas",pk:["id"],dono:"dono",fk:{loja_id:"radar_lojas"},opc:{loja_id:1},so:"exportar"},
+    {t:"radar_precos",pk:["id"],dono:"dono",fk:{oferta_id:"radar_ofertas",coleta_id:"radar_coletas"},opc:{coleta_id:1},so:"exportar"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
   var SEG_SEGREDO=/senha|password|passwd|token|secret|segredo|api_?key|apikey|chave_?api|private_?key|access_?key|p256dh|vapid/i;
@@ -2713,7 +2716,97 @@
       linhas:l.map(function(a){var mel=a.tipo==="melhor";return [rot[a.tipo]||a.tipo,a.nome,mkxUn(a.unidade),a.categoria,a.data,a.mercado,mel?a.dataEncontrado:a.data,a.atual,a.refMercado||"",a.refData||"",a.anterior,a.anterior!=null?mkcR(a.atual-a.anterior):null,mkxPct(a.pct),a.novo?"Novo":a.lido?"Lido":"Anterior",a.motivo]})}];
     return mkxFinal("alertas",meta,secoes,(opc.tipo||"todos")+"_"+(opc.hoje||""),"Alertas · "+(opc.filtro||"todos os tipos ligados")+" · "+l.length+(l.length===1?" alerta":" alertas"))}
 
-  raiz.RACnucleo={mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  /* ===== Radar de Preços, Lote 1 (docs/radar.md): regras puras, sem tela e sem banco. Os nomes dos campos são os das colunas de radar_precos
+     (migration 043 do Radar), que garante as mesmas regras no banco. À vista e parcelado nunca se misturam; frete desconhecido não é
+     grátis e não gera preço final; o histórico só cresce; equivalência confirmada precisa de evidência e do dono (a IA só propõe). ===== */
+  var RD_MODALIDADES=["a_vista","parcelado"],RD_FRETES=["desconhecido","confirmado","gratis_confirmado","retirada"],RD_MEIOS=["pix","boleto","debito","credito","dinheiro","outro"];
+  var RD_FONTES=["manual","coleta","nota_fiscal"],RD_DISPONIB=["disponivel","indisponivel","desconhecida"];
+  function rdIn(l,v){return l.indexOf(v)>=0}
+  /* dinheiro em centavos inteiros: null = ausente, NaN = inválido (aceita 12.5, "12,50" e "R$ 1.234,56") */
+  function rdCent(v){if(v==null||v==="")return null;var n;
+    if(typeof v==="number")n=v;else{var s=String(v).replace(/[R$\s]/g,"");if(!/^-?[\d.,]+$/.test(s))return NaN;n=s.indexOf(",")>=0?parseFloat(s.replace(/\./g,"").replace(",",".")):parseFloat(s)}
+    return isFinite(n)?Math.round((n+(n<0?-1:1)*1e-9)*100):NaN}
+  /* CEP: só confere o formato (8 dígitos); o CEP em si nunca fica no código nem no repositório (fica em radar_config, privado) */
+  function rdCep(v){var d=String(v==null?"":v).replace(/\D/g,"");return /^\d{8}$/.test(d)?d:""}
+  /* confere uma observação de preço com as mesmas regras do banco; opc.agora (ms) para a data futura */
+  function rdValidarPreco(o,opc){var er=[];o=o||{};opc=opc||{};
+    if(!rdIn(RD_MODALIDADES,o.modalidade))er.push("Modalidade deve ser à vista ou parcelado.");
+    if(!rdIn(RD_FONTES,o.fonte))er.push("Informe a fonte da observação.");
+    if(!o.evidencia||!String(o.evidencia).replace(/\s/g,"").length||String(o.evidencia).length>500)er.push("Falta a evidência verificável (link, nota ou print conferido).");
+    if(o.meio!=null&&!rdIn(RD_MEIOS,o.meio))er.push("Meio de pagamento desconhecido.");
+    var pp=rdCent(o.preco_produto),tx=rdCent(o.taxas==null?0:o.taxas),ds=rdCent(o.desconto==null?0:o.desconto),fv=rdCent(o.frete_valor);
+    if(pp==null||isNaN(pp)||pp<=0)er.push("Preço do produto deve ser maior que zero.");
+    if(isNaN(tx)||tx<0)er.push("Taxas inválidas.");if(isNaN(ds)||ds<0)er.push("Desconto inválido.");
+    var fs=o.frete_situacao==null?"desconhecido":o.frete_situacao;
+    if(!rdIn(RD_FRETES,fs))er.push("Situação do frete inválida.");
+    else if(fs==="desconhecido"){if(fv!=null)er.push("Frete desconhecido não pode ter valor (e não é grátis).")}
+    else if(fs==="confirmado"){if(fv==null||isNaN(fv)||fv<=0)er.push("Frete confirmado precisa de valor maior que zero.")}
+    else if(fv!==0)er.push("Frete grátis ou retirada precisa ter valor zero.");
+    if(o.disponibilidade!=null&&!rdIn(RD_DISPONIB,o.disponibilidade))er.push("Disponibilidade inválida.");
+    if(o.modalidade==="a_vista"){if(o.parcelas!=null||o.valor_parcela!=null||o.total_parcelado!=null||o.sem_juros!=null||o.juros_mensal_pct!=null)er.push("Preço à vista não tem parcelas, total parcelado nem juros.")}
+    if(o.modalidade==="parcelado"){var n=o.parcelas,vp=rdCent(o.valor_parcela),tp=rdCent(o.total_parcelado);
+      if(!(n>=2&&n<=48&&Math.floor(n)===n))er.push("Parcelas deve ser um número inteiro de 2 a 48.");
+      if(vp==null||isNaN(vp)||vp<=0)er.push("Falta o valor de cada parcela.");
+      if(tp==null||isNaN(tp)||tp<=0)er.push("Falta o total parcelado.");
+      if(typeof o.sem_juros!=="boolean")er.push("Diga se o parcelamento é sem juros.");
+      if(o.meio!=null&&!rdIn(["credito","boleto","outro"],o.meio))er.push("Parcelado só em crédito, boleto ou outro.");
+      if(tp>0&&pp>0&&Math.abs(tp-pp)>2)er.push("No parcelado, o preço do produto é o total parcelado.");
+      if(n>=2&&vp>0&&tp>0&&Math.abs(n*vp-tp)>n+1)er.push("Parcelas × valor da parcela não fecha com o total parcelado.");
+      if(o.sem_juros===true&&o.juros_mensal_pct!=null&&+o.juros_mensal_pct!==0)er.push("Sem juros não combina com taxa de juros maior que zero.");
+      if(o.juros_mensal_pct!=null&&!(+o.juros_mensal_pct>=0))er.push("Juros inválidos.")}
+    if(pp>0&&!isNaN(tx)&&!isNaN(ds)&&ds>pp+(fv>0?fv:0)+tx)er.push("O desconto não pode passar do total.");
+    if(o.observado_em&&opc.agora!=null){var t=Date.parse(o.observado_em);if(isNaN(t))er.push("Data da observação inválida.");else if(t>opc.agora+5*60000)er.push("A observação não pode ter data futura.")}
+    return {ok:!er.length,erros:er}}
+  /* preço final = produto + frete confirmado + taxas − desconto. Só é "confirmado" com frete conhecido e item disponível; senão final = null */
+  function rdPrecoFinal(o){var v=rdValidarPreco(o);if(!v.ok)return {confirmado:false,final:null,motivo:"invalido",erros:v.erros};
+    var fs=o.frete_situacao==null?"desconhecido":o.frete_situacao;
+    if(fs==="desconhecido")return {confirmado:false,final:null,motivo:"frete_desconhecido"};
+    if(o.disponibilidade==="indisponivel")return {confirmado:false,final:null,motivo:"indisponivel"};
+    if(o.disponibilidade!=="disponivel")return {confirmado:false,final:null,motivo:"disponibilidade_desconhecida"};
+    var pp=rdCent(o.preco_produto),fr=rdCent(o.frete_valor)||0,tx=rdCent(o.taxas==null?0:o.taxas),ds=rdCent(o.desconto==null?0:o.desconto);
+    return {confirmado:true,final:(pp+fr+tx-ds)/100,motivo:null,componentes:{produto:pp/100,frete:fr/100,taxas:tx/100,desconto:ds/100}}}
+  /* a mesma série: oferta + modalidade + meio + parcelas (nunca se compara à vista com parcelado, nem 3x com 10x) */
+  function rdChaveSerie(o){return [o.oferta_id,o.modalidade,o.meio||"outro",o.parcelas||0].join("|")}
+  function rdOrdem(a,b){var x=Date.parse(a.observado_em)-Date.parse(b.observado_em);if(x)return x;x=Date.parse(a.registrado_em||a.observado_em)-Date.parse(b.registrado_em||b.observado_em);return x||0}
+  /* observações vigentes: tira as que uma correção (corrige_id) substituiu; o histórico em si nunca é alterado */
+  function rdVigentes(precos){var subst={};(precos||[]).forEach(function(p){if(p.corrige_id)subst[p.corrige_id]=1});return (precos||[]).filter(function(p){return !subst[p.id]})}
+  /* a última observação de cada série */
+  function rdUltimas(precos){var m={};rdVigentes(precos).forEach(function(p){var k=rdChaveSerie(p);if(!m[k]||rdOrdem(m[k],p)<=0)m[k]=p});return Object.keys(m).sort().map(function(k){return m[k]})}
+  /* ranking de UMA modalidade (obrigatória). Entram só ofertas ativas com equivalência confirmada e preço final confirmado (frete conhecido, disponível).
+     Quem fica de fora vem em "fora", com o motivo; frete desconhecido nunca é tratado como grátis. */
+  function rdRanking(precos,ofertas,opc){opc=opc||{};
+    if(!rdIn(RD_MODALIDADES,opc.modalidade))return {ok:false,erro:"Escolha uma modalidade (à vista ou parcelado): elas não se misturam no ranking.",ranking:[],fora:[]};
+    var ult=rdUltimas(precos).filter(function(p){return p.modalidade===opc.modalidade}),por={};
+    ult.forEach(function(p){(por[p.oferta_id]=por[p.oferta_id]||[]).push(p)});
+    var rk=[],fora=[];
+    (ofertas||[]).forEach(function(of){
+      if(of.situacao&&of.situacao!=="ativa"){fora.push({oferta_id:of.id,motivo:"oferta_inativa"});return}
+      if(of.equivalencia!=="confirmada"){fora.push({oferta_id:of.id,motivo:"equivalencia_nao_confirmada"});return}
+      var l=por[of.id]||[];if(!l.length){fora.push({oferta_id:of.id,motivo:"sem_observacao"});return}
+      var melhor=null,motivo=null;
+      l.forEach(function(p){var f=rdPrecoFinal(p);if(f.confirmado){if(!melhor||f.final<melhor.final)melhor={final:f.final,p:p}}else if(!motivo)motivo=f.motivo});
+      if(melhor)rk.push({oferta_id:of.id,preco_id:melhor.p.id,final:melhor.final,meio:melhor.p.meio||"outro",parcelas:melhor.p.parcelas||null,valor_parcela:melhor.p.valor_parcela!=null?+melhor.p.valor_parcela:null,observado_em:melhor.p.observado_em});
+      else fora.push({oferta_id:of.id,motivo:motivo})});
+    rk.sort(function(a,b){return a.final-b.final||(a.oferta_id<b.oferta_id?-1:1)});
+    return {ok:true,modalidade:opc.modalidade,ranking:rk,fora:fora}}
+  /* a observação mais recente contra a anterior da mesma série (sem limite mínimo de desconto: só a diferença real) */
+  function rdVariacao(serie){var l=rdVigentes(serie).slice().sort(rdOrdem);if(!l.length)return {ok:false,motivo:"sem_historico"};
+    var at=l[l.length-1];if(l.length<2)return {ok:true,primeira:true,atual:at};var an=l[l.length-2],fa=rdPrecoFinal(at),fn=rdPrecoFinal(an),base="produto",a,b;
+    if(fa.confirmado&&fn.confirmado){base="final";a=fa.final;b=fn.final}else{a=rdCent(at.preco_produto)/100;b=rdCent(an.preco_produto)/100}
+    var dif=Math.round((a-b)*100)/100;return {ok:true,primeira:false,base:base,atual:a,anterior:b,diferenca:dif,pct:b>0?Math.round(dif/b*10000)/100:null}}
+  /* janela histórica flexível (dias à escolha): só observações reais gravadas, com preço final confirmado; poucas observações = "insuficiente", nada é inventado */
+  function rdJanela(serie,dias,agora){var ini=agora-dias*86400000,v=[];
+    rdVigentes(serie).forEach(function(p){var t=Date.parse(p.observado_em);if(t>=ini&&t<=agora){var f=rdPrecoFinal(p);if(f.confirmado)v.push({t:t,v:f.final})}});
+    v.sort(function(a,b){return a.t-b.t});if(v.length<2)return {n:v.length,suficiente:false};
+    var vs=v.map(function(x){return x.v}),at=vs[vs.length-1],mn=Math.min.apply(null,vs),mx=Math.max.apply(null,vs);
+    return {n:v.length,suficiente:true,dias:dias,minimo:mn,maximo:mx,atual:at,noMinimo:at===mn,acimaDoMinimo:Math.round((at-mn)*100)/100}}
+  /* equivalência: "confirmada" exige evidência, a confirmação do dono (confirmada_em) e nunca vem da IA, que só propõe ("provavel") */
+  function rdEquivalencia(of){of=of||{};var er=[],ev=of.evidencias;
+    if(!rdIn(["confirmada","provavel","nao_confirmada","rejeitada"],of.equivalencia))er.push("Equivalência inválida.");
+    if(of.equivalencia==="confirmada"){if(!ev||!ev.length)er.push("Equivalência confirmada precisa de evidência.");if(!of.confirmada_em)er.push("Só o dono confirma a equivalência.");if(of.equivalencia_origem==="ia")er.push("A IA não confirma equivalência: ela só propõe.")}
+    return {ok:!er.length,erros:er}}
+
+  raiz.RACnucleo={RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

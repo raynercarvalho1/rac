@@ -105,6 +105,7 @@ três páginas e falha se outra página com dados em memória ficar de fora):
 
 `schema.sql` e depois `002` a `029`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
 Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: a `035_compras_anexar_foto.sql` foi aplicada em 07/11/2026, e o 028 e o 029 em 02/11/2026; a ordem das migrations 030 a 034 está em `docs/compras.md` e `docs/fiscal.md`).
+Radar de Preços: `043_radar_precos.sql` é **proposta, não aplicada** (ordem e conferências em [docs/radar.md](docs/radar.md)).
 
 ## Testes (`tests/`)
 
@@ -117,6 +118,7 @@ Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nen
 | `ia.test.mjs` | RAC Intelligence sem rede e sem custo: orçamento, reserva, concorrência, DEMO, contrato, segurança do SQL |
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
+| `radar.test.mjs` | Radar de Preços (Lote 1) sem rede e sem custo: SQL 043 por texto, Postgres de verdade (PGlite: RLS, MFA, membro bloqueado, modalidades, frete, histórico só de acréscimo), funções `rd*` do núcleo, backup |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
 | `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |

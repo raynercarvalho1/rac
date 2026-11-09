@@ -25,6 +25,8 @@
     ["peso","Peso","Ex.: Pesagem","Peso (kg)"],["alimentacao","Alimentação","Ex.: Troca de ração","Ração"],["pedido","Pedido de exames","Ex.: Exames de controle",""],["diario","Diário (mamadas e fraldas)","Ex.: Diário da semana",""],["produto","Fraldas e produtos","Ex.: Pacote de fraldas","Marca"],
     ["momento","Momento","Ex.: Primeiro passeio na praia","Onde"],["carta","Carta para o futuro","Ex.: Para você ler aos 18 anos","Abrir em"],["midia","Fotos e vídeos","Ex.: Fotos do aniversário",""],
     ["nascimento","Nascimento","Ex.: Nascimento","Onde"],["outro","Outro","",""]];
+  /* abre o formulário de edição de um registro (definido quando a tela de Eddie/Olivia desenha); usado pelos botões "Editar" das tabelas da caderneta e dos gráficos */
+  var famEditar=null;
   var famFiltro={},famVista={},famAlvo={};Object.keys(FAM).forEach(function(k){famFiltro[k]="";famVista[k]="resumo";famAlvo[k]=null});
   function idadeTxt(iso){
     var n=new Date(iso+"T12:00:00"),t=new Date(),m=(t.getFullYear()-n.getFullYear())*12+t.getMonth()-n.getMonth();if(t.getDate()<n.getDate())m--;
@@ -141,7 +143,8 @@
       var n=pts.length,maxv=Math.max.apply(null,vs),minv=Math.min.apply(null,vs),cap=h("p",{class:"vbcap",role:"status"}),barras=[];
       function det(i){var r=pts[i],ant=pts[i-1],dd=ant?val(r)-val(ant):0;
         return dataBR(r.data)+" · "+fmt(val(r))+(ant?" ("+(dd>0?"+":"")+fmt(dd)+" desde "+dataBR(ant.data)+")":"")+(r.titulo&&!/^Pesagem$|^Pesagem e medidas$/.test(r.titulo)?" · "+r.titulo.replace(/^Pesagem\s*\(?|\)$/g,""):"")}
-      function marcar(i){barras.forEach(function(b,j){b.classList.toggle("on",j===i)});cap.textContent=det(i)}
+      var selI=pts.length-1;
+      function marcar(i){selI=i;barras.forEach(function(b,j){b.classList.toggle("on",j===i)});cap.textContent=det(i)}
       var mostraV=function(i){return n<=14||i===n-1||vs[i]===maxv||vs[i]===minv};
       /* comprimento e cabeça: as colunas começam perto do menor valor, senão ficariam todas iguais */
       var base=m[0]==="peso"?0:Math.max(0,Math.floor(minv*0.9));
@@ -153,6 +156,7 @@
         b.onclick=function(){marcar(i)};b.onmouseenter=function(){marcar(i)};barras.push(b);
         racDica.ligar(b,function(){var d=det(i).split(" · ");return [d[0],d.slice(1).join(" · ")]});return b}));
       corpo.appendChild(vb);corpo.appendChild(cap);marcar(n-1);vbFim(vb);
+      var edM=h("button",{type:"button",class:"ghostbtn",text:"Editar esta medição"});edM.onclick=function(){if(famEditar)famEditar(pts[selI])};corpo.appendChild(h("div",{class:"vfil"},edM));
       corpo.appendChild(h("p",{class:"sub",text:pts.length+" medições, de "+dataBR(pts[0].data)+" a "+dataBR(pts[pts.length-1].data)+". Toque numa coluna para ver os detalhes."+(base?" As colunas começam em "+fmt(base)+".":"")}))}
     meds.forEach(function(m){var b=h("button",{type:"button",text:m[1]});b.dataset.k=m[0];b.onclick=function(){famMedida[quem]=m[0];desenhar()};segM.appendChild(b)});
     if(meds.length>1)p.appendChild(segM);
@@ -447,6 +451,7 @@
       function abrirAb(reg){formBox.innerHTML="";formBox.appendChild(abForm(quem,regs,reg,function(q){try{localStorage.setItem("rac-veic",q)}catch(e){}if(q===quem)renderFamilia(quem);else if(location.hash!=="#veiculos/"+q)location.hash="#veiculos/"+q;else renderVeiculos(q)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})}
       imp.onclick=function(){formBox.innerHTML="";formBox.appendChild(famImportar(quem,regs,function(){renderFamilia(quem)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})};
       function abrirForm(reg){formBox.innerHTML="";formBox.appendChild(famForm(quem,reg,function(){renderFamilia(quem)},function(){formBox.innerHTML=""}));formBox.scrollIntoView({behavior:"smooth",block:"start"})}
+      famEditar=abrirForm;
       if(!regs.length){root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:F.docs?"Nada guardado ainda. Toque em “Adicionar registro” para guardar o primeiro documento, garantia ou nota fiscal (com foto ou PDF e a validade).":"Nada registrado ainda. Toque em “Adicionar registro” para lançar o primeiro exame, vacina ou foto, ou em “Importar histórico”."})));return}
       /* quatro jeitos de ver: resumo, exames, remédios e a linha do tempo completa */
       var temSaude=ehVeic(quem)||F.bebe||regs.some(function(r){var d=dadosDe(r);return d.laudo||d.orgaos||d.meds});
@@ -462,6 +467,7 @@
           card.appendChild(h("div",{class:"vpills"},h("span",{class:"vp",text:ti[1]}),h("span",{class:"when",text:dataBR(r.data)}),r.proxima?h("span",{class:"sub",text:"próxima: "+dataBR(r.proxima)}):null));
           card.appendChild(h("h3",{text:r.titulo}));
           if(r.valor)card.appendChild(h("p",null,h("b",{text:(ti[3]||"Valor")+": "}),r.valor+(r.tipo==="peso"&&/^[\d.,]+$/.test(r.valor)?" kg":"")));
+          if(r.tipo==="peso"&&r.dados){[["altura","Comprimento"],["cabeca","Perímetro cefálico"]].forEach(function(x){if(typeof r.dados[x[0]]==="number")card.appendChild(h("p",null,h("b",{text:x[1]+": "}),fmtN(r.dados[x[0]])+" cm"))})}
           if(r.detalhes)card.appendChild(h("p",{class:"famdet",text:r.detalhes}));
           famDetalhe(card,r,regs);
           var arqs=r.arquivos||[];
@@ -716,7 +722,7 @@
   /* Formulário de registro: tipo, data, título, valor, próxima data, detalhes e arquivos */
   function famForm(quem,reg,pronto,cancelar){
     var p=panel(reg?"Editar registro":"Novo registro "+(ehVeic(quem)?"do ":"de ")+FAM[quem].n),f=h("div",{class:"wform"});
-    var tipo=h("select",{"aria-label":"Tipo"},tiposDe(quem).filter(function(t){return reg||t[0]!=="abastecimento"}).map(function(t){return h("option",{value:t[0],selected:(reg?reg.tipo:(ehVeic(quem)?"revisao":"exame"))===t[0]?"":null,text:t[1]})}));
+    var tipo=h("select",{"aria-label":"Tipo"},tiposDe(quem).filter(function(t){return (reg||t[0]!=="abastecimento")&&!(FAM[quem].bebe&&t[0]==="preventivo"&&!(reg&&reg.tipo==="preventivo"))}).map(function(t){return h("option",{value:t[0],selected:(reg?reg.tipo:(ehVeic(quem)?"revisao":"exame"))===t[0]?"":null,text:FAM[quem].bebe&&t[0]==="peso"?"Peso e medidas":t[1]})}));
     var data=h("input",{type:"date",value:reg?reg.data:hojeISO()}),titulo=h("input",{type:"text",value:reg?reg.titulo:""});
     var valor=h("input",{type:"text",value:reg&&reg.valor||""}),prox=h("input",{type:"date",value:reg&&reg.proxima||""});
     /* quanto custou (consulta, remédio, lata de fórmula, pacote de fraldas…): entra no quadro de gastos */
@@ -732,6 +738,21 @@
     f.appendChild(h("label",null,"Título",titulo));
     f.appendChild(h("div",{class:"two"},lValor,lProx));
     f.appendChild(h("label",null,"Quanto custou (R$, opcional)",custo));
+    /* Olivia: comprimento e perímetro cefálico (cm) ficam em dados.altura e dados.cabeca do registro de peso, como os importados da OMS */
+    var rdb=reg&&reg.dados||{},compI=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 61,5",value:typeof rdb.altura==="number"?String(rdb.altura).replace(".",","):""}),cabI=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 42",value:typeof rdb.cabeca==="number"?String(rdb.cabeca).replace(".",","):""});
+    var lMed=h("div",{class:"two"},h("label",null,"Comprimento (cm, opcional)",compI),h("label",null,"Perímetro cefálico (cm, opcional)",cabI));
+    function ajustarMed(){lMed.hidden=!(FAM[quem].bebe&&tipo.value==="peso")}tipo.addEventListener("change",ajustarMed);ajustarMed();
+    if(FAM[quem].bebe)f.appendChild(lMed);
+    /* Olivia: onde, lote e anotações da caderneta (vacina e consulta) e os dados que vieram da caderneta (nascimento e ficha), para corrigir o que estiver errado */
+    var ondeI=h("input",{type:"text",placeholder:"Ex.: Posto de saúde, Vaccinate",value:rdb.clinica||""}),loteI=h("input",{type:"text",placeholder:"Ex.: ABXF46AB",value:rdb.lote||""}),notasI=h("input",{type:"text",placeholder:"Anotações da caderneta",value:rdb.notasCaderneta||""});
+    var lOnde=h("label",null,"Onde foi (opcional)",ondeI),lLote=h("label",null,"Lote (opcional)",loteI),lNotas=h("label",null,"Anotações da caderneta (opcional)",notasI);
+    function ajustarCad(){var b=!!FAM[quem].bebe;lOnde.hidden=!(b&&/^(vacina|consulta)$/.test(tipo.value));lLote.hidden=!(b&&tipo.value==="vacina");lNotas.hidden=!(b&&tipo.value==="consulta")}tipo.addEventListener("change",ajustarCad);ajustarCad();
+    if(FAM[quem].bebe)[lOnde,lLote,lNotas].forEach(function(x){f.appendChild(x)});
+    var ROT_CAD={hora:"Hora do nascimento (HH:MM)",hospital:"Hospital",peso:"Peso ao nascer (g)",comprimento:"Comprimento ao nascer (cm)",cabeca:"Perímetro cefálico ao nascer (cm)",apgar:"Apgar",prenatal:"Pré-natal",diagnosticos:"Ao nascer (diagnósticos)",internacao:"Internação",alta:"Data da alta (AAAA-MM-DD)",pesoAlta:"Peso na alta (g)",comprimentoAlta:"Comprimento na alta (cm)"},edGrupos=[];
+    if(FAM[quem].bebe)[["nasc","Dados do nascimento e da alta"],["ficha","Ficha e documentos"]].forEach(function(g){var o=rdb[g[0]];if(!o||typeof o!=="object"||Array.isArray(o))return;
+      var bloco=h("div",{class:"wform"},h("p",{class:"sub",text:g[1]+" (vieram da caderneta; corrija o que estiver errado)"})),campos=[];
+      Object.keys(o).forEach(function(k){var v=o[k];if(v!==null&&typeof v==="object"||typeof v==="boolean")return;var rot=g[0]==="nasc"&&ROT_CAD[k]||k,inp=h("input",{type:"text",value:v==null?"":String(v).replace(".",typeof v==="number"?",":".")});campos.push({k:k,rot:rot,inp:inp,num:typeof v==="number"});bloco.appendChild(h("label",null,rot,inp))});
+      if(campos.length){edGrupos.push({chave:g[0],campos:campos});f.appendChild(bloco)}});
     var rd=reg&&reg.dados||{},kmI=h("input",{type:"text",inputmode:"numeric",placeholder:"Ex.: 103372",value:rd.km!=null?String(rd.km):""}),pkI=h("input",{type:"text",inputmode:"numeric",placeholder:"Ex.: 108500",value:rd.proxKm!=null?String(rd.proxKm):""});
     if(ehVeic(quem))f.appendChild(h("div",{class:"two"},h("label",null,"Quilometragem (opcional)",kmI),h("label",null,"Próxima com quantos km (opcional)",pkI)));
     f.appendChild(h("label",null,"Detalhes",det));
@@ -748,6 +769,18 @@
       if(cn!=null||(reg&&reg.dados&&reg.dados.custo!=null)){var dd0=Object.assign({},reg&&reg.dados||{});
         if(cn!=null){dd0.custo=Math.round(cn*100)/100;if(!dd0.itensCusto||dd0.itensCusto.length<2)dd0.itensCusto=[[titulo.value.trim(),dd0.custo]]}else{delete dd0.custo;delete dd0.itensCusto}
         dados.dados=dd0}
+      if(FAM[quem].bebe&&(/^(vacina|consulta)$/.test(tipo.value)||edGrupos.length)){var dc=Object.assign({},dados.dados||reg&&reg.dados||{}),errC=null;
+        if(/^(vacina|consulta)$/.test(tipo.value))[["clinica",ondeI],["lote",loteI],["notasCaderneta",notasI]].forEach(function(x){if(x[0]==="lote"&&tipo.value!=="vacina")return;if(x[0]==="notasCaderneta"&&tipo.value!=="consulta")return;var tx=x[1].value.trim();if(tx)dc[x[0]]=tx;else delete dc[x[0]]});
+        edGrupos.forEach(function(g){var o=Object.assign({},dc[g.chave]||{});g.campos.forEach(function(c){var tx=c.inp.value.trim();if(!tx){delete o[c.k];return}
+          if(c.num){var n=parseFloat(tx.replace(",","."));if(!/^-?\d+([.,]\d+)?$/.test(tx)||!isFinite(n)){errC=errC||"“"+c.rot+"” precisa ser um número.";return}o[c.k]=n}else o[c.k]=tx});dc[g.chave]=o});
+        if(errC){st.textContent=errC;salvar.disabled=false;return}
+        dados.dados=dc}
+      if(FAM[quem].bebe&&tipo.value==="peso"){var db=Object.assign({},dados.dados||reg&&reg.dados||{}),errM=null,algum=!!valor.value.trim();
+        [["altura",compI,20,130,"O comprimento"],["cabeca",cabI,20,60,"O perímetro cefálico"]].forEach(function(x){var tx=x[1].value.trim().replace(",",".");
+          if(!tx){delete db[x[0]];return}var n=parseFloat(tx);if(!/^\d+(\.\d+)?$/.test(tx)||!(n>=x[2]&&n<=x[3])){errM=errM||x[4]+" deve ser um número entre "+x[2]+" e "+x[3]+" cm.";return}db[x[0]]=Math.round(n*10)/10;algum=true});
+        if(errM){st.textContent=errM;salvar.disabled=false;return}
+        if(!algum){st.textContent="Informe o peso, o comprimento ou o perímetro cefálico.";salvar.disabled=false;return}
+        dados.dados=db}
       if(ehVeic(quem)){var dv=Object.assign({},dados.dados||reg&&reg.dados||{});
         [["km",kmI],["proxKm",pkI]].forEach(function(x){var v=parseInt(x[1].value.replace(/\D/g,""),10);if(v>0)dv[x[0]]=v;else delete dv[x[0]]});
         dados.dados=dv}

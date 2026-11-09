@@ -75,13 +75,15 @@
 
   /* ---------- crescimento (OMS) e vacinas ---------- */
   var OMS_CURVAS=[[-1.881,"P3"],[-1.036,"P15"],[0,"P50"],[1.036,"P85"],[1.881,"P97"]];
+  /* botão "Editar": abre o mesmo formulário de "Adicionar registro" já preenchido com este registro (famEditar vem de js/familia.js) */
+  function bebeEd(r,txt){var b=h("button",{type:"button",class:"ghostbtn bebeed",text:txt||"Editar"});b.onclick=function(){if(typeof famEditar==="function"&&famEditar)famEditar(r)};return b}
   function bebeCrescimento(box,quem,regs){
     var nasc=(regs.filter(function(r){return r.tipo==="nascimento"})[0]||{}).data;
     if(!nasc){box.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Adicione o registro “Nascimento” para calcular os percentis e o calendário de vacinas."})));return}
     function idadeDias(iso){return Math.round((new Date(iso+"T12:00:00")-new Date(nasc+"T12:00:00"))/864e5)}
     var med=[["peso","Peso","kg"],["comprimento","Comprimento","cm"],["cabeca","Perímetro cefálico","cm"]];
     med.forEach(function(m){
-      var tab=OMS_MENINAS[m[0]],pts=regs.filter(function(r){return r.tipo==="peso"}).map(function(r){var d=dadosDe(r),v=m[0]==="peso"?pesoNum(r):m[0]==="comprimento"?d.altura:d.cabeca;return typeof v==="number"?{data:r.data,dia:idadeDias(r.data),v:v}:null})
+      var tab=OMS_MENINAS[m[0]],pts=regs.filter(function(r){return r.tipo==="peso"}).map(function(r){var d=dadosDe(r),v=m[0]==="peso"?pesoNum(r):m[0]==="comprimento"?d.altura:d.cabeca;return typeof v==="number"?{data:r.data,dia:idadeDias(r.data),v:v,reg:r}:null})
         .filter(function(p){return p&&p.dia>=0&&p.dia<=730}).sort(function(a,b){return a.dia-b.dia});
       if(!pts.length)return;
       pts.forEach(function(p){p.z=NUCLEO.omsZ(tab[p.dia],p.v);p.p=NUCLEO.percentilDeZ(p.z)});
@@ -96,7 +98,7 @@
       var p=panel(m[1]+" (OMS)","Último: "+fmtN(ultp.v)+" "+m[2]+" em "+dataBR(ultp.data)+" · percentil "+fmtN(ultp.p)+" ("+(ultp.p<3?"abaixo do esperado, converse com o pediatra":ultp.p>97?"acima do esperado, converse com o pediatra":"dentro da faixa normal")+")");
       var g=h("div",{class:"tgbox"});g.innerHTML='<svg viewBox="0 0 '+W+' '+(H+18)+'" class="tgraf omsg" preserveAspectRatio="none">'+linhas+pontos+meses+'</svg>';p.appendChild(g);
       [].forEach.call(g.querySelectorAll(".omspt"),function(c,i){var q=pts[i];racDica.ligar(c,function(){return [dataBR(q.data)+" · "+Math.floor(q.dia/30.4375)+" meses",fmtN(q.v)+" "+m[2]+" · percentil "+fmtN(q.p)]})});
-      p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Todas as medidas e percentis"}),h("ul",{class:"wl"},pts.slice().reverse().map(function(x){return h("li",null,h("span",{class:"grow",text:dataBR(x.data)+" · "+Math.floor(x.dia/30.4375)+" meses"}),h("span",{class:"end",text:fmtN(x.v)+" "+m[2]+" · P"+fmtN(Math.round(x.p))}))}))));
+      p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Todas as medidas e percentis"}),h("ul",{class:"wl"},pts.slice().reverse().map(function(x){return h("li",null,h("span",{class:"grow",text:dataBR(x.data)+" · "+Math.floor(x.dia/30.4375)+" meses"}),h("span",{class:"end",text:fmtN(x.v)+" "+m[2]+" · P"+fmtN(Math.round(x.p))}),bebeEd(x.reg))}))));
       box.appendChild(p)});
     /* vacinas: o que já foi (registros "Vacina" e anotações de remédio do Napper) e o que vem */
     var pv=panel("Vacinas (calendário do SUS)","Datas pela idade. Dá como tomada quando o nome aparece num registro de vacina ou numa anotação do Napper; confira com a carteirinha."),ul=h("ul",{class:"wl"});pv.appendChild(ul);box.appendChild(pv);
@@ -150,6 +152,7 @@
       h("ul",{class:"cadfatos"},[["📅","Nasceu em",dn?dn.toLocaleDateString("pt-BR",{day:"numeric",month:"long",year:"numeric"})+(nd.hora?" às "+nd.hora:""):"—"],["🏥","No",nd.hospital||(nasc&&nasc.valor)||"—"],
         ["⚖️","Pesando",nd.peso?(nd.peso/1000).toLocaleString("pt-BR",{minimumFractionDigits:3})+" kg":"—"],["📏","Medindo",nd.comprimento?fmtN(nd.comprimento)+" cm":"—"],["🧠","Cabeça",nd.cabeca?fmtN(nd.cabeca)+" cm":"—"],["💗","Apgar",nd.apgar1?nd.apgar1+" e "+nd.apgar5:"—"],
         ["🎂","Hoje tem",meses+(meses===1?" mês":" meses")+" e "+dias+(dias===1?" dia":" dias")]].map(function(x){return h("li",null,h("span",{class:"cadico",text:x[0]}),h("span",{class:"sub",text:x[1]}),h("b",{text:x[2]}))})))));
+    if(nasc)ola.appendChild(h("div",{class:"vfil"},bebeEd(nasc,"Editar dados do nascimento")));
     box.appendChild(ola);
     /* pezinhos */
     var pes=regs.filter(function(r){return r.tipo==="momento"&&/pezinho/i.test(r.titulo)})[0],upes=urlDe(pes);
@@ -157,33 +160,34 @@
     /* parto, internação e alta */
     if(nd.prenatal||nd.internacao||nd.alta){var pa=panel("Pré-natal, parto e alta","Da caderneta.");
       pa.appendChild(h("ul",{class:"wl cadtxt"},[["Pré-natal",nd.prenatal],["Ao nascer",nd.diagnosticos],["Internação",nd.internacao],["Alta",nd.alta?dataBR(nd.alta)+(nd.pesoAlta?" · "+fmtN(nd.pesoAlta/1000)+" kg":"")+(nd.comprimentoAlta?" · "+fmtN(nd.comprimentoAlta)+" cm":""):""]]
-        .filter(function(x){return x[1]}).map(function(x){return h("li",null,h("span",{class:"grow"},h("b",{text:x[0]}),h("span",{class:"sub",text:x[1]})))})));box.appendChild(pa)}
+        .filter(function(x){return x[1]}).map(function(x){return h("li",null,h("span",{class:"grow"},h("b",{text:x[0]}),h("span",{class:"sub",text:x[1]})))})));if(nasc)pa.appendChild(h("div",{class:"vfil"},bebeEd(nasc,"Editar estes dados")));box.appendChild(pa)}
     /* documentos: os números ficam escondidos até tocar em Mostrar */
     var chaves=Object.keys(fi);
     if(chaves.length){var pd=panel("Documentos e contatos","Os números aparecem só quando você tocar em Mostrar."),ul=h("ul",{class:"wl cadficha cadtxt"}),aberto=false,bt=h("button",{type:"button",class:"ghostbtn",text:"Mostrar os números"});
       /* escondidos: números de documentos e telefone (ficam só os 4 últimos dígitos) e o endereço */
       function mascara(k,v){if(/endere/i.test(k))return "•••••• (toque em Mostrar)";return /dnv|sus|sis|telefone/i.test(k)?String(v).replace(/\d(?=(?:\D*\d){4})/g,"•"):v}
       function desenhaFicha(){ul.innerHTML="";chaves.forEach(function(k){var v=fi[k];ul.appendChild(h("li",null,h("span",{class:"grow"},h("span",{class:"sub",text:k}),h("b",{text:aberto?v:mascara(k,v)}))))});bt.textContent=aberto?"Esconder os números":"Mostrar os números"}
-      bt.onclick=function(){aberto=!aberto;desenhaFicha()};pd.appendChild(h("div",{class:"vfil"},bt));pd.appendChild(ul);desenhaFicha();box.appendChild(pd)}
+      bt.onclick=function(){aberto=!aberto;desenhaFicha()};pd.appendChild(h("div",{class:"vfil"},bt,cad?bebeEd(cad,"Editar a ficha"):null));pd.appendChild(ul);desenhaFicha();box.appendChild(pd)}
     /* vacinas */
     var vs=regs.filter(function(r){return r.tipo==="vacina"}).sort(function(a,b){return a.data.localeCompare(b.data)}),prox=vs.filter(function(r){return r.proxima&&r.proxima>=hojeISO()}).map(function(r){return r.proxima}).sort()[0];
     if(vs.length){var pv=panel("Vacinas",vs.filter(function(r){return !r.proxima}).length+" doses registradas"+(prox?" · próxima ida ao posto: "+dataBR(prox):""));
-      var tb=h("table",{class:"famtab"});tb.appendChild(h("thead",null,h("tr",null,["Data","Vacina","Dose","Onde","Lote"].map(function(c){return h("th",{text:c})}))));
-      tb.appendChild(h("tbody",null,vs.filter(function(r){return !r.proxima}).map(function(r){var d=dadosDe(r);return h("tr",null,h("td",{text:dataBR(r.data)}),h("td",null,h("b",{text:r.titulo.replace(/ · .*$/,"")})),h("td",{text:r.valor||""}),h("td",{text:d.clinica||""}),h("td",{text:d.lote||""}))})));
+      var tb=h("table",{class:"famtab"});tb.appendChild(h("thead",null,h("tr",null,["Data","Vacina","Dose","Onde","Lote",""].map(function(c){return h("th",{text:c})}))));
+      tb.appendChild(h("tbody",null,vs.filter(function(r){return !r.proxima}).map(function(r){var d=dadosDe(r);return h("tr",null,h("td",{text:dataBR(r.data)}),h("td",null,h("b",{text:r.titulo.replace(/ · .*$/,"")})),h("td",{text:r.valor||""}),h("td",{text:d.clinica||""}),h("td",{text:d.lote||""}),h("td",null,bebeEd(r)))})));
       pv.appendChild(h("div",{class:"famtabw"},tb));
       var cal=h("button",{type:"button",class:"ghostbtn",text:"Ver o calendário do SUS (o que falta)"});cal.onclick=function(){famVista[quem]="crescimento";renderFamilia(quem)};pv.appendChild(h("div",{class:"vfil"},cal));box.appendChild(pv)}
     /* medidas: peso, comprimento, cabeça e ganho por dia */
-    var ps=regs.filter(function(r){return r.tipo==="peso"&&pesoNum(r)}).sort(function(a,b){return a.data.localeCompare(b.data)});
+    /* inclui as medições só de comprimento e de perímetro cefálico (sem peso no dia) */
+    var ps=regs.filter(function(r){var dm=dadosDe(r);return r.tipo==="peso"&&(pesoNum(r)||dm.altura||dm.cabeca)}).sort(function(a,b){return a.data.localeCompare(b.data)});
     if(ps.length){var pm=panel("Medidas",ps.length+" medições, do nascimento até hoje"),tm=h("table",{class:"famtab"});
-      tm.appendChild(h("thead",null,h("tr",null,["Data","Idade","Peso","Comprimento","Cabeça","Ganho por dia"].map(function(c){return h("th",{text:c})}))));
+      tm.appendChild(h("thead",null,h("tr",null,["Data","Idade","Peso","Comprimento","Cabeça","Ganho por dia",""].map(function(c){return h("th",{text:c})}))));
       tm.appendChild(h("tbody",null,ps.slice().reverse().map(function(r,i,l){var d=dadosDe(r),ant=l[i+1],dd=dn?Math.round((new Date(r.data+"T12:00:00")-dn)/864e5):null,mm=dd!=null?Math.floor(dd/30.4375):null;
-        var ganho=ant?Math.round((pesoNum(r)-pesoNum(ant))*1000/Math.max(1,(new Date(r.data)-new Date(ant.data))/864e5)):null;
-        return h("tr",null,h("td",{text:dataBR(r.data)}),h("td",{text:dd==null?"":mm?mm+"m "+Math.round(dd-mm*30.4375)+"d":dd+" dias"}),h("td",null,h("b",{text:fmtN(pesoNum(r))+" kg"})),h("td",{text:d.altura?fmtN(d.altura)+" cm":"—"}),h("td",{text:d.cabeca?fmtN(d.cabeca)+" cm":"—"}),h("td",{class:ganho!=null&&ganho<15?"cadbaixo":null,text:ganho==null?"—":(ganho>0?"+":"")+ganho+" g"}))})));
+        var ganho=ant&&pesoNum(r)&&pesoNum(ant)?Math.round((pesoNum(r)-pesoNum(ant))*1000/Math.max(1,(new Date(r.data)-new Date(ant.data))/864e5)):null;
+        return h("tr",null,h("td",{text:dataBR(r.data)}),h("td",{text:dd==null?"":mm?mm+"m "+Math.round(dd-mm*30.4375)+"d":dd+" dias"}),h("td",null,h("b",{text:pesoNum(r)?fmtN(pesoNum(r))+" kg":"—"})),h("td",{text:d.altura?fmtN(d.altura)+" cm":"—"}),h("td",{text:d.cabeca?fmtN(d.cabeca)+" cm":"—"}),h("td",{class:ganho!=null&&ganho<15?"cadbaixo":null,text:ganho==null?"—":(ganho>0?"+":"")+ganho+" g"}),h("td",null,bebeEd(r)))})));
       pm.appendChild(h("div",{class:"famtabw"},tm));box.appendChild(pm)}
     /* consultas */
     var cs=regs.filter(function(r){return r.tipo==="consulta"}).sort(function(a,b){return b.data.localeCompare(a.data)});
     if(cs.length){var pc=panel("Consultas",cs.length+" consultas");pc.appendChild(h("ul",{class:"wl cadtxt"},cs.map(function(r){var d=dadosDe(r);
-      return h("li",null,h("span",{class:"grow"},h("b",{text:dataBR(r.data)+" · "+r.titulo+(r.valor&&r.titulo.indexOf(r.valor)<0?" — "+r.valor:"")}),h("span",{class:"sub",text:[r.detalhes,d.notasCaderneta].filter(Boolean).join(" ")})))})));box.appendChild(pc)}
+      return h("li",null,h("span",{class:"grow"},h("b",{text:dataBR(r.data)+" · "+r.titulo+(r.valor&&r.titulo.indexOf(r.valor)<0?" — "+r.valor:"")}),h("span",{class:"sub",text:[r.detalhes,d.notasCaderneta].filter(Boolean).join(" ")})),bebeEd(r))})));box.appendChild(pc)}
     /* as páginas da caderneta, em miniaturas que abrem em tamanho grande */
     var pgs=(cad&&cad.arquivos||[]).filter(function(a){return /^image\//.test(a.tipo)&&urls[a.path]});
     if(pgs.length){var pg=panel("Páginas da caderneta","Toque numa página para ver em tamanho grande.");

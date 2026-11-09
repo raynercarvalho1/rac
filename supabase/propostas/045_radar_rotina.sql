@@ -4,6 +4,7 @@
 -- o robots.txt de cada loja; sem nenhuma loja com "coleta liberada", a rodada só confere os avisos.
 -- Usa a mesma senha da rotina (Vault: rac_rotina, criada no 008): nenhum segredo novo. NÃO mexe na função garmin nem no agendamento dela.
 -- Depende de: 043 (tabelas do Radar), função radar publicada, notificações ativadas em Sistema (chaves VAPID e aparelho inscrito).
+-- FUSO: o pg_cron do Supabase conta em UTC e o Brasil está em UTC−3 sem horário de verão (desde 2019): 9h20 UTC = 6h20 e 21h20 UTC = 18h20 de Brasília. ANTES de aplicar, confira: show cron.timezone;  (deve ser GMT ou UTC; a 019 da Newsletter usa a mesma convenção).
 -- Para DESLIGAR (rollback): select cron.unschedule('radar-rotina');
 begin;
 

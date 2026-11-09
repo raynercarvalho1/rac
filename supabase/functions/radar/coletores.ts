@@ -28,6 +28,8 @@ export const COLETORES: Coletor[] = [
 ];
 
 export const LIMITE_POR_RODADA = 20;
+/* a Edge Function tem limite de duração: depois deste tempo a rodada para de começar ofertas novas (as que sobraram ficam para a próxima) */
+export const ORCAMENTO_RODADA_MS = 90_000;
 export const PAUSA_APOS_FALHAS = 3;
 export const INTERVALO_ENTRE_PEDIDOS_MS = 5000;
 const H = 3600_000;
@@ -78,7 +80,7 @@ export type BancoColeta = {
   fecharColeta(id: string, r: { status: "ok" | "parcial" | "falha"; terminada_em: string; ofertas_lidas: number; precos_gravados: number; falhas: number; erro_codigo?: string | null; erro_mensagem?: string | null }): Promise<void>;
   gravarPreco(uid: string, o: NovaObs): Promise<"gravado" | "duplicado">;
 };
-export type Opcoes = { origem?: "rotina" | "piloto" | "manual"; esperar?: (ms: number) => Promise<void>; limite?: number };
+export type Opcoes = { origem?: "rotina" | "piloto" | "manual"; esperar?: (ms: number) => Promise<void>; limite?: number; orcamentoMs?: number };
 
 /* uma rodada para um dono. Nunca lança por falha de uma loja: cada falha vira um registro em radar_coletas. */
 export async function rodarColeta(uid: string, banco: BancoColeta, deps: Deps, agora: () => number, op: Opcoes = {}) {
@@ -97,6 +99,7 @@ export async function rodarColeta(uid: string, banco: BancoColeta, deps: Deps, a
     let lidas = 0, gravadas = 0, falhas = 0, ultimoCodigo: string | null = null, ultimoMotivo: string | null = null;
     resumo.lojas++;
     for (const [i, o] of lista.entries()) {
+      if (agora() - t0 >= (op.orcamentoMs ?? ORCAMENTO_RODADA_MS)) { resumo.adiadas += lista.length - i; break; } // sem tempo: o resto fica para a próxima rodada
       if (i > 0) await esperar(INTERVALO_ENTRE_PEDIDOS_MS); // educado com a loja: um pedido por vez, com intervalo
       lidas++;
       try {

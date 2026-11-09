@@ -6,10 +6,11 @@
 //      (Web Push só para os aparelhos do dono, por push.ts, sem depender da função garmin). Só vale depois de um agendamento próprio (supabase/propostas/045_radar_rotina.sql, não aplicada).
 // Sem IA, sem custo, sem segredo novo. Membro da casa (Fernanda) é recusado.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { chavePublica, chaveServidor } from "../rac-ia/chaves.ts";
+import { chavePublica, chaveServidor } from "./chaves.ts";
 import { configPadrao, type Banco as BancoAvisos } from "./avisos.ts";
 import type { BancoColeta } from "./coletores.ts";
 import { extrairPagina } from "./extrair.ts";
+import { resolverNome } from "./dns.ts";
 import { type BancoPush } from "./push.ts";
 import { rodadaDoDono } from "./rotina.ts";
 import { lerPagina, type Deps } from "./ssrf.ts";
@@ -23,10 +24,8 @@ const cabecalhos = (req: Request) => ({
 const ambiente = (n: string) => Deno.env.get(n);
 
 const deps: Deps = {
-  async resolver(host) {
-    const [a, b] = await Promise.all([Deno.resolveDns(host, "A").catch(() => [] as string[]), Deno.resolveDns(host, "AAAA").catch(() => [] as string[])]);
-    return [...a, ...b];
-  },
+  /* DNS do ambiente, com DNS sobre HTTPS (endereço fixo) se o ambiente não oferecer Deno.resolveDns; sem resposta, a leitura é recusada */
+  resolver: (host) => resolverNome(host, { resolveDns: typeof Deno.resolveDns === "function" ? (h, t) => Deno.resolveDns(h, t) : undefined, fetch: (u, i) => fetch(u, i) }),
   fetch: (url, init) => fetch(url, init),
 };
 

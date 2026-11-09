@@ -201,7 +201,7 @@ test("aviso: desligado, vendedor bloqueado, equivalência não confirmada e pre�
 test("a função não envia nada à Fernanda: quem a chama só passa o uid do dono; a rotina exclui membros e o site recusa membro", () => {
   const idx = ler("supabase/functions/radar/index.ts");
   assert.match(idx, /from\("membros"\)\.select\("membro"\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/); assert.match(idx, /select\("dono"\)\.eq\("membro", uid\)\.maybeSingle\(\)[\s\S]*sem_permissao/);
-  assert.ok(!/push|Notification|vapid/i.test(semComent(idx)), "a função radar não envia push: o envio passa pelo passo isolado (avisos.ts) com o pushPara que já existe");
+  assert.ok(/from "\.\/push\.ts"/.test(idx) && !/aes128gcm|crypto\.subtle/i.test(semComent(idx)), "o envio de push vive em push.ts (independente da Garmin), não no index.ts");
   assert.ok(!/garmin/.test(semComent(idx).replace(/rac-ia\/chaves\.ts/, "")), "não mexe na garmin");
 });
 
@@ -326,7 +326,7 @@ test("a IA do Radar não ganhou nenhum caminho de custo: proposta 044 só libera
   const sql = ler("supabase/propostas/044_ia_radar_equivalencia.sql"), exec = semComent(sql);
   assert.match(sql.split("\n")[0], /PROPOSTA 044 · NÃO APLICADA EM PRODUÇÃO/); assert.ok(!/^\s*update\b/im.test(exec), "não liga a ação");
   assert.match(exec, /'radar\.equivalencia'\]::text\[\]/); assert.match(exec, /not \('radar\.equivalencia' = any \(acoes_reais_casa\)\)/); assert.ok(!/create table|drop table|grant|revoke/i.test(exec));
-  const tela = ler("js/radar.js"); assert.ok(!/racIA\(/.test(tela), "a tela não chama a IA (botão desabilitado)"); assert.match(tela, /disabled:"disabled"[^)]*Pedir sugestão da IA \(indisponível\)|Pedir sugestão da IA \(indisponível\)/);
+  const tela = ler("js/radar.js"); assert.match(tela, /Pedir sugestão da IA \(desligada\)/, "desligada por padrão"); assert.ok(tela.indexOf("confirm(") < tela.indexOf("racIA(") && /if\(!rtCfg\(\)\.ia\)return/.test(tela), "só chama com a chave ligada e depois da confirmação");
   for (const f of ["index", "ssrf", "extrair", "regras", "avisos", "coletores"]) assert.ok(!/anthropic|claude-|api\.openai/i.test(semComent(ler("supabase/functions/radar/" + f + ".ts"))), f + " não fala com IA");
   assert.ok(!fs.existsSync(new URL("../supabase/044_ia_radar_equivalencia.sql", import.meta.url)), "a proposta não está entre as migrations a rodar");
 });

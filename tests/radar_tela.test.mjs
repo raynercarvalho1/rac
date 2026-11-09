@@ -187,7 +187,7 @@ test("detalhe: ranking separado por modalidade, 'fora do ranking' com o motivo, 
   const barras = todos(t.corpo, (e) => e.tag === "button" && String(e.attrs.class).startsWith("vb")); assert.ok(barras.length >= 3);
   for (const b of barras) { assert.ok(todos(b, (e) => e.attrs.class === "vbv").length === 1, "valor fixo em cada barra"); assert.ok(todos(b, (e) => e.attrs.class === "vbl").length === 1, "rótulo fixo em cada barra"); }
   assert.ok(t.dicas.length >= barras.length, "cada barra liga o racDica");
-  const ia = botao(t.corpo, "Pedir sugestão da IA"); assert.equal(ia.attrs.disabled, "disabled"); assert.match(ia.attrs.title, /ainda não foi liberada/); assert.equal(ia.onclick, undefined, "sem ação: nada é chamado");
+  const ia = botao(t.corpo, "Pedir sugestão da IA"); assert.equal(ia.attrs.disabled, "disabled"); assert.match(ia.attrs.title, /Desligada/); assert.equal(ia.onclick, undefined, "sem ação: nada é chamado");
   assert.equal(botao(t.corpo, "Sugerir equivalência (regras)") !== undefined, true);
   /* série parcelada separada da à vista no seletor */
   const series = todos(t.corpo, (e) => e.attrs.class && String(e.attrs.class).startsWith("chipb")).map((c) => c.attrs.text); assert.ok(series.some((s) => /À vista/.test(s)) && series.some((s) => /Parcelado 3x/.test(s)));
@@ -229,7 +229,7 @@ test("Mercado: aba Radar só para o dono, módulo carregado sob demanda, sem mex
 test("segurança do módulo: nenhum HTML injetado, links com noopener, sem eval, sem chamada de IA, sem CEP e sem segredos no arquivo", () => {
   const s = ler("js/radar.js");
   for (const m of s.matchAll(/innerHTML\s*=\s*([^;\n]+)/g)) assert.equal(m[1].trim().replace(/[;,)]+$/, ""), '""', "innerHTML só para limpar");
-  assert.ok(!/\b(eval|Function)\s*\(|document\.write|insertAdjacentHTML|outerHTML/.test(s)); assert.match(s, /rel:"noopener noreferrer"/); assert.ok(!/racIA\(|anthropic|api\.openai/i.test(s));
+  assert.ok(!/\b(eval|Function)\s*\(|document\.write|insertAdjacentHTML|outerHTML/.test(s)); assert.match(s, /rel:"noopener noreferrer"/); assert.equal((s.match(/racIA\(/g) || []).length, 1, "a IA só é chamada num lugar (o botão, com confirmação)"); assert.ok(!/anthropic|api\.openai/i.test(s));
   assert.ok(!/\b\d{5}-?\d{3}\b/.test(s), "nenhum CEP no código"); assert.ok(!/sb_secret|service_role|apikey/i.test(s));
   assert.ok(!/(fetch\(|XMLHttpRequest)/.test(s), "o navegador nunca busca página de loja: quem lê é a função, com as travas");
 });
@@ -294,4 +294,49 @@ test("excluir: produto sem ofertas é excluído (com confirmação); com ofertas
   assert.equal(todos(lo.corpo, (e) => e.tag === "button" && e.attrs.text === "Excluir").length, 2); todos(lo.corpo, (e) => e.tag === "button" && e.attrs.text === "Excluir")[1].onclick(); await espera(); igual(lo.banco.de("radar_lojas", "delete")[0].ops[1], ["eq", "id", "l2"]);
   const nunca = ler("js/radar.js"); assert.ok(!/rtExcluir\(RT\.sb,"radar_precos"|from\("radar_precos"\)\.delete/.test(nunca), "o histórico de preços nunca é apagado pela tela");
   assert.match(montar().ctx.rtErro({ message: 'update or delete on table "radar_itens" violates foreign key constraint 23503' }), /não dá para excluir/);
+});
+
+/* ---------- Lote 3: IA na tela (desligada por padrão, paga só quando tocar, nunca grava sozinha) ---------- */
+const montarIA = (extra = {}, ia = true) => { const t = montar({ pessoal: ia ? { "radar-config": { ia: { on: true } } } : {}, ...extra }); t.chamadasIA = []; t.ctx.racIA = (...a) => { t.chamadasIA.push(a); return Promise.resolve(t.respostaIA ?? { ok: true, modo: "REAL", resultado: RESP_IA, avisos: [] }); }; return t; };
+const RESP_IA = { sugestao: "provavel", confianca: 0.9, variante_cadastrada: "Preto", variante_anuncio: "Preto", evidencias: [{ campo: "gtin", cadastrado: "7891000100103", anuncio: "7891000100103" }, { campo: "modelo", cadastrado: "XM-4", anuncio: "XM-4" }], divergencias: [], incertezas: [], resumo: "Mesmo GTIN e modelo." };
+test("IA desligada por padrão: o botão não faz nada e nenhuma chamada é possível; ligar só em Ajustes", async () => {
+  const t = montarIA({}, false); await abrirItem(t); const b = botao(t.corpo, "Pedir sugestão da IA"); assert.equal(b.attrs.disabled, "disabled"); assert.match(b.attrs.text, /desligada/); assert.equal(t.chamadasIA.length, 0);
+  t.ctx.RT.item = null; t.ctx.RT.aba = "ajustes"; t.ctx.rtDesenhar(); const caixa = todos(t.corpo, (e) => e.tag === "input" && e.attrs.type === "checkbox")[0]; assert.match(textoDe(t.corpo), /Desligada por padrão/); assert.match(textoDe(t.corpo), /PAGA|paga/);
+  caixa.checked = true; exato(t.corpo, "Salvar ajustes").onclick(); assert.equal(t.gravados[0][0], "radar-config"); assert.equal(t.gravados[0][1].ia.on, true);
+});
+test("IA ligada: pede confirmação do custo, exige título, manda só dados do produto e do anúncio (nunca preço, frete ou CEP) e mostra a sugestão sem aplicar nada", async () => {
+  const t = montarIA({ dados: { radar_ofertas: [{ ...OFERTA, equivalencia: "nao_confirmada", evidencias: [] }], radar_precos: [P(1, 4321.5)] } }); await abrirItem(t);
+  const b = botao(t.corpo, "Pedir sugestão da IA"); assert.notEqual(b.attrs.disabled, "disabled");
+  b.onclick(); assert.equal(t.chamadasIA.length, 0, "sem título não chama"); assert.match(msgs(t.corpo), /Cole o título do anúncio/);
+  campo(t.corpo, "Título do anúncio (cole aqui para a IA)").value = "Fone Bluetooth Marca A XM-4 Preto"; t.ctx.confirm = () => false; b.onclick(); await espera(); assert.equal(t.chamadasIA.length, 0, "sem confirmar o custo, não chama");
+  let texto = ""; t.ctx.confirm = (m) => { texto = m; return true; }; b.onclick(); await espera(); await espera();
+  assert.match(texto, /PAGA/); assert.match(texto, /centavos/); assert.equal(t.chamadasIA.length, 1);
+  const [mod, acao, entrada, ctx2, chave] = t.chamadasIA[0]; assert.deepEqual([mod, acao, entrada.imagens.length, chave], ["radar", "radar.equivalencia", 0, undefined]);
+  assert.match(entrada.texto, /^CADASTRADO: \{.*"gtin":"7891000100103".*\}\nANUNCIO: \{"titulo":"Fone Bluetooth Marca A XM-4 Preto","vendedor":"Loja A"\}$/);
+  assert.ok(!/4321|R\$|frete|cep|preco/i.test(entrada.texto), "nenhum preço, frete ou CEP vai para a IA"); assert.ok(entrada.texto.length < 1000);
+  assert.match(textoDe(t.corpo), /Sugestão da IA: provável \(confiança 90%\)/); assert.match(textoDe(t.corpo), /A IA só sugere/);
+  assert.equal(t.banco.gravacoes().length, 0, "a sugestão não grava nada: nem equivalência, nem preço");
+  /* o dono decide: confirmar grava origem 'dono' com as evidências marcadas como vindas da IA */
+  botao(t.corpo, "Confirmar que é o mesmo produto").onclick(); await espera(); await espera();
+  const u = t.banco.de("radar_ofertas", "update")[0].ops[0][1]; assert.deepEqual([u.equivalencia, u.equivalencia_origem, !!u.confirmada_em], ["confirmada", "dono", true]); assert.equal(u.evidencias[0].origem, "ia");
+});
+test("IA ligada mas sem liberação no servidor (DEMO/sem_real), erro de rede ou resposta suspeita: mostra o motivo, não aplica nada e não trava o Radar", async () => {
+  for (const r of [{ ok: false, modo: "DEMO", mensagem: "Esta análise só existe com a IA real, e ela não está liberada agora. Nada foi analisado, reservado nem cobrado." }, { ok: true, modo: "DEMO", resultado: { ...RESP_IA, _demo: true } }, { ok: true, modo: "REAL" }]) {
+    const t = montarIA(); t.respostaIA = r; await abrirItem(t); campo(t.corpo, "Título do anúncio (cole aqui para a IA)").value = "Fone"; botao(t.corpo, "Pedir sugestão da IA").onclick(); await espera(); await espera();
+    assert.equal(t.chamadasIA.length, 1); assert.ok(!textoDe(t.corpo).includes("Sugestão da IA:"), JSON.stringify(r).slice(0, 40)); assert.equal(t.banco.gravacoes().length, 0); assert.ok(msgs(t.corpo).length > 3);
+  }
+  const t = montarIA(); t.ctx.racIA = () => Promise.reject(new Error("sem internet")); await abrirItem(t); campo(t.corpo, "Título do anúncio (cole aqui para a IA)").value = "Fone"; botao(t.corpo, "Pedir sugestão da IA").onclick(); await espera(); await espera();
+  assert.match(msgs(t.corpo), /Não consegui falar com a IA/); assert.ok(botao(t.corpo, "Sugerir equivalência (regras)"), "o resto do Radar continua funcionando");
+  const sem = montarIA(); delete sem.ctx.racIA; await abrirItem(sem); campo(sem.corpo, "Título do anúncio (cole aqui para a IA)").value = "x"; botao(sem.corpo, "Pedir sugestão da IA").onclick(); assert.match(msgs(sem.corpo), /não está disponível/);
+});
+test("IA: sugestão 'divergente' nunca oferece confirmar; 'provável' sem evidência também não", async () => {
+  for (const r of [{ ...RESP_IA, sugestao: "divergente", evidencias: [], divergencias: [{ campo: "modelo", cadastrado: "XM-4", anuncio: "XM-5" }] }, { ...RESP_IA, sugestao: "provavel", evidencias: [] }]) {
+    const t = montarIA(); t.respostaIA = { ok: true, modo: "REAL", resultado: r, avisos: [] }; await abrirItem(t); campo(t.corpo, "Título do anúncio (cole aqui para a IA)").value = "Fone"; botao(t.corpo, "Pedir sugestão da IA").onclick(); await espera(); await espera();
+    assert.equal(botao(t.corpo, "Confirmar que é o mesmo produto (decisão minha)"), undefined); assert.ok(botao(t.corpo, "Rejeitar equivalência"));
+  }
+});
+test("sinais de anúncio suspeito aparecem na oportunidade sem descartá-la", async () => {
+  const dados = { radar_lojas: [{ ...LOJA, tipo: "marketplace" }], radar_ofertas: [{ ...OFERTA, vendedor: null }], radar_precos: [P(10, 200), P(0, 20), P(0, 10, { modalidade: "parcelado", meio: "credito", parcelas: 2, valor_parcela: 5, total_parcelado: 10, sem_juros: true, observado_em: iso(0.0005) })] };
+  const t = montar({ dados }); await t.abrir(); const txt = textoDe(t.corpo);
+  assert.match(txt, /R\$ 30,00/); assert.match(txt, /queda grande/); assert.match(txt, /Marketplace sem vendedor identificado/); assert.match(txt, /total parcelado está abaixo do preço à vista/);
 });

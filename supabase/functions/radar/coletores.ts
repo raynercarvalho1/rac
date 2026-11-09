@@ -5,6 +5,7 @@
 // O que a coleta grava: SÓ o preço anunciado e a disponibilidade, na mesma modalidade da última observação confirmada pelo dono (só à vista). O frete depende do CEP:
 // a observação entra com frete "desconhecido" (sem preço final) e o dono confirma o frete numa nova linha de correção. Nunca inventa histórico nem confirma equivalência.
 import { extrairPagina, type Extraido } from "./extrair.ts";
+import { coletaGenericaBarrada } from "./fontes.ts";
 import { lerPagina, type Deps } from "./ssrf.ts";
 
 export type Loja = { id: string; nome: string; dominio: string | null; coleta_permitida: boolean; ativa: boolean };
@@ -23,7 +24,7 @@ export type Coletor = {
 export const COLETORES: Coletor[] = [
   { id: "pagina_publica", nome: "Página pública (schema.org)", estado: "ativo", intervaloMinHoras: 12 },
   { id: "mercadolivre_api", nome: "Mercado Livre (API oficial)", estado: "exige_credencial", intervaloMinHoras: 12,
-    motivo: "A API pública do Mercado Livre responde 401/403 sem token OAuth (conferido em 09/11/2026) e o robots.txt da loja barra agentes de IA: só com um aplicativo do próprio dono e o token dele." },
+    motivo: "A API do Mercado Livre responde 403 sem token (conferido em 09/11/2026) e o robots.txt do site barra agentes de IA. O mapeamento (mercadolivre.ts) está pronto e testado só com dados fictícios; falta o ciclo OAuth (authorization_code + refresh rotativo), que depende de o dono criar o aplicativo e autorizar." },
 ];
 
 export const LIMITE_POR_RODADA = 20;
@@ -46,7 +47,7 @@ export function planejar(ofertas: OfertaColeta[], lojas: Loja[], ultimas: Ultima
   for (const o of ofertas) {
     const l = porLoja.get(o.loja_id);
     const motivo = !o.url ? "sem_link" : o.situacao !== "ativa" ? "oferta_inativa" : o.equivalencia !== "confirmada" ? "equivalencia_nao_confirmada"
-      : !l || !l.ativa ? "loja_inativa" : !l.coleta_permitida ? "coleta_nao_liberada" : !l.dominio ? "loja_sem_dominio" : lojaEmPausa(coletas, l.id) ? "loja_em_pausa"
+      : !l || !l.ativa ? "loja_inativa" : !l.coleta_permitida ? "coleta_nao_liberada" : !l.dominio ? "loja_sem_dominio" : coletaGenericaBarrada(l.dominio) ? "fonte_barrada" : lojaEmPausa(coletas, l.id) ? "loja_em_pausa"
       : !ult.get(o.id) ? "sem_base_confirmada" : ult.get(o.id)!.modalidade !== "a_vista" ? "base_nao_e_a_vista"
       : agora - Date.parse(ult.get(o.id)!.observado_em) < intervaloHoras * H ? "dentro_do_intervalo" : null;
     if (motivo) pulos.push({ oferta_id: o.id, motivo }); else alvos.push(o);

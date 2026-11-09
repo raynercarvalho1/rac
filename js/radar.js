@@ -8,6 +8,10 @@
   var RT_TIPOS_LOJA=[["varejo","Varejo online"],["marketplace","Marketplace"],["fabricante","Fabricante"],["atacado","Atacado"],["fisica","Loja física"],["outro","Outro"]];
   var RT_MEIOS=[["pix","Pix"],["boleto","Boleto"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["outro","Outro"]];
   var RT_FRETES=[["desconhecido","Ainda não sei (não conta como grátis)"],["confirmado","Confirmado, com valor"],["gratis_confirmado","Grátis, confirmado para o meu CEP"],["retirada","Retirada na loja (zero)"]];
+  /* fontes em que a coleta automática NÃO roda (a mesma lista de supabase/functions/radar/fontes.ts; um teste exige que sejam iguais) */
+  var RT_BARRADAS={"a.co":"a Amazon só permite API oficial com credencial","amazon.com.br":"a Amazon só permite API oficial com credencial","casasbahia.com.br":"o robots.txt da loja não pôde ser conferido (403)","magazineluiza.com.br":"o robots.txt da loja não pôde ser conferido (403)",
+    "mercadolibre.com":"o Mercado Livre exige a API oficial com credencial","mercadolivre.com.br":"o Mercado Livre exige a API oficial com credencial","pichau.com.br":"a loja recusa leitura automática (403)","produto.mercadolivre.com.br":"o Mercado Livre exige a API oficial com credencial","terabyteshop.com.br":"o robots.txt da loja não pôde ser conferido (403)"};
+  function rtBarrada(dominio){var h=String(dominio||"").toLowerCase().replace(/^www\./,"");for(var d in RT_BARRADAS)if(h===d||h.slice(-d.length-1)==="."+d)return RT_BARRADAS[d];return ""}
   var RT_EQUIV=[["confirmada","Equivalente (confirmado)"],["provavel","Provável (a confirmar)"],["nao_confirmada","Não confirmada"],["rejeitada","Rejeitada"]];
 
   function rtDono(){return typeof isOwner==="function"&&isOwner()}
@@ -24,7 +28,7 @@
       Promise.resolve(sb.from("radar_config").select("id,cep_padrao")).then(rtOk)]).then(function(r){
       var cfg=(r[4]||[])[0];return {itens:r[0],lojas:r[1],ofertas:r[2],precos:r[3],cepOk:!!(cfg&&cfg.cep_padrao),cfgId:cfg?cfg.id:null}})}
   function rtCfg(){var raw=(typeof PESSOAL!=="undefined"&&PESSOAL&&PESSOAL["radar-config"])||{};
-    return {push:!(raw.push&&raw.push.on===false),janela:[0,30,90,180,365].indexOf(+raw.janela)>=0?+raw.janela:90,vendedoresBloqueados:Array.isArray(raw.vendedoresBloqueados)?raw.vendedoresBloqueados:[]}}
+    return {ia:!!(raw.ia&&raw.ia.on===true),push:!(raw.push&&raw.push.on===false),janela:[0,30,90,180,365].indexOf(+raw.janela)>=0?+raw.janela:90,vendedoresBloqueados:Array.isArray(raw.vendedoresBloqueados)?raw.vendedoresBloqueados:[]}}
   function rtPagos(){return (typeof PESSOAL!=="undefined"&&PESSOAL&&PESSOAL["radar-pagos"])||{}}
   function rtPor(l,id){for(var i=0;i<l.length;i++)if(l[i].id===id)return l[i];return null}
   function rtRecarregar(){RT.carregando=true;return rtLerTudo(RT.sb).then(function(d){RT.d=d;RT.carregando=false;rtDesenhar()},function(e){RT.carregando=false;RT.aviso="Não consegui ler o Radar: "+rtErro(e);rtDesenhar()})}
@@ -41,7 +45,7 @@
     var nome=rtTexto(f.nome,80);if(!nome)return Promise.reject(new Error("Dê um nome à loja."));
     var dom=rtTexto(String(f.dominio||"").toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").replace(/[\/?#].*$/,""),120);
     if(dom&&!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(dom))return Promise.reject(new Error("Domínio inválido (ex.: loja.com.br, sem https:// nem caminho)."));
-    var linha={nome:nome,dominio:dom,tipo:f.tipo||"varejo",coleta_permitida:!!f.coleta_permitida&&!!dom,atualizado_em:new Date().toISOString()};
+    var linha={nome:nome,dominio:dom,tipo:f.tipo||"varejo",coleta_permitida:!!f.coleta_permitida&&!!dom&&!rtBarrada(dom),atualizado_em:new Date().toISOString()};
     return Promise.resolve(id?sb.from("radar_lojas").update(linha).eq("id",id).select("*"):sb.from("radar_lojas").insert(linha).select("*")).then(rtOk)}
   function rtSalvarOferta(sb,f){
     var u=f.url?NUCLEO.rdUrlOk(f.url):{ok:true,url:null};if(!u.ok)return Promise.reject(new Error(u.motivo));
@@ -106,6 +110,33 @@
   function rtNomeItem(id){var i=RT.d&&rtPor(RT.d.itens,id);return i?i.nome:"Produto"}
   function rtRotSerie(s){var m=s.modalidade==="parcelado"?"Parcelado "+s.parcelas+"x":"À vista";var meio=RT_MEIOS.filter(function(x){return x[0]===(s.meio||"outro")})[0];return m+" · "+(meio?meio[1]:"")}
 
+  /* ---------- IA: só sugere, desligada por padrão, paga por uso, nunca grava sozinha ---------- */
+  /* o texto que vai para a IA: produto cadastrado e anúncio (título, marca, modelo, GTIN, vendedor); NUNCA preço, frete, CEP ou histórico */
+  function rtEntradaIA(item,oferta,ex,titulo){
+    var cad={nome:item.nome,marca:item.marca,modelo:item.modelo,variante:item.variante,apresentacao:item.apresentacao,gtin:item.gtin},an={titulo:String(titulo||"").slice(0,300)};
+    ex=ex||{};if(ex.marca)an.marca=ex.marca.valor;if(ex.modelo)an.modelo=ex.modelo.valor;if(ex.gtin)an.gtin=ex.gtin.valor;if(oferta&&oferta.vendedor)an.vendedor=oferta.vendedor;
+    function limpo(o){var r={};Object.keys(o).forEach(function(k){if(o[k]!=null&&o[k]!=="")r[k]=o[k]});return r}
+    return "CADASTRADO: "+JSON.stringify(limpo(cad))+"\nANUNCIO: "+JSON.stringify(limpo(an))}
+  function rtBotaoIA(item,o,tituloIn){
+    var st=rtMsg();
+    if(!rtCfg().ia)return h("div",{class:"rtia"},h("button",{type:"button",class:"ghostbtn",disabled:"disabled",title:"Desligada. Ative em Ajustes: cada sugestão da IA é paga (centavos).",text:"Pedir sugestão da IA (desligada)"}));
+    var b=rtBotao("Pedir sugestão da IA",function(){
+      var l=RT.leitura&&RT.leitura.oferta===o.id?RT.leitura.ex:null,tit=(tituloIn&&tituloIn.value.trim())||(l&&l.titulo&&l.titulo.valor)||(l&&l.nome&&l.nome.valor)||"";
+      if(!tit){st.textContent="Cole o título do anúncio (ou use “Ler da página” antes).";return}
+      if(typeof racIA!=="function"){st.textContent="A IA não está disponível neste aparelho.";return}
+      if(typeof confirm==="function"&&!confirm("A IA vai comparar o produto cadastrado com o anúncio. Cada sugestão é PAGA (alguns centavos de real, dentro do limite mensal da IA) e só acontece agora, porque você tocou. Continuar?"))return;
+      b.disabled=true;st.textContent="Consultando a IA…";
+      Promise.resolve(racIA("radar","radar.equivalencia",{texto:rtEntradaIA(item,o,l,tit),imagens:[]},{})).then(function(r){b.disabled=false;var res=r&&r.resultado;
+        if(!r||!r.ok||r.modo!=="REAL"||!res||res._demo){st.textContent=(r&&r.mensagem)||"A IA não respondeu. Nada foi aplicado.";return}
+        RT.iaRes={oferta:o.id,res:res,aviso:(r.avisos||[]).join(" ")};st.textContent="";rtDesenhar()},function(e){b.disabled=false;st.textContent="Não consegui falar com a IA: "+rtErro(e)})});
+    return h("div",{class:"rtia"},b,st)}
+  function rtPainelIA(c,o){var ia=RT.iaRes;if(!ia||ia.oferta!==o.id)return;var r=ia.res,rot=r.sugestao==="provavel"?"provável":r.sugestao==="divergente"?"divergente":"não confirmada";
+    c.appendChild(h("div",{class:"rtleitura"},h("b",{text:"Sugestão da IA: "+rot+" (confiança "+Math.round((+r.confianca||0)*100)+"%)"}),h("p",{class:"sub",text:"A IA só sugere. Confirmar é decisão sua, e o preço continua vindo só do que você registrou."}),
+      r.resumo?h("p",{class:"sub",text:r.resumo}):null,r.evidencias.map(function(e){return h("span",{class:"sub",text:"✓ "+e.campo+": "+e.cadastrado+" × "+e.anuncio})}),r.divergencias.map(function(e){return h("span",{class:"sub",text:"✗ "+e.campo+": "+e.cadastrado+" × "+e.anuncio})}),
+      (r.incertezas||[]).map(function(t){return h("span",{class:"sub",text:"? "+t})}),ia.aviso?h("span",{class:"sub",text:"⚠ "+ia.aviso}):null));
+    if(r.sugestao==="provavel"&&r.evidencias.length)c.appendChild(rtBotao("Confirmar que é o mesmo produto (decisão minha)",function(){rtFeito(rtEquivalencia(RT.sb,o,"confirmada",r.evidencias.map(function(e){return {tipo:e.campo,texto:e.cadastrado+" × "+e.anuncio,origem:"ia"}})),"Equivalência confirmada por você, com as evidências da IA.")},"pri"));
+    c.appendChild(rtBotao("Rejeitar equivalência",function(){rtFeito(rtEquivalencia(RT.sb,o,"rejeitada",r.evidencias.concat(r.divergencias).map(function(e){return {tipo:e.campo,texto:e.cadastrado+" × "+e.anuncio,origem:"ia"}})),"Equivalência rejeitada.")}))}
+
   /* ---------- oportunidades ---------- */
   function rtAbaOport(corpo){
     var d=RT.d,cfg=rtCfg(),jan=RT.janela;
@@ -118,7 +149,7 @@
       var card=h("button",{type:"button",class:"rtop"},h("b",{text:rtNomeItem(o.item_id)}),h("span",{class:"sub",text:(lj?lj.nome:"")+" · "+(o.modalidade==="parcelado"?"Parcelado "+o.parcelas+"x":"À vista")}),
         h("span",{class:"rtpreco",text:rtMoeda(o.final)}),
         o.motivos.map(function(m){return h("span",{class:"sub",text:(m.tipo==="menor_que_ultima"?"Abaixo da última observação ("+rtMoeda(m.referencia)+")":m.tipo==="menor_na_janela"?"Menor da janela ("+rtMoeda(m.referencia)+")":"Abaixo do que você pagou ("+rtMoeda(m.referencia)+")")+" · "+rtPct(m.pct)})}),
-        o.verificar?rtEtiqueta("queda grande: conferir se o preço está certo","rtverif"):null);
+        NUCLEO.rdSuspeitas({op:o,oferta:of,loja:lj,precos:d.precos}).map(function(sn){return rtEtiqueta(sn.tipo==="queda_grande"?"queda grande: conferir se o preço está certo":sn.texto,"rtverif")}));
       card.onclick=function(){RT.item=o.item_id;RT.serie=o.serie;rtDesenhar()};
       if(window.racDica)window.racDica.ligar(card,function(){return [rtNomeItem(o.item_id),rtMoeda(o.final)+" · "+rtPct(o.pct)+" · "+rtData(o.observado_em)]});
       p.appendChild(card)});
@@ -152,8 +183,9 @@
     var stL=rtMsg();p.appendChild(rtDet("nova-loja","＋ Nova loja",h("div",{class:"rtform"},rtCampo("Nome",f.nome),rtCampo("Domínio",f.dominio),rtCampo("Tipo",f.tipo),h("label",{class:"rtchk"},f.coleta," Coleta automática liberada (conferi os termos)"),
       rtBotao("Cadastrar loja",function(){rtFeito(rtSalvarLoja(RT.sb,{nome:f.nome.value,dominio:f.dominio.value,tipo:f.tipo.value,coleta_permitida:f.coleta.checked}),"Loja cadastrada.",stL,"nova-loja")},"pri"),stL)));
     if(!d.lojas.length)p.appendChild(h("p",{class:"empty",text:"Nenhuma loja ainda."}));
-    d.lojas.forEach(function(l){var c=h("div",{class:"rtlinha"},h("b",{text:l.nome}),h("span",{class:"sub",text:(l.dominio||"sem domínio")+" · "+(l.coleta_permitida?"coleta liberada":"só manual")}));
+    d.lojas.forEach(function(l){var c=h("div",{class:"rtlinha"},h("b",{text:l.nome}),h("span",{class:"sub",text:(l.dominio||"sem domínio")+" · "+(l.coleta_permitida?"coleta liberada":"só manual")+(rtBarrada(l.dominio)?" · coleta automática indisponível: "+rtBarrada(l.dominio):"")}));
       c.appendChild(rtBotao(l.coleta_permitida?"Desligar coleta":"Liberar coleta",function(){if(!l.coleta_permitida&&!l.dominio){rtAvisar("Cadastre o domínio antes de liberar a coleta.");return}
+        if(!l.coleta_permitida&&rtBarrada(l.dominio)){rtAvisar("Coleta automática não disponível para "+l.nome+": "+rtBarrada(l.dominio)+". Os preços dessa loja continuam manuais.");return}
         if(!l.coleta_permitida&&typeof confirm==="function"&&!confirm("Você conferiu os termos de uso de "+l.nome+" e aceita a coleta automática? O robots.txt continua sendo respeitado."))return;
         rtFeito(Promise.resolve(RT.sb.from("radar_lojas").update({coleta_permitida:!l.coleta_permitida,atualizado_em:new Date().toISOString()}).eq("id",l.id)).then(rtOk),"Loja atualizada.")}));
       if(!d.ofertas.some(function(o){return o.loja_id===l.id}))c.appendChild(rtBotao("Excluir",function(){if(typeof confirm==="function"&&!confirm("Excluir a loja "+l.nome+"? Só é possível enquanto não houver ofertas ligadas a ela."))return;rtFeito(rtExcluir(RT.sb,"radar_lojas",l.id),"Loja excluída.")},"danger"));
@@ -170,12 +202,16 @@
       if(!NUCLEO.rdCep(cep.value)){rtAvisar("O CEP deve ter 8 dígitos.");return}
       if(d.cepOk&&typeof confirm==="function"&&!confirm("Trocar o CEP padrão? O frete das próximas observações será conferido para o novo CEP."))return;
       var v=cep.value;cep.value="";rtFeito(rtSalvarCep(RT.sb,v,d.cfgId),"CEP salvo.")},"pri")));
+    var iaChk=h("input",{type:"checkbox",checked:cfg.ia?"checked":null});iaChk.checked=cfg.ia;
+    p.appendChild(h("h3",{text:"IA nas sugestões de equivalência"}));
+    p.appendChild(h("p",{class:"sub",text:"Desligada por padrão. Ligada, aparece o botão “Pedir sugestão da IA”: cada toque é uma chamada PAGA (alguns centavos de real, dentro do limite mensal da IA do RAC), com confirmação antes. A IA só sugere; nunca confirma, nunca mexe em preço, frete ou histórico. Sem a liberação no servidor, nada roda nem é cobrado."}));
+    p.appendChild(h("div",{class:"rtform"},h("label",{class:"rtchk"},iaChk," Usar a IA nas sugestões (por minha conta e risco de custo)")));
     p.appendChild(h("h3",{text:"Avisos de oportunidade"}));
     var push=h("input",{type:"checkbox",checked:cfg.push?"checked":null});push.checked=cfg.push;
     var jan=rtSel([["30","30 dias"],["90","90 dias"],["180","180 dias"],["365","365 dias"],["0","Todo o histórico"]],String(cfg.janela)),venc=h("textarea",{rows:"3",placeholder:"Um vendedor por linha"});venc.value=cfg.vendedoresBloqueados.join("\n");
     p.appendChild(h("p",{class:"sub",text:"Só você recebe (nunca a Fernanda), no máximo 1 aviso por dia e nunca repetindo o mesmo preço. O envio depende de a função do Radar ser publicada e agendada: enquanto isso, as oportunidades aparecem só aqui na aba."}));
     p.appendChild(h("div",{class:"rtform"},h("label",{class:"rtchk"},push," Avisar por notificação"),rtCampo("Janela padrão de comparação",jan),rtCampo("Vendedores que eu não aceito",venc),
-      rtBotao("Salvar ajustes",function(){if(typeof pessoalGravar==="function")pessoalGravar("radar-config",{push:{on:push.checked},janela:+jan.value,vendedoresBloqueados:venc.value.split("\n").map(function(x){return x.trim()}).filter(Boolean).slice(0,100)});RT.janela=+jan.value;rtAvisar("Ajustes salvos.")},"pri")));
+      rtBotao("Salvar ajustes",function(){if(typeof pessoalGravar==="function")pessoalGravar("radar-config",{ia:{on:iaChk.checked},push:{on:push.checked},janela:+jan.value,vendedoresBloqueados:venc.value.split("\n").map(function(x){return x.trim()}).filter(Boolean).slice(0,100)});RT.janela=+jan.value;rtAvisar("Ajustes salvos.")},"pri")));
     p.appendChild(h("h3",{text:"Leitura automática e coleta"}));
     p.appendChild(h("p",{class:"sub",text:"Funcionam só para as lojas cadastradas com domínio, em páginas que o robots.txt permite e que trazem os dados do produto (schema.org). Mercado Livre exige credencial da API oficial: não está ligado. A função do Radar ainda precisa ser publicada pelo dono."}));
     corpo.appendChild(p)}
@@ -233,14 +269,16 @@
     c.appendChild(h("div",{class:"rtlinha"},h("b",{text:lj?lj.nome:"Loja"}),rtEtiqueta(eq?eq[1]:o.equivalencia,o.equivalencia==="confirmada"?"rtok":""),o.situacao!=="ativa"?rtEtiqueta(o.situacao):null));
     if(o.vendedor)c.appendChild(h("span",{class:"sub",text:"Vendedor: "+o.vendedor}));
     if(o.url&&/^https:\/\//i.test(o.url))c.appendChild(h("a",{class:"link",href:o.url,target:"_blank",rel:"noopener noreferrer",text:"Abrir a página da loja"}));
-    var sug=null;
+    var sug=null,tituloIA=rtCfg().ia?rtIn("","Título do anúncio (cole aqui para a IA)"):null;
+    if(tituloIA)c.appendChild(h("label",{class:"rtcampo"},h("span",{class:"sub",text:"Título do anúncio (para a IA comparar)"}),tituloIA));
     c.appendChild(h("div",{class:"linksrow"},
       rtBotao("Sugerir equivalência (regras)",function(){var l=RT.leitura&&RT.leitura.oferta===o.id?RT.leitura.ex:null;
         sug=NUCLEO.rdSugerirEquivalencia(item,{nome:l&&l.nome&&l.nome.valor,marca:l&&l.marca&&l.marca.valor,modelo:l&&l.modelo&&l.modelo.valor,gtin:l&&l.gtin&&l.gtin.valor});RT.sug={oferta:o.id,sug:sug};rtDesenhar()}),
       rtBotao(o.situacao==="ativa"?"Pausar":"Reativar",function(){rtFeito(rtSituacao(RT.sb,o,o.situacao==="ativa"?"pausada":"ativa"),"Oferta atualizada.")}),
       !RT.d.precos.some(function(x){return x.oferta_id===o.id})?rtBotao("Excluir oferta",function(){if(typeof confirm==="function"&&!confirm("Excluir esta oferta?"))return;rtFeito(rtExcluir(RT.sb,"radar_ofertas",o.id),"Oferta excluída.")},"danger"):null,
       rtBotao("Ler da página",function(){if(!o.url){rtAvisar("Esta oferta não tem link.");return}rtAvisar("Lendo a página…");rtLerPagina(RT.sb,o.url).then(function(d){RT.leitura={oferta:o.id,ex:d.extraido};RT.aviso="";rtDesenhar()},function(e){rtAvisar(rtErro(e))})}),
-      h("button",{type:"button",class:"ghostbtn",disabled:"disabled",title:"A IA do Radar ainda não foi liberada (precisa de publicação da função e da liberação REAL).",text:"Pedir sugestão da IA (indisponível)"})));
+      rtBotaoIA(item,o,tituloIA)));
+    rtPainelIA(c,o);
     if(RT.sug&&RT.sug.oferta===o.id){var s=RT.sug.sug;c.appendChild(h("div",{class:"rtleitura"},h("b",{text:"Sugestão por regras: "+(s.sugestao==="provavel"?"provável":s.sugestao==="divergente"?"divergente":"não confirmada")}),h("p",{class:"sub",text:s.aviso}),
       s.evidencias.map(function(e){return h("span",{class:"sub",text:"✓ "+e.texto})}),s.divergencias.map(function(e){return h("span",{class:"sub",text:"✗ "+e.texto})})));
       if(s.sugestao==="provavel")c.appendChild(rtBotao("Confirmar que é o mesmo produto",function(){rtFeito(rtEquivalencia(RT.sb,o,"confirmada",s.evidencias),"Equivalência confirmada por você.")},"pri"));

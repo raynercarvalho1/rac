@@ -1,14 +1,17 @@
-// Radar de Preços: a única porta do RAC para páginas de lojas (docs/radar.md, docs/radar-fontes.md). Este é o único arquivo da pasta que usa Deno e o Supabase;
-// o resto é lógica pura e testada (tests/radar_servidor.test.mjs). NÃO FOI PUBLICADA: precisa da autorização do dono (README: "Edge Function: o dono republica").
+// Radar de Preços: a única porta do RAC para páginas de lojas e o aviso de oportunidades (docs/radar.md, docs/radar-fontes.md). Este é o único arquivo da pasta que usa Deno e o Supabase;
+// o resto é lógica pura e testada (tests/radar_servidor.test.mjs e radar_lote3.test.mjs). NÃO FOI PUBLICADA: precisa da autorização do dono (README: "Edge Function: o dono republica").
 // Duas entradas:
 //   1) o site (login do dono): { tipo: "ler_url", url }  → lê a página (só domínios das lojas do dono), extrai os dados e devolve para o dono conferir. Não grava nada.
-//   2) a rotina do servidor (senha x-rac-rotina conferida no banco por rac_rotina_ok): { tipo: "rodada" } → coleta as ofertas liberadas de cada dono. Só vale depois de um
-//      agendamento próprio (migration, também dependente de autorização); sem agendamento, esta entrada nunca é chamada.
+//   2) a rotina do servidor (senha x-rac-rotina conferida no banco por rac_rotina_ok): { tipo: "rodada" } → para cada dono: coleta as ofertas liberadas e manda o aviso de oportunidades
+//      (Web Push só para os aparelhos do dono, por push.ts, sem depender da função garmin). Só vale depois de um agendamento próprio (supabase/propostas/045_radar_rotina.sql, não aplicada).
 // Sem IA, sem custo, sem segredo novo. Membro da casa (Fernanda) é recusado.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { chavePublica, chaveServidor } from "../rac-ia/chaves.ts";
-import { rodarColeta, type BancoColeta } from "./coletores.ts";
+import { configPadrao, type Banco as BancoAvisos } from "./avisos.ts";
+import type { BancoColeta } from "./coletores.ts";
 import { extrairPagina } from "./extrair.ts";
+import { type BancoPush } from "./push.ts";
+import { rodadaDoDono } from "./rotina.ts";
 import { lerPagina, type Deps } from "./ssrf.ts";
 
 const ORIGENS = ["https://raynercarvalho.com.br", "https://www.raynercarvalho.com.br", "https://raynercarvalho1.github.io"];
@@ -27,8 +30,10 @@ const deps: Deps = {
   fetch: (url, init) => fetch(url, init),
 };
 
-function bancoSupabase(adm: ReturnType<typeof createClient>): BancoColeta {
-  const ler = async <T>(p: PromiseLike<{ data: T | null; error: { code?: string } | null }>, nome: string): Promise<T> => { const { data, error } = await p; if (error) throw new Error(nome + ": " + error.code); return (data ?? []) as T; };
+type Adm = ReturnType<typeof createClient>;
+const ler = async <T>(p: PromiseLike<{ data: T | null; error: { code?: string } | null }>, nome: string): Promise<T> => { const { data, error } = await p; if (error) throw new Error(nome + ": " + error.code); return (data ?? []) as T; };
+
+function bancoColetaSupabase(adm: Adm): BancoColeta {
   return {
     lojas: (uid) => ler(adm.from("radar_lojas").select("id,nome,dominio,coleta_permitida,ativa").eq("dono", uid), "radar_lojas"),
     ofertas: (uid) => ler(adm.from("radar_ofertas").select("id,item_id,loja_id,url,situacao,equivalencia").eq("dono", uid), "radar_ofertas"),
@@ -49,6 +54,45 @@ function bancoSupabase(adm: ReturnType<typeof createClient>): BancoColeta {
       if (error.code === "23505") return "duplicado"; // índice único: a mesma observação nunca entra duas vezes
       throw new Error("radar_precos: " + error.code);
     },
+  };
+}
+
+/* aviso: configuração e controle de duplicidade ficam em "pessoal" (sem migration); a reserva usa conferência de versão (coluna atualizado) */
+function bancoAvisosSupabase(adm: Adm): BancoAvisos {
+  const pessoal = async (uid: string, chave: string) => { const { data, error } = await adm.from("pessoal").select("valor,atualizado").eq("user_id", uid).eq("chave", chave).maybeSingle(); if (error) throw new Error("pessoal: " + error.code); return data; };
+  return {
+    async config(uid) { return configPadrao((await pessoal(uid, "radar-config"))?.valor); },
+    async precos(uid) {
+      const out: unknown[] = [];
+      for (let de = 0; de < 20000; de += 1000) { const l = await ler<unknown[]>(adm.from("radar_precos").select("*").eq("dono", uid).order("observado_em").order("id").range(de, de + 999), "radar_precos"); out.push(...l); if (l.length < 1000) break; }
+      return out as never;
+    },
+    ofertas: (uid) => ler(adm.from("radar_ofertas").select("id,item_id,situacao,equivalencia,vendedor").eq("dono", uid), "radar_ofertas"),
+    itens: (uid) => ler(adm.from("radar_itens").select("id,nome").eq("dono", uid).eq("ativo", true), "radar_itens"),
+    async pagos(uid) { const v = (await pessoal(uid, "radar-pagos"))?.valor; return v && typeof v === "object" ? v : {}; },
+    async avisados(uid) {
+      const r = await pessoal(uid, "radar-avisos"), v = r?.valor ?? {};
+      return { chaves: Array.isArray(v.chaves) ? v.chaves.filter((x: unknown) => typeof x === "string") : [], ultimoDia: typeof v.ultimoDia === "string" ? v.ultimoDia : null, versao: r?.atualizado ?? null };
+    },
+    async gravarAvisados(uid, v, versaoLida) {
+      const agora = new Date().toISOString();
+      if (versaoLida === null) { // primeira vez: a chave primária impede duas reservas
+        const { error } = await adm.from("pessoal").insert({ user_id: uid, chave: "radar-avisos", valor: v, atualizado: agora });
+        if (!error) return true; if (error.code === "23505") return false; throw new Error("pessoal: " + error.code);
+      }
+      const { data, error } = await adm.from("pessoal").update({ valor: v, atualizado: agora }).eq("user_id", uid).eq("chave", "radar-avisos").eq("atualizado", versaoLida).select("chave");
+      if (error) throw new Error("pessoal: " + error.code);
+      return (data ?? []).length > 0; // 0 linhas: outra execução mudou antes
+    },
+  };
+}
+
+/* push: só lê as chaves VAPID e as inscrições do dono (push.ts); nunca cria chave */
+function bancoPushSupabase(adm: Adm): BancoPush {
+  return {
+    async vapid() { const { data, error } = await adm.from("rac_segredos").select("valor").eq("chave", "vapid").maybeSingle(); if (error) throw new Error("rac_segredos: " + error.code); return (data?.valor as never) ?? null; },
+    inscricoes: (uid) => ler(adm.from("push_inscricoes").select("id,endpoint,p256dh,auth").eq("user_id", uid), "push_inscricoes"),
+    async apagarInscricao(uid, id) { await adm.from("push_inscricoes").delete().eq("id", id).eq("user_id", uid); },
   };
 }
 
@@ -73,8 +117,8 @@ Deno.serve(async (req) => {
       if (a.error || m.error) throw new Error("donos");
       const membros = new Set((m.data ?? []).map((x) => x.membro as string));
       const donos = [...new Set((a.data ?? []).map((x) => x.dono as string))].filter((d) => !membros.has(d));
-      const banco = bancoSupabase(adm), resultado: Record<string, unknown> = {};
-      for (const d of donos) resultado[d.slice(0, 8)] = await rodarColeta(d, banco, deps, () => Date.now(), { origem: "rotina" });
+      const contexto = { coleta: bancoColetaSupabase(adm), avisos: bancoAvisosSupabase(adm), push: bancoPushSupabase(adm), deps, agora: () => Date.now() }, resultado: Record<string, unknown> = {};
+      for (const d of donos) resultado[d.slice(0, 8)] = await rodadaDoDono(d, contexto);
       return json({ ok: true, resultado });
     }
 

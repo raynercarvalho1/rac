@@ -73,31 +73,39 @@ O **CEP padrão** só é cadastrado/trocado na tela (8 dígitos, confirmação a
 **Excluir e arquivar**: produto sem ofertas pode ser **excluído**; com ofertas (e histórico) só se **arquiva** (sai da lista, as ofertas ficam pausadas, nada é apagado; "Mostrar arquivados" traz de volta). Oferta sem preços e loja sem ofertas também podem ser excluídas. O histórico de preços nunca é apagado pela tela (o banco também recusa).
 **Oferta pelo link**: se a loja do endereço ainda não existe, a tela oferece cadastrá-la junto (domínio do próprio link, coleta desligada). Links encurtados (como `a.co`) levam a outro domínio e a leitura automática não os acompanha: use o link final. Erros aparecem junto do formulário e **não apagam o que foi digitado**. O que você pagou aparece no produto e na lista.
 
-## O que está ativo (e o que não está)
-| Parte | Estado |
+## O que está ativo (e o que não está) — Lote 3, 09/11/2026
+| Parte | Estado real |
 |---|---|
-| Aba Radar, cadastros, histórico, gráficos, ranking, oportunidades na tela, CEP | **funciona com o site publicado** (usa só as tabelas da 043) |
-| Equivalência por regras (GTIN, marca, modelo, variante) | funciona; **só sugere**, o dono confirma |
-| Leitura de URL ("Ler da página") e coleta | código pronto e testado em `supabase/functions/radar/`, **função não publicada**: sem ela o botão avisa e o preenchimento é manual |
-| IA (`radar.equivalencia`) | ação no `rac-ia`, só REAL, sem demonstração; **botão desabilitado**. Precisa da proposta `supabase/propostas/044_ia_radar_equivalencia.sql`, republicar a `rac-ia` e ligar a ação. Cada chamada é paga (Haiku) e só acontece quando o dono tocar no botão |
-| Aviso por notificação | lógica pronta e testada (`radar/avisos.ts`); **não ligado**: ver abaixo |
-| Coleta agendada | **não existe** (precisa de migration de agendamento e de publicação; não escrita) |
-| Mercado Livre | **exige credencial** (`docs/radar-fontes.md`) |
+| Aba Radar, cadastros, histórico, gráficos, ranking, oportunidades na tela, CEP, excluir/arquivar | **funciona com o site publicado** (usa só as tabelas da 043) |
+| Equivalência por regras: GTIN, marca, modelo, variante **e medidas dos títulos** (capacidade, quantidade, voltagem, GB, polegadas, BTU) | **funciona**; só sugere, o dono confirma |
+| Sinais de anúncio suspeito (queda grande, marketplace sem vendedor, parcelado abaixo do à vista, disponibilidade incerta) | **funciona** na aba Oportunidades; nunca descarta a oferta |
+| IA (`radar.equivalencia`) | **fiação pronta na tela, desligada por padrão** (Ajustes). Sem 044, sem republicar a `rac-ia` e sem liberação REAL, o servidor responde `sem_real` e **não cobra**. **Nenhuma chamada real já foi feita** |
+| Leitura de URL ("Ler da página") e coleta | código pronto e testado; **função `radar` não publicada**. Leitura real de páginas confirmada hoje em KaBuM e Fast Shop (`docs/radar-fontes.md`); coleta automática **não está operando** |
+| Aviso por notificação | **independente da Garmin** (`radar/push.ts` + `rotina.ts`), testado com decifragem do lado do aparelho; **não ligado**: depende de publicar a função e de agendar (045). **Nenhuma notificação foi enviada** |
+| Agendamento | proposta `supabase/propostas/045_radar_rotina.sql` (não aplicada) |
+| Mercado Livre | **depende de credencial**; mapeamento pronto e testado só com dados fictícios; ciclo OAuth ainda não existe |
 
 ### IA: o que ela pode e não pode
-Só **sugere** equivalência (`provavel`, `nao_confirmada`, `divergente`; o esquema nem oferece "confirmada"). Cada evidência precisa citar texto que realmente veio na entrada (senão é descartada); "provável" sem duas evidências verificáveis é rebaixado; GTIN com números diferentes não vale; preço, link ou número fora da entrada derrubam a resposta. O texto do anúncio entra só como dado entre `<dados>`; mesmo que a IA obedeça uma instrução escondida e responda "confirmada", o RAC recusa. Nunca grava. Sem demonstração (uma equivalência simulada enganaria): em DEMO a função responde `sem_real`. Nenhuma chamada paga foi feita.
+Só **sugere** equivalência (`provavel`, `nao_confirmada`, `divergente`; o esquema nem oferece "confirmada"). Cada evidência precisa citar texto que realmente veio na entrada (senão é descartada); "provável" sem duas evidências verificáveis é rebaixado; GTIN com números diferentes não vale; preço, link ou número fora da entrada derrubam a resposta. O texto do anúncio entra só como dado entre `<dados>`; mesmo que a IA obedeça uma instrução escondida e responda "confirmada", o RAC recusa. Nunca grava. Sem demonstração (uma equivalência simulada enganaria): em DEMO a função responde `sem_real`.
+**O que vai para a IA:** só o produto cadastrado (nome, marca, modelo, variante, apresentação, GTIN) e o anúncio (título, marca, modelo, GTIN, vendedor). **Nunca** preço, frete, CEP ou histórico. A tela mostra a sugestão, mas confirmar é decisão do dono; a evidência da IA é gravada marcada como `origem: ia`.
 
-### Aviso por notificação (passo isolado, ainda desligado)
-`avisosRadar()` (`supabase/functions/radar/avisos.ts`) manda **1 aviso por dia, só ao dono**, com até 3 linhas, e nunca repete o mesmo preço: a chave é `rdop:<id da observação>` (imutável), reservada **antes** do envio com conferência de versão (duas execuções simultâneas enviam uma vez só; falha ou "nenhum aparelho" devolve a reserva). Configuração e histórico ficam em `pessoal` (`radar-config`, `radar-avisos`), sem migration. A Fernanda não recebe: a função só recebe o `uid` do dono.
-Para ligar **sem mexer em nada do que a Garmin já faz**, bastaria um passo novo em `supabase/functions/garmin/index.ts` (proposta, **não aplicada**, depende da sua autorização):
-```diff
-+import { avisosRadar } from "../radar/avisos.ts";
- ...
-   await passo("alertas_preco", () => resumoAlertasPreco(adm, uid, hoje, (msg) => pushPara(adm, uid, msg)));
-+  /* Radar de Preços: só o dono (uid acima), passo isolado; ver docs/radar.md */
-+  await passo("radar_avisos", () => avisosRadar(uid, hoje, (msg) => pushPara(adm, uid, msg), bancoRadar(adm)));
-```
-(`bancoRadar` é o adaptador do banco, a escrever junto.) Nenhum horário, rotina existente ou destinatário muda.
+#### Proposta financeira da IA (aguarda sua aprovação; nada foi ativado)
+- **Provedor e modelo:** Anthropic, `claude-haiku-5-5` (a ação usa Haiku por ser comparação curta). Preços de `ia_precos` (fonte e data no banco): US$ 0,10 por milhão de tokens de entrada e US$ 0,50 por milhão de saída.
+- **Custo por sugestão:** ≈ 1.500 tokens de entrada e ≈ 400 de saída = ≈ US$ 0,00035 ≈ **R$ 0,0024** (câmbio padrão 6,00 e margem de impostos de 12%). A função reserva um pouco mais por chamada (teto de saída), e o monitor de custos mostra o real.
+- **Cenários por mês:** 10 sugestões ≈ R$ 0,02 · 50 ≈ R$ 0,12 · 200 ≈ R$ 0,47 · 1.000 ≈ R$ 2,35.
+- **O que roda sem IA (R$ 0):** comparação de GTIN, marca, modelo, variante e medidas dos títulos; preço final, histórico, oportunidades, deduplicação e sinais de suspeita. A IA só entra quando o dono toca em "Pedir sugestão da IA".
+- **Proteções:** desligada por padrão (chave em Ajustes); confirmação antes de cada chamada avisando que é paga; uma chamada por toque, sem repetição automática; chave de idempotência nova por toque (o servidor recusa repetir a mesma); limite mensal da IA do RAC (`ia_config.limite_brl`, hoje padrão R$ 50 compartilhado por todos os módulos) com reserva antes de cada chamada; ação só do dono (`acoes_reais_casa` proíbe a casa); sem DEMO.
+- **A migration 044 é necessária?** Sim, **só** para o banco aceitar `radar.equivalencia` em `ia_config.acoes_reais` (a restrição atual lista as ações permitidas; sem ela a ação fica sempre em DEMO). Não cria tabela nem muda RLS.
+- **Saldo/crédito:** não presumo que exista; a chave da Anthropic e o saldo são da conta do dono (Console), que não vi nem altero.
+- **Para ativar (cada passo depende de você):** (1) aprovar o gasto (sugestão: manter o limite global atual; o Radar usa centavos); (2) rodar a 044; (3) republicar a `rac-ia`; (4) ligar a ação com o `update` comentado na 044; (5) ligar a chave em Ajustes → Radar.
+
+### Aviso por notificação: arquitetura independente (sem tocar na Garmin)
+`avisosRadar()` manda **1 aviso por dia, só ao dono**, com até 3 linhas, e nunca repete o mesmo preço: a chave é `rdop:<id da observação>` (imutável), reservada **antes** do envio com conferência de versão (duas execuções simultâneas enviam uma vez só; falha ou "nenhum aparelho" devolve a reserva; o "dia" é o de Brasília). Configuração e histórico ficam em `pessoal` (`radar-config`, `radar-avisos`), sem migration. Dados insuficientes não geram aviso (preço final exige frete confirmado, item disponível, equivalência confirmada e vendedor aceitável).
+O envio é **`supabase/functions/radar/push.ts`**: o mesmo mecanismo da Garmin (VAPID + aes128gcm, RFC 8291/8292), copiado e adaptado — só lê as chaves VAPID de `rac_segredos` (nunca cria), só fala com as inscrições do dono e só apaga inscrição morta dele. O teste decifra a mensagem do lado do aparelho e confere a assinatura VAPID.
+- **Arquivos afetados:** só `supabase/functions/radar/` (novos: `push.ts`, `rotina.ts`; alterado: `index.ts`). **Nenhum arquivo da Garmin foi lido para alteração, alterado ou referenciado** (um teste garante que a Garmin não menciona o Radar).
+- **Garmin precisa mudar?** **Não.** A proposta anterior (um passo novo em `garmin/index.ts`) fica **descartada**, a menos que você prefira ela.
+- **Para ligar:** publicar a função `radar`; ter as notificações ativas em Sistema (chaves e aparelho inscrito); aplicar `supabase/propostas/045_radar_rotina.sql` (agenda 6h20 e 18h20 de Brasília). **Rollback:** `select cron.unschedule('radar-rotina');` desliga tudo; a função pode ser despublicada; nenhuma tabela nova.
+- **Isolamento:** a rotina só trata donos que **não** estão em `membros`; a casa (Fernanda) nunca recebe; o site recusa membro com 403.
 
 ## Custos e dependências
-Nenhum custo criado e nenhum serviço contratado. Dependem de você: publicar a função `radar`; migration 044 + republicar a `rac-ia` + ligar a ação (IA, paga por uso); credencial do Mercado Livre; agendamento da coleta; o passo do aviso na Garmin.
+**Custo incorrido nesta etapa: R$ 0,00** (nenhuma chamada de IA, nenhum serviço contratado). Dependem de você: publicar a função `radar`; 044 + republicar a `rac-ia` + ligar a ação (IA, paga por uso); 045 (agendamento); credencial do Mercado Livre; um link de produto da Americanas para validar.

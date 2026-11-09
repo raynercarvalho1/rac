@@ -1,5 +1,5 @@
--- status: pendente
--- Radar de Preços, Lote 1 (docs/radar.md): estrutura de dados e segurança. NÃO APLICADA EM PRODUÇÃO: o dono roda no SQL Editor.
+-- Aplicado em produção em 09/11/2026 (conferido: 6 tabelas, RLS, 12 políticas, anon sem acesso; o CEP padrão foi cadastrado pelo dono).
+-- Radar de Preços, Lote 1 (docs/radar.md): estrutura de dados e segurança. APLICADA EM PRODUÇÃO em 09/11/2026 pelo dono, no SQL Editor.
 -- Ordem: 022 → 033 → 037 → 038 → este arquivo (depende do rac_aal_ok() do 022 e da tabela membros do 002). Pode rodar de novo sem estragar nada.
 -- ATENÇÃO: se o 022, o 033 ou o 038 rodarem de novo depois, recriam seguranca_estado() sem as tabelas radar_*: rode este 043 em seguida.
 -- Não depende da 040 nem da 041 (que continuam propostas, não aplicadas); o número 042 só tem a conferência de alertas

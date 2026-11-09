@@ -105,7 +105,7 @@ três páginas e falha se outra página com dados em memória ficar de fora):
 
 `schema.sql` e depois `002` a `029`, em ordem (e o `022` de novo depois do `025`), no SQL Editor. Cada arquivo pode rodar de novo sem estragar nada.
 Um arquivo que começa com `-- status: pendente` ainda não foi rodado (hoje nenhum: a `035_compras_anexar_foto.sql` foi aplicada em 07/11/2026, e o 028 e o 029 em 02/11/2026; a ordem das migrations 030 a 034 está em `docs/compras.md` e `docs/fiscal.md`).
-Radar de Preços: `043_radar_precos.sql` é **proposta, não aplicada** (ordem e conferências em [docs/radar.md](docs/radar.md)).
+Radar de Preços: `043_radar_precos.sql` foi **aplicada em 09/11/2026** (ordem e conferências em [docs/radar.md](docs/radar.md)).
 
 ## Testes (`tests/`)
 

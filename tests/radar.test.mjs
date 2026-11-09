@@ -24,11 +24,11 @@ const SQL = ler("supabase/043_radar_precos.sql");
 const TABELAS = ["radar_config", "radar_lojas", "radar_itens", "radar_ofertas", "radar_coletas", "radar_precos"];
 
 /* ---------- texto do SQL ---------- */
-test("043: número livre, proposta pendente, sem tocar em 040/041/042 nem em dado existente", () => {
+test("043: número livre, aplicada em produção, sem tocar em 040/041/042 nem em dado existente", () => {
   const nums = [...fs.readdirSync(new URL("../supabase/", import.meta.url)), ...fs.readdirSync(new URL("../supabase/propostas/", import.meta.url))].filter((f) => /^\d{3}_.*\.sql$/.test(f)).map((f) => f.slice(0, 3));
   assert.equal(nums.filter((n) => n === "043").length, 1, "só uma migration 043");
-  assert.match(SQL.split("\n")[0], /^-- status: pendente/);
-  assert.match(SQL, /NÃO APLICADA EM PRODUÇÃO/);
+  assert.ok(!/^-- status: pendente/.test(SQL), "já aplicada: sem a marca de pendente");
+  assert.match(SQL.split("\n")[0], /^-- Aplicado em produção em 09\/11\/2026/);
   const s = semComent(SQL);
   assert.ok(!/\b(drop\s+table|truncate\s+table|delete\s+from|drop\s+column)\b/i.test(s), "nada destrutivo");
   assert.ok(!/\balter\s+table\s+public\.(?!radar_|%I)/i.test(s), "não altera tabela de outro módulo");
@@ -78,9 +78,9 @@ test("backup: as seis tabelas estão em SEG_TABELAS (só exportam), com pais ant
   const plano = N.segPlano(j, {}, "x");
   assert.equal(plano.total.soExportar, 1);
 });
-test("mapa, README e doc citam o Radar e a 043 como não aplicada", () => {
-  assert.match(ler("docs/mapa.md"), /Radar de Preços[^\n]*043_radar_precos\.sql[^\n]*não aplicada/);
-  assert.match(ler("README.md"), /043_radar_precos\.sql` é \*\*proposta, não aplicada\*\*/);
+test("mapa, README e doc citam o Radar e a 043 como aplicada", () => {
+  assert.match(ler("docs/mapa.md"), /Radar de Preços[^\n]*043_radar_precos\.sql[^\n]*aplicada em 09\/11\/2026/);
+  assert.match(ler("README.md"), /043_radar_precos\.sql` foi \*\*aplicada em 09\/11\/2026\*\*/);
   assert.match(ler("docs/radar.md"), /Nada de IA, custo ou coleta neste lote/);
 });
 

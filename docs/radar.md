@@ -4,7 +4,7 @@ Acompanha o preço de produtos que o dono comprou ou quer comprar, em várias lo
 **Só o dono** usa. Fernanda e demais membros da casa não veem nada do Radar (o banco recusa).
 
 Estado: **Lote 1 (estrutura de dados e segurança)**. Não há tela, nem coleta, nem IA ainda.
-Migration: `supabase/043_radar_precos.sql` (**proposta, não aplicada em produção**). Núcleo: `nucleo.js` (`rd*`, `RD_*`). Testes: `tests/radar.test.mjs`.
+Migration: `supabase/043_radar_precos.sql` (**aplicada em produção em 09/11/2026**). Núcleo: `nucleo.js` (`rd*`, `RD_*`). Testes: `tests/radar.test.mjs`.
 
 ## Por que 043
 A auditoria encontrou `040` em `supabase/` (proposta, não aplicada), `041` em `supabase/propostas/` (não aplicada) e `042` só como conferência
@@ -47,7 +47,7 @@ Ajuste em relação ao pedido: criei também `radar_config` (para o CEP privado)
 - Backup: as seis tabelas estão em `NUCLEO.SEG_TABELAS` como `so:"exportar"` (saem no backup, **não voltam** pela restauração neste lote; a restauração do histórico será decidida com prévia e teste no Lote 3). O backup tem o CEP, que é privado do dono.
 - Nenhum CEP, preço, loja, link ou dado pessoal em arquivo público.
 
-### Cadastrar o CEP padrão (o dono, depois de aplicar a 043)
+### Cadastrar o CEP padrão (o dono; feito em 09/11/2026)
 No SQL Editor, trocando `<SEU_CEP_8_DIGITOS>` (não guarde o CEP em arquivo do repositório):
 
 ```sql

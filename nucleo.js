@@ -2806,7 +2806,73 @@
     if(of.equivalencia==="confirmada"){if(!ev||!ev.length)er.push("Equivalência confirmada precisa de evidência.");if(!of.confirmada_em)er.push("Só o dono confirma a equivalência.");if(of.equivalencia_origem==="ia")er.push("A IA não confirma equivalência: ela só propõe.")}
     return {ok:!er.length,erros:er}}
 
-  raiz.RACnucleo={RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  /* ===== Radar de Preços, Lote 2: histórico por janelas, oportunidades, equivalência por regras e confirmação de endereço (docs/radar.md) ===== */
+  var RD_JANELAS=[30,90,180,365],RD_ANOMALIA=0.5;
+  function rdNorm(s){return String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\s+/g," ").trim()}
+  /* confere só o formato; quem decide de verdade (domínio permitido, IP interno, robots.txt) é a função do servidor */
+  function rdUrlOk(u){var s=String(u==null?"":u).trim();if(!s||s.length>2000)return {ok:false,motivo:"Endereço vazio ou grande demais."};
+    var m=/^https:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?::443)?(?:[\/?#]\S*)?$/i.exec(s);
+    if(!m)return {ok:false,motivo:"Use um endereço https:// de uma loja (sem espaço, usuário ou porta)."};
+    var host=m[1].toLowerCase();if(/^\d+(\.\d+)+$/.test(host)||/(^|\.)(localhost|local|internal|lan|home|corp)$/.test(host))return {ok:false,motivo:"Endereço interno ou IP não é aceito."};
+    return {ok:true,host:host,url:s}}
+  function rdHostDe(l){return l&&l.dominio?String(l.dominio).toLowerCase():""}
+  function rdHostCasa(host,dominio){host=String(host||"").toLowerCase();dominio=String(dominio||"").toLowerCase();return !!dominio&&(host===dominio||host.slice(-dominio.length-1)==="."+dominio)}
+  /* pontos de uma série (sem as observações substituídas), em ordem, com o preço final quando confirmado */
+  function rdPontos(serie){return rdVigentes(serie).slice().sort(rdOrdem).map(function(p){var f=rdPrecoFinal(p);
+    return {id:p.id,iso:p.observado_em,t:Date.parse(p.observado_em),produto:rdCent(p.preco_produto)/100,final:f.confirmado?f.final:null,motivo:f.motivo||null,frete:p.frete_situacao||"desconhecido",modalidade:p.modalidade,meio:p.meio||"outro",parcelas:p.parcelas||null,oferta_id:p.oferta_id}})}
+  function rdEstat(l,campo){var v=l.filter(function(x){return x[campo]!=null});if(!v.length)return {n:0};
+    var mn=v[0],mx=v[0];v.forEach(function(x){if(x[campo]<mn[campo])mn=x;if(x[campo]>=mx[campo])mx=x});
+    return {n:v.length,minimo:{valor:mn[campo],iso:mn.iso,id:mn.id},maximo:{valor:mx[campo],iso:mx.iso,id:mx.id}}}
+  /* histórico de UMA série (mesma oferta, modalidade, meio e parcelas): última, menor, maior, variação e as janelas de 30/90/180/365 dias e todo o histórico.
+     Só observações reais gravadas; menos de 2 observações com preço final = "insuficiente", nunca se completa com estimativa. */
+  function rdHistorico(serie,agora){var pts=rdPontos(serie);if(!pts.length)return {n:0,pontos:[],suficiente:false,semFinal:true,janelas:{}};
+    var ult=pts[pts.length-1],ant=pts.length>1?pts[pts.length-2]:null,campo=pts.some(function(x){return x.final!=null})?"final":"produto",all=rdEstat(pts,campo),jan={};
+    var ref=function(x){return x[campo]};
+    var variacao=null;if(ant&&ref(ult)!=null&&ref(ant)!=null){var d=Math.round((ref(ult)-ref(ant))*100)/100;variacao={base:campo,anterior:ref(ant),atual:ref(ult),diferenca:d,pct:ref(ant)>0?Math.round(d/ref(ant)*10000)/100:null}}
+    RD_JANELAS.concat([0]).forEach(function(dias){var l=dias?pts.filter(function(x){return x.t>=agora-dias*86400000&&x.t<=agora}):pts,e=rdEstat(l,campo);
+      jan[dias||"todo"]={dias:dias||null,n:e.n,suficiente:e.n>=2,minimo:e.minimo||null,maximo:e.maximo||null,atualNoMinimo:e.n>=2&&ref(ult)!=null&&ref(ult)===e.minimo.valor&&l.indexOf(ult)>=0,
+        acimaDoMinimo:e.n>=2&&ref(ult)!=null?Math.round((ref(ult)-e.minimo.valor)*100)/100:null}});
+    return {n:pts.length,pontos:pts,ultima:ult,base:campo,minimo:all.minimo||null,maximo:all.maximo||null,variacao:variacao,janelas:jan,suficiente:all.n>=2,semFinal:campo!=="final"}}
+  /* queda grande não é descartada: fica marcada como "sujeita a verificação" */
+  function rdAnomalia(pct){return pct!=null&&pct<=-RD_ANOMALIA*100}
+  /* oportunidades: o preço final ATUAL de cada série é menor que a última observação, que o menor da janela escolhida ou que o preço pago pelo dono (mesma modalidade).
+     Sem desconto mínimo e sem mediana. Só entram ofertas ativas, com equivalência confirmada, vendedor aceitável, frete confirmado e item disponível (preço final).
+     opc: {agora (ms), janela (dias; 0 = todo o histórico; padrão 90), pagos: {item_id:{a_vista,parcelado}}, vendedoresBloqueados:[texto]} */
+  function rdOportunidades(precos,ofertas,opc){opc=opc||{};var jan=opc.janela==null?90:opc.janela,agora=opc.agora!=null?opc.agora:Date.now(),pagos=opc.pagos||{},bloq=(opc.vendedoresBloqueados||[]).map(rdNorm).filter(Boolean),porId={};
+    (ofertas||[]).forEach(function(o){porId[o.id]=o});
+    var series={};rdVigentes(precos).forEach(function(p){(series[rdChaveSerie(p)]=series[rdChaveSerie(p)]||[]).push(p)});
+    var out=[];
+    Object.keys(series).sort().forEach(function(k){var of=porId[series[k][0].oferta_id];if(!of||(of.situacao&&of.situacao!=="ativa")||of.equivalencia!=="confirmada")return;
+      if(of.vendedor&&bloq.indexOf(rdNorm(of.vendedor))>=0)return;
+      var pts=rdPontos(series[k]),at=pts[pts.length-1];if(!at||at.final==null)return;
+      var mot=[],ant=pts.length>1?pts[pts.length-2]:null;
+      function add(tipo,ref,extra){var dif=Math.round((at.final-ref)*100)/100,pct=ref>0?Math.round(dif/ref*10000)/100:null;var m={tipo:tipo,referencia:ref,diferenca:dif,pct:pct};for(var q in extra||{})m[q]=extra[q];mot.push(m)}
+      if(ant&&ant.final!=null&&at.final<ant.final)add("menor_que_ultima",ant.final,{em:ant.iso});
+      var base=pts.slice(0,-1).filter(function(x){return x.final!=null&&(!jan||(x.t>=agora-jan*86400000&&x.t<=agora))}),mn=null;
+      base.forEach(function(x){if(!mn||x.final<mn.final)mn=x});
+      if(mn&&at.final<mn.final)add("menor_na_janela",mn.final,{em:mn.iso,janela:jan||"todo"});
+      var pago=(pagos[of.item_id]||{})[at.modalidade];if(pago!=null&&+pago>0&&at.final<+pago)add("menor_que_pago",+pago,{});
+      if(!mot.length)return;
+      var pior=mot.reduce(function(a,m){return m.pct!=null&&m.pct<a?m.pct:a},0);
+      out.push({serie:k,preco_id:at.id,oferta_id:of.id,item_id:of.item_id,modalidade:at.modalidade,meio:at.meio,parcelas:at.parcelas,final:at.final,observado_em:at.iso,motivos:mot,pct:pior,verificar:rdAnomalia(pior),
+        chave:rdChaveAviso(at.id)})});
+    out.sort(function(a,b){return a.pct-b.pct||(a.chave<b.chave?-1:1)});return out}
+  /* uma oportunidade por observação de preço: o mesmo preço nunca avisa duas vezes (a observação é imutável) */
+  function rdChaveAviso(precoId){return "rdop:"+precoId}
+  function rdNaoAvisadas(ops,jaAvisadas){var s={};(jaAvisadas||[]).forEach(function(k){s[k]=1});return (ops||[]).filter(function(o){return !s[o.chave]})}
+  /* equivalência por REGRAS (sem IA): compara GTIN, marca, modelo e variante. Nunca confirma: só sugere, com as evidências e as divergências; quem confirma é o dono */
+  function rdSugerirEquivalencia(item,cand){item=item||{};cand=cand||{};var ev=[],dv=[];
+    var g1=String(item.gtin||"").replace(/\D/g,""),g2=String(cand.gtin||"").replace(/\D/g,"");
+    if(g1&&g2){if(g1===g2)ev.push({tipo:"gtin",texto:"GTIN igual ("+g1+")"});else dv.push({tipo:"gtin",texto:"GTIN diferente (cadastrado "+g1+", anúncio "+g2+")"})}
+    var m1=rdNorm(item.marca),m2=rdNorm(cand.marca),o1=rdNorm(item.modelo).replace(/[^a-z0-9]/g,""),o2=rdNorm(cand.modelo).replace(/[^a-z0-9]/g,"");
+    if(m1&&m2){if(m1===m2)ev.push({tipo:"marca",texto:"Marca igual ("+item.marca+")"});else dv.push({tipo:"marca",texto:"Marca diferente ("+item.marca+" × "+cand.marca+")"})}
+    if(o1&&o2){if(o1===o2)ev.push({tipo:"modelo",texto:"Modelo igual ("+item.modelo+")"});else dv.push({tipo:"modelo",texto:"Modelo diferente ("+item.modelo+" × "+cand.modelo+")"})}
+    var v1=rdNorm(item.variante),v2=rdNorm(cand.variante);if(v1&&v2&&v1!==v2)dv.push({tipo:"variante",texto:"Variante diferente ("+item.variante+" × "+cand.variante+")"});
+    var forte=ev.some(function(e){return e.tipo==="gtin"})||(ev.some(function(e){return e.tipo==="marca"})&&ev.some(function(e){return e.tipo==="modelo"}));
+    var sug=dv.length?"divergente":forte?"provavel":"nao_confirmada";
+    return {sugestao:sug,evidencias:ev,divergencias:dv,confirma:false,aviso:sug==="provavel"?"Evidência suficiente para SUGERIR; confirme você mesmo antes de entrar no ranking.":sug==="divergente"?"Há divergência: não confirme sem conferir.":"Faltam dados para sugerir (GTIN, ou marca e modelo)."}}
+
+  raiz.RACnucleo={RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

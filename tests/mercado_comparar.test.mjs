@@ -218,7 +218,7 @@ test("regressão: Consumo, Preços, Produtos e Notas continuam; a nova aba só l
   const mk = ler("mercado.js"), i0 = mk.indexOf("/* ---------- Comparar períodos"), i1 = mk.indexOf("/* ---------- Notas ----------"); assert.ok(i0 > 0 && i1 > i0);
   const bloco = mk.slice(i0, i1);
   assert.ok(!/\.(insert|update|delete|upsert)\(|\.rpc\(|from\(/.test(bloco)); assert.ok(!/racIA|anthropic/i.test(bloco));
-  assert.match(mk, /\["painel", "Painel"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\], \["alertas", "Alertas"\], \["notas", "Notas"\], \["produtos", "Produtos"\]/);
+  assert.match(mk, /\["painel", "Painel"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\], \["alertas", "Alertas"\], \["radar", "Radar"\], \["notas", "Notas"\], \["produtos", "Produtos"\]/);
   for (const f of ["function viewConsumo", "function viewPrecos", "function viewProdutos", "function viewNotas", "function detalheProduto"]) assert.ok(mk.includes(f), f);
   const nu = ler("nucleo.js"); assert.ok(!/\.(insert|update|delete|upsert)\(/.test(nu.slice(nu.indexOf("function mkcComparar"), nu.indexOf("function mkcComparar") + 6000)));
   assert.equal(N.mkClassificar("BISC WAFER TUBIN CHOCO").categoria, "Chocolates/Doces"); assert.equal(N.mkCatOficial("Limpeza/Descartáveis"), "Limpeza");

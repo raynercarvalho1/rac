@@ -3,7 +3,7 @@
 Acompanha o preço de produtos que o dono comprou ou quer comprar, em várias lojas, com **histórico real** e **preço final comparável**.
 **Só o dono** usa. Fernanda e demais membros da casa não veem nada do Radar (o banco recusa).
 
-Estado: **Lote 1 (estrutura de dados e segurança)**. Não há tela, nem coleta, nem IA ainda.
+Estado: **Lote 1** (dados e segurança, aplicado em produção) e **Lote 2** (tela, leitura de página, coletor piloto, oportunidades, aviso e ação de IA). **Parte do Lote 2 depende de publicação e de autorização:** veja "O que está ativo" no fim deste arquivo. Fontes externas: `docs/radar-fontes.md`.
 Migration: `supabase/043_radar_precos.sql` (**aplicada em produção em 09/11/2026**). Núcleo: `nucleo.js` (`rd*`, `RD_*`). Testes: `tests/radar.test.mjs`.
 
 ## Por que 043
@@ -61,6 +61,40 @@ Nada de IA, custo ou coleta neste lote. Quando entrar (Lote 7, pela `rac-ia`, a�
 Limites já no banco e no núcleo: a IA **nunca inventa preço nem histórico** (preço só com `fonte` + `evidencia` verificável); a IA só propõe equivalência (`provavel`, origem `ia`);
 `confirmada` exige evidência e a confirmação do dono (`confirmada_em`), e a origem `ia` nunca pode ser `confirmada` (`NUCLEO.rdEquivalencia`).
 
-## Interface futura
-Isolada em `js/radar.js` (não cresce o `mercado.js`). Lote 2: cadastro de itens e ofertas; Lote 3: histórico e indicadores; Lote 4: ligação com as compras existentes;
-Lote 5: piloto de coleta; Lote 6: mais fontes e agendamento; Lote 7: equivalências e oportunidades com IA; Lote 8: avisos.
+## Lote 2: o que existe
+**Tela** (`js/radar.js`, aba **Radar** do Mercado, só do dono; carrega sob demanda; iPhone primeiro): Oportunidades, Produtos (comprados ou desejados, com marca, modelo, variante, apresentação e GTIN/EAN), Lojas, Ajustes.
+Cada produto tem várias ofertas (loja + link + vendedor), ranking **por modalidade** (à vista e parcelado nunca se misturam, só com preço final confirmado), histórico por série (loja + modalidade + meio + parcelas) com última, menor, maior, variação, janelas de 30/90/180/365 dias e todo o histórico ("insuficiente" quando há menos de 2 observações com preço final), gráfico de barras com valor e data fixos em cada barra (`racDica`) e o que o dono pagou (comparado só na mesma modalidade).
+O **CEP padrão** só é cadastrado/trocado na tela (8 dígitos, confirmação ao trocar) e **nunca é mostrado**: a tela diz apenas "cadastrado".
+
+**Regras** (`nucleo.js`): `rdHistorico`, `rdOportunidades`, `rdAnomalia`, `rdChaveAviso`/`rdNaoAvisadas`, `rdSugerirEquivalencia`, `rdUrlOk`. Oportunidade = preço final atual **menor que a última observação, que o menor da janela escolhida ou que o preço pago** (mesma modalidade), sem desconto mínimo e sem mediana. Queda de 50% ou mais **não é descartada**: fica marcada "conferir se o preço está certo". Só entra oferta com equivalência confirmada, ativa, vendedor aceitável (lista em Ajustes), frete confirmado e item disponível. As mesmas regras existem em TypeScript (`supabase/functions/radar/regras.ts`) e um teste exige resultado idêntico.
+
+**Histórico real**: a tela nunca atualiza nem apaga observações. "Confirmar frete" grava uma **nova linha** com `corrige_id` (1 s depois, porque o índice único não aceita o mesmo instante); a original continua no banco e só some das contas.
+
+## O que está ativo (e o que não está)
+| Parte | Estado |
+|---|---|
+| Aba Radar, cadastros, histórico, gráficos, ranking, oportunidades na tela, CEP | **funciona com o site publicado** (usa só as tabelas da 043) |
+| Equivalência por regras (GTIN, marca, modelo, variante) | funciona; **só sugere**, o dono confirma |
+| Leitura de URL ("Ler da página") e coleta | código pronto e testado em `supabase/functions/radar/`, **função não publicada**: sem ela o botão avisa e o preenchimento é manual |
+| IA (`radar.equivalencia`) | ação no `rac-ia`, só REAL, sem demonstração; **botão desabilitado**. Precisa da proposta `supabase/propostas/044_ia_radar_equivalencia.sql`, republicar a `rac-ia` e ligar a ação. Cada chamada é paga (Haiku) e só acontece quando o dono tocar no botão |
+| Aviso por notificação | lógica pronta e testada (`radar/avisos.ts`); **não ligado**: ver abaixo |
+| Coleta agendada | **não existe** (precisa de migration de agendamento e de publicação; não escrita) |
+| Mercado Livre | **exige credencial** (`docs/radar-fontes.md`) |
+
+### IA: o que ela pode e não pode
+Só **sugere** equivalência (`provavel`, `nao_confirmada`, `divergente`; o esquema nem oferece "confirmada"). Cada evidência precisa citar texto que realmente veio na entrada (senão é descartada); "provável" sem duas evidências verificáveis é rebaixado; GTIN com números diferentes não vale; preço, link ou número fora da entrada derrubam a resposta. O texto do anúncio entra só como dado entre `<dados>`; mesmo que a IA obedeça uma instrução escondida e responda "confirmada", o RAC recusa. Nunca grava. Sem demonstração (uma equivalência simulada enganaria): em DEMO a função responde `sem_real`. Nenhuma chamada paga foi feita.
+
+### Aviso por notificação (passo isolado, ainda desligado)
+`avisosRadar()` (`supabase/functions/radar/avisos.ts`) manda **1 aviso por dia, só ao dono**, com até 3 linhas, e nunca repete o mesmo preço: a chave é `rdop:<id da observação>` (imutável), reservada **antes** do envio com conferência de versão (duas execuções simultâneas enviam uma vez só; falha ou "nenhum aparelho" devolve a reserva). Configuração e histórico ficam em `pessoal` (`radar-config`, `radar-avisos`), sem migration. A Fernanda não recebe: a função só recebe o `uid` do dono.
+Para ligar **sem mexer em nada do que a Garmin já faz**, bastaria um passo novo em `supabase/functions/garmin/index.ts` (proposta, **não aplicada**, depende da sua autorização):
+```diff
++import { avisosRadar } from "../radar/avisos.ts";
+ ...
+   await passo("alertas_preco", () => resumoAlertasPreco(adm, uid, hoje, (msg) => pushPara(adm, uid, msg)));
++  /* Radar de Preços: só o dono (uid acima), passo isolado; ver docs/radar.md */
++  await passo("radar_avisos", () => avisosRadar(uid, hoje, (msg) => pushPara(adm, uid, msg), bancoRadar(adm)));
+```
+(`bancoRadar` é o adaptador do banco, a escrever junto.) Nenhum horário, rotina existente ou destinatário muda.
+
+## Custos e dependências
+Nenhum custo criado e nenhum serviço contratado. Dependem de você: publicar a função `radar`; migration 044 + republicar a `rac-ia` + ligar a ação (IA, paga por uso); credencial do Mercado Livre; agendamento da coleta; o passo do aviso na Garmin.

@@ -469,7 +469,7 @@ test("controle de orçamento: com o teto esgotado a geração não acontece (só
 });
 
 test("só a Newsletter ganha o REAL automático: o Mercado continua DEMO fixo, a rotina só pede newsletter.resumo e o site nunca repete sozinho", async () => {
-  assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "fiscal.nota", "hoje.analise", "newsletter.resumo"]);
+  assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "fiscal.nota", "hoje.analise", "newsletter.resumo", "radar.equivalencia"]);
   assert.equal(ACOES["mercado.nota"].real, false);
   /* o RAC Hoje é REAL, mas nunca automático: nenhum arquivo do site chama hojeAnalisar sozinho (só o dono, pela função) */
   for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) assert.ok(!/hojeAnalisar\(/.test(ler("js/" + f).replace(/function hojeAnalisar\(|analisar:hojeAnalisar|hojeAnalisar\(o\)\.then\(/g, "")), f + " chama o RAC Hoje sozinho");

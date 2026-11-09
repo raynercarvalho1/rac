@@ -118,16 +118,16 @@
   }
 
   /* ---------- casca: abas internas e sair ---------- */
-  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
+  var VIEWS = [["painel", "Painel"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
   function drawApp(sub) {
-    var v = VIEWS.some(function (x) { return x[0] === sub; }) ? sub : (rows.length ? "painel" : "importar");
+    var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length ? "painel" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
     var bar = h("div", { class: "mkbar" });
     var tabs = h("div", { class: "pills mkpills", "aria-label": "Mercado" });
     /* "Adicionar nota" fica fora das abas, como botão de destaque no topo */
     VIEWS.forEach(function (x) {
-      if (x[0] === "importar" || (x[0] === "alertas" && !ehDono())) return;
+      if (x[0] === "importar" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
       var n = x[0] === "alertas" ? alContar() : 0;
       tabs.appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
     });
@@ -137,11 +137,11 @@
     bar.appendChild(add); bar.appendChild(tabs); bar.appendChild(h("div", { class: "mkuser" }, h("span", { class: "sub", text: user.email }), out));
     r.appendChild(bar);
     var body = h("div", { class: "stack" }); r.appendChild(body);
-    if (!rows.length && v !== "importar") {
+    if (!rows.length && v !== "importar" && v !== "radar") {
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));
       return;
     }
-    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
+    ({ painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, radar: viewRadar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
     window.scrollTo(0, y);
   }
 
@@ -964,6 +964,15 @@
   /* Aba Alertas como painel: visão geral compacta (indicadores clicáveis por tipo) → lista do tipo → detalhe do alerta → ajustes.
      Só muda a apresentação: as regras (mkalGerar), a leitura (mkalClassificar/mkalMarcarLido) e a gravação (alPersistir → pessoal) são as mesmas.
      A vista atual fica em st.al.vista e sobrevive a marcar como lido (o app redesenha a tela). */
+  /* Radar de Preços (docs/radar.md): só do dono; o módulo js/radar.js carrega quando a aba abre e desenha o próprio corpo */
+  function viewRadar(body) {
+    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "O Radar de Preços é só do dono." }))); return; }
+    body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando o Radar…" })));
+    var alvo = h("div", { class: "stack" }), ok = function () { body.innerHTML = ""; body.appendChild(alvo); return window.rtMontar(alvo, sb, user); };
+    (window.precisa ? window.precisa(["radar"]) : Promise.reject(new Error("módulos indisponíveis"))).then(ok).catch(function (e) {
+      body.innerHTML = ""; body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Não consegui abrir o Radar: " + (e && e.message ? e.message : e) })));
+    });
+  }
   function viewAlertas(body) {
     var N = NU(), hoje = new Date().toISOString().slice(0, 10), iconeDe = {}, rotuloDe = {};
     N.MKAL_TIPOS.forEach(function (t) { rotuloDe[t[0]] = t[1]; iconeDe[t[0]] = t[2]; });

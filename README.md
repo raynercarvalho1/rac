@@ -118,7 +118,7 @@ Radar de Preços: `043_radar_precos.sql` foi **aplicada em 09/11/2026** (ordem e
 | `ia.test.mjs` | RAC Intelligence sem rede e sem custo: orçamento, reserva, concorrência, DEMO, contrato, segurança do SQL |
 | `newsletter.test.mjs` | Newsletter sem rede e sem custo: coletor com feeds fictícios, categorias, grupos, relevância, edição, IA em DEMO, avisos, SQL |
 | `painel.test.mjs` | Painel de Produtividade sem rede: rotas, só leitura (exceto o orçamento), sem IA, fontes e vazios |
-| `radar.test.mjs` | Radar de Preços (Lote 1) sem rede e sem custo: SQL 043 por texto, Postgres de verdade (PGlite: RLS, MFA, membro bloqueado, modalidades, frete, histórico só de acréscimo), funções `rd*` do núcleo, backup |
+| `radar*.test.mjs` | Radar de Preços sem rede e sem custo: SQL 043 (PGlite: RLS, MFA, membro bloqueado, modalidades, frete, histórico só de acréscimo), funções `rd*`, a aba (tela falsa), a função `radar` (SSRF, robots, extração, coleta, aviso sem duplicar) e a ação de IA (só sugere) |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
 | `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |

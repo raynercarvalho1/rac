@@ -278,7 +278,7 @@ test("segurança: só o dono vê e grava; a casa não tem a aba nem altera nada"
   DONO = false; gravacoes = []; globalThis.PESSOAL = {}; T.usar(ROWS, { email: "casa@teste" });
   const body = new El("div"); T.viewAlertas(body); assert.match(texto(body), /só do dono/); assert.ok(!/Novos/.test(texto(body)));
   assert.equal(gravacoes.length, 0);
-  const mk = ler("mercado.js"); assert.match(mk, /x\[0\] === "alertas" && !ehDono\(\)/, "a aba não é montada para a casa");
+  const mk = ler("mercado.js"); assert.match(mk, /\(x\[0\] === "alertas" \|\| x\[0\] === "radar"\) && !ehDono\(\)/, "a aba não é montada para a casa");
   assert.match(ler("supabase/003_pessoal.sql"), /not exists \(select 1 from public\.membros where membro = auth\.uid\(\)\)/, "a tabela onde ficam os ajustes não aceita gravação da casa (RLS)");
   DONO = true;
 });

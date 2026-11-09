@@ -32,8 +32,10 @@ function h(tag, attrs, ...filhos) {
 const todos = (no, f = () => true, acc = []) => { if (typeof no === "string") return acc; if (f(no)) acc.push(no); no.kids.forEach((k) => todos(k, f, acc)); return acc; };
 const achar = (no, f) => todos(no, f)[0];
 const botao = (no, txt) => todos(no, (e) => e.tag === "button" && (e.attrs.text ?? e.texto).includes(txt))[0];
+const exato = (no, txt) => todos(no, (e) => e.tag === "button" && e.attrs.text === txt)[0];
 const campo = (no, ph) => todos(no, (e) => (e.tag === "input" || e.tag === "textarea") && e.attrs.placeholder === ph)[0];
 const igual = (a, b, m) => assert.equal(JSON.stringify(a), JSON.stringify(b), m); /* objetos criados dentro do vm têm outro Array/Object: compara pelo conteúdo */
+const msgs = (no) => todos(no, (e) => String(e.attrs.class || "").includes("rtmsg")).map((e) => e.textContent || "").join(" | ");
 const textoDe = (no) => (typeof no === "string" ? no : no.texto);
 
 /* ---- banco falso ---- */
@@ -42,7 +44,7 @@ function bancoFalso(dados = {}, falhas = {}) {
   const consulta = (t) => {
     const st = { t, ops: [] }; log.push(st);
     const p = new Proxy({}, { get(_, k) {
-      if (k === "then") { const op = st.ops[0]?.[0]; const chave = t + ":" + op; const r = falhas[chave] ? { data: null, error: { message: falhas[chave] } } : { data: op === "select" ? (dados[t] ?? []) : [st.ops[0][1]], error: null }; return Promise.resolve(r).then.bind(Promise.resolve(r)); }
+      if (k === "then") { const op = st.ops[0]?.[0]; const chave = t + ":" + op; const r = falhas[chave] ? { data: null, error: { message: falhas[chave] } } : { data: op === "select" ? (dados[t] ?? []) : [{ id: "novo-" + t, ...st.ops[0][1] }], error: null }; return Promise.resolve(r).then.bind(Promise.resolve(r)); }
       return (...a) => { st.ops.push([k, ...a]); return p; };
     } });
     return p;
@@ -204,7 +206,7 @@ test("detalhe: registrar preço pelo formulário envia a observação com a evid
   botao(t.corpo, "Registrar preço").onclick(); await espera(); await espera();
   const e = t.banco.de("radar_precos", "insert")[0].ops[0][1]; assert.deepEqual([e.preco_produto, e.modalidade, e.frete_situacao, e.fonte, e.evidencia, e.oferta_id], [1299.9, "a_vista", "desconhecido", "manual", "print da loja em 09/11", "o1"]);
   const sem = montar(); await sem.abrir(); sem.ctx.RT.item = "i1"; sem.ctx.rtDesenhar(); campo(sem.corpo, "Preço do produto (R$)").value = "50"; campo(sem.corpo, "Evidência: link da página, nº da nota ou descrição do print").value = ""; botao(sem.corpo, "Registrar preço").onclick(); await espera();
-  assert.equal(sem.banco.de("radar_precos", "insert").length, 0, "sem evidência não grava"); assert.match(textoDe(sem.corpo), /evidência verificável/);
+  assert.equal(sem.banco.de("radar_precos", "insert").length, 0, "sem evidência não grava"); assert.match(msgs(sem.corpo), /evidência verificável/, "o erro aparece junto do formulário, sem redesenhar a tela");
 });
 test("ajustes: avisos e vendedores bloqueados vão para a conta (pessoal), e valem nas oportunidades", async () => {
   const t = montar({ dados: { radar_precos: [P(10, 100), P(0, 90)] } }); await t.abrir(); t.ctx.RT.aba = "ajustes"; t.ctx.rtDesenhar();
@@ -236,4 +238,60 @@ test("iPhone: coluna única, campos de 16px (sem zoom do Safari), alvos de toque
   assert.match(bloco, /\.rtform\{display:grid;gap:10px/); assert.match(bloco, /\.rtcampo input,#mercado-view \.rtcampo select,#mercado-view \.rtform textarea\{width:100%;box-sizing:border-box;font-size:16px\}/);
   assert.match(bloco, /@media \(max-width:640px\)[\s\S]*min-height:40px/); assert.match(bloco, /\.rtgraf\{overflow-x:auto/); assert.match(bloco, /\.rtabas\{overflow-x:auto/); assert.match(bloco, /#mercado-view \.rtop\{[^}]*width:100%/);
   assert.ok(/<meta name="viewport"[^>]*width=device-width/.test(css));
+});
+
+/* ---------- correções do uso real: link que sumia, valor pago invisível, falta de excluir ---------- */
+const abrirItem = async (t) => { await t.abrir(); t.ctx.RT.item = "i1"; t.ctx.rtDesenhar(); };
+test("oferta pelo link: loja desconhecida é cadastrada junto (com a confirmação), erro não apaga o que foi digitado e link ruim avisa no formulário", async () => {
+  const t = montar({ dados: { radar_ofertas: [] } }); await abrirItem(t); const url = campo(t.corpo, "Cole o link do produto na loja");
+  url.value = "https://a.co/d/abc123"; t.ctx.confirm = () => false; botao(t.corpo, "Cadastrar oferta").onclick(); await espera();
+  assert.equal(t.banco.gravacoes().length, 0); assert.match(msgs(t.corpo), /a\.co não existe ainda/); assert.equal(url.value, "https://a.co/d/abc123", "o link continua no campo"); assert.equal(t.ctx.RT.aviso, "", "sem redesenhar a tela");
+  url.value = "http://a.co/x"; botao(t.corpo, "Cadastrar oferta").onclick(); await espera(); assert.match(msgs(t.corpo), /https/); assert.equal(url.value, "http://a.co/x");
+  url.value = ""; botao(t.corpo, "Cadastrar oferta").onclick(); await espera(); assert.match(msgs(t.corpo), /Cole o link ou escolha a loja/);
+  url.value = "https://a.co/d/abc123"; t.ctx.confirm = () => true; botao(t.corpo, "Cadastrar oferta").onclick(); await espera(); await espera(); await espera();
+  const lj = t.banco.de("radar_lojas", "insert"), of = t.banco.de("radar_ofertas", "insert");
+  assert.equal(lj.length, 1); igual([lj[0].ops[0][1].nome, lj[0].ops[0][1].dominio, lj[0].ops[0][1].coleta_permitida], ["a.co", "a.co", false]);
+  assert.equal(of.length, 1); igual([of[0].ops[0][1].loja_id, of[0].ops[0][1].url, of[0].ops[0][1].item_id], ["novo-radar_lojas", "https://a.co/d/abc123", "i1"]);
+  /* loja já cadastrada: usa a existente, sem perguntar nem criar outra */
+  const t2 = montar({ dados: { radar_ofertas: [] } }); await abrirItem(t2); campo(t2.corpo, "Cole o link do produto na loja").value = "https://www.loja.com.br/p/7"; t2.ctx.confirm = () => { throw new Error("não devia perguntar"); };
+  botao(t2.corpo, "Cadastrar oferta").onclick(); await espera(); await espera(); assert.equal(t2.banco.de("radar_lojas", "insert").length, 0); assert.equal(t2.banco.de("radar_ofertas", "insert")[0].ops[0][1].loja_id, "l1");
+});
+test("erro ao salvar fica no formulário e os campos continuam preenchidos", async () => {
+  const t = montar({ falhas: { "radar_precos:insert": "violates check constraint" } }); await abrirItem(t);
+  const preco = campo(t.corpo, "Preço do produto (R$)"); preco.value = "100"; campo(t.corpo, "Evidência: link da página, nº da nota ou descrição do print").value = "print";
+  botao(t.corpo, "Registrar preço").onclick(); await espera(); await espera();
+  assert.match(msgs(t.corpo), /banco recusou os valores/); assert.equal(preco.value, "100", "o valor digitado não some"); assert.equal(t.ctx.RT.aviso, "");
+});
+test("quanto paguei: aparece no produto e na lista, o bloco continua aberto, valor inválido avisa e em branco remove", async () => {
+  const t = montar(); await abrirItem(t); const pa = campo(t.corpo, "Ex.: 71,00"), st = () => msgs(t.corpo);
+  pa.value = "abc"; exato(t.corpo, "Salvar").onclick(); assert.match(st(), /71,00/); assert.equal(t.gravados.length, 0);
+  pa.value = "71"; exato(t.corpo, "Salvar").onclick();
+  assert.equal(t.gravados[0][0], "radar-pagos"); igual(t.gravados[0][1].i1, { a_vista: 71 });
+  assert.match(textoDe(t.corpo), /Paguei: à vista R\$ 71,00/); assert.match(textoDe(t.corpo), /Valor pago salvo: à vista R\$ 71,00/); assert.equal(t.ctx.RT.abertos.pago, 1);
+  const d = todos(t.corpo, (e) => e.tag === "details").find((e) => e.kids.some((k) => k.attrs && k.attrs.text === "O que eu paguei")); assert.equal(d.attrs.open, "open", "continua aberto depois de salvar");
+  assert.equal(campo(t.corpo, "Ex.: 71,00").value, "71,00", "o campo mostra o valor formatado");
+  t.ctx.RT.item = null; t.ctx.RT.aba = "itens"; t.ctx.rtDesenhar(); assert.match(textoDe(t.corpo), /Paguei: à vista R\$ 71,00/, "também na lista de produtos");
+  t.ctx.RT.item = "i1"; t.ctx.rtDesenhar(); campo(t.corpo, "Ex.: 71,00").value = ""; exato(t.corpo, "Salvar").onclick(); igual(t.gravados[1][1], {}); assert.match(textoDe(t.corpo), /Valor pago removido/);
+  campo(t.corpo, "Ex.: 780,00").value = "780,50"; exato(t.corpo, "Salvar").onclick(); igual(t.gravados.at(-1)[1].i1, { parcelado: 780.5 }); assert.match(textoDe(t.corpo), /parcelado R\$ 780,50/);
+});
+test("excluir: produto sem ofertas é excluído (com confirmação); com ofertas só arquiva; oferta sem preços e loja sem ofertas podem ser excluídas; histórico nunca é apagado", async () => {
+  const t = montar({ dados: { radar_ofertas: [], radar_precos: [] } }); await abrirItem(t);
+  t.ctx.confirm = () => false; botao(t.corpo, "Excluir produto").onclick(); await espera(); assert.equal(t.banco.de("radar_itens", "delete").length, 0, "sem confirmar, nada");
+  t.ctx.confirm = () => true; botao(t.corpo, "Excluir produto").onclick(); await espera(); await espera();
+  const del = t.banco.de("radar_itens", "delete"); assert.equal(del.length, 1); igual(del[0].ops[1], ["eq", "id", "i1"]);
+  /* com oferta: não existe botão de excluir produto; arquivar pausa as ofertas e tira o produto da lista */
+  const a = montar(); await abrirItem(a); assert.equal(botao(a.corpo, "Excluir produto"), undefined); assert.match(textoDe(a.corpo), /Arquive para tirar da lista/);
+  a.ctx.confirm = () => true; botao(a.corpo, "Arquivar produto").onclick(); await espera(); await espera(); await espera();
+  const up = a.banco.de("radar_itens", "update").at(-1); assert.equal(up.ops[0][1].ativo, false);
+  const pausa = a.banco.de("radar_ofertas", "update")[0]; assert.equal(pausa.ops[0][1].situacao, "pausada"); igual(pausa.ops[1], ["eq", "item_id", "i1"]);
+  assert.equal(a.ctx.RT.item, null, "volta para a lista");
+  const b = montar({ dados: { radar_itens: [{ ...ITEM, ativo: false }] } }); await b.abrir(); b.ctx.RT.aba = "itens"; b.ctx.rtDesenhar(); assert.ok(!textoDe(b.corpo).includes("Fone XM-4"), "arquivado não aparece"); assert.match(textoDe(b.corpo), /Mostrar arquivados \(1\)/);
+  botao(b.corpo, "Mostrar arquivados").onclick(); assert.match(textoDe(b.corpo), /Fone XM-4[\s\S]*arquivado/);
+  const op = montar({ dados: { radar_ofertas: [OFERTA, { ...OFERTA, id: "o2", url: "https://www.loja.com.br/p/2" }], radar_precos: [P(1, 100)] } }); await abrirItem(op);
+  assert.equal(todos(op.corpo, (e) => e.tag === "button" && e.attrs.text === "Excluir oferta").length, 1, "só a oferta sem preços tem Excluir");
+  op.ctx.confirm = () => true; botao(op.corpo, "Excluir oferta").onclick(); await espera(); igual(op.banco.de("radar_ofertas", "delete")[0].ops[1], ["eq", "id", "o2"]);
+  const lo = montar({ dados: { radar_ofertas: [], radar_lojas: [LOJA, { ...LOJA, id: "l2", nome: "Loja B" }] } }); await lo.abrir(); lo.ctx.RT.aba = "lojas"; lo.ctx.rtDesenhar(); lo.ctx.confirm = () => true;
+  assert.equal(todos(lo.corpo, (e) => e.tag === "button" && e.attrs.text === "Excluir").length, 2); todos(lo.corpo, (e) => e.tag === "button" && e.attrs.text === "Excluir")[1].onclick(); await espera(); igual(lo.banco.de("radar_lojas", "delete")[0].ops[1], ["eq", "id", "l2"]);
+  const nunca = ler("js/radar.js"); assert.ok(!/rtExcluir\(RT\.sb,"radar_precos"|from\("radar_precos"\)\.delete/.test(nunca), "o histórico de preços nunca é apagado pela tela");
+  assert.match(montar().ctx.rtErro({ message: 'update or delete on table "radar_itens" violates foreign key constraint 23503' }), /não dá para excluir/);
 });

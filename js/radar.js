@@ -3,7 +3,7 @@
    e todo o histórico, ranking só com preço final confirmado e oportunidades. As regras vêm de NUCLEO.rd* (nucleo.js); o banco (043) repete as mesmas.
    Leitura automática de página: função "radar" (ainda não publicada: sem ela o botão avisa e o preenchimento é manual). IA: só sugestão, hoje indisponível (aguarda liberação).
    O CEP padrão nunca aparece na tela, em log ou em arquivo: só "cadastrado" ou "não cadastrado". */
-  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null};
+  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null,abertos:{},arquivados:false};
   var RT_ABAS=[["oport","Oportunidades"],["itens","Produtos"],["lojas","Lojas"],["ajustes","Ajustes"]];
   var RT_TIPOS_LOJA=[["varejo","Varejo online"],["marketplace","Marketplace"],["fabricante","Fabricante"],["atacado","Atacado"],["fisica","Loja física"],["outro","Outro"]];
   var RT_MEIOS=[["pix","Pix"],["boleto","Boleto"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["outro","Outro"]];
@@ -13,7 +13,7 @@
   function rtDono(){return typeof isOwner==="function"&&isOwner()}
   function rtMoeda(v){return v==null?"—":"R$ "+(+v).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".")}
   function rtData(iso){var d=new Date(iso);if(isNaN(d.getTime()))return "—";var p=function(n){return n<10?"0"+n:""+n};return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()}
-  function rtErro(e){var m=(e&&e.message)||String(e||"erro");return /duplicate key|23505|unique/i.test(m)?"Isso já está registrado.":/violates check|23514/i.test(m)?"O banco recusou os valores (confira modalidade, frete e preços).":/row-level security|42501|permission denied/i.test(m)?"Sem permissão: o Radar é só do dono, com a segunda etapa (código) concluída.":m}
+  function rtErro(e){var m=(e&&e.message)||String(e||"erro");return /foreign key|23503|still referenced/i.test(m)?"Há ofertas ou histórico ligados a isto: não dá para excluir. Pause ou arquive.":/duplicate key|23505|unique/i.test(m)?"Isso já está registrado.":/violates check|23514/i.test(m)?"O banco recusou os valores (confira modalidade, frete e preços).":/row-level security|42501|permission denied/i.test(m)?"Sem permissão: o Radar é só do dono, com a segunda etapa (código) concluída.":m}
   function rtOk(r){if(r&&r.error)throw r.error;return r?r.data:null}
   function rtPct(p){return p==null?"":(p>0?"+":p<0?"−":"")+Math.abs(p).toFixed(1).replace(".",",")+"%"}
 
@@ -83,7 +83,25 @@
   function rtSel(op,v){var s=h("select",null,op.map(function(o){return h("option",{value:o[0],text:o[1],selected:o[0]===v?"selected":null})}));s.value=v;return s}
   function rtBotao(txt,fn,cls){var b=h("button",{type:"button",class:"ghostbtn"+(cls?" "+cls:""),text:txt});b.onclick=fn;return b}
   function rtAvisar(t){RT.aviso=t||"";rtDesenhar()}
-  function rtFeito(p,msg){return p.then(function(){RT.aviso=msg||"";return rtRecarregar()},function(e){rtAvisar(rtErro(e))})}
+  /* mensagem junto do formulário: um erro NÃO redesenha a tela (redesenhar apagava o que a pessoa tinha digitado) */
+  function rtMsg(){return h("p",{class:"sub rtmsg",role:"status"})}
+  function rtFeito(p,msg,st,chave){if(st)st.textContent="Salvando…";return p.then(function(){RT.aviso=msg||"";if(chave)delete RT.abertos[chave];return rtRecarregar()},function(e){if(st)st.textContent=rtErro(e);else rtAvisar(rtErro(e))})}
+  /* <details> que continua aberto quando a tela é redesenhada */
+  function rtDet(chave,rot,filho){var d=h("details",{class:"rtnovo",open:RT.abertos[chave]?"open":null},h("summary",{text:rot}),filho);
+    if(d.addEventListener)d.addEventListener("toggle",function(){if(d.open)RT.abertos[chave]=1;else delete RT.abertos[chave]});return d}
+  function rtNum(v){return v==null?"":(+v).toFixed(2).replace(".",",")}
+  function rtPagoTxt(id){var g=rtPagos()[id]||{},l=[];if(g.a_vista!=null)l.push("à vista "+rtMoeda(g.a_vista));if(g.parcelado!=null)l.push("parcelado "+rtMoeda(g.parcelado));return l.length?"Paguei: "+l.join(" · "):""}
+  function rtExcluir(sb,tabela,id){return Promise.resolve(sb.from(tabela).delete().eq("id",id)).then(rtOk)}
+  /* arquivar: o produto sai da lista e as ofertas dele são pausadas (nada é apagado: o histórico continua) */
+  function rtArquivarItem(sb,item,arquivar){var t=new Date().toISOString();
+    return Promise.resolve(sb.from("radar_itens").update({ativo:!arquivar,atualizado_em:t}).eq("id",item.id).select("*")).then(rtOk).then(function(){
+      if(!arquivar)return null;return Promise.resolve(sb.from("radar_ofertas").update({situacao:"pausada",atualizado_em:t}).eq("item_id",item.id)).then(rtOk)})}
+  /* oferta pelo link: se a loja do endereço ainda não existe, ela é cadastrada junto (com o domínio do próprio link) */
+  function rtOfertaComLoja(sb,f,lojas){var u=f.url?NUCLEO.rdUrlOk(f.url):null;
+    if(f.loja_id||!u||!u.ok)return rtSalvarOferta(sb,f);
+    var m=lojas.filter(function(l){return NUCLEO.rdHostCasa(u.host,NUCLEO.rdHostDe(l))})[0];
+    if(m)return rtSalvarOferta(sb,Object.assign({},f,{loja_id:m.id}));
+    return rtSalvarLoja(sb,{nome:u.host.replace(/^www\./,""),dominio:u.host,tipo:"varejo"}).then(function(r){var l=r&&r[0];if(!l)throw new Error("Não consegui cadastrar a loja.");return rtSalvarOferta(sb,Object.assign({},f,{loja_id:l.id}))})}
   function rtEtiqueta(t,cls){return h("span",{class:"tag rttag"+(cls?" "+cls:""),text:t})}
   function rtNomeItem(id){var i=RT.d&&rtPor(RT.d.itens,id);return i?i.nome:"Produto"}
   function rtRotSerie(s){var m=s.modalidade==="parcelado"?"Parcelado "+s.parcelas+"x":"À vista";var meio=RT_MEIOS.filter(function(x){return x[0]===(s.meio||"outro")})[0];return m+" · "+(meio?meio[1]:"")}
@@ -93,7 +111,7 @@
     var d=RT.d,cfg=rtCfg(),jan=RT.janela;
     var seg=h("div",{class:"seg",role:"group","aria-label":"Janela de comparação"},[[30,"30 dias"],[90,"90 dias"],[180,"180 dias"],[365,"365 dias"],[0,"Tudo"]].map(function(j){
       var b=h("button",{type:"button","aria-pressed":String(jan===j[0]),text:j[1]});b.onclick=function(){RT.janela=j[0];rtDesenhar()};return b}));
-    var ofertas=d.ofertas.map(function(o){return o}),ops=NUCLEO.rdOportunidades(d.precos,ofertas,{agora:Date.now(),janela:jan,pagos:rtPagos(),vendedoresBloqueados:cfg.vendedoresBloqueados});
+    var ofertas=d.ofertas.filter(function(o){var i=rtPor(d.itens,o.item_id);return i&&i.ativo!==false}),ops=NUCLEO.rdOportunidades(d.precos,ofertas,{agora:Date.now(),janela:jan,pagos:rtPagos(),vendedoresBloqueados:cfg.vendedoresBloqueados});
     var p=h("div",{class:"panel"},h("h2",{text:"Oportunidades"}),h("p",{class:"sub",text:"Preço final de hoje menor que a última observação, que o menor da janela escolhida ou que o que você pagou (na mesma modalidade). Só entra: equivalência confirmada, oferta ativa e disponível, vendedor aceitável e frete confirmado."}),seg);
     if(!ops.length)p.appendChild(h("p",{class:"empty",text:d.precos.length?"Nenhuma oportunidade agora. O histórico só cresce quando você (ou a coleta) registra preços com frete confirmado.":"Ainda não há preços registrados. Cadastre um produto, uma oferta e registre o primeiro preço."}));
     ops.forEach(function(o){var of=rtPor(d.ofertas,o.oferta_id),lj=of&&rtPor(d.lojas,of.loja_id);
@@ -110,17 +128,19 @@
   function rtFormItem(item,fechar){
     var f={nome:rtIn(item&&item.nome,"Ex.: Fone Bluetooth XYZ"),origem:rtSel([["monitorado","Quero comprar"],["comprado","Já comprei"]],item?item.origem:"monitorado"),marca:rtIn(item&&item.marca,"Marca"),modelo:rtIn(item&&item.modelo,"Modelo"),
       variante:rtIn(item&&item.variante,"Cor, voltagem, tamanho"),apresentacao:rtIn(item&&item.apresentacao,"Ex.: caixa com 12, 2 L"),gtin:rtIn(item&&item.gtin,"GTIN/EAN (8 a 14 dígitos)",null,"numeric")};
-    var salvar=rtBotao(item?"Salvar produto":"Cadastrar produto",function(){
-      rtFeito(rtSalvarItem(RT.sb,{nome:f.nome.value,origem:f.origem.value,marca:f.marca.value,modelo:f.modelo.value,variante:f.variante.value,apresentacao:f.apresentacao.value,gtin:f.gtin.value},item&&item.id).then(function(r){if(fechar)fechar()}),item?"Produto salvo.":"Produto cadastrado.")},"pri");
-    return h("div",{class:"rtform"},rtCampo("Nome",f.nome),rtCampo("Situação",f.origem),rtCampo("Marca",f.marca),rtCampo("Modelo",f.modelo),rtCampo("Variante",f.variante),rtCampo("Apresentação",f.apresentacao),rtCampo("GTIN/EAN",f.gtin),salvar)}
+    var st=rtMsg(),salvar=rtBotao(item?"Salvar produto":"Cadastrar produto",function(){
+      rtFeito(rtSalvarItem(RT.sb,{nome:f.nome.value,origem:f.origem.value,marca:f.marca.value,modelo:f.modelo.value,variante:f.variante.value,apresentacao:f.apresentacao.value,gtin:f.gtin.value},item&&item.id).then(function(r){if(fechar)fechar()}),item?"Produto salvo.":"Produto cadastrado.",st,item?null:"novo-item")},"pri");
+    return h("div",{class:"rtform"},rtCampo("Nome",f.nome),rtCampo("Situação",f.origem),rtCampo("Marca",f.marca),rtCampo("Modelo",f.modelo),rtCampo("Variante",f.variante),rtCampo("Apresentação",f.apresentacao),rtCampo("GTIN/EAN",f.gtin),salvar,st)}
   function rtAbaItens(corpo){
     var d=RT.d,p=h("div",{class:"panel"},h("h2",{text:"Produtos"}));
-    var det=h("details",{class:"rtnovo"},h("summary",{text:"＋ Novo produto"}),rtFormItem(null,null));p.appendChild(det);
+    p.appendChild(rtDet("novo-item","＋ Novo produto",rtFormItem(null,null)));
+    var arq=d.itens.filter(function(i){return i.ativo===false});
+    if(arq.length)p.appendChild(rtBotao((RT.arquivados?"Ocultar":"Mostrar")+" arquivados ("+arq.length+")",function(){RT.arquivados=!RT.arquivados;rtDesenhar()}));
     if(!d.itens.length)p.appendChild(h("p",{class:"empty",text:"Nenhum produto ainda. Cadastre o que você já comprou (para comparar com o que pagou) ou o que quer comprar."}));
-    d.itens.forEach(function(i){var of=d.ofertas.filter(function(o){return o.item_id===i.id});
+    d.itens.filter(function(i){return RT.arquivados||i.ativo!==false}).forEach(function(i){var of=d.ofertas.filter(function(o){return o.item_id===i.id});
       var av=NUCLEO.rdRanking(d.precos.filter(function(x){return of.some(function(o){return o.id===x.oferta_id})}),of,{modalidade:"a_vista"}).ranking[0],pa=NUCLEO.rdRanking(d.precos.filter(function(x){return of.some(function(o){return o.id===x.oferta_id})}),of,{modalidade:"parcelado"}).ranking[0];
       var c=h("button",{type:"button",class:"rtop"},h("b",{text:i.nome}),h("span",{class:"sub",text:[i.marca,i.modelo,i.variante].filter(Boolean).join(" · ")||"sem marca/modelo"}),
-        h("span",{class:"sub",text:(i.origem==="comprado"?"Já comprei":"Quero comprar")+" · "+of.length+(of.length===1?" oferta":" ofertas")}),
+        h("span",{class:"sub",text:(i.origem==="comprado"?"Já comprei":"Quero comprar")+" · "+of.length+(of.length===1?" oferta":" ofertas")+(i.ativo===false?" · arquivado":"")}),rtPagoTxt(i.id)?h("span",{class:"rtpago",text:rtPagoTxt(i.id)}):null,
         h("span",{class:"rtpreco",text:"À vista: "+(av?rtMoeda(av.final):"sem preço final confirmado")}),h("span",{class:"sub",text:"Parcelado: "+(pa?rtMoeda(pa.final)+" em "+pa.parcelas+"x":"sem preço final confirmado")}));
       c.onclick=function(){RT.item=i.id;RT.serie=null;RT.leitura=null;rtDesenhar()};p.appendChild(c)});
     corpo.appendChild(p)}
@@ -129,13 +149,15 @@
   function rtAbaLojas(corpo){
     var d=RT.d,p=h("div",{class:"panel"},h("h2",{text:"Lojas"}),h("p",{class:"sub",text:"O domínio libera a leitura automática de páginas dessa loja. “Coleta automática” só deve ser marcada depois de você conferir os termos da loja; o robots.txt é sempre respeitado e nada de captcha ou login é contornado."}));
     var f={nome:rtIn("","Nome da loja"),dominio:rtIn("","Domínio (ex.: loja.com.br)"),tipo:rtSel(RT_TIPOS_LOJA,"varejo"),coleta:h("input",{type:"checkbox"})};
-    p.appendChild(h("details",{class:"rtnovo"},h("summary",{text:"＋ Nova loja"}),h("div",{class:"rtform"},rtCampo("Nome",f.nome),rtCampo("Domínio",f.dominio),rtCampo("Tipo",f.tipo),h("label",{class:"rtchk"},f.coleta," Coleta automática liberada (conferi os termos)"),
-      rtBotao("Cadastrar loja",function(){rtFeito(rtSalvarLoja(RT.sb,{nome:f.nome.value,dominio:f.dominio.value,tipo:f.tipo.value,coleta_permitida:f.coleta.checked}),"Loja cadastrada.")},"pri"))));
+    var stL=rtMsg();p.appendChild(rtDet("nova-loja","＋ Nova loja",h("div",{class:"rtform"},rtCampo("Nome",f.nome),rtCampo("Domínio",f.dominio),rtCampo("Tipo",f.tipo),h("label",{class:"rtchk"},f.coleta," Coleta automática liberada (conferi os termos)"),
+      rtBotao("Cadastrar loja",function(){rtFeito(rtSalvarLoja(RT.sb,{nome:f.nome.value,dominio:f.dominio.value,tipo:f.tipo.value,coleta_permitida:f.coleta.checked}),"Loja cadastrada.",stL,"nova-loja")},"pri"),stL)));
     if(!d.lojas.length)p.appendChild(h("p",{class:"empty",text:"Nenhuma loja ainda."}));
     d.lojas.forEach(function(l){var c=h("div",{class:"rtlinha"},h("b",{text:l.nome}),h("span",{class:"sub",text:(l.dominio||"sem domínio")+" · "+(l.coleta_permitida?"coleta liberada":"só manual")}));
       c.appendChild(rtBotao(l.coleta_permitida?"Desligar coleta":"Liberar coleta",function(){if(!l.coleta_permitida&&!l.dominio){rtAvisar("Cadastre o domínio antes de liberar a coleta.");return}
         if(!l.coleta_permitida&&typeof confirm==="function"&&!confirm("Você conferiu os termos de uso de "+l.nome+" e aceita a coleta automática? O robots.txt continua sendo respeitado."))return;
-        rtFeito(Promise.resolve(RT.sb.from("radar_lojas").update({coleta_permitida:!l.coleta_permitida,atualizado_em:new Date().toISOString()}).eq("id",l.id)).then(rtOk),"Loja atualizada.")}));p.appendChild(c)});
+        rtFeito(Promise.resolve(RT.sb.from("radar_lojas").update({coleta_permitida:!l.coleta_permitida,atualizado_em:new Date().toISOString()}).eq("id",l.id)).then(rtOk),"Loja atualizada.")}));
+      if(!d.ofertas.some(function(o){return o.loja_id===l.id}))c.appendChild(rtBotao("Excluir",function(){if(typeof confirm==="function"&&!confirm("Excluir a loja "+l.nome+"? Só é possível enquanto não houver ofertas ligadas a ela."))return;rtFeito(rtExcluir(RT.sb,"radar_lojas",l.id),"Loja excluída.")},"danger"));
+      p.appendChild(c)});
     corpo.appendChild(p)}
 
   /* ---------- ajustes: CEP privado, avisos, vendedores ---------- */
@@ -169,14 +191,14 @@
       disp:rtSel([["desconhecida","Não sei"],["disponivel","Disponível"],["indisponivel","Indisponível"]],pre.disp||"desconhecida"),fonte:rtSel([["manual","Conferi na loja (link/print)"],["nota_fiscal","Nota fiscal"]],"manual"),evid:rtIn(pre.evid,"Evidência: link da página, nº da nota ou descrição do print")};
     var parcelado=h("div",{class:"rtform"},rtCampo("Parcelas",a.parcelas),rtCampo("Valor da parcela",a.vparcela),h("label",{class:"rtchk"},a.semjuros," Sem juros"),rtCampo("Juros ao mês (%)",a.juros));
     function mostrar(){parcelado.style.display=a.modalidade.value==="parcelado"?"":"none"}a.modalidade.onchange=mostrar;mostrar();
-    var enviar=rtBotao("Registrar preço",function(){
+    var st=rtMsg(),enviar=rtBotao("Registrar preço",function(){
       var par=a.modalidade.value==="parcelado",pr=NUCLEO.rdCent(a.preco.value),obs={oferta_id:oferta.id,fonte:a.fonte.value,evidencia:a.evid.value,modalidade:a.modalidade.value,meio:a.meio.value,preco_produto:pr==null||isNaN(pr)?null:pr/100,
         frete_situacao:a.frete.value,frete_valor:a.frete.value==="confirmado"?(NUCLEO.rdCent(a.vfrete.value)||0)/100:a.frete.value==="desconhecido"?null:0,frete_cep_padrao:a.frete.value!=="desconhecido",taxas:(NUCLEO.rdCent(a.taxas.value)||0)/100,desconto:(NUCLEO.rdCent(a.desc.value)||0)/100,cupom:a.cupom.value,
         disponibilidade:a.disp.value,observado_em:new Date().toISOString()};
       if(par){obs.parcelas=+a.parcelas.value;obs.valor_parcela=(NUCLEO.rdCent(a.vparcela.value)||0)/100;obs.total_parcelado=obs.preco_produto;obs.sem_juros=a.semjuros.checked;if(!a.semjuros.checked&&a.juros.value)obs.juros_mensal_pct=+String(a.juros.value).replace(",",".")}
-      rtFeito(rtRegistrarPreco(RT.sb,obs),"Preço registrado.")},"pri");
+      rtFeito(rtRegistrarPreco(RT.sb,obs),"Preço registrado.",st,"preco:"+oferta.id)},"pri");
     return h("div",{class:"rtform"},rtCampo("Modalidade",a.modalidade),rtCampo("Meio de pagamento",a.meio),rtCampo("Preço do produto",a.preco),parcelado,rtCampo("Frete",a.frete),rtCampo("Valor do frete",a.vfrete),rtCampo("Taxas",a.taxas),rtCampo("Desconto/cupom",a.desc),rtCampo("Cupom",a.cupom),rtCampo("Disponibilidade",a.disp),rtCampo("Fonte",a.fonte),rtCampo("Evidência",a.evid),
-      h("p",{class:"sub",text:"Frete “ainda não sei” não é frete grátis: a observação fica sem preço final e não entra no ranking nem nas oportunidades."}),enviar)}
+      h("p",{class:"sub",text:"Frete “ainda não sei” não é frete grátis: a observação fica sem preço final e não entra no ranking nem nas oportunidades."}),enviar,st)}
   function rtGrafico(serie,agora){
     var hs=NUCLEO.rdHistorico(serie.obs,agora),pts=hs.pontos.slice(-12),campo=hs.base,max=Math.max.apply(null,pts.map(function(x){return x[campo]||0}).concat([1]));
     return h("div",{class:"vbars rtgraf"},pts.map(function(x){var v=x[campo];
@@ -216,6 +238,7 @@
       rtBotao("Sugerir equivalência (regras)",function(){var l=RT.leitura&&RT.leitura.oferta===o.id?RT.leitura.ex:null;
         sug=NUCLEO.rdSugerirEquivalencia(item,{nome:l&&l.nome&&l.nome.valor,marca:l&&l.marca&&l.marca.valor,modelo:l&&l.modelo&&l.modelo.valor,gtin:l&&l.gtin&&l.gtin.valor});RT.sug={oferta:o.id,sug:sug};rtDesenhar()}),
       rtBotao(o.situacao==="ativa"?"Pausar":"Reativar",function(){rtFeito(rtSituacao(RT.sb,o,o.situacao==="ativa"?"pausada":"ativa"),"Oferta atualizada.")}),
+      !RT.d.precos.some(function(x){return x.oferta_id===o.id})?rtBotao("Excluir oferta",function(){if(typeof confirm==="function"&&!confirm("Excluir esta oferta?"))return;rtFeito(rtExcluir(RT.sb,"radar_ofertas",o.id),"Oferta excluída.")},"danger"):null,
       rtBotao("Ler da página",function(){if(!o.url){rtAvisar("Esta oferta não tem link.");return}rtAvisar("Lendo a página…");rtLerPagina(RT.sb,o.url).then(function(d){RT.leitura={oferta:o.id,ex:d.extraido};RT.aviso="";rtDesenhar()},function(e){rtAvisar(rtErro(e))})}),
       h("button",{type:"button",class:"ghostbtn",disabled:"disabled",title:"A IA do Radar ainda não foi liberada (precisa de publicação da função e da liberação REAL).",text:"Pedir sugestão da IA (indisponível)"})));
     if(RT.sug&&RT.sug.oferta===o.id){var s=RT.sug.sug;c.appendChild(h("div",{class:"rtleitura"},h("b",{text:"Sugestão por regras: "+(s.sugestao==="provavel"?"provável":s.sugestao==="divergente"?"divergente":"não confirmada")}),h("p",{class:"sub",text:s.aviso}),
@@ -223,25 +246,35 @@
       if(s.sugestao==="provavel")c.appendChild(rtBotao("Confirmar que é o mesmo produto",function(){rtFeito(rtEquivalencia(RT.sb,o,"confirmada",s.evidencias),"Equivalência confirmada por você.")},"pri"));
       c.appendChild(rtBotao("Rejeitar equivalência",function(){rtFeito(rtEquivalencia(RT.sb,o,"rejeitada",s.evidencias.concat(s.divergencias)),"Equivalência rejeitada.")}))}
     if(RT.leitura&&RT.leitura.oferta===o.id)rtResultadoLeitura(c,o,RT.leitura.ex);
-    var det=h("details",{class:"rtnovo"},h("summary",{text:"＋ Registrar preço desta oferta"}),rtFormPreco(o,RT.leitura&&RT.leitura.oferta===o.id?{preco:RT.leitura.ex.preco?String(RT.leitura.ex.preco.valor).replace(".",","):"",disp:RT.leitura.ex.disponibilidade?RT.leitura.ex.disponibilidade.valor:"desconhecida",evid:o.url||""}:{evid:o.url||""}));c.appendChild(det);
+    var det=rtDet("preco:"+o.id,"＋ Registrar preço desta oferta",rtFormPreco(o,RT.leitura&&RT.leitura.oferta===o.id?{preco:RT.leitura.ex.preco?String(RT.leitura.ex.preco.valor).replace(".",","):"",disp:RT.leitura.ex.disponibilidade?RT.leitura.ex.disponibilidade.valor:"desconhecida",evid:o.url||""}:{evid:o.url||""}));c.appendChild(det);
     corpo.appendChild(c)}
   function rtDetalhe(corpo){
     var item=rtPor(RT.d.itens,RT.item);if(!item){RT.item=null;rtDesenhar();return}
     var p=h("div",{class:"panel"});p.appendChild(rtBotao("← Voltar",function(){RT.item=null;RT.serie=null;rtDesenhar()}));
     p.appendChild(h("h2",{text:item.nome}));p.appendChild(h("p",{class:"sub",text:[item.marca,item.modelo,item.variante,item.apresentacao].filter(Boolean).join(" · ")+(item.gtin?" · GTIN "+item.gtin:"")}));
-    p.appendChild(h("details",{class:"rtnovo"},h("summary",{text:"Editar produto"}),rtFormItem(item,null)));
+    if(item.ativo===false)p.appendChild(h("p",{class:"sub"},rtEtiqueta("arquivado")," As ofertas ficam pausadas."));
+    if(rtPagoTxt(item.id))p.appendChild(h("p",{class:"rtpago"},h("b",{text:rtPagoTxt(item.id)})));
+    p.appendChild(rtDet("editar:"+item.id,"Editar produto",rtFormItem(item,null)));
     /* o que o dono pagou (para comparar na mesma modalidade) */
-    var pg=rtPagos()[item.id]||{},pa=rtIn(pg.a_vista!=null?String(pg.a_vista).replace(".",","):"","À vista (R$)",null,"decimal"),pp=rtIn(pg.parcelado!=null?String(pg.parcelado).replace(".",","):"","Parcelado, total (R$)",null,"decimal");
-    p.appendChild(h("details",{class:"rtnovo"},h("summary",{text:"O que eu paguei"}),h("div",{class:"rtform"},rtCampo("Preço pago à vista",pa),rtCampo("Total pago parcelado",pp),rtBotao("Salvar",function(){
-      var todos=JSON.parse(JSON.stringify(rtPagos())),a=NUCLEO.rdCent(pa.value),b=NUCLEO.rdCent(pp.value),r={};if(a>0)r.a_vista=a/100;if(b>0)r.parcelado=b/100;todos[item.id]=r;
-      if(typeof pessoalGravar==="function")pessoalGravar("radar-pagos",todos);rtAvisar("Valor pago salvo.")}))));
+    var pg=rtPagos()[item.id]||{},pa=rtIn(rtNum(pg.a_vista),"Ex.: 71,00",null,"decimal"),pp=rtIn(rtNum(pg.parcelado),"Ex.: 780,00",null,"decimal"),stP=rtMsg();
+    p.appendChild(rtDet("pago","O que eu paguei",h("div",{class:"rtform"},rtCampo("Preço pago à vista (R$)",pa),rtCampo("Total pago parcelado (R$)",pp),rtBotao("Salvar",function(){
+      var a=pa.value.trim()?NUCLEO.rdCent(pa.value):null,b=pp.value.trim()?NUCLEO.rdCent(pp.value):null;
+      if((a!=null&&!(a>0))||(b!=null&&!(b>0))){stP.textContent="Informe os valores como 71,00 (maiores que zero) ou deixe em branco.";return}
+      var todos=JSON.parse(JSON.stringify(rtPagos())),r={};if(a>0)r.a_vista=a/100;if(b>0)r.parcelado=b/100;if(r.a_vista!=null||r.parcelado!=null)todos[item.id]=r;else delete todos[item.id];
+      if(typeof pessoalGravar==="function")pessoalGravar("radar-pagos",todos);else PESSOAL["radar-pagos"]=todos;
+      RT.abertos.pago=1;rtAvisar(todos[item.id]?"Valor pago salvo: "+rtPagoTxt(item.id).replace("Paguei: ","")+".":"Valor pago removido.")},"pri"),stP)));
     /* nova oferta: escolhe a loja (ou cria pela URL) e cola o link */
     var lojaSel=rtSel([["","— loja —"]].concat(RT.d.lojas.map(function(l){return [l.id,l.nome]})),""),url=rtIn("","Cole o link do produto na loja"),vend=rtIn("","Vendedor (se houver)");
     p.appendChild(h("h3",{text:"Ofertas"}));
-    p.appendChild(h("details",{class:"rtnovo"},h("summary",{text:"＋ Nova oferta (link da loja)"}),h("div",{class:"rtform"},rtCampo("Loja",lojaSel),rtCampo("Link",url),rtCampo("Vendedor",vend),
-      rtBotao("Cadastrar oferta",function(){var u=NUCLEO.rdUrlOk(url.value),lj=lojaSel.value;
-        if(u.ok&&!lj){var m=RT.d.lojas.filter(function(l){return NUCLEO.rdHostCasa(u.host,NUCLEO.rdHostDe(l))})[0];if(m)lj=m.id;else{rtAvisar("Cadastre a loja ("+u.host+") na aba Lojas e escolha-a aqui.");return}}
-        rtFeito(rtSalvarOferta(RT.sb,{item_id:item.id,loja_id:lj,url:url.value,vendedor:vend.value}),"Oferta cadastrada. Use “Ler da página” ou registre o preço.")},"pri"))));
+    var stO=rtMsg();
+    p.appendChild(rtDet("nova-oferta:"+item.id,"＋ Nova oferta (link da loja)",h("div",{class:"rtform"},rtCampo("Link do produto",url),rtCampo("Loja (deixe em branco para usar a do link)",lojaSel),rtCampo("Vendedor",vend),
+      h("p",{class:"sub",text:"Use o link final da loja. Links encurtados (como a.co) levam a outro domínio e a leitura automática não os acompanha."}),
+      rtBotao("Cadastrar oferta",function(){var u=url.value.trim()?NUCLEO.rdUrlOk(url.value):{ok:true,url:null},lj=lojaSel.value;
+        if(!u.ok){stO.textContent=u.motivo;return}
+        if(!lj&&!u.url){stO.textContent="Cole o link ou escolha a loja.";return}
+        var existe=lj||RT.d.lojas.some(function(l){return NUCLEO.rdHostCasa(u.host,NUCLEO.rdHostDe(l))});
+        if(!existe&&typeof confirm==="function"&&!confirm("A loja "+u.host+" ainda não está cadastrada. Cadastrar agora e usar nesta oferta?")){stO.textContent="Oferta não cadastrada: a loja "+u.host+" não existe ainda.";return}
+        rtFeito(rtOfertaComLoja(RT.sb,{item_id:item.id,loja_id:lj,url:url.value.trim(),vendedor:vend.value},RT.d.lojas),"Oferta cadastrada. Use “Ler da página” ou registre o preço.",stO,"nova-oferta:"+item.id)},"pri"),stO)));
     var ofs=RT.d.ofertas.filter(function(o){return o.item_id===item.id});if(!ofs.length)p.appendChild(h("p",{class:"empty",text:"Nenhuma oferta ainda. Adicione o link do mesmo produto em uma ou mais lojas."}));
     ofs.forEach(function(o){rtOfertaCartao(item,o,p)});
     /* ranking: uma modalidade por vez */
@@ -255,6 +288,13 @@
     if(!series.length)p.appendChild(h("p",{class:"empty",text:"Sem observações ainda. O histórico começa no primeiro preço que você registrar: nada é estimado para trás."}));
     else{var sel=series.filter(function(s){return s.chave===RT.serie})[0]||series[0];
       p.appendChild(h("div",{class:"chips"},series.map(function(s){var b=h("button",{type:"button",class:"chipb"+(s.chave===sel.chave?" on":""),text:s.rotulo});b.onclick=function(){RT.serie=s.chave;rtDesenhar()};return b})));rtHistorico(sel,p)}
+    /* excluir só é possível sem ofertas (o histórico de preços nunca é apagado); com ofertas, o caminho é arquivar */
+    var risco=h("div",{class:"rtbloco"},h("h3",{text:"Remover este produto"})),stX=rtMsg();
+    if(!ofs.length)risco.appendChild(rtBotao("Excluir produto",function(){if(typeof confirm==="function"&&!confirm("Excluir “"+item.nome+"” de vez? Não dá para desfazer."))return;rtFeito(rtExcluir(RT.sb,"radar_itens",item.id),"Produto excluído.",stX)},"danger"));
+    else risco.appendChild(h("p",{class:"sub",text:"Este produto tem ofertas (e talvez histórico de preços), que não são apagados. Arquive para tirar da lista e pausar as ofertas."}));
+    risco.appendChild(rtBotao(item.ativo===false?"Desarquivar produto":"Arquivar produto",function(){if(item.ativo!==false&&typeof confirm==="function"&&!confirm("Arquivar “"+item.nome+"”? Ele sai da lista e as ofertas ficam pausadas."))return;
+      var arquivando=item.ativo!==false;rtFeito(rtArquivarItem(RT.sb,item,arquivando).then(function(){if(arquivando)RT.item=null}),item.ativo===false?"Produto desarquivado (as ofertas continuam pausadas até você reativá-las).":"Produto arquivado.",stX)}));
+    risco.appendChild(stX);p.appendChild(risco);
     corpo.appendChild(p)}
 
   /* ---------- casca ---------- */

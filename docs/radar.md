@@ -70,6 +70,9 @@ O **CEP padrão** só é cadastrado/trocado na tela (8 dígitos, confirmação a
 
 **Histórico real**: a tela nunca atualiza nem apaga observações. "Confirmar frete" grava uma **nova linha** com `corrige_id` (1 s depois, porque o índice único não aceita o mesmo instante); a original continua no banco e só some das contas.
 
+**Excluir e arquivar**: produto sem ofertas pode ser **excluído**; com ofertas (e histórico) só se **arquiva** (sai da lista, as ofertas ficam pausadas, nada é apagado; "Mostrar arquivados" traz de volta). Oferta sem preços e loja sem ofertas também podem ser excluídas. O histórico de preços nunca é apagado pela tela (o banco também recusa).
+**Oferta pelo link**: se a loja do endereço ainda não existe, a tela oferece cadastrá-la junto (domínio do próprio link, coleta desligada). Links encurtados (como `a.co`) levam a outro domínio e a leitura automática não os acompanha: use o link final. Erros aparecem junto do formulário e **não apagam o que foi digitado**. O que você pagou aparece no produto e na lista.
+
 ## O que está ativo (e o que não está)
 | Parte | Estado |
 |---|---|

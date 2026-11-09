@@ -1,4 +1,4 @@
-# Publicar o resumo diário de alertas (função `garmin`)
+# Publicar o resumo semanal de alertas (função `garmin`)
 
 A publicação da função é uma etapa **separada** do site. O Web Push de alertas só conta como operacional depois de uma **notificação real recebida no aparelho do dono**.
 
@@ -19,4 +19,4 @@ Com o projeto ligado (`supabase link`, como já foi feito): `supabase functions 
 3. Só depois de receber a notificação no aparelho dá para declarar o recurso operacional.
 
 ## Desligar
-Alertas → Ajustes → desmarcar "Receber o resumo diário por notificação (6h)". Para voltar à função anterior, republicar o `index.ts` sem o `import` e sem a linha do passo.
+Alertas → Ajustes → desmarcar "Receber o resumo semanal por notificação (domingo, 6h)". Para voltar à função anterior, republicar o `index.ts` sem o `import` e sem a linha do passo.

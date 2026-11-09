@@ -34,14 +34,16 @@ Preço = `valor_unitario` da linha; a ordem das compras é por data e id (`mkcOr
 Id = tipo | produto+unidade | id da compra que originou [| limite]. Rodar de novo gera os mesmos ids; compra nova gera ids novos e mantém os antigos. **Novo** = não lido e de uma compra dos últimos 30 dias (configurável);
 o resto vai para "Lidos e anteriores". Marcar como lido grava só o id.
 
-## Resumo diário por Web Push
-O dono recebe, às 6h (Brasília), **uma** notificação com as contagens dos alertas novos. Autorizado pelo dono: alterar e republicar a função `garmin` só para isso.
-- **Onde:** `supabase/functions/garmin/alertas_preco.ts` (regras iguais às do site, em TypeScript, com teste de paridade) e **um passo novo** na rotina existente (`passo("alertas_preco", …)` entre os avisos da agenda e o backup; mais um `import`). Não há rotina nova nem agendamento novo; o resto da função não foi tocado.
-- **Destinatário (só o dono):** o `uid` que a rotina já calcula (quem tem dados pessoais e não é membro da casa; a Fernanda é membro). O envio usa `pushPara(adm, uid, …)`, que só lê `push_inscricoes` desse `uid`. Sem dono identificado, a rotina para (404) e nada é enviado. Nenhuma inscrição é criada.
+## Resumo semanal por Web Push
+O dono recebe **uma notificação por semana**, no **domingo às 6h (Brasília)**, com as contagens dos alertas novos da última semana. (Começou diário, foi validado no iPhone e passou a semanal por decisão do dono.)
+- **Onde:** `supabase/functions/garmin/alertas_preco.ts` e um passo (`passo("alertas_preco", …)`) na rotina diária existente. A rotina continua rodando todo dia às 9h UTC; **só esse passo** sai na hora fora do domingo (sem ler o banco nem enviar). Horário, frequência e comportamento do resto da rotina e da Garmin não mudaram.
+- **Domingo no fuso certo:** `diaEmSaoPaulo(instante)` usa `Intl` com `America/Sao_Paulo`, nunca o dia UTC (sábado 23:30 em Brasília já é domingo em UTC e não conta; domingo 23:30 já é segunda em UTC e conta).
+- **Destinatário (só o dono):** o `uid` que a rotina já calcula (quem tem dados pessoais e não é membro da casa; a Fernanda é membro). O envio usa `pushPara(adm, uid, …)`, que só lê `push_inscricoes` desse `uid`. Sem dono identificado, a rotina para (404). Nenhuma inscrição é criada.
 - **O que entra:** alertas ligados, de compras dos últimos 7 dias, **não lidos** pelo dono e que ainda não foram levados a um resumo anterior. Sem alertas = sem notificação.
-- **Mensagem:** só contagens ("3 quedas de preço", "2 aumentos relevantes", "1 novo menor preço histórico", "1 oportunidade em outro mercado", "1 limite de preço atingido"), sem produto, preço ou mercado na tela bloqueada. Toque abre `./#mercado/alertas`; tag `mercado-alertas` (não substitui o aviso da rotina, que usa a tag `rotina`).
-- **Idempotência:** o resumo do dia é reservado com um `insert` em `pessoal` na chave `mercado-alertas-push:AAAA-MM-DD` (a chave primária impede duas reservas). Estados: `enviando`, `enviado`, `parcial` (alguns aparelhos), `falhou` e `sem_aparelho` (podem tentar de novo no mesmo dia) e `indefinido`. Rodar duas vezes no mesmo dia não reenvia; no dia seguinte os alertas já avisados não voltam.
-- **Leitura:** nada é marcado como lido. O servidor nunca grava `mercado-alertas` (preferências e leituras do dono); só a chave do dia.
-- **Ajuste do dono:** em Alertas → Ajustes, "Receber o resumo diário por notificação (6h)" (`cfg.push.on`, padrão ligado).
+- **Mensagem:** só contagens ("3 quedas de preço", "2 aumentos relevantes", …), sem produto, preço ou mercado na tela bloqueada. Primeira linha: "Na última semana você teve:". Toque abre `./#mercado/alertas`; tag `mercado-alertas`.
+- **No máximo um por semana:** como só o domingo é elegível, a chave `mercado-alertas-push:AAAA-MM-DD` (o domingo) é a chave da semana, reservada com `insert` em `pessoal` (a chave primária impede duas reservas). O registro guarda `semana` e o estado: `enviando`, `enviado`, `parcial`, `falhou`, `sem_aparelho` e `indefinido`.
+  Falha total ou sem aparelho só pode ser tentada de novo **no mesmo domingo** (segunda-feira não "recupera"; o próximo envio é o domingo seguinte). Entrega parcial ou resultado desconhecido não reenvia.
+- **Leitura:** nada é marcado como lido. O servidor nunca grava `mercado-alertas` (preferências e leituras do dono); só a chave da semana.
+- **Ajuste do dono:** em Alertas → Ajustes, "Receber o resumo semanal por notificação (domingo, 6h)" (`cfg.push.on`, padrão ligado).
 - **Banco:** nenhuma migration. `service_role` já tem `select` nas tabelas do Mercado e `insert/update` em `pessoal`; não há `delete`.
-- **Publicação da função (etapa separada):** ver `docs/mercado-alertas-publicacao.md`. O Web Push só vale como operacional depois de uma notificação real recebida no aparelho do dono.
+- **Publicação da função (etapa separada):** ver `docs/mercado-alertas-publicacao.md`.

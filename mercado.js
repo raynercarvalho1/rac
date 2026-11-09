@@ -1094,9 +1094,9 @@
     linha("minimo_periodo", "Menor preço no período", [{ k: "dias", rot: "janela (dias)", v: T.minimo_periodo.dias, min: 7, step: 1 }]);
     linha("melhor", "Melhor preço em outro mercado", [{ k: "pct", rot: "diferença mínima (%)", v: Math.round(T.melhor.pct * 1000) / 10, min: 1, step: 1 }, { k: "dias", rot: "registros a até (dias)", v: T.melhor.dias, min: 7, step: 1 }]);
     linha("limite", "Limite de preço definido por mim");
-    /* resumo diário por notificação (6h): só contagens, só para o dono; quem manda é a rotina diária do servidor (docs/mercado-alertas.md) */
-    var pushOn = h("input", { type: "checkbox", "aria-label": "Receber o resumo diário por notificação (6h)", checked: cfg.push.on ? "" : null });
-    box.appendChild(h("div", { class: "vfil" }, h("label", { class: "sub" }, pushOn, " Receber o resumo diário por notificação (6h, só contagens)")));
+    /* resumo semanal por notificação (domingo, 6h): só contagens, só para o dono; quem manda é a rotina diária do servidor, que só envia aos domingos (docs/mercado-alertas.md) */
+    var pushOn = h("input", { type: "checkbox", "aria-label": "Receber o resumo semanal por notificação (domingo, 6h)", checked: cfg.push.on ? "" : null });
+    box.appendChild(h("div", { class: "vfil" }, h("label", { class: "sub" }, pushOn, " Receber o resumo semanal por notificação (domingo, 6h, só contagens)")));
     var nd = h("input", { type: "number", min: 7, step: 1, value: String(cfg.novosDias), "aria-label": "Considerar novos os alertas dos últimos (dias)", inputmode: "numeric" });
     box.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Considerar novos os alertas dos últimos (dias)" }), nd));
     var salvar = h("button", { type: "button", text: "Salvar ajustes" });

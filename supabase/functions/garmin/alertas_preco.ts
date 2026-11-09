@@ -1,6 +1,6 @@
-// Resumo diário dos alertas de preço do Mercado, por Web Push, só para o DONO (docs/mercado-alertas.md).
+// Resumo SEMANAL (domingo, 6h de Brasília) dos alertas de preço do Mercado, por Web Push, só para o DONO (docs/mercado-alertas.md).
 // Mesmas regras de nucleo.js (mkalGerar, mkalConfig, mkalClassificar), em TypeScript, como a função já faz com previsaoCompras.
-// Isolado neste arquivo: a rotina diária da "garmin" só chama resumoAlertasPreco() num passo próprio. Nada daqui lê ou grava dados do relógio.
+// Isolado neste arquivo: a rotina diária da "garmin" continua rodando todo dia e só chama resumoAlertasPreco() num passo próprio, que sai na hora fora do domingo. Nada daqui lê ou grava dados do relógio.
 // Não marca nenhum alerta como lido (a leitura é do dono, no site) e não guarda segredos. O envio em si (pushPara) vem do index.ts.
 
 export type Linha = {
@@ -20,8 +20,18 @@ export type Msg = { titulo: string; corpo: string; url: string; tag: string };
 
 export const PREFIXO_DIA = "mercado-alertas-push:";
 export const URL_ALERTAS = "./#mercado/alertas";
-/* o resumo só leva alertas de compras dos últimos dias: o primeiro envio não despeja um mês inteiro de histórico */
+/* o resumo semanal leva os alertas das compras da última semana (7 dias): o primeiro envio não despeja um mês inteiro de histórico */
 export const JANELA_PUSH_DIAS = 7;
+
+/* ---------- frequência: só aos domingos, no fuso America/Sao_Paulo (nunca pelo dia UTC) ---------- */
+const FUSO = "America/Sao_Paulo";
+/* data local e dia da semana de Brasília para um instante. Sábado 23:30 em Brasília já é domingo em UTC, e domingo 23:30 já é segunda em UTC:
+   por isso o dia da semana vem do Intl com o fuso, não de getUTCDay. */
+export function diaEmSaoPaulo(agora: Date): { data: string; semana: string; domingo: boolean } {
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-US", { timeZone: FUSO, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(agora)) p[x.type] = x.value;
+  return { data: p.year + "-" + p.month + "-" + p.day, semana: p.weekday, domingo: p.weekday === "Sun" };
+}
 
 /* ---------- identidade e datas (mesmas de nucleo.js: mkcUn, mkcChaveProd, mkcDia, mkcOrd) ---------- */
 const mkcUn = (u: unknown) => { const t = String(u ?? "").trim().toLowerCase(); return t === "" || t === "un" || t === "und" || t === "unid" ? "un" : t; };
@@ -131,7 +141,7 @@ const ROTULOS: [Tipo, string, string][] = [
 export function montarMensagem(c: Partial<Record<Tipo, number>>): Msg | null {
   const linhas = ROTULOS.filter(([t]) => (c[t] ?? 0) > 0).map(([t, s, p]) => "• " + c[t] + " " + (c[t] === 1 ? s : p));
   if (!linhas.length) return null;
-  return { titulo: "RAC Mercado — Resumo de preços", corpo: "Hoje você tem:\n" + linhas.join("\n") + "\nAbra o RAC para consultar os produtos.", url: URL_ALERTAS, tag: "mercado-alertas" };
+  return { titulo: "RAC Mercado — Resumo de preços", corpo: "Na última semana você teve:\n" + linhas.join("\n") + "\nAbra o RAC para consultar os produtos.", url: URL_ALERTAS, tag: "mercado-alertas" };
 }
 /* o texto que o pushPara devolve ("2 de 3 aparelhos" ou "nenhum aparelho com notificações ativas") */
 export function lerResultadoPush(s: string): { ok: number; total: number } | null {
@@ -194,7 +204,10 @@ export function bancoSupabase(adm: any): Banco {
 /* ---------- o passo da rotina ---------- */
 const RETENTAVEIS = new Set(["falhou", "sem_aparelho"]);
 /* uid = o dono que a rotina já identificou (quem tem dados pessoais e não é membro da casa). enviar() = pushPara(adm, uid, …): só os aparelhos desse uid. */
-export async function resumoAlertasPreco(adm: any, uid: string, hoje: string, enviar: (m: Msg) => Promise<string>, banco: Banco = bancoSupabase(adm)) {
+export async function resumoAlertasPreco(adm: any, uid: string, hoje: string, enviar: (m: Msg) => Promise<string>, banco: Banco = bancoSupabase(adm), agora: Date = new Date()) {
+  /* semanal: a rotina roda todo dia, mas o resumo só é elegível no domingo de Brasília (nos outros dias sai aqui, sem tocar no banco nem no envio) */
+  const sp = diaEmSaoPaulo(agora);
+  if (!sp.domingo) return { enviado: false, motivo: "resumo semanal: só aos domingos (America/Sao_Paulo)", dia: sp.semana, data: sp.data };
   if (!uid) return { enviado: false, motivo: "sem destinatário" };
   const cru = await banco.pessoal(uid, "mercado-alertas"), cfg = configAlertas(cru?.cfg);
   if (!cfg.push.on) return { enviado: false, motivo: "resumo diário desligado nos ajustes" };
@@ -205,7 +218,8 @@ export async function resumoAlertasPreco(adm: any, uid: string, hoje: string, en
   for (const d of dias) if (d.valor && !RETENTAVEIS.has(d.valor.estado) && Array.isArray(d.valor.ids)) for (const i of d.valor.ids) avisados.add(i);
   const rel = relevantes(gerarAlertas(rows, cfg), cru?.estado, hoje, cfg, avisados), contagem = contarPorTipo(rel), msg = montarMensagem(contagem);
   if (!msg) return { enviado: false, motivo: "sem alertas novos" };
-  const registro = { v: 1, data: hoje, estado: "enviando", ids: rel.map((a) => a.id), contagem };
+  /* a chave do dia é a chave da semana: só o domingo é elegível, então há no máximo um resumo por semana (reexecução no mesmo domingo = mesmo registro) */
+  const registro = { v: 2, data: hoje, semana: hoje, estado: "enviando", ids: rel.map((a) => a.id), contagem };
   if (!antes) { if (!(await banco.reservar(uid, chaveDia, registro))) return { enviado: false, motivo: "outro envio de hoje já reservou o resumo" }; }
   else await banco.atualizar(uid, chaveDia, registro);
   let texto = "";

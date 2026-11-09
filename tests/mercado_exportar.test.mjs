@@ -283,9 +283,13 @@ test("tela: Consumo exporta o que os filtros mostram e diz qual relatório vai s
 });
 
 test("tela: Comparar exporta A, B, filtros e a lista de produtos escolhida", () => {
-  DONO = true; T.st.cmp = null; T.usar(ROWS, { email: "dono@teste" }); T.hoje(HOJE);
+  /* a aba Comparar monta o atalho "Este mês × mês anterior" com o relógio real (não com T.hoje): o estado inicial é semeado com o mesmo atalho calculado para HOJE, para o teste não depender do dia em que roda */
+  const at = N.mkcAtalho("mes", HOJE);
+  DONO = true; T.st.cmp = { atalho: "mes", a: at.a, b: at.b, categoria: "", mercado: "", produto: "", lista: "todos", prod: null, ordP: { k: -1, d: -1 }, ordM: { k: -1, d: -1 }, todos: false };
+  T.usar(ROWS, { email: "dono@teste" }); T.hoje(HOJE);
   const body = new El("div"); T.viewComparar(body); const cap = capturar();
   try {
+    assert.deepEqual([at.a, at.b], [{ de: "2026-11-01", ate: "2026-11-08" }, { de: "2026-10-01", ate: "2026-10-31" }], "o atalho de HOJE é determinístico");
     assert.match(status(body), /Vai exportar: Comparação · A 2026-11-01 a 2026-11-08 × B 2026-10-01 a 2026-10-31 · Todos os produtos \(\d+\)/);
     sel(body, "Categoria").value = "Mercearia"; sel(body, "Categoria").onchange();
     sel(body, "Lista de produtos").value = "soa"; sel(body, "Lista de produtos").onchange();

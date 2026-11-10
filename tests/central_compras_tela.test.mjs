@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 class El {
   constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.value = ""; this.hidden = false; this.classList = { add() {}, remove() {}, toggle() {} }; }
   appendChild(c) { if (c == null || (typeof c !== "object")) throw new TypeError("appendChild: parâmetro que não é Node"); this.children.push(c); return c; } setAttribute(k, v) { this.attrs[k] = v; } addEventListener() {}
+  querySelectorAll() { return []; }
   set textContent(v) { this.children = [{ text: String(v) }]; } set innerHTML(v) { this.children = []; }
 }
 globalThis.document = { createElement: (t) => new El(t), createElementNS: (n, t) => new El(t), createTextNode: (t) => ({ text: t }), querySelector: () => null, getElementById: () => null };
@@ -77,4 +78,16 @@ test("o módulo se chama Central de Compras no menu e na casca, e as telas exist
   assert.match(idx, /data-k="mercado">.*?<span class="t">Central de Compras<\/span>/s); assert.match(idx, /<span class="t">Compras online<\/span>/);
   assert.match(src, /\["central", "Central"\], \["painel", "Painel do Mercado"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\]/);
   for (const k of ["notas", "produtos", "importar", "alertas", "radar"]) assert.match(src, new RegExp('\\["' + k + '"'));
+});
+
+test("Painel do Mercado e Notas mostram a compra marcada como online sob a plataforma, com o emissor ao lado e os totais iguais", () => {
+  globalThis.isOwner = () => true;
+  globalThis.PESSOAL = { "mercado-canais": { v: 1, notas: { "2026-11-08|WILLIAM DA COSTA FREITAS LTDA|300": { canal: "online", plataforma: "Mercado Livre" } } } };
+  T.hoje("2026-11-10"); T.usar(ROWS, { id: "u1" }); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null;
+  const p = new El("div"); T.viewPainel(p); const t = texto(p);
+  assert.ok(/Mercado Livre/.test(t), "o Painel mostra o Mercado Livre"); assert.ok(!/WILLIAM/.test(t.replace(/emissor: WILLIAM[^·]*/g, "")), "o emissor só aparece como emissor");
+  assert.ok(/emissor: WILLIAM DA COSTA FREITAS LTDA/.test(t));
+  assert.ok(t.includes(BRL(40 + 19.9)), "o total do mês do Mercado não mudou");
+  const n = new El("div"); T.viewNotas(n); const tn = texto(n); assert.ok(/Mercado Livre/.test(tn) && /emissor: WILLIAM/.test(tn));
+  globalThis.PESSOAL = {}; const q = new El("div"); T.viewPainel(q); assert.ok(/WILLIAM/.test(texto(q)), "sem a marcação, tudo como era");
 });

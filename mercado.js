@@ -177,8 +177,8 @@
     body.appendChild(exP.el); exP.atualizar();
 
     /* compras do mês por mercado (quantas e quanto), usadas no número de compras e no quadro "Por mercado" */
-    var porMercado = Object.entries(groupBy(Object.values(notasMes).map(function (l) { return l[0]; }), function (x) { return x.mercado; }))
-      .map(function (e) { var its = doMes.filter(function (x) { return x.mercado === e[0]; }); return { m: e[0], n: e[1].length, t: sum(its, function (x) { return x.valor_total; }) }; })
+    var porMercado = Object.entries(groupBy(Object.values(notasMes).map(function (l) { return l[0]; }), function (x) { return estabDe(x); }))
+      .map(function (e) { var its = doMes.filter(function (x) { return estabDe(x) === e[0]; }); return { m: e[0], n: e[1].length, t: sum(its, function (x) { return x.valor_total; }) }; })
       .sort(function (a, b) { return b.t - a.t; });
 
     var gNota = i === 0 && !rp.itens ? "primeiro mês registrado" : !rp.itens ? "sem compras em " + rotAnt : difTxt(rc.total, rp.total, money, true) + " vs " + rotAnt + " (" + money(rp.total) + ")";
@@ -262,7 +262,7 @@
     if (!ult) return p;
     var f = ult[0], tot = sum(ult, function (x) { return x.valor_total; });
     p.appendChild(h("div", { class: "ulhead" },
-      h("div", null, h("h2", { text: "Última compra" }), h("p", { class: "sub", text: semCidade(f.mercado) + " · " + dataBR(f.data) + " · " + ult.length + " itens" + (f.forma_pagamento ? " · " + f.forma_pagamento : "") })),
+      h("div", null, h("h2", { text: "Última compra" }), h("p", { class: "sub", text: semCidade(estabDe(f)) + " · " + dataBR(f.data) + " · " + ult.length + " itens" + (f.forma_pagamento ? " · " + f.forma_pagamento : "") })),
       h("b", { class: "ultot", text: money(tot) })));
     /* os itens começam recolhidos: compra grande ocupava a tela toda */
     var lista = listaProdutos(agruparProdutos(ult)), ver = h("button", { type: "button", class: "ghostbtn", "aria-expanded": "false" });
@@ -287,7 +287,7 @@
       an.onclick = function () { st.c = { per: st.mes, categoria: k.valor, mercado: "", produto: "", ord: "gasto", prod: null, todos: false }; location.hash = "#mercado/consumo"; };
       p.appendChild(h("div", { class: "vfil" }, an));
     } else {
-      var lm = doMes.filter(function (x) { return x.mercado === k.valor; });
+      var lm = doMes.filter(function (x) { return estabDe(x) === k.valor; });
       var compras = Object.values(groupBy(lm, function (x) { return x.nota; })).sort(function (a, b) { return b[0].data.localeCompare(a[0].data); });
       p.appendChild(h("div", { class: "ulhead" }, h("div", null, h("h2", { text: semCidade(k.valor) + " em " + mesTxt }), h("p", { class: "sub", text: compras.length + (compras.length === 1 ? " compra" : " compras") + " · " + money(sum(lm, function (x) { return x.valor_total; })) })), fechar));
       compras.forEach(function (l) {
@@ -320,7 +320,7 @@
       itens.innerHTML = "";
       var aberta = compras.filter(function (l) { return l[0].nota === st.kpiNota; })[0];
       if (!aberta) return;
-      itens.appendChild(h("h3", { class: "dayh", text: semCidade(aberta[0].mercado) + " · " + dataBR(aberta[0].data) }));
+      itens.appendChild(h("h3", { class: "dayh", text: semCidade(estabDe(aberta[0])) + " · " + dataBR(aberta[0].data) + emissorTxt(aberta[0]) }));
       itens.appendChild(listaProdutos(agruparProdutos(aberta)));
       itens.appendChild(botaoApagar(aberta, function () { st.kpiNota = null; drawApp("painel"); }));
     }
@@ -328,7 +328,8 @@
       var f = l[0], tot = sum(l, function (x) { return x.valor_total; }), dsc = sum(l, function (x) { return x.desconto || 0; });
       var b = h("button", { type: "button", class: "kbloco", "aria-pressed": "false" },
         h("span", { class: "kbd", text: dataBR(f.data) }),
-        h("b", { class: "kbm", text: semCidade(f.mercado) }),
+        h("b", { class: "kbm", text: semCidade(estabDe(f)) }),
+        emissorTxt(f) ? h("span", { class: "sub", text: emissorTxt(f).slice(3) }) : null,
         h("b", { class: "kbt", text: money(tot) }),
         h("span", { class: "sub", text: l.length + (l.length === 1 ? " item" : " itens") + (dsc ? " · " + money(dsc) + " de desconto" : "") + (f.forma_pagamento ? " · " + f.forma_pagamento : "") }));
       b.onclick = function () { st.kpiNota = st.kpiNota === f.nota ? null : f.nota; mostrarItens(); };
@@ -1197,7 +1198,7 @@
     var p = panel("Notas", g.length + " compras registradas");
     g.forEach(function (n) {
       var d = h("details", { class: "mknota", open: st.notaAberta === n.data + "|" + n.mercado + "|" + (n.numero || "") ? "open" : null },
-        h("summary", null, h("span", { class: "when", text: dataBR(n.data) }), h("span", { class: "mkn" }, h("b", { text: n.mercado.replace(/\s*\(.*\)$/, "") }), h("span", { class: "sub", text: " · " + n.itens.length + " itens" + (n.numero ? " · NF " + n.numero.replace(/^0+/, "") : "") })), h("b", { class: "mkt", text: money(n.total) })),
+        h("summary", null, h("span", { class: "when", text: dataBR(n.data) }), h("span", { class: "mkn" }, h("b", { text: semCidade(estabDe(n.itens[0])) }), h("span", { class: "sub", text: emissorTxt(n.itens[0]) + " · " + n.itens.length + " itens" + (n.numero ? " · NF " + n.numero.replace(/^0+/, "") : "") })), h("b", { class: "mkt", text: money(n.total) })),
         h("div", { class: "mkitens" }, n.itens.map(function (x) {
           var cx = h("div");
           var edit = h("button", { type: "button", class: "ghostbtn", "aria-label": "Editar a classificação de " + x.descricao, text: "Editar" });
@@ -1891,7 +1892,11 @@
     return page(0).then(function (d) { onl = d.map(function (x) { return NU().coDeBanco(x); }); onlAviso = ""; cuMemo = null; return onl; },
       function (e) { onl = []; onlAviso = "As compras online não carregaram agora (" + (e && e.message || e) + "). Os números abaixo são só do Mercado."; cuMemo = null; return onl; });
   }
-  function canaisLer() { var raw = typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-canais"]; return NU().cuCanaisValidos(raw); }
+  var canCache = { raw: undefined, mapa: {}, ok: false };
+  function canaisLer() { var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-canais"]) || null; if (!canCache.ok || canCache.raw !== raw) canCache = { raw: raw, mapa: NU().cuCanaisValidos(raw), ok: true }; return canCache.mapa; }
+  /* nome do estabelecimento para exibir no Painel do Mercado e em Notas: a plataforma quando o dono marcou a compra como online; o emissor da nota continua em x.mercado */
+  function estabDe(x) { var c = canaisLer()[x.nota]; return c && c.canal === "online" && c.plataforma ? c.plataforma : x.mercado; }
+  function emissorTxt(x) { return estabDe(x) !== x.mercado ? " · emissor: " + semCidade(x.mercado) : ""; }
   function centralDados() {
     var canais = canaisLer(), k = JSON.stringify(canais);
     if (cuMemo && cuMemo.rows === rows && cuMemo.onl === onl && cuMemo.k === k) return cuMemo.d;

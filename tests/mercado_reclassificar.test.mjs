@@ -135,3 +135,13 @@ test("046 (PGlite): view devolve a categoria na ordem item → produto → compr
   /* anon sem acesso à view e às tabelas */
   assert.equal((await db.query("select has_table_privilege('anon','public.compras','SELECT') a, has_table_privilege('anon','public.itens','SELECT') b")).rows[0].a, false);
 });
+
+test("a tela de Notas desenha o botão Editar em cada item e, ao tocar, abre o formulário (regressão: appendChild só aceita um argumento)", async () => {
+  const lin = [L("a", "Mercado Livre", "Cortina solar", "Mercearia", 19.9), L("b", "Mercado Livre", "Pilha", "Mercearia", 9)]; await preparar(lin); T.mig(true);
+  const achar = (e, f, out = []) => { if (e.tag && f(e)) out.push(e); (e.children || []).forEach((c) => achar(c, f, out)); return out; };
+  const texto = (e) => (e.text != null ? e.text : (e.children || []).map(texto).join(" "));
+  const corpo = new El("div"); T.viewNotas(corpo);
+  const botoes = achar(corpo, (e) => e.tag === "button" && e.attrs["aria-label"] && /^Editar a classificação/.test(e.attrs["aria-label"]));
+  assert.equal(botoes.length, 2, "um Editar por item"); assert.match(texto(corpo), /Mercearia/);
+  botoes[0].onclick(); assert.ok(achar(corpo, (e) => e.tag === "select" && e.attrs["aria-label"] === "Categoria").length === 1, "o formulário abriu no item"); assert.match(texto(corpo), /Salvar classificação/);
+});

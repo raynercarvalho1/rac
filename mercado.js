@@ -1199,10 +1199,10 @@
       var d = h("details", { class: "mknota", open: st.notaAberta === n.data + "|" + n.mercado + "|" + (n.numero || "") ? "open" : null },
         h("summary", null, h("span", { class: "when", text: dataBR(n.data) }), h("span", { class: "mkn" }, h("b", { text: n.mercado.replace(/\s*\(.*\)$/, "") }), h("span", { class: "sub", text: " · " + n.itens.length + " itens" + (n.numero ? " · NF " + n.numero.replace(/^0+/, "") : "") })), h("b", { class: "mkt", text: money(n.total) })),
         h("div", { class: "mkitens" }, n.itens.map(function (x) {
-          var box = h("div", { class: "mkitem" }), cx = h("div");
+          var cx = h("div");
           var edit = h("button", { type: "button", class: "ghostbtn", "aria-label": "Editar a classificação de " + x.descricao, text: "Editar" });
           edit.onclick = function () { cx.innerHTML = ""; cx.appendChild(formClasse(x, function (mudou) { if (mudou) { st.notaAberta = n.data + "|" + n.mercado + "|" + (n.numero || ""); drawApp("notas"); } else cx.innerHTML = ""; })); };
-          box.appendChild(h("div", { class: "mkitlinha" }, h("span", { class: "grow" }, h("b", { text: x.descricao }), h("span", { class: "sub", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.valor_unitario) })),
+          var box = h("div", { class: "mkitem" }, h("div", { class: "mkitlinha" }, h("span", { class: "grow" }, h("b", { text: x.descricao }), h("span", { class: "sub", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.valor_unitario) })),
             h("span", { class: "end" }, h("b", { text: money(x.valor_total) }), h("span", { class: "vp", text: x.categoria + (x.subcategoria ? " › " + x.subcategoria : "") }))), h("div", { class: "vfil" }, edit), cx);
           return box;
         })),
@@ -1893,5 +1893,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

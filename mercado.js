@@ -11,7 +11,7 @@
   var BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
   var PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
 
-  var sb = null, user = null, rows = null, loadingRows = null;
+  var sb = null, user = null, rows = null, loadingRows = null, mig046 = null; /* null = ainda não sei; true/false = o banco tem (ou não) a migration 046 */
   var st = { mes: null, q: "", prod: null, ord: { k: "var", d: -1 }, pmes: "" };
 
   /* ---------- utilidades ---------- */
@@ -102,10 +102,14 @@
     if (loadingRows && !force) return loadingRows;
     var out = [];
     function page(from) {
-      return sb.from("compras").select("id,data,mes,mercado,numero,forma_pagamento,categoria,descricao,produto,produto_id,quantidade,unidade,valor_unitario,valor_total,desconto,observacao")
+      var cols = "id,data,mes,mercado,numero,forma_pagamento,categoria,descricao,produto,produto_id,quantidade,unidade,valor_unitario,valor_total,desconto,observacao";
+      return sb.from("compras").select(mig046 === false ? cols : cols + ",subcategoria")
         .order("data", { ascending: true }).range(from, from + 999)
         .then(function (r) {
+          /* antes da migration 046 a coluna subcategoria não existe: tenta de novo sem ela (o Mercado continua funcionando) */
+          if (r.error && mig046 !== false && /subcategoria/i.test(r.error.message || "")) { mig046 = false; return page(from); }
           if (r.error) throw new Error(r.error.message);
+          if (mig046 === null) mig046 = true;
           out = out.concat(r.data || []);
           return (r.data || []).length === 1000 ? page(from + 1000) : out;
         });
@@ -1143,15 +1147,65 @@
   }
 
   /* ---------- Notas ---------- */
+  /* Reclassificar um item (docs/mercado-classificacao.md): muda SÓ a classificação; valor, quantidade, data, nota e mercado não são tocados.
+     escopo "item": categoria_item/subcategoria do próprio item (precisa da migration 046); escopo "produto": produtos.categoria (e subcategoria, se a 046 existir) para todas as compras do produto. */
+  function salvarClasse(item, escopo, cat, sub) {
+    var v = NU().mkClasseValida(cat, sub, rows.map(function (x) { return x.mercado; }));
+    if (!v.ok) return Promise.reject(new Error(v.erro));
+    var q;
+    if (escopo === "item") {
+      if (mig046 === false) return Promise.reject(new Error("Para mudar só este item é preciso aplicar a migration 046 (veja docs/mercado-classificacao.md)."));
+      q = sb.from("itens").update({ categoria_item: v.categoria, subcategoria: v.subcategoria }).eq("id", item.id);
+    } else {
+      if (!item.produto_id) return Promise.reject(new Error("Este item não tem produto cadastrado; use “só este item”."));
+      var campos = { categoria: v.categoria }; if (mig046 !== false) campos.subcategoria = v.subcategoria;
+      q = Promise.resolve(sb.from("produtos").update(campos).eq("id", item.produto_id)).then(ok).then(function () {
+        /* se este item tinha uma classificação só dele, ela esconderia a escolha para o produto: limpa */
+        return mig046 === false ? null : sb.from("itens").update({ categoria_item: null, subcategoria: null }).eq("id", item.id);
+      });
+    }
+    return Promise.resolve(q).then(function (r) { return r && r.error ? ok(r) : r; }).then(function () { return loadRows(true); });
+  }
+  function formClasse(item, depois) {
+    var N = NU(), opts = N.mkOpcoesCategoria(rows), atual = item.categoria;
+    var selC = h("select", { "aria-label": "Categoria" }, opts.map(function (k) { return h("option", { value: k, text: k }); }), h("option", { value: "__outra", text: "Outra (digitar)…" }));
+    selC.value = opts.indexOf(atual) >= 0 ? atual : "__outra";
+    var outra = h("input", { type: "text", placeholder: "Nome da categoria", maxlength: "40", "aria-label": "Nova categoria", value: opts.indexOf(atual) >= 0 ? "" : atual });
+    var subI = h("input", { type: "text", placeholder: "Subcategoria (opcional)", maxlength: "40", "aria-label": "Subcategoria", value: item.subcategoria || "", list: "mk-sub-" + item.id });
+    var dl = h("datalist", { id: "mk-sub-" + item.id });
+    function sugerir() { dl.innerHTML = ""; var c = selC.value === "__outra" ? outra.value : selC.value; N.mkSubOpcoes(c, rows).forEach(function (s) { dl.appendChild(h("option", { value: s })); }); outra.hidden = selC.value !== "__outra"; }
+    selC.onchange = sugerir; outra.oninput = sugerir; sugerir();
+    var temProd = !!item.produto_id;
+    var escopoSel = h("select", { "aria-label": "Aplicar a" },
+      h("option", { value: "item", text: "Só este item" + (mig046 === false ? " (precisa da migration 046)" : "") }),
+      temProd ? h("option", { value: "produto", text: "Todas as compras deste produto" }) : null);
+    escopoSel.value = mig046 === false && temProd ? "produto" : "item";
+    var msg = h("p", { class: "sub mkmsg", role: "status" }), salvar = h("button", { type: "button", class: "ghostbtn pri", text: "Salvar classificação" }), canc = h("button", { type: "button", class: "ghostbtn", text: "Cancelar" });
+    salvar.onclick = function () {
+      salvar.disabled = true; msg.textContent = "Salvando…";
+      salvarClasse(item, escopoSel.value, selC.value === "__outra" ? outra.value : selC.value, subI.value).then(function () { depois(true); }, function (e) { salvar.disabled = false; msg.textContent = e.message; });
+    };
+    canc.onclick = function () { depois(false); };
+    return h("div", { class: "mkclasse" }, h("b", { text: item.descricao }),
+      h("p", { class: "sub", text: "Comprado em " + semCidade(item.mercado) + " · o estabelecimento não muda a categoria." }),
+      h("label", null, "Categoria", selC), outra, h("label", null, "Subcategoria", subI), dl, h("label", null, "Aplicar a", escopoSel), h("div", { class: "vfil" }, salvar, canc), msg);
+  }
   function viewNotas(body) {
     var g = Object.values(groupBy(rows, function (x) { return x.nota; })).map(function (l) {
       return { data: l[0].data, mercado: l[0].mercado, numero: l[0].numero, pag: l[0].forma_pagamento, itens: l, total: sum(l, function (x) { return x.valor_total; }) };
     }).sort(function (a, b) { return b.data.localeCompare(a.data); });
     var p = panel("Notas", g.length + " compras registradas");
     g.forEach(function (n) {
-      var d = h("details", { class: "mknota" },
+      var d = h("details", { class: "mknota", open: st.notaAberta === n.data + "|" + n.mercado + "|" + (n.numero || "") ? "open" : null },
         h("summary", null, h("span", { class: "when", text: dataBR(n.data) }), h("span", { class: "mkn" }, h("b", { text: n.mercado.replace(/\s*\(.*\)$/, "") }), h("span", { class: "sub", text: " · " + n.itens.length + " itens" + (n.numero ? " · NF " + n.numero.replace(/^0+/, "") : "") })), h("b", { class: "mkt", text: money(n.total) })),
-        tabela(["Item", "Categoria", "Qtd", "Unit.", "Total"], n.itens.map(function (x) { return [x.descricao, x.categoria, fmtQtd(x.quantidade, x.unidade), money(x.valor_unitario), money(x.valor_total)]; }), 2),
+        h("div", { class: "mkitens" }, n.itens.map(function (x) {
+          var box = h("div", { class: "mkitem" }), cx = h("div");
+          var edit = h("button", { type: "button", class: "ghostbtn", "aria-label": "Editar a classificação de " + x.descricao, text: "Editar" });
+          edit.onclick = function () { cx.innerHTML = ""; cx.appendChild(formClasse(x, function (mudou) { if (mudou) { st.notaAberta = n.data + "|" + n.mercado + "|" + (n.numero || ""); drawApp("notas"); } else cx.innerHTML = ""; })); };
+          box.appendChild(h("div", { class: "mkitlinha" }, h("span", { class: "grow" }, h("b", { text: x.descricao }), h("span", { class: "sub", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.valor_unitario) })),
+            h("span", { class: "end" }, h("b", { text: money(x.valor_total) }), h("span", { class: "vp", text: x.categoria + (x.subcategoria ? " › " + x.subcategoria : "") }))), h("div", { class: "vfil" }, edit), cx);
+          return box;
+        })),
         n.pag ? h("p", { class: "sub", text: "Pagamento: " + n.pag }) : null, botaoApagar(n.itens, function () { drawApp("notas"); }));
       p.appendChild(d);
     });
@@ -1839,5 +1893,5 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

@@ -43,5 +43,5 @@ Enquanto isso, ofertas do Mercado Livre continuam sendo registradas à mão.
 
 ## Pendências desta frente (dependem do dono)
 1. Publicar a função `radar` (CLI, como a `rac-ia`). Sem isso, nada é coletado e o botão "Ler da página" só avisa.
-2. Aplicar a proposta `supabase/propostas/045_radar_rotina.sql` (agendamento 6h20 e 18h20) **depois** de publicar.
+2. Aplicar `supabase/045_radar_rotina.sql` (já aplicada) (agendamento 6h20 e 18h20) **depois** de publicar.
 3. Fornecer um link real de produto da Americanas (para validar) e, se quiser, criar o aplicativo do Mercado Livre.

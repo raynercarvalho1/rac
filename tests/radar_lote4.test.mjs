@@ -56,7 +56,7 @@ test("publicação: roteiro com --no-verify-jwt (a rotina chama sem login), proj
   assert.match(idx, /texto\.length > 20_000/);
 });
 test("SQL 045: só agenda (sem dados), nome único com unschedule antes, mesma senha do Vault, horários 9h20 e 21h20 UTC = 6h20 e 18h20 de Brasília (UTC−3, sem horário de verão)", () => {
-  const sql = ler("supabase/propostas/045_radar_rotina.sql"), ex = sql.replace(/--.*$/gm, "");
+  const sql = ler("supabase/045_radar_rotina.sql"), ex = sql.replace(/--.*$/gm, "");
   assert.equal((ex.match(/cron\.schedule\(/g) || []).length, 1); assert.equal((ex.match(/cron\.unschedule\(/g) || []).length, 1); assert.ok(ex.indexOf("cron.unschedule") < ex.indexOf("cron.schedule("));
   assert.match(ex, /'radar-rotina', '20 9,21 \* \* \*'/); assert.match(ex, /net\.http_post/); assert.match(ex, /vault\.decrypted_secrets where name = 'rac_rotina'/); assert.match(ex, /"tipo":"rodada"/);
   assert.ok(!/\b(insert|update|delete|truncate|drop|alter|create|grant|revoke)\b/i.test(ex.replace(/cron\.unschedule|cron\.schedule/g, "")), "só agendamento");

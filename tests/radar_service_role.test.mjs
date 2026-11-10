@@ -29,7 +29,7 @@ test("047 (texto): só concede ao service_role o que a função usa; nada de rev
 });
 test("047: número único, 043/045 e as migrations aplicadas intactas, e a função usa só o que foi concedido", () => {
   const nums = [...fs.readdirSync(new URL("../supabase/", import.meta.url)), ...fs.readdirSync(new URL("../supabase/propostas/", import.meta.url))].filter((f) => /^\d{3}_.*\.sql$/.test(f)).map((f) => f.slice(0, 3));
-  assert.equal(nums.filter((n) => n === "047").length, 1); assert.ok(fs.existsSync(new URL("../supabase/propostas/045_radar_rotina.sql", import.meta.url)), "a 045 não foi movida");
+  assert.equal(nums.filter((n) => n === "047").length, 1); assert.ok(fs.existsSync(new URL("../supabase/045_radar_rotina.sql", import.meta.url)), "a 045 está em supabase/ (aplicada)");
   assert.ok(!/service_role/.test(semComent(S43)), "a 043 (já aplicada) não foi editada");
   const idx = ler("supabase/functions/radar/index.ts"), usos = {};
   for (const m of idx.matchAll(/adm\.from\("(radar_[a-z]+)"\)\.(select|insert|update|delete|upsert)\(/g)) (usos[m[1]] ||= new Set()).add(m[2]);

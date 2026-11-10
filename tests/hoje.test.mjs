@@ -1115,7 +1115,7 @@ test("R4: cada situação tem a sua mensagem, e nenhuma afirma cobrança nem aus
 
 /* ---- R5: dados antigos não parecem atuais */
 test("R5: o selo de cada fonte separa 'Dados recentes' (data conferida ou registro de hoje) de 'Leitura realizada'; mostra a data e há quanto tempo; avisa quando falta origem ou data", async () => {
-  const s = telaSite({ resp: { ...RESP, compras: [{ data: "2026-10-17", valor_total: 120 }], pedidos: [{ data: "2026-11-10", total_pago: 30 }], compras_online: [{ data: "2026-10-20", loja: "X", total_pago: 10 }] }, jsons: JSONS });
+  const s = telaSite({ resp: { ...RESP, compras: [{ data: "2026-10-17", valor_total: 120 }], pedidos: [{ data: "2026-11-10", total_pago: 30 }], compras_online: [{ data: "2026-10-20", loja: "X", total_pago: 10 }] }, jsons: JSONS, extra: { Date: class extends Date { constructor(...x) { x.length ? super(...x) : super(AGORA); } static now() { return AGORA; } } } }); /* relógio fixo em AGORA: o teste não depende mais da hora real em que roda */
   s.ctx.renderHoje(); await fluxo(); const tela = s.alvos["#rachoje-view"];
   const linha = (nome) => varre(tela, (e) => e.tagName === "LI" && e.textContent.includes(nome) && /hjfontes|Leitura|Dados|Falhou|Sem dados|Desatualizada/.test(e.textContent))[0];
   const selo = (nome) => varre(linha(nome), (e) => /hjtag/.test(e.className))[0];

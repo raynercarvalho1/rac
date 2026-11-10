@@ -98,11 +98,11 @@ test("a função radar envia push só por push.ts (sem tocar na Garmin), só ao 
   assert.match(idx, /eq\("user_id", uid\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/); assert.match(idx, /sem_permissao/);
   assert.ok(!/anthropic|claude-|api\.openai/i.test(semComent(idx + push)), "sem IA na função radar");
 });
-test("proposta 045: agenda só a função radar com a senha que já existe, tem rollback, não mexe na Garmin e não está entre as migrations a rodar", () => {
-  const sql = ler("supabase/propostas/045_radar_rotina.sql"), ex = sql.replace(/--.*$/gm, "");
-  assert.match(sql.split("\n")[0], /PROPOSTA 045 · NÃO APLICADA EM PRODUÇÃO/); assert.match(ex, /cron\.schedule\('radar-rotina', '20 9,21 \* \* \*'/); assert.match(ex, /functions\/v1\/radar'/); assert.match(ex, /vault\.decrypted_secrets where name = 'rac_rotina'/);
+test("045 (aplicada): agenda só a função radar com a senha que já existe, tem rollback e não mexe na Garmin", () => {
+  const sql = ler("supabase/045_radar_rotina.sql"), ex = sql.replace(/--.*$/gm, "");
+  assert.match(sql.split("\n")[0], /^-- Aplicado em produção/); assert.match(ex, /cron\.schedule\('radar-rotina', '20 9,21 \* \* \*'/); assert.match(ex, /functions\/v1\/radar'/); assert.match(ex, /vault\.decrypted_secrets where name = 'rac_rotina'/);
   assert.match(sql, /cron\.unschedule\('radar-rotina'\)/); assert.ok(!/garmin|rac-newsletter|rac-ia/.test(ex)); assert.ok(!/create table|drop table|alter table|grant|insert into|delete from/i.test(ex));
-  assert.ok(!fs.existsSync(new URL("../supabase/045_radar_rotina.sql", import.meta.url)));
+  assert.ok(!fs.existsSync(new URL("../supabase/propostas/045_radar_rotina.sql", import.meta.url)), "saiu de propostas");
 });
 
 /* ---------- inventário de fontes ---------- */

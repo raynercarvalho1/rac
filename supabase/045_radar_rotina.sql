@@ -1,4 +1,5 @@
--- PROPOSTA 045 · NÃO APLICADA EM PRODUÇÃO (Radar de Preços, Lote 3). Só o dono roda, no SQL Editor, e só DEPOIS de publicar a função radar e de aprovar a coleta e os avisos. Pode rodar de novo sem erro.
+-- Aplicado em produção (conferido pelo dono: cron radar-rotina ativo, 6h20 e 18h20 de Brasília; a função radar publicada). A rodada passou a funcionar depois da 047 (GRANT do service_role).
+-- 045 · Agendamento do Radar de Preços (Lote 3). Pode rodar de novo sem erro.
 -- Agenda a rodada da função radar (docs/radar.md): para cada dono, coleta as ofertas de lojas liberadas e manda o aviso de oportunidades por Web Push (só ao dono, 1 por dia, sem repetir o mesmo preço).
 -- Duas rodadas por dia, às 6h20 e às 18h20 de Brasília (UTC: 9h20 e 21h20): longe das rotinas da Garmin e da Newsletter. A função respeita o intervalo mínimo de 12 h por oferta, o limite de 20 ofertas por rodada e
 -- o robots.txt de cada loja; sem nenhuma loja com "coleta liberada", a rodada só confere os avisos.

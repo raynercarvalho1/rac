@@ -82,7 +82,7 @@ O **CEP padrão** só é cadastrado/trocado na tela (8 dígitos, confirmação a
 | IA (`radar.equivalencia`) | **fiação pronta na tela, desligada por padrão** (Ajustes). Sem 044, sem republicar a `rac-ia` e sem liberação REAL, o servidor responde `sem_real` e **não cobra**. **Nenhuma chamada real já foi feita** |
 | Leitura de URL ("Ler da página") e coleta | código pronto e testado; **função `radar` não publicada**. Leitura real de páginas confirmada hoje em KaBuM e Fast Shop (`docs/radar-fontes.md`); coleta automática **não está operando** |
 | Aviso por notificação | **independente da Garmin** (`radar/push.ts` + `rotina.ts`), testado com decifragem do lado do aparelho; **não ligado**: depende de publicar a função e de agendar (045). **Nenhuma notificação foi enviada** |
-| Agendamento | proposta `supabase/propostas/045_radar_rotina.sql` (não aplicada) |
+| Agendamento | `supabase/045_radar_rotina.sql` (**aplicada**; funciona desde a 047) |
 | Mercado Livre | **depende de credencial**; mapeamento pronto e testado só com dados fictícios; ciclo OAuth ainda não existe |
 
 ### IA: o que ela pode e não pode
@@ -104,7 +104,7 @@ Só **sugere** equivalência (`provavel`, `nao_confirmada`, `divergente`; o esqu
 O envio é **`supabase/functions/radar/push.ts`**: o mesmo mecanismo da Garmin (VAPID + aes128gcm, RFC 8291/8292), copiado e adaptado — só lê as chaves VAPID de `rac_segredos` (nunca cria), só fala com as inscrições do dono e só apaga inscrição morta dele. O teste decifra a mensagem do lado do aparelho e confere a assinatura VAPID.
 - **Arquivos afetados:** só `supabase/functions/radar/` (novos: `push.ts`, `rotina.ts`; alterado: `index.ts`). **Nenhum arquivo da Garmin foi lido para alteração, alterado ou referenciado** (um teste garante que a Garmin não menciona o Radar).
 - **Garmin precisa mudar?** **Não.** A proposta anterior (um passo novo em `garmin/index.ts`) fica **descartada**, a menos que você prefira ela.
-- **Para ligar:** publicar a função `radar`; ter as notificações ativas em Sistema (chaves e aparelho inscrito); aplicar `supabase/propostas/045_radar_rotina.sql` (agenda 6h20 e 18h20 de Brasília). **Rollback:** `select cron.unschedule('radar-rotina');` desliga tudo; a função pode ser despublicada; nenhuma tabela nova.
+- **Para ligar:** publicar a função `radar`; ter as notificações ativas em Sistema (chaves e aparelho inscrito); aplicar `supabase/045_radar_rotina.sql` (agenda 6h20 e 18h20 de Brasília). **Rollback:** `select cron.unschedule('radar-rotina');` desliga tudo; a função pode ser despublicada; nenhuma tabela nova.
 - **Isolamento:** a rotina só trata donos que **não** estão em `membros`; a casa (Fernanda) nunca recebe; o site recusa membro com 403.
 
 ## Publicação da função radar (Lote 4) — roteiro para o dono
@@ -112,7 +112,7 @@ O `.claude/settings.json` nega `supabase functions deploy`, `supabase db`/`migra
 1. **Publicar só a `radar`** (projeto `hofnhbxnfebfnncwxrds`; **`--no-verify-jwt` é obrigatório**: a rotina chama sem login, e a própria função confere o login do dono ou a senha da rotina):
    `npx supabase@2.121.0 functions deploy radar --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt`
 2. **Conferir sem login** (não dispara coleta): um POST qualquer em `https://hofnhbxnfebfnncwxrds.supabase.co/functions/v1/radar` deve responder **401** `nao_autenticado`; hoje responde **404** (não publicada).
-3. **Só depois**, no SQL Editor: `show cron.timezone;` (deve ser GMT/UTC) e então o conteúdo de `supabase/propostas/045_radar_rotina.sql` (agenda **6h20 e 18h20 de Brasília** = 9h20 e 21h20 UTC; um único job `radar-rotina`; só agendamento, nenhuma tabela é tocada).
+3. **Só depois**, no SQL Editor: `show cron.timezone;` (deve ser GMT/UTC) e então o conteúdo de `supabase/045_radar_rotina.sql` (agenda **6h20 e 18h20 de Brasília** = 9h20 e 21h20 UTC; um único job `radar-rotina`; só agendamento, nenhuma tabela é tocada).
 4. **Conferir** (só leitura): `select jobid, jobname, schedule, active from cron.job where jobname = 'radar-rotina';` (exatamente 1 linha, ativo) e, depois da primeira execução, `select status, start_time, return_message from cron.job_run_details where jobid = <jobid> order by start_time desc limit 5;` e `select status, iniciada_em, ofertas_lidas, precos_gravados, falhas, erro_codigo from public.radar_coletas order by iniciada_em desc limit 10;`.
 5. **Rollback:** `select cron.unschedule('radar-rotina');` (desliga tudo) e, se quiser, despublicar a função no painel.
 Pré-requisitos do aviso: notificações ativas em Sistema (chaves VAPID em `rac_segredos` e um aparelho inscrito). Sem lojas com "coleta liberada", a rodada só confere os avisos.

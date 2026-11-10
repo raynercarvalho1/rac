@@ -1,16 +1,139 @@
 {
- "coletado": "2026-11-09T19:46:20.287899+00:00",
+ "coletado": "2026-11-10T03:33:06.493104+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "Trade Rumors Front Office Subscriber Chat, Today 2pm CT",
+   "t": "Best Fits For A Ketel Marte Trade",
+   "link": "https://www.mlbtraderumors.com/2026/11/best-fits-for-a-ketel-marte-trade.html",
+   "data": "2026-11-10T03:02:29+00:00",
+   "resumo": "Teams are expected to lay the foundation for their offseason trade talks as the GM Meetings get underway. Diamondbacks second baseman Ketel Marte is one of the biggest names available. The Snakes have more or less acknowledged that they’ll listen to offers on the three-time…",
+   "tags": [
+    "Arizona Diamondbacks",
+    "MLBTR Originals",
+    "Ketel Marte"
+   ]
+  },
+  {
+   "t": "Padres Have Expressed Interest In Tarik Skubal",
+   "link": "https://www.mlbtraderumors.com/2026/11/padres-have-expressed-interest-in-tarik-skubal.html",
+   "data": "2026-11-10T02:23:44+00:00",
+   "resumo": "The Padres are among the teams that have shown interest in Tarik Skubal in the early days of the offseason, reports Jon Morosi of The MLB Network. San Diego has been speculated as a dark horse for the two-time Cy Young winner, but this is the first definitive link to the game’s…",
+   "tags": [
+    "Newsstand",
+    "San Diego Padres",
+    "Tarik Skubal"
+   ]
+  },
+  {
+   "t": "Sal Stewart Wins NL Rookie Of The Year, Earns PPI Pick For Reds",
+   "link": "https://www.mlbtraderumors.com/2026/11/sal-stewart-wins-nl-rookie-of-the-year-earns-ppi-pick-for-reds.html",
+   "data": "2026-11-10T01:39:35+00:00",
+   "resumo": "The Baseball Writers Association of America announced Monday evening that Reds first baseman Sal Stewart has won the National League Rookie of the Year award. The win earns Cincinnati a pick after the first round of the 2027 draft via the Prospect Promotion Incentive. Stewart…",
+   "tags": [
+    "Cincinnati Reds",
+    "Newsstand",
+    "Carson Benge",
+    "JJ Wetherholt",
+    "Sal Stewart"
+   ]
+  },
+  {
+   "t": "Kevin McGonigle Wins AL Rookie Of The Year, Earns PPI Pick For Tigers",
+   "link": "https://www.mlbtraderumors.com/2026/11/kevin-mcgonigle-wins-al-rookie-of-the-year-earns-ppi-pick-for-tigers.html",
+   "data": "2026-11-10T01:07:53+00:00",
+   "resumo": "The Baseball Writers Association of America announced Monday evening that Tigers infielder Kevin McGonigle has won the AL Rookie of the Year award. McGonigle’s win earns Detroit a pick after the first round of the 2027 draft via the Prospect Promotion Incentive. McGonigle…",
+   "tags": [
+    "Detroit Tigers",
+    "Newsstand",
+    "Kevin McGonigle",
+    "Parker Messick",
+    "Payton Tolle"
+   ]
+  },
+  {
+   "t": "Cardinals, JoJo Romero Have Mutual Interest In Reunion",
+   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-interested-in-reunion-with-jojo-romero.html",
+   "data": "2026-11-10T00:17:42+00:00",
+   "resumo": "6:17pm: Jeff Jones of The Belleville News-Democrat reports that there’s interest on both sides in a reunion. 11:13am: After shipping him to Milwaukee at the trade deadline, the Cardinals have interest in bringing back left-hander JoJo Romero, reports Derrick Goold of the St.…",
+   "tags": [
+    "St. Louis Cardinals",
+    "JoJo Romero"
+   ]
+  },
+  {
+   "t": "Latest On Ben Brown",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-ben-brown.html",
+   "data": "2026-11-09T23:43:19+00:00",
+   "resumo": "The health of Cubs right-hander Ben Brown is still up in the air. Sahadev Sharma of The Athletic reports that Brown, who battled a neck injury in 2026, still hasn’t been cleared to throw and a future surgery still hasn’t been ruled out. It’s a frustrating situation for Brown,…",
+   "tags": [
+    "Chicago Cubs",
+    "Ben Brown"
+   ]
+  },
+  {
+   "t": "Mets Outright Kyren Paris",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-outright-kyren-paris.html",
+   "data": "2026-11-09T22:36:38+00:00",
+   "resumo": "The Mets have sent infielder Kyren Paris outright to Triple-A Syracuse after he cleared waivers, reports Anthony DiComo of MLB.com. Paris had been designated for assignment last week. This is the first career outright for Paris and he has less than three years of big league…",
+   "tags": [
+    "New York Mets",
+    "Transactions",
+    "Kyren Paris"
+   ]
+  },
+  {
+   "t": "Dipoto: Mariners Eyeing Bullpen Upgrades, At Least One Bat",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-rumors-bullpen-infield-one-maybe-two-bats.html",
+   "data": "2026-11-09T22:07:15+00:00",
+   "resumo": "With Jason Kanzler installed as the new skipper out in Seattle, the Mariners have one piece of offseason business checked off the list. There will still be a handful of coaching hires to sort out, but with the GM Meetings underway in Las Vegas, the focus will also turn to…",
+   "tags": [
+    "Seattle Mariners"
+   ]
+  },
+  {
+   "t": "Dodgers Claim Christian Cairo",
+   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-claim-christian-cairo.html",
+   "data": "2026-11-09T22:00:08+00:00",
+   "resumo": "The Dodgers announced that they have claimed infielder Christian Cairo off waivers from the Mets. New York designated him for assignment last week. The Dodgers had three vacancies on their 40-man roster and don’t need to make a corresponding move. The Mets claimed Cairo off…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "New York Mets",
+    "Transactions",
+    "Christian Cairo"
+   ]
+  },
+  {
+   "t": "Latest On Emilio Pagán",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-emilio-pagan.html",
+   "data": "2026-11-09T20:57:33+00:00",
+   "resumo": "Right-hander Emilio Pagán recently turned down a $10MM player option with the Reds, thus becoming a free agent. Gordon Wittenmyer of the Cincinnati Enquirer reports that Pagán already has a busy market and would prefer to sign before the lockout, so perhaps he will have a deal…",
+   "tags": [
+    "Cincinnati Reds",
+    "Emilio Pagan"
+   ]
+  },
+  {
+   "t": "Trade Rumors Front Office Subscriber Chat Transcript",
    "link": "https://www.mlbtraderumors.com/2026/11/trade-rumors-front-office-subscriber-chat-today-2pm-ct-23.html",
-   "data": "2026-11-09T18:39:40+00:00",
-   "resumo": "MLBTR’s Steve Adams is hosting a live chat today at 2pm CT, exclusively for Trade Rumors Front Office subscribers. Unlock Subscriber-Exclusive Articles Like This One With a Trade Rumors Front Office Subscription BENEFITS Access weekly subscriber-only articles by Tim Dierkes,…",
+   "data": "2026-11-09T19:59:40+00:00",
+   "resumo": "Steve Adams Good afternoon! I’ll get going at 2pm CT, but feel free to begin submitting questions at any point. Hello! Let’s get underway Arise, Sir Loin of Beef Is Alec Bohm (other than being Alec Bohm) a fit for the Ments? Steve Adams I see Bohm being more a fit for them than…",
    "tags": [
     "Front Office Originals",
     "MLBTR Chats"
+   ]
+  },
+  {
+   "t": "Phillies Interested In Ha-Seong Kim",
+   "link": "https://www.mlbtraderumors.com/2026/11/phillies-interested-in-ha-seong-kim.html",
+   "data": "2026-11-09T19:50:32+00:00",
+   "resumo": "The Phillies have some work to do with their infield and are interested in free agent Ha-Seong Kim, reports Jim Salisbury of NBC Sports Philadelphia. Salisbury mentions Mauricio Dubón as another free agent who would fit into Philadelphia’s plans but says Dubón is looking for a…",
+   "tags": [
+    "Philadelphia Phillies",
+    "Aidan Miller",
+    "Ha-Seong Kim",
+    "Mauricio Dubon",
+    "Trea Turner"
    ]
   },
   {
@@ -25,16 +148,6 @@
     "Dustin May",
     "Patrick Sandoval",
     "Sean Newcomb"
-   ]
-  },
-  {
-   "t": "Cardinals Interested In Reunion With JoJo Romero",
-   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-interested-in-reunion-with-jojo-romero.html",
-   "data": "2026-11-09T17:13:42+00:00",
-   "resumo": "After shipping him to Milwaukee at the trade deadline, the Cardinals have interest in bringing back left-hander JoJo Romero, reports Derrick Goold of the St. Louis Post-Dispatch. Romero was a crucial cog in a Brewers’ bullpen that dominated en route to a title. St. Louis closed…",
-   "tags": [
-    "St. Louis Cardinals",
-    "JoJo Romero"
    ]
   },
   {
@@ -58,113 +171,21 @@
     "Newsstand",
     "Tarik Skubal"
    ]
-  },
-  {
-   "t": "Submit Your Questions For This Week’s Episode Of The MLBTR Podcast",
-   "link": "https://www.mlbtraderumors.com/2026/11/submit-your-questions-for-this-weeks-episode-of-the-mlbtr-podcast-54.html",
-   "data": "2026-11-09T15:06:58+00:00",
-   "resumo": "On the MLB Trade Rumors podcast, we regularly answer questions from our readers and listeners. With the next episode set for Wednesday, we’re looking for MLBTR’s audience to submit their questions and we’ll pick a few to answer. The offseason is here. Do you have a question…",
-   "tags": [
-    "Uncategorized"
-   ]
-  },
-  {
-   "t": "The Opener: GM Meetings, Offseason Outlooks, Tigers",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-gm-meetings-offseason-outlooks-tigers.html",
-   "data": "2026-11-09T14:51:41+00:00",
-   "resumo": "Our This Day in Baseball tool is a handy resource for finding the biggest stories from previous years. During the week of the GM Meetings in 2024, for example, it was revealed that Mets owner Steve Cohen had a sit-down lined up with Juan Soto and agent Scott Boras. That…",
-   "tags": [
-    "The Opener"
-   ]
-  },
-  {
-   "t": "Looking For A Match In A Steven Kwan Trade",
-   "link": "https://www.mlbtraderumors.com/2026/11/looking-for-a-match-in-a-steven-kwan-trade.html",
-   "data": "2026-11-09T05:26:31+00:00",
-   "resumo": "“As we sit here today, we’re expecting Steven Kwan to be a big part of a contending team next year,” Guardians president of baseball operations Chris Antonetti told reporters during the team’s season wrap-up press conference after the ALCS. This was something less than a…",
-   "tags": [
-    "Cleveland Guardians",
-    "Looking For A Match In A Trade",
-    "MLBTR Originals",
-    "Steven Kwan"
-   ]
-  },
-  {
-   "t": "MLBTR Chat Transcript",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-live-chat-925.html",
-   "data": "2026-11-09T03:50:09+00:00",
-   "resumo": "Mark P Welcome to the Weekend Chat! We’ll get to it in a minute, once a few questions start piling up… CASHMAN How fast do I sign Bednar and Morejan? Mark P You’d think the Yankees would have a strong interest in a reunion with Bednar, first and foremost. So he might be the…",
-   "tags": [
-    "MLBTR Chats"
-   ]
-  },
-  {
-   "t": "Tigers Scouted Teruaki Sato, Kaima Taira; Showed Past Interest In Shota Imanaga",
-   "link": "https://www.mlbtraderumors.com/2026/11/tigers-scouted-teruaki-sato-kaima-taira-showed-past-interest-in-shota-imanaga.html",
-   "data": "2026-11-08T22:42:11+00:00",
-   "resumo": "The Tigers are among the many MLB teams who have scouted Teruaki Sato and Kaima Taira, Evan Petzold reports in a YouTube video exploring several potential targets for the Tigers this winter. Petzold notes Shota Imanaga as a possible rotation addition, with the added detail that…",
-   "tags": [
-    "Detroit Tigers",
-    "Kaima Taira",
-    "Shota Imanaga",
-    "Teruaki Sato"
-   ]
-  },
-  {
-   "t": "Poll: Which Team Will Sign Luis Arraez?",
-   "link": "https://www.mlbtraderumors.com/2026/11/poll-which-team-will-sign-luis-arraez.html",
-   "data": "2026-11-08T20:59:53+00:00",
-   "resumo": "Infielder Luis Arraez has long been baseball’s best contact hitter, as well as one of the most difficult players to value. In 4,188 career plate appearances, he has an excellent .316 batting average and an impressive total of 1,213 hits, including two seasons with at least 200…",
-   "tags": [
-    "MLBTR Originals",
-    "MLBTR Polls",
-    "Luis Arraez"
-   ]
-  },
-  {
-   "t": "Luis Robert Jr. And The Risk Of Chasing Upside",
-   "link": "https://www.mlbtraderumors.com/2026/11/luis-robert-jr-and-the-risk-of-chasing-upside.html",
-   "data": "2026-11-08T18:52:42+00:00",
-   "resumo": "Three years ago, Luis Robert Jr. had just wrapped up quite the breakout season for the White Sox. After showing flashes of his five-tool potential from 2020-22, Robert proceeded to bat .264/.315/.542 with a 129 wRC+ in 145 games for the Pale Hose. He contributed 38 home runs,…",
-   "tags": [
-    "Baltimore Orioles",
-    "MLBTR Originals",
-    "Luis Robert"
-   ]
-  },
-  {
-   "t": "Emilio Pagán Keeps Getting It Done",
-   "link": "https://www.mlbtraderumors.com/2026/11/emilio-pagan-keeps-getting-it-done.html",
-   "data": "2026-11-08T16:53:42+00:00",
-   "resumo": "Right-handed reliever Emilio Pagán is a free agent after declining his $10MM player option with the Reds. We ranked him at No. 35 on our list of the Top 50 Free Agents, and two of MLBTR’s three full-time writers expect him to rejoin the Reds on a new deal. As noted in that…",
-   "tags": [
-    "Cincinnati Reds",
-    "MLBTR Originals",
-    "Emilio Pagan"
-   ]
-  },
-  {
-   "t": "Eric Wagaman Elects Free Agency",
-   "link": "https://www.mlbtraderumors.com/2026/11/eric-wagaman-elects-free-agency.html",
-   "data": "2026-11-08T15:01:55+00:00",
-   "resumo": "Infielder Eric Wagaman has elected free agency, according to his transactions log at MLB.com. That was the expected outcome after the Mets outrighted him off the 40-man roster a week ago. He’s now on the market as a low-cost, minor league depth option. Wagaman debuted with the…",
-   "tags": [
-    "New York Mets",
-    "Transactions",
-    "Eric Wagaman"
-   ]
-  },
-  {
-   "t": "The Opener: France, Scherzer, Free Agent Prediction Contest",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-france-scherzer-free-agent-prediction-contest.html",
-   "data": "2026-11-08T14:02:36+00:00",
-   "resumo": "On this day in 1954, the then-Philadelphia Athletics were set to relocate to Kansas City through a 6-2 vote of the American League owners. The A’s had won five World Series titles in their 54-year run in Philadelphia, the last one coming in 1930, but they mostly struggled from…",
-   "tags": [
-    "The Opener"
-   ]
   }
  ],
  "dodgers": [
+  {
+   "t": "Dodgers Claim Christian Cairo",
+   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-claim-christian-cairo.html",
+   "data": "2026-11-09T22:00:08+00:00",
+   "resumo": "The Dodgers announced that they have claimed infielder Christian Cairo off waivers from the Mets. New York designated him for assignment last week. The Dodgers had three vacancies on their 40-man roster and don’t need to make a corresponding move. The Mets claimed Cairo off…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "New York Mets",
+    "Transactions",
+    "Christian Cairo"
+   ]
+  },
   {
    "t": "Hitting Coach Aaron Bates To Leave Dodgers Organization",
    "link": "https://www.mlbtraderumors.com/2026/11/hitting-coach-aaron-bates-to-leave-dodgers-organization.html",

@@ -70,8 +70,8 @@ test("só leitura nas tabelas de compras: a Central não insere, atualiza nem ap
   assert.ok(ini > 0 && fim > ini);
   assert.doesNotMatch(bloco, /\.(insert|update|upsert|delete|rpc)\(/, "a Central só lê");
   assert.match(bloco, /pessoalGravar\("mercado-canais"/); assert.match(bloco, /from\("compras_online"\)\.select\(/);
-  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(04[7-9]|05)/.test(f));
-  assert.deepEqual(novas, [], "nenhuma migration nova foi criada");
+  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(048|049|05)/.test(f));
+  assert.deepEqual(novas, [], "a Central não criou migration (a 047 é do Radar)");
 });
 test("o módulo se chama Central de Compras no menu e na casca, e as telas existentes continuam", () => {
   const idx = ler("index.html"), src = ler("mercado.js");

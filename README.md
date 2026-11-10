@@ -63,6 +63,8 @@ para campo do banco. É da casa (Rayner e Fernanda). Foto e PDF (só o dono): li
 
 ## Central de Compras
 
+Central de Compras (`#mercado`, aba **Central**; detalhes em `docs/central-compras.md`): visão única de tudo o que foi comprado, juntando as notas do Mercado e os pedidos online, com filtros de período, canal (presencial/online), estabelecimento e categoria. Só lê as duas fontes (sem tabela nem migration nova), mantém o cálculo de cada uma e não soma a mesma compra duas vezes.
+
 Página `#compras` (`js/compras.js`): pedidos de lojas online (Amazon primeiro, Mercado Livre e outras no mesmo formato) importados de PDF,
 DANFE, XML, CSV/ZIP, e-mails (Gmail, só leitura, com os anexos PDF e XML) e prints com OCR local, com os arquivos originais no cofre, junção dos
 documentos do mesmo pedido, divergências, duplicidade, recorrências a confirmar e histórico de preços (SQL 025). Entra no Painel e no

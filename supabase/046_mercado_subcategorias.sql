@@ -1,5 +1,5 @@
--- status: pendente
--- PROPOSTA 046 · NÃO APLICADA EM PRODUÇÃO (Mercado: reclassificar itens e subcategoria). O dono roda no SQL Editor; o site funciona antes e depois (sem ela, a edição "só este item" e a subcategoria ficam desligadas com aviso).
+-- Aplicado em produção em 10/11/2026 (conferido pelo dono: colunas itens.categoria_item, itens.subcategoria, produtos.subcategoria e compras.subcategoria; view security_invoker; anon sem acesso; alimentacao_gastos responde; totais iguais: Mercado 46 notas R$ 8030,63, online 2 pedidos R$ 154,85).
+-- 046 · Mercado: reclassificar itens e subcategoria. O site funciona antes e depois (sem ela, a edição "só este item" e a subcategoria ficavam desligadas com aviso).
 -- Por que existe: hoje a categoria de um item vem do PRODUTO (view compras: coalesce(p.categoria, i.categoria)); corrigir um item sem mexer nas outras compras do mesmo produto não é possível, e não há subcategoria.
 -- O que faz (só acrescenta; nada é apagado nem regravado):
 --   itens.categoria_item   categoria só deste item (opcional; vence a do produto)

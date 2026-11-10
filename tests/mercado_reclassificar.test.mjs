@@ -99,12 +99,12 @@ test("tela: cada item mostra categoria › subcategoria e um botão Editar; o fo
 });
 
 /* ---------- SQL 046 num Postgres de verdade ---------- */
-const SQL = ler("supabase/propostas/046_mercado_subcategorias.sql");
-test("046 (texto): só acrescenta colunas e recria a view; nada destrutivo; proposta não aplicada e fora das migrations", () => {
+const SQL = ler("supabase/046_mercado_subcategorias.sql");
+test("046 (texto): só acrescenta colunas e recria a view; nada destrutivo; aplicada em produção em 10/11/2026", () => {
   const ex = SQL.replace(/--.*$/gm, "");
-  assert.match(SQL.split("\n")[0], /status: pendente/); assert.match(SQL, /NÃO APLICADA EM PRODUÇÃO/); assert.ok(!/\b(drop table|truncate|delete from|update public|insert into)\b/i.test(ex));
+  assert.match(SQL.split("\n")[0], /^-- Aplicado em produção em 10\/11\/2026/); assert.ok(!/\b(drop table|truncate|delete from|update public|insert into)\b/i.test(ex));
   assert.ok(!/drop column/i.test(ex), "o drop column só existe no rollback comentado"); assert.match(ex, /coalesce\(i\.categoria_item, p\.categoria, i\.categoria\) as categoria/); assert.match(ex, /revoke all on public\.compras from anon/); assert.match(ex, /security_invoker = true/);
-  assert.ok(!fs.existsSync(new URL("../supabase/046_mercado_subcategorias.sql", import.meta.url)));
+  assert.ok(!fs.existsSync(new URL("../supabase/propostas/046_mercado_subcategorias.sql", import.meta.url)), "saiu de propostas");
 });
 test("046 (PGlite): view devolve a categoria na ordem item → produto → compra, subcategoria, valores intactos, totais iguais antes de editar; RLS e anon continuam", { skip: !PGlite }, async () => {
   const R = "11111111-1111-4111-8111-111111111111", X = "33333333-3333-4333-8333-333333333333", db = await (async () => { const d = globalThis.document, w = globalThis.window; delete globalThis.document; delete globalThis.window; try { return await PGlite.create(); } finally { globalThis.document = d; globalThis.window = w; } })();

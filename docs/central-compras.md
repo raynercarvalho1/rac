@@ -31,7 +31,7 @@ Período (últimos meses, 12 meses, Tudo) + canal (Todas/Presenciais/Online) + e
 - Os testes comparam o total com a soma original do Mercado e com `coResumo`, e conferem `contam + fora = todos os pedidos`.
 
 ## Migration 046 e o que ainda precisa de banco
-A Central **não depende** da 046: sem ela as notas aparecem sem subcategoria. Com ela, a subcategoria (ex.: Automotivo › Proteção) aparece nos itens. A 046 continua **proposta, não aplicada**; para saber, rode `supabase/conferencias/central_compras_conferir.sql` (só leitura; também localiza a cortina, os itens de Pet/Amazon e repetições).
+A Central **não depende** da 046: sem ela as notas aparecem sem subcategoria. Com ela, a subcategoria (ex.: Automotivo › Proteção) aparece nos itens. A 046 foi **aplicada em produção em 10/11/2026** (conferência em `supabase/conferencias/central_compras_pos046.sql`, só leitura). Achado real: no online há um item Pet (Bravecto, Amazon) e um pedido de papel higiênico em 2 linhas, categoria "Outros" (não é Pet); não há Pet nas notas do Mercado nem repetição nota × pedido.
 Pendências conscientes (precisariam de SQL, não feitas): subcategoria dos itens online (hoje só a categoria) e gravar o canal da nota numa coluna em vez de `pessoal`.
 
 ## Futuro (não implementado; nada impede)

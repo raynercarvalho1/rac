@@ -52,7 +52,7 @@ test("publicação: roteiro com --no-verify-jwt (a rotina chama sem login), proj
   assert.match(doc, cmd); assert.ok(!/functions deploy (garmin|rac-ia|rac-newsletter)/.test(doc.split("## Publicação da função radar")[1] || ""), "o roteiro não publica outra função");
   const idx = ler("supabase/functions/radar/index.ts");
   assert.match(idx, /rac_rotina_ok[\s\S]*?nao_autenticado/); assert.match(idx, /getUser\(jwt\)/); assert.match(idx, /if \(mem\) return json\(\{ ok: false, erro: "sem_permissao" \}, 403\)/);
-  assert.ok(!/console\.(log|info|debug)/.test(idx) && idx.split(/\r?\n/).filter((l) => /console\./.test(l)).every((l) => /\?\.name/.test(l)), "logs só com o nome do erro, nunca dados");
+  assert.ok(!/console\.(log|info|debug)/.test(idx) && idx.split(/\r?\n/).filter((l) => /console\./.test(l)).every((l) => /registroDeErro/.test(l)), "logs só pelo registro sanitizado (diag.ts)");
   assert.match(idx, /texto\.length > 20_000/);
 });
 test("SQL 045: só agenda (sem dados), nome único com unschedule antes, mesma senha do Vault, horários 9h20 e 21h20 UTC = 6h20 e 18h20 de Brasília (UTC−3, sem horário de verão)", () => {

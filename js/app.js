@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-12.5",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-12.7",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],fiscal:["fiscal"],rachoje:["hoje"],iacustos:["iacustos"]};
@@ -96,6 +96,7 @@
     /* Voltar no topo: volta pelo histórico quando ele é deste site; senão, sobe um nível (ex.: da candidatura para a Carreira) */
     marcarProfundidade();VOLTAR_PAI=parts.length>1&&parts[1]?"#"+parts[0]:(top==="inicio"?"":PAPEL==="casa"?"":"#inicio");
     $("#voltarbtn").hidden=!(PROF>0||VOLTAR_PAI);
+    var vf=$(".voltarbtn");if(vf)vf.hidden=!(PROF>0||VOLTAR_PAI);   /* o ← flutuante (celular) segue a MESMA regra do voltar da barra de título: em todas as páginas, menos onde não há para onde voltar (Início) */
     setSide(false);
     window.scrollTo(0,0);
     if(top==="x"){var cat=xCats().some(function(c){return c.k===parts[1]})?parts[1]:"";sideMark(cat?"x/"+cat:"x","x");renderX(cat);return}
@@ -142,7 +143,8 @@
   var PROF=-1,VOLTAR_PAI="";
   function marcarProfundidade(){var st=history.state;if(st&&typeof st.racD==="number")PROF=st.racD;else{PROF=PROF+1;try{history.replaceState({racD:PROF},"")}catch(e){}}}
   $("#atubtn").addEventListener("click",function(){atuAtualizar()});
-  $("#voltarbtn").addEventListener("click",function(){if(PROF>0)history.back();else if(VOLTAR_PAI)location.hash=VOLTAR_PAI});
+  function voltarPagina(){if(PROF>0)history.back();else if(VOLTAR_PAI)location.hash=VOLTAR_PAI}
+  $("#voltarbtn").addEventListener("click",voltarPagina);
 
   /* Barra lateral: no celular ela desliza por cima do conteúdo */
   var app=$("#app");
@@ -597,6 +599,8 @@
     html.classList.add("logado");html.classList.toggle("casa",PAPEL==="casa");
     $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();
     if(!$(".capbtn")){var cb=h("button",{type:"button",class:"capbtn","aria-label":"Anotar rápido",title:"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)",text:"+"});cb.onclick=function(){abrirCaptura()};document.body.appendChild(cb)}
+    /* voltar à página anterior: ← flutuante em cima do menu ☰ (celular), em todas as páginas; a regra de quando aparece e para onde vai é a do voltar da barra de título */
+    if(!$(".voltarbtn")){var vb=h("button",{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"});vb.onclick=voltarPagina;vb.hidden=!(PROF>0||VOLTAR_PAI);document.body.appendChild(vb)}
     /* voltar ao topo: aparece em cima do "+" depois de rolar um pouco a página */
     if(!$(".topobtn")){var tb=h("button",{type:"button",class:"topobtn","aria-label":"Voltar ao topo da página",title:"Voltar ao topo",hidden:""},"↑");
       tb.onclick=function(){scrollTo({top:0,behavior:"smooth"})};document.body.appendChild(tb);

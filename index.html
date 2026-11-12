@@ -1137,6 +1137,16 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado .rtd-prod{margin:0;display:flex;flex-wrap:wrap;gap:4px;align-items:baseline}
 #mercado .rtc-dif{margin:0;font-size:calc(12px + var(--fz));color:var(--muted);overflow-wrap:anywhere}#mercado .rtc-dif-alerta{color:var(--warn)}
 #mercado .rtc-cmp{margin:0;padding:6px 10px;border-radius:10px;background:var(--hover);font-size:calc(13px + var(--fz));overflow-wrap:anywhere}
+/* voltar flutuante (celular): acima do menu ☰; Produtos: nome abre a página e "Renomear" é um botão; caixas e linhas que levam à compra */
+.voltarbtn{position:fixed;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:24;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;padding:0;background:var(--glass);color:var(--ink);font:700 24px/1 var(--f-ui);border:0;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+@media(min-width:861px){.voltarbtn{display:none!important}}
+.menuflut[hidden]~.voltarbtn{bottom:calc(16px + env(safe-area-inset-bottom,0px))}   /* sem o ☰ visível (topo da página), o ← desce para o lugar dele */
+@media(max-width:860px){#mercado-view{padding-bottom:104px}}
+#mercado .mkpcel{display:flex;align-items:center;gap:8px;min-width:0}#mercado .mkpcel .mkpname{flex:1;min-width:0}
+#mercado .mkplink{flex:1;min-width:0;font-weight:600;color:var(--ink);text-decoration:none;overflow-wrap:anywhere;padding:6px 0}#mercado .mkplink:hover{color:var(--accent);text-decoration:underline}
+#mercado .mkpren{flex:none;padding:3px 10px;font-size:calc(12px + var(--fz))}
+#mercado .mkkpi-link,#mercado a.mkkpi{text-decoration:none;color:inherit;cursor:pointer}#mercado a.mkkpi:hover{border-color:var(--accent);box-shadow:var(--shadow)}#mercado .mkkpi .kgo{font-size:calc(12px + var(--fz));color:var(--accent);font-weight:600}
+#mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>

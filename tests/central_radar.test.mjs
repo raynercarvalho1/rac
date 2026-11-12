@@ -61,3 +61,10 @@ test("categoria: produtos da categoria com último preço pago, menor pago e com
   const pao = c.produtos.find((p) => p.nome === "Pão Francês"); assert.deepEqual([pao.ultimo.preco, pao.ultimo.data, pao.ultimo.mercado, pao.menor, pao.compras, pao.unidade], [16.5, "2026-11-02", "Reinaldo", 16.5, 2, "kg"]);
   assert.deepEqual(N.pcCategoria(rows, "Inexistente").produtos, []); assert.ok(!c.produtos.some((p) => p.nome === "Leite"));
 });
+
+test("compra de origem: a chave é a da tela Notas (data|estabelecimento|número); categoria devolve a nota do último e do MENOR preço pago", () => {
+  assert.equal(N.pcNotaChave({ data: "2026-11-02", mercado: "Reinaldo", numero: "12" }), "2026-11-02|Reinaldo|12"); assert.equal(N.pcNotaChave({ data: "2026-11-02", mercado: "Reinaldo" }), "2026-11-02|Reinaldo|");
+  const L = (id, data, vu, mercado, numero) => ({ id, data, mk: data.slice(0, 7), produto: "Pão", categoria: "Padaria", unidade: "kg", quantidade: 1, valor_unitario: vu, valor_total: vu, mercado, numero, nota: data + "|" + mercado + "|" + (numero || "") });
+  const p = N.pcCategoria([L("1", "2026-09-01", 12, "Confiança", "7"), L("2", "2026-10-01", 18, "Reinaldo", "8"), L("3", "2026-11-02", 16.5, "Confiança", "9")], "Padaria").produtos[0];
+  assert.deepEqual([p.ultimo.preco, p.ultimo.nota, p.menor, p.menorNota], [16.5, "2026-11-02|Confiança|9", 12, "2026-09-01|Confiança|7"], "o menor preço pago vem de outra compra que o último");
+});

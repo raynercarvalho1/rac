@@ -108,6 +108,66 @@ test("código: as visões novas só leem as compras e só escrevem em radar_iten
   const m = ler("mercado.js"), i0 = m.indexOf("/* ---------- Categoria e Produto:"), i1 = m.indexOf("/* ---------- Produtos: renomear"); assert.ok(i0 > 0 && i1 > i0); const b = m.slice(i0, i1);
   assert.equal([...b.matchAll(/\.insert\(/g)].length, 1); assert.match(b, /from\("radar_itens"\)\.insert\(\{ nome: nome\.slice\(0, 160\), origem: "comprado" \}\)/);
   assert.ok(!/\.(update|delete|upsert|rpc)\(|functions\.invoke|racIA|anthropic|serpapi/i.test(b)); assert.ok(!/from\("(compras|radar_precos|radar_ofertas|radar_coletas|radar_lojas)"\)/.test(b), "não toca em compras nem em preços");
-  assert.match(b, /pessoalGravar\("radar-vinculos"/); assert.match(b, /if \(!ehDono\(\)\) return;/);
+  assert.match(b, /pessoalGravar\("radar-vinculos"/); assert.match(b, /if \(!ehDono\(\)\) \{ body\.appendChild\(reg\); return; \}/);
   assert.match(ler("js/app.js"), /RACmercado\.render\(parts\[1\]\|\|"",parts\[2\]\|\|""\)/);
+});
+
+/* ---------- ajustes pedidos pelo dono em 12/11/2026: ordem, compra de origem, Produtos, voltar ---------- */
+globalThis.document.body = new El("body"); El.prototype.removeAttribute = function (k) { delete this.attrs[k]; }; const T2 = globalThis.window.RACmercado._teste, indice = (t, x) => t.indexOf(x);
+const abrirComLinhas = async (sub, arg, linhas, { dono = true, db = {} } = {}) => {
+  DONO = dono; gravacoes.length = 0; montarOfertas.length = 0; globalThis.PESSOAL = {}; const calls = []; T.trocarSb(fakeSb(db, calls)); T.usar(linhas, { email: "dono@exemplo.com" });
+  T.drawApp(sub, arg); await esperar(); return calls;
+};
+const NOTA_FEV = "2026-11-02|Reinaldo|", NOTA_OUT = "2026-10-01|Confiança|";
+
+test("produto: as ofertas da internet ficam ACIMA de 'Comprou? Registre a compra' (com e sem vínculo); para a casa nada de ofertas", async () => {
+  await abrir("produto", encodeURIComponent("Pão Francês"), { db: { radar_itens: ITENS } }); let t = tudo();
+  assert.ok(indice(t, "Ofertas na internet") > 0 && indice(t, "Ofertas na internet") < indice(t, "Comprou? Registre a compra"), "sem vínculo");
+  await abrir("produto", encodeURIComponent("Pão Francês"), { vinculos: { [N.pcChave("Pão Francês")]: ID1 }, db: { radar_itens: ITENS } }); t = tudo();
+  assert.ok(indice(t, "OFERTAS-EMBUTIDAS") > 0 && indice(t, "OFERTAS-EMBUTIDAS") < indice(t, "Comprou? Registre a compra"), "com vínculo: as ofertas vêm antes do registro de compra");
+  await abrir("produto", encodeURIComponent("Pão Francês"), { dono: false }); t = tudo(); assert.ok(!t.includes("Ofertas na internet") && !t.includes("Radar de Preços"));
+});
+
+test("cada caixa de valor leva à COMPRA onde o valor foi registrado (tela Notas com a nota aberta); média e contagem levam ao histórico; cada linha do histórico também abre a sua compra", async () => {
+  await abrir("produto", encodeURIComponent("Pão Francês"), { db: { radar_itens: ITENS } });
+  const caixa = (rot) => achar(ROOT, (e) => e.tag === "a" && /mkkpi/.test(e.className) && texto(e).includes(rot))[0];
+  for (const [rot, nota] of [["Último pago", NOTA_FEV], ["Menor pago", NOTA_FEV]]) {
+    const a = caixa(rot); assert.ok(a, rot + " é um link"); assert.equal(a.attrs.href, "#mercado/notas"); assert.match(a.attrs.title, /Abrir a compra de 02\/11\/2026/); assert.ok(texto(a).includes("Ver a compra"));
+    globalThis.location.hash = ""; T.st.notaAberta = null; a.onclick({ preventDefault() {} }); assert.equal(T.st.notaAberta, nota, rot + " → nota de origem"); assert.equal(globalThis.location.hash, "#mercado/notas");
+  }
+  for (const rot of ["Preço médio", "Compras"]) { const a = caixa(rot); assert.ok(a && texto(a).includes("Ver as compras"), rot + " leva ao histórico"); globalThis.location.hash = "x"; a.onclick({ preventDefault() {} }); assert.equal(globalThis.location.hash, "x", "não navega: só rola até o histórico"); }
+  const linhas = achar(ROOT, (e) => e.tag === "a" && /plr/.test(e.className)); assert.equal(linhas.length, 2, "uma linha por compra");
+  assert.equal(linhas[0].attrs.href, "#mercado/notas"); T.st.notaAberta = null; linhas[0].onclick({ preventDefault() {} }); assert.equal(T.st.notaAberta, NOTA_FEV, "a mais recente"); linhas[1].onclick({ preventDefault() {} }); assert.equal(T.st.notaAberta, NOTA_OUT, "a mais antiga");
+  /* a tela Notas abre exatamente aquela nota */
+  T.drawApp("notas"); await esperar(); const abertas = achar(ROOT, (e) => e.tag === "details" && e.attrs.open === "open"); assert.equal(abertas.length, 1, "só a nota de origem fica aberta");
+  assert.deepEqual(gravacoes, [], "navegar não grava nada");
+});
+
+test("categoria: 'último preço pago' e 'menor pago' abrem a compra de origem", async () => {
+  await abrir("categoria", "Padaria", {});
+  const tx = (e) => texto(e).replace(/ /g, " "), ult = achar(ROOT, (e) => e.tag === "a" && /mkpc-pago/.test(e.className) && tx(e).includes("R$ 16,50")), menor = achar(ROOT, (e) => e.tag === "a" && /mk-inline/.test(e.className) && tx(e).includes("Menor pago R$ 16,50"));
+  assert.equal(ult.length, 1); assert.equal(menor.length, 1); T.st.notaAberta = null; ult[0].onclick({ preventDefault() {} }); assert.equal(T.st.notaAberta, NOTA_FEV); T.st.notaAberta = null; menor[0].onclick({ preventDefault() {} }); assert.equal(T.st.notaAberta, NOTA_FEV);
+});
+
+test("Produtos (dono): o NOME abre a página do produto e 'Renomear' é um botão à parte; sem 'Abrir página'; a casa continua editando o nome direto", async () => {
+  const linhas = ROWS.map((r) => ({ ...r, produto_id: r.produto === "Pão Francês" ? "p1" : "p9" })), prods = [{ id: "p1", nome: "Pão Francês", categoria: "Padaria", unidade: "kg" }, { id: "p0", nome: "Sem compra", categoria: "Padaria", unidade: "un" }];
+  let calls = await abrirComLinhas("produtos", "", linhas, { db: { produtos: prods } }); await esperar(); const t = tudo();
+  assert.ok(!t.includes("Abrir página")); const ver = achar(ROOT, (e) => e.tag === "a" && /mkplink/.test(e.className)); assert.equal(ver.length, 1, "só o produto que tem compras vira link"); assert.equal(ver[0].attrs.href, "#mercado/produto/" + encodeURIComponent("Pão Francês")); assert.equal(texto(ver[0]), "Pão Francês");
+  const ren = botoes("Renomear"); assert.equal(ren.length, 1); assert.equal(achar(ROOT, (e) => e.tag === "input" && /mkpname/.test(e.className)).length, 1, "sem compras: o nome segue editável direto (não há página)");
+  ren[0].onclick(); const inp = achar(ROOT, (e) => e.tag === "input" && /mkpname/.test(e.className)); assert.equal(inp.length, 2, "o campo aparece ao pedir para renomear"); assert.ok(botoes("Salvar").length === 1 && botoes("Cancelar").length === 1);
+  const campo = inp.find((e) => e.value === "Pão Francês"); campo.value = "Pão Francês Novo"; botoes("Salvar")[0].onclick(); await esperar();
+  assert.deepEqual(calls.filter((c) => c[0] === "update"), [["update", "produtos", { nome: "Pão Francês Novo" }]], "renomear grava só o nome");
+  calls = await abrirComLinhas("produtos", "", linhas, { dono: false, db: { produtos: prods } }); await esperar(); assert.equal(achar(ROOT, (e) => e.tag === "a" && /mkplink/.test(e.className)).length, 0, "a casa não tem o link"); assert.equal(botoes("Renomear").length, 0); assert.equal(achar(ROOT, (e) => e.tag === "input" && /mkpname/.test(e.className)).length, 2, "campo direto, como antes");
+});
+
+test("botão voltar flutuante (celular): em TODAS as páginas do site (não só na Central), com a mesma regra do voltar da barra de título; acima do ☰; nada de voltar próprio no Mercado", () => {
+  const app = ler("js/app.js"), css = ler("index.html"), mk = ler("mercado.js");
+  assert.match(app, /function voltarPagina\(\)\{if\(PROF>0\)history\.back\(\);else if\(VOLTAR_PAI\)location\.hash=VOLTAR_PAI\}/, "uma função só: histórico do site, ou o nível acima");
+  assert.match(app, /\$\("#voltarbtn"\)\.addEventListener\("click",voltarPagina\)/, "o da barra de título usa a mesma função");
+  assert.match(app, /if\(!\$\("\.voltarbtn"\)\)\{var vb=h\("button",\{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"\}\);vb\.onclick=voltarPagina;/, "criado uma vez, depois do login, para todas as seções");
+  assert.match(app, /\$\("#voltarbtn"\)\.hidden=!\(PROF>0\|\|VOLTAR_PAI\);\s*var vf=\$\("\.voltarbtn"\);if\(vf\)vf\.hidden=!\(PROF>0\|\|VOLTAR_PAI\);/, "aparece/some em cada rota pela MESMA expressão do voltar da barra de título (some no Início)");
+  assert.ok(!/top!=="mercado"\)\{var vb/.test(app), "sem regra só do Mercado");
+  assert.ok(!/botaoVoltar|voltarBtn|class: "voltarbtn"/.test(mk), "o Mercado não cria voltar próprio: o do site vale em todas as páginas");
+  assert.match(css, /\.voltarbtn\{position:fixed;left:max\(14px[^}]*bottom:calc\(76px/, "acima do ☰ (bottom 16 + 48 + 12)"); assert.match(css, /@media\(min-width:861px\)\{\.voltarbtn\{display:none!important\}\}/, "só no celular, onde os botões flutuantes existem");
+  assert.match(css, /\.menuflut\[hidden\]~\.voltarbtn\{bottom:calc\(16px/, "sem o ☰ visível, o ← ocupa o lugar dele");
 });

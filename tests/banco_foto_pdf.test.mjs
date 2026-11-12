@@ -449,3 +449,57 @@ test("PGlite · o roteiro de conferência de produção (037_conferir_producao.s
   assert.deepEqual([r[8][0].funcoes_xml_034, r[8][0].notas], [4, 0]); assert.deepEqual([r[9][0].tentativas, r[9][0].situacoes], [0, 0]);
   await db.close();
 });
+
+// ================= proposta 049: a trava de CPF das tentativas não olha hash nem caminho =================
+const P049 = "supabase/propostas/049_tentativas_cpf_ignora_hash.sql";
+/* hash real da falha do CI de 12/11/2026 (commit 4fa83df): "…d00536588686eb…" tem 11 dígitos que, por acaso, fecham como CPF válido */
+const HASH_CI = "6071178346299528486ee597a643bcafd00536588686eb408c02d5d6682447f9";
+test("049 (proposta) · segue em propostas/ como NÃO aplicada, é atômica e só cria a função nova e troca a trava", () => {
+  const s = ler(P049), sem = s.replace(/^--.*$/gm, "");
+  assert.match(s.slice(0, 400), /PROPOSTA \(NÃO APLICADA\)/);
+  assert.ok(!fs.existsSync(new URL("../supabase/049_tentativas_cpf_ignora_hash.sql", import.meta.url)), "não está entre as migrations aplicadas");
+  assert.match(sem, /^\s*begin;[\s\S]*commit;\s*$/);
+  assert.ok(!/drop table|truncate|delete from|update public\.|insert into|drop function|alter table public\.(?!notas_fiscais_tentativas\b)/i.test(sem), "só mexe na trava da tabela de tentativas e na função nova");
+  assert.match(sem, /create or replace function public\.nf_docs_texto\(d jsonb\)[\s\S]*set search_path = ''/);
+  assert.match(sem, /revoke all on function public\.nf_docs_texto\(jsonb\) from public, anon;/);
+});
+test("PGlite · 049: o hash e o caminho que o CI recusou passam; CPF de verdade no nome e nos campos incertos continua barrado; roda duas vezes", { skip: pular }, async () => {
+  const db = await banco();
+  const p = preparar(501, { sit: "cancelada", arqs: [{ ext: "jpg", sha: HASH_CI, tamanho: 3000, mime: "image/jpeg" }] });
+  await subir(db, p);
+  /* antes: a trava da 037 recusa a gravação (é o erro do CI) */
+  assert.match((await falha(salvarDoc(db, R, p))).message, /notas_fiscais_tentativas_sem_cpf/);
+  assert.equal(await contar(db, "notas_fiscais_tentativas"), 0, "a recusa não deixa nada pela metade");
+  await db.exec(ler(P049)); await db.exec(ler(P049));
+  assert.equal(await contar(db, "notas_fiscais_tentativas"), 0, "aplicar a proposta não grava nem apaga linha");
+  /* depois: a mesma nota vira tentativa bloqueada (cancelada), com o original guardado */
+  const r = await salvarDoc(db, R, p);
+  assert.deepEqual([r.bloqueada, r.resultado, r.id], [true, "bloqueada", null]);
+  const t = (await admin(db, "select docs from public.notas_fiscais_tentativas where id = $1", [r.tentativa_id]))[0];
+  assert.equal(t.docs[0].sha256, HASH_CI); assert.equal(t.docs[0].path, p.docs[0].path);
+  /* CPF de verdade, onde pode haver dado pessoal, continua barrado */
+  const nome = preparar(502, { sit: "cancelada" }); nome.docs[0].nome = "cpf 529.982.247-25.jpg"; await subir(db, nome);
+  assert.match((await falha(salvarDoc(db, R, nome))).message, /sem_cpf/, "CPF no nome do arquivo");
+  const inc = await subir(db, preparar(503, { sit: "cancelada", proc: { incertos: [{ campo: "cpf", motivo: "529.982.247-25" }] } }));
+  assert.match((await falha(salvarDoc(db, R, inc))).message, /sem_cpf/, "CPF nos campos incertos");
+  assert.equal(await contar(db, "notas_fiscais_tentativas"), 1, "só a primeira (sem CPF) foi gravada");
+  /* a trava continua olhando motivos, incertos e o texto de docs sem hash/caminho */
+  const def = (await admin(db, "select pg_get_constraintdef(oid) as d from pg_constraint where conname = 'notas_fiscais_tentativas_sem_cpf'"))[0].d;
+  assert.match(def, /nf_tem_cpf\(\(motivos\)::text\)/); assert.match(def, /nf_tem_cpf\(\(incertos\)::text\)/); assert.match(def, /nf_tem_cpf\(nf_docs_texto\(docs\)\)/);
+  assert.equal((await admin(db, "select count(*)::int as n from pg_constraint where conname = 'notas_fiscais_tentativas_sem_cpf'"))[0].n, 1, "uma trava só, sem duplicar");
+  await db.close();
+});
+test("PGlite · 049: nf_docs_texto nunca devolve hash nem caminho; mantém o nome; aguenta nulo e formato inesperado; anon não executa", { skip: pular }, async () => {
+  const db = await banco(); await db.exec(ler(P049));
+  const tem = async (docs, sobre = "texto") => (await admin(db, sobre === "texto" ? "select public.nf_tem_cpf(public.nf_docs_texto($1::jsonb)) as t" : "select public.nf_tem_cpf($1::jsonb::text) as t", [JSON.stringify(docs)]))[0].t;
+  const item = (h) => [{ tipo: "imagem", nome: "nota.jpg", path: `${R}/notas-fiscais/${uuid(1)}/${h}.jpg`, mime: "image/jpeg", tamanho: 3000, sha256: h }];
+  assert.equal(await tem(item(HASH_CI), "antigo"), true, "pela trava antiga o hash do CI parece CPF");
+  assert.equal(await tem(item(HASH_CI)), false, "pela nova não");
+  for (let i = 0; i < 150; i++) assert.equal(await tem(item(createHash("sha256").update("049-" + i).digest("hex"))), false, "hash nº " + i);
+  assert.equal(await tem([{ nome: "529.982.247-25.jpg", path: "x", sha256: "y" }]), true, "CPF no nome continua achado");
+  assert.equal(await tem([{ nome: "nota.jpg", obs: "52998224725", path: "x" }]), true, "CPF em qualquer outra chave continua achado");
+  assert.equal(await tem([]), false); assert.equal(await tem(null), false); assert.equal(await tem(["texto", 5, null]), false); assert.equal(await tem({ nome: "x" }), false);
+  assert.match((await falha(como(db, null, "select public.nf_docs_texto('[]'::jsonb) as t"))).message, /permission denied/, "anon não executa");
+  assert.equal((await como(db, R, "select public.nf_docs_texto('[]'::jsonb) as t"))[0].t, "", "quem entrou executa");
+  await db.close();
+});

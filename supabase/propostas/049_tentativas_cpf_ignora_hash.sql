@@ -14,9 +14,16 @@
 -- SEGURANÇA: função nova imutável, search_path vazio, sem acesso para anon (mesmo padrão da nf_tem_cpf, 034). A nova trava é MAIS PERMISSIVA só nas duas chaves acima, então
 -- toda linha já gravada continua válida (o ADD CONSTRAINT confirma isso ao rodar). Pode rodar de novo sem erro. Não apaga nem altera dados.
 --
--- DEPOIS DE APLICAR: rode o teste de banco (tests/banco_foto_pdf.test.mjs) e inclua esta migration na lista do PGlite, se o dono aprovar; conferir em produção:
---   select pg_get_constraintdef(oid) from pg_constraint where conname = 'notas_fiscais_tentativas_sem_cpf';
+-- Atômica (begin/commit): a função e a trava entram juntas ou nenhuma entra. Usa só recursos antigos do Postgres (jsonb_typeof, jsonb_array_elements, string_agg e o operador
+-- jsonb - text), por isso roda igual no 17.11 da produção. Testada em PGlite (Postgres 18.6, tests/banco_foto_pdf.test.mjs, "proposta 049") e em Postgres 16 de verdade.
+--
+-- ANTES DE APLICAR: nada a mudar. DEPOIS: conferir em produção (só leitura):
+--   select pg_get_constraintdef(oid) from pg_constraint where conname = 'notas_fiscais_tentativas_sem_cpf';   -- deve citar nf_docs_texto(docs)
+--   select count(*) from pg_proc where proname = 'nf_docs_texto' and pronamespace = 'public'::regnamespace;    -- 1
+-- Quando for aplicada: mover para supabase/, trocar o cabeçalho para "APLICADA EM PRODUÇÃO em <data>" e ajustar o teste que hoje a lê de supabase/propostas/.
 -- ============================================================================================================================================
+
+begin;
 
 create or replace function public.nf_docs_texto(d jsonb) returns text
   language sql immutable set search_path = '' as $$
@@ -29,3 +36,5 @@ grant execute on function public.nf_docs_texto(jsonb) to authenticated;
 alter table public.notas_fiscais_tentativas drop constraint if exists notas_fiscais_tentativas_sem_cpf;
 alter table public.notas_fiscais_tentativas add constraint notas_fiscais_tentativas_sem_cpf
   check (not public.nf_tem_cpf(motivos::text) and not public.nf_tem_cpf(incertos::text) and not public.nf_tem_cpf(public.nf_docs_texto(docs)));
+
+commit;

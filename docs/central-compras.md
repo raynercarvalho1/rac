@@ -36,8 +36,10 @@ A Central **não depende** da 046: sem ela as notas aparecem sem subcategoria. C
 Pendências conscientes (precisariam de SQL, não feitas): subcategoria dos itens online (hoje só a categoria) e gravar o canal da nota numa coluna em vez de `pessoal`.
 
 ## Navegação de mercado (12/11/2026; publicada na versão 2026-11-12.8 pelo merge do PR #4; sem migration, sem SQL, sem Edge Function)
-A Central passou a ser navegável como um mercado: **Central → categoria → produto → compra** e **Central → estabelecimento → produtos e comparação**. Só o dono vê as páginas e os painéis novos;
-a Central da casa (Fernanda) continua exatamente como era (barras, detalhe da barra e compras), porque mudar o que ela vê depende de pedido do dono.
+A Central passou a ser navegável como um mercado: **Central → categoria → produto → compra** e **Central → estabelecimento → produtos e comparação**.
+**Quem vê:** o dono e, desde 12/11/2026 (versão 2026-11-12.9, **pedido do dono**), também a casa (Fernanda): páginas de categoria, produto e estabelecimento, evolução, explorar e oportunidades.
+Continuam só do dono: as ofertas do Radar (selo na categoria e quadro no produto; regra do Radar, docs/central-radar.md), a junção de produtos (abaixo), o "Alterar canal" da nota e a aba Alertas.
+Na aba Produtos a casa continua editando o nome direto, como antes; ela chega às páginas de produto pelas categorias, estabelecimentos e oportunidades.
 
 **Uma fonte só.** Tudo sai das MESMAS compras da aba Central (`cuUnificar`: notas do Mercado + pedidos online que contam pela regra `coRegra`, sem a duplicidade forte nota × pedido).
 `NUCLEO.cmLinhas` transforma essas compras em linhas no formato das linhas do Mercado (produto, quantidade, unidade, preço, total, estabelecimento, compra), e as contas de produto
@@ -93,10 +95,20 @@ Testes: `tests/central_mercado.test.mjs` (núcleo: totais = barras da Central, p
 a casa sem nada novo, só leitura, compras online relidas depois de gravar, nota aberta pelo item, releitura em segundo plano e o botão ↻). `central_radar_tela.test.mjs` continua valendo para as partes do Radar.
 
 ### Limites conhecidos
-- Produto = nome: o mesmo produto com nomes diferentes (na nota e no pedido online) aparece separado; juntar continua sendo pela aba Produtos (notas). A comparação entre estabelecimentos só usa a mesma unidade e o mesmo nome.
+- Produto = nome: nomes diferentes aparecem separados até serem juntados (notas: aba Produtos; pedido online: "Juntar produtos", abaixo). A comparação entre estabelecimentos só usa a mesma unidade e o mesmo nome.
 - Pedido online sem quantidade conta como 1 unidade (regra de `coPedidoPartes`); online não tem kg/L, então o preço é por unidade.
 - A variação e as oportunidades usam preços já pagos em datas diferentes: um lugar visitado há muitos meses pode parecer mais barato só pela data. A tela mostra as datas e chama o valor de estimativa.
 - Pedido gravado em outro aparelho aparece na próxima abertura de uma tela de consulta depois do prazo (15 s) ou na hora com o ↻; não há aviso em tempo real (seria outra tarefa).
 
+## Juntar produtos com nomes diferentes (pedido online × nota do Mercado) · 12/11/2026, versão 2026-11-12.9, pedido do dono
+O mesmo produto pode vir com nomes diferentes na nota do Mercado e no pedido online (ou em dois pedidos). Produtos do Mercado já eram juntados pela aba Produtos (no banco: os itens passam para um produto e o outro some).
+Para o pedido online não há produto no banco, então a junção é uma **decisão do dono guardada em `PESSOAL["mercado-equivalencias"]`** (`{v:1, itens:{"o:<nome do item no pedido, normalizado>": "<nome do produto>"}}`; tabela `pessoal`: só o dono, trava MFA, entra no backup; **sem migration**).
+- **Só renomeia na leitura** (`cmAplicarEquivalencias`, em `centralDados`): o item do pedido passa a aparecer como o produto escolhido e o nome original fica à vista ("no pedido: …"). O pedido gravado, os valores, a categoria e as regras financeiras não mudam (há teste: nenhum total muda). Separar desfaz.
+- **O sistema só sugere** (`cmSugerirJuncoes`): para cada produto que só existe em pedido online, os nomes parecidos (palavras em comum ÷ palavras dos dois, sem números nem unidades; nome igual depois de normalizar = 100%), a partir de 40% e com 1+ palavra em comum, até 3, primeiro os do Mercado. Nada é juntado sozinho.
+- **Sem cadeia** (`cmJuntar`): se o destino já foi juntado a outro, a junção vai direto ao final; quem apontava para a origem passa a apontar para o destino. Máximo de 1000 junções.
+- **Onde:** na página do produto (quadro "Mesmo produto com outro nome": juntar este pedido a um produto parecido ou a outro escolhido, trazer para cá um pedido parecido, separar) e na aba Produtos (quadro recolhido "Pedidos online com nome diferente": todas as sugestões e as junções feitas).
+- **Efeito:** o produto passa a ter um histórico só (nota + pedido), com comparação de preço entre a loja online e o mercado, e entra junto nas oportunidades de economia.
+- **Limite:** a casa não tem `pessoal`, então ela vê os produtos pelos nomes como estão nos pedidos (sem as junções do dono). Uma junção que valesse para os dois precisaria de uma tabela nova (migration), decisão do dono.
+
 ## Futuro (não implementado; nada impede)
-Sugerir classificação de produto (sempre com confirmação), juntar o mesmo produto entre nota e pedido online e subcategoria dos itens online (precisaria de SQL).
+Sugerir classificação de produto (sempre com confirmação) e subcategoria dos itens online (precisaria de SQL).

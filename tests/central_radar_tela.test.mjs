@@ -80,11 +80,12 @@ test("monitorar este produto: cria UM produto no Radar (origem comprado) e o vin
   assert.deepEqual(gravacoes, [["radar-vinculos", { [N.pcChave("Bolo de Fubá")]: NOVO }]]); assert.equal(montarOfertas[0][0], NOVO);
 });
 
-test("a casa (Fernanda) não vê categoria, produto nem o painel de categorias: a experiência dela não muda", async () => {
-  const c1 = await abrir("produto", encodeURIComponent("Pão Francês"), { dono: false, db: { radar_itens: ITENS } }); assert.ok(!tudo().includes("O que você pagou") && !tudo().includes("Ofertas na internet")); assert.deepEqual(c1.filter((x) => x[1] === "radar_itens"), [], "nem consulta o Radar");
-  await abrir("categoria", "Padaria", { dono: false }); assert.ok(!tudo().includes("Último preço pago"));
-  T.usarOnline([]); await abrir("central", "", { dono: false }); assert.ok(!tudo().includes("Explorar por categoria"));
-  assert.ok(!links("#mercado/categoria/Padaria").length && !links("#mercado/produto/P%C3%A3o%20Franc%C3%AAs").length);
+test("a casa (Fernanda) vê categoria, produto e o painel de categorias (liberado pelo dono em 12/11/2026), mas nada do Radar: nem ofertas, nem vínculo, nem consulta", async () => {
+  const c1 = await abrir("produto", encodeURIComponent("Pão Francês"), { dono: false, db: { radar_itens: ITENS } }); assert.ok(tudo().includes("O que você pagou") && !tudo().includes("Ofertas na internet") && !tudo().includes("Radar de Preços")); assert.deepEqual(c1.filter((x) => x[1] === "radar_itens"), [], "nem consulta o Radar");
+  const c2 = await abrir("categoria", "Padaria", { dono: false, vinculos: { [N.pcChave("Pão Francês")]: ID1 }, db: { radar_candidatos: [{ item_id: ID1, tipo_oferta: "individual", preco: 3, preco_por_medida: 2.5, base_medida: "100 g", decisao: "pendente", pai_externo: null, loja: "Magalu" }] } });
+  assert.ok(tudo().includes("Último preço pago") && !/Radar|ofertas do produto|não confirmado/.test(tudo())); assert.deepEqual(c2.filter((x) => x[1] === "radar_candidatos"), [], "sem consulta de ofertas");
+  T.usarOnline([]); await abrir("central", "", { dono: false }); assert.ok(tudo().includes("Explorar por categoria"));
+  assert.equal(links("#mercado/categoria/Padaria").length, 1); assert.deepEqual(gravacoes, [], "nada é gravado");
 });
 
 test("categoria: produtos com último preço pago e menor pago, links para cada produto e selo de ofertas SÓ dos vinculados; preço de anúncio vem rotulado como não confirmado", async () => {

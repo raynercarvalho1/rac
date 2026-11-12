@@ -3,8 +3,8 @@
    e todo o histórico, ranking só com preço final confirmado e oportunidades. As regras vêm de NUCLEO.rd* (nucleo.js); o banco (043) repete as mesmas.
    Leitura automática de página: função "radar" (ainda não publicada: sem ela o botão avisa e o preenchimento é manual). IA: só sugestão, hoje indisponível (aguarda liberação).
    O CEP padrão nunca aparece na tela, em log ou em arquivo: só "cadastrado" ou "não cadastrado". */
-  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null,abertos:{},arquivados:false};
-  var RT_ABAS=[["oport","Oportunidades"],["itens","Produtos"],["lojas","Lojas"],["ajustes","Ajustes"]];
+  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null,abertos:{},arquivados:false,desc:null};
+  var RT_ABAS=[["oport","Oportunidades"],["desc","Descobrir"],["itens","Produtos"],["lojas","Lojas"],["ajustes","Ajustes"]];
   var RT_TIPOS_LOJA=[["varejo","Varejo online"],["marketplace","Marketplace"],["fabricante","Fabricante"],["atacado","Atacado"],["fisica","Loja física"],["outro","Outro"]];
   var RT_MEIOS=[["pix","Pix"],["boleto","Boleto"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["outro","Outro"]];
   var RT_FRETES=[["desconhecido","Ainda não sei (não conta como grátis)"],["confirmado","Confirmado, com valor"],["gratis_confirmado","Grátis, confirmado para o meu CEP"],["retirada","Retirada na loja (zero)"]];
@@ -50,7 +50,8 @@
   function rtSalvarOferta(sb,f){
     var u=f.url?NUCLEO.rdUrlOk(f.url):{ok:true,url:null};if(!u.ok)return Promise.reject(new Error(u.motivo));
     if(!f.item_id||!f.loja_id)return Promise.reject(new Error("Escolha o produto e a loja."));
-    return Promise.resolve(sb.from("radar_ofertas").insert({item_id:f.item_id,loja_id:f.loja_id,url:u.url||null,vendedor:rtTexto(f.vendedor,120),codigo_loja:rtTexto(f.codigo_loja,80)}).select("*")).then(rtOk)}
+    var nova={item_id:f.item_id,loja_id:f.loja_id,url:u.url||null,vendedor:rtTexto(f.vendedor,120),codigo_loja:rtTexto(f.codigo_loja,80)};if(Array.isArray(f.evidencias)&&f.evidencias.length)nova.evidencias=f.evidencias;
+    return Promise.resolve(sb.from("radar_ofertas").insert(nova).select("*")).then(rtOk)}
   /* equivalência: só o dono confirma, com evidência; a sugestão por regras nunca confirma sozinha */
   function rtEquivalencia(sb,oferta,estado,evidencias){
     var ev=evidencias||oferta.evidencias||[],linha={equivalencia:estado,equivalencia_origem:"dono",evidencias:ev,confirmada_em:estado==="confirmada"?new Date().toISOString():null,atualizado_em:new Date().toISOString()};
@@ -188,8 +189,117 @@
         if(!l.coleta_permitida&&rtBarrada(l.dominio)){rtAvisar("Coleta automática não disponível para "+l.nome+": "+rtBarrada(l.dominio)+". Os preços dessa loja continuam manuais.");return}
         if(!l.coleta_permitida&&typeof confirm==="function"&&!confirm("Você conferiu os termos de uso de "+l.nome+" e aceita a coleta automática? O robots.txt continua sendo respeitado."))return;
         rtFeito(Promise.resolve(RT.sb.from("radar_lojas").update({coleta_permitida:!l.coleta_permitida,atualizado_em:new Date().toISOString()}).eq("id",l.id)).then(rtOk),"Loja atualizada.")}));
+      /* editar: nome, domínio e tipo. Domínio novo = termos novos: a coleta automática desliga e só volta se o dono liberar de novo */
+      var ef={nome:rtIn(l.nome,"Nome da loja"),dominio:rtIn(l.dominio||"","Domínio (ex.: loja.com.br)"),tipo:rtSel(RT_TIPOS_LOJA,l.tipo||"varejo")},stE=rtMsg();
+      c.appendChild(rtDet("editar-loja:"+l.id,"Editar",h("div",{class:"rtform"},rtCampo("Nome",ef.nome),rtCampo("Domínio",ef.dominio),rtCampo("Tipo",ef.tipo),
+        h("p",{class:"sub",text:"Se mudar o domínio, a coleta automática é desligada até você liberar de novo (os termos da loja podem ser outros). As ofertas já cadastradas continuam com o link que têm."}),
+        rtBotao("Salvar alterações",function(){var novo=String(ef.dominio.value||"").trim().toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").replace(/[\/?#].*$/,""),mudou=novo!==String(l.dominio||"");
+          rtFeito(rtSalvarLoja(RT.sb,{nome:ef.nome.value,dominio:ef.dominio.value,tipo:ef.tipo.value,coleta_permitida:mudou?false:l.coleta_permitida},l.id),mudou&&l.coleta_permitida?"Loja atualizada. O domínio mudou: a coleta automática foi desligada; libere de novo depois de conferir os termos.":"Loja atualizada.",stE,"editar-loja:"+l.id)},"pri"),stE)));
       if(!d.ofertas.some(function(o){return o.loja_id===l.id}))c.appendChild(rtBotao("Excluir",function(){if(typeof confirm==="function"&&!confirm("Excluir a loja "+l.nome+"? Só é possível enquanto não houver ofertas ligadas a ela."))return;rtFeito(rtExcluir(RT.sb,"radar_lojas",l.id),"Loja excluída.")},"danger"));
+      else c.appendChild(h("p",{class:"sub",text:"Para excluir esta loja, antes exclua ou troque as "+d.ofertas.filter(function(o){return o.loja_id===l.id}).length+" oferta(s) ligadas a ela (o histórico de preços nunca é apagado). Dá para desligar a coleta ou editar a loja."}));
       p.appendChild(c)});
+    corpo.appendChild(p)}
+
+  /* ---------- descobrir: ofertas encontradas pelo provedor (docs/radar.md, "Descoberta") ----------
+     O dono escolhe um produto e o RAC pesquisa no Google Shopping (SerpApi, pela função "radar"). Cada anúncio vira um CANDIDATO classificado (individual, kit do mesmo produto, combo, outra apresentação, relacionado),
+     com preço por medida quando dá para calcular. Nada é descartado por quantidade ou composição diferente. Candidato não é oferta confirmada: "Acompanhar" usa o fluxo de oferta que já existe.
+     Os candidatos ficam em radar_candidatos (migration 048, proposta); sem ela esta aba avisa e o resto do Radar continua igual. A chave do provedor nunca passa por aqui. */
+  var RT_TIPOS_OFERTA=[["individual","Individual"],["kit_mesmo_produto","Kit do mesmo produto"],["combo","Combo"],["outra_apresentacao","Outra apresentação"],["relacionado","Relacionado"],["indeterminado","Indeterminado"]];
+  var RT_ORDENS=[["medida","Menor preço por medida"],["total","Menor total"],["preco","Menor preço"],["relevancia","Mais parecido"]];
+  function rtDescEstado(){if(!RT.desc)RT.desc={itemId:null,cands:null,consultas:[],orc:null,tipo:"",ordem:"medida",ignorados:false,msg:"",pendente:false,ocupado:false,cota:null,hist:[],provedores:null};return RT.desc}
+  function rtDescMsg(t){rtDescEstado().msg=t||"";rtDesenhar()}
+  function rtDescChamar(corpo){return Promise.resolve(RT.sb.functions.invoke("radar",{body:corpo})).then(function(r){
+    if(r&&r.error)throw new Error("A função do Radar não respondeu (a descoberta ainda não foi publicada).");var d=r&&r.data;if(!d)throw new Error("A função do Radar não respondeu.");return d})}
+  var RT_ERROS_DESC={sem_chave_serpapi:"O Secret SERPAPI_API_KEY não está cadastrado na função.",migracao_pendente:"A migration 048 (descoberta) ainda não foi aplicada no banco.",item_nao_encontrado:"Produto não encontrado.",item_arquivado:"Este produto está arquivado.",
+    token_vencido:"O token das lojas venceu. Refaça a busca para renovar.",sem_token:"Este anúncio não trouxe o token das lojas.",sem_identificador:"Sem token válido nem identificador de catálogo para consultar as lojas.",orcamento:"Limite de buscas do RAC atingido.",
+    chave_recusada:"O SerpApi recusou a chave.",limite:"Limite de buscas do SerpApi (por hora ou da franquia).",rede:"Falha de rede ao falar com o SerpApi.",tempo_esgotado:"O SerpApi não respondeu a tempo.",erro_provedor:"O SerpApi devolveu erro.",candidato_nao_encontrado:"Anúncio não encontrado."};
+  var RT_LIMITE_TXT="O limite de consultas foi atingido.";
+  function rtDescErroTxt(d){if(d&&d.erro==="orcamento")return RT_LIMITE_TXT;return (d&&(d.mensagem||RT_ERROS_DESC[d.erro]))||"Não deu certo."}
+  function rtDescCarregar(itemId){var D=rtDescEstado();D.itemId=itemId;D.cands=null;rtDesenhar();
+    return Promise.all([Promise.resolve(RT.sb.from("radar_candidatos").select("*").eq("item_id",itemId).limit(2000)).then(rtOk),
+      Promise.resolve(RT.sb.from("radar_consultas").select("id,provedor,engine,origem,variante,consulta,status,resultados,buscas_gastas,iniciada_em,erro_codigo").eq("item_id",itemId).order("iniciada_em",{ascending:false}).limit(8)).then(rtOk),
+      Promise.resolve(RT.sb.from("radar_historico").select("produto_chave,apresentacao_chave,loja,preco,preco_por_medida,base_medida,observado_em").eq("item_id",itemId).order("observado_em",{ascending:false}).limit(3000)).then(rtOk).then(function(l){return l||[]},function(){return []})]).then(function(r){
+      D.cands=r[0]||[];D.consultas=r[1]||[];D.hist=r[2]||[];D.pendente=false;rtDesenhar()},function(e){var m=(e&&e.message)||"";
+      if(/42P01|does not exist|schema cache|radar_candidatos|radar_consultas/i.test(m)){D.pendente=true;D.cands=[];D.consultas=[]}else D.msg="Não consegui ler as ofertas encontradas: "+rtErro(e);rtDesenhar()})}
+  function rtDescUso(){return rtDescChamar({tipo:"uso_descoberta"}).then(function(d){if(d.ok){rtDescEstado().orc=d.orcamento;rtDescEstado().provedores=d.provedores||null}rtDesenhar()},function(){})}
+  /* histórico por IDENTIDADE do produto (produto_chave + apresentação), não por anúncio nem por loja; kit, combo e outro tamanho não se misturam com o avulso */
+  function rtDescHistTxt(c){var h=rtDescEstado().hist||[];if(!c.produto_chave||!h.length)return [];var out=[];
+    var mesma=h.filter(function(o){return o.produto_chave===c.produto_chave&&o.apresentacao_chave===c.apresentacao_chave});
+    if(mesma.length){var min=mesma.reduce(function(a,o){return !a||+o.preco<+a.preco?o:a},null),lojas={};mesma.forEach(function(o){lojas[o.loja||"?"]=1});
+      out.push("Histórico deste produto ("+c.apresentacao_chave+"): "+mesma.length+" observação(ões) em "+Object.keys(lojas).length+" loja(s) · menor "+rtMoeda(min.preco)+" ("+(min.loja||"loja não informada")+", "+rtData(min.observado_em)+")")}
+    if(c.base_medida){var pm=h.filter(function(o){return o.produto_chave===c.produto_chave&&o.base_medida===c.base_medida&&o.preco_por_medida!=null});
+      if(pm.length>1){var m2=pm.reduce(function(a,o){return !a||+o.preco_por_medida<+a.preco_por_medida?o:a},null);out.push("Menor preço por "+c.base_medida+" já visto (todos os tamanhos e kits do mesmo produto): "+rtMoeda(m2.preco_por_medida)+" ("+(m2.loja||"loja não informada")+", "+rtData(m2.observado_em)+")")}}
+    return out}
+  function rtDescMedida(c){if(!c.medida_valor)return "";var v=+c.medida_valor;return v>=1000?(v/1000).toString().replace(".",",")+(c.medida_unidade==="g"?" kg":" L"):v.toString().replace(".",",")+(c.medida_unidade==="g"?" g":" ml")}
+  function rtDescFrete(c){return c.frete_situacao==="informado_provedor"?"Frete segundo o Google: "+rtMoeda(c.frete_valor)+" (não confirmado para o seu CEP)":c.frete_situacao==="gratis_informado_provedor"?"Frete grátis segundo o Google (não confirmado para o seu CEP)":"Frete: desconhecido (não conta como grátis)"}
+  function rtDescTipoRot(t){var x=RT_TIPOS_OFERTA.filter(function(o){return o[0]===t})[0];return x?x[1]:t}
+  function rtDescOrdenar(l,modo){var ch=function(c){return modo==="medida"?c.preco_por_medida:modo==="total"?(c.total!=null?c.total:c.preco):modo==="preco"?c.preco:-c.relevancia};
+    return l.slice().sort(function(a,b){var x=ch(a),y=ch(b);if(x==null&&y==null)return b.relevancia-a.relevancia;if(x==null)return 1;if(y==null)return -1;return (+x)-(+y)||b.relevancia-a.relevancia})}
+  function rtDescDecidir(c,decisao){return Promise.resolve(RT.sb.from("radar_candidatos").update({decisao:decisao,atualizado_em:new Date().toISOString()}).eq("id",c.id)).then(rtOk).then(function(){return rtDescCarregar(c.item_id)},function(e){rtDescMsg(rtErro(e))})}
+  function rtDescAcompanhar(c){
+    if(c.link_tipo!=="loja"||!c.link){rtDescMsg("Este anúncio só tem a página do Google. Use “Ver lojas” para achar o link da loja e acompanhe por lá.");return}
+    var ev=[{tipo:"descoberta",provedor:c.provedor,titulo:String(c.titulo||"").slice(0,200),tipo_oferta:c.tipo_oferta,quantidade:c.quantidade,apresentacao:c.apresentacao_chave,observado_em:c.observado_em}],avulso=c.tipo_oferta==="individual";
+    rtOfertaComLoja(RT.sb,{item_id:c.item_id,url:c.link,vendedor:c.loja,evidencias:ev},RT.d.lojas).then(function(r){var of=r&&r[0];if(!of)throw new Error("Não consegui cadastrar a oferta.");
+      return Promise.resolve(RT.sb.from("radar_candidatos").update({decisao:"acompanhando",oferta_id:of.id,atualizado_em:new Date().toISOString()}).eq("id",c.id)).then(rtOk)})
+      .then(function(){RT.aviso="Oferta cadastrada a partir do anúncio. Confirme a equivalência na tela do produto; o preço entra no histórico quando você registrar ou a coleta ler a página."+(avulso?"":" Atenção: este anúncio é "+rtDescTipoRot(c.tipo_oferta).toLowerCase()+" ("+(c.apresentacao_chave||"sem medida")+"): o preço dele não é o do frasco avulso. Só confirme a equivalência se quiser comparar pelo total.");return rtRecarregar().then(function(){return rtDescCarregar(c.item_id)})},function(e){rtDescMsg(rtErro(e))})}
+  function rtDescCartao(c,lojas){
+    var D=rtDescEstado(),pm=c.preco_por_medida!=null?rtMoeda(c.preco_por_medida)+" por "+(c.base_medida||""):"";
+    var box=h("div",{class:"rtopo"+(c.decisao==="ignorado"?" rtign":"")});
+    box.appendChild(h("div",{class:"rtlinha"},h("b",{text:c.titulo}),h("span",{class:"rtpreco",text:c.preco!=null?rtMoeda(c.preco):"sem preço"})));
+    var tags=h("div",{class:"chips"},rtEtiqueta(rtDescTipoRot(c.tipo_oferta),c.tipo_oferta==="individual"?"rtok":""));
+    if(c.quantidade>1)tags.appendChild(rtEtiqueta(c.quantidade+" unidades"));if(c.medida_valor)tags.appendChild(rtEtiqueta(rtDescMedida(c)+(c.quantidade>1&&c.tipo_oferta==="kit_mesmo_produto"?" no total":"")));
+    if(c.decisao==="acompanhando")tags.appendChild(rtEtiqueta("Acompanhando","rtok"));if(c.catalogo||c.varias_fontes)tags.appendChild(rtEtiqueta("Várias lojas"));
+    box.appendChild(tags);
+    box.appendChild(h("p",{class:"sub",text:[c.loja||"loja não informada",pm,c.total!=null?"total "+rtMoeda(c.total):"",c.avaliacao!=null?"nota "+c.avaliacao+(c.avaliacoes?" ("+c.avaliacoes+")":""):""].filter(Boolean).join(" · ")}));
+    box.appendChild(h("p",{class:"sub",text:rtDescFrete(c)}));
+    var pag=[c.pagamento_texto,c.parcelamento_texto,c.entrega_texto,c.detalhes,c.desconto_texto].filter(Boolean).join(" · ");if(pag)box.appendChild(h("p",{class:"sub",text:pag}));
+    if(c.preco_original)box.appendChild(h("p",{class:"sub",text:"Preço antes: "+rtMoeda(c.preco_original)}));
+    var ant=(c.precos_anteriores||[]).slice(-1)[0];if(ant)box.appendChild(h("p",{class:"sub",text:"Visto antes por "+rtMoeda(ant.preco)+" em "+rtData(ant.observado_em)}));
+    var comp=(c.composicao||[]);if(comp.length&&(c.tipo_oferta==="kit_mesmo_produto"||c.tipo_oferta==="combo"))box.appendChild(h("p",{class:"sub",text:"Composição (sugerida pelo título): "+comp.map(function(x){return (x.quantidade>1?x.quantidade+" × ":"")+x.descricao+(x.medida?" "+x.medida.valor+" "+x.medida.unidade:"")}).join(" + ")}));
+    if((c.evidencias||[]).length)box.appendChild(h("p",{class:"sub",text:"Por que esta classificação: "+c.evidencias.join("; ")}));
+    rtDescHistTxt(c).forEach(function(t){box.appendChild(h("p",{class:"sub",text:t}))});
+    box.appendChild(h("p",{class:"sub",text:"Visto em "+rtData(c.observado_em)+" pelo "+(c.engine==="google_shopping"?"Google Shopping":"Google (lojas)")+" · ainda não confirmado na loja"}));
+    var acoes=h("div",{class:"rtlinha"});
+    if(c.link)acoes.appendChild(h("a",{class:"link",href:c.link,target:"_blank",rel:"noopener noreferrer",text:c.link_tipo==="loja"?"Abrir na loja":"Abrir no Google"}));
+    if(c.page_token&&!c.pai_externo)acoes.appendChild(rtBotao(lojas.length?"Atualizar lojas":"Ver lojas",function(){D.ocupado=true;D.msg="Buscando as lojas…";rtDesenhar();
+      rtDescChamar({tipo:"expandir",candidato_id:c.id}).then(function(d){D.ocupado=false;D.msg=d.ok?(d.status==="cache"?"Lojas do cache (sem gastar busca): ":"Lojas encontradas: ")+d.lojas+"."+(d.gasto?" 1 busca gasta.":""):rtDescErroTxt(d);return rtDescCarregar(c.item_id).then(rtDescUso)},function(e){D.ocupado=false;rtDescMsg(rtErro(e))})}));
+    if(c.decisao!=="acompanhando")acoes.appendChild(rtBotao("Acompanhar",function(){rtDescAcompanhar(c)},"pri"));
+    acoes.appendChild(rtBotao(c.decisao==="ignorado"?"Desfazer":"Ignorar",function(){rtDescDecidir(c,c.decisao==="ignorado"?"pendente":"ignorado")}));
+    box.appendChild(acoes);
+    if(lojas.length){var det=h("details",{class:"rtnovo"},h("summary",{text:"Lojas deste anúncio ("+lojas.length+")"}));rtDescOrdenar(lojas,"total").forEach(function(l){det.appendChild(rtDescCartao(l,[]))});box.appendChild(det)}
+    return box}
+  function rtAbaDescobrir(corpo){
+    var D=rtDescEstado(),d=RT.d,ativos=d.itens.filter(function(i){return i.ativo!==false}),p=h("div",{class:"panel"},h("h2",{text:"Descobrir ofertas"}),
+      h("p",{class:"sub",text:"Escolha o produto e o RAC pesquisa no Google Shopping (SerpApi). Kits, combos e outros tamanhos entram na lista, identificados: nada é descartado. O que aparece aqui foi visto pelo Google e ainda não foi confirmado na loja; frete só vale quando você confirmar."}));
+    if(!ativos.length){p.appendChild(h("p",{class:"empty",text:"Cadastre um produto na aba Produtos para pesquisar."}));corpo.appendChild(p);return}
+    if(!D.itemId||!ativos.some(function(i){return i.id===D.itemId})){D.itemId=ativos[0].id;D.cands=null;Promise.resolve().then(function(){rtDescCarregar(D.itemId);rtDescUso()})}
+    var sel=h("select",{"aria-label":"Produto a pesquisar"},ativos.map(function(i){return h("option",{value:i.id,text:i.nome+(i.marca?" · "+i.marca:"")})}));sel.value=D.itemId;
+    sel.onchange=function(){D.tipo="";D.msg="";rtDescCarregar(sel.value)};
+    var busca=rtBotao(D.ocupado?"Pesquisando…":"Buscar ofertas",function(){if(D.ocupado)return;D.ocupado=true;D.msg="Pesquisando no Google Shopping…";rtDesenhar();
+      rtDescChamar({tipo:"descobrir",item_id:D.itemId}).then(function(r){D.ocupado=false;
+        if(!r.ok){D.msg=rtDescErroTxt(r)}else{var gasto=0,novos=0,cache=0,limite=false;(r.consultas||[]).forEach(function(c){gasto+=c.gasto||0;novos+=c.novos||0;if(c.status==="cache")cache++;if(c.status==="bloqueada_orcamento")limite=true});
+          D.msg=(r.consultas||[]).length+" consulta(s): "+gasto+" busca(s) gasta(s)"+(cache?", "+cache+" do cache":"")+(novos?", "+novos+" anúncio(s) novo(s)":"")+"."+(limite?" "+RT_LIMITE_TXT:((r.avisos||[]).length?" "+r.avisos.join(" "):""))}
+        D.orc=r.orcamento||D.orc;return rtDescCarregar(D.itemId)},function(e){D.ocupado=false;rtDescMsg(rtErro(e))})},"pri");
+    p.appendChild(h("div",{class:"rtform"},rtCampo("Produto",sel),busca));
+    if(D.orc){var o=D.orc,eg=o.por_engine||{},ng=function(k){return eg[k]?eg[k].dia:0};
+      p.appendChild(h("p",{class:"sub",text:"Créditos contados pelo RAC: hoje "+o.dia_usado+" de "+o.dia_limite+" · no mês "+o.mes_usado+" de "+o.mes_limite+" (limites do RAC, mais baixos que a franquia da conta). Hoje: "+ng("google_shopping")+" busca(s), "+(ng("google_immersive_product")+ng("google_product"))+" expansão(ões) de lojas (máx. "+o.expansoes_limite_dia+"/dia), rotina "+o.rotina_dia+" de "+o.rotina_limite_dia+". Cache e erro não gastam."}))}
+    if(D.provedores)p.appendChild(h("p",{class:"sub",text:"Fontes: "+D.provedores.map(function(x){return x.nome+(x.estado==="ativo"?" (ativa)":" (ainda não implementada)")}).join(" · ")}));
+    if(rtPagoTxt(D.itemId))p.appendChild(h("p",{class:"rtpago"},h("b",{text:rtPagoTxt(D.itemId)}),h("span",{class:"sub",text:" — compare com o preço por medida de cada anúncio."})));
+    var cotaBtn=rtBotao("Conferir cota no SerpApi",function(){rtDescChamar({tipo:"cota_provedor"}).then(function(r){D.cota=r.ok?r.cota:null;D.msg=r.ok?"":rtDescErroTxt(r);rtDesenhar()},function(e){rtDescMsg(rtErro(e))})});p.appendChild(cotaBtn);
+    if(D.cota)p.appendChild(h("p",{class:"sub",text:"Cota real no SerpApi: usadas no mês "+(D.cota.this_month_usage==null?"—":D.cota.this_month_usage)+" · restantes "+(D.cota.total_searches_left==null?"—":D.cota.total_searches_left)+" · limite por hora "+(D.cota.account_rate_limit_per_hour==null?"—":D.cota.account_rate_limit_per_hour)}));
+    if(D.msg)p.appendChild(h("p",{class:"sub rtmsg",role:"status",text:D.msg}));
+    if(D.pendente){p.appendChild(h("p",{class:"sub",role:"status",text:"A descoberta precisa da migration 048 (ainda não aplicada). Quando o dono rodar o SQL, esta aba passa a guardar os anúncios encontrados."}));corpo.appendChild(p);return}
+    if(D.cands==null){p.appendChild(h("p",{class:"sub",text:"Carregando…"}));corpo.appendChild(p);return}
+    var topo=D.cands.filter(function(c){return !c.pai_externo&&(D.ignorados||c.decisao!=="ignorado")}),porTipo={};topo.forEach(function(c){porTipo[c.tipo_oferta]=(porTipo[c.tipo_oferta]||0)+1});
+    var chips=h("div",{class:"chips"},[["","Todos ("+topo.length+")"]].concat(RT_TIPOS_OFERTA.filter(function(t){return porTipo[t[0]]}).map(function(t){return [t[0],t[1]+" ("+porTipo[t[0]]+")"]})).map(function(t){var b=h("button",{type:"button",class:"chipb"+(D.tipo===t[0]?" on":""),text:t[1]});b.onclick=function(){D.tipo=t[0];rtDesenhar()};return b}));
+    p.appendChild(chips);
+    var ordem=rtSel(RT_ORDENS,D.ordem);ordem.setAttribute("aria-label","Ordenar por");ordem.onchange=function(){D.ordem=ordem.value;rtDesenhar()};
+    var ign=D.cands.filter(function(c){return !c.pai_externo&&c.decisao==="ignorado"}).length;
+    p.appendChild(h("div",{class:"rtform"},rtCampo("Ordenar por",ordem),ign?rtBotao((D.ignorados?"Ocultar":"Mostrar")+" ignorados ("+ign+")",function(){D.ignorados=!D.ignorados;rtDesenhar()}):null));
+    var lista=rtDescOrdenar(topo.filter(function(c){return !D.tipo||c.tipo_oferta===D.tipo}),D.ordem);
+    if(!lista.length)p.appendChild(h("p",{class:"empty",text:D.cands.length?"Nenhum anúncio neste filtro.":"Nenhuma busca feita para este produto ainda. Toque em “Buscar ofertas”."}));
+    lista.forEach(function(c){p.appendChild(rtDescCartao(c,D.cands.filter(function(x){return x.pai_externo&&x.pai_externo===c.id_externo})))});
+    if((D.consultas||[]).length)p.appendChild(rtDet("desc-consultas","Últimas consultas",h("div",null,D.consultas.map(function(q){return h("p",{class:"sub",text:rtData(q.iniciada_em)+" · "+(q.engine==="google_shopping"?"Shopping":q.engine==="google_immersive_product"?"Lojas":"Produto")+" · "+(q.status==="reservada"?"em andamento":q.status)+" · "+q.resultados+" resultado(s) · gasto "+q.buscas_gastas+(q.consulta?" · “"+q.consulta+"”":"")})}))));
     corpo.appendChild(p)}
 
   /* ---------- ajustes: CEP privado, avisos, vendedores ---------- */
@@ -344,7 +454,7 @@
     if(RT.item){rtDetalhe(r);return}
     var abas=h("div",{class:"pills rtabas"},RT_ABAS.map(function(a){var b=h("a",{href:"#mercado/radar","aria-current":a[0]===RT.aba?"page":null,text:a[1]});b.onclick=function(e){if(e&&e.preventDefault)e.preventDefault();RT.aba=a[0];RT.aviso="";rtDesenhar()};return b}));
     r.appendChild(abas);
-    ({oport:rtAbaOport,itens:rtAbaItens,lojas:rtAbaLojas,ajustes:rtAbaAjustes})[RT.aba](r)}
+    ({oport:rtAbaOport,desc:rtAbaDescobrir,itens:rtAbaItens,lojas:rtAbaLojas,ajustes:rtAbaAjustes})[RT.aba](r)}
   /* chamada pelo Mercado: sb = cliente já logado; só o dono chega aqui (a aba nem aparece para a casa) */
   function rtMontar(corpo,sb,user){
     RT.sb=sb;RT.user=user;RT.corpo=corpo;

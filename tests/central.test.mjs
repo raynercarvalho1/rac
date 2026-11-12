@@ -32,8 +32,11 @@ test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, com
   /* a 043 (Radar de Preços) também aplica a trava "mfa" no próprio laço e recria seguranca_estado() com as suas seis tabelas */
   const cobertas43 = listaMfa(ler("supabase/043_radar_precos.sql"));
   assert.deepEqual(cobertas43, ["radar_config", "radar_lojas", "radar_itens", "radar_ofertas", "radar_coletas", "radar_precos"]);
+  /* a 048 (Radar: descoberta e orçamento) aplica a trava "mfa" no próprio laço e recria seguranca_estado() com as suas três tabelas */
+  const cobertas48 = listaMfa(ler("supabase/048_radar_descoberta.sql"));
+  assert.deepEqual(cobertas48, ["radar_consultas", "radar_candidatos", "radar_historico"]);
   /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 e as da 037 por ela mesma */
-  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037 nem na 043`);
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t) || cobertas48.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037, na 043 nem na 048`);
   assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
   assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);

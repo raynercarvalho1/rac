@@ -170,7 +170,7 @@
     var tabs={},hashes={},fora=[],falhas=[],criado=new Date().toISOString();
     return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");
       return lerTabela(t).then(function(l0){var c=NUCLEO.segLimpar(t,l0);tabs[t]=c.linhas;fora=fora.concat(c.fora);return segSha(NUCLEO.segCanon(c.linhas)).then(function(x){hashes[t]=x})},
-        function(e){falhas.push(t+": "+e.message)})})},Promise.resolve())
+        function(e){var d=NUCLEO.segDef(t);if(d&&d.dep&&NUCLEO.segTabelaAusente(e.message))return;falhas.push(t+": "+e.message)})})},Promise.resolve())
     .then(function(){var j=NUCLEO.segBackup(EU.id,criado,tabs,hashes,fora,falhas),txt=JSON.stringify(j);
       return segSha(txt).then(function(arq){
         baixarArquivo(new Blob([txt],{type:"application/json"}),"rac-backup-"+hojeISO()+(motivo?"-"+motivo:"")+".json");

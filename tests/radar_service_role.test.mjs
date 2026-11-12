@@ -33,7 +33,8 @@ test("047: número único, 043/045 e as migrations aplicadas intactas, e a funç
   assert.ok(!/service_role/.test(semComent(S43)), "a 043 (já aplicada) não foi editada");
   const idx = ler("supabase/functions/radar/index.ts"), usos = {};
   for (const m of idx.matchAll(/adm\.from\("(radar_[a-z]+)"\)\.(select|insert|update|delete|upsert)\(/g)) (usos[m[1]] ||= new Set()).add(m[2]);
-  const dado = { radar_lojas: ["select"], radar_ofertas: ["select"], radar_itens: ["select"], radar_coletas: ["select", "insert", "update"], radar_precos: ["select", "insert"] };
+  /* 047 (aplicada) + 048 (aplicada; descoberta: radar_consultas select+insert; radar_candidatos select+insert+update; testado em radar_descoberta_sql.test.mjs) */
+  const dado = { radar_lojas: ["select"], radar_ofertas: ["select"], radar_itens: ["select"], radar_coletas: ["select", "insert", "update"], radar_precos: ["select", "insert"], radar_consultas: ["select", "insert"], radar_candidatos: ["select", "insert", "update"], radar_historico: ["select", "insert"] };
   for (const [t, ops] of Object.entries(usos)) for (const o of ops) assert.ok((dado[t] || []).includes(o), `a função faz ${o} em ${t} e a 047 não concede`);
   for (const t of Object.keys(usos)) assert.ok(dado[t], t);
 });

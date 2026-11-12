@@ -79,7 +79,7 @@ test("o dono abre o Radar: lê as cinco tabelas, mostra as abas e o vazio explic
   const t = montar(); await t.abrir();
   assert.deepEqual([...new Set(t.banco.log.map((x) => x.t))].sort(), ["radar_config", "radar_itens", "radar_lojas", "radar_ofertas", "radar_precos"]);
   assert.ok(t.banco.log.every((x) => x.ops[0][0] === "select"), "abrir não grava nada");
-  const abas = todos(t.corpo, (e) => e.tag === "a").map((a) => a.attrs.text); assert.deepEqual(abas, ["Oportunidades", "Produtos", "Lojas", "Ajustes"]);
+  const abas = todos(t.corpo, (e) => e.tag === "a").map((a) => a.attrs.text); assert.deepEqual(abas, ["Oportunidades", "Descobrir", "Produtos", "Lojas", "Ajustes"]);
   assert.match(textoDe(t.corpo), /Ainda não há preços registrados/); assert.match(textoDe(t.corpo), /equivalência confirmada/);
 });
 test("falha ao ler mostra o erro em português e não quebra a tela", async () => {
@@ -339,4 +339,121 @@ test("sinais de anúncio suspeito aparecem na oportunidade sem descartá-la", as
   const dados = { radar_lojas: [{ ...LOJA, tipo: "marketplace" }], radar_ofertas: [{ ...OFERTA, vendedor: null }], radar_precos: [P(10, 200), P(0, 20), P(0, 10, { modalidade: "parcelado", meio: "credito", parcelas: 2, valor_parcela: 5, total_parcelado: 10, sem_juros: true, observado_em: iso(0.0005) })] };
   const t = montar({ dados }); await t.abrir(); const txt = textoDe(t.corpo);
   assert.match(txt, /R\$ 30,00/); assert.match(txt, /queda grande/); assert.match(txt, /Marketplace sem vendedor identificado/); assert.match(txt, /total parcelado está abaixo do preço à vista/);
+});
+
+test("Lojas: Editar muda nome e tipo sem mexer na coleta; domínio novo desliga a coleta; domínio inválido é recusado; Excluir sem ofertas e explicação com ofertas", async () => {
+  const lib = { ...LOJA, coleta_permitida: true };
+  const t = montar({ dados: { radar_lojas: [lib], radar_ofertas: [] } }); await t.abrir(); t.ctx.RT.aba = "lojas"; t.ctx.rtDesenhar();
+  const ult = (no, ph) => todos(no, (e) => e.tag === "input" && e.attrs.placeholder === ph).at(-1) /* o da última loja: o 1º é o do formulário "Nova loja" */; const nome = ult(t.corpo, "Nome da loja"), dom = ult(t.corpo, "Domínio (ex.: loja.com.br)");
+  assert.ok(nome && dom && todos(t.corpo, (e) => e.tag === "button" && (e.attrs.text ?? e.texto).includes("Salvar alterações")).at(-1), "formulário de edição");
+  nome.value = "Loja Renomeada"; todos(t.corpo, (e) => e.tag === "button" && (e.attrs.text ?? e.texto).includes("Salvar alterações")).at(-1).onclick(); await espera(); await espera();
+  let u = t.banco.de("radar_lojas", "update").at(-1); assert.equal(u.ops[0][1].nome, "Loja Renomeada"); assert.equal(u.ops[0][1].coleta_permitida, true, "mesmo domínio: a coleta liberada continua"); igual(u.ops[1], ["eq", "id", "l1"]);
+  /* domínio novo: a coleta desliga e o domínio sai normalizado */
+  t.ctx.RT.aba = "lojas"; t.ctx.rtDesenhar(); ult(t.corpo, "Domínio (ex.: loja.com.br)").value = "https://www.OutraLoja.com.br/p?x=1"; todos(t.corpo, (e) => e.tag === "button" && (e.attrs.text ?? e.texto).includes("Salvar alterações")).at(-1).onclick(); await espera(); await espera();
+  u = t.banco.de("radar_lojas", "update").at(-1); assert.equal(u.ops[0][1].dominio, "outraloja.com.br"); assert.equal(u.ops[0][1].coleta_permitida, false, "domínio novo: coleta desligada até liberar de novo");
+  /* domínio inválido: nada é gravado */
+  const antes = t.banco.de("radar_lojas", "update").length; t.ctx.RT.aba = "lojas"; t.ctx.rtDesenhar(); ult(t.corpo, "Domínio (ex.: loja.com.br)").value = "isso nao e dominio"; todos(t.corpo, (e) => e.tag === "button" && (e.attrs.text ?? e.texto).includes("Salvar alterações")).at(-1).onclick(); await espera(); await espera();
+  assert.equal(t.banco.de("radar_lojas", "update").length, antes, "domínio inválido não grava"); assert.match(msgs(t.corpo), /Domínio inválido/);
+  /* com ofertas: sem Excluir, com a explicação; o histórico de preços não é tocado */
+  const c = montar({ dados: { radar_lojas: [LOJA], radar_ofertas: [OFERTA] } }); await c.abrir(); c.ctx.RT.aba = "lojas"; c.ctx.rtDesenhar();
+  assert.equal(botao(c.corpo, "Excluir"), undefined); assert.match(textoDe(c.corpo), /antes exclua ou troque as 1 oferta\(s\) ligadas/); assert.ok(botao(c.corpo, "Salvar alterações"), "editar continua disponível");
+  assert.equal(c.banco.de("radar_precos", "update").length + c.banco.de("radar_precos", "delete").length, 0);
+});
+
+/* ---------- aba Descobrir (descoberta pelo provedor; candidatos ainda não confirmados na loja) ---------- */
+const CAND = (id, titulo, extra = {}) => ({ id, item_id: "i1", consulta_id: "q1", provedor: "serpapi", engine: "google_shopping", id_externo: id, pai_externo: null, titulo, loja: "Magalu", link: "https://www.google.com/search?x=" + id, link_tipo: "google", preco: 100, preco_texto: "R$ 100,00",
+  moeda: "BRL", preco_original: null, desconto_texto: null, frete_situacao: "desconhecido", frete_valor: null, frete_texto: null, total: null, pagamento_texto: null, parcelamento_texto: null, entrega_texto: null, detalhes: null, avaliacao: 4.9, avaliacoes: 2300,
+  tipo_oferta: "individual", relevancia: 70, quantidade: 1, medida_valor: 454, medida_unidade: "g", composicao: [], preco_por_medida: 10.79, base_medida: "100 g", grupo_chave: "g", chave_dedup: id, catalogo: false, varias_fontes: false, product_id: id, page_token: null,
+  token_observado_em: null, evidencias: ["o modelo CH-02 aparece no título"], sinais: [], observado_em: "2026-11-11T21:32:00Z", precos_anteriores: [], decisao: "pendente", oferta_id: null, ...extra });
+const CANDS = [
+  CAND("c1", "Creme Hidratante Corporal Principia CH-02 454g", { preco: 49, preco_por_medida: 10.79, page_token: "TOKEN-1", catalogo: true, produto_chave: "principia|ch02", apresentacao_chave: "454g" }),
+  CAND("c2", "Kit 2 Creme Hidratante Principia CH-02 454g", { preco: 133.92, tipo_oferta: "kit_mesmo_produto", quantidade: 2, medida_valor: 908, preco_por_medida: 14.75, relevancia: 65, produto_chave: "principia|ch02", apresentacao_chave: "2x454g", composicao: [{ descricao: "Creme Hidratante Corporal Principia CH-02", modelo: "ch02", medida: { valor: 454, unidade: "g" }, quantidade: 2 }] }),
+  CAND("c3", "Kit Cremes Hidratantes CH-01 + CH-02", { preco: 74.8, tipo_oferta: "combo", medida_valor: null, medida_unidade: null, preco_por_medida: null, base_medida: null, relevancia: 40, produto_chave: "combo:ch01+ch02", apresentacao_chave: "combo", composicao: [{ descricao: "Creme Hidratante Corporal Principia CH-02", modelo: "ch02", medida: null, quantidade: 1 }, { descricao: "Produto CH-01", modelo: "ch01", medida: null, quantidade: 1 }] }),
+  CAND("c4", "Creme Hidratante Corporal Principia CH-02 250g", { preco: 38.99, tipo_oferta: "outra_apresentacao", medida_valor: 250, preco_por_medida: 15.6, relevancia: 50 }),
+  CAND("c5", "Principia Kit Antissinais Trio Ch + Pm + Gr", { preco: 227, tipo_oferta: "relacionado", medida_valor: null, medida_unidade: null, preco_por_medida: null, base_medida: null, relevancia: 15, loja: "principiaskin.com" }),
+  CAND("c6", "Anúncio que o dono já ignorou", { decisao: "ignorado", tipo_oferta: "indeterminado", relevancia: 5, preco_por_medida: null }),
+  CAND("l1", "Kit 2 Creme Hidratante Principia CH-02 454g", { pai_externo: "c2", engine: "google_immersive_product", loja: "Drogasil", link: "https://www.drogasil.com.br/p/1", link_tipo: "loja", preco: 130, total: 139.9, frete_situacao: "informado_provedor", frete_valor: 9.9, pagamento_texto: "Pix, cartão", tipo_oferta: "kit_mesmo_produto", quantidade: 2, medida_valor: 908, preco_por_medida: 14.32, produto_chave: "principia|ch02", apresentacao_chave: "2x454g" }),
+];
+const abrirDesc = async (extra = {}, fn = {}, pessoal = {}) => {
+  const t = montar({ pessoal, dados: { radar_candidatos: CANDS, radar_consultas: [{ id: "q1", engine: "google_shopping", variante: "completa", consulta: "Principia CH-02", status: "ok", resultados: 6, buscas_gastas: 1, iniciada_em: "2026-11-11T21:32:00Z", erro_codigo: null }], ...extra } });
+  t.corpos = []; t.banco.SB.functions.invoke = (n, o) => { t.corpos.push(o.body); const r = fn[o.body.tipo]; return Promise.resolve(typeof r === "function" ? r(o.body) : r ?? { data: { ok: false, erro: "sem_chave_serpapi" } }); };
+  await t.abrir(); t.ctx.RT.aba = "desc"; t.ctx.rtDesenhar(); await espera(); await espera(); await espera(); return t;
+};
+
+test("Descobrir: lista TODOS os anúncios (nada é descartado), tipos identificados, preço por medida, frete desconhecido e a ressalva de que não foi confirmado na loja", async () => {
+  const t = await abrirDesc({}, { uso_descoberta: { data: { ok: true, orcamento: { dia_usado: 2, dia_limite: 20, mes_usado: 5, mes_limite: 200, restante: 15 } } } }), txt = textoDe(t.corpo);
+  assert.deepEqual(todos(t.corpo, (e) => e.tag === "a" && /^(Oportunidades|Descobrir|Produtos|Lojas|Ajustes)$/.test(e.attrs.text)).map((a) => a.attrs.text), ["Oportunidades", "Descobrir", "Produtos", "Lojas", "Ajustes"]);
+  for (const x of ["Individual", "Kit do mesmo produto", "Combo", "Outra apresentação", "Relacionado"]) assert.ok(txt.includes(x), x);
+  const titulos = ["CH-02 454g", "Kit 2 Creme Hidratante Principia CH-02 454g", "CH-01 + CH-02", "CH-02 250g", "Trio Ch + Pm + Gr"]; for (const x of titulos) assert.ok(txt.includes(x), "aparece: " + x);
+  assert.ok(!txt.includes("já ignorou"), "o ignorado fica oculto, mas contado"); assert.match(txt, /Mostrar ignorados \(1\)/); assert.match(txt, /Todos \(5\)/);
+  assert.ok(txt.includes("R$ 14,75 por 100 g") && txt.includes("R$ 10,79 por 100 g") && txt.includes("R$ 15,60 por 100 g"), "preço por medida");
+  assert.ok(txt.indexOf("R$ 10,79 por 100 g") < txt.indexOf("R$ 14,75 por 100 g") && txt.indexOf("R$ 14,75 por 100 g") < txt.indexOf("R$ 15,60 por 100 g"), "ordem padrão: menor preço por medida primeiro");
+  assert.ok(txt.indexOf("R$ 15,60 por 100 g") < txt.indexOf("Kit Cremes Hidratantes CH-01 + CH-02"), "o que não tem preço por medida vem depois (combo, relacionado)");
+  assert.ok(txt.includes("Frete: desconhecido (não conta como grátis)")); assert.ok(txt.includes("ainda não confirmado na loja")); assert.ok(txt.includes("Composição (sugerida pelo título): 2 × Creme Hidratante Corporal Principia CH-02 454 g")); assert.ok(txt.includes("Creme Hidratante Corporal Principia CH-02 + Produto CH-01"));
+  assert.ok(txt.includes("Frete segundo o Google: R$ 9,90 (não confirmado para o seu CEP)") && txt.includes("Pix, cartão") && txt.includes("total R$ 139,90"), "a loja do anúncio aparece aninhada, com o frete do Google rotulado como não confirmado");
+  assert.ok(txt.includes("hoje 2 de 20") && txt.includes("no mês 5 de 200"), "orçamento de buscas"); assert.ok(txt.includes("2 unidades") && txt.includes("908 g no total"));
+  botao(t.corpo, "Combo (1)").onclick(); await espera(); const so = textoDe(t.corpo); assert.ok(so.includes("CH-01 + CH-02") && !so.includes("CH-02 250g")); botao(t.corpo, "Todos").onclick();
+  botao(t.corpo, "Mostrar ignorados").onclick(); await espera(); assert.ok(textoDe(t.corpo).includes("já ignorou"), "mostrar ignorados traz de volta");
+  assert.equal(t.banco.gravacoes().length, 0, "só ler e mostrar não grava nada");
+});
+
+test("Descobrir: buscar chama a função com o produto (sem chave), mostra consumo e cache, erros em português; Ver lojas usa o anúncio; nada grava direto", async () => {
+  const t = await abrirDesc({}, {
+    descobrir: { data: { ok: true, consultas: [{ variante: "completa", status: "ok", gasto: 1, novos: 3 }, { variante: "marca_modelo", status: "cache", gasto: 0 }], orcamento: { dia_usado: 1, dia_limite: 20, mes_usado: 1, mes_limite: 200, restante: 19 }, avisos: [] } },
+    expandir: (b) => ({ data: b.candidato_id === "c1" ? { ok: true, status: "ok", lojas: 2, gasto: 1 } : { ok: false, erro: "token_vencido" } }), cota_provedor: { data: { ok: true, cota: { this_month_usage: 3, total_searches_left: 247, account_rate_limit_per_hour: 50 } } },
+  });
+  exato(t.corpo, "Buscar ofertas").onclick(); await espera(); await espera(); await espera(); igual(t.corpos.find((b) => b.tipo === "descobrir"), { tipo: "descobrir", item_id: "i1" });
+  assert.match(textoDe(t.corpo), /2 consulta\(s\): 1 busca\(s\) gasta\(s\), 1 do cache, 3 anúncio\(s\) novo\(s\)/); assert.match(textoDe(t.corpo), /hoje 1 de 20/);
+  botao(t.corpo, "Ver lojas").onclick(); await espera(); await espera(); await espera(); igual(t.corpos.find((b) => b.tipo === "expandir"), { tipo: "expandir", candidato_id: "c1" }); assert.match(textoDe(t.corpo), /Lojas encontradas: 2\. 1 busca gasta\./);
+  botao(t.corpo, "Conferir cota").onclick(); await espera(); await espera(); assert.match(textoDe(t.corpo), /usadas no mês 3 · restantes 247 · limite por hora 50/);
+  for (const corpo of t.corpos) assert.ok(!/api_?key|chave|token/i.test(JSON.stringify(corpo)), "o site nunca manda chave nem token"); assert.equal(t.banco.gravacoes().length, 0);
+  const e1 = await abrirDesc({}, { descobrir: { data: { ok: false, erro: "sem_chave_serpapi" } } }); exato(e1.corpo, "Buscar ofertas").onclick(); await espera(); await espera(); assert.match(textoDe(e1.corpo), /SERPAPI_API_KEY não está cadastrado/);
+  const e2 = await abrirDesc({}, { descobrir: { error: { message: "FunctionsHttpError" } } }); exato(e2.corpo, "Buscar ofertas").onclick(); await espera(); await espera(); assert.match(textoDe(e2.corpo), /não respondeu/);
+  const e3 = await abrirDesc({}, { descobrir: { data: { ok: false, erro: "orcamento", mensagem: "Limite de buscas atingido (dia 20/20, mês 40/200)." } } }); exato(e3.corpo, "Buscar ofertas").onclick(); await espera(); await espera(); assert.match(textoDe(e3.corpo), /O limite de consultas foi atingido\./); assert.ok(!/dia 20\/20/.test(textoDe(e3.corpo)), "só a mensagem simples, sem números nem fluxo extra");
+});
+
+test("Descobrir: Acompanhar só vale com link de loja (cria loja e oferta pelo fluxo existente e liga o candidato); anúncio só do Google pede 'Ver lojas'; Ignorar só muda a decisão", async () => {
+  const t = await abrirDesc(); const cartoes = (ini) => todos(t.corpo, (e) => String(e.attrs.class || "").includes("rtopo") && textoDe(e).startsWith(ini));
+  const g = todos(cartoes("Creme Hidratante Corporal Principia CH-02 454g")[0], (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; g.onclick(); await espera();
+  assert.match(textoDe(t.corpo), /só tem a página do Google/); assert.equal(t.banco.gravacoes().length, 0, "link do Google não vira oferta");
+  const loja = cartoes("Kit 2 Creme Hidratante Principia CH-02 454g").filter((e) => textoDe(e).includes("Drogasil")).pop(), ac = todos(loja, (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; assert.ok(ac, "a loja do anúncio tem o botão");
+  ac.onclick(); for (let i = 0; i < 6; i++) await espera();
+  assert.equal(t.banco.de("radar_lojas", "insert").length, 1); assert.equal(t.banco.de("radar_lojas", "insert")[0].ops[0][1].dominio, "drogasil.com.br"); const of = t.banco.de("radar_ofertas", "insert")[0].ops[0][1]; assert.equal(of.url, "https://www.drogasil.com.br/p/1"); assert.equal(of.item_id, "i1"); assert.equal(of.vendedor, "Drogasil");
+  const up = t.banco.de("radar_candidatos", "update")[0].ops[0][1]; assert.equal(up.decisao, "acompanhando"); assert.ok(up.oferta_id); assert.deepEqual(Object.keys(up).sort(), ["atualizado_em", "decisao", "oferta_id"], "só decisão e oferta");
+  assert.equal(of.evidencias.length, 1); assert.deepEqual([of.evidencias[0].tipo, of.evidencias[0].tipo_oferta, of.evidencias[0].quantidade, of.evidencias[0].apresentacao], ["descoberta", "kit_mesmo_produto", 2, "2x454g"], "a oferta nasce com a evidência de onde veio");
+  assert.equal(of.equivalencia, undefined, "a equivalência não é decidida aqui (continua não confirmada)"); assert.match(t.ctx.RT.aviso, /Atenção: este anúncio é kit do mesmo produto \(2x454g\): o preço dele não é o do frasco avulso/);
+  assert.equal(t.banco.de("radar_precos", "insert").length, 0, "acompanhar não inventa preço no histórico");
+  const t2 = await abrirDesc(); todos(t2.corpo, (e) => e.tag === "button" && e.attrs.text === "Ignorar")[0].onclick(); await espera(); await espera(); const u = t2.banco.de("radar_candidatos", "update")[0].ops[0][1]; assert.equal(u.decisao, "ignorado"); assert.deepEqual(Object.keys(u).sort(), ["atualizado_em", "decisao"]);
+});
+
+test("Descobrir: sem a migration 048 a aba avisa e o resto do Radar continua; sem produto pede o cadastro; a tela não conhece a chave do provedor", async () => {
+  const t = montar({ falhas: { "radar_candidatos:select": 'relation "public.radar_candidatos" does not exist', "radar_consultas:select": 'relation "public.radar_consultas" does not exist' } });
+  t.banco.SB.functions.invoke = () => Promise.resolve({ data: { ok: false, erro: "migracao_pendente" } }); await t.abrir(); t.ctx.RT.aba = "desc"; t.ctx.rtDesenhar(); await espera(); await espera(); await espera();
+  assert.match(textoDe(t.corpo), /precisa da migration 048/); t.ctx.RT.aba = "itens"; t.ctx.rtDesenhar(); assert.match(textoDe(t.corpo), /Fone XM-4/, "as outras abas seguem normais");
+  const v = montar({ dados: { radar_itens: [] } }); await v.abrir(); v.ctx.RT.aba = "desc"; v.ctx.rtDesenhar(); assert.match(textoDe(v.corpo), /Cadastre um produto/);
+  const src = ler("js/radar.js"); assert.ok(!/api_key=|"api_key"|bearer|authorization/i.test(src.slice(src.indexOf("descobrir: ofertas encontradas"), src.indexOf("ajustes: CEP privado"))), "a tela não conhece a chave do provedor");
+});
+
+test("Descobrir: histórico por identidade do produto (atravessa lojas e anúncios, sem misturar combo), créditos por operação, fontes implementadas × planejadas e o valor pago", async () => {
+  const hist = [
+    { produto_chave: "principia|ch02", apresentacao_chave: "2x454g", loja: "Magalu", preco: 133.92, preco_por_medida: 14.75, base_medida: "100 g", observado_em: "2026-11-10T10:00:00Z" },
+    { produto_chave: "principia|ch02", apresentacao_chave: "2x454g", loja: "Drogasil", preco: 130, preco_por_medida: 14.32, base_medida: "100 g", observado_em: "2026-11-11T10:00:00Z" },
+    { produto_chave: "principia|ch02", apresentacao_chave: "454g", loja: "Drogal", preco: 48.99, preco_por_medida: 10.79, base_medida: "100 g", observado_em: "2026-11-11T11:00:00Z" },
+    { produto_chave: "principia|ch02", apresentacao_chave: "454g", loja: "Magalu", preco: 49, preco_por_medida: 10.79, base_medida: "100 g", observado_em: "2026-11-09T11:00:00Z" },
+    { produto_chave: "combo:ch01+ch02", apresentacao_chave: "combo", loja: "Droga Raia", preco: 74.8, preco_por_medida: null, base_medida: null, observado_em: "2026-11-11T12:00:00Z" },
+  ];
+  const t = await abrirDesc({ radar_historico: hist }, { uso_descoberta: { data: { ok: true, orcamento: { dia_usado: 3, dia_limite: 20, mes_usado: 7, mes_limite: 200, restante: 13, expansoes_dia: 1, expansoes_limite_dia: 10, rotina_dia: 0, rotina_limite_dia: 6, por_engine: { google_shopping: { dia: 2, mes: 6 }, google_immersive_product: { dia: 1, mes: 1 } }, por_origem: { manual: { dia: 3, mes: 7 } } },
+    provedores: [{ id: "serpapi", nome: "SerpApi (Google Shopping)", estado: "ativo" }, { id: "mercadolivre", nome: "Mercado Livre (API oficial)", estado: "planejado" }, { id: "vtex_paginas", nome: "Páginas de lojas VTEX (leitura direta)", estado: "planejado" }] } } }, { "radar-pagos": { i1: { a_vista: 52.5 } } });
+  const txt = textoDe(t.corpo);
+  assert.ok(txt.includes("Histórico deste produto (2x454g): 2 observação(ões) em 2 loja(s) · menor R$ 130,00 (Drogasil, "), "o kit: série do kit, atravessando lojas");
+  assert.ok(txt.includes("Histórico deste produto (454g): 2 observação(ões) em 2 loja(s) · menor R$ 48,99 (Drogal, "), "o avulso: série própria");
+  assert.ok(txt.includes("Menor preço por 100 g já visto (todos os tamanhos e kits do mesmo produto): R$ 10,79"), "comparação por medida entre tamanhos e kits do MESMO produto");
+  assert.ok(txt.includes("Histórico deste produto (combo): 1 observação(ões) em 1 loja(s) · menor R$ 74,80 (Droga Raia, "), "o combo tem a série PRÓPRIA, só com o que é do combo"); const porMedida = [...txt.matchAll(/Menor preço por 100 g já visto \(todos os tamanhos e kits do mesmo produto\): (R\$ [\d.,]+)/g)].map((m) => m[1]); assert.ok(porMedida.length >= 1 && porMedida.every((v) => v === "R$ 10,79"), "o combo não entra na comparação por medida do produto");
+  assert.ok(txt.includes("Créditos contados pelo RAC: hoje 3 de 20 · no mês 7 de 200") && txt.includes("Hoje: 2 busca(s), 1 expansão(ões) de lojas (máx. 10/dia), rotina 0 de 6"), "créditos por operação");
+  assert.ok(txt.includes("Fontes: SerpApi (Google Shopping) (ativa) · Mercado Livre (API oficial) (ainda não implementada) · Páginas de lojas VTEX (leitura direta) (ainda não implementada)"), "o que está implementado e o que é futuro");
+  assert.match(txt, /Paguei: à vista R\$ 52,50/); assert.equal(t.banco.gravacoes().length, 0, "mostrar histórico, créditos e fontes não grava nada");
+  const sem = await abrirDesc({ radar_historico: [] }); assert.ok(!textoDe(sem.corpo).includes("Histórico deste produto"), "sem observações, sem histórico inventado");
+  const quebrado = await abrirDesc({}, {}, {}); quebrado.banco.log.length = 0;
+  const falha = montar({ dados: { radar_candidatos: CANDS }, falhas: { "radar_historico:select": 'relation "public.radar_historico" does not exist' } }); falha.banco.SB.functions.invoke = () => Promise.resolve({ data: { ok: false } }); await falha.abrir(); falha.ctx.RT.aba = "desc"; falha.ctx.rtDesenhar(); await espera(); await espera(); await espera();
+  assert.ok(textoDe(falha.corpo).includes("Kit 2 Creme Hidratante Principia CH-02 454g") && !/precisa da migration/.test(textoDe(falha.corpo)), "sem a tabela de histórico a aba continua mostrando os candidatos");
 });

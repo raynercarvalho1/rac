@@ -35,7 +35,7 @@
     return BKP_TABELAS.reduce(function(p,t){return p.then(function(){st("Lendo "+t+"…");return lerTabela(t).then(function(l0){
       var c=NUCLEO.segLimpar(t,l0),l=c.linhas;man.fora=man.fora.concat(c.fora);
       man.tabelas[t]=l.length;if(t==="registros"||t==="pedidos"||t==="compras_online_docs"||t==="notas_fiscais_docs"||t==="notas_fiscais_tentativas")regs=regs.concat(l);
-      arqs.push({nome:"dados/"+t+".json",dados:enc.encode(JSON.stringify(l))},{nome:"dados/"+t+".csv",dados:enc.encode(paraCsv(l))})}).catch(function(e){man.tabelas[t]="não lida: "+e.message})})},Promise.resolve())
+      arqs.push({nome:"dados/"+t+".json",dados:enc.encode(JSON.stringify(l))},{nome:"dados/"+t+".csv",dados:enc.encode(paraCsv(l))})}).catch(function(e){var d=NUCLEO.segDef(t);man.tabelas[t]=d&&d.dep&&NUCLEO.segTabelaAusente(e.message)?"ainda não existe (migration "+d.dep+")":"não lida: "+e.message})})},Promise.resolve())
     .then(function(){
       if(!comAnexos)return;
       /* os anexos dos registros, dos pedidos (Alimentação) e os originais da Central de Compras, no mesmo caminho do cofre */

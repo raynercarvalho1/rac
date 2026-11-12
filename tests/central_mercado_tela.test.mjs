@@ -187,3 +187,58 @@ test("código: a navegação nova só lê (nenhuma escrita, RPC, IA ou função)
   assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento" \? loadOnline\(\)/, "as páginas carregam as compras online junto");
   assert.match(ler("index.html"), /\.cmvbars\{[^}]*overflow-x:auto[^}]*\}\.cmvbars \.vb\{flex:1 0 36px\}/, "colunas com largura mínima: rolam para o lado em vez de espremer ou vazar do quadro");
 });
+
+/* ---------- ajustes pedidos pelo dono em 12/11/2026 (depois da publicação): a nota aberta por um item e os dados que demoravam a aparecer ---------- */
+test("abrir a compra por um item: a nota abre pelo TOPO, com o item em destaque logo abaixo do cabeçalho e marcado na lista", async () => {
+  await abrir("produto", "Leite", { db: { radar_itens: [] } });
+  const leite = ROWS.find((x) => x.produto === "Leite" && x.data === "2026-11-02");
+  const linhas = achar(ROOT, (e) => e.tag === "a" && /plr/.test(e.className)); linhas[0].onclick({ preventDefault() {} });
+  assert.deepEqual([T.st.notaAberta, T.st.notaItem], ["2026-11-02|Confiança (Sorocaba)|20", leite.id], "a nota e o item clicado");
+  T.drawApp("notas"); await esperar();
+  const aberta = achar(ROOT, (e) => e.tag === "details" && e.attrs.open === "open"); assert.equal(aberta.length, 1);
+  const topo = achar(aberta[0], (e) => e.className === "mkalvotopo"); assert.equal(topo.length, 1, "o item aparece no topo da nota");
+  assert.equal(aberta[0].children[1], topo[0], "logo abaixo do cabeçalho (data, loja, NF e total)");
+  const tt = texto(topo[0]).replace(NB, " "); assert.ok(tt.includes("Leite") && tt.includes("12 un × " + BRL(4.5) + " = " + BRL(54)), tt);
+  const marcados = achar(ROOT, (e) => /\bmkitem\b/.test(e.className) && /\bmkalvo\b/.test(e.className)); assert.equal(marcados.length, 1); assert.ok(texto(marcados[0]).includes("Leite"), "o item fica em destaque na lista");
+  assert.match(ler("mercado.js"), /p\.querySelector\("details\[open\]"\); if \(ab && ab\.scrollIntoView\) ab\.scrollIntoView\(\{ block: "start" \}\)/, "rola até o topo da nota, não até o meio dos itens");
+  /* abrir a nota pela Central (sem item) não deixa destaque velho */
+  await abrir("central", "", { cu: { per: "tudo", aberta: "nota:2026-11-02|Confiança (Sorocaba)|20" } }); botoes("Abrir a nota em Notas")[0].onclick(); assert.equal(T.st.notaItem, null);
+  T.drawApp("notas"); await esperar(); assert.equal(achar(ROOT, (e) => e.className === "mkalvotopo").length, 0);
+});
+
+const NOVO = { id: "o9", data: "2026-11-09", loja: "shopee", numero: "S-9", total_pago: 33, compras_online_itens: [{ ordem: 1, descricao: "Capa de celular", qtd: 1, total: 33, categoria: "Tecnologia" }] };
+const banco = (extra = []) => ({ compras: ROWS, compras_online: ONL.map((c) => ({ ...c, itens: undefined, compras_online_itens: c.itens })).concat(extra) });
+
+test("dados frescos: passado o prazo, a Central relê as fontes em segundo plano e só redesenha se algo mudou; nunca nas telas de edição nem depois de trocar de tela", async () => {
+  await abrir("central", "", { cu: { per: "tudo" } }); globalThis.location.hash = "#mercado/central";
+  let calls = []; T.trocarSb(fakeSb(banco([NOVO]), calls));
+  T.lidoEm.notas = T.lidoEm.online = Date.now(); assert.equal(T.reler("central", ""), null, "dentro do prazo: não lê nada"); assert.equal(calls.length, 0);
+  T.lidoEm.notas = T.lidoEm.online = 0;
+  assert.equal(await T.reler("central", ""), true, "o pedido novo mudou os dados"); assert.ok(tudo().includes("Shopee"), "e aparece sem recarregar o site");
+  assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online"], "uma leitura de cada fonte");
+  const tela = ROOT.children; T.lidoEm.notas = T.lidoEm.online = 0; calls.length = 0;
+  assert.equal(await T.reler("central", ""), false, "nada mudou"); assert.equal(ROOT.children, tela, "sem redesenhar à toa");
+  T.lidoEm.notas = T.lidoEm.online = 0; calls.length = 0;
+  for (const v of ["notas", "produtos", "importar"]) assert.equal(T.reler(v, ""), null, v + ": tela de edição não relê"); assert.equal(calls.length, 0);
+  assert.equal(T.reler("painel", "") !== null, true, "o Painel do Mercado relê as notas"); await esperar(); assert.deepEqual(calls.map((c) => c[1]), ["compras"], "no Painel só as notas (ele não usa os pedidos online)");
+  T.lidoEm.notas = T.lidoEm.online = 0; T.trocarSb(fakeSb(banco(), calls = []));
+  const p = T.reler("central", ""); globalThis.location.hash = "#mercado/precos"; assert.equal(await p, false, "trocou de tela durante a leitura: descarta");
+  await esperar();
+});
+
+test("botão ↻ do topo: o Mercado se registra no atualizar da página (busca as duas fontes, só troca se as duas vierem) e espera a tela Adicionar nota", async () => {
+  await abrir("central", "", { cu: { per: "tudo" } });
+  const regs = []; globalThis.atuModulo = (sec, o) => regs.push([sec, o]);
+  globalThis.atuLer = (f) => Promise.resolve().then(f).then((v) => ({ ok: true, v }), (e) => ({ ok: false, erro: e.message }));
+  T.ligarAtualizar(); T.ligarAtualizar(); assert.equal(regs.length, 1, "registra uma vez só"); assert.equal(regs[0][0], "mercado");
+  const o = regs[0][1], calls = []; T.trocarSb(fakeSb(banco([NOVO]), calls));
+  const n = await o.buscar(); assert.ok(n.notas.ok && n.online.ok); assert.ok(n.online.v.some((c) => c.id === "o9"));
+  assert.deepEqual(o.antes(), { notas: { ok: true }, online: { ok: true } });
+  o.trocar(n); T.drawApp("central"); await esperar(); assert.ok(tudo().includes("Shopee"));
+  globalThis.location.hash = "#mercado/importar"; assert.match(o.ocupado(), /Adicionar nota/); globalThis.location.hash = "#mercado/central"; assert.equal(o.ocupado(), "");
+  assert.deepEqual(escritas(calls), [], "atualizar só lê");
+  const m = ler("mercado.js"), reg = m.slice(m.indexOf("function ligarAtualizar()"), m.indexOf("/* Todas as linhas") > 0 ? m.indexOf("/* Todas as linhas") : m.indexOf("function ligarAtualizar()") + 1200);
+  assert.ok(!/\.(insert|update|delete|upsert|rpc)\(|functions\.invoke|racIA/.test(reg.slice(0, 1200)), "o registro só lê");
+  assert.match(m, /drawApp\(sub, arg\); reler\(sub, arg\);/, "abrir uma tela do Mercado usa a memória na hora e relê em segundo plano");
+  delete globalThis.atuModulo; delete globalThis.atuLer;
+});

@@ -3003,7 +3003,7 @@
     (linhas||[]).forEach(function(x){var k=cuNotaChave(x),n=g[k];if(!n){n=g[k]={chave:k,data:x.data,mercado:x.mercado,numero:x.numero||null,pagamento:x.forma_pagamento||null,linhas:[]};ord.push(k)}n.linhas.push(x)});
     return ord.map(function(k){var n=g[k],o=canais[k]||{},cats={},tot=0,desc=0,on=o.canal==="online",pl=on&&o.plataforma?o.plataforma:null;
       var itens=n.linhas.map(function(x){var v=+x.valor_total||0,c=cuCat(x.categoria);tot+=v;desc+=+x.desconto||0;cats[c]=amR2((cats[c]||0)+v);
-        return {nome:x.produto||x.descricao,qtd:+x.quantidade||0,unidade:x.unidade||null,valor:amR2(v),categoria:c,sub:x.subcategoria||null,produto_chave:x.produto||x.descricao,unitario:+x.valor_unitario||0}});
+        return {nome:x.produto||x.descricao,qtd:+x.quantidade||0,unidade:x.unidade||null,valor:amR2(v),categoria:c,sub:x.subcategoria||null,produto_chave:x.produto||x.descricao,unitario:+x.valor_unitario||0,item_id:x.id||null}});
       return {id:"nota:"+k,fonte:"nota",chave:k,data:n.data,mes:String(n.data).slice(0,7),emissor:n.mercado,estabelecimento:cuSemCidade(pl||n.mercado),plataforma:pl,vendedor:null,
         canal:on?"online":"presencial",canal_informado:!!o.canal,nota_abre:String(n.data)+"|"+String(n.mercado)+"|"+(n.numero||""),valor:amR2(tot),desconto:amR2(desc),n_itens:itens.length,categorias:cats,ajustes:0,aj:null,numero:n.numero,numero_nf:n.numero,pagamento:n.pagamento,itens:itens}})}
   /* uma compra por pedido online que a regra financeira existente (coRegra) manda contar; o resto vai para "fora", com o motivo */
@@ -3073,7 +3073,7 @@
      (produto, quantidade, unidade, valor_unitario, valor_total, mercado = estabelecimento, nota = compra), então mkcProduto e mkcProdutos valem para as duas fontes. */
   function cmLinhas(compras){var out=[];
     (compras||[]).forEach(function(c){(c.itens||[]).forEach(function(i,k){var q=+i.qtd>0?+i.qtd:0,v=amR2(+i.valor||0),u=c.fonte==="nota"?amR2(+i.unitario||0):amR2(q>0?v/q:v);
-      out.push({id:c.id+"#"+k,compra:c.id,fonte:c.fonte,nota:c.id,abre:c.fonte==="nota"?(c.nota_abre||c.chave):null,chave_online:c.fonte==="online"?i.produto_chave||null:null,
+      out.push({id:c.id+"#"+k,compra:c.id,fonte:c.fonte,nota:c.id,abre:c.fonte==="nota"?(c.nota_abre||c.chave):null,item_id:c.fonte==="nota"?i.item_id||null:null,chave_online:c.fonte==="online"?i.produto_chave||null:null,
         data:c.data,mes:c.mes,mk:c.mes,estabelecimento:c.estabelecimento,mercado:c.estabelecimento,canal:c.canal,categoria:i.categoria,sub:i.sub||null,
         produto:String(i.nome==null?"":i.nome).trim()||"Sem nome",quantidade:q,unidade:mkcUn(i.unidade),valor_unitario:u,valor_total:v})})});
     return out}

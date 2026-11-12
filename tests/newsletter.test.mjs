@@ -30,11 +30,13 @@ const PY = ["python3", "python"].find((p) => { const r = spawnSync(p, ["-c", "im
 const semPython = PY ? false : "Python 3 não encontrado";
 function coletar(saida, env = {}, args = []) {
   return spawnSync(PY, [path.join(raiz, "scripts/atualizar_newsletter.py"), ...args], {
-    encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8", NL_FIXTURES: FIXT, NL_AGORA: AGORA, NL_SAIDA: saida, NL_FONTES: FONTES_TESTE, ...env },
+    encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1", NL_FIXTURES: FIXT, NL_AGORA: AGORA, NL_SAIDA: saida, NL_FONTES: FONTES_TESTE, ...env },
   });
 }
+/* PYTHONDONTWRITEBYTECODE: importar o script não pode criar scripts/__pycache__ (sujava a pasta e, com os testes em paralelo,
+   tests/estrutura.test.mjs lia a pasta nova como arquivo e falhava com EISDIR) */
 function py(codigo) {
-  const r = spawnSync(PY, ["-c", "import sys, json; sys.path.insert(0, sys.argv[1]); import atualizar_newsletter as N\n" + codigo, path.join(raiz, "scripts")], { encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
+  const r = spawnSync(PY, ["-c", "import sys, json; sys.path.insert(0, sys.argv[1]); import atualizar_newsletter as N\n" + codigo, path.join(raiz, "scripts")], { encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONDONTWRITEBYTECODE: "1" } });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }

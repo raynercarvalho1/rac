@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push *--force*)",
+      "Bash(git push *-f *)",
+      "Bash(git push *+*)",
+      "Bash(git push *main*)",
+      "Bash(git push *master*)",
+      "Bash(git push *--delete*)",
+      "Bash(git push *--all*)",
+      "Bash(git push *--mirror*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean *)",
+      "Bash(psql *)",
+      "Bash(supabase *)",
+      "Bash(curl *api.supabase.com*)",
+      "Bash(wget *api.supabase.com*)",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "mcp__github__delete_file",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./privado/**)",
+      "Edit(./privado/**)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "mcp__github__create_pull_request",
+      "mcp__github__merge_pull_request"
+    ]
+  }
+}

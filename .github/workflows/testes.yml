@@ -1,13 +1,28 @@
-# A cada publicação: roda os testes do site (tests/*.test.mjs) em dois grupos (estrutura/regressão e banco com PGlite). O resultado aparece na página Sistema.
+# A cada publicação e a cada Pull Request para a main: roda os testes do site (tests/*.test.mjs) em dois grupos (estrutura/regressão e banco com PGlite).
+# O resultado da main aparece na página Sistema (o selo do GitHub mostra só a branch principal; as execuções de PR não mexem nele).
 name: Testes
 
 on:
   push:
     branches: [main]
     paths-ignore: ["noticias.json", "tecdados.json", "vagas.json", "rumores.json", "newsletter.json"]
+  # PR para a main (ex.: branches claude/* do Claude Code na nuvem): testa antes do merge. O push só dispara na main, então o PR não roda duas vezes.
+  pull_request:
+    branches: [main]
+    paths-ignore: ["noticias.json", "tecdados.json", "vagas.json", "rumores.json", "newsletter.json"]
   workflow_dispatch: {}
   schedule:
     - cron: "30 10 * * 1"   # toda segunda, para pegar mudanças no Supabase mesmo sem publicação
+
+# só leitura: os testes não gravam nada no repositório (nem no PR)
+permissions:
+  contents: read
+
+# um commit novo no mesmo PR cancela a execução antiga daquele PR; fora de PR cada execução tem grupo próprio (run_id), então a main
+# continua como antes: nada é cancelado nem fica na fila
+concurrency:
+  group: testes-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   testes:

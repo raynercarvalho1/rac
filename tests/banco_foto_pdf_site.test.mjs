@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 
@@ -72,7 +72,14 @@ const uuid = (n) => "5f1c2d3e-4a5b-4c6d-8e7f-" + String(n).padStart(12, "0");
 const idem = (n) => "9a9a9a9a-0000-4000-8000-" + String(n).padStart(12, "0");
 const chaveDe = (n, tp = "1") => { const b = "31" + "2611" + CNPJ + "65" + "001" + String(n).padStart(9, "0") + tp + "12345678"; return b + N.nfDvChave(b); };
 const MIMES = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
-const arquivo = (ext = "jpg", tamanho = 3000) => { const bytes = randomBytes(tamanho); return { nome: "nota." + ext, ext, bytes, sha256: createHash("sha256").update(bytes).digest("hex"), tamanho, mime: MIMES[ext] }; };
+/* Arquivo de teste DETERMINÍSTICO (sequência, não sorteio), como em banco_foto_pdf.test.mjs: com randomBytes, o SHA-256 às vezes trazia 11 dígitos
+   seguidos com cara de CPF válido e a trava notas_fiscais_tentativas_sem_cpf recusava a gravação (falha intermitente). Pula as sementes cujo hash tenha 11 dígitos seguidos. */
+let seqArquivo = 0;
+const arquivo = (ext = "jpg", tamanho = 3000) => {
+  let bytes, sha256;
+  do { bytes = Buffer.alloc(tamanho, "arquivo-site-" + (++seqArquivo)); sha256 = createHash("sha256").update(bytes).digest("hex"); } while (/\d{11}/.test(sha256));
+  return { nome: "nota." + ext, ext, bytes, sha256, tamanho, mime: MIMES[ext] };
+};
 const resposta = (n, o = {}) => ({ modelo: "65", emitente_nome: "MERCADO EXEMPLO LTDA", emitente_cnpj: CNPJ, emitente_uf: "MG", numero: String(n), serie: "1", chave: chaveDe(n), data_emissao: "2026-11-06", protocolo: "131260000000001",
   situacao: "autorizada", total_produtos: 25.5, descontos: null, frete: null, outras: null, impostos: null, total: 25.5, valor_pago: 25.5, componentes: {}, pagamentos: [],
   itens: [{ descricao: "ITEM A", codigo: null, qtd: 2, unidade: "UN", unitario: 10, total: 20, desconto: 0, incerto: false }, { descricao: "ITEM B", codigo: null, qtd: 1, unidade: "UN", unitario: 5.5, total: 5.5, desconto: 0, incerto: false }],

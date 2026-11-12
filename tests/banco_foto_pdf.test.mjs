@@ -450,14 +450,14 @@ test("PGlite · o roteiro de conferência de produção (037_conferir_producao.s
   await db.close();
 });
 
-// ================= proposta 049: a trava de CPF das tentativas não olha hash nem caminho =================
-const P049 = "supabase/propostas/049_tentativas_cpf_ignora_hash.sql";
+// ================= migration 049 (APLICADA em 12/11/2026): a trava de CPF das tentativas não olha hash nem caminho =================
+const P049 = "supabase/049_tentativas_cpf_ignora_hash.sql";
 /* hash real da falha do CI de 12/11/2026 (commit 4fa83df): "…d00536588686eb…" tem 11 dígitos que, por acaso, fecham como CPF válido */
 const HASH_CI = "6071178346299528486ee597a643bcafd00536588686eb408c02d5d6682447f9";
-test("049 (proposta) · segue em propostas/ como NÃO aplicada, é atômica e só cria a função nova e troca a trava", () => {
+test("049 · registrada como aplicada, na pasta das migrations (fora de propostas/), atômica e só cria a função nova e troca a trava", () => {
   const s = ler(P049), sem = s.replace(/^--.*$/gm, "");
-  assert.match(s.slice(0, 400), /PROPOSTA \(NÃO APLICADA\)/);
-  assert.ok(!fs.existsSync(new URL("../supabase/049_tentativas_cpf_ignora_hash.sql", import.meta.url)), "não está entre as migrations aplicadas");
+  assert.match(s.slice(0, 400), /APLICADA EM PRODUÇÃO em 12\/11\/2026/); assert.ok(!/PROPOSTA \(NÃO APLICADA\)/.test(s));
+  assert.ok(!fs.existsSync(new URL("../supabase/propostas/049_tentativas_cpf_ignora_hash.sql", import.meta.url)), "saiu de propostas/");
   assert.match(sem, /^\s*begin;[\s\S]*commit;\s*$/);
   assert.ok(!/drop table|truncate|delete from|update public\.|insert into|drop function|alter table public\.(?!notas_fiscais_tentativas\b)/i.test(sem), "só mexe na trava da tabela de tentativas e na função nova");
   assert.match(sem, /create or replace function public\.nf_docs_texto\(d jsonb\)[\s\S]*set search_path = ''/);

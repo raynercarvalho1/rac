@@ -415,7 +415,7 @@ test("Descobrir: buscar chama a função com o produto (sem chave), mostra consu
 });
 
 test("Descobrir: Acompanhar só vale com link de loja (cria loja e oferta pelo fluxo existente e liga o candidato); anúncio só do Google pede 'Ver lojas'; Ignorar só muda a decisão", async () => {
-  const t = await abrirDesc(); const cartoes = (ini) => todos(t.corpo, (e) => String(e.attrs.class || "").includes("rtopo") && textoDe(e).startsWith(ini));
+  const t = await abrirDesc(); const cartoes = (ini) => todos(t.corpo, (e) => String(e.attrs.class || "").includes("rtopo") && textoDe(e).trim().startsWith(ini));
   const g = todos(cartoes("Creme Hidratante Corporal Principia CH-02 454g")[0], (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; g.onclick(); await espera();
   assert.match(textoDe(t.corpo), /só tem a página do Google/); assert.equal(t.banco.gravacoes().length, 0, "link do Google não vira oferta");
   const loja = cartoes("Kit 2 Creme Hidratante Principia CH-02 454g").filter((e) => textoDe(e).includes("Drogasil")).pop(), ac = todos(loja, (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; assert.ok(ac, "a loja do anúncio tem o botão");

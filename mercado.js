@@ -127,19 +127,23 @@
     var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
-    var bar = h("div", { class: "mkbar" });
-    var tabs = h("div", { class: "pills mkpills", "aria-label": "Central de Compras" });
-    /* "Adicionar nota" fica fora das abas, como botão de destaque no topo */
+    /* cabeçalho em 3 faixas: 1) título e ações gerais; 2) navegação principal em largura total (os 5 itens sempre visíveis, sem rolagem);
+       3) navegação secundária com as demais áreas. Os destinos, os links e o estado ativo (aria-current) são os de sempre; "Adicionar nota" segue fora das abas. */
+    var PRINCIPAIS = { central: 1, painel: 1, precos: 1, consumo: 1, comparar: 1 };
+    var nav1 = h("nav", { class: "mk-nav", "aria-label": "Central de Compras" }), nav2 = h("nav", { class: "mk-nav2", "aria-label": "Outras áreas da Central de Compras" });
+    var nSec = 0;
+    nav2.appendChild(h("span", { class: "mk-nav2-rot", text: "Outras áreas" }));
     VIEWS.forEach(function (x) {
       if (x[0] === "importar" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
       var n = x[0] === "alertas" ? alContar() : 0;
-      tabs.appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
+      if (!PRINCIPAIS[x[0]]) nSec++;
+      (PRINCIPAIS[x[0]] ? nav1 : nav2).appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
     });
     var add = h("a", { class: "mkadd", href: "#mercado/importar", "aria-current": v === "importar" ? "page" : null }, h("span", { "aria-hidden": "true", text: "+" }), " Adicionar nota");
     var out = h("button", { type: "button", class: "ghostbtn", text: "Sair" });
     out.onclick = function () { sb.auth.signOut().then(function () { location.reload(); }); };
-    bar.appendChild(add); bar.appendChild(tabs); bar.appendChild(h("div", { class: "mkuser" }, h("span", { class: "sub", text: user.email }), out));
-    r.appendChild(bar);
+    var cab = h("div", { class: "mk-cab" }, h("div", { class: "mk-tit" }, h("h1", { text: "Central de Compras" }), h("span", { class: "sub", text: user.email })), h("div", { class: "mk-acoes" }, add, out));
+    r.appendChild(cab); r.appendChild(nav1); if (nSec) r.appendChild(nav2);
     var body = h("div", { class: "stack" }); r.appendChild(body);
     if (!rows.length && v !== "importar" && v !== "radar" && v !== "central") {
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));

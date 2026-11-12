@@ -1062,8 +1062,6 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado-view .rtchk{display:flex;align-items:center;gap:8px}#mercado-view .rtchk input{width:20px;height:20px;flex:none}
 #mercado-view .rtnovo{margin:12px 0;border:1px dashed var(--line);border-radius:12px;padding:10px 12px}#mercado-view .rtnovo>summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
 #mercado-view .rtopo{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;display:grid;gap:4px;min-width:0}#mercado-view .rtopo .rtopo{margin:8px 0 0;background:var(--bg)}#mercado-view .rtign{opacity:.6}#mercado-view .rtopo b{overflow-wrap:anywhere}#mercado-view .rtlinha{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:6px 0}
-/* cartão da descoberta: compacto (título em 2 linhas, resumo, selos, ações) e o resto em "Mais detalhes" */
-#mercado-view .rtcard{gap:8px}#mercado-view .rtc-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}#mercado-view .rtc-titulo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:600;line-height:1.3;min-width:0}#mercado-view .rtc-topo .rtpreco{flex:none;white-space:nowrap}#mercado-view .rtc-pm{margin:0;font-weight:700;color:var(--good)}#mercado-view .rtc-meta{margin:0;color:var(--muted)}#mercado-view .rtcard .chips{margin:0}#mercado-view .rtc-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:8px}#mercado-view .rtc-acoes .link{margin-left:auto}#mercado-view .rtc-mais>summary{cursor:pointer;color:var(--muted);min-height:32px;display:flex;align-items:center}#mercado-view .rtc-mais p.sub{margin:6px 0 0}
 #mercado-view .rtoferta,#mercado-view .rtbloco{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:8px;min-width:0}
 #mercado-view .rtleitura{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:4px}
 #mercado-view .rttag{font-size:calc(11px + var(--fz))}#mercado-view .rtok{color:var(--good);border-color:var(--good)}#mercado-view .rtverif{color:var(--warn);border-color:var(--warn);white-space:normal}
@@ -1071,6 +1069,61 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado-view .rtgraf{overflow-x:auto;min-height:200px}#mercado-view .rtgraf .vb{min-width:44px}#mercado-view .rtgraf .rtsem .vbf{opacity:.45;background:var(--muted)}
 #mercado-view .rtabas{overflow-x:auto;flex-wrap:nowrap}#mercado-view .rtabas a{white-space:nowrap}
 @media (max-width:640px){#mercado-view .rtlinha{flex-direction:column;align-items:flex-start}#mercado-view .rtform .ghostbtn,#mercado-view .rtoferta .ghostbtn{min-height:40px}}
+/* ===== Central de Compras: identidade clara (SaaS/fintech). Só vale com a seção Mercado aberta (data-sec="mercado"); as outras páginas mantêm a foto e os tokens de sempre. ===== */
+:root[data-sec="mercado"] body{background:#F4F6F8}
+:root[data-sec="mercado"] .bgimg{display:none}
+:root[data-sec="mercado"] .main{max-width:1360px}
+#mercado{--bg:#F4F6F8;--surface:#FFFFFF;--glass:#FFFFFF;--side:#FFFFFF;--ink:#172638;--muted:#5B6B7F;--line:#E2E8EF;--hover:#EEF2F6;--accent:#078F70;--accent-ink:#FFFFFF;--good:#078F70;--warn:#A5610B;--bad:#C8102E;--live:#E4002B;--on-img:#172638;--shadow:0 1px 2px rgba(23,38,56,.05),0 4px 14px rgba(23,38,56,.06);color:var(--ink);color-scheme:light}
+#mercado-view.stack{gap:14px}
+#mercado .panel{-webkit-backdrop-filter:none;backdrop-filter:none;border:1px solid var(--line);border-radius:14px}
+#mercado .pills{-webkit-backdrop-filter:none;backdrop-filter:none;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow)}
+#mercado .pills a[aria-current="page"]{background:var(--accent);color:#fff;box-shadow:none}
+#mercado .rtabas{overflow:visible;flex-wrap:wrap}#mercado .rtabas a{flex:1 1 auto}
+#mercado a:focus-visible,#mercado button:focus-visible,#mercado summary:focus-visible,#mercado select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* 1) cabeçalho: título e ações gerais */
+#mercado .mk-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
+#mercado .mk-tit{display:flex;flex-direction:column;min-width:0}#mercado .mk-tit h1{font:700 calc(24px + var(--fz))/1.15 var(--f-ui);margin:0;letter-spacing:-.01em}#mercado .mk-tit .sub{overflow-wrap:anywhere}
+#mercado .mk-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#mercado .mkadd{box-shadow:0 1px 2px rgba(7,143,112,.35);border-radius:12px;padding:10px 18px}#mercado .mkadd[aria-current]{outline:2px solid var(--ink);outline-offset:2px}
+/* 2) navegação principal em largura total: os 5 itens sempre visíveis, sem rolagem horizontal */
+#mercado .mk-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:4px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+#mercado .mk-nav a{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border-radius:10px;text-align:center;text-decoration:none;color:var(--muted);font:600 calc(14px + var(--fz)) var(--f-ui);overflow-wrap:anywhere}
+#mercado .mk-nav a:hover{background:var(--hover);color:var(--ink)}#mercado .mk-nav a[aria-current="page"]{background:var(--accent);color:#fff}
+/* 3) navegação secundária (demais áreas) */
+#mercado .mk-nav2{display:flex;flex-wrap:wrap;align-items:center;gap:2px 20px;padding:0 4px}#mercado .mk-nav2-rot{font:600 calc(11px + var(--fz)) var(--f-ui);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#mercado .mk-nav2 a{display:inline-flex;align-items:center;min-height:40px;padding:4px 2px;color:var(--muted);text-decoration:none;font:600 calc(14px + var(--fz)) var(--f-ui);border-bottom:2px solid transparent}
+#mercado .mk-nav2 a:hover{color:var(--ink)}#mercado .mk-nav2 a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+/* Descobrir: pesquisa, filtros e grade de ofertas */
+#mercado .rtdesc{display:grid;gap:14px;min-width:0}
+#mercado .rtd-pesq{display:grid;gap:14px}#mercado .rtd-tit h2{margin:0 0 2px;font:700 calc(22px + var(--fz))/1.2 var(--f-ui)}#mercado .rtd-tit p{margin:0}
+#mercado .rtd-busca{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}#mercado .rtd-busca .rtcampo{min-width:0}
+#mercado .rtd-busca select{min-height:48px}#mercado .rtd-busca .ghostbtn{min-height:48px;padding:0 28px;font:700 calc(16px + var(--fz)) var(--f-ui);border-radius:12px}
+#mercado .rtd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+#mercado .rtd-kpi{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}
+#mercado .rtd-kpi .kl{font-size:calc(12px + var(--fz));color:var(--muted)}#mercado .rtd-kpi .kv{font:700 calc(18px + var(--fz)) var(--f-ui);font-variant-numeric:tabular-nums}
+#mercado .rtd-barra{display:block;height:4px;border-radius:99px;background:var(--line);overflow:hidden}#mercado .rtd-barra>span{display:block;height:100%;background:var(--accent);border-radius:99px}
+#mercado .rtd-ajuda>summary,#mercado .rtc-mais>summary,#mercado .rtc-lojas>summary{cursor:pointer;color:var(--muted);font-weight:600;min-height:36px;display:flex;align-items:center}
+#mercado .rtd-ajuda{border-top:1px solid var(--line);padding-top:4px}#mercado .rtd-ajuda .sub{margin:6px 0}
+#mercado .rtd-filtros{display:grid;gap:12px}#mercado .rtd-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}#mercado .rtd-ctl .rtcampo{min-width:0}
+#mercado .rtd-ctl select:disabled{opacity:.55;cursor:not-allowed}
+#mercado .rtd-cont{margin:0 0 10px;color:var(--muted);font-weight:600}
+#mercado .rtd-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
+/* cartão de oferta */
+#mercado .rtcard{display:flex;flex-direction:column;gap:10px;margin:0;padding:14px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-width:0}
+#mercado .rtc-cab{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:start}
+#mercado .rtc-img{width:72px;height:72px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line)}
+#mercado .rtc-semimg{display:block;background:var(--hover) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239AA7B6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 8l-9-5-9 5v8l9 5 9-5z'/%3E%3Cpath d='M3 8l9 5 9-5M12 13v8'/%3E%3C/svg%3E") center/32px no-repeat}
+#mercado .rtc-corpo{display:flex;flex-direction:column;gap:4px;min-width:0}#mercado .rtc-corpo .chips{margin:2px 0 0}
+#mercado .rtc-titulo{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+#mercado .rtc-apres,#mercado .rtc-meta{margin:0;font-size:calc(13px + var(--fz));color:var(--muted);overflow-wrap:anywhere}
+#mercado .rtc-precos{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px}#mercado .rtc-precos .rtpreco{font:700 calc(24px + var(--fz)) var(--f-ui)}
+#mercado .rtc-pm{font-weight:700;color:var(--good)}#mercado .rtc-antes{text-decoration:line-through;color:var(--muted);font-size:calc(13px + var(--fz))}#mercado .rtc-total{color:var(--muted);font-size:calc(13px + var(--fz))}
+#mercado .rtc-cond{margin:0;font-size:calc(13px + var(--fz));overflow-wrap:anywhere}
+#mercado .rtc-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:8px}#mercado .rtc-acoes .link{margin-left:auto}
+#mercado .rtc-origem{margin:0;font-size:calc(12px + var(--fz));color:var(--muted)}
+#mercado .rtc-mais p.sub{margin:6px 0 0;overflow-wrap:anywhere}
+#mercado .rtc-lojas{border-top:1px solid var(--line);padding-top:4px}#mercado .rtc-lojas-lista{display:grid;gap:10px;margin-top:8px}#mercado .rtc-lojas .rtcard{background:var(--bg);box-shadow:none}
+@media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>

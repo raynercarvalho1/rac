@@ -1,8 +1,141 @@
 {
- "coletado": "2026-11-11T21:55:06.135602+00:00",
+ "coletado": "2026-11-12T07:06:06.812208+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Giants In Closing Market, Unlikely To Sign Qualified Free Agent",
+   "link": "https://www.mlbtraderumors.com/2026/11/giants-in-closing-market-unlikely-to-sign-qualified-free-agent.html",
+   "data": "2026-11-12T05:59:47+00:00",
+   "resumo": "Giants president of baseball operations Buster Posey provided some updates on the team’s offseason plans in talks with reporters at the GM Meetings this week. Andrew Baggarly of The Athletic and Shayna Rubin of The San Francisco Chronicle were among those to relay his quotes.…",
+   "tags": [
+    "San Francisco Giants",
+    "Freddy Peralta"
+   ]
+  },
+  {
+   "t": "Louis Varland, Mason Miller Named BBWAA Relievers Of The Year",
+   "link": "https://www.mlbtraderumors.com/2026/11/louis-varland-mason-miller-named-bbwaa-relievers-of-the-year.html",
+   "data": "2026-11-12T04:39:54+00:00",
+   "resumo": "In addition to tonight’s Cy Young announcements, the Baseball Writers Association of America announced the results of their inaugural Reliever of the Year voting. Toronto’s Louis Varland and San Diego’s Mason Miller are the first honorees in the respective leagues. Varland got…",
+   "tags": [
+    "San Diego Padres",
+    "Toronto Blue Jays",
+    "Bryan Baker",
+    "Cade Smith",
+    "Jhoan Duran",
+    "Louie Varland"
+   ]
+  },
+  {
+   "t": "Latest On Randy Arozarena’s Market",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-randy-arozarenas-market.html",
+   "data": "2026-11-12T03:59:39+00:00",
+   "resumo": "Randy Arozarena is one of the top bats available in a weak free agent hitting market. The incumbent Mariners issued a qualifying offer but are expected to move on, content to receive the compensatory pick after the first round when he inevitably signs for at least $50MM with…",
+   "tags": [
+    "Boston Red Sox",
+    "Philadelphia Phillies",
+    "Seattle Mariners",
+    "Jarren Duran",
+    "Randy Arozarena"
+   ]
+  },
+  {
+   "t": "Latest On Yankees, Alec Bohm",
+   "link": "https://www.mlbtraderumors.com/2026/11/yankees-interested-in-alec-bohm.html",
+   "data": "2026-11-12T02:40:59+00:00",
+   "resumo": "8:40pm: Brendan Kuty of The Athletic writes that a source suggested the Yankees have not shown much interest in Bohm to this point. Kuty leaves open the possibility that the club could show interest in the offseason. 1:00pm: The Yankees have had a tough time finding a steady…",
+   "tags": [
+    "New York Yankees",
+    "Alec Bohm"
+   ]
+  },
+  {
+   "t": "Mariners Notes: Donovan, Happ, Rotation",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-notes-donovan-happ-rotation.html",
+   "data": "2026-11-12T02:19:46+00:00",
+   "resumo": "8:19pm: Jude downplays the Happ connection, reporting that both he and NPB star Teruaki Sato are unlikely fits for the Mariners. 5:49pm: The Mariners are looking for offensive help and the versatility of Brendan Donovan could be an important factor in that search. Adam Jude and…",
+   "tags": [
+    "Notes",
+    "Seattle Mariners",
+    "Brendan Donovan",
+    "Colt Emerson",
+    "Ian Happ"
+   ]
+  },
+  {
+   "t": "Ryan Jeffers To Decline Qualifying Offer",
+   "link": "https://www.mlbtraderumors.com/2026/11/ryan-jeffers-to-decline-qualifying-offer.html",
+   "data": "2026-11-12T01:50:03+00:00",
+   "resumo": "Twins catcher Ryan Jeffers is declining the qualifying offer, reports Bobby Nightengale of The Minnesota Star-Tribune. Minnesota’s front office certainly expected as much, and they have ongoing interest in bringing Jeffers back on a multi-year deal. MLBTR predicted Jeffers to…",
+   "tags": [
+    "Minnesota Twins",
+    "Ryan Jeffers"
+   ]
+  },
+  {
+   "t": "Jacob Misiorowski Wins NL Cy Young Award",
+   "link": "https://www.mlbtraderumors.com/2026/11/jacob-misiorowski-wins-nl-cy-young-award.html",
+   "data": "2026-11-12T00:54:55+00:00",
+   "resumo": "The Baseball Writers Association of America announced Wednesday that Brewers ace Jacob Misiorowski won the NL Cy Young award. Philadelphia’s Cristopher Sánchez and Atlanta’s Chris Sale finished second and third, respectively. Misiorowski, like his AL counterpart Cam Schlittler,…",
+   "tags": [
+    "Milwaukee Brewers",
+    "Newsstand",
+    "Chris Sale",
+    "Cristopher Sanchez",
+    "Jacob Misiorowski"
+   ]
+  },
+  {
+   "t": "Cam Schlittler Wins AL Cy Young Award",
+   "link": "https://www.mlbtraderumors.com/2026/11/cam-schlittler-wins-al-cy-young-award.html",
+   "data": "2026-11-12T00:19:59+00:00",
+   "resumo": "The Baseball Writers Association of America announced that Cam Schlittler has won the AL Cy Young award. The Yankees ace appeared at the top on all 30 ballots. Toronto’s Dylan Cease is runner-up, while Cleveland rookie Parker Messick finished in third place. To the extent there…",
+   "tags": [
+    "New York Yankees",
+    "Newsstand",
+    "Cam Schlittler",
+    "Dylan Cease",
+    "Parker Messick"
+   ]
+  },
+  {
+   "t": "Mets Eyeing Left-Handed Relievers",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-rumors-alex-vesia-tim-hill-free-agents-left-handed-relief.html",
+   "data": "2026-11-12T00:07:46+00:00",
+   "resumo": "6:07pm: Another former Met is also on the radar in the lefty relief search. Jon Heyman of The New York Post reports that they’ve checked in on A.J. Minter, who’s back on the market after they traded him to Minnesota at the deadline. Minter combined for a 2.56 ERA with a 22%…",
+   "tags": [
+    "New York Mets",
+    "A.J. Minter",
+    "Alex Vesia",
+    "Brooks Raley",
+    "Darwinzon Hernandez",
+    "Tim Hill"
+   ]
+  },
+  {
+   "t": "The Best Fits For Seiya Suzuki",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-seiya-suzuki.html",
+   "data": "2026-11-11T22:52:06+00:00",
+   "resumo": "Seiya Suzuki is arguably the best position player available in a weak class for bats. The 32-year-old outfielder has hit .269/.351/.472 over five seasons since making the jump from Japan’s Nippon Professional Baseball. He’s been a consistent offensive threat and is coming off a…",
+   "tags": [
+    "Front Office Originals",
+    "Seiya Suzuki"
+   ]
+  },
+  {
+   "t": "Phillies Interested In Teruaki Sato, Seiya Suzuki, Randy Arozarena",
+   "link": "https://www.mlbtraderumors.com/2026/11/phillies-interested-in-teruaki-sato-seiya-suzuki-randy-arozarena.html",
+   "data": "2026-11-11T22:09:40+00:00",
+   "resumo": "The Phillies are in the market for the top outfield free agents. Matt Gelb of The Athletic reports that the Phils have interest in Teruaki Sato, Randy Arozarena and Seiya Suzuki. Sato has mostly been a third baseman in his career in Japan but he has some right field experience…",
+   "tags": [
+    "Philadelphia Phillies",
+    "Jonathan Bowlan",
+    "Randy Arozarena",
+    "Seiya Suzuki",
+    "Teruaki Sato"
+   ]
+  },
   {
    "t": "Diamondbacks Notes: Sato, Rotation, Marte",
    "link": "https://www.mlbtraderumors.com/2026/11/dbacks-trade-rumors-ketel-marte-starting-pitching-teruaki-sato.html",
@@ -32,19 +165,6 @@
    ]
   },
   {
-   "t": "Mets Eyeing Left-Handed Relievers",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-rumors-alex-vesia-tim-hill-free-agents-left-handed-relief.html",
-   "data": "2026-11-11T19:42:46+00:00",
-   "resumo": "The Mets, like just about every club in the game, are looking to strengthen their bullpen this winter. They’ll pursue a wide variety of options, but lefties Alex Vesia and Tim Hill are among their early targets, reports Will Sammon of The Athletic. Vesia’s market is…",
-   "tags": [
-    "New York Mets",
-    "Alex Vesia",
-    "Brooks Raley",
-    "Darwinzon Hernandez",
-    "Tim Hill"
-   ]
-  },
-  {
    "t": "Tigers To Sign Emilio Pagán",
    "link": "https://www.mlbtraderumors.com/2026/11/tigers-to-sign-emilio-pagan.html",
    "data": "2026-11-11T19:15:46+00:00",
@@ -55,16 +175,6 @@
     "Transactions",
     "Emilio Pagan",
     "Will Vest"
-   ]
-  },
-  {
-   "t": "Yankees Interested In Alec Bohm",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-interested-in-alec-bohm.html",
-   "data": "2026-11-11T19:00:59+00:00",
-   "resumo": "The Yankees have had a tough time finding a steady third baseman for multiple years. Addressing the hot corner will likely be a priority this offseason, and the club has been connected to one of the bigger names on the market. New York has interest in Alec Bohm, per Jon Heyman…",
-   "tags": [
-    "New York Yankees",
-    "Alec Bohm"
    ]
   },
   {
@@ -79,111 +189,6 @@
     "Newsstand",
     "Freddy Peralta",
     "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Phillies, Bryan Ramos Agree To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/phillies-sign-bryan-ramos-third-baseman.html",
-   "data": "2026-11-11T18:14:33+00:00",
-   "resumo": "The Phillies and free agent infielder Bryan Ramos have agreed to a minor league contract, reports Francys Romero of BeisbolFR.com. The ISE Baseball client will be in camp as a non-roster invitee ahead of the 2027 season. Ramos, 25 in March, is a former top prospect in the White…",
-   "tags": [
-    "Philadelphia Phillies",
-    "Transactions",
-    "Bryan Ramos"
-   ]
-  },
-  {
-   "t": "Twins To Sign Jose Espada To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/twins-to-sign-jose-espada-to-minor-league-deal.html",
-   "data": "2026-11-11T18:06:02+00:00",
-   "resumo": "The Twins are expected to add right-hander Jose Espada on a minor league agreement, per Jon Heyman of the New York Post. Espada spent last season with the Orioles. He’s represented by The MAS Agency. Espada, not to be confused with former Astros manager Joe Espada, has made…",
-   "tags": [
-    "Minnesota Twins",
-    "Transactions",
-    "Jose Espada"
-   ]
-  },
-  {
-   "t": "Reds Notes: Sal, Elly, Rotation, Coaching Staff",
-   "link": "https://www.mlbtraderumors.com/2026/11/reds-trade-rumors-elly-de-la-cruz-sal-stewart-extension.html",
-   "data": "2026-11-11T17:47:09+00:00",
-   "resumo": "Newly minted National League Rookie of the Year Sal Stewart is a clear building block in Cincinnati, but the Reds have yet to approach Stewart about a contract extension, reports Gordon Wittenmyer of the Cincinnati Enquirer. The Reds locked up budding ace Chase Burns on a…",
-   "tags": [
-    "Cincinnati Reds",
-    "Notes",
-    "Anthony Iapoce",
-    "Elly De La Cruz",
-    "Sal Stewart",
-    "Will Remillard"
-   ]
-  },
-  {
-   "t": "Blue Jays To Meet With Tarik Skubal",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-to-meet-with-tarik-skubal.html",
-   "data": "2026-11-11T17:08:18+00:00",
-   "resumo": "The race for left-hander Tarik Skubal now includes the Blue Jays. Jon Heyman of the New York Post reports that Toronto is among the clubs meeting with the two-time Cy Young winner. The Blue Jays join the Dodgers, Mets, and Padres as teams known to be sitting down with Skubal…",
-   "tags": [
-    "Newsstand",
-    "San Diego Padres",
-    "Toronto Blue Jays",
-    "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Astros Name Brad Ausmus Manager",
-   "link": "https://www.mlbtraderumors.com/2026/11/astros-expected-to-name-brad-ausmus-manager.html",
-   "data": "2026-11-11T16:35:50+00:00",
-   "resumo": "The Astros announced that Brad Ausmus has been hired as the club’s manager. Prior to the official announcement, John Granato of ESPN 97.5 Houston reported that Ausmus would be flying to Houston tomorrow to accept the gig, a report confirmed by Brian McTaggart of MLB.com. The…",
-   "tags": [
-    "Houston Astros",
-    "New York Yankees",
-    "Newsstand",
-    "Brad Ausmus"
-   ]
-  },
-  {
-   "t": "Pirates Notes: Keller, Pitching Pursuits, Lineup",
-   "link": "https://www.mlbtraderumors.com/2026/11/pirates-rumors-add-left-handed-pitchers-mitch-keller-healthy-normal-offseason.html",
-   "data": "2026-11-11T15:46:32+00:00",
-   "resumo": "Pirates righty Mitch Keller saw his season end on Aug. 2 with a teres major strain that wound up being more severe than was originally known. Keller hit the 60-day IL in early August, but it didn’t come out until after the season that he’d suffered a Grade 3 strain, which…",
-   "tags": [
-    "Notes",
-    "Pittsburgh Pirates",
-    "Brandon Lowe",
-    "Mitch Keller"
-   ]
-  },
-  {
-   "t": "Twins Interested In Bringing Back Ryan Jeffers",
-   "link": "https://www.mlbtraderumors.com/2026/11/twins-interested-in-bringing-back-ryan-jeffers.html",
-   "data": "2026-11-11T15:43:29+00:00",
-   "resumo": "Catcher Ryan Jeffers has less than a week to make a decision on the qualifying offer extended by the Twins. He’s unlikely to accept it, but the club is already working on bringing him back. Minnesota is “‘engaged'” with Jeffers and pursuing a reunion, relays Aaron Gleeman of…",
-   "tags": [
-    "Minnesota Twins",
-    "Ryan Jeffers"
-   ]
-  },
-  {
-   "t": "MLBTR Podcast: The Nats Extend Jacob Young, Drew Rasmussen’s Future, The Angels’ GM Limbo, And More!",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-the-nats-extend-jacob-young-drew-rasmussens-future-the-angels-gm-limbo-and-more.html",
-   "data": "2026-11-11T14:38:31+00:00",
-   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
-   "tags": [
-    "Los Angeles Angels",
-    "MLB Trade Rumors Podcast",
-    "Milwaukee Brewers",
-    "New York Mets",
-    "New York Yankees",
-    "St. Louis Cardinals"
-   ]
-  },
-  {
-   "t": "The Opener: Venable, Murphy, Pagan",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-venable-murphy-pagan.html",
-   "data": "2026-11-11T14:17:41+00:00",
-   "resumo": "And we’re off! The Emilio Pagan signing didn’t dominate headlines, but it’s the first somewhat significant move of the offseason. More on Detroit’s new closer below. 1. Venable named AL Manager of the Year White Sox skipper Will Venable took home the top managerial honor last…",
-   "tags": [
-    "The Opener"
    ]
   }
  ],
@@ -332,40 +337,6 @@
    "tags": [
     "2026-27 Offseason Outlook",
     "Front Office Originals",
-    "Los Angeles Dodgers"
-   ]
-  },
-  {
-   "t": "MLBTR Podcast: Brewers vs. Rays, Dodgers and Guardians Post-Mortem, And The A’s New Front Office Boss",
-   "link": "https://www.mlbtraderumors.com/2026/10/mlbtr-podcast-brewers-vs-rays-dodgers-and-guardians-post-mortem-and-the-as-new-front-office-boss.html",
-   "data": "2026-10-22T04:50:03+00:00",
-   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
-   "tags": [
-    "Athletics",
-    "Cleveland Guardians",
-    "Houston Astros",
-    "Los Angeles Dodgers",
-    "MLB Trade Rumors Podcast",
-    "Miami Marlins"
-   ]
-  },
-  {
-   "t": "Dodgers Notes: Ohtani, Klein, Coaching Staff",
-   "link": "https://www.mlbtraderumors.com/2026/10/dodgers-notes-ohtani-klein-coaching-staff.html",
-   "data": "2026-10-22T04:05:23+00:00",
-   "resumo": "Shohei Ohtani will not require surgery on either the knee or biceps injuries that hampered him in the second half, Dodgers president of baseball operations Andrew Friedman told reporters on Wednesday (link via Fabian Ardaya of The Athletic). He’s expected to be fully healthy…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Shohei Ohtani",
-    "Will Klein"
-   ]
-  },
-  {
-   "t": "Friedman: Dodgers Offseason “Business As Usual”",
-   "link": "https://www.mlbtraderumors.com/2026/10/friedman-dodgers-offseason-business-as-usual.html",
-   "data": "2026-10-22T02:11:58+00:00",
-   "resumo": "The Dodgers’ bid for a three-peat ended in decisive fashion, as they were swept by the Brewers one year after handing Milwaukee that same fate in the NLCS. As they turn their attention to 2027, president of baseball operations Andrew Friedman tells reporters (including Katie…",
-   "tags": [
     "Los Angeles Dodgers"
    ]
   }

@@ -3,7 +3,7 @@
    e todo o histórico, ranking só com preço final confirmado e oportunidades. As regras vêm de NUCLEO.rd* (nucleo.js); o banco (043) repete as mesmas.
    Leitura automática de página: função "radar" (ainda não publicada: sem ela o botão avisa e o preenchimento é manual). IA: só sugestão, hoje indisponível (aguarda liberação).
    O CEP padrão nunca aparece na tela, em log ou em arquivo: só "cadastrado" ou "não cadastrado". */
-  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null,abertos:{},arquivados:false,desc:null};
+  var RT={sb:null,user:null,d:null,aba:"oport",item:null,janela:90,serie:null,leitura:null,aviso:"",form:null,carregando:false,corpo:null,abertos:{},arquivados:false,desc:null,embed:null};
   var RT_ABAS=[["oport","Oportunidades"],["desc","Descobrir"],["itens","Produtos"],["lojas","Lojas"],["ajustes","Ajustes"]];
   var RT_TIPOS_LOJA=[["varejo","Varejo online"],["marketplace","Marketplace"],["fabricante","Fabricante"],["atacado","Atacado"],["fisica","Loja física"],["outro","Outro"]];
   var RT_MEIOS=[["pix","Pix"],["boleto","Boleto"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["outro","Outro"]];
@@ -252,6 +252,7 @@
     if(c.decisao==="acompanhando")tags.appendChild(rtEtiqueta("Acompanhando","rtok"));
     var corpo=h("div",{class:"rtc-corpo"},h("b",{class:"rtc-titulo",title:c.titulo,text:c.titulo}));
     if(apres)corpo.appendChild(h("p",{class:"rtc-apres",text:apres}));
+    var dif=NUCLEO.rdDiferenca(c);if(dif)corpo.appendChild(h("p",{class:"rtc-dif"+(c.tipo_oferta==="relacionado"||c.tipo_oferta==="indeterminado"?" rtc-dif-alerta":""),text:dif}));
     corpo.appendChild(h("p",{class:"rtc-meta",text:[c.loja||"loja não informada",c.avaliacao!=null?"★ "+c.avaliacao+(c.avaliacoes?" ("+c.avaliacoes+")":""):""].filter(Boolean).join(" · ")}));
     corpo.appendChild(tags);
     box.appendChild(h("div",{class:"rtc-cab"},img,corpo));
@@ -261,6 +262,9 @@
     if(c.preco_original)precos.appendChild(h("span",{class:"rtc-antes",text:"antes "+rtMoeda(c.preco_original)}));
     if(c.total!=null)precos.appendChild(h("span",{class:"rtc-total",text:"total "+rtMoeda(c.total)}));
     box.appendChild(precos);
+    /* comparação INDICATIVA com o que o dono pagou (só na página do produto e só com a mesma base de medida); o preço do Google nunca vira preço pago */
+    var cmp=RT.embed&&RT.embed.pago?NUCLEO.pcComparar(RT.embed.pago,c):null;
+    if(cmp&&cmp.comparavel)box.appendChild(h("p",{class:"rtc-cmp",text:"Você pagou "+rtMoeda(cmp.pagoNaBase)+" por "+cmp.base+" · este anúncio: "+rtMoeda(cmp.ofertaNaBase)+" por "+cmp.base+" ("+cmp.leitura+"; indicativo, preço visto no Google)"}));
     /* 3) frete e condições SÓ quando a fonte informou (o frete do Google nunca é o confirmado do Radar) */
     var cond=[];if(c.frete_situacao!=="desconhecido")cond.push(rtDescFrete(c));
     var pag=[c.pagamento_texto,c.parcelamento_texto,c.entrega_texto].filter(Boolean).join(" · ");if(pag)cond.push(pag);
@@ -278,6 +282,7 @@
     /* 6) o resto, recolhido */
     var mais=h("details",{class:"rtc-mais"},h("summary",{text:"Mais detalhes"})),linha=function(t){mais.appendChild(h("p",{class:"sub",text:t}))};
     if(c.frete_situacao==="desconhecido")linha(rtDescFrete(c));
+    if(cmp&&!cmp.comparavel)linha("Sem comparação com o que você pagou: "+cmp.motivo+".");
     if(c.detalhes||c.desconto_texto)linha([c.detalhes,c.desconto_texto].filter(Boolean).join(" · "));
     if(c.catalogo||c.varias_fontes)linha("O Google mostra este produto em várias lojas (use “Ver lojas”).");
     var ant=(c.precos_anteriores||[]).slice(-1)[0];if(ant)linha("Visto antes por "+rtMoeda(ant.preco)+" em "+rtData(ant.observado_em));
@@ -292,10 +297,10 @@
   function rtDescKpi(rotulo,usado,limite){var pct=limite>0?Math.min(100,Math.round(usado*100/limite)):100;
     return h("div",{class:"rtd-kpi"},h("span",{class:"kl",text:rotulo}),h("b",{class:"kv",text:usado+" de "+limite}),h("span",{class:"rtd-barra","aria-hidden":"true"},h("span",{style:"width:"+pct+"%"})))}
   function rtAbaDescobrir(corpo){
-    var D=rtDescEstado(),d=RT.d,ativos=d.itens.filter(function(i){return i.ativo!==false}),raiz=h("div",{class:"rtdesc"}),
-      p=h("div",{class:"panel rtd-pesq"},h("div",{class:"rtd-tit"},h("h2",{text:"Descobrir ofertas"}),h("p",{class:"sub",text:"Pesquise um produto no Google Shopping e compare lojas, kits e tamanhos."})));
+    var D=rtDescEstado(),d=RT.d,ativos=d.itens.filter(function(i){return RT.embed?i.id===RT.embed.itemId:i.ativo!==false}),raiz=h("div",{class:"rtdesc"}),
+      p=h("div",{class:"panel rtd-pesq"},h("div",{class:"rtd-tit"},h("h2",{text:RT.embed?"Ofertas encontradas na internet":"Descobrir ofertas"}),h("p",{class:"sub",text:RT.embed?"Anúncios que o Google mostrou para este produto. É preço visto na internet: não é compra nem preço confirmado na loja.":"Pesquise um produto no Google Shopping e compare lojas, kits e tamanhos."})));
     raiz.appendChild(p);corpo.appendChild(raiz);
-    if(!ativos.length){p.appendChild(h("p",{class:"empty",text:"Cadastre um produto na aba Produtos para pesquisar."}));return}
+    if(!ativos.length){p.appendChild(h("p",{class:"empty",text:RT.embed?"Este produto do Radar não foi encontrado (talvez esteja arquivado). Refaça o vínculo.":"Cadastre um produto na aba Produtos para pesquisar."}));return}
     if(!D.itemId||!ativos.some(function(i){return i.id===D.itemId})){D.itemId=ativos[0].id;D.cands=null;Promise.resolve().then(function(){rtDescCarregar(D.itemId);rtDescUso()})}
     var sel=h("select",{"aria-label":"Produto a pesquisar"},ativos.map(function(i){return h("option",{value:i.id,text:i.nome+(i.marca?" · "+i.marca:"")})}));sel.value=D.itemId;
     sel.onchange=function(){D.tipo="";D.msg="";rtDescCarregar(sel.value)};
@@ -304,7 +309,7 @@
         if(!r.ok){D.msg=rtDescErroTxt(r)}else{var gasto=0,novos=0,cache=0,limite=false;(r.consultas||[]).forEach(function(c){gasto+=c.gasto||0;novos+=c.novos||0;if(c.status==="cache")cache++;if(c.status==="bloqueada_orcamento")limite=true});
           D.msg=(r.consultas||[]).length+" consulta(s): "+gasto+" busca(s) gasta(s)"+(cache?", "+cache+" do cache":"")+(novos?", "+novos+" anúncio(s) novo(s)":"")+"."+(limite?" "+RT_LIMITE_TXT:((r.avisos||[]).length?" "+r.avisos.join(" "):""))}
         D.orc=r.orcamento||D.orc;return rtDescCarregar(D.itemId)},function(e){D.ocupado=false;rtDescMsg(rtErro(e))})},"pri");
-    p.appendChild(h("div",{class:"rtd-busca"},rtCampo("Produto",sel),busca));
+    p.appendChild(h("div",{class:"rtd-busca"},RT.embed?h("p",{class:"rtd-prod"},h("b",{text:ativos[0].nome+(ativos[0].marca?" · "+ativos[0].marca:"")}),h("span",{class:"sub",text:" — produto do Radar vinculado"})):rtCampo("Produto",sel),busca));
     if(D.orc){var o=D.orc,eg=o.por_engine||{},ng=function(k){return eg[k]?eg[k].dia:0},exp=ng("google_immersive_product")+ng("google_product");
       p.appendChild(h("div",{class:"rtd-kpis"},rtDescKpi("Consultas hoje",o.dia_usado,o.dia_limite),rtDescKpi("Consultas no mês",o.mes_usado,o.mes_limite),rtDescKpi("Expansões de lojas hoje",exp,o.expansoes_limite_dia),rtDescKpi("Rotina hoje",o.rotina_dia,o.rotina_limite_dia)))}
     if(rtPagoTxt(D.itemId))p.appendChild(h("p",{class:"rtpago"},h("b",{text:rtPagoTxt(D.itemId)}),h("span",{class:"sub",text:" — compare com o preço por medida de cada anúncio."})));
@@ -341,6 +346,12 @@
     raiz.appendChild(res);
     if((D.consultas||[]).length)raiz.appendChild(rtDet("desc-consultas","Últimas consultas",h("div",null,D.consultas.map(function(q){return h("p",{class:"sub",text:rtData(q.iniciada_em)+" · "+(q.engine==="google_shopping"?"Shopping":q.engine==="google_immersive_product"?"Lojas":"Produto")+" · "+(q.status==="reservada"?"em andamento":q.status)+" · "+q.resultados+" resultado(s) · gasto "+q.buscas_gastas+(q.consulta?" · “"+q.consulta+"”":"")})}))))}
 
+  /* chamada pela página do produto (Central de Compras): mostra SÓ as ofertas do produto do Radar já vinculado, com os mesmos cartões, filtros e ações da aba Descobrir.
+     pago = { unitario, unidade } da última compra REGISTRADA (para a comparação indicativa); o preço descoberto nunca é gravado como compra nem como preço verificado. Só o dono. */
+  function rtMontarOfertas(corpo,sb,user,itemId,pago){
+    RT.sb=sb;RT.user=user;RT.corpo=corpo;RT.embed={itemId:itemId,pago:pago||null};
+    var D=rtDescEstado();if(D.itemId!==itemId){D.itemId=null;D.cands=null;D.tipo=""}
+    rtDesenhar();if(!rtDono())return Promise.resolve();return rtRecarregar()}
   /* ---------- ajustes: CEP privado, avisos, vendedores ---------- */
   function rtAbaAjustes(corpo){
     var d=RT.d,cfg=rtCfg(),p=h("div",{class:"panel"},h("h2",{text:"Ajustes"}));
@@ -490,13 +501,14 @@
     if(!rtDono()){r.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"O Radar de Preços é só do dono."})));return}
     if(!RT.d){r.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:RT.aviso||"Carregando o Radar…"})));return}
     if(RT.aviso)r.appendChild(h("div",{class:"panel rtaviso",role:"status",text:RT.aviso}));
+    if(RT.embed){rtAbaDescobrir(r);return}   /* modo embutido: só as ofertas de UM produto, dentro da página do produto da Central de Compras */
     if(RT.item){rtDetalhe(r);return}
     var abas=h("div",{class:"pills rtabas"},RT_ABAS.map(function(a){var b=h("a",{href:"#mercado/radar","aria-current":a[0]===RT.aba?"page":null,text:a[1]});b.onclick=function(e){if(e&&e.preventDefault)e.preventDefault();RT.aba=a[0];RT.aviso="";rtDesenhar()};return b}));
     r.appendChild(abas);
     ({oport:rtAbaOport,desc:rtAbaDescobrir,itens:rtAbaItens,lojas:rtAbaLojas,ajustes:rtAbaAjustes})[RT.aba](r)}
   /* chamada pelo Mercado: sb = cliente já logado; só o dono chega aqui (a aba nem aparece para a casa) */
   function rtMontar(corpo,sb,user){
-    RT.sb=sb;RT.user=user;RT.corpo=corpo;
+    RT.sb=sb;RT.user=user;RT.corpo=corpo;RT.embed=null;
     if(!rtDono()){rtDesenhar();return Promise.resolve()}
     if(RT.d){rtDesenhar();return rtRecarregar()}
     rtDesenhar();return rtRecarregar()}

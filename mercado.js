@@ -63,16 +63,16 @@
   function msg(text) { var r = root(); r.innerHTML = ""; r.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: text }))); }
 
   /* ---------- entrada: chamada pelo roteador do site ---------- */
-  function render(sub) {
+  function render(sub, arg) {
     msg("Carregando…");
     client().then(function (c) { return c.auth.getSession(); }).then(function (r) {
       user = r.data && r.data.session && r.data.session.user;
-      if (!user) { drawLogin(sub); return; }
-      return loadRows().then(function () { return sub === "" || sub === "central" ? loadOnline() : null; }).then(function () { drawApp(sub); });
+      if (!user) { drawLogin(sub, arg); return; }
+      return loadRows().then(function () { return sub === "" || sub === "central" ? loadOnline() : null; }).then(function () { drawApp(sub, arg); });
     }).catch(function (e) { msg("Não consegui abrir o controle de mercado agora (" + (e.message || e) + ")."); });
   }
 
-  function drawLogin(sub) {
+  function drawLogin(sub, arg) {
     var r = root(); r.innerHTML = "";
     var f = h("form", { class: "panel lockbox", autocomplete: "on" },
       h("div", { class: "lockic mk" }, svgCart()),
@@ -90,7 +90,7 @@
         .then(function (res) {
           b.disabled = false;
           if (res.error) { m.textContent = /invalid/i.test(res.error.message) ? "E-mail ou senha incorretos." : "Não consegui entrar: " + res.error.message; return; }
-          render(sub);
+          render(sub, arg);
         });
     });
     r.appendChild(f);
@@ -122,9 +122,9 @@
   }
 
   /* ---------- casca: abas internas e sair ---------- */
-  var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"]];
-  function drawApp(sub) {
-    var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
+  var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"], ["categoria", "Categoria"], ["produto", "Produto"]];
+  function drawApp(sub, arg) {
+    var v = VIEWS.some(function (x) { return x[0] === sub && ((x[0] !== "radar" && x[0] !== "categoria" && x[0] !== "produto") || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
     /* cabeçalho em 3 faixas: 1) título e ações gerais; 2) navegação principal em largura total (os 5 itens sempre visíveis, sem rolagem);
@@ -134,7 +134,7 @@
     var nSec = 0;
     nav2.appendChild(h("span", { class: "mk-nav2-rot", text: "Outras áreas" }));
     VIEWS.forEach(function (x) {
-      if (x[0] === "importar" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
+      if (x[0] === "importar" || x[0] === "categoria" || x[0] === "produto" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
       var n = x[0] === "alertas" ? alContar() : 0;
       if (!PRINCIPAIS[x[0]]) nSec++;
       (PRINCIPAIS[x[0]] ? nav1 : nav2).appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
@@ -149,7 +149,8 @@
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));
       return;
     }
-    ({ central: viewCentral, painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, radar: viewRadar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar })[v](body);
+    ({ central: viewCentral, painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, radar: viewRadar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar,
+      categoria: function (b) { viewCategoria(b, arg); }, produto: function (b) { viewProduto(b, arg); } })[v](body);
     window.scrollTo(0, y);
   }
 
@@ -1217,6 +1218,132 @@
     body.appendChild(p);
   }
 
+  /* ---------- Categoria e Produto: o que foi pago × o que a internet oferece (docs/central-radar.md) ----------
+     Só o dono vê estas duas visões (a experiência da casa não muda). Compras = o que foi PAGO e está registrado; ofertas = anúncios vistos no Radar (nunca viram compra nem preço verificado sozinhos). */
+  function arg2nome(a) { try { return decodeURIComponent(String(a || "")); } catch (e) { return String(a || ""); } }
+  function linkCat(nome) { return "#mercado/categoria/" + encodeURIComponent(nome); }
+  function linkProd(nome) { return "#mercado/produto/" + encodeURIComponent(nome); }
+  function trilha(partes) {
+    var t = h("nav", { class: "mk-trilha", "aria-label": "Onde você está" });
+    partes.forEach(function (x, i) { if (i) t.appendChild(h("span", { "aria-hidden": "true", text: " › " })); t.appendChild(x.href ? h("a", { class: "link", href: x.href, text: x.txt }) : h("span", { text: x.txt, "aria-current": "page" })); });
+    return t;
+  }
+  function vinculosAtuais() { return NU().pcVinculos(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["radar-vinculos"] : null); }
+  function gravarVinculos(v, depois) {
+    if (typeof pessoalGravar === "function") pessoalGravar("radar-vinculos", v, function (erro) { if (!erro && typeof PESSOAL !== "undefined" && PESSOAL) PESSOAL["radar-vinculos"] = v; depois(erro); });
+    else { if (typeof PESSOAL !== "undefined" && PESSOAL) PESSOAL["radar-vinculos"] = v; depois(null); }
+  }
+  /* painel da Central: entrada por categoria */
+  function painelCategorias() {
+    var N = NU(), cats = N.mkcCategorias(rows || []).linhas;
+    var p = panel("Explorar por categoria", "Abra uma categoria para ver os produtos, o que você pagou e as ofertas encontradas na internet.");
+    if (!cats.length) { p.appendChild(h("p", { class: "empty", text: "Ainda não há compras de mercado com categoria." })); return p; }
+    p.appendChild(h("div", { class: "mkcats" }, cats.map(function (c) {
+      return h("a", { class: "mkcat", href: linkCat(c.categoria) }, h("b", { text: c.categoria }), h("span", { class: "sub", text: c.produtos + (c.produtos === 1 ? " produto" : " produtos") + " · " + money(c.total) }));
+    })));
+    return p;
+  }
+  function viewCategoria(body, arg) {
+    var N = NU(), nome = arg2nome(arg), c = N.pcCategoria(rows || [], nome);
+    body.appendChild(trilha([{ txt: "Central", href: "#mercado/central" }, { txt: "Categorias" }, { txt: c.categoria }]));
+    var p = panel(c.categoria, c.produtos.length ? c.produtos.length + (c.produtos.length === 1 ? " produto" : " produtos") + " · " + c.compras + (c.compras === 1 ? " compra" : " compras") + " · " + money(c.total) + " gastos. Abra um produto para ver o histórico de preços pagos e as ofertas encontradas."
+      : "Nenhuma compra registrada nesta categoria.");
+    var lista = h("div", { class: "mkpcs" }), selos = {};
+    c.produtos.forEach(function (x) {
+      var un = x.unidade === "kg" ? "/kg" : x.unidade === "l" ? "/L" : x.unidade === "un" ? "/un" : "/" + x.unidade;
+      var selo = h("p", { class: "mkoferta sub", text: ehDono() ? "Ofertas: conferindo…" : "" });
+      selos[N.pcChave(x.nome)] = selo;
+      lista.appendChild(h("article", { class: "mkpc" },
+        h("a", { class: "mkpc-nome", href: linkProd(x.nome), text: x.nome }),
+        h("p", { class: "mkpc-pago" }, h("span", { class: "sub", text: "Último preço pago " }), h("b", { text: money(x.ultimo.preco) + un }), h("span", { class: "sub", text: " em " + dataBR(x.ultimo.data) + (x.ultimo.mercado ? " · " + x.ultimo.mercado : "") })),
+        h("p", { class: "sub", text: (x.menor != null ? "Menor pago " + money(x.menor) + un + " · " : "") + x.compras + (x.compras === 1 ? " compra" : " compras") }), selo));
+    });
+    p.appendChild(lista); body.appendChild(p);
+    /* ofertas dos produtos já vinculados ao Radar: uma consulta só (leitura), sem gastar busca */
+    var vinc = vinculosAtuais(), ids = []; c.produtos.forEach(function (x) { var id = vinc[N.pcChave(x.nome)]; if (id && ids.indexOf(id) < 0) ids.push(id); });
+    c.produtos.forEach(function (x) { if (!vinc[N.pcChave(x.nome)]) selos[N.pcChave(x.nome)].textContent = "Sem vínculo com o Radar: abra o produto para vincular e ver ofertas."; });
+    if (!ids.length) return;
+    Promise.resolve(sb.from("radar_candidatos").select("item_id,tipo_oferta,preco,preco_por_medida,base_medida,decisao,pai_externo,loja").in("item_id", ids).limit(3000)).then(function (r) {
+      if (r && r.error) throw r.error;
+      var por = groupBy(r.data || [], function (x) { return x.item_id; });
+      c.produtos.forEach(function (x) {
+        var id = vinc[N.pcChave(x.nome)]; if (!id) return;
+        var s = N.pcResumoOfertas(por[id] || []), el = selos[N.pcChave(x.nome)], bases = Object.keys(s.melhorPorBase);
+        el.textContent = !s.total ? "Radar: nenhuma oferta pesquisada ainda." : s.doProduto + (s.doProduto === 1 ? " oferta do produto" : " ofertas do produto") + (s.relacionadas ? " · " + s.relacionadas + " relacionada(s)" : "") +
+          (bases.length ? " · melhor " + money(s.melhorPorBase[bases[0]].valor) + " por " + bases[0] : "") + (s.acompanhando ? " · " + s.acompanhando + " acompanhando" : "") + " (preço visto na internet, não confirmado)";
+      });
+    }).catch(function () { c.produtos.forEach(function (x) { var el = selos[N.pcChave(x.nome)]; if (el && /conferindo/.test(el.textContent)) el.textContent = "Não consegui ler as ofertas agora."; }); });
+  }
+  function viewProduto(body, arg) {
+    var N = NU(), nome = arg2nome(arg), rp = (rows || []).filter(function (x) { return x.produto === nome; }), d = rp.length ? N.mkcProduto(rp) : null;
+    if (!d) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Produto não encontrado nas suas compras. ", h("a", { class: "link", href: "#mercado/central", text: "Voltar à Central" })))); return; }
+    var b0 = d.unidades[0], un = function (u) { return u === "kg" ? "/kg" : u === "l" ? "/L" : u === "un" ? "/un" : "/" + u; };
+    body.appendChild(trilha([{ txt: "Central", href: "#mercado/central" }, { txt: d.categoria || "Outros", href: linkCat(d.categoria || "Outros") }, { txt: d.nome }]));
+    /* 1) cabeçalho e o que foi PAGO */
+    var cab = panel(d.nome, d.categoria + " · " + d.compras + (d.compras === 1 ? " compra" : " compras") + " · " + money(d.total) + " gastos no total.");
+    d.unidades.forEach(function (u) {
+      var k = h("div", { class: "mkkpis" },
+        h("div", { class: "mkkpi" }, h("span", { class: "kl", text: "Último pago" }), h("b", { class: "kv", text: money(u.ultimo.preco) + un(u.unidade) }), h("span", { class: "sub", text: dataBR(u.ultimo.data) + (u.ultimo.mercado ? " · " + u.ultimo.mercado : "") })),
+        h("div", { class: "mkkpi" }, h("span", { class: "kl", text: "Menor pago" }), h("b", { class: "kv", text: u.menor ? money(u.menor.preco) + un(u.unidade) : "—" }), h("span", { class: "sub", text: u.menor ? dataBR(u.menor.data) + (u.menor.mercado ? " · " + u.menor.mercado : "") : "" })),
+        h("div", { class: "mkkpi" }, h("span", { class: "kl", text: "Preço médio" }), h("b", { class: "kv", text: u.precoMedio != null ? money(u.precoMedio) + un(u.unidade) : "—" }), h("span", { class: "sub", text: u.suficiente ? "média ponderada pela quantidade" : "só 1 compra" })),
+        h("div", { class: "mkkpi" }, h("span", { class: "kl", text: "Compras" }), h("b", { class: "kv", text: String(u.compras) }), h("span", { class: "sub", text: "em " + u.unidade })));
+      if (d.unidades.length > 1) cab.appendChild(h("h3", { text: "Por " + (u.unidade === "un" ? "unidade" : u.unidade) }));
+      cab.appendChild(k);
+    });
+    body.appendChild(cab);
+    var hist = panel("O que você pagou", "Compras registradas deste produto (preço unitário e total). É o histórico de verdade: nada daqui vem da internet.");
+    var linhas = []; d.unidades.forEach(function (u) { u.historico.forEach(function (x) { linhas.push(x); }); });
+    linhas.sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
+    var tabela = function (l) { return h("div", { class: "plst" }, l.map(function (x) { return h("div", { class: "plr" }, h("span", { class: "pln" }, h("b", { text: dataBR(x.data) }), h("span", { class: "sub", text: x.mercado })), h("span", { class: "plq", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.unitario) }), h("span", { class: "plt", text: money(x.total) })); })); };
+    hist.appendChild(tabela(linhas.slice(0, 12)));
+    if (linhas.length > 12) { var mais = h("details", { class: "rtnovo" }, h("summary", { text: "Ver as outras " + (linhas.length - 12) + " compras" })); mais.appendChild(tabela(linhas.slice(12))); hist.appendChild(mais); }
+    body.appendChild(hist);
+    /* 2) registrar uma compra: sempre pelo fluxo normal (nota ou pedido), nunca a partir de um anúncio */
+    var reg = panel("Comprou? Registre a compra", "O preço de um anúncio só entra no histórico depois que a compra for registrada pelo fluxo normal da Central de Compras (nota ou pedido). Nada é gravado automaticamente a partir das ofertas.");
+    reg.appendChild(h("p", null, h("a", { class: "mkadd", href: "#mercado/importar", text: "Registrar compra (adicionar nota)" })));
+    body.appendChild(reg);
+    /* 3) ofertas da internet (Radar): só o dono; separadas do que foi pago */
+    if (!ehDono()) return;
+    var box = h("div", { class: "stack mkradarbox" }); body.appendChild(box);
+    var pago = b0 && b0.ultimo ? { unitario: b0.ultimo.preco, unidade: b0.unidade, data: b0.ultimo.data } : null;
+    function recarregar() { drawApp("produto", arg); }
+    box.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando as ofertas do Radar…" })));
+    Promise.resolve(sb.from("radar_itens").select("id,nome,marca,apresentacao,ativo,origem").order("nome").limit(500)).then(function (r) {
+      if (r && r.error) throw r.error;
+      var itens = r.data || [], item = N.pcItemDe(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["radar-vinculos"] : null, nome, itens);
+      box.innerHTML = "";
+      if (item) {
+        var topo = panel("Radar de Preços", "Produto do Radar vinculado: " + item.nome + (item.marca ? " · " + item.marca : "") + (item.ativo === false ? " (arquivado)" : "") + ".");
+        var des = h("button", { type: "button", class: "ghostbtn", text: "Desvincular" });
+        des.onclick = function () { gravarVinculos(N.pcDesvincular(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["radar-vinculos"] : null, nome), function () { recarregar(); }); };
+        topo.appendChild(h("p", null, des)); box.appendChild(topo);
+        var alvo = h("div", { class: "stack" }); box.appendChild(alvo);
+        (window.precisa ? window.precisa(["radar"]) : Promise.reject(new Error("módulos indisponíveis"))).then(function () { return window.rtMontarOfertas(alvo, sb, user, item.id, pago); })
+          .catch(function (e) { alvo.innerHTML = ""; alvo.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Não consegui abrir as ofertas: " + (e && e.message ? e.message : e) }))); });
+        return;
+      }
+      var p = panel("Ofertas na internet", "Este produto ainda não está ligado ao Radar. Ligue-o a um produto monitorado (ou crie um) para ver os anúncios encontrados, kits, combos e outros tamanhos, lado a lado com o que você pagou. Preço de anúncio nunca é preço pago.");
+      var msg = h("p", { class: "sub", role: "status" });
+      var vincular = function (id) { var res = N.pcVincular(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["radar-vinculos"] : null, nome, id); if (res.erro) { msg.textContent = res.erro; return; } msg.textContent = "Vinculando…"; gravarVinculos(res.vinculos, function (erro) { if (erro) msg.textContent = erro; else recarregar(); }); };
+      var sug = N.pcSugerirItens(nome, itens);
+      if (sug.length) {
+        p.appendChild(h("h3", { text: "Parecidos no Radar" }));
+        sug.forEach(function (x) { var b = h("button", { type: "button", class: "ghostbtn pri", text: "Vincular a “" + x.item.nome + "”" }); b.onclick = function () { vincular(x.item.id); }; p.appendChild(h("div", { class: "rtlinha" }, h("span", { text: x.item.nome + (x.item.marca ? " · " + x.item.marca : "") + " (" + x.pontos + "% parecido)" }), b)); });
+      }
+      if (itens.length) {
+        var sel = h("select", { "aria-label": "Produto do Radar" }, h("option", { value: "", text: "Escolher outro produto do Radar" }), itens.map(function (i) { return h("option", { value: i.id, text: i.nome + (i.marca ? " · " + i.marca : "") }); }));
+        var ok = h("button", { type: "button", class: "ghostbtn", text: "Vincular" }); ok.onclick = function () { vincular(sel.value); };
+        p.appendChild(h("div", { class: "vfil" }, sel, ok));
+      }
+      var novo = h("button", { type: "button", class: "ghostbtn pri", text: "Monitorar este produto no Radar" });
+      novo.onclick = function () {
+        novo.disabled = true; msg.textContent = "Criando o produto no Radar…";
+        Promise.resolve(sb.from("radar_itens").insert({ nome: nome.slice(0, 160), origem: "comprado" }).select("id").single()).then(function (r2) { if (r2.error || !r2.data) throw (r2.error || new Error("sem resposta")); vincular(r2.data.id); })
+          .catch(function (e) { novo.disabled = false; msg.textContent = "Não consegui criar o produto no Radar: " + (e && e.message ? e.message : e); });
+      };
+      p.appendChild(h("p", null, novo)); p.appendChild(msg); box.appendChild(p);
+    }).catch(function (e) { box.innerHTML = ""; box.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Não consegui ler o Radar agora (" + (e && e.message ? e.message : e) + ")." }))); });
+  }
   /* ---------- Produtos: renomear, juntar repetidos e trocar categoria ---------- */
   function viewProdutos(body) {
     var p = panel("Produtos", "Junte nomes diferentes do mesmo produto para o histórico de preços ficar num lugar só. A categoria escolhida aqui vale para todas as compras do produto.");
@@ -1256,7 +1383,7 @@
         nome.onchange = function () { var v = nome.value.trim(); if (!v || v === x.nome) { nome.value = x.nome; return; } salvar(sb.from("produtos").update({ nome: v }).eq("id", x.id), "Nome atualizado."); };
         var cat = h("select", { "aria-label": "Categoria" }, cats.concat(cats.indexOf(x.categoria) < 0 ? [x.categoria] : []).map(function (c) { return h("option", { value: c, selected: c === x.categoria ? "" : null, text: c }); }));
         cat.onchange = function () { salvar(sb.from("produtos").update({ categoria: cat.value }).eq("id", x.id), "Categoria atualizada."); };
-        list.appendChild(h("div", { class: "mkprow" }, cb, nome, cat,
+        list.appendChild(h("div", { class: "mkprow" }, cb, nome, cat, ehDono() && compras.length ? h("a", { class: "link", href: linkProd(x.nome), text: "Abrir página" }) : null,
           h("span", { class: "sub", text: compras.length + (compras.length === 1 ? " compra" : " compras") + (compras.length ? " · " + money(compras[compras.length - 1].valor_unitario) + (x.unidade === "kg" ? "/kg" : "") : "") })));
       });
       atualizarBotao();
@@ -2042,6 +2169,7 @@
     tot.appendChild(h("p", { class: "sub", text: "Cada fonte mantém o seu cálculo: o Mercado soma os itens das notas; o online usa o total pago do pedido (com desconto, frete e taxas). Nada é somado duas vezes." }));
     fo.forEach(function (k) { tot.appendChild(h("p", { class: "sub", text: "Fora da soma: " + D.fora[k].n + " " + (rot[k] || k) + " (" + money(D.fora[k].valor) + ")." })); });
     body.appendChild(tot);
+    if (ehDono() && rows && rows.length) body.appendChild(painelCategorias());
     body.appendChild(h("p", { class: "sub" }, "Detalhes de cada loja online: ", h("a", { class: "link", href: "#compras", text: "Compras online" }), " · cada nota: ", h("a", { class: "link", href: "#mercado/notas", text: "Notas" }), "."));
   }
   function adc(pai, filho) { if (filho) pai.appendChild(filho); }

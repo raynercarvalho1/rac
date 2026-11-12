@@ -219,7 +219,7 @@ test("ajustes: avisos e vendedores bloqueados vão para a conta (pessoal), e val
 test("Mercado: aba Radar só para o dono, módulo carregado sob demanda, sem mexer nas abas existentes; service worker e versão", () => {
   const m = ler("mercado.js");
   assert.match(m, /\["alertas", "Alertas"\], \["radar", "Radar"\], \["notas", "Notas"\]/); assert.match(m, /\(x\[0\] === "alertas" \|\| x\[0\] === "radar"\) && !ehDono\(\)/);
-  assert.match(m, /x\[0\] === sub && \(x\[0\] !== "radar" \|\| ehDono\(\)\)/, "a casa não chega à aba nem pelo endereço");
+  assert.match(m, /x\[0\] === sub && \(\(x\[0\] !== "radar" && x\[0\] !== "categoria" && x\[0\] !== "produto"\) \|\| ehDono\(\)\)/, "a casa não chega à aba (nem às páginas de categoria e produto) pelo endereço");
   const vr = m.slice(m.indexOf("function viewRadar(body)"), m.indexOf("function viewAlertas(body)"));
   assert.match(vr, /if \(!ehDono\(\)\)[\s\S]*?return;/); assert.match(vr, /window\.precisa\(\["radar"\]\)/); assert.match(vr, /window\.rtMontar\(alvo, sb, user\)/); assert.ok(vr.indexOf("ehDono") < vr.indexOf("precisa"), "o dono é conferido antes de carregar o módulo");
   assert.match(m, /v !== "importar" && v !== "radar"/, "o Radar não depende de haver compras");
@@ -458,4 +458,36 @@ test("Descobrir: histórico por identidade do produto (atravessa lojas e anúnci
   const quebrado = await abrirDesc({}, {}, {}); quebrado.banco.log.length = 0;
   const falha = montar({ dados: { radar_candidatos: CANDS }, falhas: { "radar_historico:select": 'relation "public.radar_historico" does not exist' } }); falha.banco.SB.functions.invoke = () => Promise.resolve({ data: { ok: false } }); await falha.abrir(); falha.ctx.RT.aba = "desc"; falha.ctx.rtDesenhar(); await espera(); await espera(); await espera();
   assert.ok(textoDe(falha.corpo).includes("Kit 2 Creme Hidratante Principia CH-02 454g") && !/precisa da migration/.test(textoDe(falha.corpo)), "sem a tabela de histórico a aba continua mostrando os candidatos");
+});
+
+/* ---------- modo embutido (página do produto da Central de Compras): só as ofertas de UM produto, ao lado do que foi pago ---------- */
+const abrirEmbutido = async (pago, dados = {}) => {
+  const t = montar({ dados: { radar_candidatos: CANDS, radar_consultas: [], ...dados } }); t.corpos = [];
+  t.banco.SB.functions.invoke = (n, o) => { t.corpos.push(o.body); return Promise.resolve({ data: { ok: false, erro: "sem_chave_serpapi" } }); };
+  await t.ctx.rtMontarOfertas(t.corpo, t.banco.SB, { id: "u1" }, "i1", pago); await espera(); await espera(); await espera(); return t;
+};
+test("embutido: só o produto vinculado, sem abas nem seletor; avisa que preço de anúncio não é compra nem preço confirmado; diferença de apresentação; relacionado fora do padrão", async () => {
+  const t = await abrirEmbutido({ unitario: 100, unidade: "kg" }), txt = textoDe(t.corpo);
+  assert.ok(txt.includes("Ofertas encontradas na internet") && txt.includes("não é compra nem preço confirmado na loja") && txt.includes("Fone XM-4") && txt.includes("produto do Radar vinculado"));
+  assert.equal(todos(t.corpo, (e) => e.tag === "a" && /^(Oportunidades|Descobrir|Produtos|Lojas|Ajustes)$/.test(e.attrs.text)).length, 0, "sem as abas do Radar");
+  assert.equal(todos(t.corpo, (e) => e.tag === "select" && e.attrs["aria-label"] === "Produto a pesquisar").length, 0, "sem escolher produto: ele já é o da página");
+  assert.ok(txt.includes("Kit com 2 unidades (908 g no total): o preço total não é o da unidade avulsa") && txt.includes("Combo (Creme Hidratante Corporal Principia CH-02") && txt.includes("Outra apresentação (250 g)"), "a diferença de cada anúncio");
+  assert.ok(!txt.includes("Trio Ch + Pm + Gr") && /Do produto \(4\)/.test(txt), "o relacionado só aparece em Todos");
+  botao(t.corpo, "Todos (5)").onclick(); await espera(); const todosTxt = textoDe(t.corpo); assert.ok(todosTxt.includes("Trio Ch + Pm + Gr") && todosTxt.includes("Relacionado: outro produto (da mesma marca ou parecido), não este"), "relacionado aparece com a diferença escrita");
+  assert.ok(t.corpos.every((c) => c.tipo === "uso_descoberta"), "abrir a página só lê o contador de créditos (gratuito): nenhuma busca nem expansão"); assert.ok(!t.corpos.some((c) => c.tipo === "descobrir" || c.tipo === "expandir")); assert.equal(t.banco.gravacoes().length, 0, "e não grava nada");
+});
+test("embutido: comparação INDICATIVA com o último preço pago só quando a base é a mesma; o preço do Google nunca vira preço pago", async () => {
+  const t = await abrirEmbutido({ unitario: 150, unidade: "kg" }), txt = textoDe(t.corpo);
+  assert.ok(txt.includes("Você pagou R$ 15,00 por 100 g · este anúncio: R$ 10,79 por 100 g (abaixo do que você pagou; indicativo, preço visto no Google)"), "kg pago × 100 g do anúncio");
+  assert.ok(txt.includes("Sem comparação com o que você pagou: o anúncio não tem preço por medida calculável"), "o combo não é comparável e isso é dito");
+  const u = await abrirEmbutido({ unitario: 6, unidade: "un" }); assert.ok(!textoDe(u.corpo).includes("Você pagou"), "un × 100 g não se compara"); assert.ok(textoDe(u.corpo).includes("o anúncio é por 100 g e a compra é por un"));
+  const s = await abrirEmbutido(null); assert.ok(!textoDe(s.corpo).includes("Você pagou"), "sem compra registrada, nada a comparar");
+  for (const x of [t, u, s]) assert.equal(x.banco.de("radar_precos", "insert").length, 0, "nenhum preço entra no histórico confirmado");
+});
+test("embutido: Acompanhar usa o fluxo existente (oferta não confirmada, sem preço pago); só o dono; produto fora do Radar é avisado", async () => {
+  const t = await abrirEmbutido({ unitario: 150, unidade: "kg" }), card = (ini) => todos(t.corpo, (e) => String(e.attrs.class || "").includes("rtopo") && textoDe(e).trim().startsWith(ini))[0];
+  const g = todos(card("Creme Hidratante Corporal Principia CH-02 454g"), (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; g.onclick(); await espera();
+  assert.match(textoDe(t.corpo), /só tem a página do Google/, "anúncio só do Google pede 'Ver lojas', como na aba Descobrir"); assert.equal(t.banco.gravacoes().length, 0);
+  const casa = montar({ dono: false, dados: { radar_candidatos: CANDS } }); await casa.ctx.rtMontarOfertas(casa.corpo, casa.banco.SB, { id: "u1" }, "i1", null); await espera(); assert.match(textoDe(casa.corpo), /só do dono/); assert.equal(casa.banco.consultas?.length ?? 0, 0);
+  const fora = montar({ dados: { radar_candidatos: [] } }); await fora.ctx.rtMontarOfertas(fora.corpo, fora.banco.SB, { id: "u1" }, "nao-existe", null); await espera(); await espera(); assert.match(textoDe(fora.corpo), /não foi encontrado/);
 });

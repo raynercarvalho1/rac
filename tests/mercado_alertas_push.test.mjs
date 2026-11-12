@@ -252,7 +252,7 @@ test("Service Worker e notificações existentes: nada mudou; a notificação do
   assert.match(sw, /self\.addEventListener\("push", e => \{/); assert.match(sw, /data: \{ url: d\.url \|\| "\.\/#agenda" \}/); assert.match(sw, /tag: d\.tag \|\| undefined/); assert.match(sw, /self\.addEventListener\("notificationclick"/);
   const alvo = new URL(URL_ALERTAS, "https://raynercarvalho.com.br/sw.js").href; assert.equal(alvo, "https://raynercarvalho.com.br/#mercado/alertas");
   assert.ok(!/mercado-alertas|alertas_preco/.test(sw), "o sw.js não precisa mudar");
-  const app = ler("js/app.js"); assert.match(app, /"mercado"/); assert.match(app, /if\(top==="mercado"\)\{sideMark\("mercado","mercado"\);if\(window\.RACmercado\)window\.RACmercado\.render\(parts\[1\]\|\|""\)/, "#mercado/alertas chama a aba");
+  const app = ler("js/app.js"); assert.match(app, /"mercado"/); assert.match(app, /if\(top==="mercado"\)\{sideMark\("mercado","mercado"\);if\(window\.RACmercado\)window\.RACmercado\.render\(parts\[1\]\|\|"",parts\[2\]\|\|""\)/, "#mercado/alertas chama a aba (e #mercado/categoria/X e #mercado/produto/X levam o segundo trecho da rota)");
   assert.match(ler("mercado.js"), /\["alertas", "Alertas"\]/); assert.ok(ler("supabase/functions/garmin/index.ts").includes('url: domingo && semana.length ? "./#resumo" : compra && !linhas.length ? "./#lista" : "./#agenda"'), "destinos antigos intactos");
 });
 

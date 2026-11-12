@@ -1123,6 +1123,20 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado .rtc-origem{margin:0;font-size:calc(12px + var(--fz));color:var(--muted)}
 #mercado .rtc-mais p.sub{margin:6px 0 0;overflow-wrap:anywhere}
 #mercado .rtc-lojas{border-top:1px solid var(--line);padding-top:4px}#mercado .rtc-lojas-lista{display:grid;gap:10px;margin-top:8px}#mercado .rtc-lojas .rtcard{background:var(--bg);box-shadow:none}
+/* Central × Radar: trilha, categorias, produtos, indicadores do que foi pago, diferença e comparação das ofertas */
+#mercado .mk-trilha{font-size:calc(13px + var(--fz));color:var(--muted)}#mercado .mk-trilha [aria-current]{color:var(--ink);font-weight:600}
+#mercado .mkcats{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:10px}
+#mercado .mkcat{display:flex;flex-direction:column;gap:2px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;text-decoration:none;color:var(--ink);min-width:0}#mercado .mkcat:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+#mercado .mkpcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px;margin-top:6px}
+#mercado .mkpc{display:flex;flex-direction:column;gap:4px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:var(--shadow);min-width:0}#mercado .mkpc p{margin:0}
+#mercado .mkpc-nome{font-weight:700;color:var(--ink);text-decoration:none;overflow-wrap:anywhere}#mercado .mkpc-nome:hover{color:var(--accent);text-decoration:underline}
+#mercado .mkpc-pago b{font:700 calc(18px + var(--fz)) var(--f-ui)}#mercado .mkoferta{padding-top:6px;border-top:1px dashed var(--line)}
+#mercado .mkkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:6px 0 10px}
+#mercado .mkkpi{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}#mercado .mkkpi .kl{font-size:calc(12px + var(--fz));color:var(--muted)}#mercado .mkkpi .kv{font:700 calc(20px + var(--fz)) var(--f-ui);font-variant-numeric:tabular-nums}
+#mercado .mkradarbox{gap:14px}
+#mercado .rtd-prod{margin:0;display:flex;flex-wrap:wrap;gap:4px;align-items:baseline}
+#mercado .rtc-dif{margin:0;font-size:calc(12px + var(--fz));color:var(--muted);overflow-wrap:anywhere}#mercado .rtc-dif-alerta{color:var(--warn)}
+#mercado .rtc-cmp{margin:0;padding:6px 10px;border-radius:10px;background:var(--hover);font-size:calc(13px + var(--fz));overflow-wrap:anywhere}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>

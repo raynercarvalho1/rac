@@ -1,3 +1,4 @@
-.claude/
+.claude/*
+!.claude/settings.json
 privado/
 node_modules/

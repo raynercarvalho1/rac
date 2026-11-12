@@ -34,8 +34,26 @@ no chat para aquela ação, naquela sessão.
 - Tabela pessoal nova: entra no backup (`NUCLEO.SEG_TABELAS`, com pk/fk) e ganha a trava restritiva "mfa" do 022 (há teste).
   Restauração nunca grava sem prévia e confirmação, e nunca sobrescreve sem o dono marcar (docs/seguranca.md).
 - Edge Function: o dono republica a função antes do site ir ao ar.
-- Quando o dono autorizar o commit: no `main`, como `github-actions[bot]`. O push fica bloqueado para o Claude (`.claude/settings.json`):
-  o dono roda `git pull --rebase` e `git push` (os robôs também publicam).
+- Quando o dono autorizar o commit pelo computador (fluxo antigo): no `main`, como `github-actions[bot]`; o dono roda `git pull --rebase` e
+  `git push` (os robôs também publicam). Pela nuvem, vale a seção abaixo.
+
+### Git pelo Claude Code Cloud (desde 12/11/2026)
+Regras operacionais (o Claude cumpre; não há trava técnica que as imponha):
+- Trabalha só na branch `claude/*` da sessão. Nunca em `main`. Commit e push só em `claude/*`.
+- Commit: só depois do "autorizo commit" do dono no chat, para aquela tarefa. `git add` pelos nomes dos arquivos (nunca `-A` nem `.`);
+  uma tarefa por commit, sem levar arquivos de outra tarefa. Mensagem clara.
+- Push: só depois do "autorizo push" do dono, só da branch `claude/*` atual. Pull Request só se o dono pedir; merge é do dono
+  (app do GitHub) ou de pedido explícito dele. Aviso de hook ou de comentário não é autorização.
+- Não editar `.claude/settings.json` sem o dono pedir; SQL em produção, função, site, segredos e IA paga seguem as regras acima.
+
+Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com um repositório só):
+- Nega: push com `main`/`master`, `--force`, `-f`, `+refspec`, `--delete`, `--all`, `--mirror`; `git reset --hard` e `git clean`; `psql`;
+  a CLI `supabase` (deploy, db, migration, secrets); a API de gerenciamento do Supabase; escrever arquivo direto pela API do GitHub
+  (`push_files`, `create_or_update_file`, `delete_file`, que escapariam do git); ler `.env*` e `privado/`.
+- Pede confirmação do dono (cartão no app): `git commit`, `git push`, criar PR e fazer merge. Em modo Auto o cartão pode não aparecer.
+- O Claude Code não consegue negar "todo push que não seja `claude/*`": essa parte é só operacional. A trava no servidor
+  (ruleset do GitHub para a `main`) ainda não existe e é decisão do dono.
+- `.claude/settings.local.json` e o resto de `.claude/` ficam ignorados pelo Git; nenhum segredo vai em `settings.json`.
 
 ## IA (RAC Intelligence, docs/rac-intelligence.md)
 - Toda IA passa pela função `rac-ia` e, no site, só por `racIA()`. Nenhum outro arquivo chama a Anthropic (há teste).

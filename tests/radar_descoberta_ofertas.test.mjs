@@ -2,7 +2,7 @@
 // Os títulos e preços abaixo são os que o Google Shopping devolveu na consulta real de 11/11/2026 (produtos públicos de loja; nenhum dado pessoal). Regra do dono: NADA é descartado por quantidade ou composição diferente.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classificar, medidasDe, quantidadeDe, codigosDe, precoPorMedida, numeroBRL, linkSeguro, candidatosDoShopping, lojasDoProduto, mesclarCandidato, agrupar, ordenar, variantesDeConsulta, chaveDedup, observacaoDoCandidato, deveRegistrarObservacao, chaveObservacao } from "../supabase/functions/radar/ofertas.ts";
+import { tokensDoNome, classificar, medidasDe, quantidadeDe, codigosDe, precoPorMedida, numeroBRL, linkSeguro, candidatosDoShopping, lojasDoProduto, mesclarCandidato, agrupar, ordenar, variantesDeConsulta, chaveDedup, observacaoDoCandidato, deveRegistrarObservacao, chaveObservacao } from "../supabase/functions/radar/ofertas.ts";
 
 const INT = { nome: "Creme Hidratante Corporal Principia CH-02", marca: "Principia", modelo: "CH-02", apresentacao: "454 g", gtin: "0042882100690" };
 const AGORA = "2026-11-11T21:32:20.000Z";
@@ -131,4 +131,24 @@ test("observação de histórico: só com preço, sem inventar; grava na primeir
   assert.equal(deveRegistrarObservacao(undefined, l[1], t), true); assert.equal(deveRegistrarObservacao(ult(133.92, 2), l[1], t), false); assert.equal(deveRegistrarObservacao(ult(133.92, 21), l[1], t), true);
   assert.equal(deveRegistrarObservacao(ult(120, 1), l[1], t), true, "preço mudou"); assert.equal(deveRegistrarObservacao(ult(133.92, 30), { ...l[1], preco: null }, t), false);
   assert.equal(chaveObservacao({ provedor: "serpapi", id_externo: "P2", loja: "Magalu" }), chaveObservacao({ provedor: "serpapi", id_externo: "P2", loja: "MAGALU " }));
+});
+
+/* ---------- produto SEM modelo nem EAN (caso real de 12/11/2026: "Creme Hidratante corpo Principia") ---------- */
+const SEM_MODELO = { nome: "Creme Hidratante corpo Principia", marca: "Principia", modelo: null, apresentacao: null, gtin: null };
+test("sem modelo nem EAN: não pesquisa só a marca (traria o catálogo inteiro dela) e reconhece o produto pelo NOME; outros produtos da marca ficam relacionados", () => {
+  assert.deepEqual(variantesDeConsulta(SEM_MODELO).map((v) => [v.id, v.q]), [["completa", "Creme Hidratante corpo Principia"]], "uma consulta só: nada de \"Principia\" sozinho");
+  assert.deepEqual(variantesDeConsulta(INT).map((v) => v.id), ["completa", "marca_modelo", "ean"], "com modelo e EAN as variantes de antes continuam");
+  assert.deepEqual(tokensDoNome(SEM_MODELO.nome, SEM_MODELO.marca), ["creme", "hidratante", "corpo"], "sem a marca, sem números e sem ligações");
+  const c = (t, loja = null, i = SEM_MODELO) => classificar(t, loja, i);
+  const a = c("Creme Hidratante Corporal Principia CH-02, 250g"); assert.equal(a.tipo, "individual"); assert.ok(a.sinais.includes("pelo_nome") && /o nome do produto aparece no título/.test(a.motivos.join(" "))); assert.equal(a.produto_chave, "principia|nome:corpo-creme-hidratante"); assert.equal(a.apresentacao_chave, "250g");
+  assert.ok(a.relevancia < classificar("Creme Hidratante Corporal Principia CH-02 250g", null, { ...SEM_MODELO, modelo: "CH-02" }).relevancia, "reconhecer pelo nome vale menos que pelo modelo");
+  const k = c("Kit 2 Creme Hidratante Corporal Principia 454g"); assert.deepEqual([k.tipo, k.quantidade, k.apresentacao_chave, k.produto_chave], ["kit_mesmo_produto", 2, "2x454g", a.produto_chave], "o kit é o mesmo produto, com a própria apresentação");
+  assert.equal(c("Kit Principia Hidratante Corporal CH-02 + Sérum NC-10").tipo, "combo", "dois códigos no título = há outro produto");
+  for (const t of ["Principia Kit C/2 Séruns Antimanchas Niacinamida+ Mandélico", "Principia Sérum Facial Hidratante Vitamina C 30ml", "Principia Protetor Solar Facial FPS 60"]) { const r = c(t); assert.equal(r.tipo, "relacionado", t); assert.equal(r.produto_chave, null, "relacionado não entra em série de preço"); }
+  assert.equal(c("Hidratante Corporal Nivea 400ml").tipo, "indeterminado", "outra marca com as mesmas palavras não é o produto");
+  assert.equal(c("Creme Hidratante Corporal", "Principia Skin").tipo, "individual", "a marca pode vir da loja");
+  /* com modelo declarado, o nome NÃO basta: outro produto da marca continua relacionado */
+  assert.equal(classificar("Principia Hidratante Corporal Creme PS-02", null, INT).tipo, "relacionado");
+  /* uma palavra só não basta (nome curto demais para identificar) */
+  assert.equal(classificar("Principia Hidratante Facial", null, { nome: "Hidratante Principia", marca: "Principia" }).tipo, "relacionado");
 });

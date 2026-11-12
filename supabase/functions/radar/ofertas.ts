@@ -66,6 +66,15 @@ export function codigosDe(texto: string): string[] {
   for (const m of t.matchAll(/\b([a-z]{1,4})\s?-\s?(\d{1,3})\b|\b([a-z]{2,4})(\d{1,3})\b/g)) { const c = (m[1] ?? m[3]) + (m[2] ?? m[4]); if (!["kit", "pack", "leve", "pague", "spf", "x"].includes(m[1] ?? m[3])) out.add(c); }
   return [...out];
 }
+/* palavras que identificam o produto pelo NOME quando não há modelo nem EAN ("Creme Hidratante corpo Principia" → creme, hidratante, corpo; sem a marca, sem números e sem ligações) */
+const LIGACOES = new Set(["para", "com", "sem", "de", "da", "do", "das", "dos", "e", "em", "a", "o", "os", "as", "kit", "un", "unidade"]);
+export function tokensDoNome(nome: string, marca?: string | null): string[] {
+  const m = alnum(marca ?? ""), out: string[] = [];
+  for (const w of norm(nome).split(/[^a-z0-9]+/)) if (w.length >= 3 && !/\d/.test(w) && !LIGACOES.has(w) && alnum(w) !== m && !out.includes(w)) out.push(w);
+  return out;
+}
+/* "corpo" casa com "corporal", "hidratante" com "hidratantes" (um começa com o outro, a partir de 5 letras) */
+const mesmaPalavra = (a: string, b: string): boolean => a === b || (Math.min(a.length, b.length) >= 5 && (a.startsWith(b) || b.startsWith(a)));
 const bonito = (c: string) => c.replace(/^([a-z]+)(\d+)$/, (_, a, b) => a.toUpperCase() + "-" + b);
 
 /* ---------- classificação ---------- */
@@ -76,15 +85,18 @@ export function classificar(titulo: string, loja: string | null, intencao: Inten
   const temGtin = gtin.length >= 8 && tAl.replace(/^0+/, "").includes(gtin);
   const temModelo = (modelo.length >= 3 && tAl.includes(modelo)) || temGtin;
   const marcaOk = marca.length >= 3 && (tAl.includes(marca) || alnum(loja).includes(marca));
-  const med = medidasDe(titulo), { qtd, marcador } = quantidadeDe(titulo), outros = codigosDe(titulo).filter((c) => c !== modelo);
+  /* sem modelo nem EAN, o produto é reconhecido pelo NOME: a marca confere e pelo menos 2 palavras do nome (e 2/3 delas) estão no título. Vale menos que modelo/EAN (relevância -20, sinal "pelo_nome"). */
+  const tokNome = modelo ? [] : tokensDoNome(intencao.nome, intencao.marca), palavrasT = t.split(/[^a-z0-9]+/).filter(Boolean), acertos = tokNome.filter((k) => palavrasT.some((w) => mesmaPalavra(k, w)));
+  const pelaNome = !temModelo && !modelo && tokNome.length >= 2 && (marca.length < 3 || marcaOk) && acertos.length >= 2 && acertos.length / tokNome.length >= 2 / 3;
+  const med = medidasDe(titulo), { qtd, marcador } = quantidadeDe(titulo), outros = pelaNome ? (codigosDe(titulo).length >= 2 ? codigosDe(titulo).slice(1) : []) : codigosDe(titulo).filter((c) => c !== modelo);   /* pelo nome: um código no título é o do próprio produto; dois ou mais = há outros produtos (combo) */
   const medIntent = medidasDe((intencao.apresentacao ?? "") + " " + intencao.nome)[0] ?? null;
   const distintas = med.filter((m, i) => med.findIndex((x) => x.valor === m.valor && x.unidade === m.unidade) === i);
   const medidaIgual = !!medIntent && med.some((m) => m.unidade === medIntent.unidade && m.valor === medIntent.valor);
   const ehKit = /\bkit\b|\bconjunto\b|\bcombo\b/.test(t);
   let tipo: Tipo, composicao: ItemComposicao[] = [], medidaTotal: Medida | null = null, quantidade = qtd;
   const base: ItemComposicao = { descricao: intencao.nome, modelo: modelo || null, medida: med[0] ?? null, quantidade: 1 };
-  if (temModelo) {
-    if (temGtin) motivos.push("o EAN aparece no título"); else motivos.push("o modelo " + bonito(modelo) + " aparece no título");
+  if (temModelo || pelaNome) {
+    if (temGtin) motivos.push("o EAN aparece no título"); else if (pelaNome) { motivos.push("o nome do produto aparece no título (" + acertos.join(", ") + "); sem modelo nem EAN, confira"); sinais.push("pelo_nome"); } else motivos.push("o modelo " + bonito(modelo) + " aparece no título");
     if (outros.length > 0) {
       tipo = "combo"; motivos.push("há outros produtos no título: " + outros.map(bonito).join(", ")); sinais.push("composicao_sugerida");
       composicao = [{ ...base, quantidade: 1 }, ...outros.map((c) => ({ descricao: "Produto " + bonito(c), modelo: c, medida: null, quantidade: 1 }))]; quantidade = 1;
@@ -103,10 +115,10 @@ export function classificar(titulo: string, loja: string | null, intencao: Inten
     tipo = "relacionado"; motivos.push("mesma marca, sem o modelo pesquisado"); if (ehKit) sinais.push("kit_sem_modelo");
   } else { tipo = "indeterminado"; motivos.push("não foi possível ligar o título à marca nem ao modelo"); }
   const pontos: Record<Tipo, number> = { individual: 70, kit_mesmo_produto: 55, outra_apresentacao: 50, combo: 40, relacionado: 15, indeterminado: 5 };
-  const medidaConfere = temModelo && medidaIgual, relevancia = Math.min(100, pontos[tipo] + (medidaConfere ? 10 : 0) + (temGtin ? 10 : 0));
+  const medidaConfere = (temModelo || pelaNome) && medidaIgual, relevancia = Math.max(0, Math.min(100, pontos[tipo] + (medidaConfere ? 10 : 0) + (temGtin ? 10 : 0) - (pelaNome && !temModelo ? 20 : 0)));
   if (medidaConfere) motivos.push("o tamanho confere com o pesquisado");
   /* identidade: marca|modelo (ou o EAN) para o produto avulso, em qualquer tamanho e em kit do mesmo produto; combo = o conjunto de modelos; relacionado e indeterminado não têm identidade (nunca entram em série de preço de produto) */
-  const prod = temGtin ? "gtin:" + gtin : modelo ? (marca ? marca + "|" : "") + modelo : null;
+  const prod = temGtin ? "gtin:" + gtin : modelo ? (marca ? marca + "|" : "") + modelo : pelaNome ? (marca ? marca + "|" : "") + "nome:" + [...tokNome].sort().join("-") : null;
   const rot = (m: Medida | undefined) => (m ? m.valor + m.unidade : "sem_medida");
   let produto_chave: string | null = null, apresentacao_chave = "-";
   if (tipo === "individual" || tipo === "outra_apresentacao") { produto_chave = prod; apresentacao_chave = rot(med[0]); }
@@ -238,7 +250,9 @@ export function variantesDeConsulta(i: Intencao): Variante[] {
   const nome = [i.nome, i.marca && !norm(i.nome).includes(norm(i.marca)) ? i.marca : "", i.modelo && !norm(i.nome).includes(norm(i.modelo)) ? i.modelo : "", i.apresentacao && !norm(i.nome).includes(norm(i.apresentacao)) ? i.apresentacao : ""].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
   const v: Variante[] = [{ id: "completa", q: nome.slice(0, 200), motivo: "nome, marca, modelo e tamanho" }];
   const curta = [i.marca, i.modelo ?? codigosDe(i.nome)[0]?.toUpperCase()].filter(Boolean).join(" ").trim();
-  if (curta && norm(curta) !== norm(nome)) v.push({ id: "marca_modelo", q: curta.slice(0, 200), motivo: "só marca e modelo (pega kits e outros tamanhos)" });
+  /* sem modelo nem código, "marca e modelo" seria só a marca e traria o catálogo inteiro dela (e gastaria um crédito): essa variante só existe quando há modelo ou código */
+  const temCodigo = !!(i.modelo || codigosDe(i.nome)[0]);
+  if (temCodigo && curta && norm(curta) !== norm(nome)) v.push({ id: "marca_modelo", q: curta.slice(0, 200), motivo: "só marca e modelo (pega kits e outros tamanhos)" });
   const g = String(i.gtin ?? "").replace(/\D/g, ""); if (g.length >= 8) v.push({ id: "ean", q: g, motivo: "só o EAN" });
   return v;
 }

@@ -291,12 +291,14 @@
     if(D.pendente){p.appendChild(h("p",{class:"sub",role:"status",text:"A descoberta precisa da migration 048 (ainda não aplicada). Quando o dono rodar o SQL, esta aba passa a guardar os anúncios encontrados."}));corpo.appendChild(p);return}
     if(D.cands==null){p.appendChild(h("p",{class:"sub",text:"Carregando…"}));corpo.appendChild(p);return}
     var topo=D.cands.filter(function(c){return !c.pai_externo&&(D.ignorados||c.decisao!=="ignorado")}),porTipo={};topo.forEach(function(c){porTipo[c.tipo_oferta]=(porTipo[c.tipo_oferta]||0)+1});
-    var chips=h("div",{class:"chips"},[["","Todos ("+topo.length+")"]].concat(RT_TIPOS_OFERTA.filter(function(t){return porTipo[t[0]]}).map(function(t){return [t[0],t[1]+" ("+porTipo[t[0]]+")"]})).map(function(t){var b=h("button",{type:"button",class:"chipb"+(D.tipo===t[0]?" on":""),text:t[1]});b.onclick=function(){D.tipo=t[0];rtDesenhar()};return b}));
+    /* padrão: só o que é DO produto (individual, kit, combo, outra apresentação); relacionado e indeterminado (outros produtos da marca, por exemplo) ficam a um toque em "Todos" */
+    var doProduto=topo.filter(function(c){return c.tipo_oferta!=="relacionado"&&c.tipo_oferta!=="indeterminado"}),separa=doProduto.length>0&&doProduto.length<topo.length,modo=D.tipo||(separa?"produto":"todos");
+    var chips=h("div",{class:"chips"},(separa?[["","Do produto ("+doProduto.length+")"],["todos","Todos ("+topo.length+")"]]:[["","Todos ("+topo.length+")"]]).concat(RT_TIPOS_OFERTA.filter(function(t){return porTipo[t[0]]}).map(function(t){return [t[0],t[1]+" ("+porTipo[t[0]]+")"]})).map(function(t){var b=h("button",{type:"button",class:"chipb"+(D.tipo===t[0]?" on":""),text:t[1]});b.onclick=function(){D.tipo=t[0];rtDesenhar()};return b}));
     p.appendChild(chips);
     var ordem=rtSel(RT_ORDENS,D.ordem);ordem.setAttribute("aria-label","Ordenar por");ordem.onchange=function(){D.ordem=ordem.value;rtDesenhar()};
     var ign=D.cands.filter(function(c){return !c.pai_externo&&c.decisao==="ignorado"}).length;
     p.appendChild(h("div",{class:"rtform"},rtCampo("Ordenar por",ordem),ign?rtBotao((D.ignorados?"Ocultar":"Mostrar")+" ignorados ("+ign+")",function(){D.ignorados=!D.ignorados;rtDesenhar()}):null));
-    var lista=rtDescOrdenar(topo.filter(function(c){return !D.tipo||c.tipo_oferta===D.tipo}),D.ordem);
+    var lista=rtDescOrdenar(topo.filter(function(c){return modo==="produto"?(c.tipo_oferta!=="relacionado"&&c.tipo_oferta!=="indeterminado"):(modo==="todos"||c.tipo_oferta===modo)}),D.ordem);
     if(!lista.length)p.appendChild(h("p",{class:"empty",text:D.cands.length?"Nenhum anúncio neste filtro.":"Nenhuma busca feita para este produto ainda. Toque em “Buscar ofertas”."}));
     lista.forEach(function(c){p.appendChild(rtDescCartao(c,D.cands.filter(function(x){return x.pai_externo&&x.pai_externo===c.id_externo})))});
     if((D.consultas||[]).length)p.appendChild(rtDet("desc-consultas","Últimas consultas",h("div",null,D.consultas.map(function(q){return h("p",{class:"sub",text:rtData(q.iniciada_em)+" · "+(q.engine==="google_shopping"?"Shopping":q.engine==="google_immersive_product"?"Lojas":"Produto")+" · "+(q.status==="reservada"?"em andamento":q.status)+" · "+q.resultados+" resultado(s) · gasto "+q.buscas_gastas+(q.consulta?" · “"+q.consulta+"”":"")})}))));

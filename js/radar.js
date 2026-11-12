@@ -244,28 +244,37 @@
       .then(function(){RT.aviso="Oferta cadastrada a partir do anúncio. Confirme a equivalência na tela do produto; o preço entra no histórico quando você registrar ou a coleta ler a página."+(avulso?"":" Atenção: este anúncio é "+rtDescTipoRot(c.tipo_oferta).toLowerCase()+" ("+(c.apresentacao_chave||"sem medida")+"): o preço dele não é o do frasco avulso. Só confirme a equivalência se quiser comparar pelo total.");return rtRecarregar().then(function(){return rtDescCarregar(c.item_id)})},function(e){rtDescMsg(rtErro(e))})}
   function rtDescCartao(c,lojas){
     var D=rtDescEstado(),pm=c.preco_por_medida!=null?rtMoeda(c.preco_por_medida)+" por "+(c.base_medida||""):"";
-    var box=h("div",{class:"rtopo"+(c.decisao==="ignorado"?" rtign":"")});
-    box.appendChild(h("div",{class:"rtlinha"},h("b",{text:c.titulo}),h("span",{class:"rtpreco",text:c.preco!=null?rtMoeda(c.preco):"sem preço"})));
+    var box=h("div",{class:"rtopo rtcard"+(c.decisao==="ignorado"?" rtign":"")});
+    /* 1) o que é e quanto custa */
+    box.appendChild(h("div",{class:"rtc-topo"},h("b",{class:"rtc-titulo",title:c.titulo,text:c.titulo}),h("span",{class:"rtpreco",text:c.preco!=null?rtMoeda(c.preco):"sem preço"})));
+    /* 2) o número que compara (preço por medida) e quem vende */
+    if(pm)box.appendChild(h("p",{class:"rtc-pm",text:pm+(c.preco_original?" · antes "+rtMoeda(c.preco_original):"")}));
+    else if(c.preco_original)box.appendChild(h("p",{class:"rtc-pm",text:"antes "+rtMoeda(c.preco_original)}));
+    box.appendChild(h("p",{class:"rtc-meta",text:[c.loja||"loja não informada",c.total!=null?"total "+rtMoeda(c.total):"",c.avaliacao!=null?"nota "+c.avaliacao+(c.avaliacoes?" ("+c.avaliacoes+")":""):""].filter(Boolean).join(" · ")}));
+    /* 3) selos curtos */
     var tags=h("div",{class:"chips"},rtEtiqueta(rtDescTipoRot(c.tipo_oferta),c.tipo_oferta==="individual"?"rtok":""));
     if(c.quantidade>1)tags.appendChild(rtEtiqueta(c.quantidade+" unidades"));if(c.medida_valor)tags.appendChild(rtEtiqueta(rtDescMedida(c)+(c.quantidade>1&&c.tipo_oferta==="kit_mesmo_produto"?" no total":"")));
-    if(c.decisao==="acompanhando")tags.appendChild(rtEtiqueta("Acompanhando","rtok"));if(c.catalogo||c.varias_fontes)tags.appendChild(rtEtiqueta("Várias lojas"));
+    if(c.decisao==="acompanhando")tags.appendChild(rtEtiqueta("Acompanhando","rtok"));
     box.appendChild(tags);
-    box.appendChild(h("p",{class:"sub",text:[c.loja||"loja não informada",pm,c.total!=null?"total "+rtMoeda(c.total):"",c.avaliacao!=null?"nota "+c.avaliacao+(c.avaliacoes?" ("+c.avaliacoes+")":""):""].filter(Boolean).join(" · ")}));
-    box.appendChild(h("p",{class:"sub",text:rtDescFrete(c)}));
-    var pag=[c.pagamento_texto,c.parcelamento_texto,c.entrega_texto,c.detalhes,c.desconto_texto].filter(Boolean).join(" · ");if(pag)box.appendChild(h("p",{class:"sub",text:pag}));
-    if(c.preco_original)box.appendChild(h("p",{class:"sub",text:"Preço antes: "+rtMoeda(c.preco_original)}));
-    var ant=(c.precos_anteriores||[]).slice(-1)[0];if(ant)box.appendChild(h("p",{class:"sub",text:"Visto antes por "+rtMoeda(ant.preco)+" em "+rtData(ant.observado_em)}));
-    var comp=(c.composicao||[]);if(comp.length&&(c.tipo_oferta==="kit_mesmo_produto"||c.tipo_oferta==="combo"))box.appendChild(h("p",{class:"sub",text:"Composição (sugerida pelo título): "+comp.map(function(x){return (x.quantidade>1?x.quantidade+" × ":"")+x.descricao+(x.medida?" "+x.medida.valor+" "+x.medida.unidade:"")}).join(" + ")}));
-    if((c.evidencias||[]).length)box.appendChild(h("p",{class:"sub",text:"Por que esta classificação: "+c.evidencias.join("; ")}));
-    rtDescHistTxt(c).forEach(function(t){box.appendChild(h("p",{class:"sub",text:t}))});
-    box.appendChild(h("p",{class:"sub",text:"Visto em "+rtData(c.observado_em)+" pelo "+(c.engine==="google_shopping"?"Google Shopping":"Google (lojas)")+" · ainda não confirmado na loja"}));
-    var acoes=h("div",{class:"rtlinha"});
-    if(c.link)acoes.appendChild(h("a",{class:"link",href:c.link,target:"_blank",rel:"noopener noreferrer",text:c.link_tipo==="loja"?"Abrir na loja":"Abrir no Google"}));
+    /* 4) ações */
+    var acoes=h("div",{class:"rtc-acoes"});
+    if(c.decisao!=="acompanhando")acoes.appendChild(rtBotao("Acompanhar",function(){rtDescAcompanhar(c)},"pri"));
     if(c.page_token&&!c.pai_externo)acoes.appendChild(rtBotao(lojas.length?"Atualizar lojas":"Ver lojas",function(){D.ocupado=true;D.msg="Buscando as lojas…";rtDesenhar();
       rtDescChamar({tipo:"expandir",candidato_id:c.id}).then(function(d){D.ocupado=false;D.msg=d.ok?(d.status==="cache"?"Lojas do cache (sem gastar busca): ":"Lojas encontradas: ")+d.lojas+"."+(d.gasto?" 1 busca gasta.":""):rtDescErroTxt(d);return rtDescCarregar(c.item_id).then(rtDescUso)},function(e){D.ocupado=false;rtDescMsg(rtErro(e))})}));
-    if(c.decisao!=="acompanhando")acoes.appendChild(rtBotao("Acompanhar",function(){rtDescAcompanhar(c)},"pri"));
     acoes.appendChild(rtBotao(c.decisao==="ignorado"?"Desfazer":"Ignorar",function(){rtDescDecidir(c,c.decisao==="ignorado"?"pendente":"ignorado")}));
+    if(c.link)acoes.appendChild(h("a",{class:"link",href:c.link,target:"_blank",rel:"noopener noreferrer",text:c.link_tipo==="loja"?"Abrir na loja":"Abrir no Google"}));
     box.appendChild(acoes);
+    /* 5) o resto, recolhido: frete, pagamento, preço anterior, composição, por que foi classificado assim, histórico */
+    var mais=h("details",{class:"rtc-mais"},h("summary",{text:"Mais detalhes"})),linha=function(t){mais.appendChild(h("p",{class:"sub",text:t}))};
+    linha(rtDescFrete(c));
+    var pag=[c.pagamento_texto,c.parcelamento_texto,c.entrega_texto,c.detalhes,c.desconto_texto].filter(Boolean).join(" · ");if(pag)linha(pag);
+    if(c.catalogo||c.varias_fontes)linha("O Google mostra este produto em várias lojas (use “Ver lojas”).");
+    var ant=(c.precos_anteriores||[]).slice(-1)[0];if(ant)linha("Visto antes por "+rtMoeda(ant.preco)+" em "+rtData(ant.observado_em));
+    var comp=(c.composicao||[]);if(comp.length&&(c.tipo_oferta==="kit_mesmo_produto"||c.tipo_oferta==="combo"))linha("Composição (sugerida pelo título): "+comp.map(function(x){return (x.quantidade>1?x.quantidade+" × ":"")+x.descricao+(x.medida?" "+x.medida.valor+" "+x.medida.unidade:"")}).join(" + "));
+    if((c.evidencias||[]).length)linha("Por que esta classificação: "+c.evidencias.join("; "));
+    rtDescHistTxt(c).forEach(linha);
+    linha("Visto em "+rtData(c.observado_em)+" pelo "+(c.engine==="google_shopping"?"Google Shopping":"Google (lojas)")+" · ainda não confirmado na loja");
+    box.appendChild(mais);
     if(lojas.length){var det=h("details",{class:"rtnovo"},h("summary",{text:"Lojas deste anúncio ("+lojas.length+")"}));rtDescOrdenar(lojas,"total").forEach(function(l){det.appendChild(rtDescCartao(l,[]))});box.appendChild(det)}
     return box}
   function rtAbaDescobrir(corpo){

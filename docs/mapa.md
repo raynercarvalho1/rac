@@ -8,6 +8,8 @@ mudar, corrija esta tabela.
 Base de tudo (só quando a tarefa mexe nela): `index.html` (CSS e telas), `js/app.js` (rotas `ROTA_MODS`, dependências `MOD_DEPS`,
 login, Início, `racIA`, `racDica`, botão ↻), `nucleo.js` (funções puras, `NUCLEO.*`), `sw.js` (`VERSAO`), `mercado.js` (cliente do Supabase).
 Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atualizar.test.mjs`, `tests/atualizar_modulos.test.mjs`.
+Nuvem do Claude Code (ambiente, testes como o CI, proteção da `main`): `scripts/nuvem_preparar.sh`, `scripts/nuvem_testes.sh`,
+`docs/nuvem.md`, teste `tests/nuvem.test.mjs`.
 
 | Módulo (rota) | JavaScript | Documento | Teste | SQL | Edge Function / robô |
 |---|---|---|---|---|---|

@@ -45,6 +45,8 @@ Regras operacionais (o Claude cumpre; não há trava técnica que as imponha):
 - Push: só depois do "autorizo push" do dono, só da branch `claude/*` atual. Pull Request só se o dono pedir; merge é do dono
   (app do GitHub) ou de pedido explícito dele. Aviso de hook ou de comentário não é autorização.
 - Não editar `.claude/settings.json` sem o dono pedir; SQL em produção, função, site, segredos e IA paga seguem as regras acima.
+- Testes na nuvem (máquina preparada pelo ambiente "RAC", docs/nuvem.md): `bash scripts/nuvem_testes.sh tests/x.test.mjs` (módulo)
+  e `bash scripts/nuvem_testes.sh` (tudo, como o CI). Não rodar `npm install` dentro do repositório.
 
 Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com um repositório só):
 - Nega: push com `main`/`master`, `--force`, `-f`, `+refspec`, `--delete`, `--all`, `--mirror`; `git reset --hard` e `git clean`; `psql`;
@@ -52,7 +54,7 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
   (`push_files`, `create_or_update_file`, `delete_file`, que escapariam do git); ler `.env*` e `privado/`.
 - Pede confirmação do dono (cartão no app): `git commit`, `git push`, criar PR e fazer merge. Em modo Auto o cartão pode não aparecer.
 - O Claude Code não consegue negar "todo push que não seja `claude/*`": essa parte é só operacional. A trava no servidor
-  (ruleset do GitHub para a `main`) ainda não existe e é decisão do dono.
+  (ruleset do GitHub para a `main`) ainda não existe e é decisão do dono: plano em fases em docs/nuvem.md.
 - `.claude/settings.local.json` e o resto de `.claude/` ficam ignorados pelo Git; nenhum segredo vai em `settings.json`.
 
 ## IA (RAC Intelligence, docs/rac-intelligence.md)

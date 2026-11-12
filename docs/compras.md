@@ -1,7 +1,8 @@
 # Central de Compras (compras online)
 
 Página `#compras` (menu → Compras online), código em `js/compras.js`, contas em `nucleo.js` (`NUCLEO.co*`, testes em
-`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`); a versão publicada mais recente é a `2026-11-07.1` (Central Fiscal). O Lote 5.0 (seção "Lote 5.0" abaixo) está só no código local, não publicado.
+`tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`). Os Lotes 5.0, 5.1 e 5.2 estão no `main` (o site publicado sai dele); a validação registrada em produção é a da etapa 3 do 5.1 (abaixo). As marcas "só no código local" de cada seção são da data em que foram escritas.
+Depois de gravar, anexar, marcar ou apagar um pedido, `ccEsquecer` também avisa a Central de Compras (`RACmercado.esquecerOnline()`), que lê os pedidos de novo na próxima vez que abrir (docs/central-compras.md, "Navegação de mercado").
 
 ## O que faz
 

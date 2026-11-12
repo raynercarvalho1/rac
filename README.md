@@ -64,6 +64,7 @@ para campo do banco. É da casa (Rayner e Fernanda). Foto e PDF (só o dono): li
 ## Central de Compras
 
 Central de Compras (`#mercado`, aba **Central**; detalhes em `docs/central-compras.md`): visão única de tudo o que foi comprado, juntando as notas do Mercado e os pedidos online, com filtros de período, canal (presencial/online), estabelecimento e categoria. Só lê as duas fontes (sem tabela nem migration nova), mantém o cálculo de cada uma e não soma a mesma compra duas vezes.
+Para o dono, ela é navegável como um mercado: categoria → produtos (gasto, quantidade, preços pago último/menor/maior/médio, gráfico) → a compra; estabelecimento → compras, produtos e comparação de preços com os outros lugares; evolução mensal e oportunidades de economia (seção "Navegação de mercado" do mesmo doc).
 
 Página `#compras` (`js/compras.js`): pedidos de lojas online (Amazon primeiro, Mercado Livre e outras no mesmo formato) importados de PDF,
 DANFE, XML, CSV/ZIP, e-mails (Gmail, só leitura, com os anexos PDF e XML) e prints com OCR local, com os arquivos originais no cofre, junção dos
@@ -123,6 +124,7 @@ Radar de Preços: `043_radar_precos.sql` foi **aplicada em 09/11/2026** (ordem e
 | `radar*.test.mjs` | Radar de Preços sem rede e sem custo: SQL 043 (PGlite: RLS, MFA, membro bloqueado, modalidades, frete, histórico só de acréscimo), funções `rd*`, a aba (tela falsa), a função `radar` (SSRF, robots, extração, coleta, aviso sem duplicar) e a ação de IA (só sugere) |
 | `central.test.mjs` | Central de Segurança sem rede: SQL 022, regras da restauração, código no login, rotas |
 | `compras.test.mjs` | Central de Compras sem rede: leitura de pedido, NF-e e CSV, conta, junção e divergências, duplicidade, recorrência, Painel, SQL 025 |
+| `central_mercado*.test.mjs` | navegação de mercado da Central sem rede: totais iguais às barras, preço da fonte, comparação, oportunidades, telas de categoria, produto e estabelecimento (DOM falso), só leitura |
 | `alimentacao.test.mjs` | Alimentação sem rede: conta do pedido, categorias, nomes de produtos, duplicidade, Painel sem contar em dobro, SQL 024, IA só DEMO |
 | `esportes.test.mjs` | Central Esportiva sem rede: temporada, desfecho, forma, pacote de fatos, ações `esportes.*` só em DEMO, sem dado escrito à mão |
 | `hoje.test.mjs` | RAC Hoje e monitor de custos sem rede: regras do dia, pacote de fatos, ação `hoje.analise`, coletor, cache, falhas da IA, só o dono, as duas telas (DOM falso) e o histórico de custos |

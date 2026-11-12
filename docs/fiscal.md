@@ -381,3 +381,14 @@ A 034 foi aplicada pelo dono no SQL Editor em 07/11/2026 e conferida por consult
 - **Se alguém ligar o versionamento do bucket `familia`** (hoje DISABLED), as duas políticas deixam de bastar (um novo envio ou uma exclusão passam a **inserir** linhas de versão ou de marcador em vez de atualizar ou apagar): reanalisar a 034 antes de ligar.
 - Só no Supabase real (não há como provar no PGlite): as duas políticas do Storage em ação (upload normal, `upsert:true` negado, mover e apagar arquivo registrado negados, apagar arquivo sem registro permitido), upload do XML com o tipo certo, `mimetype` do XML, aal2 real, exclusão de conta pelo GoTrue/painel (em projeto de teste), concorrência real e as RPCs pela API.
 - Teste da Fernanda na tela.
+
+## Migration 049 · a trava de CPF das tentativas não olha hash nem caminho (APLICADA em produção em 12/11/2026)
+- **Problema (confirmado no CI de 12/11/2026, commit `4fa83df`):** a trava `notas_fiscais_tentativas_sem_cpf` (037) aplicava `nf_tem_cpf()` em `docs::text`,
+  onde ficam o SHA-256 e o caminho do arquivo. Um hash pode trazer, por acaso, 11 dígitos que fecham como CPF válido (`…d00536588686eb…`), e a gravação era
+  recusada: intermitente no teste (hash sorteado) e possível, com chance pequena, numa foto ou PDF real.
+- **Correção (`supabase/049_tentativas_cpf_ignora_hash.sql`):** função `nf_docs_texto(docs)` (imutável, `search_path` vazio, sem acesso do anon) que tira só as
+  chaves `path` e `sha256`; a trava continua olhando motivos, incertos, o nome do arquivo e qualquer outra chave. Atômica (`begin`/`commit`); não altera dados.
+- **Aplicada pelo dono** no SQL Editor (sucesso) e conferida só leitura: a trava cita `nf_docs_texto(docs)`; 10 tentativas antes e 10 depois; `nf_docs_texto`
+  existe e o anon recebe 42501.
+- **Testes:** `tests/banco_foto_pdf.test.mjs` (testes "049": o hash real do CI passa, CPF de verdade continua barrado, 150 hashes, nulo e formato inesperado,
+  anon sem execução), validados em PGlite (Postgres 18.6) e em Postgres 16 de verdade. Os testes de foto/PDF geram o arquivo por sequência, não por sorteio.

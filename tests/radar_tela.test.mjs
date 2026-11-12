@@ -219,7 +219,7 @@ test("ajustes: avisos e vendedores bloqueados vão para a conta (pessoal), e val
 test("Mercado: aba Radar só para o dono, módulo carregado sob demanda, sem mexer nas abas existentes; service worker e versão", () => {
   const m = ler("mercado.js");
   assert.match(m, /\["alertas", "Alertas"\], \["radar", "Radar"\], \["notas", "Notas"\]/); assert.match(m, /\(x\[0\] === "alertas" \|\| x\[0\] === "radar"\) && !ehDono\(\)/);
-  assert.match(m, /x\[0\] === sub && \(\(x\[0\] !== "radar" && x\[0\] !== "categoria" && x\[0\] !== "produto"\) \|\| ehDono\(\)\)/, "a casa não chega à aba (nem às páginas de categoria e produto) pelo endereço");
+  assert.match(m, /x\[0\] === sub && \(\(x\[0\] !== "radar" && x\[0\] !== "categoria" && x\[0\] !== "produto" && x\[0\] !== "estabelecimento"\) \|\| ehDono\(\)\)/, "a casa não chega à aba (nem às páginas de categoria, produto e estabelecimento) pelo endereço");
   const vr = m.slice(m.indexOf("function viewRadar(body)"), m.indexOf("function viewAlertas(body)"));
   assert.match(vr, /if \(!ehDono\(\)\)[\s\S]*?return;/); assert.match(vr, /window\.precisa\(\["radar"\]\)/); assert.match(vr, /window\.rtMontar\(alvo, sb, user\)/); assert.ok(vr.indexOf("ehDono") < vr.indexOf("precisa"), "o dono é conferido antes de carregar o módulo");
   assert.match(m, /v !== "importar" && v !== "radar"/, "o Radar não depende de haver compras");

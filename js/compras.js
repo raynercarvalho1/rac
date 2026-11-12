@@ -30,7 +30,7 @@
       abs=ccPag(function(f){return SB.from("registros").select("id,data,titulo,dados").eq("tipo","abastecimento").order("data").order("id").range(f,f+999)}).then(function(l){return l.filter(function(x){return x.dados&&typeof x.dados.custo==="number"&&x.dados.custo>0}).map(function(x){return {origem:"Abastecimento",data:x.data,total:x.dados.custo,nome:x.titulo}})});
     function tolerante(p){return p.then(function(l){return l},function(){return []})}
     return Promise.all([tolerante(mer),tolerante(ali),tolerante(abs)]).then(function(r){CC.outras=[].concat(r[0],r[1],r[2]);return CC.outras})}
-  function ccEsquecer(){CC.carregando=null;if(typeof PAINEL!=="undefined")PAINEL.cache={}}
+  function ccEsquecer(){CC.carregando=null;if(typeof PAINEL!=="undefined")PAINEL.cache={};if(typeof window!=="undefined"&&window.RACmercado&&window.RACmercado.esquecerOnline)window.RACmercado.esquecerOnline()}
   /* botão de atualizar: as compras de novo, trocadas só se a leitura vier inteira. Um lote importado esperando conferência não é
      redesenhado (sumiria sem ser salvo): primeiro salve ou saia de Importar */
   atuModulo("compras",{

@@ -707,6 +707,26 @@ Família e da Casa.
 3. Guardar o resultado de rede/TLS sem segredo; apagar o Worker após a prova ou deixá-lo ativo apenas mediante decisão explícita.
 4. Não autenticar a conta Apple, ler mensagens, enviar e-mail nem contratar o plano Paid nesta etapa.
 
+## 13/11/2026 · RAC Inbox — workflow manual de deploy da POC iCloud (PR independente)
+
+### 1. O que fizemos
+
+- Decisão do dono: publicar a POC iCloud pelo GitHub Actions, sem token Cloudflare na sessão de nuvem (que não alcança `api.cloudflare.com`). Detalhes em `docs/icloud-poc-deploy.md`.
+- Criados `.github/workflows/icloud-probe-deploy.yml` (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e `tests/icloud_probe_deploy.test.mjs` (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
+- Validação local: YAML e `bash -n` de cada passo; simulação do passo do `/probe` com servidor falso (sucesso, falha de SMTP, erro de limite de CPU). Isso **não** é prova de rede real.
+- Atualizados roadmap, decisões/pendências e mapa. Nenhum código funcional da POC foi alterado.
+
+### 2. O que estamos fazendo
+
+- Esta PR aguarda o merge do dono. Nada foi publicado: sem login ou deploy na Cloudflare, sem token/secret, sem conta Apple. A conectividade com a Apple **continua não comprovada**.
+- Bloqueio real, que depende do dono: token Cloudflare só com `Account → Workers Scripts → Edit`, Environment `cloudflare-poc` (aprovador e branches restritas) e os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`.
+
+### 3. O que vamos fazer
+
+1. Dono mescla esta PR e configura o ambiente e os secrets.
+2. Acionar o workflow a partir de `poc/icloud-cloudflare-connectivity`, ler o `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
+3. Remoção do Worker: atividade futura, com autorização específica.
+
 ## 13/11/2026 · Atualização da PR #18 (protocolo permanente de autonomia)
 
 ### 1. O que fizemos
@@ -743,4 +763,23 @@ Família e da Casa.
 
 1. Dono mescla a PR independente do workflow e configura o Environment `cloudflare-poc` e os dois secrets Cloudflare.
 2. Acionar o workflow a partir desta branch, ler o resultado do `/probe` e registrar a evidência real.
+3. Remoção do Worker: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — workflow manual disponível na branch da POC
+
+### 1. O que fizemos
+
+- Ao acionar o workflow "Publicar POC iCloud (manual)", o GitHub informou que ele não existia ou não tinha o gatilho `workflow_dispatch` na branch `poc/icloud-cloudflare-connectivity`. Causa confirmada: o arquivo existia na `main` (PR #19, `745f999`), mas não na branch da POC. Para escolher uma branch em "Run workflow", o arquivo precisa existir nela.
+- A `main` foi integrada à branch da POC (merge normal, sem force push), trazendo o workflow idêntico ao da `main`, o teste de escopo e o guia `docs/icloud-poc-deploy.md`. Único conflito: este histórico (entradas dos dois lados mantidas). Código funcional da POC inalterado.
+- O Documento 10 (12.12) foi ajustado: o guia agora está na branch.
+
+### 2. O que estamos fazendo
+
+- PR #17 segue draft e sem merge. Nada foi publicado: sem deploy, sem acesso à Cloudflare, sem alteração de secrets. A conectividade com a Apple **continua não comprovada**.
+- Falta o dono confirmar o Environment `cloudflare-poc` (aprovador, branches e secrets) e acionar o workflow a partir desta branch.
+
+### 3. O que vamos fazer
+
+1. Dono aciona "Publicar POC iCloud (manual)" com "Use workflow from" `poc/icloud-cloudflare-connectivity`.
+2. Ler o resultado do `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
 3. Remoção do Worker: atividade futura, com autorização específica.

@@ -1,0 +1,151 @@
+# RAC Inbox · Fase I0: publicação MANUAL da prova de conectividade iCloud (Cloudflare Workers Free).
+# Publica o Worker temporário "rac-icloud-connectivity-poc" (experimentos/icloud-probe), define um PROBE_TOKEN aleatório só para este run
+# e chama POST /probe, que só abre TCP/TLS com a Apple (IMAP 993 e SMTP 587/STARTTLS). Não autentica na Apple, não lê nem envia e-mail,
+# não toca no Supabase, não cria Cron, binding, rota ou domínio e não muda de plano. Detalhes: docs/icloud-poc-deploy.md.
+# Credenciais Cloudflare: só como secrets do ambiente "cloudflare-poc" (GitHub → Settings → Environments). Nunca no código.
+# Rodar: aba Actions → "Publicar POC iCloud (manual)" → Run workflow → "Use workflow from": poc/icloud-cloudflare-connectivity.
+name: Publicar POC iCloud (manual)
+
+on:
+  workflow_dispatch: {}
+
+# só leitura: o workflow não grava nada no repositório
+permissions:
+  contents: read
+
+concurrency:
+  group: icloud-probe-deploy
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # o ambiente guarda os secrets e pode exigir a aprovação do dono antes de o job começar
+    environment: cloudflare-poc
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só nas branches previstas
+        run: |
+          case "$GITHUB_REF_NAME" in
+            main|poc/icloud-cloudflare-connectivity) ;;
+            *) echo "::error::Branch não permitida para publicar a POC: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # este passo roda código do repositório, por isso não recebe nenhum secret
+      - name: Testes da POC e do escopo da publicação
+        run: node --test tests/icloud_probe.test.mjs tests/icloud_probe_deploy.test.mjs
+
+      # só o status do token: "wrangler whoami" mostraria e-mail e nome da conta num log legível por qualquer usuário do GitHub
+      - name: Conferir o token Cloudflare (sem mostrar dados da conta)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Faltam os secrets CLOUDFLARE_API_TOKEN e/ou CLOUDFLARE_ACCOUNT_ID no ambiente cloudflare-poc."
+            exit 1
+          fi
+          verificar() {
+            curl -sS -m 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" | jq -r 'select(.success == true) | .result.status' || true
+          }
+          STATUS=$(verificar "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          [ "$STATUS" = "active" ] || STATUS=$(verificar "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          if [ "$STATUS" != "active" ]; then
+            echo "::error::A Cloudflare não confirmou o token como ativo."
+            exit 1
+          fi
+          echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
+
+      - name: Publicar o Worker (Workers Free)
+        id: deploy
+        working-directory: experimentos/icloud-probe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4.161.0 deploy 2>&1 | tee "$RUNNER_TEMP/deploy.txt"
+          URL=$(grep -oE 'https://rac-icloud-connectivity-poc\.[a-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/deploy.txt" | head -1 || true)
+          if [ -z "$URL" ]; then
+            echo "::error::O Wrangler não informou a URL workers.dev do Worker."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      # token e chamada no mesmo passo: o valor nunca vai para arquivo, saída de passo ou resumo
+      - name: Definir o PROBE_TOKEN (aleatório, só deste run) e chamar o /probe
+        working-directory: experimentos/icloud-probe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          PROBE_TOKEN=$(openssl rand -hex 32)
+          echo "::add-mask::$PROBE_TOKEN"
+          printf '%s' "$PROBE_TOKEN" | npx --yes wrangler@4.161.0 secret put PROBE_TOKEN
+
+          RESP="$RUNNER_TEMP/probe.json"
+          : > "$RESP"
+          CODE=000
+          for TENTATIVA in 1 2 3 4 5 6; do
+            CODE=$(curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/probe" -H "Authorization: Bearer $PROBE_TOKEN" || true)
+            CODE=${CODE:-000}
+            [ "$CODE" = "200" ] && break
+            # repete só enquanto o Worker novo ainda propaga (sem rede, 404 ou secret ainda não ativo); qualquer outra resposta é evidência e encerra
+            if [ "$CODE" = "000" ] || [ "$CODE" = "404" ] || { [ "$CODE" = "503" ] && grep -q probe_secret_not_configured "$RESP"; }; then
+              echo "Tentativa $TENTATIVA: HTTP $CODE; aguardando a propagação do Worker."
+              sleep 6
+            else
+              break
+            fi
+          done
+
+          {
+            echo "### POC iCloud · prova de conectividade (Cloudflare Workers Free)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Worker: \`rac-icloud-connectivity-poc\` · URL: $WORKER_URL"
+            echo "- Resposta HTTP do /probe: $CODE"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CODE" = "200" ] && jq -e . "$RESP" > /dev/null 2>&1; then
+            LINHA='"ok=\(.ok) · etapa=\(.stage) · \(.elapsedMs) ms" + (if .reason then " · motivo=\(.reason)" else "" end)'
+            {
+              echo "- IMAP 993: $(jq -r ".imap993 | $LINHA" "$RESP")"
+              echo "- SMTP 587/STARTTLS: $(jq -r ".smtp587StartTls | $LINHA" "$RESP")"
+              echo "- Tempo total no Worker: $(jq -r '.elapsedMs' "$RESP") ms · autenticou na Apple: $(jq -r '.authenticated' "$RESP") · enviou e-mail: $(jq -r '.emailSent' "$RESP")"
+              echo
+              echo '```json'
+              jq . "$RESP"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            jq . "$RESP"
+            if jq -e '.ok == true' "$RESP" > /dev/null; then
+              echo "Prova concluída: IMAP 993 e SMTP 587/STARTTLS responderam."
+              exit 0
+            fi
+            echo "::error::O /probe respondeu, mas IMAP e/ou SMTP falharam. A resposta acima é a evidência."
+            exit 1
+          fi
+
+          TRECHO=$(head -c 300 "$RESP" | tr -d '\r' | tr '\n' ' ')
+          echo "- Corpo da resposta (até 300 caracteres): $TRECHO" >> "$GITHUB_STEP_SUMMARY"
+          echo "Resposta sem JSON de sucesso (HTTP $CODE): $TRECHO"
+          if grep -qiE '1102|resource limits|cpu' "$RESP"; then
+            echo "::error::Provável limite de CPU do plano Free. Registrar a evidência e parar: não contratar o Workers Paid sem avaliação e aprovação do dono."
+          else
+            echo "::error::O /probe não respondeu com sucesso (HTTP $CODE). Registrar a evidência; nenhuma ação fora do escopo."
+          fi
+          exit 1

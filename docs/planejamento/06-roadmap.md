@@ -217,5 +217,5 @@ A prioridade seguinte à DS-4.3 é o **RAC Inbox**, aprovado pelo dono como a pr
 - IA para classificação, resumo, extração, busca em linguagem natural e sugestões de filtros/respostas. Ações externas exigem confirmação do dono.
 - iCloud: limitações pequenas podem ser aceitas após prova técnica; receber, enviar e responder continuam essenciais. Testar IMAP/SMTP e restrições de rede na infraestrutura escolhida antes da arquitetura definitiva.
 - Fases I0–I6 e critérios para desinstalar o Spark: [Documento 10 · RAC Inbox](10-rac-inbox.md).
-- Estado: **Fase I0 iniciada (auditoria de código e documentação oficial)**; implementação não iniciada. POCs reais de OAuth, Graph e IMAP/SMTP ainda pendentes. Não há contas conectadas, credenciais, SQL, migrations ou serviços publicados.
+- Estado: **Fase I0 iniciada (auditoria de código e documentação oficial)**; implementação não iniciada. POCs reais de OAuth, Graph e IMAP/SMTP ainda pendentes. Não há contas conectadas, credenciais, SQL, migrations ou serviços publicados. **Próxima etapa da I0 (13/11/2026):** publicar a POC iCloud por workflow manual do GitHub Actions (PR independente; configuração do Environment e dos secrets pelo dono); a sessão de nuvem não alcança a Cloudflare. Ver [guia](../icloud-poc-deploy.md).
 

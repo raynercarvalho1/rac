@@ -537,3 +537,8 @@ Família e da Casa.
 ### 3. Próximo passo
 
 - Integrar os documentos do RAC Inbox à `main` por PR própria e iniciar a fase I0 (provas técnicas de Gmail, Microsoft Graph e iCloud), sem conectar contas ou publicar serviços nesta etapa.
+
+
+## 13/11/2026 · Confirmação da publicação DS-4.3
+
+- Após o squash merge da PR #13 (`e77c5e8`), o CI da `main` concluiu com sucesso (execução `43451157429`) e o workflow do GitHub Pages confirmou build e deploy bem-sucedidos (execução `43451156616`). A DS-4.3 está, portanto, integrada e publicada. Este registro complementa o estado de publicação pendente anotado antes da conclusão; os registros históricos anteriores foram preservados.

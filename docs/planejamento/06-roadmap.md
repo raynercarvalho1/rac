@@ -22,6 +22,8 @@ proativa → monitoramento → Garmin → notícias → estudos → RAC Hoje →
 Atalho possível: se o dono quiser **medicamentos** antes, eles podem entrar logo depois de A1 e A6, com as outras partes da
 fundação em seguida.
 
+**Prioridade reafirmada pelo dono em 13/11/2026:** concluir primeiro a modernização da Saúde S1–S5, que já está autorizada. Em seguida, iniciar o **RAC Inbox** como a próxima grande frente e prioridade máxima posterior. O objetivo é substituir o Spark por um cliente multicon­ta completo, com Gmail, Outlook e iCloud, administração real das caixas e inteligência integrada. Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md). A aceitação de limitações pontuais do iCloud depende de prova técnica; não exigir paridade absoluta para começar, mas receber/enviar/responder continuam essenciais.
+
 ```mermaid
 graph LR
   F0[F0 Documentação] --> F1[F1 Confiabilidade]
@@ -86,6 +88,7 @@ Classificação pedida: **Funciona** (já existe e funciona) · **Parcial** (exi
 | Garmin G4–G5 (dados extras, trajetos) | Novo | Médio | Alta | Alto (privacidade) | Questão D-08 e autorização para a `garmin` | Baixa | Ativação voluntária, zonas de privacidade, retenção e "apagar tudo" funcionando |
 | Acontecimentos | Parcial | Médio | Média | Baixo | — | Média | Id estável entre edições; linha do tempo; "o que mudou" |
 | Trilhas de estudo | Parcial | Médio | Baixa | Baixo | — | Baixa | Trilhas, sessões e competências com evidência; bloco no RAC Hoje |
+| **RAC Inbox — cliente de e-mail multicon­ta e inteligente** | Novo | **Muito alto** | Alta | Alto (credenciais, APIs, ações sobre caixas) | Conclusão da Saúde S1–S5; prova I0 de Gmail, Graph e iCloud | **Top 1 após Saúde** | Gmail, Outlook e iCloud conectados; receber/enviar/responder e administrar mensagens; filtros e ações reais; IA com confirmação; estabilidade validada no uso diário e checklist do Spark concluído |
 | Central de Compras (kits, patrimônio, garantias) | Funciona (base) · Agora não (evolução) | Médio | Alta | Médio | Etapa própria; questão D-04 | Baixa agora | Definido no início da etapa |
 | Dividir `nucleo.js` (A8) | Refatorar | Médio | Média | Médio | A1–A4 | Baixa | Carga inicial menor, medida antes × depois |
 | n8n | Agora não | — | — | — | — | — | Reavaliar nos gatilhos do [Documento 05](05-integracoes-e-automacoes.md#6-n8n-avaliar-depois-não-agora) |
@@ -190,6 +193,22 @@ A DS-4.2 foi concluída no escopo de preservação, classificação e publicaç�
 - A recuperação de registros anteriores a 01/11/2025 **não foi executada**; a rotina Garmin havia apresentado respostas 504 em 12 e 13/11. O dono preferiu deixar essa recuperação para eventual necessidade futura. Isso não afeta a regra de propriedade: todo esse período é legado.
 
 **Estado final:** DS-4.2 encerrada. A funcionalidade de proteção está em produção. A recuperação histórica permanece disponível como ação opcional do dono, não como bloqueio técnico ou de planejamento.
+
+
+## 3.6 Próxima grande frente após Saúde: RAC Inbox (13/11/2026)
+
+O dono aprovou o RAC Inbox como **próximo tópico depois da conclusão da Saúde S1–S5**, com prioridade máxima na sequência do desenvolvimento.
+
+- **Objetivo:** substituir o Spark por um cliente de e-mail completo, multicon­ta e inteligente, não apenas exibir mensagens de Gmail.
+- **Provedores:** Gmail (API), Outlook/Hotmail/Live (Microsoft Graph) e iCloud (IMAP/SMTP), cada um com adaptador próprio.
+- **Gestão real:** receber, enviar, responder, encaminhar, rascunhos, anexos, busca, pastas, arquivar, spam, lixeira, filtros e regras, conforme a capacidade comprovada de cada provedor.
+- **Inteligência:** classificação, resumos, extração de dados, busca em linguagem natural e sugestões de filtros/rascunhos; ações que alteram a caixa exigem confirmação ou autorização explícita.
+- **iCloud:** limitações pontuais podem ser aceitas após prova técnica. O envio SMTP é risco a investigar: Apple documenta porta 587 e o exemplo Supabase alerta sobre bloqueio de saída nessa porta em Edge Functions. A fase I0 deve testar o caminho real antes de fechar a arquitetura.
+- **Sequência:** I0 viabilidade → I1 fundação multicon­ta → I2 cliente de e-mail → I3 administração e filtros → I4 inteligência → I5 ecossistema RAC → I6 critérios para substituir Spark.
+- **Estado:** somente planejado; nenhum conector, credencial, migration ou serviço de e-mail foi implementado ou publicado.
+
+Especificação completa, matriz de capacidade por provedor, segurança e critérios para desinstalar o Spark: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+
 
 ## 4. Como cada fase é entregue
 

@@ -19,10 +19,12 @@ test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (a
   assert.ok(R.tabs.includes("componentes") && !R.DA_CASA.includes("componentes"), "a página de componentes existe e a casa não a vê");
   assert.deepEqual(ordenado(R.DA_CASA), ordenado(antes.DA_CASA), "a Fernanda vê exatamente as mesmas páginas");
   assert.deepEqual(ordenado(R.DA_CASA), ["alimentacao", "compras", "documentos", "eddie", "fiscal", "lista", "mercado", "olivia", "rede", "seguranca", "veiculos"]);
-  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, agenda: _a, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, ...modsAntesSemAgenda } = antes.ROTA_MODS;
+  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, agenda: _a, saude: _s, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, saude: _s2, ...modsAntesSemAgenda } = antes.ROTA_MODS;
   assert.deepEqual(modsSemNova, modsAntesSemAgenda, "cada rota carrega os mesmos módulos sob demanda");
   /* DS-4.1: a Agenda saiu do Sistema para o próprio módulo (js/agenda.js); ele depende do Sistema, então abrir a Agenda continua carregando o que carregava */
   assert.deepEqual(antes.ROTA_MODS.agenda, ["sistema"]); assert.deepEqual(R.ROTA_MODS.agenda, ["agenda"]);
+  /* DS-4.3: a Saúde é o hub com abas (js/saude-hub.js); a página do treino continua em js/saude.js */
+  assert.deepEqual(antes.ROTA_MODS.saude, ["saude"]); assert.deepEqual(R.ROTA_MODS.saude, ["saude", "saude-hub"]);
   assert.match(app, /agenda:\["sistema","kit","graficos"\]/, "o módulo da Agenda declara o Sistema (régua e ações), o kit e os gráficos");
   for (const r of R.rotas) assert.ok(!r.mods || r.mods.every((m) => lerArq("js/" + m + ".js")), r.id);
   for (const id of R.tabs) assert.match(html, new RegExp(`<section id="${id}" hidden>`), id + " tem a sua <section>");
@@ -55,7 +57,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
 const RENDER = ["renderX", "renderInicio", "renderEstudos", "renderMba", "renderFamilia", "renderRede", "renderCarreira", "renderLista", "renderAgenda", "renderResumo", "renderPainel",
   "renderAlimentacao", "renderCompras", "renderFiscal", "renderHoje", "renderCustosIa", "renderBusca", "renderSistema", "renderSeguranca", "renderConexoes", "renderNewsletter", "renderSaude",
   "renderVeiculos", "renderCentral", "renderMlb", "renderEspn", "vgAlertas", "abrirCaptura", "sideMark", "mark", "atuBotao", "atuAviso", "fundoPagina", "marcarProfundidade", "setSide", "logErro"];
-const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
+const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "saude-hub", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
 function rodar(codigo, { papel, hash, carregados, cru }) {
   const log = [], el = (nome) => new Proxy({}, { set(_, k, v) { log.push(["set", nome, k, v]); return true; }, get(_, k) { if (k === "insertAdjacentHTML") return () => {}; if (k === "insertBefore") return () => log.push(["erro na tela", nome]); return undefined; } });
   const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
@@ -93,9 +95,15 @@ test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas
   const casos = [...new Set([...HASHES, ...semNovas(R.tabs).map((t) => "#" + t)])];
   let n = 0;
   for (const papel of ["dono", "casa"]) for (const carregados of [true, false]) for (const hash of casos) {
+    /* DS-4.3: para o DONO a Saúde é o hub com abas (módulo a mais e a aba como 2º argumento), conferido logo abaixo; para a casa (Fernanda) tudo é idêntico, inclusive #saude */
+    if (papel === "dono" && /^#saude/.test(hash)) continue;
     const a = rodar(ANTES_JS, { papel, hash, carregados }), d = rodar(NOVO, { papel, hash, carregados });
     assert.deepEqual(d, a, `${papel} ${carregados ? "com" : "sem"} módulos em "${hash}"`); n++;
   }
+  const casaSaude = ["#saude", "#saude/sono", "#saude/treino/123", "#saude/atividades"]; assert.ok(casaSaude.every((hash) => JSON.stringify(rodar(NOVO, { papel: "casa", hash, carregados: true })) === JSON.stringify(rodar(ANTES_JS, { papel: "casa", hash, carregados: true }))), "a Fernanda: as páginas da Saúde se comportam exatamente como antes");
+  const rs = (hash, c = true) => rodar(NOVO, { papel: "dono", hash, carregados: c }).filter((x) => x[0] === "renderSaude");
+  assert.deepEqual(rs("#saude"), [["renderSaude", null, undefined]]); assert.deepEqual(rs("#saude/sono"), [["renderSaude", null, "sono"]]); assert.deepEqual(rs("#saude/treino/123"), [["renderSaude", "123", "treino"]], "o detalhe do treino continua em #saude/treino/ID");
+  assert.deepEqual(rodar(NOVO, { papel: "dono", hash: "#saude/sono", carregados: false }).filter((x) => x[0] === "precisa"), [["precisa", "saude,saude-hub"]], "a Saúde carrega o módulo antigo e o hub");
   assert.ok(n > 250, n + " casos");
   /* e o que se espera de alguns, para o teste não comparar dois "nada" */
   const dono = rodar(NOVO, { papel: "dono", hash: "#saude/treino/123", carregados: true }), casa = rodar(NOVO, { papel: "casa", hash: "#rachoje", carregados: true });

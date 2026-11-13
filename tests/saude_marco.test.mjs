@@ -83,13 +83,24 @@ test("guarda: o corte antigo (01/11/2025, GARMIN_DESDE) não existe mais", () =>
   }
 });
 
-test("leitores: todo ponto que lê o relógio passa pela classificação do núcleo", () => {
-  /* cada arquivo que lê garmin_dia ou garmin_ativ deve classificar (a função e o backup guardam tudo, de propósito) */
-  for (const f of ["js/saude.js", "js/hoje.js", "js/sistema.js", "js/carreira.js"]) assert.match(ler(f), /NUCLEO\.sauClassificar/, `${f} lê o relógio sem classificar`);
+test("leitores: todo ponto que lê o relógio passa pela fonte única da Saúde (js/fonte-saude.js), que classifica com o núcleo", () => {
+  /* DS-4.3 · S1: antes eram seis leitores com caminhos próprios; agora só a fonte lê garmin_dia e garmin_ativ para análise, e ela classifica (a função e o backup guardam tudo, de propósito) */
+  assert.match(ler("js/fonte-saude.js"), /NUCLEO\.sauClassificar/, "a fonte classifica");
+  for (const f of ["js/hoje.js", "js/sistema.js", "js/carreira.js"]) assert.match(ler(f), /fonte(Ler|OuErro)\("saude"/, `${f} deve ler o relógio pela fonte única`);
+  for (const f of ["js/saude.js", "js/saude-hub.js", "js/painel.js", "js/resumo.js"]) assert.ok(!/["']garmin_(dia|ativ)["']/.test(ler(f)), `${f} lê o relógio por conta própria`);
   for (const f of ["js/painel.js", "js/resumo.js"]) assert.match(ler(f), /NUCLEO\.SAU_MARCO/, `${f} não usa o marco`);
-  /* quem lê as tabelas diretamente fica na lista conhecida: um leitor novo precisa entrar aqui e passar pela classificação */
+  /* quem cita as tabelas diretamente fica na lista conhecida: um leitor novo precisa passar pela fonte */
   const leem = ARQ_JS.filter((f) => f.startsWith("js/") && /["']garmin_(dia|ativ)["']/.test(ler(f))).sort();
-  assert.deepEqual(leem, ["js/carreira.js", "js/hoje.js", "js/saude.js", "js/sistema.js"], "leitor novo do relógio: classifique com NUCLEO.sauClassificar");
+  assert.deepEqual(leem, ["js/fonte-saude.js", "js/sistema.js"], "leitor novo do relógio: leia pela fonte (fonteLer(\"saude\"))");
+  /* o Sistema só cita as tabelas para o Monitor (idade do dado, sem análise) e para a lista de tabelas do diagnóstico */
+  const sis = ler("js/sistema.js"); for (const m of sis.matchAll(/from\("garmin_(?:dia|ativ)"\)\.select\("([^"]*)"\)/g)) assert.equal(m[1], "atualizado", "o Sistema só lê a data de atualização, para o Monitor");
+});
+
+test("fonte da Saúde: só lê (nunca grava, apaga nem altera), pagina, e é leve (sem tela nem outra regra além da classificação)", () => {
+  const t = ler("js/fonte-saude.js"), semComent = t.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(!/\.(insert|update|upsert|delete|rpc)\(|functions\.invoke/.test(semComent), "a fonte só lê");
+  assert.match(semComent, /dadosPaginar\(/); assert.match(semComent, /fonteRegistrar\("saude"/);
+  assert.ok(!/\bh\(|panel\(|document\.|innerHTML|appendChild/.test(semComent), "sem tela");
 });
 
 /* ---------- a função: sincronização sem corte e sem exclusão, recuperação sem sobrescrever ---------- */

@@ -170,6 +170,229 @@
     (ativs||[]).forEach(function(x){var r=sauMeu(x&&x.inicio,m);if(r===null)o.semData.ativs++;else (r?o.meus:o.legado).ativs.push(x)});
     o.contagem={meus:{dias:o.meus.dias.length,ativs:o.meus.ativs.length},legado:{dias:o.legado.dias.length,ativs:o.legado.ativs.length}};
     return o}
+  /* ===== Saúde: regras puras da modernização (DS-4.3; docs/saude.md e docs/planejamento/09-auditoria-saude-garmin.md, seções 5 a 13) =====
+     Tudo aqui recebe linhas já classificadas como "meus" (sauClassificar) e devolve valores novos: nenhuma função altera as linhas recebidas, lê banco ou
+     desenha. dias = [{data, dados, atualizado?}] (garmin_dia, em ordem crescente) e ativs = [{id, inicio, tipo, dados}] (garmin_ativ).
+     Princípios: persistência antes de alerta; qualidade dos dados antes dos sinais; hipótese separada de observação; nada de diagnóstico. */
+  var SAU_LIMITE="O relógio não substitui avaliação médica: diante de sintomas ou de alterações que persistem, procure orientação profissional.";
+  var SAU_METAS={sonoH:7,treinos:3,minutos:150};
+  var SAU_COBERTURA_MIN=.7,SAU_ATRASO_H=24,SAU_HISTERESE=2,SAU_BASE_MIN=14;
+  function sauNum(v){return typeof v==="number"&&isFinite(v)?v:null}
+  function sauMedia(l){return l.length?l.reduce(function(a,b){return a+b},0)/l.length:null}
+  function sauArred(v,n){var f=Math.pow(10,n||0);return Math.round(v*f)/f}
+  /* como ler cada medida de um dia (dados de garmin_dia): sempre número ou null */
+  var SAU_CAMPOS={
+    vfc:function(d){return sauNum(d.vfc&&d.vfc.noite)},fc:function(d){return sauNum(d.fcRepouso)},estresse:function(d){return sauNum(d.estresse)},
+    sono:function(d){return d.sono&&sauNum(d.sono.total)?d.sono.total/3600:null},nota:function(d){return d.sono?sauNum(d.sono.nota):null},
+    bb:function(d){return sauNum(d.bbMax)},passos:function(d){return sauNum(d.passos)}};
+  /* as medidas das comparações de período (S11): limiar = mudança mínima da mediana para contar */
+  var SAU_METRICAS=[{k:"vfc",nome:"Variabilidade cardíaca",un:"ms",limiar:5,maior:true,dec:0},{k:"fc",nome:"Batimentos em repouso",un:"por minuto",limiar:3,maior:false,dec:0},
+    {k:"estresse",nome:"Estresse médio",un:"pontos",limiar:5,maior:false,dec:0},{k:"sono",nome:"Duração do sono",un:"h",limiar:.5,maior:true,dec:1},
+    {k:"bb",nome:"Energia do corpo",un:"pontos",limiar:8,maior:true,dec:0},{k:"passos",nome:"Passos",un:"passos",limiar:1500,maior:true,dec:0}];
+  function sauPor(dias){var o={};(dias||[]).forEach(function(x){var k=sauDataDe(x&&x.data);if(k)o[k]=x.dados||{}});return o}
+  /* os valores de f nos n dias que terminam em fim (inclusive): [{data, v}], só dos dias que têm a medida */
+  function sauJanela(por,fim,n,f){var out=[];for(var i=n-1;i>=0;i--){var k=somaDiasISO(fim,-i),d=por[k];if(!d)continue;var v=f(d);if(v!=null)out.push({data:k,v:v})}return out}
+  function sauVals(l){return l.map(function(x){return x.v})}
+  /* linha de base pessoal: n dias que terminam em fimBase; mediana e desvio robusto (quartis/1,35, como a prontidão); null com menos de minN valores */
+  function sauBase(por,fimBase,n,f,minN){var l=sauJanela(por,fimBase,n,f);if(l.length<(minN||SAU_BASE_MIN))return null;var v=sauVals(l);return {med:mediana(v),dp:(quartis(v)[1]-quartis(v)[0])/1.35,n:l.length}}
+  /* horário de dormir "HH:MM" em minutos contados desde o meio-dia anterior (23:30 → 690+...; 00:30 vem depois das 23:30); null se inválido */
+  function sauMinNoite(s){var m=/^(\d{1,2}):(\d{2})/.exec(String(s||""));if(!m)return null;var v=+m[1]*60+ +m[2];if(+m[1]>23||+m[2]>59)return null;return v<720?v+1440:v}
+  function sauHora(min){min=((Math.round(min)%1440)+1440)%1440;return String(Math.floor(min/60)).padStart(2,"0")+":"+String(min%60).padStart(2,"0")}
+  /* regularidade do horário de dormir (e de acordar) nos n dias que terminam em fim: precisa de pelo menos 8 noites com horário */
+  function sauRegularidade(por,fim,n){var b=[],a=[];
+    for(var i=n-1;i>=0;i--){var d=por[somaDiasISO(fim,-i)],s=d&&d.sono;if(!s)continue;var m=sauMinNoite(s.inicio);if(m!=null)b.push(m);var w=sauMinNoite(s.fim);if(w!=null)a.push(w)}
+    if(b.length<8)return {n:b.length,suficiente:false};
+    function dp(l){var m=sauMedia(l);return Math.sqrt(l.reduce(function(s,x){return s+(x-m)*(x-m)},0)/l.length)}
+    return {n:b.length,suficiente:true,dormirMedio:sauHora(sauMedia(b)),dormirDpMin:Math.round(dp(b)),acordarMedio:a.length?sauHora(sauMedia(a)):null,acordarDpMin:a.length>=8?Math.round(dp(a)):null,
+      dormirMin:sauHora(Math.min.apply(null,b)),dormirMax:sauHora(Math.max.apply(null,b))}}
+
+  /* ---- S12: saúde dos dados. suprime = nada confiável a dizer (sem registros ou o último dado tem mais de 24 h); cobertura de cada medida nos últimos 14 dias ---- */
+  function sauQualidade(dias,hoje,opc){opc=opc||{};var por=sauPor(dias),ks=Object.keys(por).sort(),agora=opc.agora==null?Date.now():opc.agora;
+    if(!ks.length)return {vazio:true,suprime:true,motivo:"nenhum registro do relógio",cobertura:{},baixa:[],atrasoH:null,ultimo:null};
+    var ultimo=ks[ks.length-1],at=null;(dias||[]).forEach(function(x){var t=Date.parse(x&&x.atualizado);if(isFinite(t)&&(at==null||t>at))at=t});
+    var dd=Math.round((Date.parse(hoje+"T12:00:00Z")-Date.parse(ultimo+"T12:00:00Z"))/864e5),horas=at!=null?(agora-at)/36e5:(dd>=2?dd*24:0);
+    var cob={},baixa=[];["sono","vfc","fc","estresse","bb"].forEach(function(k){var n=sauJanela(por,hoje,14,SAU_CAMPOS[k]).length;cob[k]={n:n,de:14,pct:Math.round(n/14*100)};if(n/14<SAU_COBERTURA_MIN)baixa.push(k)});
+    var vel=horas>SAU_ATRASO_H;
+    return {vazio:false,suprime:vel,desatualizado:vel,atrasoH:Math.round(horas),ultimo:ultimo,atualizado:at!=null?new Date(at).toISOString():null,cobertura:cob,baixa:baixa,
+      motivo:vel?"o último dado do relógio tem mais de "+SAU_ATRASO_H+" horas":baixa.length?"cobertura abaixo de "+Math.round(SAU_COBERTURA_MIN*100)+"% em parte das medidas":""}}
+
+  /* ---- S1 a S4: avaliação de UM dia D (com os dados até D). estado: "sim" (critério cumprido), "nao" ou "sem" (amostra ou cobertura insuficiente: não dá para calcular) ---- */
+  function sauAvS1(por,D){
+    var noites=[];for(var i=4;i>=0;i--){var d=por[somaDiasISO(D,-i)];if(!d)continue;var v=SAU_CAMPOS.vfc(d);if(v!=null)noites.push({v:v,min:sauNum(d.vfc&&d.vfc.faixaMin)})}
+    if(noites.length<4)return {estado:"sem",motivo:"menos de 4 das últimas 5 noites com VFC",amostra:noites.length};
+    var abaixoFaixa=noites.filter(function(n){return n.min!=null&&n.v<n.min}).length,b=sauBase(por,somaDiasISO(D,-7),60,SAU_CAMPOS.vfc),j7=sauJanela(por,D,7,SAU_CAMPOS.vfc),m7=null,lim=null,abaixoBase=0;
+    if(b&&j7.length>=5){m7=sauMedia(sauVals(j7));lim=b.med-Math.max(b.dp,3);abaixoBase=noites.filter(function(n){return n.v<lim}).length}
+    var A=abaixoFaixa>=3,B=m7!=null&&m7<lim&&abaixoBase>=3;
+    return {estado:A||B?"sim":"nao",regra:A?"faixa":B?"base":null,amostra:noites.length,abaixoFaixa:abaixoFaixa,abaixoBase:abaixoBase,m7:m7,mediana:b?b.med:null,limite:lim,baseN:b?b.n:0}}
+  function sauAvS2(por,D){
+    var j=sauJanela(por,D,5,SAU_CAMPOS.fc);if(j.length<4)return {estado:"sem",motivo:"menos de 4 dos últimos 5 dias com FC de repouso",amostra:j.length};
+    var b=sauBase(por,somaDiasISO(D,-5),30,SAU_CAMPOS.fc);if(!b)return {estado:"sem",motivo:"menos de "+SAU_BASE_MIN+" dias de base para a mediana de 30 dias",amostra:j.length};
+    var ac=j.filter(function(x){return x.v>=b.med+5}).length;
+    return {estado:ac>=3?"sim":"nao",amostra:j.length,acima:ac,mediana:b.med,atual:mediana(sauVals(j)),baseN:b.n}}
+  function sauAvS3(por,D){
+    var j=sauJanela(por,D,7,SAU_CAMPOS.estresse);if(j.length<5)return {estado:"sem",motivo:"menos de 5 dos últimos 7 dias com estresse",amostra:j.length};
+    var b=sauBase(por,somaDiasISO(D,-7),60,SAU_CAMPOS.estresse);if(!b)return {estado:"sem",motivo:"menos de "+SAU_BASE_MIN+" dias de base para a mediana de 60 dias",amostra:j.length};
+    var m7=sauMedia(sauVals(j)),el=j.filter(function(x){return x.v>=b.med+10}).length;
+    return {estado:m7>=b.med+10&&el>=5?"sim":"nao",amostra:j.length,elevados:el,m7:m7,mediana:b.med,baseN:b.n}}
+  function sauAvS4(por,D,opc){var meta=(opc&&opc.sonoH)||SAU_METAS.sonoH,j5=sauJanela(por,D,5,SAU_CAMPOS.sono);
+    if(j5.length<4)return {estado:"sem",motivo:"menos de 4 das últimas 5 noites com sono",amostra:j5.length};
+    var curtas=j5.filter(function(x){return x.v<6}).length,reg=sauRegularidade(por,D,14),j7=sauJanela(por,D,7,SAU_CAMPOS.sono),m7=j7.length>=5?sauMedia(sauVals(j7)):null,
+      irregular=!!(reg.suficiente&&reg.dormirDpMin>60),curto=curtas>=3,defic=m7!=null&&m7<meta;
+    return {estado:curto||(irregular&&defic)?"sim":"nao",regra:curto?"curto":irregular&&defic?"irregular":null,amostra:j5.length,curtas:curtas,regularidade:reg,m7:m7,meta:meta,irregular:irregular}}
+  var SAU_SINAIS=[["s1","VFC abaixo do seu normal",sauAvS1],["s2","Batimentos em repouso elevados",sauAvS2],["s3","Estresse persistente",sauAvS3],["s4","Sono curto e irregular",sauAvS4]];
+  function sauAvaliar(id,por,D,opc){for(var i=0;i<SAU_SINAIS.length;i++)if(SAU_SINAIS[i][0]===id)return SAU_SINAIS[i][2](por,D,opc||{});return {estado:"sem",motivo:"sinal desconhecido"}}
+  /* o texto de cada sinal: observação (o dado), comparação com o padrão pessoal, janela e amostra, hipótese (rotulada) e orientação leve. Nunca diagnóstico. */
+  function sauTextoSinal(id,x){x=x||{};var n1=function(v){return String(sauArred(v,0)).replace(".",",")};
+    if(id==="s1")return {titulo:"VFC abaixo do seu normal",
+      obs:x.regra==="base"?"A média de 7 dias da variabilidade cardíaca ("+n1(x.m7)+" ms) está abaixo do seu normal menos um desvio, e "+x.abaixoBase+" das últimas 5 noites ficaram abaixo desse limite."
+        :x.abaixoFaixa+" das últimas 5 noites a variabilidade cardíaca ficou abaixo da faixa normal calculada pela Garmin.",
+      comparacao:x.mediana!=null?"Seu normal (mediana de "+x.baseN+" noites): "+n1(x.mediana)+" ms"+(x.m7!=null?" · média de 7 dias: "+n1(x.m7)+" ms.":"."):"A faixa normal vem da própria Garmin.",
+      janela:"Últimas 5 noites ("+x.amostra+" com dado)"+(x.baseN?" · base de "+x.baseN+" noites":""),
+      hipotese:"Hipótese: costuma acompanhar sono curto, álcool, carga de treino alta, estresse ou início de doença. Uma noite isolada varia muito; aqui o padrão se repetiu.",
+      orientacao:"Considere um treino leve e mais descanso nos próximos dias."};
+    if(id==="s2")return {titulo:"Batimentos em repouso elevados",
+      obs:x.acima+" dos últimos 5 dias com os batimentos em repouso 5 ou mais acima do seu normal.",
+      comparacao:"Seu normal (mediana de "+x.baseN+" dias): "+n1(x.mediana)+" por minuto · últimos 5 dias: mediana de "+n1(x.atual)+" (+"+n1(x.atual-x.mediana)+").",
+      janela:"Últimos 5 dias ("+x.amostra+" com dado) · base de "+x.baseN+" dias",
+      hipotese:"Hipótese: calor, café, treino pesado no dia anterior, sono ruim ou início de infecção podem elevar os batimentos em repouso.",orientacao:"Observe como você se sente e, se possível, alivie o treino."};
+    if(id==="s3")return {titulo:"Estresse persistente",
+      obs:"A média de estresse dos últimos 7 dias ("+n1(x.m7)+") está pelo menos 10 pontos acima do seu normal, com "+x.elevados+" dos 7 dias elevados.",
+      comparacao:"Seu normal (mediana de "+x.baseN+" dias): "+n1(x.mediana)+" · últimos 7 dias: "+n1(x.m7)+".",janela:"Últimos 7 dias ("+x.amostra+" com dado) · base de "+x.baseN+" dias",
+      hipotese:"Hipótese: o estresse do relógio é fisiológico (vem da variabilidade cardíaca), não emocional; treino, doença e sono ruim também o elevam.",orientacao:"Reserve momentos de pausa e de descanso nos próximos dias."};
+    if(id==="s4"){var r=x.regularidade||{};return {titulo:"Sono curto e irregular",
+      obs:x.regra==="curto"?x.curtas+" das últimas 5 noites com menos de 6 horas de sono."
+        :"O horário de dormir variou cerca de "+r.dormirDpMin+" minutos nas últimas "+r.n+" noites e a média de 7 dias ("+String(sauArred(x.m7,1)).replace(".",",")+" h) ficou abaixo da meta de "+x.meta+" h.",
+      comparacao:"Meta pessoal: "+x.meta+" h"+(x.m7!=null?" · média de 7 dias: "+String(sauArred(x.m7,1)).replace(".",",")+" h":"")+(r.suficiente?" · horário de dormir médio "+r.dormirMedio+" (variação de "+r.dormirDpMin+" min)":"")+".",
+      janela:"Últimas 5 noites ("+x.amostra+" com dado)"+(r.suficiente?" · regularidade em "+r.n+" noites":""),
+      hipotese:"Hipótese: rotina, trabalho em turnos ou noites tardias costumam explicar o padrão. O horário vem do relógio só como hora, sem a data.",orientacao:"Tente antecipar e regularizar o horário de dormir por alguns dias."}}
+    return {titulo:id}}
+  /* o histórico dia a dia dos sinais S1 a S4 com HISTERESE: o sinal liga no primeiro dia em que o critério vale e só desliga depois de 2 dias normais seguidos
+     ("sem" não conta como normal nem liga nada). Devolve, por sinal: ativo, desde, episódios [{desde, ate, ultimoAtivo, aberto}], dias [{data, estado}] */
+  function sauHistoricoSinais(dias,hoje,opc){opc=opc||{};var por=sauPor(dias),N=opc.dias||60,out={};
+    SAU_SINAIS.forEach(function(S){var ativo=false,normais=0,ep=null,eps=[],lista=[],ultSim=null,ultAtivo=null,ult=null;
+      for(var i=N-1;i>=0;i--){var D=somaDiasISO(hoje,-i),av=S[2](por,D,opc);lista.push({data:D,estado:av.estado});ult=av;
+        if(av.estado==="sim"){if(!ativo){ativo=true;ep={desde:D,ate:null,ultimoAtivo:D,aberto:true};eps.push(ep)}normais=0;ep.ultimoAtivo=D;ultSim=av;ultAtivo=D}
+        else if(av.estado==="nao"&&ativo){normais++;if(normais>=SAU_HISTERESE){ativo=false;ep.ate=D;ep.aberto=false;normais=0}}}
+      out[S[0]]={id:S[0],nome:S[1],ativo:ativo,normaisSeguidos:ativo?normais:0,emSaida:ativo&&normais>0,desde:ativo&&ep?ep.desde:null,episodios:eps,dias:lista,ultimoSim:ultSim,ultimoAtivo:ultAtivo,hoje:ult}});
+    return out}
+  /* o conjunto dos sinais de hoje: a qualidade dos dados (S12) vem antes; se o dado está velho, nenhum sinal é afirmado. visiveis = no máximo 3 ativos. */
+  function sauSinais(dias,hoje,opc){opc=opc||{};var q=sauQualidade(dias,hoje,opc),h=sauHistoricoSinais(dias,hoje,opc),lista=[];
+    SAU_SINAIS.forEach(function(S){var x=h[S[0]],estado=q.suprime||(x.hoje&&x.hoje.estado==="sem")?"suprimido":x.ativo?"ativo":"normal",
+      motivo=q.suprime?q.motivo:estado==="suprimido"?(x.hoje&&x.hoje.motivo)||"dados insuficientes":"";
+      lista.push({id:S[0],nome:S[1],estado:estado,motivo:motivo,desde:x.desde,emSaida:x.emSaida,episodios:x.episodios,dias:x.dias,texto:x.ultimoSim?sauTextoSinal(S[0],x.ultimoSim):null,hoje:x.hoje})});
+    var ativos=lista.filter(function(s){return s.estado==="ativo"});
+    return {qualidade:q,sinais:lista,ativos:ativos,visiveis:ativos.slice(0,3),limite:SAU_LIMITE}}
+
+  /* ---- indicadores do dia contra o padrão pessoal (60 dias anteriores); sem comparação com menos de 14 valores de base ---- */
+  function sauIndicadores(dias,hoje){var ult=null;(dias||[]).forEach(function(x){var k=sauDataDe(x&&x.data);if(k&&k<=hoje&&(!ult||k>ult.data))ult={data:k,dados:x.dados||{}}});
+    if(!ult)return null;var por=sauPor(dias),pr=prontidao(dias,ult.data),o={data:ult.data,hoje:ult.data===hoje,itens:{},prontidao:pr?{nota:pr.nota,rotulo:pr.rotulo,partes:pr.partes,alertas:pr.alertas}:null};
+    ["sono","vfc","fc","bb","estresse","nota"].forEach(function(k){var v=SAU_CAMPOS[k](ult.dados),b=sauBase(por,somaDiasISO(ult.data,-1),60,SAU_CAMPOS[k]);
+      o.itens[k]={v:v,med:b?b.med:null,n:b?b.n:0,dif:v!=null&&b?v-b.med:null,pct:v!=null&&b&&b.med?Math.round((v-b.med)/b.med*100):null}});
+    return o}
+  /* a frase da abertura: só o que os dados dizem */
+  function sauFrase(ind,sin){if(!ind)return "Ainda não há dados do relógio para resumir.";
+    var p=[];p.push(ind.prontidao?"Prontidão "+ind.prontidao.nota+": "+ind.prontidao.rotulo.charAt(0).toLowerCase()+ind.prontidao.rotulo.slice(1)+".":"Sem dados suficientes para a prontidão.");
+    if(!ind.hoje)p[0]=p[0].replace(/\.$/,"")+" (último dado: "+ind.data.split("-").reverse().join("/")+").";
+    if(sin){if(sin.qualidade.suprime)p.push("Os sinais estão suspensos: "+sin.qualidade.motivo+".");
+      else p.push(sin.ativos.length?sin.ativos.length+(sin.ativos.length===1?" sinal persistente em observação.":" sinais persistentes em observação."):"Nenhum sinal persistente.")}
+    return p.join(" ")}
+
+  /* ---- S5: sono × VFC (associação, nunca causa). Janela de até 8 semanas, pelo menos 8 pares e |r| >= 0,4 para mostrar ---- */
+  function sauAssociacao(pares,min,corte){min=min||8;corte=corte||.4;var xs=pares.map(function(p){return p[0]}),ys=pares.map(function(p){return p[1]}),r=pares.length>=min?correlacao(xs,ys):null;
+    return {n:pares.length,r:r==null?null:Math.round(r*100)/100,mostrar:r!=null&&Math.abs(r)>=corte,minimo:min,corte:corte,
+      motivo:pares.length<min?"amostra pequena: "+pares.length+" pares (mínimo "+min+")":r==null?"sem variação suficiente":Math.abs(r)<corte?"associação fraca (|r| < "+String(corte).replace(".",",")+"): não é mostrada":""}}
+  function sauSonoVfc(dias,hoje){var por=sauPor(dias),pares=[];for(var i=55;i>=0;i--){var d=por[somaDiasISO(hoje,-i)];if(!d)continue;var s=SAU_CAMPOS.sono(d),v=SAU_CAMPOS.vfc(d);if(s!=null&&v!=null)pares.push([s,v])}
+    var a=sauAssociacao(pares);a.janela="últimas 8 semanas";return a}
+
+  /* ---- treinos: carga (escala da Garmin, nunca misturada com minutos), semanas, musculação ---- */
+  function sauDataAtiv(a){return sauDataDe(a&&a.inicio)}
+  function sauCargaDe(a){var c=a&&a.dados&&sauNum(a.dados.carga);return c!=null&&c>0?c:null}
+  /* semanas de segunda a domingo, da mais antiga à atual (parcial): [{sem, carga, treinos (com carga), semCarga, dias, total}] */
+  function sauCargaSemanal(ativs,hoje,nSem){var mapa={},sems=[];
+    for(var i=nSem-1;i>=0;i--){var s=pnSemana(somaDiasISO(hoje,-7*i));mapa[s]={sem:s,carga:0,treinos:0,semCarga:0,dias:{},total:0};sems.push(mapa[s])}
+    (ativs||[]).forEach(function(a){var d=sauDataAtiv(a);if(!d||d>hoje)return;var w=mapa[pnSemana(d)];if(!w)return;w.total++;w.dias[d]=1;var c=sauCargaDe(a);if(c==null)w.semCarga++;else{w.carga+=c;w.treinos++}});
+    sems.forEach(function(w){w.dias=Object.keys(w.dias).length;w.carga=Math.round(w.carga)});return sems}
+  /* S6: cada semana contra a média das 4 anteriores; só vale com pelo menos 3 treinos com carga nas 4 de referência. Persistente = as DUAS últimas semanas completas
+     no mesmo lado (acima de 1,3 ou abaixo de 0,7); um pico isolado (>= 1,5 numa só) é mostrado como pico, não como sinal. */
+  function sauCargaVariacao(sems){var out=sems.map(function(w,i){var ref=sems.slice(Math.max(0,i-4),i),tr=ref.reduce(function(s,x){return s+x.treinos},0),ok=ref.length===4&&tr>=3,m=ok?ref.reduce(function(s,x){return s+x.carga},0)/4:null;
+      return {sem:w.sem,carga:w.carga,media4:m,treinosRef:tr,ok:ok&&m>0,razao:ok&&m>0?Math.round(w.carga/m*100)/100:null,parcial:i===sems.length-1}});
+    var c=out.filter(function(x){return !x.parcial}).slice(-2),estado="insuficiente";
+    if(c.length===2&&c[0].ok&&c[1].ok){var r0=c[0].razao,r1=c[1].razao;
+      estado=r0>=1.3&&r1>=1.3?"alta_persistente":r0<=.7&&r1<=.7?"queda_persistente":(r0>=1.5||r1>=1.5)?"pico_isolado":"estavel"}
+    return {semanas:out,estado:estado}}
+  function sauMediana0(l){return l.length?mediana(l):null}
+  /* S9: musculação (strength_training): intervalo entre sessões (em dias, por dia distinto), sessões em dias seguidos e totais de séries e repetições quando existem.
+     Não infere grupo muscular: o histórico não guarda isso. */
+  function sauMusculacao(ativs,hoje,periodo){var ini=somaDiasISO(hoje,-(periodo||90)+1),L=(ativs||[]).filter(function(a){var d=sauDataAtiv(a);return a.tipo==="strength_training"&&d&&d>=ini&&d<=hoje}),
+      ds=[],vis={};L.forEach(function(a){var d=sauDataAtiv(a);if(!vis[d]){vis[d]=1;ds.push(d)}});ds.sort();
+    var iv=[];for(var i=1;i<ds.length;i++)iv.push(Math.round((Date.parse(ds[i]+"T12:00:00Z")-Date.parse(ds[i-1]+"T12:00:00Z"))/864e5));
+    var comS=L.filter(function(a){return sauNum(a.dados&&a.dados.series)!=null}),comR=L.filter(function(a){return sauNum(a.dados&&a.dados.repeticoes)!=null});
+    var dur=L.map(function(a){return sauNum(a.dados&&a.dados.duracao)}).filter(function(v){return v!=null}),fc=L.map(function(a){return sauNum(a.dados&&a.dados.fc)}).filter(function(v){return v!=null});
+    return {sessoes:L.length,dias:ds.length,intervalos:iv,mediana:sauMediana0(iv),maior:iv.length?Math.max.apply(null,iv):null,consecutivos:iv.filter(function(x){return x===1}).length,
+      series:comS.reduce(function(s,a){return s+a.dados.series},0),repeticoes:comR.reduce(function(s,a){return s+a.dados.repeticoes},0),comSeries:comS.length,comRepeticoes:comR.length,
+      duracaoMin:dur.length?Math.round(sauMedia(dur)/60):null,fcMedia:fc.length?Math.round(sauMedia(fc)):null,ultima:ds.length?ds[ds.length-1]:null,
+      semAtividadeDias:ds.length?Math.round((Date.parse(hoje+"T12:00:00Z")-Date.parse(ds[ds.length-1]+"T12:00:00Z"))/864e5):null}}
+  /* o resumo de um conjunto de treinos do período (a aba Atividades) */
+  function sauResumoAtiv(ativs){var dist=0,seg=0,fcs=[],ea=[],en=[];
+    (ativs||[]).forEach(function(a){var d=a.dados||{};dist+=sauNum(d.distancia)||0;seg+=sauNum(d.duracao)||0;if(sauNum(d.fc)!=null)fcs.push(d.fc);if(sauNum(d.efeitoAerobico)!=null)ea.push(d.efeitoAerobico);if(sauNum(d.efeitoAnaerobico)!=null)en.push(d.efeitoAnaerobico)});
+    return {n:(ativs||[]).length,distanciaKm:dist/1000,duracaoSeg:seg,fcMedia:fcs.length?sauMedia(fcs):null,efeitoAerobico:ea.length?sauMedia(ea):null,efeitoAnaerobico:en.length?sauMedia(en):null,comFc:fcs.length,comEfeito:ea.length}}
+
+  /* ---- S4 (condicionamento): VO2 máx só com o que está em garmin_ativ; mediana móvel de 4 semanas; sem valor, sem estimativa ---- */
+  function sauVo2(ativs,hoje){var pts=(ativs||[]).map(function(a){var v=a&&a.dados&&sauNum(a.dados.vo2max),d=sauDataAtiv(a);return v!=null&&v>0&&d&&d<=hoje?{data:d,v:v,tipo:a.tipo}:null}).filter(Boolean).sort(function(a,b){return a.data<b.data?-1:1});
+    if(!pts.length)return {n:0,pontos:[],movel:[],tendencia:"sem_dados"};
+    function med(fim){var l=pts.filter(function(p){return p.data<=fim&&p.data>somaDiasISO(fim,-28)});return {med:l.length>=2?mediana(sauVals(l)):null,n:l.length}}
+    var movel=[];for(var i=25;i>=0;i--){var fim=somaDiasISO(hoje,-7*i),m=med(fim);if(m.med!=null)movel.push({fim:fim,med:m.med,n:m.n})}
+    var w0=med(hoje),w1=med(somaDiasISO(hoje,-28)),w0b=med(somaDiasISO(hoje,-14)),w1b=med(somaDiasISO(hoje,-42)),t="insuficiente";
+    if(w0.med!=null&&w1.med!=null&&w0b.med!=null&&w1b.med!=null){var d0=w0.med-w1.med,d1=w0b.med-w1b.med;t=Math.abs(d0)>=1&&Math.abs(d1)>=1&&(d0>0)===(d1>0)?(d0>0?"subindo":"caindo"):"estavel"}
+    function var2(dias){var a=med(somaDiasISO(hoje,-dias));return w0.med!=null&&a.med!=null?{de:a.med,para:w0.med,dif:Math.round((w0.med-a.med)*10)/10,n0:w0.n,n1:a.n}:null}
+    var ult=pts[pts.length-1];
+    return {n:pts.length,pontos:pts.slice(-60),movel:movel,atual:w0.med,atualN:w0.n,ultimo:{data:ult.data,v:ult.v},tendencia:t,v3:var2(91),v6:var2(182)}}
+  /* minutos de intensidade por semana (moderados + 2 × vigorosos, a conta da Garmin) contra a meta de 150; semana sem nenhum dia medido fica null */
+  function sauMinutosSemana(dias,hoje,nSem,meta){var mapa={},sems=[];meta=meta||SAU_METAS.minutos;
+    for(var i=nSem-1;i>=0;i--){var s=pnSemana(somaDiasISO(hoje,-7*i));mapa[s]={sem:s,min:null,dias:0,meta:meta,parcial:i===0};sems.push(mapa[s])}
+    (dias||[]).forEach(function(x){var d=sauDataDe(x&&x.data);if(!d||d>hoje)return;var w=mapa[pnSemana(d)];if(!w)return;var dd=x.dados||{},m=sauNum(dd.minModerados),v=sauNum(dd.minVigorosos);
+      if(m==null&&v==null)return;w.min=(w.min||0)+(m||0)+2*(v||0);w.dias++});return sems}
+  /* eficiência aeróbica: metros por batimento (velocidade em m/min ÷ FC média) em atividades do mesmo tipo, de terreno quase plano (até 20 m de subida por km, ou esteira)
+     e de esforço parecido (FC média a até 10 bpm da mediana do tipo). Calor e vento não são guardados: por isso nunca se afirma melhora, só a diferença observada. */
+  function sauEficiencia(ativs,hoje){var tipos=["running","treadmill_running","walking"],out=[],ini56=somaDiasISO(hoje,-55);
+    tipos.forEach(function(t){var c=(ativs||[]).map(function(a){var d=sauDataAtiv(a),x=a.dados||{};if(a.tipo!==t||!d||d>hoje)return null;var dist=sauNum(x.distancia),tm=sauNum(x.emMovimento)||sauNum(x.duracao),fc=sauNum(x.fc);
+        if(!dist||dist<2000||!tm||fc==null||fc<100||fc>185)return null;var relevo=t==="treadmill_running"?0:sauNum(x.subida)==null?null:x.subida/(dist/1000);if(relevo==null||relevo>20)return null;
+        return {data:d,ef:Math.round(dist/(tm/60)/fc*1000)/1000,fc:fc,ritmoMinKm:tm/60/(dist/1000)}}).filter(Boolean);
+      if(!c.length)return;var recent=c.filter(function(p){return p.data>=ini56}),mfc=recent.length?mediana(recent.map(function(p){return p.fc})):null;
+      var par=mfc==null?[]:c.filter(function(p){return Math.abs(p.fc-mfc)<=10});
+      var cur=par.filter(function(p){return p.data>somaDiasISO(hoje,-28)&&p.data<=hoje}),ant=par.filter(function(p){return p.data>somaDiasISO(hoje,-56)&&p.data<=somaDiasISO(hoje,-28)}),ok=cur.length>=3&&ant.length>=3;
+      out.push({tipo:t,pontos:par.slice(-40),elegiveis:c.length,comparaveis:par.length,fcRef:mfc,comparavel:ok,atual:cur.length?mediana(cur.map(function(p){return p.ef})):null,anterior:ant.length?mediana(ant.map(function(p){return p.ef})):null,nAtual:cur.length,nAnterior:ant.length,
+        motivo:ok?"":"poucas atividades com esforço e terreno parecidos nas duas janelas de 4 semanas (mínimo 3 em cada)"})});
+    return out}
+
+  /* ---- S8: recuperação depois de treino forte (percentil 60 da carga diária) ---- */
+  function sauCargaDia(ativs){var o={};(ativs||[]).forEach(function(a){var d=sauDataAtiv(a),c=sauCargaDe(a);if(d&&c!=null)o[d]=(o[d]||0)+c});return o}
+  function sauRecuperacaoTreino(dias,ativs,hoje){var por=sauPor(dias),ini=somaDiasISO(hoje,-120),cd=sauCargaDia(ativs),ks=Object.keys(cd).filter(function(k){return k>=ini&&k<=hoje}).sort(),
+      vals=ks.map(function(k){return cd[k]}).sort(function(a,b){return a-b});
+    if(vals.length<8)return {n:0,motivo:"poucos dias com treino e carga na janela de 120 dias ("+vals.length+"; mínimo 8)",treinos:vals.length};
+    var forte=vals[Math.floor(vals.length*.6)],rec=[],nao=0,semBase=0,semVfc=0,fortes=0;
+    ks.filter(function(k){return cd[k]>=forte}).forEach(function(T){fortes++;var b=sauBase(por,somaDiasISO(T,-1),60,SAU_CAMPOS.vfc);if(!b){semBase++;return}
+      var tem=false,achou=null;for(var k=1;k<=5;k++){var D=somaDiasISO(T,k);if(D>hoje)break;var d=por[D],v=d?SAU_CAMPOS.vfc(d):null;if(v==null)continue;tem=true;if(v>=b.med){achou=k;break}}
+      if(achou!=null)rec.push(achou);else if(tem&&somaDiasISO(T,5)<=hoje){rec.push(6);nao++}else semVfc++});
+    if(rec.length<5)return {n:rec.length,motivo:"poucos treinos fortes com a VFC dos dias seguintes ("+rec.length+"; mínimo 5)",fortes:fortes,semBase:semBase,semVfc:semVfc,limiar:forte};
+    return {n:rec.length,mediana:mediana(rec),naoVoltou:nao,fortes:fortes,limiar:Math.round(forte),semBase:semBase,semVfc:semVfc}}
+
+  /* ---- S11: mudança persistente. 4 semanas × 4 anteriores, e a mesma comparação deslocada 2 semanas: só é "tendência" se a direção se repetir nas duas ---- */
+  function sauMudancas(dias,hoje){var por=sauPor(dias);
+    return SAU_METRICAS.map(function(M){var f=SAU_CAMPOS[M.k];
+      function par(off){var c=sauJanela(por,somaDiasISO(hoje,-off),28,f),a=sauJanela(por,somaDiasISO(hoje,-off-28),28,f);return c.length>=20&&a.length>=20?{c:mediana(sauVals(c)),a:mediana(sauVals(a)),nc:c.length,na:a.length}:null}
+      var p0=par(0),p1=par(14),o={k:M.k,nome:M.nome,un:M.un,dec:M.dec,limiar:M.limiar,maior:M.maior};
+      if(!p0){o.estado="sem";o.motivo="menos de 20 dias com a medida em cada janela de 4 semanas";return o}
+      o.atual=p0.c;o.anterior=p0.a;o.nAtual=p0.nc;o.nAnterior=p0.na;o.dif=p0.c-p0.a;var d1=p1?p1.c-p1.a:null;o.difDeslocada=d1;
+      var m0=Math.abs(o.dif)>=M.limiar,m1=d1!=null&&Math.abs(d1)>=M.limiar;
+      o.estado=m0&&m1&&(o.dif>0)===(d1>0)?"tendencia":m0?"oscilacao":"estavel";o.dir=o.dif>0?"subiu":"caiu";o.melhor=o.estado==="estavel"?null:(o.dif>0)===M.maior;return o})}
+  /* tendência: a métrica agrupada em dias (30), semanas (90) ou meses (365) até hoje (antes dentro de js/saude.js) */
+  function sauAgrupar(dias,f,per,hoje){var ini=somaDiasISO(hoje,-(+per)+1),g=[],mapa={};
+    (dias||[]).forEach(function(d){if(!d||d.data<ini||d.data>hoje)return;var v=f(d.dados||{});if(v==null)return;var k=per==="30"?d.data:per==="90"?pnSemana(d.data):String(d.data).slice(0,7);
+      if(!mapa[k]){mapa[k]={k:k,vs:[]};g.push(mapa[k])}mapa[k].vs.push(v)});g.forEach(function(x){x.v=sauMedia(x.vs)});return g}
+  /* preferências do dono (guardadas em PESSOAL.saudePrefs): valores fora da faixa voltam ao padrão */
+  function sauPrefs(raw){raw=raw&&typeof raw==="object"?raw:{};var s=sauNum(raw.sonoH),t=sauNum(raw.treinos);
+    return {sonoH:s!=null&&s>=4&&s<=12?s:SAU_METAS.sonoH,treinos:t!=null&&t>=1&&t<=14&&Math.round(t)===t?t:SAU_METAS.treinos,ocultar:raw.ocultar===true,esconderLocal:raw.esconderLocal===true}}
   /* ===== Chuva: nas próximas "janela" horas da previsão horária do Open-Meteo, a partir da hora "agora" ("AAAA-MM-DDTHH:00") ===== */
   function chuvaAviso(hr,agora,janela){
     janela=janela||12;var t=hr&&hr.time||[],i0=t.indexOf(String(agora).slice(0,13)+":00");if(i0<0)return null;
@@ -3465,7 +3688,7 @@
   /* "quem é quem" para a IA do RAC Hoje (sem isso ela chamou a Olivia de pet): a mesma frase de antes, a partir dos integrantes */
   function hojeQuemDe(integrantes){return (integrantes||[]).map(function(x){if(x.tipo==="bebe")return x.n+" é a filha bebê do dono";if(x.tipo==="veiculo")return x.antigo?null:x.n+" é um veículo do dono";
     if(x.tipo==="docs")return null;return x.tipo==="pet"?x.n+" é o cachorro da família":null}).filter(Boolean).join("; ")}
-  raiz.RACnucleo={fonteContrato:fonteContrato,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
+  raiz.RACnucleo={fonteContrato:fonteContrato,SAU_LIMITE:SAU_LIMITE,sauVals:sauVals,SAU_METAS:SAU_METAS,SAU_METRICAS:SAU_METRICAS,SAU_CAMPOS:SAU_CAMPOS,sauNum:sauNum,sauMedia:sauMedia,sauArred:sauArred,sauPor:sauPor,sauJanela:sauJanela,sauBase:sauBase,sauMinNoite:sauMinNoite,sauHora:sauHora,sauRegularidade:sauRegularidade,sauQualidade:sauQualidade,sauAvaliar:sauAvaliar,sauTextoSinal:sauTextoSinal,sauHistoricoSinais:sauHistoricoSinais,sauSinais:sauSinais,sauIndicadores:sauIndicadores,sauFrase:sauFrase,sauAssociacao:sauAssociacao,sauSonoVfc:sauSonoVfc,sauCargaSemanal:sauCargaSemanal,sauCargaVariacao:sauCargaVariacao,sauMusculacao:sauMusculacao,sauResumoAtiv:sauResumoAtiv,sauVo2:sauVo2,sauMinutosSemana:sauMinutosSemana,sauEficiencia:sauEficiencia,sauCargaDia:sauCargaDia,sauRecuperacaoTreino:sauRecuperacaoTreino,sauMudancas:sauMudancas,sauAgrupar:sauAgrupar,sauPrefs:sauPrefs,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,
     SEG_TABELAS:SEG_TABELAS,SEG_CHAVES_FORA:SEG_CHAVES_FORA,segDef:segDef,segTabelaAusente:segTabelaAusente,segChave:segChave,segCanon:segCanon,segLimpar:segLimpar,segBackup:segBackup,segLer:segLer,segHashes:segHashes,segAjustar:segAjustar,segRepor:segRepor,segPlano:segPlano,segEscrita:segEscrita,segAnexoDestino:segAnexoDestino,segAnexosEnviar:segAnexosEnviar,segNota:segNota,

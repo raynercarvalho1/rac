@@ -43,10 +43,10 @@
     orcamentos:function(){return Promise.resolve().then(function(){return SB.from("orcamentos").select("categoria,valor")}).then(sbOk).then(function(l){return {v:l,vazio:!l.length,origem:"banco"}})},
     /* o que o relógio já mandou para o banco (60 dias para a prontidão, 14 de treinos); nunca chama a função garmin */
     saude:function(){var hoje=hojeISO(),ocultos=NUCLEO.TREINO_OCULTOS;
-      return Promise.all([hojePag(function(f){return SB.from("garmin_dia").select("data,dados").gte("data",NUCLEO.somaDiasISO(hoje,-60)).order("data").range(f,f+999)}),
-        Promise.resolve().then(function(){return SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",NUCLEO.somaDiasISO(hoje,-14))}).then(sbOk)])
-      .then(function(r0){var c=NUCLEO.sauClassificar(r0[0],r0[1]),r=[c.meus.dias,c.meus.ativs];   /* só o que é seu (marco de propriedade) */
-        var ult=r[0][r[0].length-1];return {v:{dias:r[0],ativs:r[1].filter(function(a){return ocultos.indexOf(a.tipo)<0})},vazio:!r[0].length,quando:ult?ult.data+"T23:59:00-03:00":null,ultimo:ult?ult.data:null,origem:"banco"}})},
+      /* a fonte única da Saúde (js/fonte-saude.js): leitura paginada e só o que é seu (marco de propriedade). Leitura incompleta é erro, como sempre foi aqui */
+      return fonteOuErro("saude",{desdeDias:NUCLEO.somaDiasISO(hoje,-60),desdeAtiv:NUCLEO.somaDiasISO(hoje,-14),colsDia:"data,dados",colsAtiv:"inicio,tipo"}).then(function(c){
+        if(c.parcial)throw new Error("a leitura do relógio falhou ("+c.falhas.join("; ")+")");
+        var dias=c.v.dias,ult=dias[dias.length-1];return {v:{dias:dias,ativs:c.v.ativs.filter(function(a){return ocultos.indexOf(a.tipo)<0})},vazio:!dias.length,quando:ult?ult.data+"T23:59:00-03:00":null,ultimo:ult?ult.data:null,origem:"banco"}})},
     mba:function(){return fonteOuErro("mba").then(function(c){var hoje=hojeISO(),fin=c.v.fin;
       var o={aulas:c.v.aulas.filter(function(a){return a.data>=hoje}).slice(0,3),avals:c.v.avals.filter(function(a){return !a.feita}),
         progresso:fin?"MBA: "+fin.pagas+" de "+fin.ps.length+" parcelas pagas; falta pagar "+NUCLEO.hojeReais(fin.falta)+(fin.prox?"; próxima de "+NUCLEO.hojeReais(fin.prox.v)+" vence em "+fin.prox.venc:"")+".":""};

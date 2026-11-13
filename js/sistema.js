@@ -81,8 +81,8 @@
     var hoje=hojeISO();
     var pAg=agendaColetar().catch(function(){return []});
     var pVg=(typeof vgPronto!=="undefined"&&vgPronto?vgPronto:Promise.resolve()).then(function(){return VG.all||[]}).catch(function(){return []});
-    var pSa=Promise.resolve().then(function(){return Promise.all([SB.from("garmin_dia").select("data,dados").gte("data",maisDias(hoje,-61)).order("data").then(sbOk),
-      SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",maisDias(hoje,-61)).then(sbOk)])}).then(function(x){var c=NUCLEO.sauClassificar(x[0],x[1]);return [c.meus.dias,c.meus.ativs]}).catch(function(){return null});
+    /* a fonte única da Saúde (js/fonte-saude.js): só o que é seu; leitura incompleta não vira cartão (null, como antes) */
+    var pSa=fonteLer("saude",{desdeDias:maisDias(hoje,-61),desdeAtiv:maisDias(hoje,-61),colsDia:"data,dados",colsAtiv:"inicio,tipo"}).then(function(c){return c.ok&&!c.parcial?[c.v.dias,c.v.ativs]:null});
     return Promise.all([pAg,pVg,pSa]).then(function(r){
       var itens=r[0].map(function(e){return NUCLEO.priItem(e,hoje)}).filter(Boolean);
       /* vagas: só as novas (até 7 dias), bem compatíveis e que ainda não estão no funil nem escondidas; sempre informativas */
@@ -176,8 +176,8 @@
     if(isOwner()){
       ps.push(tenta("registros",function(){return SB.from("registros").select("id,quem,tipo,data,titulo,detalhes,valor,proxima").then(sbOk).then(function(l){l.forEach(function(r){var F=FAM[r.quem];if(!F)return;
         add(F.n,r.titulo,tipoInfo(r.tipo)[1]+" · "+dataBR(r.data),[r.detalhes,r.valor,datas(r.data),datas(r.proxima)].join(" "),{reg:r})})})}));
-      ps.push(tenta("treinos",function(){return SB.from("garmin_ativ").select("id,inicio,tipo,dados").order("inicio",{ascending:false}).limit(1000).then(sbOk).then(function(l){l=NUCLEO.sauClassificar([],l).meus.ativs;l.forEach(function(a){var T=ativTipo(a.tipo);
-        add("Treino",a.dados.nome||T[0],T[0]+" · "+dataBR(a.inicio.slice(0,10)),[T[0],a.dados.local,datas(a.inicio)].join(" "),{href:"#saude/treino/"+a.id})})})}));
+      ps.push(tenta("treinos",function(){return fonteOuErro("saude",{semDias:true,limiteAtiv:1000}).then(function(c){var esc=NUCLEO.sauPrefs(PESSOAL.saudePrefs).esconderLocal;c.v.ativs.forEach(function(a){var T=ativTipo(a.tipo);   /* só treinos seus; o dono pode esconder o local */
+        add("Treino",a.dados.nome||T[0],T[0]+" · "+dataBR(a.inicio.slice(0,10)),[T[0],esc?"":a.dados.local,datas(a.inicio)].join(" "),{href:"#saude/treino/"+a.id})})})}));
       mbaAulas().forEach(function(a){add("MBA",a.t,"aula · "+dataBR(a.data)+" "+a.hora,[a.prof,datas(a.data)].join(" "),{href:"#mba"})});
       mbaAvals().forEach(function(a){add("MBA",a.t+(a.disc?" · "+a.disc:""),"avaliação até "+dataBR(a.ate),datas(a.ate),{href:a.link||"#mba",ext:!!a.link})});
       var finB=mbaFin();if(finB)finB.ps.forEach(function(q){add("MBA","Boleto: "+q.n,BRL(q.v)+" · vence "+dataBR(q.venc)+(q.paga?" · pago":""),datas(q.venc),{href:"#mba"})});

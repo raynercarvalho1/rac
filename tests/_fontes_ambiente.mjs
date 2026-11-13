@@ -40,7 +40,7 @@ export function antes(d) {
 }
 export function agora(d) {
   const a = base(d);
-  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), a.ctx, { filename: f });
+  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js", "js/fonte-saude.js"]) vm.runInContext(ler(f), a.ctx, { filename: f });
   if (d.nlMem) a.ctx.fonteNewsletterGuardar(JSON.parse(JSON.stringify(d.nlMem)));
   /* os leitores de verdade do RAC Hoje (js/hoje.js), para comparar com os de antes */
   const h = ler("js/hoje.js"), i = h.indexOf("  var HOJE_LEITORES={"), j = h.indexOf("  /* todas as fontes, em paralelo");

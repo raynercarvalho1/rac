@@ -70,6 +70,8 @@ function montar({ sec, hash, modulos = [], resp = {}, extra = {} }) {
   vm.createContext(ctx);
   vm.runInContext(BLOCO, ctx, { filename: "app.js (botão de atualizar)" });
   vm.runInContext(/function getJson\(u\)\{[^\n]*/.exec(APP)[0], ctx, { filename: "app.js (getJson)" });
+  /* a leitura paginada de verdade (js/dados.js): a fonte da Saúde (DS-4.3) lê por ela */
+  const DADOS = ler("js/dados.js"); vm.runInContext("var DADOS_PAGINA=1000;" + /function dadosPaginar\(consulta\)\{[\s\S]*?return pag\(0\)\}/.exec(DADOS)[0], ctx, { filename: "dados.js (dadosPaginar)" });
   /* o redesenho de verdade (route + espera da página) fica de fora: aqui só conta que aconteceu, depois da troca */
   vm.runInContext("function atuPadrao(raiz){redesenhos++;return Promise.resolve(0)}", ctx);
   /* como o carregador do site (modulo() em js/app.js): as dependências declaradas no MOD_DEPS carregam antes, uma vez só (Fase 2 · A4: a Família
@@ -182,10 +184,10 @@ test("Saúde: relê dias e treinos do banco sem chamar o Garmin; falha mantém; 
   s2.ctx.SAUDE.dias = [{ data: "x" }]; s2.ctx.SAUDE.ativs = [{ id: 9 }];
   await assert.rejects(s2.mod().atualizar(), /relogio/); assert.deepEqual(s2.ctx.SAUDE.ativs, [{ id: 9 }]); assert.deepEqual(s2.ctx.SAUDE.dias, [{ data: "x" }]);
   S.sinc = Promise.resolve(); assert.match(s.mod().ocupado(), /sincronização com o relógio Garmin/); S.sinc = null; assert.equal(s.mod().ocupado(), "");
-  const t = ler("js/saude.js");
-  assert.match(t, /text:"Atualizar agora"\}\);/, "o botão de sincronizar continua");
+  const t = ler("js/saude.js"), hub = ler("js/saude-hub.js");
+  assert.match(hub, /rkBtn\("fantasma","Atualizar agora"\)/, "o botão de sincronizar continua");
   assert.match(t, /function saudeSincronizar\(st\)\{\n\s+function chamar\(corpo\)\{return SB\.functions\.invoke\("garmin",\{body:corpo\}\)/, "a sincronização com o Garmin continua igual");
-  assert.match(t, /if\(!SAUDE\.sinc&&!ATU\.semExternos&&\(!ult\|\|/, "redesenhar pelo ↻ não abre sincronizando sozinho");
+  assert.match(hub, /if\(!SAUDE\.sinc&&!ATU\.semExternos&&Date\.now\(\)-SH\.ultAuto>30\*60e3&&\(!ult\|\|/, "redesenhar pelo ↻ não abre sincronizando sozinho");
 });
 
 /* ---------------------------------------------------------------- Olivia */
@@ -332,7 +334,7 @@ test("todo módulo com dados em memória está ligado ao botão (os nove da Etap
     "esportes-central.js": "APIs públicas de esportes guardadas por once()", "lista.js": "sugestões e histórico da Lista",
     "fiscal.js": "só a trava de \"lendo\" e os documentos já lidos nesta tela, identificados pelo conteúdo (Lote 1.4); não guarda leitura do banco, então nada fica velho",
     "dados.js": "camada de dados (Fase 2 · A1): guarda só o cliente do Supabase (a conexão), nenhuma leitura do banco" };
-  const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js"]));
+  const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js", "saude-hub.js"]));   /* o hub da Saúde (DS-4.3) é a tela do módulo "saude", registrado em saude.js */
   /* o RAC Hoje ainda não tem página: a coleta vale 10 minutos e o ↻ (ATU.fresco) faz ler de novo (tests/hoje.test.mjs) */
   ligados.add("hoje.js"); assert.match(ler("js/hoje.js"), /typeof ATU!=="undefined"&&ATU\.fresco/);
   for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) {

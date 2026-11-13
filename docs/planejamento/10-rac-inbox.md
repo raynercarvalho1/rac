@@ -159,7 +159,7 @@ Peças lógicas propostas:
 
 | Peça | Responsabilidade |
 |---|---|
-| `js/inbox.js` | Interface, navegação, lista, leitura, composição e ações |
+| js/inbox.js (arquivo previsto para a fase de implementação) | Interface, navegação, lista, leitura, composição e ações |
 | Adaptadores por provedor | Contrato comum para Gmail, Microsoft Graph e IMAP/SMTP |
 | Camada de autenticação | OAuth, callbacks, renovação e revogação de acesso |
 | Serviço de sincronização | Novas mensagens, atualizações, cursores, deduplicação e reconciliação |

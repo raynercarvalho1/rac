@@ -160,6 +160,35 @@ A Fernanda faz o mesmo no iPhone dela, com a conta dela.
 A conferência viva fica em `seguranca_estado()` (022): tabelas sem RLS, tabelas que `anon` lê, tabelas pessoais sem a trava,
 cofres públicos e funções privilegiadas abertas a `anon`. Só nomes, nenhum dado.
 
+### Catálogo da auditoria
+
+Fase 2 · A6 (13/11/2026). Até a 048, `seguranca_estado()` tinha uma **lista fixa** de tabelas pessoais e precisava ser recriada a cada tabela
+nova (022, 033, 038, 043 e 048). A migration `supabase/050_seguranca_catalogo.sql` troca a lista por um catálogo no banco,
+`public.seguranca_catalogo` (tabela, `trava_mfa`, `backup`, origem, motivo), preenchido com as mesmas 44 tabelas pessoais de antes, as duas
+que ficavam de fora de propósito (`ia_precos` e `rac_segredos`) e o próprio catálogo. Só quem roda migration no SQL Editor escreve nele
+(RLS ligado, nenhuma política, nenhum privilégio para `anon`, `authenticated` e `service_role`). A auditoria passa a conferir a trava "mfa"
+de toda tabela do catálogo com `trava_mfa` e ganha dois itens informativos: `fora_do_catalogo` (tabela que existe e ninguém classificou:
+aparece na Auditoria do dono como pendência e **não** entra sozinha na conferência, porque uma tabela não é confiável só por existir) e
+`catalogo_sem_tabela`. RLS, visitante sem login, cofres e funções abertas continuam conferidos do mesmo jeito.
+
+**Situação: preparada e testada, NÃO aplicada em produção** (testes com Postgres de verdade no PGlite: `tests/seguranca_catalogo.test.mjs`).
+Aplicar é passo do dono, com autorização própria: rodar a 050 inteira no SQL Editor (pode rodar de novo sem estragar nada), depois a
+conferência só de leitura `supabase/conferencias/050_conferir_producao.sql` (tudo `true`), tirar a linha `-- status: pendente` do arquivo e
+conferir a Auditoria no site (a linha "Catálogo da auditoria" aparece com ✓). Antes da 050 o site funciona igual: a linha só aparece quando
+a função nova responde, e a Fernanda não vê a Auditoria. Desfazer: recriar `seguranca_estado()` com o texto da 048 e depois
+`drop table public.seguranca_catalogo`.
+
+**Tabela nova, depois da 050** (na própria migration que cria a tabela):
+
+1. RLS ligado, `revoke all ... from anon` e a política restritiva "mfa", como sempre;
+2. `insert into public.seguranca_catalogo (tabela, trava_mfa, backup, origem, motivo) values ('nova', true, true, 'NNN', 'por quê') on conflict (tabela) do nothing;`
+   (`trava_mfa` = dado pessoal, exige a trava; `backup` = entra no backup do site; tabela sem dado pessoal: `false, false` e o motivo);
+3. **não** recriar `seguranca_estado()`;
+4. se `backup`, a tabela em `NUCLEO.SEG_TABELAS` (com pk/fk); e sempre em `tests/seguranca.test.mjs` (sem login não lê).
+
+`tests/seguranca_catalogo.test.mjs` falha se uma migration depois da 050 criar tabela sem catalogá-la, se o `backup` do catálogo divergir de
+`NUCLEO.SEG_TABELAS`, se uma tabela com trava não tiver a política "mfa" ou se faltar no teste de segurança com o banco real.
+
 ## Implantação (nesta ordem)
 
 1. `node --test tests/*.test.mjs` passando.

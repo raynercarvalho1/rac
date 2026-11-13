@@ -11,9 +11,10 @@ const ler = (a) => fs.readFileSync(new URL(a, raiz), "utf8");
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
 const sql = ler("supabase/022_seguranca.sql"), seg = ler("js/seguranca.js"), app = ler("js/app.js"), sis = ler("js/sistema.js");
-/* tabelas que os .sql criam, menos as que não são de ninguém (preços da IA) ou que o site nem enxerga (segredos do servidor) */
+/* tabelas que os .sql criam, menos as que não são de ninguém (preços da IA), que o site nem enxerga (segredos do servidor) ou o catálogo da
+   auditoria (050, Fase 2 · A6: nenhum privilégio para o site; tests/seguranca_catalogo.test.mjs) */
 const todasSql = fs.readdirSync(new URL("supabase/", raiz)).filter((f) => /^\d{3}_.*\.sql$|^schema\.sql$/.test(f)).map((f) => ler("supabase/" + f)).join("\n");
-const tabelas = [...new Set([...todasSql.matchAll(/create table if not exists public\.([a-z_]+)/g)].map((m) => m[1]))].filter((t) => !["ia_precos", "rac_segredos"].includes(t));
+const tabelas = [...new Set([...todasSql.matchAll(/create table if not exists public\.([a-z_]+)/g)].map((m) => m[1]))].filter((t) => !["ia_precos", "rac_segredos", "seguranca_catalogo"].includes(t));
 const listaMfa = (txt) => [...(/foreach t in array array\[([\s\S]*?)\] loop/.exec(txt) || [, ""])[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 
 test("022: aplicado em produção em 31/10/2026 (sem a marca de pendente) e pode rodar de novo", () => {

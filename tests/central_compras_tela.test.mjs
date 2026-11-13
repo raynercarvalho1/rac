@@ -72,7 +72,8 @@ test("só leitura nas tabelas de compras: a Central não insere, atualiza nem ap
   assert.doesNotMatch(bloco, /\.(insert|update|upsert|delete|rpc)\(/, "a Central só lê");
   assert.match(bloco, /pessoalGravar\("mercado-canais"/); assert.match(bloco, /from\("compras_online"\)\.select\(/);
   /* a 049_tentativas_cpf_ignora_hash é da Central Fiscal (trava de CPF, 12/11/2026), não da Central de Compras */
-  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(049|05)/.test(f) && f !== "049_tentativas_cpf_ignora_hash.sql");
+  /* a 050_seguranca_catalogo é da Fase 2 · A6 (auditoria de segurança), também não é da Central de Compras */
+  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(049|05)/.test(f) && f !== "049_tentativas_cpf_ignora_hash.sql" && f !== "050_seguranca_catalogo.sql");
   assert.deepEqual(novas, [], "a Central não criou migration (a 047 e a 048 são do Radar; a 049 é da Central Fiscal)");
 });
 test("o módulo se chama Central de Compras no menu e na casca, e as telas existentes continuam", () => {

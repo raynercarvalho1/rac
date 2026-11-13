@@ -8,6 +8,7 @@ como substituída. Convenções: ver o [Documento 1](01-visao-e-mapa-mestre.md#c
 
 | Data | Decisão | Fonte |
 |---|---|---|
+| (permanente) | **Protocolo de autonomia do RAC**: dono define objetivos e decisões restritas; Claude Code executa lotes completos; ChatGPT arquiteta e revisa; sem aprovações técnicas microetapa; commit/push/PR dentro do lote autorizado; merge/publicação somente se incluídos; consulta ao dono apenas para custos, credenciais/permissões sensíveis, perdas irreversíveis, mudanças relevantes de produto/privacidade ou fora de escopo | pedido explícito do dono em 13/11/2026; `CLAUDE.md` § Protocolo Permanente |
 | (permanente) | Autorizações do proprietário: sem commit, push, SQL em produção, deploy de função, publicação, segredos, cobrança ou IA paga sem autorização explícita; a experiência da Fernanda é preservada; a função `garmin` é intocável sem autorização expressa | `CLAUDE.md` |
 | (permanente) | JavaScript ES5 puro, sem framework, sem build, sem dependências novas; bibliotecas só de CDN com versão exata | `CLAUDE.md` |
 | (permanente) | Toda IA passa pela `rac-ia` e, no site, só por `racIA()`; a IA nunca grava; resposta DEMO nunca chega ao que salva | `CLAUDE.md` |

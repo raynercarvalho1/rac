@@ -473,3 +473,29 @@ Família e da Casa.
 2. Próxima evolução possível da DS-4: redesenho da Saúde no RAC Modern Workspace (S2–S5), com escopo e critérios próprios; depois, seguir para os demais módulos por área conforme prioridade do dono.
 3. Só reabrir a recuperação histórica se o dono solicitar.
 
+
+
+## 13/11/2026 · Planejamento do RAC Inbox como próxima grande frente
+
+### 1. O que fizemos
+
+- **Decisão do dono:** após a conclusão da modernização da Saúde S1–S5, o próximo tópico do desenvolvimento será o **RAC Inbox**, com prioridade máxima.
+- Definido que o objetivo não é apenas agregar mensagens: o RAC deverá se tornar o cliente principal de e-mail do dono, capaz de substituir o Spark após validação no uso diário.
+- Escopo planejado: contas Gmail, Outlook/Hotmail/Live e iCloud; caixa unificada; leitura, envio, resposta, encaminhamento, rascunhos, anexos, busca, pastas, arquivamento, spam, lixeira, filtros, regras, ações em massa, notificações e IA integrada.
+- Definido o princípio de paridade honesta: cada provedor terá adaptador próprio; recursos nativos serão usados quando disponíveis; limitações do iCloud poderão ser aceitas se pequenas, comprovadas e alinhadas com o dono.
+- Criado o [Documento 10 · RAC Inbox](10-rac-inbox.md), com fases I0–I6, arquitetura proposta, segurança, matriz de capacidades e critérios objetivos para substituir o Spark.
+- **Risco técnico registrado:** Apple documenta SMTP na porta 587, enquanto o exemplo oficial do Supabase informa restrição de saída a essa porta no runtime de Edge Functions. O envio iCloud deverá passar por prova de conceito antes de fechar a arquitetura.
+
+### 2. O que estamos fazendo
+
+- A frente atual continua sendo a modernização da Saúde S1–S5. O RAC Inbox não começa em paralelo nem altera o escopo já aprovado para Saúde.
+- O RAC Inbox está **planejado, não implementado**. Não foram conectadas contas, criadas credenciais, executadas migrations, alteradas funções ou publicados serviços.
+- O Spark permanece como cliente atual e contingência até o RAC Inbox cumprir todos os critérios de substituição.
+
+### 3. O que vamos fazer
+
+1. Concluir Saúde S1–S5, com implementação, testes, validação visual e PR.
+2. Depois da conclusão dessa frente, iniciar RAC Inbox pela fase I0: auditar a integração Gmail existente e provar OAuth, leitura/escrita Gmail, Microsoft Graph e IMAP/SMTP iCloud na infraestrutura pretendida.
+3. Aprovar a arquitetura com base nas provas reais, definir o modelo de dados e só então implementar conectores, cliente, administração, IA e integrações RAC.
+4. Só recomendar desinstalar o Spark depois de todos os critérios de substituição do Documento 10, seção 8, estarem validados no uso diário.
+

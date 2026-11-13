@@ -33,6 +33,8 @@ Antes deste registro, a história do projeto (23/10 a 12/11/2026) está no `git 
 - **Testes executados** (nuvem, como o CI, `bash scripts/nuvem_testes.sh`): Grupo 1 com 1.377 testes, 1.376 passaram, 0 falhas e
   1 pendente esperado (a função da `040`, ainda não aplicada); Grupo 2 (PGlite) com 73 testes, todos passaram. `git diff --check` sem
   problemas.
+- **Commit e PR**: commit `2faf9c7` na branch `claude/rac-audit-planning-a8gzde`, push da branch e **PR #6** aberto para a
+  `main` (não mesclado). Este registro do número do PR entrou num segundo commit da mesma branch.
 - **Nenhuma alteração** em código do site, SQL, Edge Function, segredos, `.claude/settings.json`, `ia_config` ou orçamento.
   Nenhuma chamada paga. Nenhuma publicação manual.
 - **Decisões do dono registradas** no [Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas): frente fiscal (OCR, SEFAZ,
@@ -42,7 +44,7 @@ Antes deste registro, a história do projeto (23/10 a 12/11/2026) está no `git 
 
 ### 2. O que estamos fazendo
 
-- O trabalho desta etapa está na branch `claude/rac-audit-planning-a8gzde`, aguardando revisão e merge do dono (o merge publica
+- O trabalho desta etapa está no **PR #6** (branch `claude/rac-audit-planning-a8gzde`), aguardando revisão e merge do dono (o merge publica
   só a documentação; o site continua na versão `2026-11-12.9`).
 - **Dependências**: as decisões D-01 a D-14 do [Documento 07](07-decisoes-e-pendencias.md#questões-abertas-dependem-do-dono),
   principalmente D-14 (conferir o estado real das migrations 036, 038 e 039) para reconciliar a documentação.

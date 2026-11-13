@@ -661,3 +661,26 @@ Família e da Casa.
 1. Quando houver acesso ao Cloudflare, começar por uma chamada HTTP de teste sem credenciais; medir tempo de CPU e verificar handshake TCP/STARTTLS com as portas Apple.
 2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
 3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.
+
+## 13/11/2026 · RAC Inbox — probe de conectividade iCloud preparado
+
+### 1. O que fizemos
+
+- Criada a branch isolada `poc/icloud-cloudflare-connectivity` a partir da `main` após o merge da documentação RAC Inbox (`5cc1cfd`).
+- Preparado o Worker temporário em `experimentos/icloud-probe/`: conexão TLS IMAP 993, STARTTLS SMTP 587 e endpoint `POST /probe` protegido por segredo aleatório, sem autenticação da Apple, leitura de mensagens, envio ou acesso ao Supabase.
+- Criados oito testes unitários para parser IMAP/SMTP, respostas multilinha, verificação do token e sequência STARTTLS. Execução local: 8 aprovados, 0 falhas; `node --check` passou nos módulos.
+- Incluído README com comandos Wrangler fixados em `4.161.0`, login, deploy manual, configuração segura do Secret, chamada de diagnóstico e remoção do Worker.
+- Conferidos os documentos oficiais Cloudflare TCP sockets e limites: a API suporta `connect()` e `startTls()`; no Workers Free, requisições HTTP têm 10 ms de CPU. A conectividade real para Apple continua não testada.
+
+### 2. O que estamos fazendo
+
+- O código está na branch do experimento, ainda sem PR criada/CI. A seção 12.11 do Documento 10 registra que a POC está preparada, não publicada.
+- Não houve login Cloudflare, deploy, upgrade de plano, criação de token/Secret, autenticação iCloud, conexão de conta Apple, envio/recebimento de mensagens ou alteração de produção/Supabase.
+
+### 3. O que vamos fazer
+
+1. Abrir uma PR separada para revisão do Worker e dos oito testes; aguardar CI verde antes de qualquer merge.
+2. Com acesso à conta Cloudflare do dono, publicar manualmente no Workers Free usando o README e configurar o token apenas como Secret. Não enviar tokens ao chat.
+3. Executar uma chamada de diagnóstico para verificar somente rede/TLS em IMAP 993 e SMTP 587. Registrar resultado e apagar o Worker após a prova, salvo decisão posterior.
+4. Se Free falhar por limite de CPU, não atualizar para Paid sem mostrar a evidência e obter autorização explícita do custo.
+5. Autenticação iCloud, envio e sincronização ficam para uma etapa posterior, com conta de teste e autorização própria.

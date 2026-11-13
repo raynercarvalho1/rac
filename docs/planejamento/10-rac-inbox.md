@@ -335,8 +335,8 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 | Auditoria do Gmail existente | **Concluída por leitura do repositório** | Revisar o Console Google atual e confirmar status de publicação, escopos e usuário de teste |
 | Capacidades Gmail API e requisitos OAuth | **Mapeados na documentação oficial** | OAuth de servidor com refresh token, leitura, envio, alteração, filtros e verificação do app |
 | Capacidades Microsoft Graph | **Mapeadas na documentação oficial** | App registration e teste real em conta pessoal, incluindo leitura, envio, movimento, regra e delta |
-| IMAP iCloud | **Documentado; não testado** | Conexão autenticada em 993 no runtime escolhido e sincronização de uma pasta |
-| SMTP iCloud | **Bloqueado diretamente no Supabase Edge Functions (porta 587)** | Prova em worker alternativo, envio e recebimento de confirmação numa conta de teste |
+| IMAP iCloud | **Probe de conectividade preparado; publicação pendente** | Publicar o Worker de diagnóstico e comprovar TLS 993; depois, com autorização, autenticar numa conta de teste e sincronizar uma pasta |
+| SMTP iCloud | **Bloqueado diretamente no Supabase Edge Functions (porta 587); probe STARTTLS preparado** | Publicar o Worker e comprovar TCP 587 + STARTTLS; depois, com autorização, autenticar e enviar e-mail de teste |
 | Arquitetura final e custos | **Em aberto** | Comparar runtime do worker, armazenamento de tokens, operação, monitoramento e custo mensal |
 
 **Critério de saída da I0:** os três provedores devem ter matriz de capacidades baseada em testes reais, fluxo seguro de renovação/revogação de credenciais, conectividade de entrada/saída e custos conhecidos. Até lá, não iniciar I1, não aplicar migrations e não conectar as caixas pessoais de produção.
@@ -399,3 +399,18 @@ A revisão das fontes oficiais refinou alguns itens da análise inicial:
 - Railway: Pro é US$ 20/mês de assinatura com crédito de uso correspondente; SMTP é habilitado a partir do Pro. O valor final depende do consumo acima do crédito.
 
 A decisão não muda: Cloudflare é a primeira candidata de teste, Railway é alternativa, nenhum serviço foi contratado nem implantado.
+
+### 12.11 Probe de conectividade iCloud — código preparado, publicação pendente (13/11/2026)
+
+Foi preparado em `experimentos/icloud-probe/` um Cloudflare Worker isolado para provar a rede real sem usar credenciais iCloud. A rota autenticada `POST /probe` verifica:
+
+- IMAP Apple em `imap.mail.me.com:993`: conexão TCP/TLS e leitura apenas da saudação IMAP;
+- SMTP Apple em `smtp.mail.me.com:587`: conexão, saudação, `EHLO`, `STARTTLS`, negociação TLS e novo `EHLO` já cifrado.
+
+O worker não recebe parâmetros de host/porta, não autentica, não lê mensagens, não envia e-mail e não chama o Supabase. Requer um segredo de diagnóstico aleatório (`PROBE_TOKEN`) configurado como Secret Cloudflare, nunca armazenado no Git ou no RAC. A resposta só mostra sucesso/falha, estágio e duração, sem banners SMTP/IMAP brutos.
+
+**Validação executada localmente:** 8 testes unitários passaram (parser de linhas e respostas SMTP, autenticação do endpoint, saudação IMAP, sequência SMTP STARTTLS e falha de handshake); `node --check` passou nos módulos. O CI do repositório deverá executar a suíte novamente pela PR do experimento.
+
+**Ainda não comprovado:** conectividade na rede Cloudflare, TLS com os servidores Apple, autenticação iCloud, leitura, envio, sincronização ou IMAP IDLE. O modo local Wrangler não comprova a saída de rede real. Não houve login Cloudflare, deploy, contratação/upgrading de plano, criação de token/segredo, conexão de conta Apple ou alteração no Supabase.
+
+Procedimento de deploy manual, uso e remoção: `experimentos/icloud-probe/README.md`. A primeira tentativa será no Workers Free; se o limite HTTP de 10 ms de CPU impedir a verificação TLS, avaliar a execução e pedir autorização específica antes de qualquer upgrade para Workers Paid. A POC é descartável e não cria domínio, rota, Cron, Durable Object ou binding de produção.

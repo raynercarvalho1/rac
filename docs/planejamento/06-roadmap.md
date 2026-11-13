@@ -22,6 +22,8 @@ proativa → monitoramento → Garmin → notícias → estudos → RAC Hoje →
 Atalho possível: se o dono quiser **medicamentos** antes, eles podem entrar logo depois de A1 e A6, com as outras partes da
 fundação em seguida.
 
+**Decisão de prioridade (13/11/2026):** terminar primeiro a DS-4.3 — Saúde S1–S5, atualmente em revisão na PR #13. Depois do merge/publicação dessa entrega, a próxima grande frente, com prioridade máxima, será o **RAC Inbox**, um cliente de e-mail multicon­ta e inteligente para Gmail, Outlook e iCloud, com gestão real das caixas e objetivo de substituir o Spark após validação no uso diário. Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+
 ```mermaid
 graph LR
   F0[F0 Documentação] --> F1[F1 Confiabilidade]
@@ -86,6 +88,7 @@ Classificação pedida: **Funciona** (já existe e funciona) · **Parcial** (exi
 | Garmin G4–G5 (dados extras, trajetos) | Novo | Médio | Alta | Alto (privacidade) | Questão D-08 e autorização para a `garmin` | Baixa | Ativação voluntária, zonas de privacidade, retenção e "apagar tudo" funcionando |
 | Acontecimentos | Parcial | Médio | Média | Baixo | — | Média | Id estável entre edições; linha do tempo; "o que mudou" |
 | Trilhas de estudo | Parcial | Médio | Baixa | Baixo | — | Baixa | Trilhas, sessões e competências com evidência; bloco no RAC Hoje |
+| **RAC Inbox — cliente de e-mail multicon­ta e inteligente** | Novo | **Muito alto** | Alta | Alto (credenciais, provedores, ações sobre caixas) | Conclusão e merge da Saúde S1–S5; prova I0 Gmail, Graph e iCloud | **Top 1 após Saúde** | Contas conectadas; receber/enviar/responder; filtros e ações reais; IA com confirmação; uso diário confiável e checklist de substituição do Spark validado |
 | Central de Compras (kits, patrimônio, garantias) | Funciona (base) · Agora não (evolução) | Médio | Alta | Médio | Etapa própria; questão D-04 | Baixa agora | Definido no início da etapa |
 | Dividir `nucleo.js` (A8) | Refatorar | Médio | Média | Médio | A1–A4 | Baixa | Carga inicial menor, medida antes × depois |
 | n8n | Agora não | — | — | — | — | — | Reavaliar nos gatilhos do [Documento 05](05-integracoes-e-automacoes.md#6-n8n-avaliar-depois-não-agora) |
@@ -203,3 +206,16 @@ A DS-4.2 foi concluída no escopo de preservação, classificação e publicaç�
 ## 3.6 Andamento da DS-4.3 · Saúde S1–S5 (13/11/2026)
 
 Implementada e testada na branch `claude/saude-modernizacao-s2-s5` (base: a branch da PR #12, que continua aberta e sem alteração). **Não mesclada e não publicada.** Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin`, SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).
+
+
+## 3.7 Próxima frente após a Saúde: RAC Inbox (13/11/2026)
+
+A prioridade seguinte à DS-4.3 é o **RAC Inbox**, aprovado pelo dono como a próxima grande frente do RAC e prioridade máxima posterior à Saúde.
+
+- Cliente de e-mail real, não só agregador/leitor: Gmail, Outlook/Hotmail/Live e iCloud.
+- Caixa unificada, envio, respostas, encaminhamento, rascunhos, anexos, busca, pastas, spam, lixeira, arquivamento, regras e filtros, conforme a capacidade real de cada provedor.
+- IA para classificação, resumo, extração, busca em linguagem natural e sugestões de filtros/respostas. Ações externas exigem confirmação do dono.
+- iCloud: limitações pequenas podem ser aceitas após prova técnica; receber, enviar e responder continuam essenciais. Testar IMAP/SMTP e restrições de rede na infraestrutura escolhida antes da arquitetura definitiva.
+- Fases I0–I6 e critérios para desinstalar o Spark: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+- Estado: planejado, não implementado. Não há contas conectadas, credenciais, SQL, migrations ou serviços publicados.
+

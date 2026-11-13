@@ -539,3 +539,11 @@ Família e da Casa.
 1. Validar CI e publicação do GitHub Pages após o merge da PR #13.
 2. Encerrar a PR #12 como supersedida, pois os quatro commits documentais foram incorporados pela PR #13.
 3. Revisar e integrar a PR documental do RAC Inbox; então iniciar a fase I0, com provas de viabilidade por provedor antes de definir a arquitetura.
+
+## 13/11/2026 · Confirmação da publicação e encerramento das PRs anteriores
+
+- GitHub Actions da `main` após o merge da PR #13: workflow **Testes** concluído com sucesso (execução `43451157429`).
+- GitHub Pages após o merge da PR #13: **build and deployment concluído com sucesso** (execução `43451156616`). A versão publicada no `sw.js` da `main` é `2026-11-13.7`.
+- A PR #12 foi encerrada sem merge separado; seus quatro commits documentais já estão incorporados à `main` pelo merge da PR #13.
+- A PR #14 empilhada foi encerrada como substituída por uma branch documental limpa, criada diretamente a partir da `main` pós-merge.
+- A nova PR documental do RAC Inbox é a **PR #16**, branch `docs/rac-inbox-main`, base `main`. Contém somente cinco arquivos de documentação e não reapresenta o código/histórico da Saúde.

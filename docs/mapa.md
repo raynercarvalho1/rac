@@ -73,7 +73,7 @@ Legenda: ✅ concluído (verde) · 🟡 em andamento (amarelo) · ⚪ planejado 
 | ✅ Casa (Fernanda) preservada | 20 telas comparadas com a `main` | — |
 | ✅ Aprovação do dono no iPhone (critério da F3) | O dono validou o piloto RAC Hoje no iPhone | informado pelo dono em 13/11/2026 |
 | ✅ DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | Implementada, validada pelo dono no iPhone e integrada | PR #10 mergeado; commit de merge `81c9999` |
-| ✅ DS-4.3 · Saúde (S1–S5) implementada, testada e integrada | PR #13 mergeado na `main`; commit `e77c5e8`. CI do head aprovado; GitHub Pages pós-merge em verificação |
+| ✅ DS-4.3 · Saúde (S1–S5) implementada, testada e integrada | PR #13 mergeado na `main`; commit `e77c5e8`. CI da `main` e GitHub Pages pós-merge aprovados; site `2026-11-13.7` |
 | ✅ DS-4.2 · Saúde e Garmin (`#saude`, Documento 09, seção 18) | **Concluída em produção:** marco 01/01/2026, classificação em todos os leitores, exclusões removidas, Edge Function `garmin` versão 13 ativa e painel de medição/recuperação publicado. Backfill anterior a 01/11/2025 é opcional e foi adiado pelo dono; não bloqueia o desenvolvimento. O redesenho visual S1–S5 foi integrado pela DS-4.3 (PR #13) | PR #11 mergeado (`b893d34`); Pages `2026-11-13.6` com sucesso; função v13 ativa |
 | ⚪ DS-5 · telas da casa (Mercado, Lista, Família, Veículos) | Pendente de **autorização expressa** do dono | — |
 | ⚪ Início (`#inicio`) como painel único ou convivendo com o RAC Hoje (D-12) | Pendente de decisão do dono | — |

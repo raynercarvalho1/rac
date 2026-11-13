@@ -22,7 +22,7 @@ proativa → monitoramento → Garmin → notícias → estudos → RAC Hoje →
 Atalho possível: se o dono quiser **medicamentos** antes, eles podem entrar logo depois de A1 e A6, com as outras partes da
 fundação em seguida.
 
-**Decisão de prioridade (13/11/2026):** a DS-4.3 — Saúde S1–S5 — foi integrada à `main` pela PR #13 (commit `e77c5e8`), com CI aprovado no head. A conferência da publicação no GitHub Pages pós-merge permanece pendente. A próxima grande frente, com prioridade máxima, será o **RAC Inbox**, um cliente de e-mail multicon­ta e inteligente para Gmail, Outlook e iCloud, com gestão real das caixas e objetivo de substituir o Spark após validação no uso diário. Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+**Decisão de prioridade (13/11/2026):** a DS-4.3 — Saúde S1–S5 — foi integrada à `main` pela PR #13 (commit `e77c5e8`), com CI aprovado no head. O GitHub Pages pós-merge concluiu com sucesso (execução `43451156616`); site versão `2026-11-13.7`. A próxima grande frente, com prioridade máxima, será o **RAC Inbox**, um cliente de e-mail multicon­ta e inteligente para Gmail, Outlook e iCloud, com gestão real das caixas e objetivo de substituir o Spark após validação no uso diário. Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
 
 ```mermaid
 graph LR
@@ -205,7 +205,7 @@ A DS-4.2 foi concluída no escopo de preservação, classificação e publicaç�
 
 ## 3.6 Andamento da DS-4.3 · Saúde S1–S5 (13/11/2026)
 
-Implementada, testada e **mesclada na `main` pela PR #13** (commit `e77c5e8e1e163f60ae1f93e8cfe35f6587860cfd`). O CI do head `97ac1a2` concluiu com sucesso. Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. A PR #13 também incorporou os quatro commits documentais da antiga PR #12; por isso a PR #12 não deve ser mesclada separadamente. **Publicação no GitHub Pages após o merge ainda em verificação.** Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin`, SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).
+Implementada, testada e **mesclada na `main` pela PR #13** (commit `e77c5e8e1e163f60ae1f93e8cfe35f6587860cfd`). O CI do head `97ac1a2` concluiu com sucesso. Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. A PR #13 também incorporou os quatro commits documentais da antiga PR #12; por isso a PR #12 não deve ser mesclada separadamente. **GitHub Pages após o merge concluído com sucesso**, execução `43451156616`; site versão `2026-11-13.7`. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin`, SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).
 
 
 ## 3.7 Próxima frente após a Saúde: RAC Inbox (13/11/2026)

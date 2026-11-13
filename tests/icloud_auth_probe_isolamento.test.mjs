@@ -166,3 +166,11 @@ test("documentação da auditoria: Documento 10 registra o vetor, o desenho de t
   for (const trecho of [/13\.14/, /build\.command/, /três jobs/i, /lockfile/i, /sha256/i, /configuração manual/i, /Deployment branches/i]) assert.match(d10, trecho);
   assert.ok(!/(?:cfut_|cfat_|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|Bearer [A-Za-z0-9_-]{30,})/.test(d10 + WFTXT));
 });
+
+test("documentação da revisão final: os SHAs das actions registrados no Documento 10 são os usados no workflow", () => {
+  const d10 = ler("docs/planejamento/10-rac-inbox.md");
+  const noWorkflow = new Set([...WFTXT.matchAll(/actions\/(?:checkout|setup-node)@([0-9a-f]{40})/g)].map((m) => m[1]));
+  assert.equal(noWorkflow.size, 2, "um SHA de checkout e um de setup-node");
+  for (const sha of noWorkflow) assert.ok(d10.includes(sha), "SHA do workflow ausente do registro de verificação: " + sha);
+  for (const trecho of [/13\.15/, /desenho B/i, /workflow antigo/i, /Prevent self-review|Prevent self-review/, /apenas a `main`|só a `main`|só `main`/i]) assert.match(d10, trecho);
+});

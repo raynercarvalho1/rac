@@ -938,3 +938,25 @@ Família e da Casa.
 1. Apresentar ao dono a próxima autorização: preparar os Environments e executar a primeira validação OIDC real, **sem credenciais Apple**.
 2. Depois do primeiro run, confirmar `sub`, `runner_environment`, JWKS real, CPU real e o comportamento da publicação do pacote aprovado.
 3. Só então, com autorização específica, a P1; antes de P3 a P5, decidir o uso único do token e reavaliar a política do JWKS.
+
+## 13/11/2026 · RAC Inbox — I0: revisão final de segurança do OIDC e preparação do próximo gate
+
+### 1. O que fizemos
+
+- Consultado o CI: a execução 43519117496 terminou com **sucesso** e corresponde exatamente ao commit `bddd3c2`.
+- Conferidos os SHAs das actions por fonte independente (direto nos repositórios oficiais, por `git ls-remote` e `git fetch`): `actions/checkout` v4.4.0 (`11d5960…`) e `actions/setup-node` v4.4.0 (`49933ea…`) batem com o workflow. A pendência de conferência dos SHAs está resolvida.
+- Analisado o risco residual do workflow privilegiado armazenado na branch controlada: uma alteração do arquivo na branch derruba **todos** os controles (passos arbitrários, uso do Environment, publicação de outro pacote, contorno do hash). Aprovação de Environment e restrição à branch da POC **não** resolvem; o que fecha é um workflow privilegiado na `main` com Environments restritos à `main` (desenho B). Impactos e alternativas na seção 13.15 do Documento 10; **nada foi implementado**, a decisão é do dono.
+- Revisado o workflow antigo `icloud-probe-deploy.yml`: usa `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` em três passos, com `npx` sem lockfile e a configuração da ref; ainda é caminho de exposição pela cópia da branch. Recomendada a desativação; não alterado.
+- Lista objetiva da configuração manual do GitHub, classificada em requisito, recomendação e opcional. Corrigida a tabela da seção 13.14, que recomendava restringir os Environments à branch da POC.
+- **Nada foi executado:** sem deploy, sem run do workflow OIDC, sem criar ou alterar Environments, sem ler ou criar secrets, sem acesso à Apple, ao IMAP ou ao SMTP, sem alterar a `main` ou o workflow antigo.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão do dono entre o desenho B (recomendado) e o C, a desativação do workflow antigo e a configuração dos Environments. PR #17 em Draft e sem merge.
+- **Não comprovado:** o primeiro deploy real com o desenho novo, o formato real das claims e do JWKS, o CPU real, o comportamento das aprovações de Environment e qualquer operação com a Apple. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Dono decide B ou C; se B, tarefa de implementação com PR dedicada do workflow para a `main` (merge do dono).
+2. Dono configura os Environments (aprovador obrigatório, só `main`, `icloud-auth-poc` sem secrets), desativa o workflow antigo e emite o token Cloudflare de permissão mínima.
+3. Só então, com autorização, a primeira validação OIDC real, sem credencial Apple; a P1 e qualquer operação real continuam bloqueadas.

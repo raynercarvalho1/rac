@@ -226,46 +226,72 @@ function resumirFit(msgs: Record<number, Record<number, unknown>[]>) {
 
 /* ---------- sincronização (usada pelo site e pela rotina diária) ---------- */
 type Sb = ReturnType<typeof createClient>;
-/* atividades em páginas de 100, da mais nova para a mais antiga; para quando acha uma página toda conhecida */
-/* antes desta data o relógio era de outra pessoa: não entra, e o que tiver ficado no banco sai */
-const GARMIN_DESDE = "2025-11-01";
+/* DS-4.2: NENHUM corte por data e NENHUMA exclusão. A função guarda tudo o que a Garmin devolve e nunca apaga linhas do relógio
+   (garmin_dia e garmin_ativ). De quem é cada registro (marco de propriedade, 01/01/2026, pela data do evento) é decidido só na leitura
+   (NUCLEO.sauClassificar, no site); o legado continua no banco e no backup.
+   Dois modos opcionais, usados na recuperação do histórico e sempre pedidos pelo dono pelo site:
+     somenteNovos: true  só insere o que ainda não existe (ignora duplicados); NUNCA sobrescreve uma linha que já está no banco
+     apenasContar: true  não grava nada: só conta, por mês, o que a Garmin devolve e quanto já está no banco */
+type PorMes = Record<string, { garmin: number; novos: number }>;
+const mesDe = (s: unknown) => String(s).slice(0, 7);
+const contaMes = (m: PorMes, k: string, novo: boolean) => { const o = (m[k] ||= { garmin: 0, novos: 0 }); o.garmin++; if (novo) o.novos++; };
+/* atividades em páginas de 100, da mais nova para a mais antiga; para quando acha uma página toda conhecida (a menos que "completo") */
 async function sincAtiv(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>) {
   let inicio = Number(corpo.inicio ?? 0), salvas = 0, mais = false;
-  if (!inicio) { let d = sb.from("garmin_ativ").delete().lt("inicio", GARMIN_DESDE); if (uid) d = d.eq("user_id", uid); await d; }
+  const somenteNovos = corpo.somenteNovos === true, contar = corpo.apenasContar === true, porMes: PorMes = {};
   for (let i = 0; i < 6; i++) {
     const l = await garmin(tok, `/activitylist-service/activities/search/activities?start=${inicio}&limit=100`);
     if (!Array.isArray(l) || !l.length) { mais = false; break; }
     const ids = l.map((a: any) => a.activityId);
     let q = sb.from("garmin_ativ").select("id").in("id", ids); if (uid) q = q.eq("user_id", uid);
     const { data: ja } = await q;
-    const linhas = l.map((a: any) => (uid ? { user_id: uid, ...ativ(a) } : ativ(a))).filter((a: any) => a.inicio >= GARMIN_DESDE);
-    if (linhas.length) { const { error } = await sb.from("garmin_ativ").upsert(linhas); if (error) throw error; }
-    salvas += linhas.length; inicio += l.length;
-    /* a lista vem da mais nova para a mais antiga: chegou antes do corte, para */
-    mais = l.length === 100 && linhas.length === l.length && !(corpo.completo !== true && (ja?.length ?? 0) === ids.length);
+    const conhecidos = new Set((ja ?? []).map((x: any) => Number(x.id)));
+    const todas = l.map((a: any) => (uid ? { user_id: uid, ...ativ(a) } : ativ(a)));
+    for (const a of todas) contaMes(porMes, mesDe(a.inicio), !conhecidos.has(Number(a.id)));
+    const linhas = somenteNovos ? todas.filter((a: any) => !conhecidos.has(Number(a.id))) : todas;
+    if (!contar && linhas.length) {
+      const { error } = await sb.from("garmin_ativ").upsert(linhas, somenteNovos ? { onConflict: "user_id,id", ignoreDuplicates: true } : undefined);
+      if (error) throw error;
+    }
+    salvas += contar ? 0 : linhas.length; inicio += l.length;
+    mais = l.length === 100 && !(corpo.completo !== true && conhecidos.size === ids.length);
     if (!mais) break;
   }
-  return { salvas, mais, inicio };
+  return { salvas, mais, inicio, ...(contar || somenteNovos ? { porMes } : {}) };
 }
-/* dias: continua de onde parou (refaz os 2 últimos dias, que ainda mudam); a 1ª vez volta um ano */
+/* dias: continua de onde parou (refaz os 2 últimos dias, que ainda mudam); a 1ª vez volta um ano. "desde" e "ate" limitam a janela */
 async function sincDias(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>, hoje: string, blocos = 4) {
-  let q = sb.from("garmin_dia").select("data").order("data", { ascending: false }).limit(1); if (uid) q = q.eq("user_id", uid);
-  const { data: ult } = await q;
-  let ini = (corpo.desde as string) ?? (ult?.[0]?.data ? somaDias(ult[0].data, -2) : somaDias(hoje, -364));
+  const somenteNovos = corpo.somenteNovos === true, contar = corpo.apenasContar === true, limite = (corpo.ate as string) ?? hoje, porMes: PorMes = {};
+  let ini = corpo.desde as string | undefined;
+  if (!ini) {
+    let q = sb.from("garmin_dia").select("data").order("data", { ascending: false }).limit(1); if (uid) q = q.eq("user_id", uid);
+    const { data: ult } = await q;
+    ini = ult?.[0]?.data ? somaDias(ult[0].data, -2) : somaDias(hoje, -364);
+  }
   let salvos = 0;
-  for (let i = 0; i < blocos && ini <= hoje; i++) {
-    let fim = somaDias(ini, 27); if (fim > hoje) fim = hoje;
+  for (let i = 0; i < blocos && ini <= limite; i++) {
+    let fim = somaDias(ini, 27); if (fim > limite) fim = limite;
     const dias = await bloco(tok, ini, fim);
     if (fim === hoje) {
       const f = await garmin(tok, `/fitnessage-service/fitnessage/v2/${hoje}`).catch(() => null);
       if (f?.fitnessAge) (dias[hoje] = dias[hoje] || {}).idadeFitness = limpa({ fitness: n(f.fitnessAge), real: n(f.chronologicalAge), possivel: n(f.achievableFitnessAge) });
     }
-    const linhas = Object.entries(dias).filter(([, d]) => Object.keys(d).length)
+    let linhas = Object.entries(dias).filter(([, d]) => Object.keys(d).length)
       .map(([data, dados]) => ({ ...(uid ? { user_id: uid } : {}), data, dados, atualizado: new Date().toISOString() }));
-    if (linhas.length) { const { error } = await sb.from("garmin_dia").upsert(linhas); if (error) throw error; }
-    salvos += linhas.length; ini = somaDias(fim, 1);
+    if (somenteNovos || contar) {
+      let e = sb.from("garmin_dia").select("data").gte("data", ini).lte("data", fim); if (uid) e = e.eq("user_id", uid);
+      const { data: ex } = await e;
+      const existentes = new Set((ex ?? []).map((x: any) => x.data));
+      for (const l of linhas) contaMes(porMes, mesDe(l.data), !existentes.has(l.data));
+      if (somenteNovos) linhas = linhas.filter((l) => !existentes.has(l.data));
+    }
+    if (!contar && linhas.length) {
+      const { error } = await sb.from("garmin_dia").upsert(linhas, somenteNovos ? { onConflict: "user_id,data", ignoreDuplicates: true } : undefined);
+      if (error) throw error;
+    }
+    salvos += contar ? 0 : linhas.length; ini = somaDias(fim, 1);
   }
-  return { salvos, mais: ini <= hoje, desde: ini };
+  return { salvos, mais: ini <= limite, desde: ini, ...(contar || somenteNovos ? { porMes } : {}) };
 }
 
 /* ---------- notificações push (Web Push: VAPID + aes128gcm, RFC 8291/8292), só com WebCrypto ---------- */

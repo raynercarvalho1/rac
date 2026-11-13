@@ -279,8 +279,8 @@
   /* ---------- 3. saúde e atividades ---------- */
   function pnSaude(D){
     var L=[];if(!D.saude.ok)return [h("div",{class:"panel"},pnVazio("Não consegui ler os dados do relógio agora ("+D.saude.erro+")."))];
-    var at=D.saude.v.ativs.filter(function(a){return a.inicio.slice(0,10)>=D.ini}),dias=D.saude.v.dias,B=pnBaldes(D.meses),ini=D.ini<GARMIN_DESDE?GARMIN_DESDE:D.ini;
-    if(!at.length&&!dias.some(function(d){return d.data>=D.ini}))return [h("div",{class:"panel"},pnVazio("Nenhum dado do relógio Garmin no período."),pnFonte("relógio Garmin (desde "+dataBR(GARMIN_DESDE)+")",ini,D.hoje))];
+    var at=D.saude.v.ativs.filter(function(a){return a.inicio.slice(0,10)>=D.ini}),dias=D.saude.v.dias,B=pnBaldes(D.meses),ini=D.ini<NUCLEO.SAU_MARCO.data?NUCLEO.SAU_MARCO.data:D.ini;
+    if(!at.length&&!dias.some(function(d){return d.data>=D.ini}))return [h("div",{class:"panel"},pnVazio("Nenhum dado do relógio Garmin no período."),pnFonte("relógio Garmin (desde "+dataBR(NUCLEO.SAU_MARCO.data)+")",ini,D.hoje))];
     var c=NUCLEO.pnConsistencia(at.map(function(a){return a.inicio}),ini,D.hoje);
     var pc=panel("Frequência e consistência","Semana = de segunda a domingo. A semana atual sem treino ainda não quebra a sequência.");
     pc.appendChild(h("div",{class:"kgasto"},pnKpi("Treinos",String(c.treinos),c.diasAtivos+" dias com treino"),pnKpi("Por semana",fmtN(Math.round(c.porSemana*10)/10),"média do período"),

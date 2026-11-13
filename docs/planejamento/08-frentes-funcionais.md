@@ -164,6 +164,8 @@ Base técnica no [Documento 05](05-integracoes-e-automacoes.md#garmin-o-que-exis
 | G4 | Investigar, só leitura, os dados extras da API pessoal | Precisa de autorização |
 | G5 | Trajetos e lugares (L2, L3) com ativação voluntária e zonas de privacidade | Precisa de autorização |
 
+**Atualização (13/11/2026, DS-4.2A):** a auditoria da Saúde e do Garmin ([Documento 09](09-auditoria-saude-garmin.md)) confirmou no código o que é coletado e o que não é, e reorganizou G1–G5 em fases S0–S8 (conferência de cobertura, fundação, abas Visão geral/Recuperação/Sono, Atividades, Condicionamento, Tendências, integração, mapas, IA). G1 a G3 seguem sem tocar na `garmin`; o que depende dela (sub-escores do sono, séries de musculação, `idadeFitness` diário, dados extras e trajetos) continua em G4 e G5, com autorização expressa. Nada foi implementado.
+
 ## Notícias e Acontecimentos
 
 **Hoje** [Fato]: o robô da Newsletter (`scripts/atualizar_newsletter.py`) já junta matérias diferentes sobre o mesmo fato **dentro

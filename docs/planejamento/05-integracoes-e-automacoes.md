@@ -192,7 +192,8 @@ Pela API pessoal da Garmin (`https://personal.connectapi.garmin.com`, chave pess
 | Detalhe do treino (`activity-service`) | resumo completo | **não guardado**: lido na hora em que o treino é aberto |
 | Arquivo original do treino (`.FIT`, `download-service`) | série (FC, velocidade, altitude, cadência, temperatura, até 600 pontos), **rota GPS (latitude e longitude com 6 casas, até 1.500 pontos)**, voltas, séries de musculação | **não guardado**: lido na hora e mantido só na memória da página (`TREINO_DET` em `js/saude.js`) |
 
-Limites conhecidos [Fato]: só dados a partir de 01/11/2025 (`GARMIN_DESDE`; antes o relógio era de outra pessoa); a primeira
+Limites conhecidos [Fato]: **marco de propriedade em 01/01/2026, inclusive** (DS-4.2; o relógio foi comprado usado): o que tem data anterior é `legado`, preservado no banco e no
+backup e fora de toda análise (`NUCLEO.sauClassificar`); a função `garmin` não corta por data nem apaga nada (o corte antigo de 01/11/2025 e as exclusões foram removidos); a primeira
 sincronização volta um ano; a rotina refaz os 2 últimos dias (que ainda mudam); o botão ↻ nunca chama o relógio.
 
 O que o site faz com isso [Fato]: prontidão (VFC, FC de repouso, sono e Body Battery contra a mediana de 60 dias), tendências,

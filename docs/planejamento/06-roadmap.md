@@ -165,6 +165,29 @@ Descrição da página, regras preservadas e testes: [`docs/agenda.md`](../agend
 
 **Próximo módulo da DS-4: Saúde** (não iniciado; só começa depois do pedido do dono).
 
+## 3.5 Andamento da DS-4.2 · Saúde (13/11/2026)
+
+**DS-4.1 (Agenda):** mesclada na `main` (PR #10, `81c9999`; informado pelo dono e conferido no `origin/main`). A DS-4.2 parte dela.
+
+**DS-4.2A · Auditoria da Saúde e do potencial de Inteligência Garmin: concluída como relatório** (só leitura; nenhum código funcional, SQL, função, secret ou cron alterado).
+Relatório completo: [Documento 09](09-auditoria-saude-garmin.md). **A DS-4.2B (implementação) não começou: depende da aprovação do dono.**
+
+| Item | Situação | O que falta |
+|---|---|---|
+| Auditoria da arquitetura da Saúde, da integração Garmin, do inventário de métricas e do potencial de inteligência | **Feita** (Documento 09). Limite: sem consulta ao banco real nem à Garmin | Dono rodar a conferência de cobertura (seção 3.4 do Documento 09) |
+| Escopo de implementação proposto: S0 conferência · S1 fundação · S2 Visão geral, Recuperação e Sono · S3 Atividades · S4 Condicionamento · S5 Tendências e Inteligência (regras) | **Proposto**, não aprovado | Decisões D-S1 a D-S12 do dono (Documento 09, seção 13) |
+| S6 integração (sub-escores do sono, `idadeFitness` diário, séries de musculação, dados extras) · S7 mapas e trajetos · S8 IA da Saúde | **Proposto**, depende de autorização expressa | D-08, privacidade e IA paga (por chamada) |
+
+**Atualização (13/11/2026): execução da DS-4.2 pelo marco de propriedade** (autorização geral do dono; seções 16 e 17 do [Documento 09](09-auditoria-saude-garmin.md)).
+
+| Item | Situação | O que falta |
+|---|---|---|
+| M1 · Marco 01/01/2026 e `NUCLEO.sauClassificar` | **Feito e testado** | — |
+| M2 · Nove pontos e leitores (Saúde, Painel, Resumo, RAC Hoje, Sistema, Carreira); fim da exclusão ao abrir a Saúde | **Feito e testado** (Node e Chromium) | Merge e publicação do site |
+| M3 · Função `garmin` sem corte e sem exclusão; modos `somenteNovos` e `apenasContar` | **Código feito e testado** | **Dono publica a função** (sem credenciais aqui) |
+| M4 · Recuperação do histórico | **Ferramenta feita** (painel na Saúde, com trava contra a função antiga) | Executar depois da função publicada; contagens reais |
+| S2 a S5 (Saúde redesenhada no Design System, sinais, abas) | **Não iniciados**: fora do escopo da seção 16 | Aprovação do dono |
+
 ## 4. Como cada fase é entregue
 
 - Um **lote funcional** por vez: planejar, implementar, rodar o teste do módulo, rodar a suíte inteira, relatório objetivo.

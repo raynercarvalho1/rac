@@ -7,7 +7,7 @@
   var RS_DET={treinos:"Treinos",esporte:"Esportes",distancia:"Distâncias",passos:"Passos",sono:"Sono",vfc:"Coração",mercado:"Gastos no mercado",mercados:"Mercados e produtos",olivia:"Olivia",mba:"Aulas do MBA",civic:"Civic",moto:"Moto"};
   function renderResumo(per,det){
     var root=$("#resumo-view");root.innerHTML="";RESUMO.per=per||RESUMO.per;if(det&&!RS_DET[det])det=null;
-    var hoje=hojeISO(),ano=+hoje.slice(0,4),anos=[];for(var a=ano;a>=+GARMIN_DESDE.slice(0,4);a--)anos.push(String(a));
+    var hoje=hojeISO(),ano=+hoje.slice(0,4),anos=[];for(var a=ano;a>=+NUCLEO.SAU_MARCO.data.slice(0,4);a--)anos.push(String(a));
     var p=panel(det?"Resumo · "+(FAM[det]&&FAM[det].n||RS_DET[det]):"Resumo",det?"Os números do cartão em detalhe. Troque o período aqui em cima.":"A semana e o ano em números: treinos, sono, passos, mercado, carros, Olivia e MBA. Toque num cartão para ver os detalhes."),seg=h("div",{class:"seg famseg",role:"group","aria-label":"Período"});
     [["semana","Últimos 7 dias"],["mes","Este mês"]].concat(anos.map(function(a){return [a,a===String(ano)?"Retrospectiva "+a:a]})).forEach(function(o){
       var b=h("button",{type:"button","aria-pressed":String(RESUMO.per===o[0]),text:o[1]});b.onclick=function(){location.hash="#resumo/"+o[0]+(det?"/"+det:"")};seg.appendChild(b)});

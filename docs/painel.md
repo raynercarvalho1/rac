@@ -24,7 +24,7 @@ Feita em 31/10/2026. Só para o dono (dados pessoais). Não há SQL novo, Edge F
 | Gastos dos registros | `registros.dados.custo` (veículos, Eddie, Olivia, documentos) | gastos por mês e por fonte, categorias |
 | MBA (financeiro) | `PESSOAL.mba.financeiro` + `mbaFeito["pg:…"]` (parcelas pagas, no mês do vencimento) | gastos |
 | Orçamentos | tabela `orcamentos` (categoria, valor mensal) | orçamento × gasto |
-| Relógio Garmin | `garmin_ativ` e `garmin_dia` (desde 01/11/2025), pelo `saudeCarregar()` da Saúde | treinos, consistência, métricas |
+| Relógio Garmin | `garmin_ativ` e `garmin_dia` (só o que é seu: de 01/01/2026 em diante, `NUCLEO.sauClassificar`), pelo `saudeCarregar()` da Saúde | treinos, consistência, métricas |
 | MBA (estudos) | `PESSOAL.mba` (disciplinas, roteiro, exercícios, aulas, avaliações) + `mbaFeito` (data de cada marcação) | MBA, evolução do aprendizado, competências |
 | Estudos | trilhas (`TRILHAS`) + `PESSOAL.exercicios` (data de conclusão) | evolução do aprendizado, competências |
 | SQL | `PESSOAL.sqlFeitos` (data de cada exercício) | evolução do aprendizado, competência SQL |
@@ -54,4 +54,4 @@ gastos dos registros, porque o preço já está no Mercado.
 - A data de um estudo ou de uma parcela é a do **clique** em "feito" (o site guarda essa data); o que foi marcado antes do site guardar a data não tem mês.
 - Orçamento só para categorias do Mercado (é o que a tabela `orcamentos` guarda).
 - Gastos fora do site (cartão, contas da casa) não existem em nenhuma tabela, então não aparecem.
-- Saúde só desde 01/11/2025 (antes o relógio era de outra pessoa); o diário de humor fica na Saúde.
+- Saúde só desde 01/01/2026, inclusive (marco de propriedade: o relógio foi comprado usado; o que veio antes é legado, fica no banco e no backup e não entra em nenhuma conta; ver `docs/planejamento/09-auditoria-saude-garmin.md`, seção 16); o diário de humor fica na Saúde.

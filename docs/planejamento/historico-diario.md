@@ -357,3 +357,93 @@ Família e da Casa.
 
 1. Dono: abrir a Agenda no iPhone (claro e escuro), dizer o que ajustar e, se aprovar, mesclar o PR (a publicação é o GitHub Pages).
 2. Depois: **Saúde** (próxima área da DS-4; não iniciada), um módulo por vez; migrar o Início só com a decisão D-12; baixar a catraca de cores quando o CSS antigo sair de uso.
+
+## 13/11/2026 · DS-4.2A — Auditoria da Saúde e do potencial de Inteligência Garmin
+
+### 1. O que fizemos
+
+- **Conferência de partida**: a DS-4.1 (Agenda) está na `main` (PR #10, `81c9999`); a árvore da branch da sessão é idêntica à do `origin/main` (`git diff` vazio), então nada foi refeito.
+- **Auditoria somente leitura** da tela Saúde (`js/saude.js`), das regras no núcleo, da função `garmin` (`supabase/functions/garmin/index.ts`), da migration `007`, do cron da rotina, dos leitores do banco do relógio (Saúde, RAC Hoje, Painel, Resumo, Sistema, Carreira e o servidor), dos testes e dos documentos de planejamento.
+- **Relatório técnico** [`09-auditoria-saude-garmin.md`](09-auditoria-saude-garmin.md): arquitetura atual, inventário real das métricas gravadas (e do que **não** é coletado), origem e limites dos dados, classificação do potencial de inteligência (A a E), 12 análises determinísticas (S1–S12), oportunidades e limites de IA, requisitos de privacidade, proposta de navegação (hub com 8 abas), lacunas e riscos (L1–L16), roadmap S0–S8 e critérios de aceitação. Cada conclusão marcada como fato confirmado, hipótese ou oportunidade futura.
+- **Principais achados (fatos)**: 6 leitores diferentes do banco do relógio, nenhum pelo contrato de fontes; `idadeFitness` só existe no dia mais recente (sem histórico); VO₂ máx é gravado por treino e **nunca exibido**; musculação guarda só totais de séries e repetições (exercício, carga e rota só sob demanda, não guardados); sem série intradiária (FC, estresse, Body Battery); a limpeza de dados anteriores a 01/11/2025 roda dentro de uma leitura; `js/saude.js` não tem teste de tela e a tradução Garmin → banco não tem teste.
+- **Documentos atualizados**: `docs/planejamento/06-roadmap.md` (seção 3.5), `docs/planejamento/08-frentes-funcionais.md` (nota em "Garmin avançado"), `docs/mapa.md` (linha da Saúde e andamento da DS-4.2). Histórico: só este registro foi acrescentado.
+- **Validação (leitura apenas)**: `node --test tests/planejamento.test.mjs` e `git diff --check`; resultado no relatório final da sessão. **Nenhum arquivo funcional (JS, CSS, HTML, `sw.js`, SQL, funções, workflows, `.claude/settings.json`) foi alterado.**
+- **Não feito (por regra desta etapa)**: nenhuma consulta ao banco de produção ou à Garmin, nenhuma sincronização, nenhum SQL, nenhuma chamada de IA, nenhuma chamada externa nova, nenhum commit, push, PR ou merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão do dono sobre o Documento 09. **A DS-4.2B (implementação) não começou.** Alterações desta etapa estão só na árvore local (não commitadas).
+- Limitação principal: sem acesso a dados reais, a presença de cada campo nas linhas do banco é **hipótese**; a conferência de leitura da seção 3.4 do Documento 09 fecha essa lacuna.
+
+### 3. O que vamos fazer
+
+1. Dono: ler o Documento 09, decidir D-S1 a D-S12 (seção 13) e, se quiser, rodar a conferência de cobertura (SQL só de leitura).
+2. Com o escopo aprovado e a autorização de commit/push dada no chat: S1 (fundação: regras no núcleo, fonte "saude", testes de tela), depois S2 (Visão geral, Recuperação e Sono no Design System), um lote por vez.
+3. Mudanças na função `garmin`, SQL, mapas/trajetos e IA da Saúde só com autorização expressa e na ordem SQL → função → site.
+
+## 13/11/2026 · DS-4.2A (complemento) — Marco temporal de propriedade do Garmin
+
+### 1. O que fizemos
+
+- **Investigação somente leitura** para substituir o corte provisório por um marco de propriedade (primeiro login/configuração do relógio comprado usado). Resultado registrado na seção 15 do [Documento 09](09-auditoria-saude-garmin.md); as seções anteriores ficaram intactas.
+- **Conclusão: não há evidência confiável da data do primeiro login no repositório.** A única data é a constante `GARMIN_DESDE = 2025-11-01` (dia 1º de um mês, sem registro de origem). O clone Git é raso e só tem commits de 09/11/2026 em diante, então não dá para datar a constante. A função `garmin` e a migration não gravam nenhuma data de configuração do relógio. **A data não foi inventada; foi pedida ao dono.**
+- **Achado:** não existe filtro geográfico no código; o filtro é por data. Pior: o corte atual **apaga** dados anteriores (a função apaga treinos antigos a cada rotina diária e o site apaga dias e treinos antigos ao abrir a Saúde; a função também nem grava treinos anteriores ao corte). Isso contradiz a regra "preservar tudo"; para cumpri-la, a exclusão precisa sair do site e da função (função: autorização expressa).
+- **Diferenciados** os quatro eventos (primeiro login, primeira sincronização, primeira atividade, primeiro registro recebido pelo RAC); só o primeiro login serve de marco. Definida a classificação por data do registro (dias e treinos independentes), o tratamento do dia do marco ("revisar", padrão conservador), do dado tardio com data antiga e das exceções para revisão manual; proposta de estrutura auditável (registro em `pessoal`, função pura no núcleo, grupos `meus`/`legado`/`revisar`, revisões só de acréscimo).
+- **Validação (leitura apenas):** testes de planejamento e `git diff --check`; nenhum arquivo funcional, banco, função, sincronização ou interface alterado. Nada commitado.
+
+### 2. O que estamos fazendo
+
+- Aguardando as respostas M1 a M8 do dono (seção 15.9). **Nada de implementação.** A regra provisória em vigor continua a do código (corte em 01/11/2025), sem alteração.
+- Dependências: data do marco (M1) e a conta Garmin (M2) decidem a regra; qualquer mudança na função `garmin` depende de autorização expressa.
+
+### 3. O que vamos fazer
+
+1. Dono: responder M1 a M4 (no mínimo) e decidir M5 e M6; opcionalmente, rodar as consultas da 15.8.
+2. Com o marco confirmado: etapa 1 (só site e núcleo): classificar na leitura e parar de apagar no site; teste de que nada é excluído.
+3. Depois, com autorização expressa: retirar a exclusão e o filtro da função `garmin`, publicar a função antes do site e sincronizar de novo para recuperar o legado descartado.
+
+## 13/11/2026 · DS-4.2A (decisão definitiva) — Marco de propriedade do Garmin em 01/01/2026
+
+### 1. O que fizemos
+
+- **Registradas as decisões do dono** (seção 16 do [Documento 09](09-auditoria-saude-garmin.md)): marco de propriedade **01/01/2026, inclusive**; M1 primeiro login em 01/01/2026; M2 conta Garmin Connect pessoal, criada pelo dono; M3 relógio restaurado de fábrica antes do primeiro login; M4 nenhum critério geográfico, regra só temporal. Anterior ao marco = `legado`; a partir dele = `meus`; vale a **data do evento**, não a do recebimento; o dia 01/01/2026 é do dono e **não** vai para revisão; originais preservados e classificação sem apagar nem modificar nada. As atividades antigas que continuam no Garmin Connect não entram na decisão. Substitui, onde diferente, as recomendações provisórias da seção 15 (dia do marco em "revisar" e corte em 01/11/2025).
+- **Mapeados os nove pontos de `GARMIN_DESDE` em quatro arquivos** (`js/saude.js` 3, `js/painel.js` 2, `js/resumo.js` 1, função `garmin` 3) com a mudança de cada um, e os leitores que **não** usam a constante e hoje recebem tudo (RAC Hoje, Sistema, Carreira); backup e Monitor ficam sem filtro de propósito.
+- **Prioridade 1 planejada**: remover os dois descartes (exclusão ao abrir a Saúde e exclusão/filtro de gravação na função), sempre com a classificação entrando junto ou antes; a etapa do site não depende da função.
+- **Plano de recuperação** (R0 a R4): inventário por leitura, backups, medição na Garmin sem gravar, preenchimento por janelas autorizadas e relatório do que não voltou, sem presumir sucesso. Todo o descartado é anterior a 01/11/2025 e portanto legado também pelo marco novo: não há perda de dado do dono.
+- **Sequência de implementação e testes** (fases M0 a M5), com os testes de borda do marco, o teste de guarda "nunca excluir" e as autorizações exigidas.
+- **Validação (leitura apenas)**: testes de planejamento e `git diff --check`. Nenhum arquivo funcional, banco, função, sincronização, interface ou dado foi alterado. Sem commit, push ou PR.
+
+### 2. O que estamos fazendo
+
+- Aguardando a **autorização específica para implementar** (e até qual fase: M1 e M2 apenas, ou também M3 e M4). **Nada foi implementado.** O código continua com o corte de 01/11/2025 e com os dois descartes ativos até a implementação.
+- Efeito a avisar quando implementar: novembro e dezembro de 2025 passam a legado (saem das tendências, do Painel e do Resumo; continuam no banco e no backup).
+
+### 3. O que vamos fazer
+
+1. Dono: autorizar a implementação (M1 e M2, primeiro) e, se quiser, rodar o R0 (contagens por mês e lista de backups).
+2. M1 (núcleo) e M2 (site: leitura classificada, fim da exclusão, nove pontos e leitores), com testes de borda, teste de guarda e comparação da Casa.
+3. M3 (função sem exclusão nem filtro) e M4 (recuperação) só com autorização expressa e na ordem: função publicada pelo dono antes do site, quando o site depender dela.
+
+## 13/11/2026 · DS-4.2 (execução) — Marco de propriedade do Garmin: implementação, testes e o que ficou pendente
+
+### 1. O que fizemos
+
+- **Autorização geral do dono** para executar M1 a M5. Branch da sessão atualizada com a `main` por **merge** (sem reescrever histórico nem force push); as alterações locais de documentação foram preservadas e incorporadas.
+- **M1** (`nucleo.js`): `NUCLEO.SAU_MARCO` (01/01/2026, inclusivo, origem registrada) e `NUCLEO.sauClassificar` (função pura; `meus`/`legado`; a data do evento decide; devolve as mesmas linhas sem alterá-las).
+- **M2** (site): removidos os nove usos de `GARMIN_DESDE` e **a exclusão que a Saúde fazia ao abrir**; Saúde, RAC Hoje, Sistema (prontidão e busca) e Carreira passam pela classificação; Painel e Resumo usam o marco. Backup e Monitor sem filtro, de propósito. Versão do site na branch: `2026-11-13.6` (`VERSAO`, `MOD_VERSAO` e `?v=` do CSS juntas).
+- **M3** (código da função `garmin`): sem corte por data e sem `delete` das tabelas do relógio; modos opcionais `somenteNovos` (nunca sobrescreve) e `apenasContar` (não grava); janelas `desde`/`ate`.
+- **M4** (ferramenta): painel "Histórico anterior à posse" na Saúde (só o dono): conta o legado guardado, mede e recupera por janelas, com relatório por mês; **trava** que só deixa rodar se a função publicada responder no formato novo (a antiga gravaria por cima).
+- **M5**: `tests/saude_marco.test.mjs` (16 testes: bordas do marco, guarda permanente contra exclusões, a função real contra banco de mentira, trava de versão); documentos atualizados (Documento 09 seções 16 e 17, mapa, roadmap, `docs/painel.md`, Documento 05).
+- **Verificação em Chromium real** (390 e 1280 px, claro e escuro, dados inventados): só dados de 01/01/2026 em diante nas análises, 01/01 incluído; nenhuma gravação nem exclusão ao abrir; medição sem gravar; recuperação só com `somenteNovos`; sem erro de console nem rolagem horizontal. Bug achado e corrigido: o relatório sumia ao redesenhar.
+- **Sem migration, sem SQL, sem mudança de cron, workflow, secret, `rac-ia` ou outras integrações.**
+- **Git**: commit `7972a64` na branch `claude/agenda-modernizacao-ds4-xuijw0`, push e **PR #11** para a `main` (merge só depois do CI verde; o resultado fica no próprio PR).
+
+### 2. O que estamos fazendo
+
+- **Bloqueios reais deste ambiente** (não contornados): sem credencial do Supabase e com CLI/`psql`/API de gerenciamento negados pelo `.claude/settings.json`, **a função `garmin` não foi publicada**; a rede não alcança a Garmin, então **a medição e a recuperação não foram executadas** e **não há contagens reais** de registros preservados e recuperados; o site publicado não é acessível daqui, então a versão em produção **não foi aberta e conferida**.
+- Até o dono publicar a função, a versão antiga continua apagando treinos anteriores a 01/11/2025 a cada rotina (legado, sem efeito nas análises).
+
+### 3. O que vamos fazer
+
+1. Dono: publicar a função (Edge Functions → garmin → Code → Deploy), exportar um backup, abrir Saúde → "Histórico anterior à posse", **medir**, **recuperar** e **medir de novo** (seção 17.4 do Documento 09); então registrar aqui as contagens reais.
+2. Depois, se o dono quiser: redesenho da Saúde no Design System e os sinais (S2 a S5 da seção 11), que **não** fazem parte desta entrega.

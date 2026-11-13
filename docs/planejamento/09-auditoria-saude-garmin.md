@@ -765,3 +765,61 @@ Se a Garmin não devolver determinado período, **a limitação é um resultado 
 | M3 Função | Código **implementado e testado**; **publicação pendente do dono** (17.4, passo 2) |
 | M4 Recuperação | Ferramenta **implementada e testada** contra a função de mentira; **execução pendente** (depende da função publicada e da Garmin) |
 | M5 Documentação | Concluída com esta seção |
+
+
+## 18. Encerramento e confirmação de produção — 13/11/2026
+
+Esta seção atualiza o estado operacional que constava na seção 17. Os itens 17.3–17.6 registram corretamente o que era conhecido antes da publicação; os fatos abaixo são a conferência posterior em produção.
+
+### 18.1 Publicação confirmada
+
+- **PR #11:** mergeado na `main` pelo commit `b893d34bc74b10083328cb2a3caee4270e93f88f`.
+- **CI da `main`:** execução `43438657518`, concluída com sucesso.
+- **GitHub Pages:** execução `43438657212`, concluída com sucesso. Versão no `sw.js`: `2026-11-13.6`.
+- **Edge Function `garmin`:** publicada diretamente no projeto Supabase RAC, versão **13**, status `ACTIVE`, `verify_jwt: false` preservado. O deploy incluiu `index.ts` e a dependência `alertas_preco.ts`.
+- O entrypoint publicado não contém `GARMIN_DESDE` nem exclusão das tabelas `garmin_dia` e `garmin_ativ`; os modos `apenasContar` e `somenteNovos` estão disponíveis.
+- Nenhuma migration ou alteração SQL foi necessária para a DS-4.2.
+
+### 18.2 Contagens observadas no banco de produção
+
+Consultas somente leitura executadas após a publicação:
+
+| Tabela | Total | Legado (antes de 01/01/2026) | Meus (a partir de 01/01/2026) |
+|---|---:|---:|---:|
+| `garmin_dia` | 314 | 19 | 295 |
+| `garmin_ativ` | 952 | 0 | 952 |
+
+Detalhamento dos dias:
+- Novembro/2025: 5 registros, todos legados.
+- Dezembro/2025: 14 registros, todos legados.
+- Janeiro/2026: 9 registros (23 a 31/01), todos do dono.
+- Fevereiro a outubro/2026: 28, 31, 30, 31, 30, 31, 31, 30 e 31 registros, respectivamente.
+- Novembro/2026: 13 registros (01 a 13/11).
+
+Detalhamento das atividades: janeiro/2026 = 25; fevereiro = 109; março = 87; abril = 96; maio = 104; junho = 75; julho = 102; agosto = 105; setembro = 103; outubro = 105; novembro = 41. Total = 952, todas com data de evento a partir de 24/01/2026.
+
+Há dois backups no cofre privado `backups`: `2026-11-01.json` e `2026-11-08.json`. O backup de 08/11 registra `verificado: true` no log de rotina. Não foi executada nova exportação manual nesta etapa.
+
+### 18.3 Recuperação histórica: opcional e adiada
+
+- A ferramenta de medição/recuperação foi publicada com o site e a função nova. A medição não grava; a recuperação usa `somenteNovos`, preservando linhas existentes.
+- A recuperação do período anterior a 01/11/2025 **não foi executada**. A rotina Garmin teve respostas HTTP 504 ao solicitar o token em 12 e 13/11/2026; não foi possível confirmar a disponibilidade da API para o backfill.
+- O dono decidiu não gastar tempo com a medição ou recuperação agora e pediu que o assunto fosse considerado encerrado, podendo retornar caso sinta falta de algum registro.
+- Portanto, R0–R4 ficam **opcionais e fora do caminho crítico**. Não solicitar que o dono use o relógio por um dia, faça uma atividade ou rode medições para concluir a DS-4.2.
+- Os registros anteriores a 01/01/2026 são legados pela regra de propriedade. A contagem de dados históricos que a Garmin ainda poderia devolver permanece desconhecida; isso não impede o funcionamento da classificação nem a continuidade do desenvolvimento do site.
+
+### 18.4 Estado final e continuidade
+
+| Componente | Estado |
+|---|---|
+| M0 · Decisão do marco | Concluída |
+| M1 · Núcleo e classificação | Concluída e publicada |
+| M2 · Leitores e remoção das exclusões no site | Concluída e publicada (`2026-11-13.6`) |
+| M3 · Edge Function sem corte ou exclusão | Concluída e publicada (versão 13) |
+| M4 · Ferramenta de medição/recuperação | Concluída e publicada; uso do backfill opcional |
+| M5 · Documentação e validação | Concluída |
+| R0–R4 · Backfill do legado anterior a 01/11/2025 | Opcional; adiado pelo dono; não bloqueia |
+| S2–S5 · Redesenho da Saúde e sinais | Não iniciado; possível próxima etapa da DS-4 |
+
+**Conclusão:** DS-4.2 encerrada em 13/11/2026 no escopo de proteção, classificação e publicação em produção. A recuperação de legado não é critério de aceite nem pendência do desenvolvimento atual. Qualquer retomada futura será por solicitação do dono.
+

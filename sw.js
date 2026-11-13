@@ -5,9 +5,9 @@
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-13.2";
+const VERSAO = "2026-11-13.3";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./nucleo.js", "./js/dados.js", "./mercado.js", "./js/rotas.js", "./js/app.js", "./js/graficos.js", "./js/fontes.js", "./js/fonte-familia.js", "./js/fonte-mba.js", "./js/fonte-newsletter.js", "./js/fonte-agenda.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/conexoes.js", "./js/sistema.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./icons/icon-192.png", "./icons/icon-512.png"];
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./nucleo.js", "./js/dados.js", "./mercado.js", "./js/rotas.js", "./js/app.js", "./js/graficos.js", "./js/fontes.js", "./js/fonte-familia.js", "./js/fonte-mba.js", "./js/fonte-newsletter.js", "./js/fonte-agenda.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/conexoes.js", "./js/sistema.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./js/componentes.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
 
 self.addEventListener("install", e => {

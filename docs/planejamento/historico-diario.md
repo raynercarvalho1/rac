@@ -261,3 +261,31 @@ Família e da Casa.
 2. Quando o dono autorizar: aplicar `supabase/050_seguranca_catalogo.sql` no SQL Editor, rodar `supabase/conferencias/050_conferir_producao.sql`
    (tudo `true`), tirar a marca `-- status: pendente` e conferir a Auditoria no site.
 3. Seguir para a Fase 3 (Design System base) e a Fase 4 (Família e Casa), que já nascem sobre o registro de rotas, as fontes e o catálogo.
+
+## 13/11/2026 · Fase 3 — Design System (DS-0 e DS-1)
+
+### 1. O que fizemos
+
+- **Conferência de partida**: PR #8 mesclado (`1654395`); workflow "Testes" da `main` com sucesso (run 150) e Pages publicado. A branch da sessão estava atrás da `main`
+  (sem trabalho próprio) e foi avançada por fast-forward até `1654395`.
+- **Auditoria**: o [Documento 03](03-design-system.md) já continha o diagnóstico completo; foi reaproveitado, com os números-chave reconferidos no código
+  (cores soltas fora de variáveis: 115; 29 itens de menu num grupo só). Não foi repetida.
+- **DS-0**: tokens `--rac-*` em `index.html` (marca, estados, superfícies, espaço, raio, sombra, movimento, camadas, alvo de 44 px, tipografia), apontando para os tokens atuais.
+- **DS-1**: classes `rac-*` (cartão, botão, chip, selo, estado, esqueleto, campo, lista, tabela, tipografia); página interna `#componentes` (só dono, sem menu, `js/componentes.js`); módulo no cache offline (`sw.js`).
+- **Testes**: novo `tests/design_system.test.mjs` (8 testes); `tests/rotas.test.mjs` ajustado para aceitar a única rota nova (30 → 31). Versão do site na branch: `2026-11-13.3` (`VERSAO` e `MOD_VERSAO`).
+- **Resultados reais**: suíte completa `bash scripts/nuvem_testes.sh` — Grupo 1: 1475 testes, 1473 ok, 0 falhas, 2 `todo`; Grupo 2 (PGlite): 73 ok, 0 falhas. `git diff --check` limpo.
+  Chromium (Playwright): 4 capturas (390 e 1280 px × claro e escuro), sem rolagem lateral, menor alvo de toque 44 px, nenhum erro de console.
+- **Documentação**: `docs/design-system.md` (novo), `docs/mapa.md`, Documento 03 (§8), Documento 06 (§3.3), Documento 07 (atualização), este registro.
+- **Decisões**: tokens novos apontam para os atuais (nenhuma tela muda); página de componentes é rota só do dono. **Não decidido**: tema padrão (D-01), só recomendação.
+- **Fora do escopo, intocados**: Central de Compras, Central Fiscal, `garmin`, `rac-ia`, segredos, cron, workflows, `.claude/settings.json`, SQL. Nenhuma IA paga, nenhuma publicação.
+
+### 2. O que estamos fazendo
+
+- Trabalho na branch `claude/rac-fase-3-design-system-0msm91`; commit, push e PR conforme autorizado no pedido da fase (ver o PR para os hashes). **Merge: não feito (é do dono).** Site em produção segue sem a Fase 3.
+- Limitações: a verificação visual foi no Chromium da nuvem, não no iPhone; o `tests/navegador.test.mjs` roda de fato no GitHub (CI).
+
+### 3. O que vamos fazer
+
+1. Dono: revisar o PR, abrir `#componentes` no celular nos dois temas e, se aprovar, mesclar (a publicação é o GitHub Pages).
+2. Decidir D-01 (tema padrão) com a recomendação de `docs/design-system.md`.
+3. DS-2 e DS-3: tema escuro como opção, menu agrupado e piloto no RAC Hoje e no Monitor; baixar a catraca (`LINHA_DE_BASE_CORES`). DS-5 (casa) só com autorização expressa.

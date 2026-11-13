@@ -268,3 +268,15 @@ No computador, os mesmos cartões em grade de 2 ou 3 colunas, com o menu agrupad
 Proteções: o CSS novo fica escopado nas classes `rac-` (o antigo continua funcionando até ser removido); capturas de tela
 automáticas (Playwright, que o CI já instala) em 390 px e 1280 px nos dois temas para cada página migrada; a regra dos gráficos
 (`racDica`) vale para tudo; nenhuma biblioteca nova.
+
+## 8. Situação de implementação (atualização de 13/11/2026, Fase 3)
+
+As seções 1 a 7 acima continuam sendo o diagnóstico e o plano; este registro só acrescenta o estado. **DS-0 e DS-1 estão implementados na branch da Fase 3
+(`claude/rac-fase-3-design-system-0msm91`), aguardando revisão e merge do dono**; nada foi publicado. O guia de uso é [`docs/design-system.md`](../design-system.md).
+
+- **Diferença em relação à seção 3**: onde existia token atual, o `--rac-*` **aponta para ele** (e não o contrário, como a seção 3 previa). O efeito é o mesmo (uma fonte só) e garante
+  que nenhuma tela existente muda; os valores literais ficam só nos tokens novos (marca, preenchimentos de estado, escalas) e em `--rac-info`/`--rac-linha-campo`, que variam por tema.
+- **Linha de base da catraca**: 115 cores escritas fora de variáveis (a conta de 196 do diagnóstico inclui as linhas de tokens). Só pode descer.
+- **Breakpoints**: ficam como convenção (480/860/1180 px), pois CSS não aceita variável em `@media`.
+- **Não feito ainda**: DS-2 (tema e menu agrupado), DS-3 (piloto RAC Hoje e Monitor), DS-4, DS-5; cores de área; `<symbol>` de ícones; barra inferior no celular.
+- **Tema padrão (D-01)**: continua em aberto; análise e recomendação em [`docs/design-system.md`](../design-system.md#decisão-pendente-tema-padrão-d-01--recomendação-não-decisão).

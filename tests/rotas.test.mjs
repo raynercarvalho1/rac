@@ -11,12 +11,16 @@ const R = registro(), ANTES_JS = lerArq("tests/fixtures/fase2/rotas-antes.js"), 
 const app = lerArq("js/app.js"), html = lerArq("index.html");
 const antes = (() => { const c = {}; vm.createContext(c); vm.runInContext(ANTES_JS.replace(/function route\(\)\{[\s\S]*$/, ""), c); return JSON.parse(JSON.stringify({ tabs: c.tabs, DA_CASA: c.DA_CASA, ROTA_MODS: c.ROTA_MODS })); })();
 const ordenado = (l) => [...l].sort();
+/* Fase 3 · DS-1: a ÚNICA rota nova desde a cópia de antes é a página interna "componentes" (só do dono, sem item no menu); o resto tem de ser igual */
+const NOVAS = ["componentes"], semNovas = (l) => l.filter((x) => !NOVAS.includes(x));
 
 test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (antes × depois)", () => {
-  assert.equal(R.tabs.length, 30); assert.deepEqual(ordenado(R.tabs), ordenado(antes.tabs), "todas as rotas de antes, nenhuma a mais");
+  assert.equal(R.tabs.length, 31); assert.deepEqual(ordenado(semNovas(R.tabs)), ordenado(antes.tabs), "todas as rotas de antes, só a página de componentes a mais");
+  assert.ok(R.tabs.includes("componentes") && !R.DA_CASA.includes("componentes"), "a página de componentes existe e a casa não a vê");
   assert.deepEqual(ordenado(R.DA_CASA), ordenado(antes.DA_CASA), "a Fernanda vê exatamente as mesmas páginas");
   assert.deepEqual(ordenado(R.DA_CASA), ["alimentacao", "compras", "documentos", "eddie", "fiscal", "lista", "mercado", "olivia", "rede", "seguranca", "veiculos"]);
-  assert.deepEqual(R.ROTA_MODS, antes.ROTA_MODS, "cada rota carrega os mesmos módulos sob demanda");
+  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, ...modsSemNova } = R.ROTA_MODS;
+  assert.deepEqual(modsSemNova, antes.ROTA_MODS, "cada rota carrega os mesmos módulos sob demanda");
   for (const r of R.rotas) assert.ok(!r.mods || r.mods.every((m) => lerArq("js/" + m + ".js")), r.id);
   for (const id of R.tabs) assert.match(html, new RegExp(`<section id="${id}" hidden>`), id + " tem a sua <section>");
   assert.ok(!/var tabs=|var DA_CASA=|var ROTA_MODS=|var sports=/.test(app), "as listas não são mais mantidas à mão em js/app.js");
@@ -36,7 +40,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.match(html, /<nav class="grp" id="navgrp" aria-label="Seções">\n      <h4>Painel<\/h4>/, "o título do grupo continua");
   assert.ok(!/<a class="it" href="#inicio"/.test(html), "o menu não é mais HTML fixo");
   assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "um grupo só, como antes (o menu agrupado é a DS-2, depois)");
-  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id), ["busca"], "a Busca não tem item no menu, como antes");
+  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["busca", "componentes"], "só a Busca (como antes) e a página de componentes (Fase 3) ficam sem item no menu");
   const idx = ["js/dados.js", "mercado.js", "js/rotas.js", "js/app.js"].map((s) => html.indexOf(`<script src="${s}"></script>`));
   assert.ok(idx.every((x, i) => x > 0 && (!i || x > idx[i - 1])), "o registro carrega antes do app (a busca lateral lê o menu ao abrir)");
   assert.match(lerArq("sw.js"), /"\.\/js\/rotas\.js"/);
@@ -65,6 +69,7 @@ function rodar(codigo, { papel, hash, carregados }) {
 function juntarSecoes(log) {
   const out = []; let bloco = null;
   for (const x of log) {
+    if (x[0] === "set" && x[1] === "#componentes") continue;   // a seção nova (Fase 3) não existia na cópia de antes
     if (x[0] === "set" && x[2] === "hidden" && /^#[a-z-]+$/.test(x[1]) && !/^#(sp-|homebtn|voltarbtn)/.test(x[1])) { if (!bloco) { bloco = []; out.push(["seções", bloco]); } bloco.push(x[1] + "=" + x[3]); continue; }
     if (bloco) bloco.sort(); bloco = null; out.push(x);
   }
@@ -78,7 +83,7 @@ const HASHES = ["", "#", "#inexistente", "#captura", "#x/jornalistas", "#x/nada"
   "#resumo/2026/treinos", "#seguranca/restaurar", "#veiculos/civic", "#lista/x", "#alimentacao/a/b", "#painel/x", "#documentos/x", "#sistema", "#rachoje", "#iacustos", "#agenda"];
 
 test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas, para o dono e para a casa, com e sem os módulos carregados", () => {
-  const casos = [...new Set([...HASHES, ...R.tabs.map((t) => "#" + t)])];
+  const casos = [...new Set([...HASHES, ...semNovas(R.tabs).map((t) => "#" + t)])];
   let n = 0;
   for (const papel of ["dono", "casa"]) for (const carregados of [true, false]) for (const hash of casos) {
     const a = rodar(ANTES_JS, { papel, hash, carregados }), d = rodar(NOVO, { papel, hash, carregados });

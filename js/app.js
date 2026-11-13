@@ -22,7 +22,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-13.2",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-13.3",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.

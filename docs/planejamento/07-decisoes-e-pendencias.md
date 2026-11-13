@@ -146,3 +146,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 | Raspagem de LinkedIn, de aplicativos do condomínio ou de sites sem permissão | Regras do `CLAUDE.md` e termos de cada fonte |
 | Guardar códigos de acesso, senhas ou credenciais do condomínio | Risco de segurança sem benefício que justifique |
 | Tabelas separadas para pessoas e para animais | Uma tabela de integrantes com `tipo` evita redundância |
+
+## Atualização de 13/11/2026 · Fase 3 (Design System)
+
+- **D-01 (tema padrão)**: continua **em aberto**. Análise de três opções e recomendação (escuro Dodger como opção primeiro; virar padrão do dono só depois do piloto DS-3 no iPhone; a casa não muda) em
+  [`docs/design-system.md`](../design-system.md#decisão-pendente-tema-padrão-d-01--recomendação-não-decisão). Nenhuma decisão foi tomada pelo Claude.
+- **Decisão técnica tomada na implementação (reversível)**: tokens `--rac-*` apontam para os atuais, sem trocar valores; a página `#componentes` é rota só do dono, sem item no menu.
+- **Pendente, depende do dono**: aprovar a página de componentes no celular (critério da F3); autorizar DS-5 (telas da casa) quando chegar a hora.

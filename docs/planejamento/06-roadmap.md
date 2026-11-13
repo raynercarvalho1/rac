@@ -131,6 +131,22 @@ Ordem de publicação depois do merge: o site funciona com ou sem a 050 (a linha
 vir antes; a 050 é aplicada quando o dono autorizar. Detalhes e achados no [Documento 02](02-auditoria-arquitetural.md#9-plano-gradual-de-melhoria)
 e no [histórico diário](historico-diario.md).
 
+## 3.3 Andamento da Fase 3 (13/11/2026)
+
+A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em 13/11/2026). A Fase 3 é executada na branch `claude/rac-fase-3-design-system-0msm91`.
+**A Fase 3 não está concluída**: DS-0 e DS-1 estão feitos na branch, mas falta o merge (dono) e a aprovação da página de componentes no celular (critério da F3). O diagnóstico
+visual já existia ([Documento 03](03-design-system.md)) e não foi repetido; guia de uso em [`docs/design-system.md`](../design-system.md).
+
+| Item | Situação | O que falta para concluir |
+|---|---|---|
+| DS-0 · Tokens `--rac-*` e catraca de cores | **Implementado na branch**; `tests/design_system.test.mjs` (catraca em 115, tokens nos 3 temas, contraste WCAG de 19 pares) | Merge e publicação |
+| DS-1 · Componentes `rac-*` e página `#componentes` | **Implementado na branch** (só dono, sem menu; 4 capturas conferidas: 390 e 1280 px, claro e escuro; sem rolagem lateral, alvos de 44 px, sem erro de console) | Merge e publicação; o dono conferir no iPhone |
+| DS-2 · Tema e menu agrupado | **Não iniciado** | Decisão D-01 (recomendação em `docs/design-system.md`); menu agrupado muda o menu do dono |
+| DS-3 · Piloto (RAC Hoje e Sistema/Monitor) | **Não iniciado** | Aprovação do DS-1 |
+| DS-4 · Por área / DS-5 · Casa | **Não iniciados** | DS-5 só com autorização expressa do dono |
+
+Próximo passo técnico: DS-3 (migrar RAC Hoje e Monitor para `rac-*`, subindo `dsc*` para a base e baixando a catraca).
+
 ## 4. Como cada fase é entregue
 
 - Um **lote funcional** por vez: planejar, implementar, rodar o teste do módulo, rodar a suíte inteira, relatório objetivo.

@@ -714,7 +714,7 @@ Família e da Casa.
 ### 1. O que fizemos
 
 - Decisão do dono: publicar a POC iCloud pelo GitHub Actions, sem token Cloudflare na sessão de nuvem (que não alcança `api.cloudflare.com`). Detalhes em `docs/icloud-poc-deploy.md`.
-- Criados `.github/workflows/icloud-probe-deploy.yml` (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e `tests/icloud_probe_deploy.test.mjs` (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
+- Criados .github/workflows/icloud-probe-deploy.yml (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e tests/icloud_probe_deploy.test.mjs (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
 - Validação local: YAML e `bash -n` de cada passo; simulação do passo do `/probe` com servidor falso (sucesso, falha de SMTP, erro de limite de CPU). Isso **não** é prova de rede real.
 - Atualizados roadmap, decisões/pendências e mapa. Nenhum código funcional da POC foi alterado.
 
@@ -960,3 +960,21 @@ Família e da Casa.
 1. Dono decide B ou C; se B, tarefa de implementação com PR dedicada do workflow para a `main` (merge do dono).
 2. Dono configura os Environments (aprovador obrigatório, só `main`, `icloud-auth-poc` sem secrets), desativa o workflow antigo e emite o token Cloudflare de permissão mínima.
 3. Só então, com autorização, a primeira validação OIDC real, sem credencial Apple; a P1 e qualquer operação real continuam bloqueadas.
+
+## 13/11/2026 · RAC Inbox — Desenho B: política OIDC da main e Worker na branch da POC
+
+### 1. O que fizemos
+
+- Na branch da POC (PR #17): a política OIDC do Worker passou a exigir `ref` e `workflow_ref` da `main` (nenhum controle enfraquecido); as cópias do workflow privilegiado, da ferramenta (lockfile) e do workflow antigo saíram da branch e os testes foram reorganizados. Tokens da branch da POC, de branches de agente, de PRs e de tags agora são recusados (nova tabela de origens não autorizadas nos testes). Novo teste de escopo do Worker.
+- Em paralelo, a PR #20 (para a `main`) traz o workflow privilegiado só na `main`, a ferramenta, o teste com execução real dos passos sem rede e a retirada do workflow antigo. Documento 10 ganhou a seção 13.16 (critérios de aceite × testes); entradas anteriores sobre o workflow na branch ficam como registro, superadas.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado, lido ou alterado, sem acesso à Apple, ao IMAP ou ao SMTP, sem alteração de configuração do GitHub, sem merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: mesclar a PR #20, configurar os Environments (aprovador obrigatório, só `main`), neutralizar o workflow antigo até o merge e emitir o token Cloudflare mínimo. PR #17 segue em Draft.
+- **Não comprovado:** o primeiro deploy real com este desenho, o formato real das claims e do JWKS, o CPU real, o comportamento das aprovações de Environment, a autenticação na Apple e qualquer operação de e-mail. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Depois do merge da PR #20 e da configuração, atualizar a PR #17 com a `main` e, com autorização, executar o primeiro ensaio OIDC (só validação do JWT, sem credencial Apple), a partir da `main` com o commit da POC como entrada.
+2. Decidir o uso único do token e reavaliar a política do JWKS antes de qualquer operação real; P1 e seguintes só com autorização específica.

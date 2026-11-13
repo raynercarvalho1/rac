@@ -14,7 +14,7 @@ Experimento descartável da Fase I0. **Nesta etapa o Worker não fala com a Appl
 
 ## Política de confiança (fixa no código, sem segredo)
 
-Arquivo `src/politica.mjs`. Exigidas e conferidas com valor exato: `iss`, `aud` (uma por operação: `rac-inbox-icloud-poc:<operacao>`), `sub` (formato imutável do GitHub e o clássico, ambos exatos), `repository`, `repository_id`, `repository_owner`, `repository_owner_id`, `environment` (`icloud-auth-poc`), `ref` (só a branch da POC), `event_name` (`workflow_dispatch`), `workflow_ref` e `job_workflow_ref` (o workflow autorizado nessa branch), `runner_environment` (`github-hosted`), `exp`, `iat` e, se presente, `nbf`. Tolerância de relógio de 60 s e idade máxima do token de 600 s. Cabeçalhos `jku`, `x5u`, `x5c`, `jwk` e `crit` e qualquer algoritmo diferente de RS256 são recusados.
+Arquivo `src/politica.mjs`. Exigidas e conferidas com valor exato: `iss`, `aud` (uma por operação: `rac-inbox-icloud-poc:<operacao>`), `sub` (formato imutável do GitHub e o clássico, ambos exatos), `repository`, `repository_id`, `repository_owner`, `repository_owner_id`, `environment` (`icloud-auth-poc`), `ref` (só `refs/heads/main`: o workflow privilegiado existe só na `main`, Desenho B), `event_name` (`workflow_dispatch`), `workflow_ref` e `job_workflow_ref` (o workflow autorizado nessa branch), `runner_environment` (`github-hosted`), `exp`, `iat` e, se presente, `nbf`. Tolerância de relógio de 60 s e idade máxima do token de 600 s. Cabeçalhos `jku`, `x5u`, `x5c`, `jwk` e `crit` e qualquer algoritmo diferente de RS256 são recusados.
 
 ## Chaves (JWKS)
 

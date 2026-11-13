@@ -222,3 +222,11 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Workflow antigo `icloud-probe-deploy.yml`:** continua sendo caminho de exposição (usa os secrets da Cloudflare em três passos, com `npx` sem lockfile e a configuração da ref; a cópia da branch é dispatchável). Recomendação: desativá-lo agora (ação do dono). Não foi alterado nem desativado.
 - **Indício a verificar:** o Environment `cloudflare-poc` pode não exigir aprovador (a execução real começou ~20 s depois da criação).
 - **Pendente, depende do dono:** decidir B ou C; configurar os Environments (aprovador obrigatório, só `main`); desativar o workflow antigo; token Cloudflare de permissão mínima com prazo; só depois autorizar o primeiro ensaio OIDC, sem credencial Apple.
+
+## Decisão de 13/11/2026 · Desenho B implementado (política OIDC da main)
+
+- **Aprovado pelo dono e implementado (não executado):** workflow privilegiado só na `main` (PR #20), Environments só a `main`, commit da POC como dado verificado por hash; **supera** a recomendação anterior de restringir os Environments à branch da POC e o desenho com o workflow dentro da branch. Documento 10, seção 13.16.
+- **Política OIDC do Worker** (esta branch, PR #17): `ref` e `workflow_ref` da `main`; nenhum controle enfraquecido; tokens da branch da POC, de agente, de PR e de tag recusados.
+- **Workflow antigo retirado** (PR #20), inclusive a cópia desta branch; procedimento manual até o merge: *Actions → o workflow → Disable workflow*.
+- **Replay:** limitação mantida e documentada; uso único exige persistência, não implementada e dependente de autorização específica.
+- **Pendente, depende do dono:** mesclar a PR #20; Environments com aprovador obrigatório e só a `main`; neutralizar o workflow antigo até o merge; token Cloudflare mínimo com prazo; mesclar a PR #17; só então o primeiro ensaio OIDC, sem credencial Apple.

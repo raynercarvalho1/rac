@@ -26,7 +26,9 @@ export const POLITICA = Object.freeze({
     "repo:raynercarvalho1@321901681/rac@1431652822:environment:icloud-auth-poc",
     "repo:raynercarvalho1/rac:environment:icloud-auth-poc",
   ]),
-  refsPermitidos: Object.freeze(["refs/heads/poc/icloud-cloudflare-connectivity"]),
+  // Desenho B: o workflow privilegiado existe só na main e os Environments aceitam só a main. Um token de qualquer outra ref (inclusive a
+  // branch da POC, PRs e tags) é recusado, e o workflow_ref esperado é o arquivo na main.
+  refsPermitidos: Object.freeze(["refs/heads/main"]),
   eventosPermitidos: Object.freeze(["workflow_dispatch"]),
   arquivoWorkflow: ".github/workflows/icloud-auth-probe.yml",
   runnerEnvironment: "github-hosted",

@@ -93,7 +93,7 @@ test("sub no formato clássico também é aceito (exato); outros formatos não",
 
 test("cada claim fora da política é recusada com o motivo certo", async () => {
   const c = await cenario();
-  const ref2 = "refs/heads/main";
+  const ref2 = "refs/heads/poc/icloud-cloudflare-connectivity"; // a branch da POC já não é origem autorizada: o workflow privilegiado vive na main
   const tabela = [
     ["iss_invalido", { iss: "https://outro.exemplo" }],
     ["aud_invalida", { aud: "https://github.com/raynercarvalho1" }],
@@ -113,6 +113,36 @@ test("cada claim fora da política é recusada com o motivo certo", async () => 
     ["runner_environment_invalido", { runner_environment: "self-hosted" }],
   ];
   for (const [esperado, extra] of tabela) assert.equal(await motivo(c, await token(c, claimsValidos(extra))), esperado, JSON.stringify(extra));
+});
+
+test("origens não autorizadas: tokens de outras refs, workflows, eventos, ambientes e repositórios são recusados", async () => {
+  const c = await cenario();
+  assert.deepEqual(POLITICA.refsPermitidos, ["refs/heads/main"], "só a main");
+  const wf = (ref, arq = POLITICA.arquivoWorkflow) => POLITICA.repository + "/" + arq + "@" + ref;
+  const doRef = (ref) => ({ ref, workflow_ref: wf(ref), job_workflow_ref: wf(ref) });
+  const tabela = [
+    ["ref_invalido", "branch da POC com uma cópia do workflow", doRef("refs/heads/poc/icloud-cloudflare-connectivity")],
+    ["ref_invalido", "branch de agente", doRef("refs/heads/claude/qualquer")],
+    ["ref_invalido", "ref de pull request", doRef("refs/pull/17/merge")],
+    ["ref_invalido", "tag", doRef("refs/tags/v1")],
+    ["workflow_ref_invalido", "ref da main mas workflow vindo de uma cópia na branch da POC", { workflow_ref: wf("refs/heads/poc/icloud-cloudflare-connectivity"), job_workflow_ref: wf("refs/heads/poc/icloud-cloudflare-connectivity") }],
+    ["workflow_ref_invalido", "outro arquivo de workflow na main", { workflow_ref: wf("refs/heads/main", ".github/workflows/outro.yml"), job_workflow_ref: wf("refs/heads/main", ".github/workflows/outro.yml") }],
+    ["workflow_ref_invalido", "workflow de outro repositório", { workflow_ref: "atacante/rac/" + POLITICA.arquivoWorkflow + "@refs/heads/main", job_workflow_ref: "atacante/rac/" + POLITICA.arquivoWorkflow + "@refs/heads/main" }],
+    ["job_workflow_ref_invalido", "workflow reutilizável chamado pelo da main", { job_workflow_ref: wf("refs/heads/main", ".github/workflows/reutilizavel.yml") }],
+    ["event_name_invalido", "push", { event_name: "push" }], ["event_name_invalido", "pull_request", { event_name: "pull_request" }],
+    ["event_name_invalido", "schedule", { event_name: "schedule" }], ["event_name_invalido", "workflow_run", { event_name: "workflow_run" }],
+    ["environment_invalido", "Environment da Cloudflare", { environment: "cloudflare-poc" }], ["environment_invalido", "outro Environment", { environment: "production" }],
+    ["environment_ausente", "job sem Environment", { environment: undefined }],
+    ["sub_invalido", "sub de outro Environment", { sub: "repo:raynercarvalho1/rac:environment:cloudflare-poc" }],
+    ["sub_invalido", "sub de ref sem Environment", { sub: "repo:raynercarvalho1/rac:ref:refs/heads/main" }],
+    ["repository_invalido", "outro repositório", { repository: "atacante/rac" }], ["repository_id_invalido", "fork com outro ID", { repository_id: "1" }],
+    ["repository_owner_invalido", "outro dono", { repository_owner: "atacante" }],
+    ["iss_invalido", "emissor de outro provedor", { iss: "https://accounts.exemplo.com" }],
+    ["aud_invalida", "audiência padrão do GitHub", { aud: "https://github.com/raynercarvalho1" }],
+    ["runner_environment_invalido", "runner próprio", { runner_environment: "self-hosted" }],
+  ];
+  for (const [esperado, nome, extra] of tabela) assert.equal(await motivo(c, await token(c, claimsValidos(extra))), esperado, nome);
+  assert.equal(await motivo(c, await token(c, claimsValidos())), "ok", "a combinação da main e do workflow autorizado passa");
 });
 
 test("claims ausentes: cada uma obrigatória derruba o token", async () => {

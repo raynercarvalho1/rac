@@ -605,3 +605,22 @@ Família e da Casa.
 2. Fazer POC de conectividade Cloudflare Workers para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem credenciais. Comparar *polling* de um minuto com requisitos de sincronização e notificações.
 3. Só depois de uma POC aprovada pelo dono, decidir a contratação do plano mínimo e testar autenticação com conta de teste, nunca com senha no chat.
 4. Manter Gmail e Microsoft Graph como conectores HTTPS no backend; provar OAuth/PKCE, escopos e renovação em contas controladas antes de I1.
+
+## 13/11/2026 · RAC Inbox — revisão dos privilégios do Vault
+
+### 1. O que fizemos
+
+- Conferência somente de metadados das permissões do Supabase Vault: `vault.decrypted_secrets` tem SELECT para `postgres` e `service_role`; a tabela `vault.secrets` tem SELECT/DELETE para os mesmos papéis; `vault.create_secret()` e `vault.update_secret()` têm EXECUTE para os mesmos papéis. Não há grants observados para `anon`/ `authenticated`.
+- Nenhum segredo, valor descriptografado ou conteúdo de e-mail foi consultado. Nenhuma permissão foi alterada.
+- Registrada a proposta de arquitetura em que a Edge Function Supabase controla autenticação e acesso ao Vault e o Worker Cloudflare atua como ponte TCP autenticada, sem receber `service_role` e sem persistir credenciais.
+
+### 2. O que estamos fazendo
+
+- Essa fronteira é requisito da POC, não implementação. A assinatura/HMAC deverá ter validade curta, autorização por conta/provedor, proteção contra replay e logs sem credenciais nem corpos de e-mail.
+- O CI da PR #16 ainda está executando para o commit documental anterior; a nova atualização da I0 vai gerar uma nova execução.
+
+### 3. O que vamos fazer
+
+1. Validar o contrato HTTPS assinado entre Edge Function e Worker, sem credenciais reais e sem chave `service_role` no Worker.
+2. Fazer a prova de conectividade TCP no runtime Cloudflare; depois, testar autenticação somente com uma conta iCloud de teste e autorização específica.
+3. Revisar permissões, retenção, escopo de logs e comportamento de revogação antes de qualquer conta pessoal.

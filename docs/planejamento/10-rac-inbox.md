@@ -368,3 +368,17 @@ A limitação de saída SMTP do Supabase não obriga a hospedar o RAC inteiro fo
 - A tabela `public.rac_segredos` já existe, com RLS e sem privilégios para `anon`/ `authenticated`; atualmente serve às chaves VAPID do Push. Ela não deve ser reutilizada automaticamente para credenciais de e-mail: antes, comparar a proteção efetiva, a rotação, o isolamento por conta e o acesso do worker. Não foi lido nenhum valor secreto.
 - A implantação Supabase consultada em modo somente leitura tem quatro funções ativas (`garmin` v13, `rac-ia` v11, `rac-newsletter` v3 e `radar` v6); não existe função de Inbox/e-mail nesta fotografia do ambiente.
 - Nenhuma migration, linha de banco, segredo, função, cron ou conta de e-mail foi criada ou alterada. A consulta foi somente de metadados de implantação e lista de extensões.
+
+### 12.9 Privilégios do Vault — conferência somente de metadados
+
+A auditoria de permissões do projeto confirmou:
+
+- `vault.decrypted_secrets`: `SELECT` concedido a `postgres` e `service_role`; nenhum grant observado para `anon` ou `authenticated`.
+- `vault.secrets`: `SELECT` e `DELETE` concedidos a `postgres` e `service_role`; nenhum grant observado para `anon` ou `authenticated`.
+- `vault.create_secret()` e `vault.update_secret()`: `EXECUTE` concedido a `postgres` e `service_role`.
+
+A consulta foi somente a `information_schema.role_table_grants` e `information_schema.routine_privileges`; nenhum segredo, valor descriptografado ou nome/descrição de segredo foi consultado.
+
+**Implicação:** a chave Supabase `service_role` é ampla e não pode ser colocada no Cloudflare Worker. A arquitetura a validar deve manter a leitura do Vault dentro de uma Edge Function Supabase, que autentica e autoriza cada conta, e chamar o worker por HTTPS com uma assinatura de serviço/HMAC e uma tarefa limitada. O worker recebe a credencial necessária apenas para aquela operação, abre a conexão TCP, devolve o resultado estritamente necessário e não persiste tokens, senhas ou corpos de e-mail. A chave de assinatura do canal fica em Secrets nos dois backends; nunca no navegador. A implementação precisa ainda limitar validade, replay, conta/provedor, tamanho de resposta e logs.
+
+O worker não recebe a chave `service_role`, não consulta o Vault diretamente e não tem acesso direto ao banco. Este desenho é **proposta para POC**, não arquitetura implementada ou aprovada.

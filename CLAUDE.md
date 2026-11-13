@@ -15,6 +15,12 @@ no chat para aquela ação, naquela sessão.
 - A função `garmin` (`supabase/functions/garmin`) é intocável sem autorização expressa.
 - Não ampliar o escopo pedido; não descartar trabalho local de outra tarefa (`git reset`, `git clean`, checkout que apaga).
 
+## Planejamento e histórico diário
+- Planejamento oficial (visão, arquitetura, roadmap, decisões e pendências): `docs/planejamento/` (Documento 1).
+- Ao fim de cada dia de trabalho, registrar em `docs/planejamento/historico-diario.md` (datado, sem apagar o passado) em três partes:
+  o que fizemos (concluído, testes, commits, PRs, publicações confirmadas, decisões), o que estamos fazendo (andamento, bloqueios,
+  dependências) e o que vamos fazer (próximos passos, prioridades, critérios). Planejado nunca é registrado como concluído (há teste).
+
 ## Código
 - JavaScript ES5 puro, sem framework, sem build e sem dependências novas no site. Bibliotecas só de CDN com versão exata.
 - Tudo é global: antes de criar uma função ou variável de topo, procure se o nome já existe (`tests/estrutura` falha se repetir).

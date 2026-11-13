@@ -19,6 +19,12 @@ saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no cel
   `rumores.json`, `newsletter.json` (Newsletter: 52 fontes RSS oficiais, [docs/newsletter.md](docs/newsletter.md)) e `vagas.json`.
 - **PWA:** `manifest.webmanifest` + `sw.js` (rede primeiro para o site, cópia guardada para os JSON, push).
 
+## Planejamento (Documento 1)
+
+Visão do produto, auditoria da arquitetura, Design System, RAC Intelligence proativa, integrações e monitor, roadmap,
+decisões e pendências, frentes funcionais (Família e Casa, Garmin, Acontecimentos, Estudos) e o histórico diário:
+[docs/planejamento/](docs/planejamento/01-visao-e-mapa-mestre.md), criado em 13/11/2026.
+
 ## RAC Intelligence (IA)
 
 Camada única de IA: `supabase/functions/rac-ia` (Claude, da Anthropic), usada pelo site só por `racIA()` em `js/app.js`.

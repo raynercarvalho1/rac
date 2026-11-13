@@ -21,12 +21,30 @@ Convenções [Fato] / [Hipótese] / [Recomendação]: ver o [Documento 1](01-vis
 | Google Notícias (RSS por tema) | Notícias de dados e tecnologia | robô `scripts/atualizar_tecdados.py` | nenhuma | `tecdados.json` | idem |
 | 52 feeds RSS/Atom oficiais | Newsletter | robô `scripts/atualizar_newsletter.py` | nenhuma | `newsletter.json` (com `fontes[].ok`) | idem + fontes fora do ar no Sistema |
 | Portal Mentora Dados | Vagas de Dados e BI | robô `scripts/atualizar_vagas.py` (página e `admin-ajax.php` do portal) | nenhuma | `vagas.json` | idem |
-| Gmail API (só leitura) | Compras online por e-mail; cartão de e-mail do Início | **navegador** (Google Identity Services), token de 1 h no aparelho | ID de cliente público | — | só a tela |
+| Gmail API (hoje só leitura; evolução RAC Inbox em I0) | Hoje: cartão de e-mail e importação de compras; futuro: cliente multicon­ta, gestão e envio | Hoje: Google Identity Services no navegador; futuro: OAuth de servidor | Hoje: Client ID público; futuro: refresh tokens protegidos no servidor, sujeitos a verificação Google | Hoje: —; futuro: contas/sincronização a definir | Hoje: só leitura; I0 mapeia envio, alteração, filtros e restrições de escopo |
 | Google Maps (opcional) / OpenStreetMap + Leaflet | Mapa do treino | site (`js/saude.js`) | chave opcional em `PESSOAL.googleMaps` | — | aviso na tela e troca para o OpenStreetMap |
 | SerpApi (pago) | Descoberta de ofertas do Radar | função `radar` | secret do provedor | `radar_consultas`, `radar_candidatos` | `radar_consultas` (orçamento atômico) |
 | Mercado Livre (API oficial) | Preço de anúncio do Radar | função `radar` | nenhuma | `radar_precos` | `radar_coletas` |
 | GitHub Pages e Actions | Publicação do site e robôs | GitHub | `GITHUB_TOKEN` dos workflows | repositório | e-mail do GitHub; selo de testes no Sistema |
 | CDNs (cdnjs, jsDelivr), Google Fonts | Bibliotecas e fontes com versão exata | site | nenhuma | cache do service worker | só a tela |
+
+
+## 1.1 RAC Inbox — expansão de e-mail planejada (13/11/2026)
+
+O cartão atual de e-mail do Início lê Gmail; não é um cliente completo. O dono aprovou o RAC Inbox como próxima grande frente após a conclusão da Saúde S1–S5, com objetivo de substituir o Spark no uso diário.
+
+- Gmail: evoluir para OAuth apropriado ao servidor e capacidades de leitura/escrita, envio, filtros e organização via API.
+- Outlook/Hotmail/Live: avaliar Microsoft Graph para mensagens, pastas, envio e regras.
+- iCloud: avaliar IMAP/SMTP com senha específica do app; onde não houver API pública de regras nativas, oferecer regras executadas pelo próprio RAC com essa limitação explícita.
+- A fase I0 deverá provar conectividade e portas na infraestrutura real. SMTP iCloud (porta 587 documentada pela Apple) é ponto de risco a testar antes da decisão arquitetural.
+- Nenhuma credencial ficará no navegador. Nenhuma conta real será conectada, migration aplicada ou serviço publicado antes das fases próprias e das autorizações correspondentes.
+
+Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+
+**Ambiente e opções de I0 (13/11/2026):** Vault `supabase_vault` 0.3.1 já está instalado; os privilégios da view descriptografada foram conferidos e só dão leitura a `postgres` e `service_role`. A implantação atual tem quatro Edge Functions, sem função de e-mail. Para o iCloud, Cloudflare Workers Paid (US$ 5/mês de cobrança mínima) é a primeira candidata de POC por suportar TCP/STARTTLS; bloqueia a porta 25, mas não lista a 587 entre as portas bloqueadas. Cron tem até 15 min de tempo total; numa agenda de 1 min, CPU Paid é limitada a 30 s por execução (Free: 10 ms). O limite de 5 min vale para requisições HTTP, não para esse Cron. Railway Pro (US$ 20/mês com crédito de uso) é a alternativa mais convencional; SMTP só é habilitado no Pro. Conectividade real com Apple ainda não foi testada. Nenhum plano foi contratado nem serviço criado.
+
+**I0 · primeira auditoria (13/11/2026):** o cartão atual usa `gmail.readonly` no navegador e armazena o token por cerca de uma hora; a importação de compras usa o mesmo escopo e mantém seu token em memória. A documentação de compras registra o app Google como Externo/em teste; confirmar o Console atual, pois esse estado limita usuários de teste e tokens de atualização a sete dias. Microsoft Graph dispõe de OAuth delegado, envio, movimentação, regras e delta por pasta. No iCloud, a Apple exige SMTP na porta 587, que o Supabase Edge Functions bloqueia; o envio exige worker em runtime separado. Auditoria apenas documental: nenhuma conta foi conectada nem houve teste de credenciais.
+
 
 Riscos externos [Fato/Hipótese]: a API da ESPN não é oficial e pode mudar sem aviso; o Google Notícias pode limitar robôs; a
 chave pessoal da Garmin pode expirar ("a Garmin recusou a chave" é tratado na função); os créditos da Anthropic são pré-pagos

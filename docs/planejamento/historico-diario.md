@@ -492,3 +492,172 @@ Família e da Casa.
 
 1. Dono revisa a PR, mescla se aprovar; o GitHub Pages publica o site (nenhum SQL nem função a publicar).
 2. Fora do escopo, para decisão futura: mapas e trajetos (S7), IA de Saúde (S8), coleta extra da Garmin (S6).
+
+
+## 13/11/2026 · RAC Inbox — prioridade aprovada após Saúde
+
+### 1. O que fizemos
+
+- O dono aprovou que, depois da conclusão da modernização da Saúde S1–S5, a próxima grande frente será o **RAC Inbox**, com prioridade máxima do desenvolvimento seguinte.
+- Objetivo confirmado: transformar o RAC no cliente principal de e-mail, com capacidade de substituir o Spark no uso diário — não apenas agregar mensagens ou abrir links de outras caixas.
+- Escopo planejado: Gmail, Outlook/Hotmail/Live e iCloud; caixa unificada; leitura, envio, resposta, encaminhamento, rascunhos, anexos, busca, organização de pastas, arquivamento, spam, lixeira, filtros e regras; IA e integração com os módulos RAC.
+- A aceitação de limitações pontuais do iCloud foi aprovada, desde que sejam pequenas, comprovadas e alinhadas. Receber, enviar e responder são essenciais para a substituição.
+- Criado o [Documento 10 · RAC Inbox](10-rac-inbox.md), que especifica visão de produto, conectores, arquitetura, segurança, fases I0–I6 e critérios para desinstalar o Spark.
+- Risco técnico registrado: a viabilidade de SMTP iCloud na infraestrutura Supabase precisa ser testada; não presumir que a porta documentada pela Apple esteja acessível pelo runtime escolhido.
+
+### 2. O que estamos fazendo
+
+- A Saúde S1–S5 já foi implementada e está em revisão na **PR #13**, branch `claude/saude-modernizacao-s2-s5`, head `97ac1a2434573e3f4cb500bd7aa8ab267c6ecf52`. No momento deste registro, o CI do commit estava em andamento; merge e publicação ainda não ocorreram.
+- O RAC Inbox está **planejado, não implementado**. Nenhuma conta foi conectada, nenhum segredo foi criado, nenhuma migration foi aplicada e nenhum serviço foi publicado.
+- Esta documentação está em uma branch/PR separada, empilhada sobre a branch da Saúde para não misturar o escopo do Inbox com a revisão da PR #13.
+- A PR #13 inclui os quatro commits documentais da antiga PR #12. A PR #12 permanece aberta por enquanto; depois que a PR #13 for aprovada e mesclada, conferir e encerrar a PR #12 como incorporada/supersedida, sem criar um segundo merge dos mesmos documentos.
+
+### 3. O que vamos fazer
+
+1. Revisar o CI e a PR #13; concluir Saúde S1–S5 por merge e publicação.
+2. Depois, integrar este planejamento à `main` e iniciar RAC Inbox pela fase I0: prova de viabilidade de OAuth/Gmail API, Microsoft Graph, IMAP iCloud e SMTP iCloud na infraestrutura pretendida.
+3. Fechar a arquitetura com base nos testes reais; depois desenvolver fundação multicon­ta, cliente de e-mail, administração/filtros, inteligência e ecossistema RAC.
+4. Manter o Spark como contingência até todos os critérios da seção 8 do Documento 10 estarem validados em uso real.
+
+## 13/11/2026 · Atualização — merge da Saúde e preparação do RAC Inbox
+
+### 1. O que fizemos
+
+- **DS-4.3 Saúde S1–S5 mesclada na `main` pela PR #13**, usando squash. Commit resultante: `e77c5e8e1e163f60ae1f93e8cfe35f6587860cfd`.
+- CI da PR #13 conferido no head `97ac1a2434573e3f4cb500bd7aa8ab267c6ecf52`: workflow `Testes` concluído com sucesso; 1 job aprovado. A suíte, validação Chromium e comparação da Casa estão detalhadas na PR.
+- A PR #13 incorporou os quatro commits documentais que estavam na PR #12. A PR #12 permanece aberta, mas seu conteúdo já está na `main`; ela será encerrada como supersedida, sem segundo merge.
+- A documentação do RAC Inbox foi reconstruída em uma branch nova diretamente a partir da `main` pós-merge, para evitar que a PR documental carregue novamente o histórico inteiro da Saúde.
+
+### 2. O que estamos fazendo
+
+- Saúde S1–S5: implementada, testada e integrada à `main`. A confirmação da execução do GitHub Pages após o merge ainda está em verificação.
+- RAC Inbox: planejamento apenas. O Documento 10 descreve as fases I0–I6; nenhuma implementação, conta conectada, credencial, migration ou serviço publicado.
+- A PR documental do RAC Inbox deve conter somente o planejamento e suas referências, sem reapresentar código ou commits da Saúde.
+
+### 3. O que vamos fazer
+
+1. Validar CI e publicação do GitHub Pages após o merge da PR #13.
+2. Encerrar a PR #12 como supersedida, pois os quatro commits documentais foram incorporados pela PR #13.
+3. Revisar e integrar a PR documental do RAC Inbox; então iniciar a fase I0, com provas de viabilidade por provedor antes de definir a arquitetura.
+
+## 13/11/2026 · Confirmação da publicação e encerramento das PRs anteriores
+
+### 1. O que fizemos
+
+- GitHub Actions da `main` após o merge da PR #13: workflow **Testes** concluído com sucesso (execução `43451157429`).
+- GitHub Pages após o merge da PR #13: **build and deployment concluído com sucesso** (execução `43451156616`). A versão publicada no `sw.js` da `main` é `2026-11-13.7`.
+- A PR #12 foi encerrada sem merge separado; seus quatro commits documentais já estão incorporados à `main` pelo merge da PR #13.
+- A PR #14 empilhada foi encerrada como substituída por uma branch documental limpa, criada diretamente a partir da `main` pós-merge.
+
+### 2. O que estamos fazendo
+
+- A PR #16 está aberta sobre a `main`, com alterações restritas a cinco arquivos de documentação.
+- O primeiro CI da PR #16 falhou em dois testes de consistência documental: referência a arquivo futuro ainda inexistente e cabeçalhos não padronizados no histórico. As correções foram aplicadas na própria branch; a nova execução do CI deverá confirmar o resultado.
+
+### 3. O que vamos fazer
+
+1. Conferir a nova execução completa do CI da PR #16.
+2. Com o CI aprovado, revisar e integrar o planejamento do RAC Inbox à `main`.
+3. Iniciar a fase I0 somente depois de o planejamento estar integrado: provas técnicas dos conectores e infraestrutura antes de fechar a arquitetura.
+
+## 13/11/2026 · RAC Inbox — primeira auditoria da Fase I0
+
+### 1. O que fizemos
+
+- CI da versão anterior da PR #16, commit `de49360`, concluiu com sucesso nos dois grupos de testes (execução `43455078492`). A PR #16 segue aberta; nenhuma alteração foi integrada à `main` nesta etapa.
+- Auditoria somente leitura do código atual: cartão de e-mail em `js/app.js` usa Google Identity Services e `gmail.readonly` no navegador, com token curto em `localStorage`; a importação Gmail da Central de Compras em `js/compras.js` usa o mesmo escopo, mantém o token em memória, confere a conta e exige confirmação antes de gravar pedidos.
+- Revisão das documentações oficiais Gmail API, Google OAuth, Microsoft Graph, Apple iCloud Mail e Supabase Edge Functions. A matriz e as limitações estão no Documento 10, seção 12.
+- Achado de produto importante: o registro atual em `docs/compras.md` informa o OAuth Google como Externo/em teste. Se o Console ainda estiver assim, o projeto fica limitado a 100 test users e refresh tokens Gmail expiram em sete dias; confirmar o estado real antes da arquitetura.
+- Achado de infraestrutura: Apple documenta SMTP iCloud na porta 587; Supabase Edge Functions bloqueia saída nessa porta. O envio iCloud precisa de runtime separado ou outra solução validada. IMAP 993 ainda precisa de teste real.
+- Atualizados Documento 10, Documento 05, roadmap e este histórico para registrar os achados e o que continua pendente.
+
+### 2. O que estamos fazendo
+
+- I0 avançou na auditoria documental e no inventário do código; **nenhuma prova de conceito autenticada foi executada**. Não conectamos contas reais, não obtivemos tokens, não criamos senhas específicas de app, não alteramos Secrets, banco, Edge Functions, GitHub Actions ou produção.
+- As capacidades documentadas do Gmail, Graph e iCloud estão mapeadas, mas ainda precisam ser confirmadas com testes por provedor no ambiente escolhido.
+- O RAC Inbox permanece sem implementação. Nenhuma mensagem ou anexo está sendo copiado para o Supabase ou enviado à IA.
+
+### 3. O que vamos fazer
+
+1. Confirmar no Console Google se o consentimento OAuth segue Externo/em teste e determinar escopos/revisão necessários para o uso pretendido.
+2. Definir um ambiente de teste controlado para OAuth Gmail e Microsoft Graph, com contas de teste e permissões delegadas mínimas.
+3. Selecionar um runtime com saída TCP e provar IMAP 993 + SMTP 587 do iCloud, sem inserir senhas no navegador ou no chat.
+4. Comparar custos e operação do worker iCloud; só então fechar arquitetura e propor I1. Não aplicar migrations nem conectar contas pessoais de produção nesta fase.
+
+## 13/11/2026 · RAC Inbox — armazenamento de credenciais e candidatos de infraestrutura
+
+### 1. O que fizemos
+
+- Consulta somente leitura à implantação Supabase RAC: quatro Edge Functions ativas (`garmin` v13, `rac-ia` v11, `rac-newsletter` v3 e `radar` v6); nenhuma função de Inbox/e-mail.
+- Consulta somente leitura às extensões confirmou `supabase_vault` 0.3.1 instalado. O Vault cifra segredos em disco e expõe uma view descriptografada; é candidato para refresh tokens e senha específica iCloud, após revisar as permissões da view.
+- Revisada a estrutura de `rac_segredos`: tabela privada do servidor, sem privilégios para o navegador, atualmente usada para chaves VAPID. Não foi lido nenhum valor e não se decidiu reutilizá-la para e-mail.
+- Comparadas opções para o conector iCloud: Cloudflare Workers Paid (mínimo US$ 5/mês; TCP de saída e STARTTLS, porta 25 bloqueada; Cron de minuto em minuto, com limites de execução) e Railway Pro (US$ 20/mês de assinatura-base, SMTP de saída habilitado). Cloudflare é a primeira candidata de POC por custo; Railway fica como alternativa para worker convencional.
+
+### 2. O que estamos fazendo
+
+- A auditoria documental e de metadados de infraestrutura está concluída. Nenhum plano externo foi contratado, nenhum Worker foi criado, nenhuma migration/secret/Edge Function foi alterada e nenhuma conta de e-mail foi conectada.
+- O modelo de armazenamento seguro ainda exige validar as permissões de `vault.decrypted_secrets`, o acesso estritamente pelo servidor e o isolamento por usuário/conta.
+- A PR #16 continua aberta e sem merge; esta atualização amplia apenas a documentação da I0.
+
+### 3. O que vamos fazer
+
+1. Validar permissões do Vault sem selecionar nem expor valores secretos; definir a convenção de identificação e rotação por provedor/conta.
+2. Fazer POC de conectividade Cloudflare Workers para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem credenciais. Comparar *polling* de um minuto com requisitos de sincronização e notificações.
+3. Só depois de uma POC aprovada pelo dono, decidir a contratação do plano mínimo e testar autenticação com conta de teste, nunca com senha no chat.
+4. Manter Gmail e Microsoft Graph como conectores HTTPS no backend; provar OAuth/PKCE, escopos e renovação em contas controladas antes de I1.
+
+## 13/11/2026 · RAC Inbox — revisão dos privilégios do Vault
+
+### 1. O que fizemos
+
+- Conferência somente de metadados das permissões do Supabase Vault: `vault.decrypted_secrets` tem SELECT para `postgres` e `service_role`; a tabela `vault.secrets` tem SELECT/DELETE para os mesmos papéis; `vault.create_secret()` e `vault.update_secret()` têm EXECUTE para os mesmos papéis. Não há grants observados para `anon`/ `authenticated`.
+- Nenhum segredo, valor descriptografado ou conteúdo de e-mail foi consultado. Nenhuma permissão foi alterada.
+- Registrada a proposta de arquitetura em que a Edge Function Supabase controla autenticação e acesso ao Vault e o Worker Cloudflare atua como ponte TCP autenticada, sem receber `service_role` e sem persistir credenciais.
+
+### 2. O que estamos fazendo
+
+- Essa fronteira é requisito da POC, não implementação. A assinatura/HMAC deverá ter validade curta, autorização por conta/provedor, proteção contra replay e logs sem credenciais nem corpos de e-mail.
+- O CI da PR #16 ainda está executando para o commit documental anterior; a nova atualização da I0 vai gerar uma nova execução.
+
+### 3. O que vamos fazer
+
+1. Validar o contrato HTTPS assinado entre Edge Function e Worker, sem credenciais reais e sem chave `service_role` no Worker.
+2. Fazer a prova de conectividade TCP no runtime Cloudflare; depois, testar autenticação somente com uma conta iCloud de teste e autorização específica.
+3. Revisar permissões, retenção, escopo de logs e comportamento de revogação antes de qualquer conta pessoal.
+
+## 13/11/2026 · RAC Inbox — refinamento de escopos e runtime após validação oficial
+
+### 1. O que fizemos
+
+- Refinada a matriz OAuth do Gmail: `gmail.send` é sensível; `gmail.modify` e `gmail.settings.basic` são restritos. A avaliação independente de segurança é exigida quando dados de escopos restritos são armazenados ou transmitidos em servidores, ressalvadas as exceções oficiais.
+- Refinada a matriz Microsoft Graph: listar regras da Inbox pede `MailboxSettings.Read`; criar/alterar regras pede `MailboxSettings.ReadWrite`; `Mail.Send` é separado de `Mail.ReadWrite`. A documentação lista permissões delegadas também para contas pessoais Microsoft.
+- Corrigida a descrição dos limites de Cloudflare Workers Paid: até 15 minutos de tempo total em Cron, até 5 minutos de CPU no plano pago e seis conexões TCP de saída simultâneas por requisição. STARTTLS suportado; apenas a porta 25 aparece como bloqueada na documentação de TCP sockets.
+- Atualizadas referências e comparação de custo: Cloudflare Workers Paid tem mínimo de US$ 5/mês com franquias e cobrança de excedentes; Railway Pro tem US$ 20/mês com crédito equivalente e habilita SMTP. A conectividade real para o SMTP Apple na porta 587 permanece pendente.
+
+### 2. O que estamos fazendo
+
+- A arquitetura do worker iCloud permanece provisória. Cloudflare é o primeiro candidato por custo e capacidade TCP documentada, não uma escolha final. Railway continua como alternativa se o modelo Cloudflare não suportar a sincronização necessária.
+- O CI da revisão anterior da PR #16 foi cancelado durante o grupo de testes PGlite; o primeiro grupo havia passado. Esta revisão atualizada deverá rodar a suíte completa novamente.
+
+### 3. O que vamos fazer
+
+1. Concluir o CI completo da revisão atual da PR #16 e integrar o pacote documental depois do gate verde.
+2. Preparar prova de conectividade Cloudflare TCP para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem autenticação.
+3. Só testar autenticação depois de criar ambiente/contas de teste e obter autorização específica. Não usar senha ou token no chat e não conectar caixas pessoais de produção.
+
+## 13/11/2026 · RAC Inbox — precisão do limite CPU no Cron do Cloudflare
+
+### 1. O que fizemos
+
+- Corrigida a interpretação da tabela oficial de limites do Cloudflare: o teto de 5 minutos de CPU no Workers Paid é para requisições HTTP. Para Cron com frequência menor que uma hora (caso do polling a cada minuto), o teto é **30 segundos de CPU por execução**; o tempo total de parede permanece até 15 minutos. No Free, Cron tem 10 ms de CPU.
+- Ajustadas as seções 12.7 e 12.10 do Documento 10 e o resumo no Documento 05 para não confundir os dois tipos de invocação.
+
+### 2. O que estamos fazendo
+
+- A estratégia de polling por minuto continua tecnicamente candidata; 30 segundos de CPU no Paid devem ser medidos na POC com IMAP/SMTP real. Nenhum cron ou Worker foi criado, e nenhum plano foi contratado.
+
+### 3. O que vamos fazer
+
+1. Quando houver acesso ao Cloudflare, começar por uma chamada HTTP de teste sem credenciais; medir tempo de CPU e verificar handshake TCP/STARTTLS com as portas Apple.
+2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
+3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.

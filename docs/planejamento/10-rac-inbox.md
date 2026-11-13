@@ -409,7 +409,7 @@ Foi preparado em `experimentos/icloud-probe/` um Cloudflare Worker isolado para 
 
 O worker não recebe parâmetros de host/porta, não autentica, não lê mensagens, não envia e-mail e não chama o Supabase. Requer um segredo de diagnóstico aleatório (`PROBE_TOKEN`) configurado como Secret Cloudflare, nunca armazenado no Git ou no RAC. A resposta só mostra sucesso/falha, estágio e duração, sem banners SMTP/IMAP brutos.
 
-**Validação executada localmente:** 8 testes unitários passaram (parser de linhas e respostas SMTP, autenticação do endpoint, saudação IMAP, sequência SMTP STARTTLS e falha de handshake); `node --check` passou nos módulos. O CI do repositório deverá executar a suíte novamente pela PR do experimento.
+**Validação automatizada concluída no GitHub Actions (execução `43465102985`, commit `6dbf10d`):** Grupo 1 — 1.578 testes, 1.576 aprovados, 0 falhas, 0 ignorados (2 `todo`); os oito casos desta POC foram carregados e aprovados, inclusive o teste 7 de negociação SMTP STARTTLS e o teste 8 de falha de handshake sem vazamento do banner. Grupo 2 — 73 testes PGlite aprovados, 0 falhas/ignorados. A primeira execução falhou antes de carregar os testes da POC devido a imports relativos incorretos; foram corrigidos no commit `6dbf10d`. A suíte local não foi executada nesta sessão.
 
 **Ainda não comprovado:** conectividade na rede Cloudflare, TLS com os servidores Apple, autenticação iCloud, leitura, envio, sincronização ou IMAP IDLE. O modo local Wrangler não comprova a saída de rede real. Não houve login Cloudflare, deploy, contratação/upgrading de plano, criação de token/segredo, conexão de conta Apple ou alteração no Supabase.
 

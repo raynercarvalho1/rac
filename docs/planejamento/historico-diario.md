@@ -684,3 +684,25 @@ Família e da Casa.
 3. Executar uma chamada de diagnóstico para verificar somente rede/TLS em IMAP 993 e SMTP 587. Registrar resultado e apagar o Worker após a prova, salvo decisão posterior.
 4. Se Free falhar por limite de CPU, não atualizar para Paid sem mostrar a evidência e obter autorização explícita do custo.
 5. Autenticação iCloud, envio e sincronização ficam para uma etapa posterior, com conta de teste e autorização própria.
+
+## 13/11/2026 · RAC Inbox — correção dos imports e aprovação do teste SMTP STARTTLS
+
+### 1. O que fizemos
+
+- A execução inicial do CI da PR #17 (`43463854161`) falhou no Grupo 1 porque o arquivo `tests/icloud_probe.test.mjs` importava `../src/probes.mjs` e `../src/auth.mjs`, caminhos inexistentes na raiz do repositório. O erro exato do Node foi `ERR_MODULE_NOT_FOUND` para `/rac/src/probes.mjs`; nenhum dos oito casos chegou a executar.
+- Corrigidos os dois imports para `../experimentos/icloud-probe/src/probes.mjs` e `../experimentos/icloud-probe/src/auth.mjs`, no commit `6dbf10d1b84e9bdde283755c17fc3b6c7b2472a8`.
+- CI completo da revisão corrigida: execução `43465102985`, **success**. Grupo 1: 1.578 testes, 1.576 aprovados, 0 falhas, 0 ignorados e 2 `todo`. Grupo 2: 73 testes PGlite, 73 aprovados, 0 falhas e 0 ignorados.
+- Os oito casos novos da POC executaram e passaram. Em particular, o teste 7 — negociação STARTTLS, novo EHLO já sob TLS e fechamento dos dois sockets — passou; o teste 8, sobre falha de handshake sem vazar a saudação do servidor, também passou.
+- Corrigido o Documento 10 para registrar os números reais do CI. **Retificação:** o registro anterior desta data dizia que os oito testes haviam passado localmente; isso não foi executado/confirmado naquela ocasião. A primeira evidência válida foi a execução CI acima.
+
+### 2. O que estamos fazendo
+
+- A PR #17 continua draft e não mesclada. O Worker ainda não foi publicado na Cloudflare; não houve conexão TCP real com os servidores Apple, autenticação, leitura ou envio de e-mail.
+- O deploy permanece separado e manual. O teste automatizado simula sockets e valida o protocolo; não prova acesso de rede real da Cloudflare nem a disponibilidade do serviço Apple.
+
+### 3. O que vamos fazer
+
+1. Revisar o diff e manter a PR em draft até concluir a leitura de segurança e os passos de publicação.
+2. Com conta Cloudflare acessível e decisão do dono, publicar o Worker temporário no Free, definir `PROBE_TOKEN` como Secret e executar apenas a rota `/probe`.
+3. Guardar o resultado de rede/TLS sem segredo; apagar o Worker após a prova ou deixá-lo ativo apenas mediante decisão explícita.
+4. Não autenticar a conta Apple, ler mensagens, enviar e-mail nem contratar o plano Paid nesta etapa.

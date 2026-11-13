@@ -559,3 +559,27 @@ Família e da Casa.
 1. Conferir a nova execução completa do CI da PR #16.
 2. Com o CI aprovado, revisar e integrar o planejamento do RAC Inbox à `main`.
 3. Iniciar a fase I0 somente depois de o planejamento estar integrado: provas técnicas dos conectores e infraestrutura antes de fechar a arquitetura.
+
+## 13/11/2026 · RAC Inbox — primeira auditoria da Fase I0
+
+### 1. O que fizemos
+
+- CI da versão anterior da PR #16, commit `de49360`, concluiu com sucesso nos dois grupos de testes (execução `43455078492`). A PR #16 segue aberta; nenhuma alteração foi integrada à `main` nesta etapa.
+- Auditoria somente leitura do código atual: cartão de e-mail em `js/app.js` usa Google Identity Services e `gmail.readonly` no navegador, com token curto em `localStorage`; a importação Gmail da Central de Compras em `js/compras.js` usa o mesmo escopo, mantém o token em memória, confere a conta e exige confirmação antes de gravar pedidos.
+- Revisão das documentações oficiais Gmail API, Google OAuth, Microsoft Graph, Apple iCloud Mail e Supabase Edge Functions. A matriz e as limitações estão no Documento 10, seção 12.
+- Achado de produto importante: o registro atual em `docs/compras.md` informa o OAuth Google como Externo/em teste. Se o Console ainda estiver assim, o projeto fica limitado a 100 test users e refresh tokens Gmail expiram em sete dias; confirmar o estado real antes da arquitetura.
+- Achado de infraestrutura: Apple documenta SMTP iCloud na porta 587; Supabase Edge Functions bloqueia saída nessa porta. O envio iCloud precisa de runtime separado ou outra solução validada. IMAP 993 ainda precisa de teste real.
+- Atualizados Documento 10, Documento 05, roadmap e este histórico para registrar os achados e o que continua pendente.
+
+### 2. O que estamos fazendo
+
+- I0 avançou na auditoria documental e no inventário do código; **nenhuma prova de conceito autenticada foi executada**. Não conectamos contas reais, não obtivemos tokens, não criamos senhas específicas de app, não alteramos Secrets, banco, Edge Functions, GitHub Actions ou produção.
+- As capacidades documentadas do Gmail, Graph e iCloud estão mapeadas, mas ainda precisam ser confirmadas com testes por provedor no ambiente escolhido.
+- O RAC Inbox permanece sem implementação. Nenhuma mensagem ou anexo está sendo copiado para o Supabase ou enviado à IA.
+
+### 3. O que vamos fazer
+
+1. Confirmar no Console Google se o consentimento OAuth segue Externo/em teste e determinar escopos/revisão necessários para o uso pretendido.
+2. Definir um ambiente de teste controlado para OAuth Gmail e Microsoft Graph, com contas de teste e permissões delegadas mínimas.
+3. Selecionar um runtime com saída TCP e provar IMAP 993 + SMTP 587 do iCloud, sem inserir senhas no navegador ou no chat.
+4. Comparar custos e operação do worker iCloud; só então fechar arquitetura e propor I1. Não aplicar migrations nem conectar contas pessoais de produção nesta fase.

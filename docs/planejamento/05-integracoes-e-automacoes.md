@@ -21,7 +21,7 @@ Convenções [Fato] / [Hipótese] / [Recomendação]: ver o [Documento 1](01-vis
 | Google Notícias (RSS por tema) | Notícias de dados e tecnologia | robô `scripts/atualizar_tecdados.py` | nenhuma | `tecdados.json` | idem |
 | 52 feeds RSS/Atom oficiais | Newsletter | robô `scripts/atualizar_newsletter.py` | nenhuma | `newsletter.json` (com `fontes[].ok`) | idem + fontes fora do ar no Sistema |
 | Portal Mentora Dados | Vagas de Dados e BI | robô `scripts/atualizar_vagas.py` (página e `admin-ajax.php` do portal) | nenhuma | `vagas.json` | idem |
-| Gmail API (hoje só leitura; futura expansão RAC Inbox) | Hoje: Compras online por e-mail e cartão de e-mail do Início; futuro: cliente multicon­ta, gestão e envio | Hoje: navegador (Google Identity Services), token de 1 h; futuro: OAuth no servidor | Hoje: ID de cliente público; futuro: tokens protegidos no servidor | Hoje: —; futuro: contas/sincronização a definir | Hoje: só leitura; futuro: leitura, envio e gestão conforme Documento 10 |
+| Gmail API (hoje só leitura; evolução RAC Inbox em I0) | Hoje: cartão de e-mail e importação de compras; futuro: cliente multicon­ta, gestão e envio | Hoje: Google Identity Services no navegador; futuro: OAuth de servidor | Hoje: Client ID público; futuro: refresh tokens protegidos no servidor, sujeitos a verificação Google | Hoje: —; futuro: contas/sincronização a definir | Hoje: só leitura; I0 mapeia envio, alteração, filtros e restrições de escopo |
 | Google Maps (opcional) / OpenStreetMap + Leaflet | Mapa do treino | site (`js/saude.js`) | chave opcional em `PESSOAL.googleMaps` | — | aviso na tela e troca para o OpenStreetMap |
 | SerpApi (pago) | Descoberta de ofertas do Radar | função `radar` | secret do provedor | `radar_consultas`, `radar_candidatos` | `radar_consultas` (orçamento atômico) |
 | Mercado Livre (API oficial) | Preço de anúncio do Radar | função `radar` | nenhuma | `radar_precos` | `radar_coletas` |
@@ -40,6 +40,8 @@ O cartão atual de e-mail do Início lê Gmail; não é um cliente completo. O d
 - Nenhuma credencial ficará no navegador. Nenhuma conta real será conectada, migration aplicada ou serviço publicado antes das fases próprias e das autorizações correspondentes.
 
 Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+
+**I0 · primeira auditoria (13/11/2026):** o cartão atual usa `gmail.readonly` no navegador e armazena o token por cerca de uma hora; a importação de compras usa o mesmo escopo e mantém seu token em memória. A documentação de compras registra o app Google como Externo/em teste; confirmar o Console atual, pois esse estado limita usuários de teste e tokens de atualização a sete dias. Microsoft Graph dispõe de OAuth delegado, envio, movimentação, regras e delta por pasta. No iCloud, a Apple exige SMTP na porta 587, que o Supabase Edge Functions bloqueia; o envio exige worker em runtime separado. Auditoria apenas documental: nenhuma conta foi conectada nem houve teste de credenciais.
 
 
 Riscos externos [Fato/Hipótese]: a API da ESPN não é oficial e pode mudar sem aviso; o Google Notícias pode limitar robôs; a

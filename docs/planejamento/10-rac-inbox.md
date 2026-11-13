@@ -286,3 +286,67 @@ Em 13/11/2026, o dono aprovou o RAC Inbox como **próxima grande frente após a 
 A entrega deverá ser um cliente de e-mail real, multicon­ta, com administração das caixas originais e inteligência integrada. A aceitação de limitações pequenas do iCloud é permitida após prova técnica e alinhamento; falhas em receber, enviar ou responder não serão consideradas pequenas.
 
 O projeto está **planejado, não implementado**. Não há autorização nesta decisão para aplicar SQL, publicar serviços, conectar contas reais ou alterar produção. Cada ação de produção será autorizada no momento apropriado.
+
+## 12. Fase I0 — primeira auditoria técnica (13/11/2026)
+
+**Estado desta rodada:** auditoria do código existente e da documentação oficial concluída; provas de conceito com contas e credenciais reais ainda pendentes. Nenhuma conta foi conectada, nenhum token ou senha foi criado, nenhuma migration foi aplicada e nenhum serviço foi publicado.
+
+### 12.1 Gmail — situação encontrada no RAC
+
+- O cartão de e-mail do Início está em `js/app.js`: usa Google Identity Services no navegador, escopo `gmail.readonly`, token de acesso com duração aproximada de uma hora e armazenamento em `localStorage` (`rac-gm-*`). Mostra perfil, contador de não lidos e uma amostra curta da caixa de entrada; não envia, move, marca nem organiza mensagens.
+- A busca de e-mails usada pelo cartão também é somente leitura, com metadados e trechos. Não existe hoje uma sessão de Gmail mantida pelo servidor.
+- A importação de compras em `js/compras.js` reutiliza o mesmo Client ID e o mesmo escopo, mas mantém o token em memória (`CC_GM`), confere se a conta conectada é a selecionada, lê mensagens originais e anexos da Amazon e exige conferência manual antes de gravar pedidos. Esse fluxo não deve ser confundido com um cliente de e-mail.
+- `docs/compras.md` registra que o projeto Google Cloud estava configurado como Externo/em teste, com conta de teste. **Esse registro precisa ser confirmado no Console atual** antes da implementação: projetos Externos em teste têm limite de 100 usuários de teste e tokens de atualização com validade de sete dias quando solicitam escopos Gmail.
+
+### 12.2 Gmail — impacto dos escopos e da verificação
+
+- `gmail.readonly` é escopo restrito; não serve para envio nem para alterar mensagens.
+- `gmail.modify` permite ler, compor, enviar e alterar mensagens, inclusive movê-las para a lixeira; não permite exclusão permanente imediata. É o candidato mais abrangente para a operação comum, mas é restrito.
+- `gmail.send` é classificado como sensível. `gmail.settings.basic` é restrito e é relevante para administrar filtros nativos. A prova I0 deve confirmar a combinação mínima exata por operação e evitar pedir `https://mail.google.com/`, que concede acesso mais amplo e exclusão permanente.
+- Para um fluxo de servidor que precise funcionar sem o usuário presente, o Google documenta OAuth de servidor com autorização offline e token de atualização armazenado em local seguro. Tokens de atualização podem ser revogados/expirar; no estado Externo/em teste, a validade é de sete dias para escopos Gmail.
+- O Google exige verificação para escopos sensíveis/restritos; quando dados de escopo restrito são armazenados ou transmitidos por servidores, pode ser necessária avaliação de segurança independente. Isso é uma dependência de produto, prazo e custo a esclarecer antes de assumir produção.
+
+### 12.3 Outlook / Hotmail / Live
+
+- Microsoft Graph documenta acesso a caixas pessoais e corporativas, mensagens e pastas, envio, movimentação e regras da Caixa de Entrada.
+- As permissões delegadas são distintas: leitura, gravação/movimentação, envio e administração de regras devem ser solicitadas conforme o recurso habilitado. A API de regras exige `MailboxSettings.ReadWrite`; envio usa `Mail.Send`; movimentação usa `Mail.ReadWrite`.
+- O fluxo recomendado é Authorization Code com PKCE; para manter acesso no servidor sem pedir login a cada sincronização, solicitar `offline_access` e proteger o token de atualização. A sincronização incremental por delta é **por pasta**, não uma única consulta global da caixa.
+- A prova ainda precisa validar uma conta Microsoft pessoal real (Hotmail/Outlook/Live) e confirmar as permissões delegadas e a renovação no app registration escolhido.
+
+### 12.4 iCloud e a restrição de SMTP
+
+- A Apple documenta IMAP em `imap.mail.me.com:993` com SSL e SMTP em `smtp.mail.me.com:587` com SSL/TLS ou STARTTLS; exige autenticação e senha específica do app. A conta Apple precisa ter autenticação de dois fatores.
+- A documentação atual do Supabase informa que conexões de saída das Edge Functions para a porta **587 não são permitidas**. Portanto, o envio iCloud por SMTP diretamente numa Edge Function hospedada pelo Supabase não é uma arquitetura viável.
+- O runtime Edge do Supabase suporta conexões TCP em geral; a porta IMAP 993 não está na lista de portas bloqueadas documentada, mas **a conectividade real ainda não foi testada**. Não presumir que IMAP funcionará até a prova no ambiente escolhido.
+- Consequência preliminar: o iCloud precisa de um worker/serviço controlado com saída TCP para 993 e 587, ou de outra alternativa técnica oficialmente suportada e comprovada. A senha específica do app ficará somente no servidor. Não usar senha no navegador, proxy público ou serviço SMTP genérico que não consiga autenticar a conta iCloud.
+
+### 12.5 Arquitetura preliminar — ainda não aprovada como definitiva
+
+1. Gmail e Microsoft Graph podem ser avaliados inicialmente via HTTPS nas Edge Functions, com OAuth Authorization Code no servidor, validação de `state`/PKCE conforme o provedor, tokens de atualização protegidos e isolamento por conta.
+2. O conector iCloud deve permanecer desacoplado e depender de um worker com conectividade IMAP/SMTP comprovada. O provedor e o custo desse worker ainda não foram escolhidos.
+3. O front-end recebe apenas o estado da conexão e os dados necessários à interface; tokens de provedor e senha específica do app não chegam ao navegador nem ao `localStorage`.
+4. A sincronização deve manter cursor por conta e pasta (Gmail `historyId`; Graph `deltaLink`; estado IMAP a definir), suportar reconexão e refazer sincronização completa quando o cursor não puder mais ser usado.
+5. Persistência de corpos e anexos continua sujeita à decisão de retenção/minimização. Esta rodada não autoriza copiar caixas inteiras nem enviar mensagens completas à IA.
+
+### 12.6 Matriz de conclusão da I0
+
+| Prova | Situação | Próxima evidência exigida |
+|---|---|---|
+| Auditoria do Gmail existente | **Concluída por leitura do repositório** | Revisar o Console Google atual e confirmar status de publicação, escopos e usuário de teste |
+| Capacidades Gmail API e requisitos OAuth | **Mapeados na documentação oficial** | OAuth de servidor com refresh token, leitura, envio, alteração, filtros e verificação do app |
+| Capacidades Microsoft Graph | **Mapeadas na documentação oficial** | App registration e teste real em conta pessoal, incluindo leitura, envio, movimento, regra e delta |
+| IMAP iCloud | **Documentado; não testado** | Conexão autenticada em 993 no runtime escolhido e sincronização de uma pasta |
+| SMTP iCloud | **Bloqueado diretamente no Supabase Edge Functions (porta 587)** | Prova em worker alternativo, envio e recebimento de confirmação numa conta de teste |
+| Arquitetura final e custos | **Em aberto** | Comparar runtime do worker, armazenamento de tokens, operação, monitoramento e custo mensal |
+
+**Critério de saída da I0:** os três provedores devem ter matriz de capacidades baseada em testes reais, fluxo seguro de renovação/revogação de credenciais, conectividade de entrada/saída e custos conhecidos. Até lá, não iniciar I1, não aplicar migrations e não conectar as caixas pessoais de produção.
+
+### Referências novas da auditoria
+
+- Google — políticas OAuth e renovação de tokens: https://developers.google.com/identity/protocols/oauth2
+- Google — verificação de escopos restritos: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
+- Google — sincronização Gmail por `historyId`: https://developers.google.com/workspace/gmail/api/guides/sync?hl=pt-br
+- Microsoft — Authorization Code + PKCE: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
+- Microsoft — delta por pasta: https://learn.microsoft.com/en-us/graph/delta-query-messages
+- Supabase — limites de Edge Functions e portas de saída: https://supabase.com/docs/guides/functions/limits
+- Supabase — runtime Deno e TCP: https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers

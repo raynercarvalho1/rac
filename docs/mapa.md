@@ -8,6 +8,9 @@ mudar, corrija esta tabela.
 Base de tudo (só quando a tarefa mexe nela): `index.html` (CSS e telas), `js/app.js` (rotas `ROTA_MODS`, dependências `MOD_DEPS`,
 login, Início, `racIA`, `racDica`, botão ↻), `nucleo.js` (funções puras, `NUCLEO.*`), `sw.js` (`VERSAO`), `mercado.js` (cliente do Supabase).
 Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atualizar.test.mjs`, `tests/atualizar_modulos.test.mjs`.
+Fase 1 · Confiabilidade (13/11/2026): voltar ao site (`js/app.js` bloco "Voltar ao site", `NUCLEO.atuVoltar`, `tests/voltar_aba.test.mjs`);
+notificação tocada (`sw.js` e `js/app.js` bloco "Notificação tocada", `NUCLEO.notif*`, `tests/notificacao.test.mjs`); busca lateral
+(`js/app.js` "Busca na barra lateral", `tests/busca_lateral.test.mjs`).
 Nuvem do Claude Code (ambiente, testes como o CI, proteção da `main`): `scripts/nuvem_preparar.sh`, `scripts/nuvem_testes.sh`,
 `docs/nuvem.md`, teste `tests/nuvem.test.mjs`.
 Planejamento e arquitetura (Documento 1, desde 13/11/2026: visão, auditoria, Design System, RAC Intelligence, integrações, roadmap,
@@ -39,6 +42,7 @@ decisões, frentes e o histórico diário): `docs/planejamento/` (comece por `01
 | Custos de IA (`#iacustos`) | `js/iacustos.js` (só lê `ia_custos`, `ia_config`, `ia_precos`) | `docs/hoje.md` (Monitor de custos) | `hoje.test.mjs` | `029` | — |
 | IA (RAC Intelligence) | `racIA()` em `js/app.js` | `docs/rac-intelligence.md` | `ia.test.mjs` | `015`, `016`, `017` (+ `020`, `028`: ações liberadas) | `rac-ia` (`acoes.ts`, `demo.ts`, `orcamento.ts`, `provedores.ts`…) |
 | Notícias, vagas, robôs | — | — | `estrutura.test.mjs` | — | `scripts/*.py`, `.github/workflows/*.yml` |
+| Monitor de integrações (página Sistema, só dono; Fase 1, M1 e M2; sem migration) | `js/sistema.js` (`sisMonitor`, `sisGithub`: API pública do GitHub, 15 min no aparelho), `nucleo.js` (`MON_PROCESSOS` com os crons reais, `mon*`) | `docs/planejamento/05-integracoes-e-automacoes.md` (seção 4) | `monitor.test.mjs` (divergência com os `.yml` e o pg_cron das migrations) | lê `rotina_log`, `newsletter_edicoes`, `radar_coletas`, `garmin_dia` (`008`, `018`, `043`) | — |
 
 Banco inteiro: `tests/banco.test.mjs` (lê o banco real; `SEM_REDE=1` pula). Navegador: `tests/navegador.test.mjs` (só no GitHub).
 Procedimentos: skills `rac-publicar`, `rac-sql-novo` e `rac-acao-ia` (em `.claude/skills/`, só nesta máquina).

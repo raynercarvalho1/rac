@@ -91,6 +91,19 @@ importação, backup, restauração, IA, sincronização do Garmin); nunca chama
 (Alimentação, Compras, Painel, Saúde, Olivia, Newsletter, Rede, Busca e Segurança) se ligam por `atuModulo`: leem tudo de novo, só trocam
 se todas as leituras vierem e, se algo falhar, a tela de antes fica. Os JSON do site vêm da rede na hora (`?atualizar=1` no service worker).
 
+**Voltar ao site** (Fase 1, 13/11/2026; bloco "Voltar ao site" em `js/app.js`, regra `NUCLEO.atuVoltar`): depois de pelo menos 5 minutos
+fora, a página aberta se atualiza sozinha pelo mesmo ↻, em modo silencioso. Não atualiza com campo em foco, captura rápida aberta,
+formulário alterado, operação em andamento, sem internet nem logo depois de outra atualização; uma vez por volta. Só para o dono (a casa
+continua como antes). Teste: `tests/voltar_aba.test.mjs`.
+
+**Notificação tocada** (`sw.js` e bloco "Notificação tocada" em `js/app.js`): abre o destino que o aviso traz (o servidor escolhe; Agenda,
+Resumo ou Lista na rotina das 6h). Com o app aberto, a janela vem para a frente e a página troca sozinha; fechado, abre no destino; o destino
+também fica guardado por 5 minutos como reserva. Teste: `tests/notificacao.test.mjs` (o toque real só se prova no iPhone).
+
+**Monitor de integrações** (página Sistema; `sisMonitor` em `js/sistema.js`, regras `NUCLEO.mon*`): cada rotina agendada com estado,
+última execução, último sucesso, falhas em 7 dias e próxima prevista, lendo só os registros que já existem e as execuções públicas do GitHub.
+`tests/monitor.test.mjs` falha se o horário do monitor divergir dos agendamentos reais (`.github/workflows/*.yml` e pg_cron das migrations).
+
 ### Limitações conhecidas — atualização global
 
 Aceitas pelo dono em 02/11/2026; são conhecidas e ficam assim até uma etapa própria (o teste `tests/atualizar_modulos.test.mjs` lista as

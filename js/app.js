@@ -25,7 +25,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-12.9",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-13.1",MODULOS={},MOD_OK={};
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
   var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
     conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],fiscal:["fiscal"],rachoje:["hoje"],iacustos:["iacustos"]};
@@ -338,9 +338,10 @@
   document.querySelectorAll(".side a.it[data-k]").forEach(function(a){DEST.push({t:a.querySelector(".t").textContent,href:a.getAttribute("href"),ico:a.querySelector(".ico"),el:a})});
   XCATS.forEach(function(c){if(!c.priv)c.h.forEach(function(x){DEST.push({t:"@"+x+" · "+c.n,href:"https://x.com/"+x,ext:true,av:x})})});
   var teamsAdded=false;
+  /* os times da MLB vêm de js/esportes.js, carregado sob demanda: carrega antes de usar (P-19). A casa não tem Esportes: para ela nada muda */
   $("#busca").addEventListener("focus",function(){
-    if(teamsAdded)return;teamsAdded=true;
-    getTeams().then(function(ts){ts.forEach(function(t){DEST.push({t:t.name,href:"#esportes/beisebol/time-"+t.id,logo:logoUrl(t.id)})})}).catch(function(){teamsAdded=false})});
+    if(teamsAdded||!isOwner())return;teamsAdded=true;
+    precisa(["esportes"]).then(function(){return getTeams()}).then(function(ts){ts.forEach(function(t){DEST.push({t:t.name,href:"#esportes/beisebol/time-"+t.id,logo:logoUrl(t.id)})})}).catch(function(){teamsAdded=false})});
   var buscaVez=0;
   function searchDraw(){
     var bruto=$("#busca").value.trim(),q=norm(bruto),box=$("#results");box.innerHTML="";var vez=++buscaVez;
@@ -608,7 +609,7 @@
     processarFila();setTimeout(capturaCompartilhada,400);
     if(isOwner()){items=SEM_TABELA?lsRead():(PESSOAL.aniversarios||[]);render();montarSideX()}
     else $("#bdalert").hidden=true;
-    route()}
+    route();notifPendente(true)}
   $("#gate-form").addEventListener("submit",function(e){
     e.preventDefault();
     var b=$("#gate-enter"),m=$("#gate-msg");b.disabled=true;m.textContent="Entrando…";
@@ -1336,11 +1337,12 @@
       var carregando=raiz&&[].some.call(raiz.querySelectorAll("p.empty"),function(p){return p.textContent==="Carregando…"});
       if(carregando&&Date.now()-ini<15000){setTimeout(espera,150);return}
       ok(raiz?raiz.querySelectorAll(".diag").length:0)})()})}
-  function atuAtualizar(){
+  /* auto=true: a atualização ao voltar ao site (bloco "Voltar ao site"); quando não pode, fica quieta em vez de avisar */
+  function atuAtualizar(auto){
     var sec=document.documentElement.getAttribute("data-sec")||"inicio",raiz=document.getElementById(sec),m=ATU.mods[sec]||{};
     var tarefa=Object.keys(ATU.tarefas).map(function(k){return ATU.tarefas[k]})[0]||(m.ocupado&&m.ocupado())||"";
     var pode=NUCLEO.atuPode({rodando:ATU.rodando,online:navigator.onLine,ocupado:tarefa,sujo:NUCLEO.atuFormSujo(atuCampos(raiz).concat(atuCampos($("#capfundo"))))});
-    if(!pode.ok){if(pode.motivo!=="rodando")atuAviso(pode.texto,"aviso");return Promise.resolve(false)}
+    if(!pode.ok){if(pode.motivo!=="rodando"&&!auto)atuAviso(pode.texto,"aviso");return Promise.resolve(false)}
     ATU.rodando=true;atuBotao();atuAviso("Atualizando…","");
     var hash=location.hash,y=window.scrollY,buscas=atuBuscas(raiz);
     /* antes de tocar na tela: o banco responde? Se não, nada muda */
@@ -1408,6 +1410,37 @@
     history.replaceState(history.state,"",location.pathname+location.hash);
     var m=/https?:\/\/\S+/.exec(texto);if(!link&&m){link=m[0];texto=texto.replace(link,"").trim()}
     if(link&&isOwner())abrirCaptura("link",{link:link,titulo:titulo||texto});else abrirCaptura("compra",{texto:[titulo,texto].filter(Boolean).join(", ")})}
+  /* ===== Notificação tocada (sw.js): abre a página que o aviso informa. O destino vem do servidor (Agenda, Resumo, Lista…) e não muda
+     aqui. Três caminhos: o aviso do service worker (app aberto), o endereço da janela (app fechado) e o destino guardado por alguns
+     minutos (iPhone que abre o início, página que estava congelada). Só páginas deste site (NUCLEO.notifHash). ===== */
+  var NOTIF_CHAVE="__rac-destino";
+  function notifIr(url){var hs=NUCLEO.notifHash(url,location.href);if(hs&&location.hash!==hs)location.hash=hs;return !!hs}
+  /* o destino guardado vale uma vez só: sempre é apagado; com aplicar=true, ainda leva até ele se não venceu */
+  function notifPendente(aplicar){if(!window.caches)return Promise.resolve(false);var k=new URL(NOTIF_CHAVE,location.href).href;
+    return caches.open("rac-dados").then(function(c){return c.match(k).then(function(r){if(!r)return false;
+      return r.json().catch(function(){return null}).then(function(d){c.delete(k).catch(function(){});return aplicar&&NUCLEO.notifFresco(d,Date.now())?notifIr(d.url):false})})})
+    .catch(function(){return false})}
+  if(navigator.serviceWorker&&navigator.serviceWorker.addEventListener)navigator.serviceWorker.addEventListener("message",function(ev){var d=ev.data||{};
+    if(d.tipo!=="rac-abrir")return;notifIr(d.url);notifPendente(false)});
+
+  /* ===== Voltar ao site (P-16): depois de 5 min fora, a página atual se atualiza sozinha pelo mesmo ↻ (atuAtualizar em modo
+     silencioso). A decisão é do NUCLEO.atuVoltar: só o dono, sem campo com foco, sem captura aberta e não logo depois de outra
+     atualização; o atuAtualizar ainda espera formulário não salvo, tarefa longa e internet. Uma vez por volta (o visibilitychange e
+     o pageshow da mesma volta contam uma vez só). ===== */
+  var VOLTA={saiu:0};
+  function voltaFoco(){var el=document.activeElement;if(!el||el===document.body||el===document.documentElement)return false;if(el.isContentEditable)return true;
+    if(el.tagName==="TEXTAREA"||el.tagName==="SELECT")return true;
+    return el.tagName==="INPUT"&&!/^(button|submit|reset|checkbox|radio|range|color|file|image|hidden)$/i.test(el.type||"")}
+  function voltaOlhar(ev){
+    if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
+    if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
+    var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);if(!saiu)return;
+    var sec=document.documentElement.getAttribute("data-sec")||"inicio";
+    if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}
+  document.addEventListener("visibilitychange",voltaOlhar);
+  window.addEventListener("pageshow",voltaOlhar);
+  window.addEventListener("pagehide",function(){if(!VOLTA.saiu)VOLTA.saiu=Date.now()});
+
   /* ===== Estudos: listas de exercícios para analista de dados (SQL, BI e Python) ===== */
   var TRILHAS=[
     {k:"sql",n:"SQL",c:"#2E8BD8",itens:[

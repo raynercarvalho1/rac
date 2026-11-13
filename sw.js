@@ -5,7 +5,7 @@
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-12.9";
+const VERSAO = "2026-11-13.1";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./nucleo.js", "./mercado.js", "./js/app.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/conexoes.js", "./js/sistema.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
@@ -65,11 +65,33 @@ self.addEventListener("push", e => {
     body: d.corpo || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", tag: d.tag || undefined, data: { url: d.url || "./#agenda" },
   }));
 });
+/* Ao tocar: abre o destino que o aviso traz (o servidor escolhe; aqui ele não muda). Só endereço deste site; outro vira o início.
+   - App aberto: traz a janela para a frente e avisa a página ("rac-abrir"), que troca de página sozinha (js/app.js, notifIr).
+     Página carregada antes desta versão (sem o aviso): o navigate do navegador, quando existe; se falhar, nada quebra.
+   - App fechado: abre uma janela já no destino.
+   - Reserva: o destino fica guardado por alguns minutos em rac-dados (não é apagado na troca de versão); a página confere ao
+     abrir e ao voltar a ficar visível, para o iPhone que abre o início em vez do endereço e para a página que perdeu o aviso. */
+const DESTINO = new URL("./__rac-destino", self.location.href).href;
+function destinoDe(dados) {
+  try { const u = new URL((dados && dados.url) || "./", self.location.href); if (u.origin === self.location.origin) return u.href; } catch (_) { /* endereço inválido */ }
+  return new URL("./", self.location.href).href;
+}
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const alvo = new URL(e.notification.data && e.notification.data.url || "./", self.location.href).href;
+  const alvo = destinoDe(e.notification.data);
+  const guardar = caches.open(DADOS)
+    .then(c => c.put(DESTINO, new Response(JSON.stringify({ url: alvo, quando: Date.now() }), { headers: { "Content-Type": "application/json" } })))
+    .catch(() => {});
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(l => {
-    for (const c of l) if (c.url.startsWith(self.location.origin)) { c.navigate(alvo); return c.focus(); }
-    return self.clients.openWindow(alvo);
+    const daqui = l.filter(c => c.url.startsWith(self.location.origin));
+    const c = daqui.filter(x => x.focused)[0] || daqui.filter(x => x.visibilityState === "visible")[0] || daqui[0];
+    if (!c) return Promise.all([guardar, self.clients.openWindow(alvo)]);
+    /* o foco primeiro: o toque só libera trazer a janela para a frente por pouco tempo */
+    const foco = Promise.resolve().then(() => c.focus()).catch(() => {});
+    const avisar = guardar.then(() => c.postMessage({ tipo: "rac-abrir", url: alvo })).catch(() => {});
+    /* navigate só para trocar o "#…" do mesmo endereço: nunca recarrega a página (o que apagaria um texto não salvo) */
+    const mesma = c.url.split("#")[0] === alvo.split("#")[0];
+    const ir = mesma && c.url !== alvo && typeof c.navigate === "function" ? Promise.resolve().then(() => c.navigate(alvo)).catch(() => {}) : null;
+    return Promise.all([foco, avisar, ir]);
   }));
 });

@@ -127,3 +127,61 @@ Família e da Casa.
 1. Depois do merge: registrar aqui o merge e a publicação dos documentos (datas e commit da `main`).
 2. Registrar a primeira evidência de push de cada robô depois da ruleset ou, se falhar, o erro e a correção necessária.
 3. Seguir para a Fase 1 do [roadmap](06-roadmap.md), com os critérios já registrados no registro anterior.
+
+## 13/11/2026 · Fase 1 — Confiabilidade
+
+### 1. O que fizemos
+
+- **Merge e publicação do PR #6 conferidos** (item 1 do registro anterior): merge na `main` no commit `7d8b733` (02h18 UTC de 13/11);
+  "pages build and deployment" desse commit terminou com sucesso (02h19 UTC) e o workflow "Testes" (execução 144) também (02h19 a
+  02h23 UTC). Publicou só os documentos: o site continuou na versão `2026-11-12.9`. A branch da sessão foi avançada até `7d8b733`.
+- **Auditoria das cinco frentes da Fase 1 no código atual** (sem presumir que a auditoria de 13/11 estava completa). Fatos novos: o P-19
+  deixou de ser hipótese (sem `js/esportes.js` carregado, o foco na busca lançava `ReferenceError`, registrado como "página" em `erros`);
+  o clique na notificação dependia só do `navigate`, sem tratar a recusa; o GitHub atrasa muito os robôs (Vagas, agendado para 10h UTC,
+  começou entre 15h57 e 20h16 UTC de 07/11 a 12/11; Notícias roda cerca de 5 vezes por dia).
+- **A · Monitor de integrações M1 e M2** (na branch): catálogo `MON_PROCESSOS` com os 6 processos agendados (rotina das 6h, Newsletter e
+  Radar no pg_cron; Notícias, Vagas e Testes no GitHub) e os crons reais; regras `NUCLEO.mon*`; painel "Monitor de integrações" na página
+  Sistema com estado, última execução, último sucesso, falhas em 7 dias, duração, registros e próxima prevista; o painel antigo "Robôs de
+  coleta" foi incorporado (sem duplicar). M2 pelas execuções públicas do GitHub, sem mexer nos robôs. Detalhe e limites no
+  [Documento 05](05-integracoes-e-automacoes.md#43-implementação-de-m1-e-m2-fase-1-13112026).
+- **B · Notificação** (na branch): o `sw.js` traz a janela para a frente, avisa a página (que troca de página sozinha), usa o `navigate` só
+  como reserva e só para trocar o "#…" do mesmo endereço, e guarda o destino por 5 minutos (para o app que abre no início). Destinos
+  iguais aos de antes (Agenda, Resumo ou Lista; D-05 em aberto); horário e frequência da notificação não mudaram.
+- **C · Atualizar ao voltar** (na branch): depois de 5 minutos fora, a página aberta se atualiza pelo mesmo ↻ (`atuAtualizar`, em modo
+  silencioso). Não atualiza com campo em foco, formulário alterado, captura aberta, operação em andamento, sem internet ou logo depois de
+  outra atualização; uma vez por volta. Só para o dono (a casa continua igual; questão D-15).
+- **D · Busca lateral (P-19)** (na branch): carrega Esportes antes de pedir os times; os times continuam na busca do dono; para a casa nada
+  muda.
+- **E · Robôs depois da ruleset**: investigação dos workflows e do push condicional (ver as pendências técnicas do
+  [Documento 07](07-decisoes-e-pendencias.md#pendências-técnicas)). A `main` continua protegida (consulta às 02h42 UTC). Nenhum push de
+  robô na `main` desde a revisão do PR #6: **ainda sem evidência**. Nada foi forçado, nenhum commit vazio, nenhum serviço pago.
+- **Versão do site na branch**: `2026-11-13.1` (`VERSAO` em `sw.js` e `MOD_VERSAO` em `js/app.js`, juntas).
+- **Testes novos**: `tests/monitor.test.mjs`, `tests/notificacao.test.mjs`, `tests/voltar_aba.test.mjs` e `tests/busca_lateral.test.mjs`.
+  Os testes do P-19 e do service worker falham com o código anterior e passam com o novo (conferido).
+- **Testes e site ajustados**: `tests/newsletter.test.mjs` procurava o painel antigo "Robôs de coleta"; a asserção passou a conferir o
+  mesmo dado no monitor (Newsletter com fontes fora do ar e limite de 14 h), sem pular nada. `index.html` ganhou uma regra de CSS (`.monint`)
+  para as linhas do monitor quebrarem em vez de cortar com reticências; conferido numa página de prova a 390 px, sem rolagem lateral.
+- **Documentos**: 02 (nota datada), 05 (seção 4.3 e os atrasos do GitHub), 06 (seção 3.1, andamento da Fase 1), 07 (questão D-15 e
+  linhas novas nas pendências), `docs/mapa.md` e `README.md`. Nenhum registro anterior foi apagado.
+- **Fora do escopo, intocados**: SQL e migrations, Edge Functions (inclusive `garmin` e `rac-ia`), workflows e scripts dos robôs,
+  `.claude/settings.json`, segredos, `ia_config` e orçamento. Nenhuma chamada paga de IA.
+
+### 2. O que estamos fazendo
+
+- O trabalho está na branch `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1 para a `main`, aguardando revisão e merge do dono.
+- **A Fase 1 não está concluída.** Dependem de evidência de fora: (a) o clique na notificação no iPhone, nos 3 cenários (app aberto,
+  fechado e recém-atualizado), depois da publicação; (b) um push bem-sucedido de cada robô (Notícias e Vagas) na `main` depois da ruleset.
+- **Decisão do dono**: D-15 (a atualização ao voltar vale também para a casa?). Continuam em aberto D-02, D-05, D-10 e D-13; D-14 é ação do
+  dono (conferência só leitura para reconciliar os documentos, item da Fase 1 não iniciado nesta execução).
+- **Bloqueios**: nenhum.
+
+### 3. O que vamos fazer
+
+1. Depois do merge do PR da Fase 1: registrar aqui o merge e a publicação do site `2026-11-13.1` (não há SQL nem função para publicar antes).
+2. **Teste no iPhone** (roteiro): com o app aberto em outra página, Sistema → Notificações → "Mandar um teste" e tocar no aviso: deve
+   abrir o Sistema; repetir com o app fechado (mandar o teste e fechar o app antes de chegar); e logo depois da publicação, antes de reabrir
+   o app, tocar num aviso. Na manhã seguinte, o aviso das 6h deve abrir a Agenda (ou o Resumo no domingo, ou a Lista).
+3. **Robôs**: registrar o primeiro commit "Notícias atualizadas" e o primeiro "Vagas atualizadas em …" de `github-actions[bot]` na `main`
+   depois da ruleset ou, se o push falhar, o erro (o monitor mostrará "falhou").
+4. Conferir no celular a volta ao site (sair por 5 minutos ou mais e voltar) e o painel do monitor.
+5. Só depois: reconciliar os documentos (D-14) e, com autorização do dono, a Fase 2.

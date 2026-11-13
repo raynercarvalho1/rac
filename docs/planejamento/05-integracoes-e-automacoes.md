@@ -45,6 +45,10 @@ Supabase limita arquivos a 50 MB.
 | Testes | GitHub (`testes.yml`) | push e PR na `main` (exceto os `.json` dos robôs) e `30 10 * * 1` | segunda, 7h30 | Grupo 1 e Grupo 2 |
 | Publicação | GitHub Pages | a cada push na `main` | — | Publica o site (inclusive a cada commit dos robôs) |
 
+[Fato, 13/11/2026] O GitHub atrasa e pula agendamentos: o robô de Vagas (agendado para 10h UTC) começou entre 15h57 e 20h16 UTC em
+todas as execuções de 07/11 a 12/11; o de Notícias teve 96 execuções desde a criação do workflow (26/10) até 13/11, cerca de 5 por dia, bem menos que as rodadas
+agendadas. Por isso o monitor (seção 4.3) mede os robôs pela idade da última execução, e não pelo horário do cron.
+
 [Fato] Os robôs fazem commit direto na `main` como `github-actions[bot]` (284 dos 358 commits do histórico são desse autor,
 somando robôs e o fluxo antigo de publicação). Cada commit de robô dispara uma publicação do Pages. Desde 13/11/2026 a `main`
 tem uma ruleset de proteção ativa (criada pelo dono); falta comprovar que os pushes dos robôs de Notícias e Vagas continuam
@@ -106,6 +110,51 @@ Fases [Recomendação]:
 
 Para o aviso por push de M4 é preciso uma Edge Function que envie (a `garmin` é intocável sem autorização): decisão do dono
 ([Documento 07](07-decisoes-e-pendencias.md)).
+
+### 4.3 Implementação de M1 e M2 (Fase 1, 13/11/2026)
+
+Estado: **na branch** `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1; **sem merge e sem publicação**. Sem migration, sem SQL
+em produção, sem Edge Function. A proposta das seções 4.1 e 4.2 fica como estava; esta seção registra o que foi feito.
+
+[Fato] O que foi feito:
+
+- **M1**: o catálogo `MON_PROCESSOS` em `nucleo.js` lista os 6 processos agendados (3 no pg_cron e 3 no GitHub), com os crons copiados
+  dos arquivos vigentes. `tests/monitor.test.mjs` lê os `.yml` de `.github/workflows/` e o pg_cron das migrations (a última que agenda
+  cada job) e falha se um horário divergir, se faltar um agendamento, se o monitor mostrar um que não existe ou se citar uma migration
+  substituída. As regras puras (`NUCLEO.mon*`) calculam a próxima execução pelo cron real e montam o contrato da seção 4.2.
+- **Tela**: a página Sistema ganhou o painel "Monitor de integrações", logo depois da "Saúde do RAC" (`sisMonitor` em `js/sistema.js`).
+  Ele incorpora o antigo painel "Robôs de coleta" (itens, fontes fora do ar e os mesmos limites de 8 h, 14 h e 30 h), que saiu para a
+  mesma informação não ficar em dois lugares. O painel "Rotina automática" (as 10 últimas rotinas) continua.
+- **M2**: duração, falhas em 7 dias, "rodando agora", workflow desligado e o atraso típico de cada robô vêm das **execuções públicas do
+  GitHub** (API sem login; 4 consultas guardadas 15 min no aparelho; só as execuções da `main`, para um PR com teste falhando não virar
+  falha do processo; sem resposta, vale a data do próprio JSON do robô). A contagem de
+  itens vem dos JSON que os robôs já gravam.
+
+| Processo | Fonte | Fica "atrasado" quando |
+|---|---|---|
+| Rotina das 6h (`rac-rotina`) | `rotina_log` (mais o último dado do relógio e o backup de domingo) | não rodou desde o último horário previsto, com 60 min de tolerância |
+| Newsletter (`rac-newsletter`) | `newsletter_edicoes` (última edição gravada) | sem edição há mais de 14 h |
+| Radar (`radar-rotina`) | `radar_coletas` da rotina (as lojas da mesma rodada viram uma execução) | nunca: sem registro no horário fica "sem informação", porque a rotina só grava quando há oferta para ler |
+| Robô de notícias (`noticias.yml`) | execuções do GitHub e os 4 JSON | sem execução há mais de 8 h, ou um JSON parado ou vazio |
+| Robô de vagas (`vagas.yml`) | execuções do GitHub e `vagas.json` | sem execução há mais de 30 h, ou o JSON parado ou vazio |
+| Testes (`testes.yml`) | execuções do GitHub | sem execução há mais de 8 dias |
+
+Estados: ok · atrasado · falhou (a última execução falhou) · desligado (workflow desligado no GitHub) · sem informação (fonte ilegível ou
+sem registro). Nada é inventado: sem dado, o painel diz "sem informação" ou "não registradas".
+
+Diferenças em relação à proposta da seção 4.2, e por quê:
+
+- **M2 sem mexer nos robôs**: a proposta previa gravar `duracao_s`, `itens` e `falhas` nos JSON. Isso duplicaria o que o GitHub já
+  registra em cada execução (início, fim e conclusão) e mexeria nos scripts dos robôs no meio da comprovação depois da ruleset.
+- **Sem cartão no RAC Hoje por enquanto**: ligar o monitor ao RAC Hoje agora repetiria o acoplamento P-04; fica para depois do contrato de
+  fontes (passo A4) ou para a F5.
+- **IA e push** continuam na "Saúde do RAC" e em Custos de IA: não são processos agendados próprios (o push e o backup são passos da
+  rotina das 6h e aparecem na linha dela).
+
+[Fato] Limites conhecidos: o horário do pg_cron mostrado é o das migrations; o site não lê `cron.job` em produção. Se um agendamento
+mudar direto no SQL Editor, o monitor só saberá pelo arquivo. Conferência só leitura, pelo dono, quando quiser:
+`select jobname, schedule, active from cron.job order by jobname;`. A rotina das 6h não registra o início (sem duração) e a Newsletter
+não registra as tentativas sem edição (falhas "não registradas").
 
 ## 5. Automações futuras
 

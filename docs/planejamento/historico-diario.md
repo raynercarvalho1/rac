@@ -667,7 +667,7 @@ Família e da Casa.
 ### 1. O que fizemos
 
 - Decisão do dono: publicar a POC iCloud pelo GitHub Actions, sem token Cloudflare na sessão de nuvem (que não alcança `api.cloudflare.com`). Detalhes em `docs/icloud-poc-deploy.md`.
-- Criados `.github/workflows/icloud-probe-deploy.yml` (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e `tests/icloud_probe_deploy.test.mjs` (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
+- Criados .github/workflows/icloud-probe-deploy.yml (retirado em 13/11/2026) (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e tests/icloud_probe_deploy.test.mjs (retirado em 13/11/2026) (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
 - Validação local: YAML e `bash -n` de cada passo; simulação do passo do `/probe` com servidor falso (sucesso, falha de SMTP, erro de limite de CPU). Isso **não** é prova de rede real.
 - Atualizados roadmap, decisões/pendências e mapa. Nenhum código funcional da POC foi alterado.
 
@@ -681,6 +681,26 @@ Família e da Casa.
 1. Dono mescla esta PR e configura o ambiente e os secrets.
 2. Acionar o workflow a partir de `poc/icloud-cloudflare-connectivity`, ler o `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
 3. Remoção do Worker: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — Desenho B: workflow privilegiado só na main
+
+### 1. O que fizemos
+
+- Implementado o Desenho B aprovado pelo dono: o workflow que acessa os secrets da Cloudflare agora existe **só na `main`**, é disparado a partir dela e trata o commit da POC como **dado de entrada**, sem executar nada dele. Três jobs com fronteiras claras: `verificar` (sem secrets: valida a entrada, baixa a ferramenta da `main` e o commit da POC só como dados, confere a lista fixa de arquivos, empacota sem publicar, inspeciona e calcula o `sha256`), `provisionar` (Environment `cloudflare-poc`, só secrets da Cloudflare nos dois últimos passos, sem baixar a branch: confere o hash e publica exatamente o pacote conferido) e `executar` (Environment `icloud-auth-poc`, sem secrets, só `id-token: write`). Wrangler pelo lockfile da `main`, sem scripts, com integridade conferida; actions por SHA, conferidos nos repositórios oficiais.
+- **Workflow antigo `icloud-probe-deploy.yml` retirado** na mesma mudança (e o teste dele): não se mantêm dois caminhos de publicação privilegiada com políticas diferentes. Registrado o procedimento manual para neutralizá-lo até o merge.
+- Teste novo do workflow com **execução real** dos passos sem rede (guarda da entrada, montagem do pacote, reconstituição com conferência de hash): recusa `.env`, `.dev.vars`, `package.json`, link simbólico, `build.command` na configuração, commit trocado, pacote adulterado e hash errado. Guia `docs/icloud-poc-deploy.md` reescrito; regra permanente acrescentada ao `CLAUDE.md`.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado, lido ou alterado, sem acesso à Apple, ao IMAP ou ao SMTP, sem alteração de configuração do GitHub.
+
+### 2. O que estamos fazendo
+
+- Esta PR aguarda o merge do dono. A política OIDC do Worker (agora exigindo a `main`) e o código do Worker estão na PR #17, que segue em Draft.
+- **Não comprovado:** o primeiro deploy real com este desenho (a publicação sem bundle só foi exercitada em `--dry-run`), o formato real das claims e do JWKS, o CPU real e o comportamento das aprovações de Environment. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Dono mescla esta PR, configura os Environments (aprovador obrigatório, só `main`; `icloud-auth-poc` sem secrets), neutraliza o workflow antigo até o merge e emite o token Cloudflare de permissão mínima com prazo.
+2. Atualizar a PR #17 com a `main` e, com autorização, executar o primeiro ensaio OIDC (somente validação do JWT, sem credencial Apple).
+3. Replay (uso único) e política do JWKS ficam a reavaliar antes de qualquer operação real na caixa; P1 e seguintes só com autorização específica.
 
 ## 13/11/2026 · Atualização da PR #18 (protocolo permanente de autonomia)
 

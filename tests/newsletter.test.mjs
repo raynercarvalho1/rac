@@ -610,7 +610,7 @@ test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema
   const rn = rota("newsletter"); assert.ok(!rn.marcaPropria); assert.match(rn.abrirTexto, /renderNewsletter\(/);
   assert.match(app, /wLazy\(\["newsletter"\],"wNewsletter"\)/);
   assert.ok(!RT.DA_CASA.includes("newsletter"), "quem é da casa não vê a Newsletter");
-  assert.match(RT.menu, /<a class="it" href="#newsletter" data-k="newsletter">/); assert.match(html, /<section id="newsletter" hidden><div id="newsletter-view"><\/div><\/section>/);
+  assert.match(RT.menu, /<a class="it" href="#newsletter" data-k="newsletter" data-area="info" style="--o:\d+">/); assert.match(html, /<section id="newsletter" hidden><div id="newsletter-view"><\/div><\/section>/);
   assert.match(sw, /"\.\/js\/newsletter\.js"/); assert.match(sw, /\/\\\.json\$\/\.test\(url\.pathname\)/, "newsletter.json com a cópia guardada (sem internet)");
   assert.match(sis, /getJson\("newsletter\.json"\)\.then\(function\(v\)\{\(v\.grupos\|\|\[\]\)\.forEach/, "a busca do site acha as notícias");
   /* desde a Fase 1 (13/11/2026) o painel "Robôs de coleta" está dentro do Monitor de integrações (tests/monitor.test.mjs testa as fontes fora do ar) */

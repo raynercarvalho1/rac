@@ -133,19 +133,21 @@ e no [histórico diário](historico-diario.md).
 
 ## 3.3 Andamento da Fase 3 (13/11/2026)
 
-A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em 13/11/2026). A Fase 3 é executada na branch `claude/rac-fase-3-design-system-0msm91`.
-**A Fase 3 não está concluída**: DS-0 e DS-1 estão feitos na branch, mas falta o merge (dono) e a aprovação da página de componentes no celular (critério da F3). O diagnóstico
-visual já existia ([Documento 03](03-design-system.md)) e não foi repetido; guia de uso em [`docs/design-system.md`](../design-system.md).
+A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em 13/11/2026). A Fase 3 é executada na branch `claude/rac-fase-3-design-system-0msm91`, no **PR #9**.
+**Direção redefinida pelo dono em 13/11/2026: RAC Modern Workspace** (tema claro padrão; fundo e azul Dodger preservados; escuro funcional). A F3 passa a incluir o **piloto no RAC Hoje**
+(antes DS-3) e o menu por área (antes DS-2), porque a primeira versão do DS-1 não entregava transformação perceptível. Guia: [`docs/design-system.md`](../design-system.md).
+**A Fase 3 não está concluída**: falta o merge (do dono) e a aprovação do piloto no iPhone (critério da F3). Nada foi publicado.
 
 | Item | Situação | O que falta para concluir |
 |---|---|---|
-| DS-0 · Tokens `--rac-*` e catraca de cores | **Implementado na branch**; `tests/design_system.test.mjs` (catraca em 115, tokens nos 3 temas, contraste WCAG de 19 pares) | Merge e publicação |
-| DS-1 · Componentes `rac-*` e página `#componentes` | **Implementado na branch** (só dono, sem menu; 4 capturas conferidas: 390 e 1280 px, claro e escuro; sem rolagem lateral, alvos de 44 px, sem erro de console) | Merge e publicação; o dono conferir no iPhone |
-| DS-2 · Tema e menu agrupado | **Não iniciado** | Decisão D-01 (recomendação em `docs/design-system.md`); menu agrupado muda o menu do dono |
-| DS-3 · Piloto (RAC Hoje e Sistema/Monitor) | **Não iniciado** | Aprovação do DS-1 |
-| DS-4 · Por área / DS-5 · Casa | **Não iniciados** | DS-5 só com autorização expressa do dono |
+| DS-0 · Tokens `--rac-*` e catraca de cores | **Feito na branch** (commit `385b327`) e depois **redefinido** (papel 1/2/3, tintas, degradê) em `css/rac.css` | Merge e publicação |
+| DS-1 · Componentes `rac-*`, kit `js/kit.js` e página `#componentes` | **Redefinidos na branch**: cartões por função, gráficos (medidor, comparação, colunas, barras), estados, campos | Merge; o dono conferir no iPhone |
+| DS-2 · Menu por área e barra inferior no celular | **Feito na branch** (só dono; casa idêntica, comprovado em 20 telas) | Merge e publicação |
+| DS-3 · Piloto RAC Hoje | **Feito na branch**: painel com indicadores, gráficos, prioridades, contexto, saúde, IA e fontes recolhidas; lógica de IA intacta | Merge; uso real e aprovação do dono |
+| DS-4 · Demais módulos por área | **Não iniciado**; um módulo por vez, baixando a catraca | Aprovação do piloto |
+| DS-5 · Telas da casa | **Não iniciado** | **Autorização expressa do dono** |
 
-Próximo passo técnico: DS-3 (migrar RAC Hoje e Monitor para `rac-*`, subindo `dsc*` para a base e baixando a catraca).
+Próximos passos técnicos: DS-4 pelo que o dono mais usa (Agenda e Saúde são os candidatos, por já alimentarem o painel); D-12 (Início × RAC Hoje); quando a Fase 4 criar medicamentos, encomendas e contas, o painel ganha esses blocos sem novo desenho.
 
 ## 4. Como cada fase é entregue
 

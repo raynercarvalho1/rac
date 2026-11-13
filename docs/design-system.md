@@ -1,56 +1,85 @@
-# Design System RAC (guia de uso)
+# Design System RAC · RAC Modern Workspace (guia de uso)
 
-Fase 3 · DS-0 e DS-1 (13/11/2026). É o **guia de como usar** o que já está no código; o diagnóstico, a direção visual e o plano completo
-estão no [Documento 03](planejamento/03-design-system.md) (não repetir a auditoria). Convenção: só o que está nesta página como "feito"
-existe no código; o resto é plano.
+Fase 3 (13/11/2026). É o guia **vivo** de como usar o que está no código. O diagnóstico visual de 13/11/2026 continua no
+[Documento 03](planejamento/03-design-system.md) (não repetir a auditoria); o que foi feito e quando está no [histórico diário](planejamento/historico-diario.md).
+Só o que está marcado como feito existe no código; o resto é plano.
 
-## O que existe hoje (DS-0 e DS-1, só acrescenta; nenhuma tela existente mudou)
+## Direção aprovada: RAC Modern Workspace
+
+| Referência | Entra como | Onde se vê |
+|---|---|---|
+| Produtividade moderna | Estrutura, navegação por área, acesso rápido, experiência de aplicativo | Menu do dono agrupado em 6 áreas, barra inferior no celular, painel central |
+| Analytics minimalista | Acabamento: tipografia, espaçamento, superfícies sem borda, hierarquia | Cartões de papel com sombra suave, números em Outfit, rótulos pequenos |
+| Dashboard analítico | Gráficos, indicadores, comparações, tendências | Indicadores com variação, medidor de orçamento, comparação atual × anterior, colunas e barras |
+
+Decisões já aprovadas (não rediscutir): **tema claro como padrão**; fundo (foto) e identidade preservados; **azul Dodger** como centro da identidade, em equilíbrio
+(o azul é a abertura do painel, a ação principal e o item ativo; o resto é neutro; vermelho só para urgente); escuro existente funcional; identidade própria.
+O tema padrão (D-01) deixou de ser pergunta: é o claro.
+
+## O que existe
 
 | Peça | Onde | Observação |
 |---|---|---|
-| Tokens `--rac-*` | `index.html`, bloco "Design System RAC · DS-0", logo antes das regras de seção | Onde havia token atual, o `--rac-*` **aponta para ele** (`--rac-texto: var(--ink)`…): uma fonte só, nos três temas. Só `--rac-info` e `--rac-linha-campo` têm valor próprio por tema (contraste de texto/ícone e borda de campo). |
-| Classes `rac-*` | `index.html`, bloco "Design System RAC · DS-1", no fim do `<style>` | Usam só `var(--rac-*)`: **nenhuma cor escrita**. Convivem com as antigas (`.panel`, `button`, `.ghostbtn`…). |
-| Página de componentes | rota `#componentes` (`js/rotas.js`), módulo `js/componentes.js`, `<section id="componentes">` | **Só o dono**, sem item no menu (abra pelo endereço `#componentes`). Não lê nem grava dado, não chama IA. A casa nunca a vê (cai no Mercado, como em qualquer rota fora de `DA_CASA`). |
-| Catraca e contraste | `tests/design_system.test.mjs` | Ver abaixo. |
+| CSS do Design System | `css/rac.css` (carrega depois do `<style>` do `index.html`; `?v=` = `VERSAO`) | 4 camadas: 1 tokens, 2 componentes `rac-*`, 3 shell do dono, 4 piloto RAC Hoje |
+| Kit de componentes | `js/kit.js` (`rk*`), módulo leve sem tela (`MOD_DEPS`) | Só monta elementos com `h()`; sem banco, sem regra de negócio |
+| Kit de gráficos | `js/graficos.js` (`rsColunas`, `rsBarras`; Fase 2, **não alterado**) | Restilizados por `.rac-grafico`; `racDica` em toda barra |
+| Menu por área e barra inferior | `js/rotas.js` (`area`, `curto`, `RAC_AREAS`, `rotasMenuHtml`, `rotasBarraHtml`) | O registro é a única fonte; o agrupamento é por CSS (`order`), a ordem do registro não mudou |
+| Página de componentes | rota `#componentes`, `js/componentes.js` | Só o dono, sem item no menu; exemplos marcados como ilustrativos |
+| Piloto | `#rachoje` (`js/hoje.js`: `hjDesenhar` e ajudantes `hj*`) | Ver "Piloto" abaixo |
 
-### Tokens
+### Escopo: dono × casa
+Todo o shell novo (cartões `.panel` antigos, barra lateral, barra inferior, grade) é escrito sob `html.logado:not(.casa)`; a Fernanda (`html.casa`) continua com o CSS de antes.
+**Comprovado**: 20 telas da casa (Mercado, Lista, Olivia, Veículos, Segurança × 390 e 1280 px × claro e escuro) comparadas com a `main`: 18 idênticas byte a byte e 2 com 1 pixel de diferença (antialiasing).
+A Central de Compras (`#mercado`) não é tocada (`section:not(#mercado)`). O teste `tests/design_system.test.mjs` trava o escopo.
 
-- **Marca**: `--rac-dodger` `#005A9C` (preenchimento, texto branco), `--rac-dodger-forte`, `--rac-dodger-claro` (texto no escuro), `--rac-vermelho`, `--rac-prata`.
-- **Estados** (texto/ícone, seguem o tema): `--rac-ok`, `--rac-aviso`, `--rac-erro`, `--rac-info`, `--rac-neutro`. **Preenchimentos** com texto branco: `--rac-ok-fill`, `-aviso-fill`, `-erro-fill`, `-info-fill`. Estado nunca só pela cor: ícone (✓ ⚠ ✗ i •) + palavra.
-- **Superfícies e texto**: `--rac-fundo`, `--rac-sup-1` (cartão), `--rac-sup-2` (realce/campo), `--rac-texto`, `--rac-texto-2`, `--rac-linha`, `--rac-linha-campo` (≥ 3:1), `--rac-foco`.
-- **Escalas**: espaço `--rac-esp-1…12` (base 4 px), raio `--rac-raio-1/2/3/pilula`, sombra `--rac-sombra-1/2/3`, movimento `--rac-mov-rapido/medio`, camadas `--rac-z-*`, alvo de toque `--rac-alvo` (44 px), tipografia `--rac-fs-*` (8 papéis; no computador soma o `--fz` que já existia).
-- Ainda **não** feitos: breakpoints como variável (CSS não aceita variável em `@media`; ficam como convenção 480/860/1180 px, ver Documento 03 §3.5), as 7 cores de área (dependem do menu agrupado, DS-2) e o conjunto de ícones em `<symbol>` (a página de componentes reaproveita os 29 ícones do menu, sem biblioteca nova).
+### Tokens (`css/rac.css`, camada 1)
+Marca `--rac-dodger*`, `--rac-vermelho*`, `--rac-prata`, degradê `--rac-azul-grad` · superfícies `--rac-papel` (cartão), `-papel-2` (área interna), `-papel-3` (trilho), `--rac-azul-suave` (item ativo) ·
+texto `--rac-texto`, `-texto-2` · estados `--rac-ok|aviso|erro|info|neutro` + tintas `--rac-tinta-*` e preenchimentos `--rac-*-fill` · bordas `--rac-borda`, `--rac-linha-campo` (≥ 3:1) ·
+escalas `--rac-esp-*`, `--rac-raio-*`, `--rac-sombra-*`, `--rac-mov-*`, `--rac-z-*`, `--rac-alvo` (44 px), `--rac-barra-h` · tipografia `--rac-fs-*`.
+Escuro redefine só os tokens por tema (`prefers-color-scheme` e `data-theme="dark"`, iguais). Cor escrita em hexadecimal só vale dentro de token.
 
-### Componentes (classes)
+### Componentes por função (nem todo módulo usa o mesmo cartão)
+| Função | Classe / função do kit |
+|---|---|
+| Indicador principal e secundário | `rac-kpi` (`--sec`, `--alerta`, `--destaque`) · `rkKpi` + `rkDelta` (seta + número, nunca só cor) |
+| Resumo, informação contextual | `rac-card` · `rkCard`; `rac-info` · `rkInfo` |
+| Alerta | `rac-alerta` (`aviso|erro|ok|info`) · `rkAlerta` |
+| Atalho | `rac-atalho` · `rkAtalho` |
+| Lista | `rac-lista` (linha inteira clicável, marca de prioridade) · `rkLista` |
+| Comparação | `rac-comp` · `rkComparar` (atual × anterior, mesma escala, `racDica`) |
+| Gráfico | `.rac-grafico` sobre `rsColunas`/`rsBarras`; `rac-medidor` · `rkMedidor` (orçamento e projeção) |
+| Botões | `rac-btn` (`pri sec ter perigo icone fantasma`; desligado, `aria-busy`) · `rkBtn`, `rkLink` |
+| Chips e selos | `rac-chip` (`aria-pressed`) · `rac-selo--ok|aviso|erro|info|neutro` · `rkSelo` |
+| Estados | `rac-estado` (carregando com esqueleto, vazio, erro, ok, aviso) · `rkEstado`; selecionado = chip pressionado; desligado e ocupado = botão |
+| Campos | `rac-campo` (rótulo sempre visível, ajuda, erro no campo) · `rkCampo` |
+| Tabela e recolher | `rac-tabela` em `rac-tabela-rolo` · `rac-recolher` · `rkRecolher` |
+| Tipografia | `rac-t-num-g|num|pagina|secao|cartao|texto|sec|rotulo|legenda|mono` |
 
-Cartão `rac-card` (+ `-cab`, `-corpo`, `-rod`; variantes `--kpi`, `--sinal`, `--atalho`) · botão `rac-btn` (`--pri`, `--sec`, `--ter`, `--perigo`, `--icone`; estados desligado e `aria-busy`) · `rac-chip` (`aria-pressed`) e `rac-selo--ok|aviso|erro|info|neutro` ·
-`rac-estado` (`--erro`) e `rac-esqueleto` (carregando/vazio/erro) · `rac-campo` (`-rotulo`, `-entrada`, `-ajuda`, `--erro`) · `rac-lista` · `rac-tabela` dentro de `rac-tabela-rolo` ·
-tipografia `rac-t-num|pagina|secao|cartao|texto|sec|legenda|mono` · `rac-pilha`, `rac-linha-flex`, `rac-grade`.
-Em JavaScript, `js/componentes.js` mostra o "como montar" (`dscSelo`, `dscBtn`, `dscCard`, `dscEstado`, `dscCampo`) com o `h()` de sempre. Quando um módulo migrar de verdade, esses
-ajudantes sobem para a base (`js/app.js`); até lá nenhum outro módulo depende de `componentes.js` (sem acoplamento).
+### Navegação
+- **Desktop**: barra lateral em 6 áreas (Hoje · Vida e família · Finanças e compras · Carreira e estudos · Informação · Sistema); item ativo com tinta azul e indicador lateral.
+- **Celular (até 860 px)**: barra inferior com os atalhos marcados `curto` no registro (Hoje, Agenda, Saúde, Compras) + **Menu**, que abre a gaveta de sempre; os botões flutuantes sobem acima dela.
+- **Casa**: menu de sempre (sem áreas, sem barra). Rota nova = uma linha em `js/rotas.js` com `area` (e `curto` se for atalho); nenhum menu paralelo.
+
+## Piloto: RAC Hoje
+O mesmo conteúdo e as mesmas regras, recompostos como painel (nada novo lido, nada inventado; cada bloco some se a fonte não trouxe dado):
+abertura azul (saudação, o dia numa frase só com contagens reais, tempo e jogo, ações) → indicadores (Pede atenção · Gasto no mês com variação · Orçamento usado com medidor · Prontidão) →
+**Prioridades do dia** (regras do núcleo; cada linha leva ao módulo do dado, `HJ_DESTINO`) + **Gastos do mês** (atual × mês passado por origem) + **Contexto do dia** →
+**Saúde e treino** (passos por dia e treinos da semana, da série real do relógio) → **Análise da IA** e **Pergunte** (lado a lado) → **Histórico** e **Fontes de informação** recolhidos.
+A análise, o cache, a cobrança, as chamadas sem resultado e os selos de fonte são as funções de antes, sem alteração. Medicamentos, encomendas e contas ainda não existem como fonte (Fase 4): não aparecem.
+
+## Classificação do DS-1 anterior (auditoria desta etapa)
+| Grupo | Elementos |
+|---|---|
+| **A. Manter** | Nomes `rac-*`; escalas de espaço, movimento, camadas e alvo de 44 px; padrão de estado (ícone + palavra); catraca de cores; teste de contraste; página interna só do dono; ES5 |
+| **B. Refinar** | Tokens de superfície (de "sup-1/2" para papel 1/2/3 com tintas); botões; chips e selos (sem borda, com tinta); campos; lista e tabela; esqueleto de carregamento |
+| **C. Substituir** | Cartão com borda e sombra única → cartão de papel por função (KPI, alerta, atalho, informação, comparação, gráfico); tipografia condensada nos números → Outfit tabular; a página `#componentes` (coleção pobre) → página do sistema definitivo; CSS dentro do `index.html` → `css/rac.css` |
 
 ## Regras para quem for adotar
-
-1. Tela nova usa `rac-*`; tela antiga **não é tocada** até a sua etapa (DS-3 piloto, DS-4 por área). A **casa (Mercado, Lista, Família, Veículos) só com autorização do dono** (DS-5).
-2. Não escrever cor, raio ou espaço soltos: usar o token. Não criar token novo sem registrar aqui.
-3. Todo gráfico novo segue `racDica.ligar`/`racDica.em` (regra existente).
-4. Ao migrar telas, rodar `tests/design_system.test.mjs` e **baixar** `LINHA_DE_BASE_CORES` para o novo número: a catraca só desce.
-5. Conferir no celular (390 px) e no computador (1280 px), tema claro e escuro, antes de pedir aprovação.
+1. Tela nova usa `rac-*` e o kit; tela antiga só muda na sua etapa (DS-4 por área). **Telas da casa só com autorização do dono (DS-5).**
+2. Nada de cor, raio ou espaço soltos: token. Nada de gráfico sem `racDica`. Kit e gráficos entram pelo `MOD_DEPS` do módulo.
+3. Ao migrar, rodar `tests/design_system.test.mjs` e **baixar** `LINHA_DE_BASE_CORES` (hoje 115, só do CSS antigo).
+4. Conferir em 390, 768 e 1280 px, tema claro e escuro, sem rolagem lateral, alvos ≥ 44 px, console limpo.
 
 ## Testes que protegem
-
-`tests/design_system.test.mjs`: (1) **catraca** — cores escritas fora de variáveis ≤ 115 (linha de base de 13/11/2026); (2) tokens existem e os que mudam por tema valem nos três temas;
-(3) **contraste WCAG** de 19 pares (texto ≥ 4,5:1; borda de campo ≥ 3:1) nos dois temas; (4) classes `rac-` sem cor escrita, com foco visível, alvo de 44 px, `prefers-reduced-motion` e só tokens que existem;
-(5) rota só do dono, fora do menu, no cache offline, `VERSAO` = `MOD_VERSAO`; (6) a página desenha as 9 seções para o dono e recusa a casa; (7) ES5 puro e sem nome global repetido.
-`tests/rotas.test.mjs` continua comparando com a cópia de antes; passou a aceitar **uma única rota nova** (`componentes`).
-
-## Decisão pendente: tema padrão (D-01) — recomendação, não decisão
-
-| Opção | A favor | Contra |
-|---|---|---|
-| A. Manter o **claro** como padrão e o escuro como opção (hoje) | Zero risco; é o que o dono escolheu em 31/10; a Fernanda não vê mudança | O visual "Noite Dodger" fica escondido; a foto de fundo compete com o cartão translúcido |
-| B. **Escuro Dodger** como padrão para o dono (preferência só dele; casa continua como está) | Identidade mais forte, cartões sólidos e legíveis; tokens e contrastes já prontos (§3 do Documento 03) | Precisa do piloto (DS-3) para validar no iPhone ao sol e com as fotos de fundo |
-| C. **Automático** (segue o sistema do aparelho) | Respeita o iPhone; já existe como escolha | Duas aparências a manter conferidas em cada tela |
-
-**Recomendação**: seguir pela **B, mas só depois do piloto**: entregar o escuro refinado (DS-2) como **opção** sem mudar o padrão de ninguém, ver o RAC Hoje e o Monitor nele (DS-3) no iPhone e só então o dono decide se vira padrão para ele.
-A casa não muda de tema sem o dono pedir. Nada disso foi decidido; o padrão continua o claro.
+`tests/design_system.test.mjs` (catraca; tokens nos 3 temas; contraste WCAG de 40 pares; componentes só com tokens; escopo do dono; menu por área e barra a partir do registro; página; kit; piloto; ES5; versões e cache offline) ·
+`tests/rotas.test.mjs` (equivalência com a cópia de antes, aceitando só a rota `componentes` e os atributos de área) · `tests/hoje.test.mjs`, `tests/fontes.test.mjs`, `tests/graficos.test.mjs`.

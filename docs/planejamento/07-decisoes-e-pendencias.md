@@ -43,7 +43,7 @@ O texto original de cada questão foi preservado. Nenhuma questão foi apagada: 
 
 | ID | Questão (texto original) | Situação em 13/11/2026 |
 |---|---|---|
-| D-01 | Qual tema é o padrão? | **Em aberto**, para a fase do Design System (DS-2) |
+| D-01 | Qual tema é o padrão? | **Decidida pelo dono em 13/11/2026**: tema claro como padrão; escuro existente funcional; fundo e azul Dodger preservados (direção RAC Modern Workspace) |
 | D-02 | O que a Fernanda vê e faz nas frentes novas (medicamentos, contas, encomendas, condomínio, integrantes)? | **Em aberto**, antes da Família e Casa (F4) |
 | D-03 | O que fazer com a Central Fiscal e a proposta `040`? | **Resolvida** em 13/11/2026: código congelado, sem evolução, fora do roadmap; a `040` não é pendência de desenvolvimento (ver "Decisões tomadas") |
 | D-04 | Propostas `041` (categorias oficiais do Mercado) e `044` (IA do Radar)? | **Em aberto**, só na etapa própria da Central de Compras |
@@ -149,7 +149,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 
 ## Atualização de 13/11/2026 · Fase 3 (Design System)
 
-- **D-01 (tema padrão)**: continua **em aberto**. Análise de três opções e recomendação (escuro Dodger como opção primeiro; virar padrão do dono só depois do piloto DS-3 no iPhone; a casa não muda) em
-  [`docs/design-system.md`](../design-system.md#decisão-pendente-tema-padrão-d-01--recomendação-não-decisão). Nenhuma decisão foi tomada pelo Claude.
-- **Decisão técnica tomada na implementação (reversível)**: tokens `--rac-*` apontam para os atuais, sem trocar valores; a página `#componentes` é rota só do dono, sem item no menu.
-- **Pendente, depende do dono**: aprovar a página de componentes no celular (critério da F3); autorizar DS-5 (telas da casa) quando chegar a hora.
+- **D-01 (tema padrão) — decidida pelo dono**: tema **claro** como padrão; escuro existente funcional, sem regressões; fundo atual e azul Dodger preservados; identidade própria. Direção oficial: **RAC Modern Workspace**
+  (produtividade moderna para estrutura e navegação, analytics minimalista para acabamento, dashboard analítico para gráficos). Guia em [`docs/design-system.md`](../design-system.md#direção-aprovada-rac-modern-workspace).
+  A recomendação anterior ("escuro Dodger como opção primeiro") foi **superada** por esta decisão.
+- **Decisões técnicas tomadas na implementação (reversíveis)**: o CSS do Design System mora em `css/rac.css` (não no `index.html`); o shell novo vale só para o dono (`html.logado:not(.casa)`); a Central de Compras não é tocada;
+  o menu por área é CSS sobre o registro de rotas (campo `area`), sem reordenar o registro; a barra inferior do celular sai do mesmo registro (campo `curto`); `js/kit.js` guarda os componentes (sem tela, sem banco).
+- **Pendente, depende do dono**: aprovar o piloto no iPhone (critério da F3); D-12 (o Início convive com o RAC Hoje ou é substituído); autorizar DS-5 (telas da casa) quando chegar a hora; merge e publicação.

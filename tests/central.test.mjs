@@ -113,7 +113,7 @@ test("Central: rota, menu, seção, papel casa, service worker e versão", () =>
   const RT = registro(); assert.ok(RT.tabs.includes("seguranca")); assert.ok(RT.DA_CASA.includes("seguranca"));
   assert.deepEqual(RT.ROTA_MODS.seguranca, ["seguranca"]); assert.match(app, /seguranca:\["sistema"\]/);
   const rs = rota("seguranca"); assert.ok(!rs.marcaPropria); assert.match(rs.abrirTexto, /renderSeguranca\(p\[1\]\)/);
-  assert.match(RT.menu, /<a class="it" href="#seguranca" data-k="seguranca" data-casa="1">/); assert.match(html, /<section id="seguranca" hidden><div id="seguranca-view" class="stack"><\/div><\/section>/);
+  assert.match(RT.menu, /<a class="it" href="#seguranca" data-k="seguranca" data-casa="1" data-area="sis" style="--o:\d+">/); assert.match(html, /<section id="seguranca" hidden><div id="seguranca-view" class="stack"><\/div><\/section>/);
   assert.match(html, /html\.casa #navgrp a\.it:not\(\[data-casa\]\)/, "quem é da casa vê a Central (só MFA e recuperação): item com data-casa");
   assert.match(sw, /"\.\/js\/seguranca\.js"/);
   assert.match(seg, /if\(isOwner\(\)\)\{root\.appendChild\(segBackupPainel\(\)\)/, "backup, restauração, histórico e auditoria só para o dono");

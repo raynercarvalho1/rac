@@ -55,26 +55,6 @@
   --good:#55C08A; --warn:#E0A252; --bad:#FF7A85; --live:#FF5A5F;
   --c-esportes:#6CB4F0; --c-vagas:#8CCBFF; --c-aniversarios:#FF7A85; --c-embreve:#B4C0D0; --c-x:#E7E9EA; --c-mercado:#4FD1A5; --c-inicio:#A5A6F6; --c-estudos:#F2A65A; --c-eddie:#D9A066; --c-olivia:#F58BC0; --c-veic:#9FB3C8; --c-saude:#FF7A80;
   --shadow:0 0 0 1px rgba(255,255,255,.06),0 8px 24px rgba(0,0,0,.3); color-scheme:dark}
-/* ===== Design System RAC · DS-0 · tokens (Fase 3; docs/planejamento/03-design-system.md, docs/design-system.md) =====
-   Prefixo --rac-. Só ACRESCENTA: nenhum token ou classe antiga mudou, então nenhuma tela muda de aparência. Onde existe um token atual,
-   o --rac-* aponta para ele (uma fonte só da verdade, nos três temas). Cor escrita em hexadecimal só vale aqui, dentro de variável
-   (tests/design_system.test.mjs trava: o número de cores soltas no CSS não pode subir e as classes rac- não usam cor escrita). */
-:root{
-  --rac-dodger:#005A9C; --rac-dodger-forte:#0B4F86; --rac-dodger-claro:#6CB4F0; --rac-vermelho:#C8102E; --rac-vermelho-claro:#FF7A85; --rac-prata:#A5ACAF;
-  --rac-ok-fill:#1E7A4C; --rac-aviso-fill:#A5610B; --rac-erro-fill:#C8102E; --rac-info-fill:#005A9C; --rac-sobre-fill:#FFFFFF;
-  --rac-info:#005A9C; --rac-linha-campo:#7B8CA3;
-  --rac-fundo:var(--bg); --rac-sup-1:var(--surface); --rac-sup-2:var(--hover); --rac-texto:var(--ink); --rac-texto-2:var(--muted); --rac-linha:var(--line);
-  --rac-ok:var(--good); --rac-aviso:var(--warn); --rac-erro:var(--bad); --rac-neutro:var(--muted); --rac-foco:var(--rac-info);
-  --rac-esp-1:4px; --rac-esp-2:8px; --rac-esp-3:12px; --rac-esp-4:16px; --rac-esp-5:20px; --rac-esp-6:24px; --rac-esp-8:32px; --rac-esp-10:40px; --rac-esp-12:48px;
-  --rac-raio-1:8px; --rac-raio-2:12px; --rac-raio-3:16px; --rac-raio-pilula:999px;
-  --rac-sombra-1:var(--shadow); --rac-sombra-2:0 4px 14px rgba(0,30,70,.18); --rac-sombra-3:0 12px 36px rgba(0,30,70,.28);
-  --rac-mov-rapido:120ms; --rac-mov-medio:200ms;
-  --rac-z-menu:30; --rac-z-flutuante:40; --rac-z-dica:50; --rac-z-janela:60; --rac-z-aviso:70;
-  --rac-alvo:44px;
-  --rac-fs-num:36px; --rac-fs-pagina:26px; --rac-fs-secao:20px; --rac-fs-cartao:17px; --rac-fs-texto:15px; --rac-fs-sec:13px; --rac-fs-legenda:12px; --rac-fs-mono:12px;
-}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rac-info:#6CB4F0; --rac-linha-campo:#6A84A6}}
-:root[data-theme="dark"]{--rac-info:#6CB4F0; --rac-linha-campo:#6A84A6}
 /* A seção aberta empresta a sua cor para links, títulos e botões */
 :root[data-sec="vagas"]{--accent:var(--c-vagas)}
 :root[data-sec="aniversarios"]{--accent:var(--c-aniversarios)}
@@ -1175,79 +1155,8 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado .mkkpi-link,#mercado a.mkkpi{text-decoration:none;color:inherit;cursor:pointer}#mercado a.mkkpi:hover{border-color:var(--accent);box-shadow:var(--shadow)}#mercado .mkkpi .kgo{font-size:calc(12px + var(--fz));color:var(--accent);font-weight:600}
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
-/* ===== Design System RAC · DS-1 · componentes (classes rac-; só usam var(--rac-*); nenhuma cor escrita) =====
-   Convivem com as classes antigas (.panel, button, .ghostbtn, .chips…), que continuam como estão até cada módulo migrar (docs/design-system.md). */
-.rac-t-num{font:700 calc(var(--rac-fs-num) + var(--fz))/1.05 var(--f-display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
-.rac-t-pagina{font:700 calc(var(--rac-fs-pagina) + var(--fz))/1.2 var(--f-ui);margin:0}
-.rac-t-secao{font:700 calc(var(--rac-fs-secao) + var(--fz))/1.25 var(--f-ui);margin:0}
-.rac-t-cartao{font:600 calc(var(--rac-fs-cartao) + var(--fz))/1.3 var(--f-ui);margin:0}
-.rac-t-texto{font:400 calc(var(--rac-fs-texto) + var(--fz))/1.5 var(--f-body)}
-.rac-t-sec{font:500 calc(var(--rac-fs-sec) + var(--fz))/1.4 var(--f-body);color:var(--rac-texto-2)}
-.rac-t-legenda{font:600 calc(var(--rac-fs-legenda) + var(--fz))/1.3 var(--f-ui);color:var(--rac-texto-2)}
-.rac-t-mono{font:400 calc(var(--rac-fs-mono) + var(--fz))/1.4 var(--f-mono)}
-.rac-pilha{display:flex;flex-direction:column;gap:var(--rac-esp-4);min-width:0}
-.rac-linha-flex{display:flex;flex-wrap:wrap;align-items:center;gap:var(--rac-esp-2)}
-.rac-grade{display:grid;gap:var(--rac-esp-4);grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))}
-/* cartão: cabeçalho, corpo e rodapé de origem */
-.rac-card{background:var(--rac-sup-1);color:var(--rac-texto);border:1px solid var(--rac-linha);border-radius:var(--rac-raio-3);box-shadow:var(--rac-sombra-1);padding:var(--rac-esp-4);min-width:0;display:flex;flex-direction:column;gap:var(--rac-esp-3)}
-.rac-card-cab{display:flex;align-items:center;gap:var(--rac-esp-2);justify-content:space-between;min-width:0}
-.rac-card-cab>.rac-t-cartao{flex:1;min-width:0;overflow-wrap:anywhere}
-.rac-card-rod{border-top:1px solid var(--rac-linha);padding-top:var(--rac-esp-2);margin-top:auto}
-.rac-card--kpi .rac-card-corpo{display:flex;flex-direction:column;gap:var(--rac-esp-1)}
-.rac-card--sinal{border-left:4px solid var(--rac-aviso)}
-.rac-card--atalho{text-decoration:none;color:var(--rac-texto);transition:transform var(--rac-mov-rapido),box-shadow var(--rac-mov-rapido)}
-.rac-card--atalho:hover,.rac-card--atalho:focus-visible{transform:translateY(-2px);box-shadow:var(--rac-sombra-2)}
-/* botões: primário, secundário, terciário, perigo e só ícone; alvo de toque de 44 px */
-.rac-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--rac-esp-2);min-height:var(--rac-alvo);padding:0 var(--rac-esp-5);border-radius:var(--rac-raio-pilula);border:1px solid transparent;font:600 calc(14px + var(--fz)) var(--f-ui);text-decoration:none;cursor:pointer;background:transparent;color:var(--rac-texto);transition:background var(--rac-mov-rapido),border-color var(--rac-mov-rapido),transform var(--rac-mov-rapido)}
-.rac-btn:active{transform:scale(.98)}
-.rac-btn--pri{background:var(--rac-dodger);color:var(--rac-sobre-fill)}
-.rac-btn--pri:hover{background:var(--rac-dodger-forte)}
-.rac-btn--sec{background:var(--rac-sup-1);border-color:var(--rac-linha-campo);color:var(--rac-texto)}
-.rac-btn--sec:hover{background:var(--rac-sup-2)}
-.rac-btn--ter{padding:0 var(--rac-esp-3);color:var(--rac-info);text-decoration:underline;text-underline-offset:3px}
-.rac-btn--ter:hover{background:var(--rac-sup-2)}
-.rac-btn--perigo{background:transparent;border-color:var(--rac-erro);color:var(--rac-erro)}
-.rac-btn--perigo:hover{background:var(--rac-erro-fill);color:var(--rac-sobre-fill)}
-.rac-btn--icone{width:var(--rac-alvo);padding:0;border-color:var(--rac-linha-campo);background:var(--rac-sup-1)}
-.rac-btn:focus-visible,.rac-chip:focus-visible,.rac-campo-entrada:focus-visible,.rac-card--atalho:focus-visible{outline:2px solid var(--rac-foco);outline-offset:2px}
-.rac-btn:disabled,.rac-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed;transform:none}
-.rac-btn[aria-busy="true"]{cursor:progress;opacity:.75}
-.rac-btn[aria-busy="true"]::after{content:"";width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:rac-gira .8s linear infinite}
-@keyframes rac-gira{to{transform:rotate(360deg)}}
-/* chips de filtro e selos de estado (estado = ícone + palavra + cor, nunca só cor) */
-.rac-chip{display:inline-flex;align-items:center;min-height:var(--rac-alvo);padding:0 var(--rac-esp-4);border-radius:var(--rac-raio-pilula);border:1px solid var(--rac-linha-campo);background:var(--rac-sup-1);color:var(--rac-texto);font:600 calc(13px + var(--fz)) var(--f-ui);cursor:pointer}
-.rac-chip[aria-pressed="true"]{background:var(--rac-dodger);border-color:var(--rac-dodger);color:var(--rac-sobre-fill)}
-.rac-selo{display:inline-flex;align-items:center;gap:var(--rac-esp-1);padding:2px var(--rac-esp-3);border-radius:var(--rac-raio-pilula);border:1px solid currentColor;font:600 calc(var(--rac-fs-legenda) + var(--fz)) var(--f-ui);white-space:nowrap}
-.rac-selo--ok{color:var(--rac-ok)}.rac-selo--aviso{color:var(--rac-aviso)}.rac-selo--erro{color:var(--rac-erro)}.rac-selo--info{color:var(--rac-info)}.rac-selo--neutro{color:var(--rac-neutro)}
-/* carregando (esqueleto), vazio e erro: um componente para os três */
-.rac-estado{display:flex;flex-direction:column;align-items:flex-start;gap:var(--rac-esp-2);padding:var(--rac-esp-4);border:1px dashed var(--rac-linha-campo);border-radius:var(--rac-raio-2);color:var(--rac-texto-2)}
-.rac-estado--erro{border-style:solid;border-color:var(--rac-erro);color:var(--rac-texto)}
-.rac-esqueleto{width:100%;display:flex;flex-direction:column;gap:var(--rac-esp-2)}
-.rac-esqueleto>i{display:block;height:14px;border-radius:var(--rac-raio-1);background:var(--rac-linha);animation:rac-pulsa 1.4s ease-in-out infinite}
-.rac-esqueleto>i:nth-child(2){width:80%}.rac-esqueleto>i:nth-child(3){width:55%}
-@keyframes rac-pulsa{50%{opacity:.45}}
-/* campos e formulários: rótulo sempre visível, ajuda abaixo, erro no próprio campo */
-.rac-campo{display:flex;flex-direction:column;gap:var(--rac-esp-1);min-width:0}
-.rac-campo-rotulo{font:600 calc(13px + var(--fz)) var(--f-ui);color:var(--rac-texto)}
-.rac-campo-entrada{min-height:var(--rac-alvo);padding:0 var(--rac-esp-3);border-radius:var(--rac-raio-1);border:1px solid var(--rac-linha-campo);background:var(--rac-sup-1);color:var(--rac-texto);font:400 max(16px,calc(var(--rac-fs-texto) + var(--fz))) var(--f-body);width:100%}
-.rac-campo-ajuda{font:400 calc(var(--rac-fs-sec) + var(--fz))/1.4 var(--f-body);color:var(--rac-texto-2)}
-.rac-campo--erro .rac-campo-entrada{border-color:var(--rac-erro);border-width:2px}
-.rac-campo--erro .rac-campo-ajuda{color:var(--rac-erro)}
-/* lista e tabela (a tabela rola de lado no celular, sem quebrar a página) */
-.rac-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.rac-lista>li{display:flex;align-items:center;gap:var(--rac-esp-3);min-height:var(--rac-alvo);padding:var(--rac-esp-2) 0;border-bottom:1px solid var(--rac-linha)}
-.rac-lista>li:last-child{border-bottom:0}.rac-lista .rac-grow{flex:1;min-width:0;overflow-wrap:anywhere}
-.rac-tabela-rolo{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--rac-linha);border-radius:var(--rac-raio-2)}
-.rac-tabela{border-collapse:collapse;width:100%;min-width:420px;font:400 calc(14px + var(--fz)) var(--f-body)}
-.rac-tabela th,.rac-tabela td{padding:var(--rac-esp-2) var(--rac-esp-3);text-align:left;border-bottom:1px solid var(--rac-linha)}
-.rac-tabela th{font:600 calc(var(--rac-fs-legenda) + var(--fz)) var(--f-ui);color:var(--rac-texto-2);text-transform:uppercase;letter-spacing:.04em}
-.rac-tabela td.rac-n,.rac-tabela th.rac-n{text-align:right;font-variant-numeric:tabular-nums}
-/* página de componentes (#componentes) */
-.rac-amostra{display:flex;align-items:center;gap:var(--rac-esp-2);min-width:0}
-.rac-cor{width:100%;min-height:44px;border-radius:var(--rac-raio-1);border:1px solid var(--rac-linha-campo)}
-.rac-ico{width:28px;height:28px;flex:none;display:inline-flex;color:var(--rac-info)}.rac-ico svg{width:100%;height:100%}
-@media (prefers-reduced-motion: reduce){.rac-btn,.rac-card--atalho{transition:none}.rac-btn[aria-busy="true"]::after,.rac-esqueleto>i{animation:none}}
 </style>
+<link rel="stylesheet" href="css/rac.css?v=2026-11-13.4">
 </head>
 <body>
 

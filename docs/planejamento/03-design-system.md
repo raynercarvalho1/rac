@@ -271,12 +271,11 @@ automáticas (Playwright, que o CI já instala) em 390 px e 1280 px nos dois tem
 
 ## 8. Situação de implementação (atualização de 13/11/2026, Fase 3)
 
-As seções 1 a 7 acima continuam sendo o diagnóstico e o plano; este registro só acrescenta o estado. **DS-0 e DS-1 estão implementados na branch da Fase 3
-(`claude/rac-fase-3-design-system-0msm91`), aguardando revisão e merge do dono**; nada foi publicado. O guia de uso é [`docs/design-system.md`](../design-system.md).
+As seções 1 a 7 acima continuam sendo o diagnóstico (13/11/2026) e o plano original. **A direção visual mudou em 13/11/2026**: o dono aprovou o **RAC Modern Workspace**
+(produtividade moderna + analytics minimalista + dashboard analítico), com **tema claro como padrão**, fundo e azul Dodger preservados e o escuro funcional. A seção 2 ("Noite Dodger",
+escuro como direção principal) e a proposta de DS-2 "tema" ficam **substituídas**; a decisão D-01 está tomada. O guia vivo é [`docs/design-system.md`](../design-system.md).
 
-- **Diferença em relação à seção 3**: onde existia token atual, o `--rac-*` **aponta para ele** (e não o contrário, como a seção 3 previa). O efeito é o mesmo (uma fonte só) e garante
-  que nenhuma tela existente muda; os valores literais ficam só nos tokens novos (marca, preenchimentos de estado, escalas) e em `--rac-info`/`--rac-linha-campo`, que variam por tema.
-- **Linha de base da catraca**: 115 cores escritas fora de variáveis (a conta de 196 do diagnóstico inclui as linhas de tokens). Só pode descer.
-- **Breakpoints**: ficam como convenção (480/860/1180 px), pois CSS não aceita variável em `@media`.
-- **Não feito ainda**: DS-2 (tema e menu agrupado), DS-3 (piloto RAC Hoje e Monitor), DS-4, DS-5; cores de área; `<symbol>` de ícones; barra inferior no celular.
-- **Tema padrão (D-01)**: continua em aberto; análise e recomendação em [`docs/design-system.md`](../design-system.md#decisão-pendente-tema-padrão-d-01--recomendação-não-decisão).
+- **Feito na branch `claude/rac-fase-3-design-system-0msm91` (PR #9, sem merge, não publicado)**: DS-0 (tokens) e DS-1 (componentes) na primeira versão, depois **redefinidos** em `css/rac.css` e `js/kit.js`;
+  menu do dono por área e barra inferior no celular (pelo registro de rotas); piloto no RAC Hoje. Classificação do que foi mantido, refinado e substituído em [`docs/design-system.md`](../design-system.md#classificação-do-ds-1-anterior-auditoria-desta-etapa).
+- **Diferença em relação à seção 3**: os tokens `--rac-*` apontam para os atuais onde existem; as superfícies novas (papel 1/2/3, tintas) e o degradê de marca são novos. Breakpoints seguem como convenção (480/860/1180 px).
+- **Não feito ainda**: DS-4 (demais módulos, um por vez), DS-5 (telas da casa, só com autorização), cores por área nos gráficos, `<symbol>` de ícones.

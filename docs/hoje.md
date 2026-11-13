@@ -3,6 +3,10 @@
 O assistente do dia do dono: junta o que pede atenção em todos os módulos, explica o que mudou e recomenda, com a IA real
 (ação `hoje.analise`, Sonnet 5.5). **Só da conta do dono.** A Fernanda (papel casa) continua exatamente como estava.
 
+> **Tela recomposta em 13/11/2026 (Fase 3, piloto do Design System; branch do PR #9, ainda sem merge):** o RAC Hoje agora é um painel (abertura, indicadores, prioridades, gastos, contexto, saúde, análise, pergunta,
+> histórico e fontes recolhidos), desenhado com `js/kit.js` e `js/graficos.js`. **Só a apresentação mudou**: as fontes, as regras `NUCLEO.hoje*`, a análise da IA, o cache, a cobrança e as chamadas sem resultado são os de
+> antes. Detalhes e regras de uso em [`docs/design-system.md`](design-system.md). As seções abaixo descrevem a lógica, que continua valendo.
+
 ## Estado (06/11/2026)
 
 | Parte | Estado |

@@ -30,7 +30,9 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   const velho = [...ANTES_MENU.matchAll(/<a class="it"[\s\S]*?<\/a>/g)].map((m) => m[0]);
   const novo = [...R.menu.matchAll(/<a class="it"[\s\S]*?<\/a>/g)].map((m) => m[0]);
   assert.equal(velho.length, 29); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
-  assert.deepEqual(novo.map((a) => a.replace(' data-casa="1"', "")), velho, "mesmo HTML (ícone, cor, nome, contador), na mesma ordem");
+  /* Fase 3: cada item ganhou data-area e --o (o menu do dono é agrupado por CSS); fora isso o HTML é o de antes */
+  const semFase3 = (x) => x.replace(' data-casa="1"', "").replace(/ data-area="[a-z]+" style="--o:\d+"/, "");
+  assert.deepEqual(novo.map(semFase3), velho, "mesmo HTML (ícone, cor, nome, contador), na mesma ordem");
   /* antes: uma regra de CSS listava as páginas da casa; agora o item traz data-casa e a regra só olha para ele */
   const naCss = [...ANTES_MENU.matchAll(/:not\(\[data-k="([a-z-]+)"\]\)/g)].map((m) => m[1]);
   assert.deepEqual(ordenado(novo.filter((a) => / data-casa="1"/.test(a)).map((a) => /data-k="([^"]+)"/.exec(a)[1])), ordenado(naCss));
@@ -39,7 +41,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.ok(html.includes(resto), "o resto da regra de CSS da casa ficou igual");
   assert.match(html, /<nav class="grp" id="navgrp" aria-label="Seções">\n      <h4>Painel<\/h4>/, "o título do grupo continua");
   assert.ok(!/<a class="it" href="#inicio"/.test(html), "o menu não é mais HTML fixo");
-  assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "um grupo só, como antes (o menu agrupado é a DS-2, depois)");
+  assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "o grupo do registro continua um só (\"Painel\"); as áreas da Fase 3 são o campo area, aplicado por CSS só para o dono");
   assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["busca", "componentes"], "só a Busca (como antes) e a página de componentes (Fase 3) ficam sem item no menu");
   const idx = ["js/dados.js", "mercado.js", "js/rotas.js", "js/app.js"].map((s) => html.indexOf(`<script src="${s}"></script>`));
   assert.ok(idx.every((x, i) => x > 0 && (!i || x > idx[i - 1])), "o registro carrega antes do app (a busca lateral lê o menu ao abrir)");

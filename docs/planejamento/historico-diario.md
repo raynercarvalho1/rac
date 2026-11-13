@@ -661,3 +661,22 @@ Família e da Casa.
 1. Quando houver acesso ao Cloudflare, começar por uma chamada HTTP de teste sem credenciais; medir tempo de CPU e verificar handshake TCP/STARTTLS com as portas Apple.
 2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
 3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.
+
+## 13/11/2026 · Atualização da PR #18 (protocolo permanente de autonomia)
+
+### 1. O que fizemos
+
+- Investigada a condição `mergeable: false` da PR #18: a PR só altera `CLAUDE.md` e `docs/planejamento/07-decisoes-e-pendencias.md`; a `main` avançou apenas com commits dos robôs (`vagas.json`, notícias), sem arquivo em comum. Não havia conflito; o GitHub passou a reportar `mergeable_state: clean`. O falso provavelmente veio do cálculo logo após a criação da PR, com a base defasada.
+- Branch da PR atualizada com um merge normal da `main` (sem force push), em `git worktree` separado; o trabalho local da POC iCloud não foi tocado.
+- Validação local no worktree: `planejamento`, `estrutura`, `nuvem`, `monitor` e `seguranca` — 92 testes, 92 aprovados, 0 falhas. A suíte completa fica para o CI da PR.
+
+### 2. O que estamos fazendo
+
+- A PR #18 aguarda o CI e o merge do dono (não mesclada por esta sessão). A PR #17 (POC iCloud) não foi alterada.
+- O trabalho da POC (workflow, teste e documentação) segue só no working tree da sessão, sem commit.
+
+### 3. O que vamos fazer
+
+1. Dono mescla a PR #18 depois do CI verde.
+2. Retomar a POC iCloud já sob o protocolo novo: commit, PR separada do workflow e configuração do Environment `cloudflare-poc` pelo dono.
+3. Atenção: PR #17 e PR #18 acrescentam texto ao fim deste histórico; o segundo merge pode pedir resolução trivial de ordem das seções.

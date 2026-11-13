@@ -21,12 +21,26 @@ Convenções [Fato] / [Hipótese] / [Recomendação]: ver o [Documento 1](01-vis
 | Google Notícias (RSS por tema) | Notícias de dados e tecnologia | robô `scripts/atualizar_tecdados.py` | nenhuma | `tecdados.json` | idem |
 | 52 feeds RSS/Atom oficiais | Newsletter | robô `scripts/atualizar_newsletter.py` | nenhuma | `newsletter.json` (com `fontes[].ok`) | idem + fontes fora do ar no Sistema |
 | Portal Mentora Dados | Vagas de Dados e BI | robô `scripts/atualizar_vagas.py` (página e `admin-ajax.php` do portal) | nenhuma | `vagas.json` | idem |
-| Gmail API (só leitura) | Compras online por e-mail; cartão de e-mail do Início | **navegador** (Google Identity Services), token de 1 h no aparelho | ID de cliente público | — | só a tela |
+| Gmail API (hoje só leitura; expansão RAC Inbox planejada) | Compras online por e-mail e cartão do Início hoje; futuramente cliente multicon­ta, envio e gestão | Hoje: navegador (Google Identity Services), token de 1 h; futuro: OAuth no servidor e adaptadores | Hoje: ID de cliente público; futuro: tokens/segredos protegidos no servidor | Hoje: —; futuro: modelo de contas e sincronização a definir | Hoje: só a tela; futuro: Gmail, Microsoft Graph e iCloud IMAP/SMTP conforme Documento 10 |
 | Google Maps (opcional) / OpenStreetMap + Leaflet | Mapa do treino | site (`js/saude.js`) | chave opcional em `PESSOAL.googleMaps` | — | aviso na tela e troca para o OpenStreetMap |
 | SerpApi (pago) | Descoberta de ofertas do Radar | função `radar` | secret do provedor | `radar_consultas`, `radar_candidatos` | `radar_consultas` (orçamento atômico) |
 | Mercado Livre (API oficial) | Preço de anúncio do Radar | função `radar` | nenhuma | `radar_precos` | `radar_coletas` |
 | GitHub Pages e Actions | Publicação do site e robôs | GitHub | `GITHUB_TOKEN` dos workflows | repositório | e-mail do GitHub; selo de testes no Sistema |
 | CDNs (cdnjs, jsDelivr), Google Fonts | Bibliotecas e fontes com versão exata | site | nenhuma | cache do service worker | só a tela |
+
+
+## 1.1 RAC Inbox — expansão de e-mail planejada (13/11/2026)
+
+O cartão atual de e-mail no Início é limitado: usa Gmail API somente para leitura e não é um cliente de e-mail. O dono aprovou o RAC Inbox como próxima grande frente após Saúde S1–S5, com objetivo de substituir o Spark no uso diário.
+
+- Gmail: migrar a implementação atual para autorização apropriada ao servidor e capacidades de leitura/escrita, envio e filtros pela API.
+- Outlook/Hotmail/Live: avaliar Microsoft Graph para mensagens, pastas, envio e regras.
+- iCloud: avaliar IMAP/SMTP com senha específica do app; filtros próprios do RAC podem cobrir a ausência de API pública documentada de regras nativas.
+- A prova de conceito deverá validar a rede e as portas da infraestrutura real. Em particular, SMTP iCloud usa a porta 587 documentada pela Apple, e o exemplo oficial Supabase alerta que essa porta pode estar bloqueada em Edge Functions.
+- Tokens e senhas não ficarão no navegador. Nenhuma conta real será conectada, migration aplicada ou serviço publicado antes da fase própria e da autorização correspondente.
+
+Especificação e fases I0–I6: [Documento 10 · RAC Inbox](10-rac-inbox.md).
+
 
 Riscos externos [Fato/Hipótese]: a API da ESPN não é oficial e pode mudar sem aviso; o Google Notícias pode limitar robôs; a
 chave pessoal da Garmin pode expirar ("a Garmin recusou a chave" é tratado na função); os créditos da Anthropic são pré-pagos

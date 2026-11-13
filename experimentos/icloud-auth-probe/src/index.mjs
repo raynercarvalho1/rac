@@ -1,12 +1,12 @@
-// Worker temporário da POC autenticada iCloud (arquitetura S3). Nesta etapa NÃO fala com a Apple:
-// só valida o JWT OIDC do GitHub Actions e confere que recebeu uma credencial bem formada, sem usá-la, guardá-la nem devolvê-la.
-// Ordem obrigatória: (1) método e rota, (2) JWT validado, (3) só então o corpo com a senha é lido.
+// Worker temporário da POC autenticada iCloud (arquitetura S3). Nesta etapa NÃO fala com a Apple e NÃO recebe credencial alguma:
+// só valida o JWT OIDC do GitHub Actions e reconhece a operação "validar_oidc", cujo corpo é sintético e mínimo ({"operacao":"validar_oidc"}).
+// Qualquer campo extra (inclusive usuario e senha) é recusado. Operações futuras com credencial terão esquema próprio, só entram com
+// implementação e autorização específicas e nunca guardam a senha (nem como secret, variável ou armazenamento).
+// Ordem obrigatória: (1) método e rota, (2) JWT validado, (3) só então o corpo é lido.
 // Sem console, sem armazenamento (nenhum secret, variável, KV ou Durable Object) e sem eco de nada que o cliente enviou.
 import { POLITICA } from "./politica.mjs";
 import { verificarJwt } from "./jwt.mjs";
 import { criarProvedorChaves } from "./jwks.mjs";
-
-const SEM_CONTROLE = /^[^\u0000-\u001f\u007f]+$/;
 
 function json(status, corpo) {
   return new Response(JSON.stringify(corpo), {
@@ -37,18 +37,14 @@ async function lerCorpoLimitado(request, maxBytes) {
   return todo;
 }
 
-// esquema fechado: exatamente operacao, usuario e senha; sem campos extras e sem caracteres de controle (injeção em IMAP/SMTP)
-export function lerCredencial(bytes, politica = POLITICA) {
+// esquema fechado por operação: hoje só "validar_oidc", com EXATAMENTE o campo "operacao" (nada de usuario, senha ou outro campo)
+export function lerCorpo(bytes, politica = POLITICA) {
   let dados;
   try { dados = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch (_) { return null; }
   if (dados === null || typeof dados !== "object" || Array.isArray(dados)) return null;
-  const chaves = Object.keys(dados).sort().join(",");
-  if (chaves !== "operacao,senha,usuario") return null;
-  const { operacao, usuario, senha } = dados;
-  if (typeof operacao !== "string" || !politica.operacoes.includes(operacao)) return null;
-  if (typeof usuario !== "string" || usuario.length < 3 || usuario.length > 254 || !SEM_CONTROLE.test(usuario)) return null;
-  if (typeof senha !== "string" || senha.length < 1 || senha.length > 128 || !SEM_CONTROLE.test(senha)) return null;
-  return { operacao, usuario, senha };
+  if (Object.keys(dados).join(",") !== "operacao") return null;
+  if (typeof dados.operacao !== "string" || !politica.operacoes.includes(dados.operacao)) return null;
+  return { operacao: dados.operacao };
 }
 
 export async function tratar(request, { verificar, politica = POLITICA }) {
@@ -61,21 +57,21 @@ export async function tratar(request, { verificar, politica = POLITICA }) {
     const validacao = await verificar(cabecalho.slice(7));
     if (!validacao.ok) return recusa(401, "nao_autorizado", validacao.motivo);
 
-    // a partir daqui o token é válido para esta política; só agora o corpo (com a senha) é lido
+    // a partir daqui o token é válido para esta política; só agora o corpo é lido
     const tipo = request.headers.get("Content-Type") || "";
     if (!/^application\/json(\s*;|$)/i.test(tipo)) return recusa(415, "corpo_invalido", "tipo_de_conteudo");
     const bytes = await lerCorpoLimitado(request, politica.corpoMaxBytes);
     if (bytes === undefined) return recusa(413, "corpo_invalido", "corpo_grande_demais");
     if (bytes === null || bytes.length === 0) return recusa(400, "corpo_invalido", "corpo_ausente");
-    const credencial = lerCredencial(bytes, politica);
-    if (!credencial) return recusa(400, "corpo_invalido", "esquema_invalido");
+    const corpo = lerCorpo(bytes, politica);
+    if (!corpo) return recusa(400, "corpo_invalido", "esquema_invalido");
 
     // o token foi emitido para UMA operação (audiência) e o corpo tem de pedir exatamente essa
-    if (validacao.claims.aud !== politica.audienciaPrefixo + credencial.operacao) return recusa(403, "operacao_nao_autorizada", "operacao_diferente_da_audiencia");
+    if (validacao.claims.aud !== politica.audienciaPrefixo + corpo.operacao) return recusa(403, "operacao_nao_autorizada", "operacao_diferente_da_audiencia");
 
-    if (credencial.operacao === "validar_oidc") {
-      // dry-run: nenhuma conexão com IMAP/SMTP; a credencial não é usada, guardada, registrada nem devolvida
-      return json(200, { ok: true, operacao: "validar_oidc", oidc: "validado", credencial_recebida: true, acao_remota: "nenhuma" });
+    if (corpo.operacao === "validar_oidc") {
+      // ensaio: nenhuma conexão com IMAP/SMTP, nenhuma credencial; só confirma o JWT validado e a operação reconhecida
+      return json(200, { ok: true, operacao: "validar_oidc", oidc: "validado", operacao_reconhecida: true });
     }
     return recusa(400, "operacao_invalida", "operacao_nao_implementada");
   } catch (_) {

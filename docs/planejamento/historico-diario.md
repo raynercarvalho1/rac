@@ -876,6 +876,8 @@ Família e da Casa.
 
 ## 13/11/2026 · RAC Inbox — arquitetura S3 (OIDC) implementada localmente, sem execução
 
+> *Superado em 13/11/2026 (correção de segurança, entrada abaixo): a necessidade de cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD` antes do primeiro ensaio e a janela de 1 hora do JWKS descritas nesta entrada foram retiradas.*
+
 ### 1. O que fizemos
 
 - **D-ENV decidida pelo dono: S3.** Substitui a recomendação anterior de misturar credenciais no `cloudflare-poc` e a alternativa S2 (ambas marcadas como superadas nos documentos).
@@ -894,3 +896,24 @@ Família e da Casa.
 1. Com a configuração do dono e autorização, executar o ensaio `validar_oidc` para confirmar `sub`, `runner_environment`, JWKS e CPU no runtime real.
 2. Só depois implementar IMAP somente leitura restrito à pasta de teste (P1 e P2), com testes de sockets simulados, e propor P3 a P5 com autorização específica.
 3. Decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail.
+
+## 13/11/2026 · RAC Inbox — correção de segurança: ensaio OIDC sem credencial Apple
+
+### 1. O que fizemos
+
+- Corrigida a exposição desnecessária apontada na revisão do commit `480b8b4`: o ensaio `validar_oidc` não precisa de credencial Apple. O workflow deixou de declarar ou ler `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`; o corpo agora é sintético e mínimo (`{"operacao":"validar_oidc"}`); o Worker aceita só esse esquema, recusa campos extras (inclusive usuário e senha) e responde apenas `ok`, `oidc: validado` e `operacao_reconhecida`. Retirado do Worker todo o código de tratamento de usuário e senha.
+- **JWKS:** a janela de 1 hora para reaproveitar chaves antigas foi **retirada** (falha fechada na hora se o cache venceu e o emissor não responde). Registrado que uma chave revogada ainda vale até o fim do cache fresco (10 minutos) e que a política deve ser reavaliada antes de qualquer operação real sobre a caixa. Sem infraestrutura nova.
+- **Branches:** o job `provisionar` passou a aceitar só `poc/icloud-cloudflare-connectivity`, igual ao `executar` (antes aceitava também `main`).
+- Testes atualizados: 37 novos (25 funcionais e 12 de escopo). Provam, entre outros, que o ensaio funciona sem secrets Apple, que o workflow não os referencia, que o corpo só é lido depois do JWT, que campos extras e operações não autorizadas são recusados e que nada de credencial aparece em logs, respostas, arquivos ou documentação. CPU medido de novo em Node, com o corpo mínimo: mediana de 0,19 ms por requisição (indicativo).
+- Documentos atualizados, com as instruções anteriores marcadas como superadas e sem apagar histórico. Nada foi executado, publicado ou configurado.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: criar o Environment `icloud-auth-poc` **sem secrets**, autorizar a PR independente do workflow para a `main` (o arquivo precisa estar na branch padrão) e o primeiro run, que só valida o JWT.
+- **Não comprovado:** formato real das claims, leitura do JWKS real, verificação RSA no runtime da Cloudflare, CPU real, autenticação Apple e qualquer operação de e-mail. A fase I0 não está concluída. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Primeiro run (com autorização), só para confirmar `sub`, `runner_environment`, JWKS real e CPU no runtime da Cloudflare, sem credencial Apple.
+2. Só depois, com autorização específica, implementar a P1 (IMAP somente leitura restrito à pasta de teste); nessa etapa os secrets Apple entram, por mudança revisada do workflow.
+3. Decidir o uso único do token e reavaliar a política do JWKS antes de P3 a P5.

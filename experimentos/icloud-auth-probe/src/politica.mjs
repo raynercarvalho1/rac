@@ -39,9 +39,14 @@ export const POLITICA = Object.freeze({
   jwtMaxBytes: 8192,
   corpoMaxBytes: 2048,
 
-  // JWKS: cache em memória do isolate (a Cache API não é confiável em workers.dev)
+  // JWKS: cache em memória do isolate (a Cache API não é confiável em workers.dev).
+  // jwksReaproveitarVelhoS é a idade TOTAL máxima (desde a última carga bem-sucedida) até a qual um conjunto vencido ainda é reaproveitado
+  // quando o emissor não responde. Valor 0: o cache venceu e o emissor não respondeu, a validação FALHA FECHADA na hora (nunca se usa chave velha).
+  // Para este ensaio, sem efeitos, isso é mais simples e seguro do que priorizar disponibilidade (a janela anterior era de 1 h e foi
+  // retirada). Reavaliar antes de qualquer operação real sobre a caixa de e-mail; nunca ampliar sem decisão do dono.
+  // Mesmo com a janela zerada, uma chave revogada ainda vale até o fim do cache fresco (jwksTtlS).
   jwksTtlS: 600,
-  jwksReaproveitarVelhoS: 3600,
+  jwksReaproveitarVelhoS: 0,
   jwksRecargaMinimaS: 60,
   jwksTimeoutMs: 5000,
   jwksMaxBytes: 65536,

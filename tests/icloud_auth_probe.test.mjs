@@ -1,15 +1,16 @@
 // RAC Inbox · POC autenticada iCloud (S3): Worker que valida o JWT OIDC do GitHub Actions antes de aceitar qualquer credencial.
-// Tudo sintético: chaves RSA geradas aqui, JWKS e emissor simulados, relógio controlado. Nenhuma rede, nenhuma credencial real,
-// nenhuma conta Apple. Prova a lógica local; NÃO prova o comportamento no runtime Cloudflare nem o formato real dos tokens do GitHub.
+// Tudo sintético: chaves RSA geradas aqui, JWKS e emissor simulados, relógio controlado. Nenhuma rede, nenhuma credencial (nem real,
+// nem sintética com valor operacional), nenhuma conta Apple: o ensaio OIDC não transmite credencial alguma. Prova a lógica local; NÃO prova o comportamento no runtime Cloudflare nem o formato real dos tokens do GitHub.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { POLITICA } from "../experimentos/icloud-auth-probe/src/politica.mjs";
 import { verificarJwt, conferirClaims } from "../experimentos/icloud-auth-probe/src/jwt.mjs";
 import { criarProvedorChaves } from "../experimentos/icloud-auth-probe/src/jwks.mjs";
-import { tratar, lerCredencial } from "../experimentos/icloud-auth-probe/src/index.mjs";
+import { tratar, lerCorpo } from "../experimentos/icloud-auth-probe/src/index.mjs";
 
 const AGORA = 1_800_000_000;
 const KID = "kid-sintetico-1";
+// sentinelas: NENHUMA credencial existe nesta fase; se um cliente mandar uma, o Worker tem de recusá-la sem ecoar
 const SENHA = "SENTINELA-SENHA-APP-7c1e9";
 const USUARIO = "sentinela.usuario.teste";
 const URL_DESCOBERTA = POLITICA.descobertaUrl;
@@ -235,17 +236,36 @@ test("JWKS: kid desconhecido repetido não provoca uma tempestade de buscas", as
   assert.ok(c.estado.chamadas.length - antes <= 2, "no máximo uma recarga no minuto");
 });
 
-test("JWKS: indisponibilidade do emissor reaproveita o conjunto antigo só dentro do limite documentado", async () => {
+test("JWKS: com o cache vencido e o emissor fora, a validação falha fechada na hora (janela de reaproveitamento = 0)", async () => {
+  assert.equal(POLITICA.jwksReaproveitarVelhoS, 0, "o ensaio não reaproveita chave velha");
   const c = await cenario();
   assert.equal(await motivo(c, await token(c)), "ok");
   c.estado.cai = true;
-  c.relogio.t = AGORA + 700; // cache vencido (TTL 600 s), emissor fora
-  assert.equal(await motivo(c, await token(c, claimsValidos({ iat: AGORA + 690, nbf: AGORA + 690, exp: AGORA + 990 }))), "ok", "dentro de 1 h: usa o conjunto antigo");
+  c.relogio.t = AGORA + 300; // dentro do TTL (600 s): o cache ainda é fresco e continua valendo
+  assert.equal(await motivo(c, await token(c, claimsValidos({ iat: AGORA + 290, nbf: AGORA + 290, exp: AGORA + 590 }))), "ok", "cache fresco");
+  c.relogio.t = AGORA + 700; // cache vencido e emissor fora: nada de chave velha
+  assert.equal(await motivo(c, await token(c, claimsValidos({ iat: AGORA + 690, nbf: AGORA + 690, exp: AGORA + 990 }))), "jwks_indisponivel");
   c.relogio.t = AGORA + 4000;
-  assert.equal(await motivo(c, await token(c, claimsValidos({ iat: AGORA + 3990, nbf: AGORA + 3990, exp: AGORA + 4290 }))), "jwks_indisponivel", "além de 1 h: falha fechada");
+  assert.equal(await motivo(c, await token(c, claimsValidos({ iat: AGORA + 3990, nbf: AGORA + 3990, exp: AGORA + 4290 }))), "jwks_indisponivel");
 });
 
-// ---------- Worker: ordem das etapas, corpo e vazamento ----------
+test("JWKS: o mecanismo de reaproveitamento continua limitado se a política vier a permiti-lo (decisão futura, nunca ampliar)", async () => {
+  const comJanela = { ...POLITICA, jwksReaproveitarVelhoS: 1000 }; // idade TOTAL máxima do conjunto desde a carga
+  const par = await novoPar();
+  const estado = { chaves: [jwkPublica(par.jwk)] };
+  const relogio = { t: AGORA };
+  const provedor = criarProvedorChaves({ fetchFn: emissor(estado), agora: () => relogio.t, politica: comJanela });
+  const assinarEm = (iat) => assinar(cab(), claimsValidos({ iat, nbf: iat, exp: iat + 290 }), par.privada);
+  const verificar = async (t) => (await verificarJwt(t, { obterChave: provedor, agora: () => relogio.t, politica: comJanela })).ok;
+  assert.equal(await verificar(await assinarEm(AGORA - 10)), true);
+  estado.cai = true;
+  relogio.t = AGORA + 800; // cache vencido (TTL 600 s), mas com 800 s de idade total, dentro dos 1000 s
+  assert.equal(await verificar(await assinarEm(AGORA + 790)), true);
+  relogio.t = AGORA + 1100; // 1100 s de idade total, fora do limite
+  assert.equal(await verificar(await assinarEm(AGORA + 1090)), false);
+});
+
+// ---------- Worker: ordem das etapas, corpo mínimo e ausência de credencial ----------
 
 function pedido(jwt, corpo, { tipo = "application/json", metodo = "POST", caminho = "/auth-probe" } = {}) {
   const estado = { lido: false };
@@ -256,10 +276,19 @@ function pedido(jwt, corpo, { tipo = "application/json", metodo = "POST", caminh
   const init = metodo === "GET" ? { method: "GET", headers } : { method: metodo, headers, body: fluxo, duplex: "half" };
   return { req: new Request("https://rac-icloud-auth-poc.exemplo.workers.dev" + caminho, init), estado };
 }
-const corpoOk = (extra = {}) => ({ operacao: "validar_oidc", usuario: USUARIO, senha: SENHA, ...extra });
+const corpoOk = (extra = {}) => ({ operacao: "validar_oidc", ...extra });
 async function resposta(r) { return { status: r.status, texto: await r.text(), headers: [...r.headers].map(([k, v]) => k + ": " + v).join("\n") }; }
 
-test("sem JWT válido o corpo com a senha NUNCA é lido", async () => {
+test("o ensaio OIDC funciona sem nenhuma credencial: corpo mínimo, JWT válido, resposta só com confirmações", async () => {
+  const c = await cenario();
+  const { req, estado } = pedido(await token(c), corpoOk());
+  const r = await resposta(await tratar(req, { verificar: c.verificar }));
+  assert.equal(r.status, 200);
+  assert.equal(estado.lido, true, "o corpo só é lido depois do JWT válido");
+  assert.deepEqual(JSON.parse(r.texto), { ok: true, operacao: "validar_oidc", oidc: "validado", operacao_reconhecida: true });
+});
+
+test("sem JWT válido o corpo NUNCA é lido", async () => {
   const c = await cenario();
   const [h, p, s] = (await token(c)).split(".");
   const invalidos = [undefined, "lixo", await token(c, claimsValidos({ environment: "outro" })), h + "." + p + "." + s.slice(0, -4), await token(c, claimsValidos({ exp: AGORA - 500 })),
@@ -277,31 +306,23 @@ test("sem JWT válido o corpo com a senha NUNCA é lido", async () => {
   }
 });
 
-test("JWT válido + corpo correto: aceita, não usa a credencial e não devolve nada dela", async () => {
-  const c = await cenario();
-  const { req, estado } = pedido(await token(c), corpoOk());
-  const r = await resposta(await tratar(req, { verificar: c.verificar }));
-  assert.equal(r.status, 200);
-  assert.equal(estado.lido, true);
-  assert.deepEqual(JSON.parse(r.texto), { ok: true, operacao: "validar_oidc", oidc: "validado", credencial_recebida: true, acao_remota: "nenhuma" });
-  assert.ok(!r.texto.includes(SENHA) && !r.texto.includes(USUARIO));
-});
-
-test("corpo malformado ou fora do esquema é recusado depois da autenticação", async () => {
+test("campos extras e operações não autorizadas são recusados; credencial no corpo é recusada e nunca ecoada", async () => {
   const c = await cenario();
   const casos = [
-    ["não é JSON", "{senha:", 400], ["é lista", "[]", 400], ["texto puro", "oi", 400], ["vazio", "", 400],
-    ["campo extra", corpoOk({ extra: "x" }), 400], ["sem senha", { operacao: "validar_oidc", usuario: USUARIO }, 400],
-    ["senha não é texto", corpoOk({ senha: 123 }), 400], ["operação desconhecida", corpoOk({ operacao: "p1_login" }), 400],
-    ["senha com quebra de linha", corpoOk({ senha: "abc\r\nDELE 1" }), 400], ["usuário com NUL", corpoOk({ usuario: "ab\u0000cd" }), 400],
-    ["usuário curto", corpoOk({ usuario: "ab" }), 400], ["senha longa", corpoOk({ senha: "x".repeat(129) }), 400],
-    ["corpo enorme", corpoOk({ senha: "x".repeat(POLITICA.corpoMaxBytes) }), 413],
+    ["usuario e senha (credencial) no corpo", corpoOk({ usuario: USUARIO, senha: SENHA }), 400],
+    ["só a senha", corpoOk({ senha: SENHA }), 400], ["só o usuário", corpoOk({ usuario: USUARIO }), 400],
+    ["campo extra qualquer", corpoOk({ extra: "x" }), 400], ["operação desconhecida", { operacao: "p1_login" }, 400],
+    ["operação com credencial inventada", { operacao: "imap_login", usuario: USUARIO, senha: SENHA }, 400],
+    ["sem operação", {}, 400], ["operação não é texto", { operacao: 1 }, 400], ["operação com quebra de linha", { operacao: "validar_oidc\r\n" }, 400],
+    ["não é JSON", "{operacao:", 400], ["é lista", "[]", 400], ["texto puro", "oi", 400], ["vazio", "", 400],
+    ["corpo enorme", corpoOk({ extra: "x".repeat(POLITICA.corpoMaxBytes) }), 413],
   ];
   for (const [nome, corpo, status] of casos) {
     const { req } = pedido(await token(c), corpo);
     const r = await resposta(await tratar(req, { verificar: c.verificar }));
     assert.equal(r.status, status, nome);
     assert.equal(JSON.parse(r.texto).ok, false);
+    assert.ok(!r.texto.includes(SENHA) && !r.texto.includes(USUARIO), nome + ": a credencial recusada não pode voltar na resposta");
   }
   const { req } = pedido(await token(c), corpoOk(), { tipo: "text/plain" });
   assert.equal((await tratar(req, { verificar: c.verificar })).status, 415);
@@ -316,28 +337,29 @@ test("o token vale para uma operação só: audiência de outra operação não 
   const r = await resposta(await tratar(req, { verificar, politica: dois }));
   assert.equal(r.status, 403);
   assert.equal(JSON.parse(r.texto).motivo, "operacao_diferente_da_audiencia");
-  const { req: req2 } = pedido(tOutra, corpoOk({ operacao: "outra_operacao" }));
-  assert.equal((await tratar(req2, { verificar, politica: dois })).status, 400, "operação não implementada nem com audiência certa");
+  const { req: req2 } = pedido(tOutra, { operacao: "outra_operacao" });
+  assert.equal((await tratar(req2, { verificar, politica: dois })).status, 400, "operação sem implementação e sem esquema, nem com audiência certa");
 });
 
-test("lerCredencial aceita só o esquema fechado", () => {
-  const ok = new TextEncoder().encode(JSON.stringify(corpoOk()));
-  assert.deepEqual(lerCredencial(ok), { operacao: "validar_oidc", usuario: USUARIO, senha: SENHA });
-  assert.equal(lerCredencial(new TextEncoder().encode(JSON.stringify(corpoOk({ x: 1 })))), null);
-  assert.equal(lerCredencial(new Uint8Array([0xff, 0xfe])), null);
+test("lerCorpo aceita só o corpo mínimo da operação validar_oidc", () => {
+  assert.deepEqual(lerCorpo(new TextEncoder().encode('{"operacao":"validar_oidc"}')), { operacao: "validar_oidc" });
+  for (const ruim of ['{"operacao":"validar_oidc","x":1}', '{"operacao":"validar_oidc","usuario":"a","senha":"b"}', "{}", "[]", "null", '{"operacao":"outra"}'])
+    assert.equal(lerCorpo(new TextEncoder().encode(ruim)), null, ruim);
+  assert.equal(lerCorpo(new Uint8Array([0xff, 0xfe])), null);
 });
 
-test("senha, JWT e dados pessoais não aparecem em logs, erros nem respostas (todos os caminhos)", async () => {
+test("JWT, credencial recusada e dados pessoais não aparecem em logs, erros nem respostas (todos os caminhos)", async () => {
   const c = await cenario();
   const chamadas = [];
   const originais = {};
   for (const m of ["log", "info", "warn", "error", "debug", "trace"]) { originais[m] = console[m]; console[m] = (...a) => chamadas.push(a.map(String).join(" ")); }
   const saidas = [];
+  let jwtOk; let jwtRuim;
   try {
-    const jwtOk = await token(c);
-    const jwtRuim = await token(c, claimsValidos({ environment: "outro" }));
-    const cenarios = [[jwtOk, corpoOk()], [jwtRuim, corpoOk()], [undefined, corpoOk()], [jwtOk, "{senha:" + SENHA], [jwtOk, corpoOk({ extra: SENHA })],
-      [jwtOk, corpoOk({ senha: SENHA + "\n" })], [jwtOk, corpoOk({ senha: SENHA.repeat(80) })]];
+    jwtOk = await token(c);
+    jwtRuim = await token(c, claimsValidos({ environment: "outro" }));
+    const cenarios = [[jwtOk, corpoOk()], [jwtRuim, corpoOk()], [undefined, corpoOk()], [jwtOk, "{senha:" + SENHA], [jwtOk, corpoOk({ usuario: USUARIO, senha: SENHA })],
+      [jwtOk, corpoOk({ extra: SENHA })], [jwtOk, corpoOk({ senha: SENHA.repeat(300) })], [jwtRuim, corpoOk({ usuario: USUARIO, senha: SENHA })]];
     for (const [jwt, corpo] of cenarios) {
       const { req } = pedido(jwt, corpo);
       saidas.push(await resposta(await tratar(req, { verificar: c.verificar })));
@@ -346,14 +368,13 @@ test("senha, JWT e dados pessoais não aparecem em logs, erros nem respostas (to
     const { req } = pedido(jwtOk, corpoOk());
     saidas.push(await resposta(await tratar(req, { verificar: c.verificar })));
     // falha interna: o verificador explode e a mensagem do erro não pode vazar
-    const { req: r2 } = pedido(jwtOk, corpoOk());
+    const { req: r2 } = pedido(jwtOk, corpoOk({ senha: SENHA }));
     saidas.push(await resposta(await tratar(r2, { verificar: () => { throw new Error("SEGREDO " + SENHA); } })));
-    // o JWT e o corpo viajam no mesmo pedido: nenhum deles pode ser ecoado de volta
-    for (const s of saidas) {
-      for (const proibido of [SENHA, USUARIO, jwtOk, jwtRuim, "SEGREDO"]) { assert.ok(!s.texto.includes(proibido), "resposta vazou: " + proibido.slice(0, 12)); assert.ok(!s.headers.includes(proibido), "cabeçalho vazou"); }
-    }
   } finally {
     for (const m of Object.keys(originais)) console[m] = originais[m];
+  }
+  for (const s of saidas) {
+    for (const proibido of [SENHA, USUARIO, jwtOk, jwtRuim, "SEGREDO"]) { assert.ok(!s.texto.includes(proibido), "resposta vazou: " + proibido.slice(0, 12)); assert.ok(!s.headers.includes(proibido), "cabeçalho vazou"); }
   }
   assert.equal(chamadas.length, 0, "o Worker não escreve em console");
   assert.equal(saidas.at(-1).status, 500);

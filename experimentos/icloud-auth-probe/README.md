@@ -1,6 +1,6 @@
 # RAC Inbox — Worker da prova autenticada iCloud (arquitetura S3, OIDC)
 
-Experimento descartável da Fase I0. **Nesta etapa o Worker não fala com a Apple**: ele só valida o token OIDC do GitHub Actions e confere que recebeu uma credencial bem formada, sem usá-la, guardá-la, registrá-la nem devolvê-la. IMAP e SMTP reais ainda não existem aqui e exigem implementação e autorização específicas (Documento 10, seções 13.11 a 13.13).
+Experimento descartável da Fase I0. **Nesta etapa o Worker não fala com a Apple e não recebe credencial alguma**: ele só valida o token OIDC do GitHub Actions e reconhece a operação `validar_oidc`, cujo corpo é sintético e mínimo (`{"operacao":"validar_oidc"}`). **O primeiro ensaio OIDC não exige cadastro de secrets Apple.** IMAP e SMTP reais ainda não existem aqui e exigem implementação e autorização específicas (Documento 10, seções 13.11 a 13.13).
 
 ## O que ele faz
 
@@ -8,9 +8,9 @@ Experimento descartável da Fase I0. **Nesta etapa o Worker não fala com a Appl
 
 1. Confere método e rota (qualquer outra coisa responde 404, sem ler o corpo).
 2. Valida o JWT do cabeçalho `Authorization: Bearer ...` (assinatura RS256 com as chaves públicas do emissor oficial do GitHub e todas as claims da política). Falhou: responde 401 com um **motivo de lista fechada** (nunca valores) e **o corpo não é lido**.
-3. Só então lê o corpo, com limite de 2 KB e esquema fechado (`operacao`, `usuario`, `senha`; sem campos extras e sem caracteres de controle).
+3. Só então lê o corpo, com limite de 2 KB e esquema fechado: exatamente o campo `operacao`. Qualquer campo extra, inclusive `usuario` e `senha`, é recusado (400) e nunca devolvido.
 4. Confere que a operação do corpo é a mesma da audiência do token (um token vale para uma operação).
-5. Operação `validar_oidc` (única disponível): responde só códigos e booleanos. A senha existe apenas em memória durante a requisição.
+5. Operação `validar_oidc` (única disponível): responde só `{ok, operacao, oidc: "validado", operacao_reconhecida: true}`. Nenhuma conexão com IMAP ou SMTP, nenhuma credencial.
 
 ## Política de confiança (fixa no código, sem segredo)
 
@@ -18,7 +18,7 @@ Arquivo `src/politica.mjs`. Exigidas e conferidas com valor exato: `iss`, `aud` 
 
 ## Chaves (JWKS)
 
-O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é aceito se for HTTPS e do mesmo host do emissor. Nunca se busca chave em URL indicada pelo token. Cache só em memória do isolate (10 min); kid desconhecido provoca no máximo uma recarga por minuto; se o emissor ficar indisponível, o conjunto antigo é reaproveitado por até 1 h e depois a validação **falha fechada**.
+O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é aceito se for HTTPS e do mesmo host do emissor. Nunca se busca chave em URL indicada pelo token. Cache só em memória do isolate (10 min); kid desconhecido provoca no máximo uma recarga por minuto; se o cache venceu e o emissor não responde, a validação **falha fechada na hora** (a janela de reaproveitamento de 1 h foi retirada). Mesmo assim, uma chave revogada vale até o fim do cache fresco (10 min). Política a reavaliar antes de qualquer operação real sobre a caixa de e-mail.
 
 ## Limites que continuam valendo
 
@@ -28,6 +28,6 @@ O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é acei
 
 ## Execução
 
-Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (dois jobs, Environments `cloudflare-poc` e `icloud-auth-poc`). **Não foi executado.** Pré-requisitos do dono: Environment `icloud-auth-poc` (aprovador obrigatório, branch restrita) com `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`, e o workflow presente na branch padrão para o botão "Run workflow" existir. Sem os secrets, o job `executar` falha antes de pedir o token.
+Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (dois jobs, Environments `cloudflare-poc` e `icloud-auth-poc`). **Não foi executado.** Pré-requisitos do dono: Environment `icloud-auth-poc` (aprovador obrigatório, branch restrita), **sem nenhum secret**, e o workflow presente na branch padrão para o botão "Run workflow" existir. Os guardas de branch dos dois jobs são idênticos. Secrets Apple só entrarão quando uma prova com a Apple (P1) for implementada e autorizada.
 
 Testes: `node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_escopo.test.mjs`.

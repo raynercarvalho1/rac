@@ -1,6 +1,7 @@
 // RAC Inbox · POC autenticada iCloud (S3): trava o ESCOPO por texto, sem rede e sem credencial.
 // Garante o desenho decidido pelo dono: dois jobs com Environments próprios, nenhum segredo entre eles, a senha Apple nunca no Worker
 // (nem como secret, variável ou armazenamento), nenhum acesso à Apple nesta etapa e execução somente manual.
+// O primeiro ensaio OIDC NÃO usa credencial Apple alguma: nenhum secret Apple no workflow, corpo sintético e mínimo, Worker sem código de credencial.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -36,15 +37,31 @@ test("job provisionar: Environment cloudflare-poc, só credenciais Cloudflare, n
   assert.ok(!/secret put|\bwrangler@\S+ (login|delete|secret|kv|d1|r2|tail|dev)\b/.test(PROV), "só deploy; nada de secret put");
 });
 
-test("job executar: Environment icloud-auth-poc, id-token só aqui, nenhuma credencial Cloudflare e nenhum código do repositório", () => {
+test("job executar: Environment icloud-auth-poc, id-token só aqui, SEM nenhum secret, sem credencial Cloudflare e sem código do repositório", () => {
   assert.match(EXEC, /^    environment: icloud-auth-poc\s*$/m);
   assert.match(EXEC, /^    needs: provisionar\s*$/m);
   assert.match(EXEC, /^    permissions:\s*\n      id-token: write\s*\n    env:/m, "a única permissão do job é id-token: write");
   assert.equal([...WF.matchAll(/id-token:\s*write/g)].length, 1, "id-token só no job executar");
-  assert.ok(!/CLOUDFLARE_(?:API_TOKEN|ACCOUNT_ID)|wrangler|\buses:|checkout|contents:|\bnpm\b|\bnpx\b/i.test(EXEC), "sem Cloudflare, sem actions e sem código do repositório no job da senha Apple");
-  const usados = [...EXEC.matchAll(/\$\{\{\s*secrets\.([A-Z_]+)\s*\}\}/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(usados)].sort(), ["ICLOUD_APP_PASSWORD", "ICLOUD_USER"]);
-  for (const m of EXEC.matchAll(/^\s+([A-Z_]+): (\$\{\{ secrets\.\w+ \}\})\s*$/gm)) assert.equal(m[2], "${{ secrets." + m[1] + " }}");
+  assert.ok(!/CLOUDFLARE_(?:API_TOKEN|ACCOUNT_ID)|wrangler|\buses:|checkout|contents:|\bnpm\b|\bnpx\b/i.test(EXEC), "sem Cloudflare, sem actions e sem código do repositório no job do token OIDC");
+  assert.ok(!/\bsecrets\b/.test(EXEC) && !/\$\{\{/.test(EXEC.replace(/^\s*runs-on:.*$/m, "")), "o job executar não declara nem lê nenhum secret nem expressão do GitHub");
+});
+
+test("o primeiro ensaio OIDC não depende de nenhuma credencial Apple: nem no workflow, nem no corpo, nem no código do Worker", () => {
+  assert.ok(!/ICLOUD|senha|usuario|password|PASSWORD|\bAPP_/.test(WF), "o workflow não cita secret, usuário ou senha da Apple");
+  assert.match(EXEC, /--data '\{"operacao":"validar_oidc"\}'/, "corpo sintético e mínimo, fixo no workflow");
+  assert.ok(!/ICLOUD|senha|usuario|password|PASSWORD/.test(WFTXT.replace(/^\s*#.*$/gm, "")), "nem fora dos comentários");
+  assert.ok(!/\bsenha\b|\busuario\b|\bcredencial\b|(?<!\.)\bpassword\b/i.test(CODIGO), "o Worker não tem código que trate usuário, senha ou credencial (alvo.password é a conferência de URL do JWKS)");
+  const usados = [...WF.matchAll(/\$\{\{\s*secrets\.([A-Z_]+)\s*\}\}/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(usados)].sort(), ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"], "os únicos secrets do workflow inteiro são os da Cloudflare");
+});
+
+test("os guardas de branch dos dois jobs são idênticos e coincidem com a política do Worker (nada de publicar em main)", () => {
+  const guardas = [...WF.matchAll(/case "\$GITHUB_REF_NAME" in\n\s+(\S+)\) ;;/g)].map((m) => m[1]);
+  assert.equal(guardas.length, 2, "um guarda em cada job");
+  assert.equal(guardas[0], guardas[1]);
+  assert.equal("refs/heads/" + guardas[0], POLITICA.refsPermitidos[0]);
+  assert.ok(!/\bmain\b/.test(WF), "nenhuma referência a main no workflow executável");
+  assert.ok(PROV.includes('case "$GITHUB_REF_NAME"') && EXEC.includes('case "$GITHUB_REF_NAME"'));
 });
 
 test("nada passa entre os jobs: sem outputs, artefatos, arquivos de ambiente ou referência ao job anterior", () => {
@@ -54,16 +71,13 @@ test("nada passa entre os jobs: sem outputs, artefatos, arquivos de ambiente ou 
   assert.ok(!/needs\./.test(EXEC.replace(/^    needs: provisionar\s*$/m, "")), "nenhum dado do job anterior é lido");
 });
 
-test("a senha Apple e o JWT nunca vão por argumento, arquivo, eco ou log; o JWT é mascarado", () => {
+test("o JWT nunca vai por argumento, arquivo, eco ou log e é mascarado; o resumo não tem credencial", () => {
   assert.ok(!/(?:^|\s)-x\b|set -x/.test(WF), "sem set -x");
-  assert.ok(!/echo[^\n]*\$\{?(ICLOUD_|JWT\b|ACTIONS_ID_TOKEN)/.test(EXEC.replace(/echo "::add-mask::\$JWT"/, "")), "nada de eco do valor da credencial ou do token");
-  assert.ok(!/--arg\b|--argjson|jq[^\n]*\$ICLOUD|-d "|--data "/.test(EXEC), "a credencial não vai por argumento de comando");
-  assert.match(EXEC, /jq -n '\{operacao: "validar_oidc", usuario: env\.ICLOUD_USER, senha: env\.ICLOUD_APP_PASSWORD\}'/);
-  assert.match(EXEC, /--data-binary @-/);
+  assert.ok(!/echo[^\n]*\$\{?(JWT\b|ACTIONS_ID_TOKEN)/.test(EXEC.replace(/echo "::add-mask::\$JWT"/, "")), "nada de eco do valor do token");
   assert.equal([...EXEC.matchAll(/-K <\(printf 'header = "Authorization: Bearer %s"\\n' "\$(?:ACTIONS_ID_TOKEN_REQUEST_TOKEN|JWT)"\)/g)].length, 2, "cabeçalhos de autorização por substituição de processo");
   assert.ok(EXEC.indexOf('::add-mask::$JWT') > 0 && EXEC.indexOf('::add-mask::$JWT') < EXEC.indexOf('"$WORKER_URL/auth-probe"'), "mascarar antes de enviar");
-  assert.ok(!/>\s*"?\$RUNNER_TEMP[^\n]*(ICLOUD|JWT)/.test(EXEC) && !/(?:tee|>>?)\s*\S*(senha|jwt|token)/i.test(EXEC), "nenhuma gravação do segredo em arquivo");
-  assert.ok(!/GITHUB_STEP_SUMMARY[^\n]*(ICLOUD|JWT)/.test(EXEC), "resumo sem credencial");
+  assert.ok(!/(?:tee|>>?)\s*\S*(jwt|token)/i.test(EXEC.replace(/>> "\$GITHUB_STEP_SUMMARY"/g, "")), "nenhuma gravação do token em arquivo");
+  assert.ok(!/GITHUB_STEP_SUMMARY[^\n]*JWT/.test(EXEC), "resumo sem token");
   assert.match(EXEC, /unset JWT/);
 });
 
@@ -102,15 +116,20 @@ test("o Worker não guarda nada: sem secret, variável, KV, Durable Object, cach
 
 test("os limites de CPU e de JWKS da política são conservadores", () => {
   assert.ok(POLITICA.toleranciaRelogioS <= 60 && POLITICA.idadeMaximaS <= 600);
-  assert.ok(POLITICA.jwksReaproveitarVelhoS <= 3600 && POLITICA.jwksRecargaMinimaS >= 60);
+  assert.equal(POLITICA.jwksReaproveitarVelhoS, 0, "o ensaio nunca reaproveita chave velha: falha fechada quando o JWKS não pode ser atualizado");
+  assert.ok(POLITICA.jwksRecargaMinimaS >= 60 && POLITICA.jwksTtlS <= 600);
   assert.ok(POLITICA.corpoMaxBytes <= 2048 && POLITICA.jwtMaxBytes <= 8192 && POLITICA.rsaMinimoBytes >= 256);
 });
 
-test("documentação: o Documento 10 registra a S3, o Environment dedicado e o workflow, sem escrever credencial", () => {
+test("documentação: registra a S3, o Environment dedicado e que o primeiro ensaio OIDC não exige secrets Apple, sem escrever credencial", () => {
   const d10 = ler("docs/planejamento/10-rac-inbox.md");
   assert.match(d10, /icloud-auth-probe\.yml/);
   assert.match(d10, /icloud-auth-poc/);
   assert.match(d10, /13\.13/);
   const readme = ler("experimentos/icloud-auth-probe/README.md");
+  const frase = /primeiro ensaio OIDC não exige cadastro de secrets Apple/;
+  assert.match(d10, frase);
+  assert.match(readme, frase);
+  assert.match(WFTXT, /não usa nenhuma credencial Apple/i);
   for (const t of [WFTXT, d10, readme, ler("docs/planejamento/historico-diario.md")]) assert.ok(!/(?:cfut_|cfat_|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|Bearer [A-Za-z0-9_-]{30,})/.test(t), "parece um token escrito no texto");
 });

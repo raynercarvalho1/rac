@@ -3,7 +3,7 @@
   /* ===== Saúde e treinos: dados do relógio Garmin =====
      A função "garmin" do Supabase busca na Garmin (API pessoal oficial) e grava em garmin_dia e garmin_ativ;
      esta página lê as tabelas, mostra o dia, as tendências e os treinos, e pede uma atualização quando abre. */
-  var SAUDE={dias:null,ativs:null,met:"sono",per:"30",tipo:"",mais:30,sinc:null};
+  var SAUDE={dias:null,ativs:null,legado:null,relLegado:null,met:"sono",per:"30",tipo:"",mais:30,sinc:null};
   var ATIV_TIPOS={running:["Corrida","🏃"],treadmill_running:["Esteira","🏃"],walking:["Caminhada","🚶"],strength_training:["Musculação","🏋️"],
     lap_swimming:["Natação","🏊"],open_water_swimming:["Águas abertas","🌊"],cycling:["Bike","🚴"],fitness_equipment:["Aparelhos","⚙️"]};
   /* esportes que não aparecem no quadro de Treinos: aparelhos, águas abertas e bike */
@@ -29,8 +29,9 @@
     ["humor","Humor (diário)",function(d){return d.humor},function(v){return HUMOR[Math.round(v)-1]+" "+fmtN(Math.round(v*10)/10)},"#D9468F",true]];
   /* diário de uma linha: humor de 1 a 5 e uma frase por dia, em PESSOAL.diario {"AAAA-MM-DD": {h, t}} */
   var HUMOR=["😞","🙁","😐","🙂","😄"];
-  /* antes desta data o relógio era de outra pessoa: nada disso entra no site, e o que tiver ficado no banco é apagado */
-  var GARMIN_DESDE="2025-11-01";
+  /* Marco de propriedade (DS-4.2): o relógio foi comprado usado. Registros com data anterior a NUCLEO.SAU_MARCO.data (01/01/2026, inclusive) são
+     "legado": ficam no banco e no backup, mas não entram em análise nenhuma. A regra é só a data do evento (NUCLEO.sauClassificar). Nada é apagado:
+     o corte antigo (01/11/2025), que apagava dados ao abrir a Saúde, foi removido. */
   /* o que cada número quer dizer, sem sigla */
   function saudeGlossario(){
     var G=[["Prontidão","Nota do site, de 0 a 100: compara a variabilidade cardíaca, os batimentos em repouso, o sono e a energia do corpo de hoje com o seu normal dos últimos 60 dias."],
@@ -45,21 +46,43 @@
       ["Idade do condicionamento físico","Em inglês, fitness age. A idade que o seu condicionamento aparenta, comparada com a média das pessoas."]];
     return h("details",{class:"famvals"},h("summary",{text:"O que significa cada número"}),h("dl",{class:"glos"},G.map(function(g){return [h("dt",{text:g[0]}),h("dd",{text:g[1]})]}).reduce(function(a,b){return a.concat(b)},[])))}
   function saudeCarregar(){
-    return saudeLer().then(function(x){SAUDE.dias=x.dias;SAUDE.ativs=x.ativs;
-        if(x.antigos)Promise.resolve().then(function(){return Promise.all([SB.from("garmin_ativ").delete().lt("inicio",GARMIN_DESDE),SB.from("garmin_dia").delete().lt("data",GARMIN_DESDE)])}).catch(function(e){logErro("Garmin (limpar antigos)",e)})})}
+    return saudeLer().then(function(x){SAUDE.dias=x.dias;SAUDE.ativs=x.ativs;SAUDE.legado=x.legado})}
   /* só lê do banco o que o relógio já mandou (não mexe em SAUDE e não chama a função garmin) */
   function saudeLer(){
     function pag(t,cols,ord,from,acc){return SB.from(t).select(cols).order(ord,{ascending:false}).range(from,from+999).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(t,cols,ord,from+1000,acc):acc})}
     return Promise.all([pag("garmin_dia","data,dados,atualizado","data",0,[]),pag("garmin_ativ","id,inicio,tipo,dados","inicio",0,[])])
-      .then(function(r){var dias=r[0].reverse().filter(function(d){return d.data>=GARMIN_DESDE}),ativs=r[1].filter(function(a){return a.inicio>=GARMIN_DESDE});
-        return {dias:dias,ativs:ativs,antigos:ativs.length<r[1].length||dias.length<r[0].length}})}
+      .then(function(r){var c=NUCLEO.sauClassificar(r[0].reverse(),r[1]);   /* só separa: o legado continua no banco */
+        return {dias:c.meus.dias,ativs:c.meus.ativs,legado:c.contagem.legado}})}
   /* botão de atualizar: relê do banco os dias e os treinos (o que o relógio já mandou) e só troca com as duas leituras. Não sincroniza
      com o Garmin: isso é o "Atualizar agora" daqui. Enquanto ele roda, o ↻ espera. O filtro, o período e a métrica ficam em SAUDE */
   atuModulo("saude",{
     buscar:function(){return atuLer(saudeLer).then(function(r){return {relogio:r}})},
     antes:function(){return SAUDE.dias?{relogio:{ok:true}}:{}},
-    trocar:function(n){SAUDE.dias=n.relogio.v.dias;SAUDE.ativs=n.relogio.v.ativs},
+    trocar:function(n){SAUDE.dias=n.relogio.v.dias;SAUDE.ativs=n.relogio.v.ativs;SAUDE.legado=n.relogio.v.legado},
     ocupado:function(){return SAUDE.sinc?"a sincronização com o relógio Garmin":""}});
+  /* uma chamada à função "garmin" para a medição e a recuperação do histórico (a sincronização abaixo tem a sua, que não foi tocada) */
+  function saudeChamar(corpo){return SB.functions.invoke("garmin",{body:corpo}).then(function(r){
+      if(r.error){var c=r.error.context;return (c&&c.json?c.json().catch(function(){return {}}):Promise.resolve({})).then(function(j){throw new Error(j.erro||r.error.message)})}
+      if(r.data&&r.data.erro)throw new Error(r.data.erro);return r.data})}
+  /* Recuperação do histórico anterior à posse (DS-4.2, M4). Só a pedido do dono, na tela. contar=true só MEDE (a função não grava nada);
+     contar=false grava só o que ainda não existe (somenteNovos: nunca sobrescreve nem apaga uma linha). Devolve, por mês, quantos dias e treinos a
+     Garmin devolveu e quantos eram novos; o que a Garmin não devolver fica sem registro (nada é inventado). */
+  function saudeRecuperar(contar,st){
+    var M=NUCLEO.SAU_MARCO.data,fimMes=M.slice(0,7),rel={dias:{},ativs:{},novosDias:0,novosAtivs:0},flags=contar?{apenasContar:true}:{somenteNovos:true};
+    function junta(dest,pm){Object.keys(pm||{}).forEach(function(k){if(k>=fimMes)return;var o=dest[k]=dest[k]||{garmin:0,novos:0};o.garmin+=pm[k].garmin;o.novos+=pm[k].novos})}
+    function total(pm){return Object.keys(pm||{}).reduce(function(s,k){return s+pm[k].garmin},0)}
+    function ativs(ini){st("Treinos"+(contar?" (medindo)":" (gravando)")+"… "+ini+" já vistos");
+      return saudeChamar(Object.assign({tipo:"ativ",inicio:ini,completo:true},flags)).then(function(d){junta(rel.ativs,d.porMes);rel.novosAtivs+=d.salvas||0;if(d.mais)return ativs(d.inicio)})}
+    /* dias: janelas de 112 dias para trás, a partir do dia anterior ao marco; para depois de 4 janelas seguidas sem nenhum dia na Garmin */
+    function dias(fim,vazias){var ini=NUCLEO.somaDiasISO(fim,-111);if(vazias>=4||ini<"2016-01-01")return Promise.resolve();
+      st("Dias"+(contar?" (medindo)":" (gravando)")+"… "+dataBR(ini)+" a "+dataBR(fim));
+      return saudeChamar(Object.assign({tipo:"dias",desde:ini,ate:fim},flags)).then(function(d){junta(rel.dias,d.porMes);rel.novosDias+=d.salvos||0;
+        return dias(NUCLEO.somaDiasISO(ini,-1),total(d.porMes)?0:vazias+1)})}
+    /* trava de segurança: a função "garmin" antiga não conhece estes modos e GRAVARIA por cima. A chamada abaixo (só hoje, só contagem) é inofensiva
+       nela (vira uma sincronização comum de hoje) e a resposta sem "porMes" a denuncia: aí nada do histórico é pedido */
+    function versao(){return saudeChamar({tipo:"dias",desde:hojeISO(),ate:hojeISO(),apenasContar:true}).then(function(d){
+      if(!d||!d.porMes)throw new Error("a função garmin publicada ainda é a versão antiga (não sabe medir nem recuperar sem sobrescrever); publique a nova antes")})}
+    return versao().then(function(){return dias(NUCLEO.somaDiasISO(M,-1),0)}).then(function(){return ativs(0)}).then(function(){return rel})}
   /* pede à função "garmin" o que é novo (dias e depois treinos), em rodadas até não ter mais */
   function saudeSincronizar(st){
     function chamar(corpo){return SB.functions.invoke("garmin",{body:corpo}).then(function(r){
@@ -91,7 +114,30 @@
       if(!dias.length&&!ativs.length){corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Ainda sem dados. Toque em Atualizar agora."})));return}
       /* o humor do diário entra nos dados do dia (só na tela), para a tendência e os cruzamentos */
       var di=PESSOAL.diario||{};dias.forEach(function(d){var x=di[d.data];if(d.dados)d.dados.humor=x?x.h:undefined});
-      [saudeDiario(),saudeProntidao(dias,ativs),saudeHoje(dias),saudeTendencia(dias),saudeSono(dias),saudeTreinos(ativs)].forEach(function(x){if(x)corpo.appendChild(x)})}
+      [saudeDiario(),saudeProntidao(dias,ativs),saudeHoje(dias),saudeTendencia(dias),saudeSono(dias),saudeTreinos(ativs),saudeLegado()].forEach(function(x){if(x)corpo.appendChild(x)})}
+    /* histórico anterior ao marco de propriedade: preservado, fora das análises; só o dono mede e recupera (saudeRecuperar) */
+    function saudeLegado(){
+      if(!isOwner())return null;var L=SAUDE.legado||{dias:0,ativs:0},M=NUCLEO.SAU_MARCO.data;
+      var p=panel("Histórico anterior à posse","A posse do relógio começa em "+dataBR(M)+". O que veio antes é legado: continua guardado no banco e no backup, não entra em nenhuma análise e nunca é apagado.");
+      p.appendChild(h("p",{class:"sub",text:"Guardados no banco: "+L.dias+(L.dias===1?" dia":" dias")+" e "+L.ativs+(L.ativs===1?" treino":" treinos")+" anteriores a "+dataBR(M)+"."}));
+      var bm=h("button",{type:"button",class:"ghostbtn",text:"Medir o que a Garmin ainda tem"}),br=h("button",{type:"button",text:"Recuperar o que falta"}),st=h("p",{class:"sub",role:"status"}),rel=h("div",{class:"famtabw"});
+      br.disabled=true;
+      function mostrar(r){rel.innerHTML="";var ms={};Object.keys(r.dias).concat(Object.keys(r.ativs)).forEach(function(k){ms[k]=1});var ks=Object.keys(ms).sort().reverse();
+        if(!ks.length){rel.appendChild(h("p",{class:"empty",text:"A Garmin não devolveu nenhum dia nem treino anterior a "+dataBR(M)+"."}));return}
+        var tb=h("table",{class:"famtab"});tb.appendChild(h("thead",null,h("tr",null,["Mês","Dias na Garmin","Dias novos","Treinos na Garmin","Treinos novos"].map(function(c){return h("th",{text:c})}))));
+        tb.appendChild(h("tbody",null,ks.map(function(k){var d=r.dias[k]||{garmin:0,novos:0},a=r.ativs[k]||{garmin:0,novos:0};
+          return h("tr",null,h("td",{text:k.slice(5)+"/"+k.slice(0,4)}),h("td",{text:String(d.garmin)}),h("td",{text:String(d.novos)}),h("td",{text:String(a.garmin)}),h("td",{text:String(a.novos)}))})));rel.appendChild(tb)}
+      function rodar(contar){bm.disabled=br.disabled=true;
+        saudeRecuperar(contar,function(t){st.textContent=t}).then(function(r){mostrar(r);
+          if(contar){st.textContent="✓ Medição pronta. Nada foi gravado. “Dias novos” e “Treinos novos” são o que a Garmin devolveu e ainda não está no banco.";SAUDE.relLegado={msg:st.textContent,r:r};bm.disabled=false;br.disabled=false;return}
+          st.textContent="✓ Recuperação concluída: "+r.novosDias+" dias e "+r.novosAtivs+" treinos gravados. Nenhuma linha existente foi alterada ou apagada.";
+          SAUDE.relLegado={msg:st.textContent,r:r};   /* o relatório sobrevive ao redesenho da tela */
+          return saudeCarregar().then(function(){bm.disabled=false;desenhar()})})
+        .catch(function(e){logErro("Garmin (histórico)",e);bm.disabled=false;st.textContent="Não consegui: "+e.message})}
+      if(SAUDE.relLegado){st.textContent=SAUDE.relLegado.msg;mostrar(SAUDE.relLegado.r);br.disabled=false}
+      bm.onclick=function(){rodar(true)};
+      br.onclick=function(){if(window.confirm("Gravar na sua conta os dias e treinos anteriores a "+dataBR(M)+" que a Garmin ainda devolve e que ainda não estão no banco? Nada que já existe é alterado ou apagado."))rodar(false)};
+      p.appendChild(h("div",{class:"vfil"},bm,br));p.appendChild(st);p.appendChild(rel);return p}
     /* prontidão do dia (VFC, FC de repouso, sono e Body Battery contra a sua faixa dos últimos 60 dias) e cruzamentos dos últimos 120 dias */
     function saudeProntidao(dias,ativs){
       var d=dias[dias.length-1];if(!d)return null;var pr=NUCLEO.prontidao(dias,d.data);if(!pr)return null;

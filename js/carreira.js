@@ -310,6 +310,7 @@
     st("Carregando o SQLite e os seus dados…");
     return Promise.all([lib().then(function(){return window.initSqlJs({locateFile:function(f){return SQLJS+f}})}),pag("compras","data,mes,mercado,categoria,produto,quantidade,valor_unitario,valor_total",0,[]),
       pag("garmin_dia","data,dados",0,[]).catch(function(){return []}),pag("garmin_ativ","inicio,tipo,dados",0,[]).catch(function(){return []}),pag("registros","quem,tipo,data,titulo,dados",0,[]).catch(function(){return []})]).then(function(r){
+      var cl=NUCLEO.sauClassificar(r[2],r[3]);r[2]=cl.meus.dias;r[3]=cl.meus.ativs;   /* só o que é seu (marco de propriedade) */
       var db=new r[0].Database();
       function tab(nome,cols,linhas){db.run("CREATE TABLE "+nome+" ("+cols.join(",")+")");var stmt=db.prepare("INSERT INTO "+nome+" VALUES ("+cols.map(function(){return "?"}).join(",")+")");linhas.forEach(function(l){stmt.run(l)});stmt.free()}
       tab("compras",["data TEXT","mes TEXT","mercado TEXT","categoria TEXT","produto TEXT","quantidade REAL","valor_unitario REAL","valor_total REAL"],r[1].map(function(x){return [x.data,String(x.mes||x.data).slice(0,7),x.mercado,x.categoria,x.produto,+x.quantidade,+x.valor_unitario,+x.valor_total]}));

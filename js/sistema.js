@@ -82,7 +82,7 @@
     var pAg=agendaColetar().catch(function(){return []});
     var pVg=(typeof vgPronto!=="undefined"&&vgPronto?vgPronto:Promise.resolve()).then(function(){return VG.all||[]}).catch(function(){return []});
     var pSa=Promise.resolve().then(function(){return Promise.all([SB.from("garmin_dia").select("data,dados").gte("data",maisDias(hoje,-61)).order("data").then(sbOk),
-      SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",maisDias(hoje,-61)).then(sbOk)])}).catch(function(){return null});
+      SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",maisDias(hoje,-61)).then(sbOk)])}).then(function(x){var c=NUCLEO.sauClassificar(x[0],x[1]);return [c.meus.dias,c.meus.ativs]}).catch(function(){return null});
     return Promise.all([pAg,pVg,pSa]).then(function(r){
       var itens=r[0].map(function(e){return NUCLEO.priItem(e,hoje)}).filter(Boolean);
       /* vagas: só as novas (até 7 dias), bem compatíveis e que ainda não estão no funil nem escondidas; sempre informativas */
@@ -176,7 +176,7 @@
     if(isOwner()){
       ps.push(tenta("registros",function(){return SB.from("registros").select("id,quem,tipo,data,titulo,detalhes,valor,proxima").then(sbOk).then(function(l){l.forEach(function(r){var F=FAM[r.quem];if(!F)return;
         add(F.n,r.titulo,tipoInfo(r.tipo)[1]+" · "+dataBR(r.data),[r.detalhes,r.valor,datas(r.data),datas(r.proxima)].join(" "),{reg:r})})})}));
-      ps.push(tenta("treinos",function(){return SB.from("garmin_ativ").select("id,inicio,tipo,dados").order("inicio",{ascending:false}).limit(1000).then(sbOk).then(function(l){l.forEach(function(a){var T=ativTipo(a.tipo);
+      ps.push(tenta("treinos",function(){return SB.from("garmin_ativ").select("id,inicio,tipo,dados").order("inicio",{ascending:false}).limit(1000).then(sbOk).then(function(l){l=NUCLEO.sauClassificar([],l).meus.ativs;l.forEach(function(a){var T=ativTipo(a.tipo);
         add("Treino",a.dados.nome||T[0],T[0]+" · "+dataBR(a.inicio.slice(0,10)),[T[0],a.dados.local,datas(a.inicio)].join(" "),{href:"#saude/treino/"+a.id})})})}));
       mbaAulas().forEach(function(a){add("MBA",a.t,"aula · "+dataBR(a.data)+" "+a.hora,[a.prof,datas(a.data)].join(" "),{href:"#mba"})});
       mbaAvals().forEach(function(a){add("MBA",a.t+(a.disc?" · "+a.disc:""),"avaliação até "+dataBR(a.ate),datas(a.ate),{href:a.link||"#mba",ext:!!a.link})});

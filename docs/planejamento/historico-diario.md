@@ -662,6 +662,26 @@ Família e da Casa.
 2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
 3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.
 
+## 13/11/2026 · RAC Inbox — workflow manual de deploy da POC iCloud (PR independente)
+
+### 1. O que fizemos
+
+- Decisão do dono: publicar a POC iCloud pelo GitHub Actions, sem token Cloudflare na sessão de nuvem (que não alcança `api.cloudflare.com`). Detalhes em `docs/icloud-poc-deploy.md`.
+- Criados `.github/workflows/icloud-probe-deploy.yml` (só `workflow_dispatch`, `contents: read`, ambiente `cloudflare-poc`, Wrangler `4.161.0`, `PROBE_TOKEN` aleatório por execução e descartado, trava de branch) e `tests/icloud_probe_deploy.test.mjs` (escopo e segredos; ignora o que depende da POC enquanto ela não está na branch).
+- Validação local: YAML e `bash -n` de cada passo; simulação do passo do `/probe` com servidor falso (sucesso, falha de SMTP, erro de limite de CPU). Isso **não** é prova de rede real.
+- Atualizados roadmap, decisões/pendências e mapa. Nenhum código funcional da POC foi alterado.
+
+### 2. O que estamos fazendo
+
+- Esta PR aguarda o merge do dono. Nada foi publicado: sem login ou deploy na Cloudflare, sem token/secret, sem conta Apple. A conectividade com a Apple **continua não comprovada**.
+- Bloqueio real, que depende do dono: token Cloudflare só com `Account → Workers Scripts → Edit`, Environment `cloudflare-poc` (aprovador e branches restritas) e os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`.
+
+### 3. O que vamos fazer
+
+1. Dono mescla esta PR e configura o ambiente e os secrets.
+2. Acionar o workflow a partir de `poc/icloud-cloudflare-connectivity`, ler o `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
+3. Remoção do Worker: atividade futura, com autorização específica.
+
 ## 13/11/2026 · Atualização da PR #18 (protocolo permanente de autonomia)
 
 ### 1. O que fizemos

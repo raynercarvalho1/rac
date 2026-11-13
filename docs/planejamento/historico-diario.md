@@ -583,3 +583,25 @@ Família e da Casa.
 2. Definir um ambiente de teste controlado para OAuth Gmail e Microsoft Graph, com contas de teste e permissões delegadas mínimas.
 3. Selecionar um runtime com saída TCP e provar IMAP 993 + SMTP 587 do iCloud, sem inserir senhas no navegador ou no chat.
 4. Comparar custos e operação do worker iCloud; só então fechar arquitetura e propor I1. Não aplicar migrations nem conectar contas pessoais de produção nesta fase.
+
+## 13/11/2026 · RAC Inbox — armazenamento de credenciais e candidatos de infraestrutura
+
+### 1. O que fizemos
+
+- Consulta somente leitura à implantação Supabase RAC: quatro Edge Functions ativas (`garmin` v13, `rac-ia` v11, `rac-newsletter` v3 e `radar` v6); nenhuma função de Inbox/e-mail.
+- Consulta somente leitura às extensões confirmou `supabase_vault` 0.3.1 instalado. O Vault cifra segredos em disco e expõe uma view descriptografada; é candidato para refresh tokens e senha específica iCloud, após revisar as permissões da view.
+- Revisada a estrutura de `rac_segredos`: tabela privada do servidor, sem privilégios para o navegador, atualmente usada para chaves VAPID. Não foi lido nenhum valor e não se decidiu reutilizá-la para e-mail.
+- Comparadas opções para o conector iCloud: Cloudflare Workers Paid (mínimo US$ 5/mês; TCP de saída e STARTTLS, porta 25 bloqueada; Cron de minuto em minuto, com limites de execução) e Railway Pro (US$ 20/mês de assinatura-base, SMTP de saída habilitado). Cloudflare é a primeira candidata de POC por custo; Railway fica como alternativa para worker convencional.
+
+### 2. O que estamos fazendo
+
+- A auditoria documental e de metadados de infraestrutura está concluída. Nenhum plano externo foi contratado, nenhum Worker foi criado, nenhuma migration/secret/Edge Function foi alterada e nenhuma conta de e-mail foi conectada.
+- O modelo de armazenamento seguro ainda exige validar as permissões de `vault.decrypted_secrets`, o acesso estritamente pelo servidor e o isolamento por usuário/conta.
+- A PR #16 continua aberta e sem merge; esta atualização amplia apenas a documentação da I0.
+
+### 3. O que vamos fazer
+
+1. Validar permissões do Vault sem selecionar nem expor valores secretos; definir a convenção de identificação e rotação por provedor/conta.
+2. Fazer POC de conectividade Cloudflare Workers para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem credenciais. Comparar *polling* de um minuto com requisitos de sincronização e notificações.
+3. Só depois de uma POC aprovada pelo dono, decidir a contratação do plano mínimo e testar autenticação com conta de teste, nunca com senha no chat.
+4. Manter Gmail e Microsoft Graph como conectores HTTPS no backend; provar OAuth/PKCE, escopos e renovação em contas controladas antes de I1.

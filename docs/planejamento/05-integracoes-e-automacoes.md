@@ -41,6 +41,8 @@ O cartão atual de e-mail do Início lê Gmail; não é um cliente completo. O d
 
 Especificação: [Documento 10 · RAC Inbox](10-rac-inbox.md).
 
+**Ambiente e opções de I0 (13/11/2026):** Vault `supabase_vault` 0.3.1 já está instalado no projeto; a auditoria deve validar os privilégios da view descriptografada antes de armazenar refresh tokens. A implantação atual tem quatro Edge Functions (Garmin, RAC IA, Newsletter e Radar), sem função de e-mail. Para o iCloud, Cloudflare Workers Paid (US$ 5/mês mínimo) é a primeira candidata de POC por suportar TCP de saída e STARTTLS fora da porta 25; Railway Pro (US$ 20/mês base) é a alternativa mais convencional. Nenhum plano foi contratado nem serviço criado.
+
 **I0 · primeira auditoria (13/11/2026):** o cartão atual usa `gmail.readonly` no navegador e armazena o token por cerca de uma hora; a importação de compras usa o mesmo escopo e mantém seu token em memória. A documentação de compras registra o app Google como Externo/em teste; confirmar o Console atual, pois esse estado limita usuários de teste e tokens de atualização a sete dias. Microsoft Graph dispõe de OAuth delegado, envio, movimentação, regras e delta por pasta. No iCloud, a Apple exige SMTP na porta 587, que o Supabase Edge Functions bloqueia; o envio exige worker em runtime separado. Auditoria apenas documental: nenhuma conta foi conectada nem houve teste de credenciais.
 
 

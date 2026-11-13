@@ -350,3 +350,21 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 - Microsoft — delta por pasta: https://learn.microsoft.com/en-us/graph/delta-query-messages
 - Supabase — limites de Edge Functions e portas de saída: https://supabase.com/docs/guides/functions/limits
 - Supabase — runtime Deno e TCP: https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers
+
+### 12.7 Opções de worker para o conector iCloud
+
+A limitação de saída SMTP do Supabase não obriga a hospedar o RAC inteiro fora dele. O worker pode ser um conector isolado: recebe chamadas autenticadas por HTTPS, acessa IMAP/SMTP externamente e grava no Supabase somente o estado e os dados necessários à sincronização.
+
+| Candidato | Capacidade relevante documentada | Custo-base publicado | Limite/risco para o RAC |
+|---|---|---:|---|
+| **Cloudflare Workers Paid** | TCP de saída via `connect()`; API `startTls()` para protocolos como SMTP; a restrição documentada é a porta 25, não 587. Cron pode executar a cada minuto. | **US$ 5/mês** mínimo por conta Workers Paid, mais eventual excedente | Não é um processo Node/Deno convencional de longa duração. Cron tem até 15 min de parede e 30 s de CPU por execução paga; no modelo Workers há limite documentado de 6 conexões de saída simultâneas por requisição. A primeira solução pode precisar de *polling*, não IMAP IDLE persistente. É o candidato prioritário de POC pelo custo, não uma escolha aprovada. |
+| **Railway Pro** | Serviço convencional/worker; SMTP de saída habilitado no plano Pro. A documentação recomenda redeploy depois de mudar de plano. | **US$ 20/mês** de assinatura-base; o valor entra como crédito de uso da plataforma, com consumo adicional possível | Mais simples para bibliotecas IMAP/SMTP tradicionais e processos de fundo, mas custa mais. Conectividade da porta 587 ainda deve ser testada contra o servidor Apple. |
+
+**Proposta de ordem:** testar primeiro Cloudflare Workers Paid com conexões TCP sem credenciais, depois IMAP 993 autenticado e SMTP 587/STARTTLS numa conta iCloud de teste. Medir latência e confiabilidade do *polling* a cada minuto, renovação/reconexão e compatibilidade da biblioteca. Só migrar para Railway Pro se o Worker não comportar o protocolo ou o modelo de sincronização exigido. Não contratar nenhum plano nem criar Worker nesta auditoria.
+
+### 12.8 Cofre de credenciais e implantação Supabase atuais
+
+- A lista de extensões do projeto Supabase RAC confirma `supabase_vault` versão `0.3.1` instalada. Vault guarda segredos cifrados em disco e fornece uma view de leitura descriptografada; é o candidato preferido para refresh tokens OAuth e senha específica do app, sujeito à revisão dos privilégios da view e do caminho de leitura pelo serviço.
+- A tabela `public.rac_segredos` já existe, com RLS e sem privilégios para `anon`/ `authenticated`; atualmente serve às chaves VAPID do Push. Ela não deve ser reutilizada automaticamente para credenciais de e-mail: antes, comparar a proteção efetiva, a rotação, o isolamento por conta e o acesso do worker. Não foi lido nenhum valor secreto.
+- A implantação Supabase consultada em modo somente leitura tem quatro funções ativas (`garmin` v13, `rac-ia` v11, `rac-newsletter` v3 e `radar` v6); não existe função de Inbox/e-mail nesta fotografia do ambiente.
+- Nenhuma migration, linha de banco, segredo, função, cron ou conta de e-mail foi criada ou alterada. A consulta foi somente de metadados de implantação e lista de extensões.

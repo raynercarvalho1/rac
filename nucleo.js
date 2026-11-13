@@ -1049,6 +1049,137 @@
     return {ok:!falhas.length,falhas:falhas,texto:falhas.length?"não consegui ler "+falhas.join(", "):""}}
   /* de cada fonte guardada ({ok, v} ou {ok:false, erro}), só se estava boa: é o "antes" do atuConferir */
   function atuEstado(fontes){var o={};Object.keys(fontes||{}).forEach(function(k){var f=fontes[k];if(f&&typeof f.ok==="boolean")o[k]={ok:f.ok}});return o}
+  /* ===== Voltar ao site (Fase 1, P-16): depois de ATU_VOLTAR_MS fora, a página atual se atualiza sozinha pelo mesmo ↻ (atuAtualizar).
+     Aqui só a decisão. Bloqueiam, nesta ordem: sem login, a casa (o que ela vê não muda sem o dono pedir), pouco tempo fora, página
+     atualizada há pouco, campo com foco, captura rápida aberta e, por fim, as mesmas regras do ↻ (atuPode: já atualizando, sem
+     internet, tarefa longa, formulário não salvo). O atuAtualizar confere o atuPode de novo e, nessa volta, não mostra aviso. ===== */
+  var ATU_VOLTAR_MS=5*60*1000;
+  function atuVoltar(e){e=e||{};var agora=+e.agora,saiu=+e.saiu,ult=+e.ultima;
+    if(!e.logado)return {ok:false,motivo:"sem-login"};
+    if(!e.dono)return {ok:false,motivo:"casa"};
+    if(!(saiu>0)||!(agora>0))return {ok:false,motivo:"sem-saida"};
+    if(agora-saiu<ATU_VOLTAR_MS)return {ok:false,motivo:"pouco-tempo"};
+    if(ult>0&&agora-ult<ATU_VOLTAR_MS)return {ok:false,motivo:"recente"};
+    if(e.foco)return {ok:false,motivo:"foco"};
+    if(e.aberto)return {ok:false,motivo:"aberto"};
+    var p=atuPode(e);return p.ok?{ok:true,motivo:""}:{ok:false,motivo:p.motivo}}
+  /* ===== Notificação tocada (sw.js → js/app.js): o destino vem do servidor (Agenda, Resumo, Lista…; questão D-05) e não muda aqui.
+     Só uma página DESTE site é aceita ("#secao/..."); endereço de outro site ou sem página vira "" (nada a fazer). O destino guardado
+     pelo service worker vale NOTIF_VALIDADE_MS (reserva para o iPhone que abre o início e para a página que perdeu a mensagem). ===== */
+  var NOTIF_VALIDADE_MS=5*60*1000;
+  function notifHash(url,base){try{var b=new URL(String(base||"")),u=new URL(String(url||""),b.href);
+      if(u.origin!==b.origin)return "";return /^#[a-z][a-z0-9-]*(\/[^\s<>"'`]*)?$/i.test(u.hash||"")?u.hash:""}catch(e){return ""}}
+  function notifFresco(d,agora){agora=+agora;return !!(d&&typeof d.url==="string"&&+d.quando>0&&agora>=+d.quando&&agora-d.quando<=NOTIF_VALIDADE_MS)}
+  /* ===== Monitor de integrações (Fase 1, M1 e M2; docs/planejamento/05-integracoes-e-automacoes.md, seção 4). Cada processo agendado
+     no mesmo formato, calculado SÓ dos registros que já existem (rotina_log, newsletter_edicoes, radar_coletas, JSON dos robôs e as
+     execuções públicas do GitHub): nenhum log novo, nenhuma cópia. O horário vem do agendamento real: os crons abaixo são cópias dos
+     arquivos citados e tests/monitor.test.mjs falha se divergirem ou se faltar um agendamento. Tudo em UTC (pg_cron e GitHub).
+     limite: "cron" = atrasado se não rodou desde o último horário previsto (com a tolerância em min); número = atrasado se a última
+     execução tem mais que isso (min), para quem não tem horário fixo de verdade (o GitHub atrasa e pula; a Newsletter só grava
+     quando há coleta). semRegistro: sem registro no horário previsto não prova atraso (o Radar só grava quando há oferta). ===== */
+  var MON_JANELA_MS=7*864e5;
+  var MON_PROCESSOS=[
+    {id:"rotina",nome:"Rotina das 6h",area:"Sistema",onde:"banco",job:"rac-rotina",arquivo:"supabase/008_sistema.sql",crons:["0 9 * * *"],limite:"cron",tolerancia:60,
+      fonte:"rotina_log",rotulo:"Última execução",oque:"Garmin, tempo, agenda e avisos (notificação e Telegram); aos domingos, resumo da semana e backup"},
+    {id:"newsletter",nome:"Newsletter (edições)",area:"Informação",onde:"banco",job:"rac-newsletter",arquivo:"supabase/023_newsletter_turnos.sql",crons:["50 0-2,9-23 * * *"],limite:14*60,
+      fonte:"newsletter_edicoes",rotulo:"Última edição gravada",oque:"Tenta de hora em hora e grava a edição do turno (6h, 12h e 18h) quando chega a coleta; não registra as tentativas sem edição"},
+    {id:"radar",nome:"Radar de Preços (coleta)",area:"Compras",onde:"banco",job:"radar-rotina",arquivo:"supabase/045_radar_rotina.sql",crons:["20 9,21 * * *"],limite:"cron",tolerancia:60,semRegistro:true,
+      fonte:"radar_coletas",rotulo:"Última coleta",oque:"Lê as ofertas liberadas e avisa as oportunidades; só registra quando há oferta para ler"},
+    {id:"noticias",nome:"Robô de notícias",area:"Informação",onde:"github",workflow:"noticias.yml",arquivo:".github/workflows/noticias.yml",crons:["15 */3 * * *","40 * * * *"],limite:8*60,
+      fonte:"execuções do GitHub e os JSON",rotulo:"Última execução",oque:"Notícias de Sorocaba, tecnologia e rumores (a cada 3 h) e a coleta da Newsletter (de hora em hora, só quando falta a do turno)"},
+    {id:"vagas",nome:"Robô de vagas",area:"Carreira",onde:"github",workflow:"vagas.yml",arquivo:".github/workflows/vagas.yml",crons:["0 10 * * *"],limite:30*60,
+      fonte:"execuções do GitHub e vagas.json",rotulo:"Última execução",oque:"Vagas de Dados e BI e o \"oi\" diário no banco"},
+    {id:"testes",nome:"Testes automáticos",area:"Sistema",onde:"github",workflow:"testes.yml",arquivo:".github/workflows/testes.yml",crons:["30 10 * * 1"],limite:8*24*60,
+      fonte:"execuções do GitHub",rotulo:"Última execução",oque:"Toda segunda e a cada mudança publicada ou PR: os testes do site"}];
+  function monMs(x){if(x==null||x==="")return null;var t=typeof x==="number"?x:Date.parse(x);return isFinite(t)?t:null}
+  /* cron de 5 campos (minuto hora dia mês dia-da-semana), com *, n, a-b, lista e /passo; dia do mês e da semana juntos = qualquer um */
+  function monCampo(txt,min,max,expr){var ok={};String(txt).split(",").forEach(function(p){var m=/^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(p);
+      if(!m||(m[4]&&!(+m[4]>0)))throw new Error("cron inválido: "+expr);
+      var a=m[1]==="*"?min:+m[2],b=m[1]==="*"?max:m[3]!=null?+m[3]:m[4]?max:a,s=m[4]?+m[4]:1;
+      if(a<min||b>max||a>b)throw new Error("cron inválido: "+expr);for(var i=a;i<=b;i+=s)ok[i]=1});return ok}
+  function monCron(expr){var f=String(expr||"").trim().split(/\s+/);if(f.length!==5)throw new Error("cron inválido: "+expr);
+    var dw=monCampo(f[4],0,7,expr);if(dw[7])dw[0]=1;
+    return {mi:monCampo(f[0],0,59,expr),h:monCampo(f[1],0,23,expr),dm:monCampo(f[2],1,31,expr),me:monCampo(f[3],1,12,expr),dw:dw,dmLivre:f[2]==="*",dwLivre:f[4]==="*"}}
+  function monDia(c,d){var dm=!!c.dm[d.getUTCDate()],dw=!!c.dw[d.getUTCDay()];if(!c.me[d.getUTCMonth()+1])return false;
+    return c.dmLivre&&c.dwLivre?true:c.dmLivre?dw:c.dwLivre?dm:dm||dw}
+  /* o próximo horário (ms) DEPOIS de "depois" e o último horário ATÉ "antes" (inclusive), de uma expressão ou da lista */
+  function monCronProxima(exprs,depois){var melhor=null;[].concat(exprs||[]).forEach(function(x){var c=monCron(x),t=Math.floor(+depois/6e4)*6e4+6e4;
+      for(var n=0;n<200000;n++){var d=new Date(t);
+        if(!monDia(c,d)){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+1);continue}
+        if(!c.h[d.getUTCHours()]){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),d.getUTCHours()+1);continue}
+        if(c.mi[d.getUTCMinutes()]){if(melhor==null||t<melhor)melhor=t;break}t+=6e4}});return melhor}
+  function monCronAnterior(exprs,antes){var melhor=null;[].concat(exprs||[]).forEach(function(x){var c=monCron(x),t=Math.floor(+antes/6e4)*6e4;
+      for(var n=0;n<200000;n++){var d=new Date(t);
+        if(!monDia(c,d)){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-6e4;continue}
+        if(!c.h[d.getUTCHours()]){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),d.getUTCHours())-6e4;continue}
+        if(c.mi[d.getUTCMinutes()]){if(melhor==null||t>melhor)melhor=t;break}t-=6e4}});return melhor}
+  function monVazio(origem){return {ultima_execucao:null,ultimo_sucesso:null,ultima_ok:null,duracao:null,falhas:null,registros:"",erro:"",origem:origem}}
+  /* rotina_log [{quando, ok, resumo}]: quando é o fim da rotina (não há início, então não há duração) */
+  function monDeRotina(linhas,agora){var l=(linhas||[]).filter(function(x){return x&&monMs(x.quando)}).sort(function(a,b){return monMs(b.quando)-monMs(a.quando)}),o=monVazio("rotina_log");
+    o.falhas=0;if(!l.length)return o;var u=l[0],s=u.resumo||{},ok=l.filter(function(x){return x.ok!==false})[0],partes=[];
+    o.ultima_execucao=monMs(u.quando);o.ultima_ok=u.ok!==false;o.ultimo_sucesso=ok?monMs(ok.quando):null;
+    o.falhas=l.filter(function(x){return x.ok===false&&monMs(x.quando)>=agora-MON_JANELA_MS}).length;
+    if(s.garmin_dias&&s.garmin_dias.salvos!=null)partes.push(s.garmin_dias.salvos+" dias da Garmin");if(s.garmin_treinos&&s.garmin_treinos.salvas!=null)partes.push(s.garmin_treinos.salvas+" treinos conferidos");
+    if(s.alertas&&s.alertas.itens!=null)partes.push(s.alertas.itens+" avisos");o.registros=partes.join(", ");
+    o.erro=Object.keys(s).filter(function(k){return s[k]&&s[k].erro}).map(function(k){return k+": "+s[k].erro}).join("; ");
+    var b=l.filter(function(x){return x.resumo&&x.resumo.backup})[0];if(b)o.backup={quando:monMs(b.quando),ok:!b.resumo.backup.erro,erro:b.resumo.backup.erro||""};
+    return o}
+  /* newsletter_edicoes [{data, turno, origem, criado_em, atualizado_em}]: só a edição gravada é registrada (as tentativas vazias não) */
+  function monDeNewsletter(eds){var l=(eds||[]).map(function(e){return {e:e,t:monMs(e&&e.atualizado_em)||monMs(e&&e.criado_em)}}).filter(function(x){return x.t}).sort(function(a,b){return b.t-a.t}),o=monVazio("newsletter_edicoes");
+    if(!l.length)return o;var u=l[0].e,d=String(u.data||"");o.ultima_execucao=o.ultimo_sucesso=l[0].t;o.ultima_ok=true;
+    o.registros="edição "+({manha:"da manhã",tarde:"da tarde",noite:"da noite"}[u.turno]||String(u.turno||""))+(d.length>=10?" de "+d.slice(8,10)+"/"+d.slice(5,7):"")+(u.origem==="ia"?", com resumo da IA":", só regras");
+    return o}
+  /* radar_coletas da rotina [{iniciada_em, terminada_em, status, ofertas_lidas, precos_gravados, falhas, erro_mensagem}]: uma linha por loja;
+     linhas que começaram até 30 min depois da primeira são a mesma execução. Execução com falha = todas as lojas com falha */
+  function monDeRadar(cs,agora){var l=(cs||[]).map(function(c){return {c:c||{},i:monMs(c&&c.iniciada_em),f:monMs(c&&c.terminada_em)}}).filter(function(x){return x.i}).sort(function(a,b){return b.i-a.i}),o=monVazio("radar_coletas"),gs=[];
+    o.falhas=0;if(!l.length)return o;
+    l.forEach(function(x){var g=gs[gs.length-1];if(g&&g.topo-x.i<=30*6e4){g.l.push(x);g.ini=x.i}else gs.push({l:[x],topo:x.i,ini:x.i})});
+    gs.forEach(function(g){var r={lidas:0,grav:0,fal:0,falhou:true,andando:false,fim:null,erro:""};g.l.forEach(function(x){var c=x.c;r.lidas+=+c.ofertas_lidas||0;r.grav+=+c.precos_gravados||0;r.fal+=+c.falhas||0;
+      if(c.status!=="falha")r.falhou=false;if(c.status==="em_andamento")r.andando=true;if(x.f&&(r.fim==null||x.f>r.fim))r.fim=x.f;if(!r.erro&&c.erro_mensagem)r.erro=String(c.erro_mensagem)});g.r=r});
+    var u=gs[0],ok=gs.filter(function(g){return !g.r.falhou&&!g.r.andando})[0];
+    o.ultima_execucao=u.ini;o.ultima_ok=u.r.andando?null:!u.r.falhou;o.rodando=u.r.andando;o.ultimo_sucesso=ok?ok.ini:null;
+    o.duracao=u.r.fim!=null&&!u.r.andando?Math.round((u.r.fim-u.ini)/1000):null;
+    o.registros=u.r.lidas+" ofertas lidas, "+u.r.grav+" preços gravados"+(u.r.fal?", "+u.r.fal+" com falha":"");o.erro=u.r.falhou?u.r.erro:"";
+    o.falhas=gs.filter(function(g){return g.r.falhou&&g.ini>=agora-MON_JANELA_MS}).length;return o}
+  /* execuções públicas de um workflow do GitHub (API .../actions/workflows/<arquivo>/runs). Cancelada ou pulada não conta como
+     sucesso nem como falha. Atraso típico (min): mediana entre o horário agendado e o início, só com um cron (com dois, não se sabe qual) */
+  var MON_GH_FALHA={failure:1,timed_out:1,startup_failure:1};
+  function monDeGithub(runs,crons,agora,estadoWf){var o=monVazio("GitHub"),l=(runs||[]).filter(Boolean).map(function(r){return {r:r,t:monMs(r.run_started_at)||monMs(r.created_at)}}).filter(function(x){return x.t}).sort(function(a,b){return b.t-a.t});
+    o.falhas=0;o.rodando=l.some(function(x){return x.r.status==="in_progress"||x.r.status==="queued"});
+    if(estadoWf&&estadoWf!=="active")o.desligado="desligado no GitHub ("+estadoWf+")";
+    var fim=l.filter(function(x){return x.r.status==="completed"&&(x.r.conclusion==="success"||MON_GH_FALHA[x.r.conclusion])}),u=fim[0],s=fim.filter(function(x){return x.r.conclusion==="success"})[0];
+    if(u){var t1=monMs(u.r.updated_at);o.ultima_execucao=u.t;o.ultima_ok=u.r.conclusion==="success";o.duracao=t1!=null&&t1>=u.t?Math.round((t1-u.t)/1000):null;
+      if(!o.ultima_ok)o.erro=u.r.conclusion==="timed_out"?"passou do tempo limite":"o GitHub marcou a execução como falha"}
+    o.ultimo_sucesso=s?s.t:null;o.falhas=fim.filter(function(x){return MON_GH_FALHA[x.r.conclusion]&&x.t>=agora-MON_JANELA_MS}).length;
+    if([].concat(crons||[]).length===1){var at=l.filter(function(x){return x.r.event==="schedule"}).map(function(x){var c=monMs(x.r.created_at),e=c==null?null:monCronAnterior(crons,c);return e==null?null:(c-e)/6e4}).filter(function(x){return x!=null&&x>=0});
+      if(at.length)o.atraso_tipico=Math.round(mediana(at))}
+    return o}
+  /* os JSON dos robôs [{nome, d, campo, idadeMax (h)}]: itens, fontes fora do ar e o que está velho (os mesmos limites do painel antigo) */
+  function monRobos(l,agora){var partes=[],avisos=[],ult=null;(l||[]).forEach(function(x){var d=x.d,t=d&&monMs(d.coletado),n=d&&Array.isArray(d[x.campo])?d[x.campo].length:0;
+      if(!d){partes.push(x.nome+": não consegui ler");avisos.push(x.nome+" (sem arquivo)");return}
+      var fal=(d.fontes||[]).filter(function(f){return f&&!f.ok}),ff=Array.isArray(d.fontes)?", "+(d.fontes.length-fal.length)+" de "+d.fontes.length+" fontes"+(fal.length?" (fora do ar: "+fal.map(function(f){return f.n}).join(", ")+")":""):"";
+      var velho=t==null||agora-t>x.idadeMax*36e5||!n;if(velho)avisos.push(x.nome+(n?" parado":" vazio"));else if(fal.length>3)avisos.push(x.nome+": "+fal.length+" fontes fora do ar");
+      if(t!=null&&(ult==null||t>ult))ult=t;partes.push(x.nome+": "+n+" itens"+ff)});
+    return {texto:partes.join(" · "),avisos:avisos,ultimo:ult}}
+  /* o contrato de cada processo: {processo, nome, area, onde, arquivo, crons, ultima_execucao, ultimo_sucesso, duracao, registros, falhas,
+     erro, proxima_prevista, esperada, estado, motivo, rodando, atraso_tipico, origem}. Estado: ok · atrasado · falhou · desligado · desconhecido */
+  function monAvaliar(p,d,agora){d=d||{};agora=+agora;
+    var o={processo:p.id,nome:p.nome,area:p.area,onde:p.onde,arquivo:p.arquivo,crons:p.crons.slice(),rotulo:p.rotulo,ultima_execucao:d.ultima_execucao||null,ultimo_sucesso:d.ultimo_sucesso||null,
+      duracao:d.duracao!=null?d.duracao:null,registros:d.registros||"",falhas:d.falhas!=null?d.falhas:null,erro:d.erro||"",proxima_prevista:monCronProxima(p.crons,agora),esperada:null,
+      estado:"ok",motivo:"",rodando:!!d.rodando,atraso_tipico:d.atraso_tipico!=null?d.atraso_tipico:null,origem:d.origem||""};
+    function fim(e,m){o.estado=e;o.motivo=m;return o}
+    if(d.desligado)return fim("desligado",d.desligado);
+    if(d.erroLeitura)return fim("desconhecido","não consegui ler ("+d.erroLeitura+")");
+    if(!o.ultima_execucao)return fim("desconhecido",p.semRegistro?"nenhum registro (só registra quando há o que ler)":"nenhum registro encontrado");
+    if(d.ultima_ok===false)return fim("falhou",o.erro||"a última execução falhou");
+    if(p.limite==="cron"){o.esperada=monCronAnterior(p.crons,agora-(p.tolerancia||0)*6e4);
+      if(o.esperada!=null&&o.ultima_execucao<o.esperada)return p.semRegistro?fim("desconhecido","sem registro no último horário previsto (pode não ter havido o que ler)"):fim("atrasado","não rodou no último horário previsto")}
+    else if(agora-o.ultima_execucao>p.limite*6e4)return fim("atrasado","sem "+(p.rotulo||"execução").toLowerCase()+" há mais de "+(p.limite>=2880?Math.round(p.limite/1440)+" dias":Math.round(p.limite/60)+" h"));
+    if(d.avisos&&d.avisos.length)return fim("atrasado","coleta parada ou incompleta: "+d.avisos.join("; "));
+    return o}
+  /* ordem de gravidade para resumir o painel */
+  var MON_ORDEM={falhou:0,atrasado:1,desligado:2,desconhecido:3,ok:4};
+  function monResumo(l){var c={};(l||[]).forEach(function(x){c[x.estado]=(c[x.estado]||0)+1});return {contagem:c,pior:(l||[]).slice().sort(function(a,b){return MON_ORDEM[a.estado]-MON_ORDEM[b.estado]})[0]||null}}
   /* ===== RAC Hoje (docs/hoje.md): as regras do dia, sem tela e sem banco. O coletor (js/hoje.js) entrega cada fonte como
      {ok, v, quando} ou {ok:false, erro}; aqui se decide o que pede atenção, o que mudou, o que falta e o pacote de fatos que vai
      para a IA (ação hoje.analise). Contas, ordem e conferências são do código; a IA só interpreta. ===== */
@@ -3192,6 +3323,9 @@
     alChaveProduto:alChaveProduto,alCompararProdutos:alCompararProdutos,alNoHistorico:alNoHistorico,alPrecoBase:alPrecoBase,alNumeroPedido:alNumeroPedido,alDuplicata:alDuplicata,alVersao:alVersao,
     alIntegridade:alIntegridade,alIntegridadeLista:alIntegridadeLista,alDuplicataMercado:alDuplicataMercado,
     atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
+    ATU_VOLTAR_MS:ATU_VOLTAR_MS,atuVoltar:atuVoltar,NOTIF_VALIDADE_MS:NOTIF_VALIDADE_MS,notifHash:notifHash,notifFresco:notifFresco,
+    MON_PROCESSOS:MON_PROCESSOS,MON_JANELA_MS:MON_JANELA_MS,monCron:monCron,monCronProxima:monCronProxima,monCronAnterior:monCronAnterior,monDeRotina:monDeRotina,monDeNewsletter:monDeNewsletter,
+    monDeRadar:monDeRadar,monDeGithub:monDeGithub,monRobos:monRobos,monAvaliar:monAvaliar,monResumo:monResumo,
     TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,PRI_VALIDADE_CALC:PRI_VALIDADE_CALC,priPontos:priPontos,priNivel:priNivel,priId:priId,priFollowup:priFollowup,priItem:priItem,priOportunidade:priOportunidade,priOrdenar:priOrdenar,priSelecionar:priSelecionar,priSaude:priSaude,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,

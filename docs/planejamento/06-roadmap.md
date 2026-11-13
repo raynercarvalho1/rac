@@ -97,6 +97,20 @@ implementada. Registro completo no [Documento 07](07-decisoes-e-pendencias.md#de
 
 **Proteção da `main`**: a ruleset já está ativa (13/11/2026) e não é item do roadmap; só a comprovação dos robôs está na F1.
 
+## 3.1 Andamento da Fase 1 (13/11/2026)
+
+Execução da Fase 1 na branch `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1. **A Fase 1 não está concluída**: nada foi
+mesclado nem publicado, e dois critérios dependem de evidência de fora (o iPhone e as próximas execuções dos robôs).
+
+| Item | Situação | O que falta para concluir |
+|---|---|---|
+| Monitor M1 e M2 | **Implementado na branch**, com teste de divergência de horários ([Documento 05](05-integracoes-e-automacoes.md#43-implementação-de-m1-e-m2-fase-1-13112026)) | Merge e publicação pelo dono; conferir no celular |
+| Clique na notificação abre o destino | **Implementado na branch**; testes automáticos do service worker e da página | Merge e publicação; os 3 cenários no iPhone (aberto, fechado, recém-atualizado). O destino não mudou (D-05 em aberto) |
+| Atualizar ao voltar à aba | **Implementado na branch**, só para o dono; testes dos cenários pedidos | Merge e publicação; uso real. Se vale para a casa é a questão D-15 |
+| Busca lateral (P-19) | **Corrigido na branch**; teste com Esportes carregado e não carregado | Merge e publicação |
+| Robôs de Notícias e Vagas depois da ruleset | **Pendente**: investigação feita, sem evidência de push ainda | Um push bem-sucedido de cada robô na `main` depois da ruleset, registrado no histórico |
+| Reconciliar o estado dos documentos (I-01 a I-10) | **Não iniciado** nesta execução | Conferência só leitura do dono (D-14) |
+
 ## 4. Como cada fase é entregue
 
 - Um **lote funcional** por vez: planejar, implementar, rodar o teste do módulo, rodar a suíte inteira, relatório objetivo.

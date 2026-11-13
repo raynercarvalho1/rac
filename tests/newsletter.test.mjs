@@ -612,7 +612,9 @@ test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema
   assert.match(html, /<a class="it" href="#newsletter" data-k="newsletter">/); assert.match(html, /<section id="newsletter" hidden><div id="newsletter-view"><\/div><\/section>/);
   assert.match(sw, /"\.\/js\/newsletter\.js"/); assert.match(sw, /\/\\\.json\$\/\.test\(url\.pathname\)/, "newsletter.json com a cópia guardada (sem internet)");
   assert.match(sis, /getJson\("newsletter\.json"\)\.then\(function\(v\)\{\(v\.grupos\|\|\[\]\)\.forEach/, "a busca do site acha as notícias");
-  assert.match(sis, /\["newsletter\.json","Newsletter \(fontes RSS\)","grupos",14\]/, "o painel de robôs mostra a coleta e as fontes fora do ar");
+  /* desde a Fase 1 (13/11/2026) o painel "Robôs de coleta" está dentro do Monitor de integrações (tests/monitor.test.mjs testa as fontes fora do ar) */
+  assert.match(sis, /\["noticias\.json","tecdados\.json","rumores\.json","newsletter\.json","vagas\.json"\]\.map\(json\)/);
+  assert.match(sis, /\{nome:"Newsletter",d:js\[3\],campo:"grupos",idadeMax:14\}/, "o monitor mostra a coleta e as fontes fora do ar da Newsletter, com o mesmo limite de 14 h");
   const css = /\.nltabs\{[^}]*\}/.exec(html)[0]; assert.match(css, /overflow-x:auto/, "abas roláveis em 375 px");
   assert.match(html, /@media\(max-width:480px\)\{\.nlimg/);
   /* cabeçalho em 375 px: só na Newsletter, Voltar e Início ficam só com o ícone e o título não passa por baixo deles */

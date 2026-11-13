@@ -187,6 +187,10 @@ Gravidade: **Alta** (bloqueia ou encarece as próximas frentes) · **Média** (c
 | P-18 | **Visual sem sistema**: 73 cores hexadecimais diferentes no CSS, 20 raios de borda, 25 tamanhos de fonte, ≈ 17 larguras de quebra (`@media`), 3 famílias de botão | Média | [Documento 03](03-design-system.md#1-diagnóstico-visual) |
 | P-19 | **Provável erro na busca lateral** [Hipótese forte]: ao focar a busca, `js/app.js` (linha 343) chama `getTeams()` e `logoUrl()`, definidas só em `js/esportes.js` (carregado sob demanda), sem `precisa(["esportes"])`. Se o módulo ainda não carregou (ex.: a casa, que não abre o Início), a chamada lança erro e os times nunca entram na busca | Baixa | `js/app.js` linhas 341–343; `js/esportes.js` linhas 153 e 173 |
 
+**Atualização de 13/11/2026 (Fase 1, na branch `claude/fase-1-confiabilidade-rac-dhwm7a`, sem merge):** P-19 deixou de ser hipótese
+(confirmado no código) e foi corrigido; P-16 e P-17 foram implementados (P-17 ainda depende do teste no iPhone). A tabela acima fica como
+foi auditada; o estado de cada um está nas [pendências técnicas do Documento 07](07-decisoes-e-pendencias.md#pendências-técnicas).
+
 ## 7. Riscos de manutenção e evolução
 
 | Risco | Probabilidade | Impacto | Por quê |

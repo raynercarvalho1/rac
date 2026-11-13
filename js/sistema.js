@@ -376,6 +376,65 @@
       add(regs.filter(function(x){return x.quem==="rede"&&x.tipo==="contato"&&!(x.dados||{}).perfil}).length,"contatos da Rede sem o link do perfil","#rede");
       l7(achados.length?"aviso":"ok",achados.length?"Toque para corrigir:":"Nada incompleto encontrado.",achados.length?h("ul",{class:"clean"},achados):null)});
     return p}
+  /* ===== Monitor de integrações (Fase 1, M1 e M2): cada rotina agendada com estado, última execução, último sucesso, falhas em 7 dias e
+     a próxima prevista pelo horário real (NUCLEO.MON_PROCESSOS; tests/monitor.test.mjs confere com os .sql e .yml). Lê só registros que
+     já existem. As execuções dos robôs vêm da API pública do GitHub (sem login; 60 consultas por hora por rede), guardadas 15 min neste
+     aparelho; só as execuções da main (as de PR não contam); sem ela, vale a data do próprio arquivo do robô. Incorpora o antigo painel "Robôs de coleta" (itens, fontes, mesmos limites). ===== */
+  var SIS_GH="https://api.github.com/repos/raynercarvalho1/rac/actions/";
+  function sisGithub(){var k="rac-monitor-gh",c=null;try{c=JSON.parse(localStorage.getItem(k)||"null")}catch(e){}
+    if(c&&c.dados&&Date.now()-c.quando<15*6e4)return Promise.resolve(c.dados);
+    function pedir(u){return fetch(SIS_GH+u).then(function(r){if(!r.ok)throw new Error(r.status===403||r.status===429?"limite de consultas do GitHub":"GitHub HTTP "+r.status);return r.json()})}
+    var wfs=NUCLEO.MON_PROCESSOS.filter(function(p){return p.workflow});
+    return Promise.all([pedir("workflows?per_page=50")].concat(wfs.map(function(p){return pedir("workflows/"+p.workflow+"/runs?branch=main&per_page=30")}))).then(function(r){
+      var dados={quando:Date.now(),estados:{},runs:{}};((r[0]||{}).workflows||[]).forEach(function(w){dados.estados[String(w.path||"").split("/").pop()]=w.state});
+      wfs.forEach(function(p,i){dados.runs[p.workflow]=((r[i+1]||{}).workflow_runs||[]).map(function(x){return {status:x.status,conclusion:x.conclusion,event:x.event,created_at:x.created_at,run_started_at:x.run_started_at,updated_at:x.updated_at}})});
+      try{localStorage.setItem(k,JSON.stringify({quando:dados.quando,dados:dados}))}catch(e){}return dados},
+    /* sem resposta agora: a cópia deste aparelho, se for do mesmo dia (o painel diz de quando é) */
+    function(e){if(c&&c.dados&&Date.now()-c.quando<24*36e5)return c.dados;throw e})}
+  function sisQuando(ms){return ms?new Date(ms).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}
+  function sisMin(m){return m<90?Math.round(m)+"\u00a0min":Math.round(m/60)+"\u00a0h"}
+  function sisMonitor(){
+    var p=panel("Monitor de integrações","Cada rotina agendada: estado, última execução, último sucesso, falhas em 7 dias e a próxima execução prevista pelo horário real do agendamento. Os robôs rodam no GitHub, que costuma atrasar e às vezes pula rodadas."),
+      res=h("p",{class:"sub",text:"Conferindo…"}),ul=h("ul",{class:"wl sissaude monint"}),lis={},agora=Date.now(),PROC=NUCLEO.MON_PROCESSOS;
+    p.appendChild(res);p.appendChild(ul);
+    PROC.forEach(function(pr){lis[pr.id]=h("li",null,h("span",{class:"sisdot",text:"…"}),h("span",{class:"grow"},h("b",{text:pr.nome}),h("span",{class:"sub",text:"Conferindo…"})));ul.appendChild(lis[pr.id])});
+    p.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
+    function json(a){return getJson(a+"?v="+Date.now()).then(function(d){return d},function(){return null})}
+    Promise.all([
+      atuLer(function(){return SB.from("rotina_log").select("quando,ok,resumo").order("quando",{ascending:false}).limit(40).then(sbOk)}),
+      atuLer(function(){return SB.from("newsletter_edicoes").select("data,turno,origem,criado_em,atualizado_em").order("atualizado_em",{ascending:false}).limit(6).then(sbOk)}),
+      atuLer(function(){return SB.from("radar_coletas").select("iniciada_em,terminada_em,status,ofertas_lidas,precos_gravados,falhas,erro_mensagem").eq("origem","rotina").order("iniciada_em",{ascending:false}).limit(80).then(sbOk)}),
+      atuLer(function(){return SB.from("garmin_dia").select("atualizado").order("atualizado",{ascending:false}).limit(1).then(sbOk)}),
+      atuLer(sisGithub),
+      Promise.all(["noticias.json","tecdados.json","rumores.json","newsletter.json","vagas.json"].map(json))]).then(function(r){
+      var gh=r[4].ok?r[4].v:null,js=r[5],dados={};
+      dados.rotina=r[0].ok?NUCLEO.monDeRotina(r[0].v,agora):{erroLeitura:r[0].erro};
+      dados.newsletter=r[1].ok?NUCLEO.monDeNewsletter(r[1].v):{erroLeitura:r[1].erro};
+      dados.radar=r[2].ok?NUCLEO.monDeRadar(r[2].v,agora):{erroLeitura:r[2].erro};
+      var robos={noticias:NUCLEO.monRobos([{nome:"Sorocaba",d:js[0],campo:"noticias",idadeMax:8},{nome:"tecnologia",d:js[1],campo:"noticias",idadeMax:8},{nome:"rumores da MLB",d:js[2],campo:"liga",idadeMax:8},{nome:"Newsletter",d:js[3],campo:"grupos",idadeMax:14}],agora),
+        vagas:NUCLEO.monRobos([{nome:"vagas",d:js[4],campo:"vagas",idadeMax:30}],agora)};
+      PROC.filter(function(pr){return pr.onde==="github"}).forEach(function(pr){var rb=robos[pr.id],runs=gh&&gh.runs[pr.workflow],d;
+        if(runs&&runs.length)d=NUCLEO.monDeGithub(runs,pr.crons,agora,gh.estados[pr.workflow]);
+        else if(rb&&rb.ultimo)d={ultima_execucao:rb.ultimo,ultimo_sucesso:rb.ultimo,ultima_ok:true,origem:"arquivo"};
+        else d={erroLeitura:"execuções do GitHub indisponíveis"+(r[4].erro?": "+r[4].erro:"")};
+        if(rb){d.registros=rb.texto;d.avisos=rb.avisos}dados[pr.id]=d});
+      var lista=PROC.map(function(pr){return NUCLEO.monAvaliar(pr,dados[pr.id],agora)}),s=NUCLEO.monResumo(lista).contagem;
+      var ICO={ok:"✓",atrasado:"⚠",falhou:"✗",desligado:"○",desconhecido:"?"},NOME={ok:"ok",atrasado:"atrasado",falhou:"falhou",desligado:"desligado",desconhecido:"sem informação"};
+      res.textContent=lista.length+" rotinas agendadas: "+["falhou","atrasado","desligado","desconhecido","ok"].filter(function(k){return s[k]}).map(function(k){return s[k]+" "+NOME[k]}).join(", ")+".";
+      lista.forEach(function(x){var li=lis[x.processo],g=li.querySelector(".grow"),t=[],gd=r[3].ok&&r[3].v[0]&&r[3].v[0].atualizado,b=x.processo==="rotina"&&dados.rotina.backup;
+        li.className=x.estado==="ok"?null:"alerta";li.querySelector(".sisdot").textContent=ICO[x.estado];g.innerHTML="";
+        g.appendChild(h("b",{text:x.nome+" · "+NOME[x.estado]+(x.rodando?" (rodando agora)":"")}));
+        if(x.motivo)t.push(x.motivo+(x.esperada?" (previsto para "+sisQuando(x.esperada)+")":""));
+        t.push(x.rotulo+": "+(x.ultima_execucao?sisQuando(x.ultima_execucao)+" ("+sisHa(new Date(x.ultima_execucao).toISOString())+")":"—")+(x.duracao!=null?" · duração "+(x.duracao<90?x.duracao+"\u00a0s":sisMin(x.duracao/60)):"")+(x.registros?" · "+x.registros:""));
+        t.push("Último sucesso: "+sisQuando(x.ultimo_sucesso)+" · falhas em 7 dias: "+(x.falhas==null?"não registradas":x.falhas));
+        if(x.erro&&x.estado!=="falhou")t.push("Erro: "+x.erro);
+        if(x.processo==="rotina"&&gd)t.push("Relógio: último dado "+sisHa(gd));
+        if(b)t.push("Backup de domingo: "+sisQuando(b.quando)+(b.ok?" ok":" com falha ("+b.erro+")"));
+        t.push("Próxima prevista: "+(x.onde==="github"?"a partir de ":"")+sisQuando(x.proxima_prevista)+(x.onde!=="github"?"":x.atraso_tipico!=null?" (nas últimas, o GitHub começou cerca de "+sisMin(x.atraso_tipico)+" depois do horário)":" (o GitHub pode atrasar ou pular rodadas)"));
+        t.push("Agendamento: "+x.crons.join(" e ")+" (UTC) · "+x.arquivo+(x.origem==="arquivo"?" · sem as execuções do GitHub agora: vale a data do arquivo do robô":x.onde==="github"&&gh&&agora-gh.quando>15*6e4?" · execuções do GitHub de "+sisQuando(gh.quando):""));
+        t.forEach(function(z){g.appendChild(h("span",{class:"sub",style:"display:block",text:z}))})})})
+    .catch(function(e){res.textContent="Não consegui montar o monitor ("+(e&&e.message||e)+").";logErro("monitor de integrações",e)});
+    return p}
   /* baixa o backup automático mais novo e confere se ele restauraria tudo (sem gravar nada): JSON íntegro, todas as tabelas, sem ids repetidos e com a quantidade de hoje */
   function sisTesteRestauracao(arq){
     return SB.storage.from("backups").download(EU.id+"/"+arq.name).then(function(r){if(r.error)throw r.error;return r.data.text()}).then(function(txt){
@@ -574,6 +633,7 @@
     /* a versão que este aparelho está usando: se não for a mais nova, é só fechar e abrir o site de novo */
     root.appendChild(h("p",{class:"sub sisversao",text:"Versão do site neste aparelho: "+MOD_VERSAO}));
     try{root.appendChild(sisSaude())}catch(e){logErro("saúde do RAC",e)}
+    try{root.appendChild(sisMonitor())}catch(e){logErro("monitor de integrações",e)}
     if(typeof iaLigada==="function"&&iaLigada())try{root.appendChild(sisIA())}catch(e){logErro("RAC Intelligence",e)}
     /* sincronização e conflitos */
     var ps=panel("Sincronização","Os dados pessoais ficam na sua conta e com uma cópia neste aparelho. Se o mesmo dado mudar em dois lugares, você escolhe qual vale.");
@@ -614,15 +674,7 @@
       if(!l.length){lf.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhuma falha registrada. 🎉"})));return}
       l.forEach(function(x){lf.appendChild(h("li",null,h("span",{class:"grow"},h("b",{text:x.origem+": "+x.mensagem}),h("span",{class:"sub",text:new Date(x.quando).toLocaleString("pt-BR")+" · "+x.onde}))))});
       if(!r.error){var lim=h("button",{type:"button",class:"ghostbtn",text:"Limpar as falhas"});lim.onclick=function(){SB.from("erros").delete().gte("id",0).then(function(){SIS.erros=[];try{localStorage.removeItem("rac-erros")}catch(e){}renderSistema()})};pf.appendChild(lim)}});
-    /* robôs do GitHub: se um parar (fonte quebrou ou veio vazia), aparece aqui; o GitHub também manda e-mail */
-    var pg=panel("Robôs de coleta","Vagas (todo dia às 7h), notícias de Sorocaba e de tecnologia (a cada 3 horas) e a Newsletter (6h, 12h e 18h). Se a fonte quebrar ou vier vazia, o robô falha de propósito e o GitHub avisa por e-mail."),lg=h("ul",{class:"wl"});pg.appendChild(lg);root.appendChild(pg);
-    [["vagas.json","Vagas","vagas",30],["noticias.json","Notícias de Sorocaba","noticias",8],["tecdados.json","Notícias de dados e tecnologia","noticias",8],["rumores.json","Rumores da MLB","liga",8],["newsletter.json","Newsletter (fontes RSS)","grupos",14]].forEach(function(r){
-      getJson(r[0]+"?v="+Date.now()).then(function(d){var q=new Date(d.coletado),horas=(Date.now()-q)/36e5,n=(d[r[2]]||[]).length,velho=horas>r[3]||!n;
-        /* a Newsletter diz também quantas fontes RSS falharam na última coleta */
-        var fal=(d.fontes||[]).filter(function(x){return !x.ok}),ff=d.fontes?" · "+(d.fontes.length-fal.length)+" de "+d.fontes.length+" fontes"+(fal.length?" (fora do ar: "+fal.map(function(x){return x.n}).join(", ")+")":""):"";
-        lg.appendChild(h("li",{class:velho||fal.length>3?"alerta":null},h("span",{class:"grow"},h("b",{text:(velho?"⚠ ":"✓ ")+r[1]}),h("span",{class:"sub",text:n+" itens · coletado "+q.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(velho?" · parado há "+Math.round(horas)+" h":"")+ff}))))})
-      .catch(function(e){lg.appendChild(h("li",{class:"alerta"},h("span",{class:"grow"},h("b",{text:"⚠ "+r[1]}),h("span",{class:"sub",text:"não consegui ler ("+e.message+")"}))))})});
-    pg.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
+    /* os robôs do GitHub (itens, fontes fora do ar, parados) ficam no Monitor de integrações, logo abaixo da Saúde do RAC */
     /* testes automáticos */
     var pt=panel("Testes automáticos","A cada mudança publicada, o GitHub roda os testes do site: leitura de nota fiscal e de abastecimento, leitor de arquivos do relógio, importação sem duplicar e o bloqueio de quem não fez login.");
     pt.appendChild(h("a",{href:"https://github.com/raynercarvalho1/rac/actions/workflows/testes.yml",target:"_blank",rel:"noopener"},h("img",{src:"https://github.com/raynercarvalho1/rac/actions/workflows/testes.yml/badge.svg",alt:"Situação dos testes",loading:"lazy"})));

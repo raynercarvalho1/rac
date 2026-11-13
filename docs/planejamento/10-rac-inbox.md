@@ -1,7 +1,7 @@
 # RAC · 10 · RAC Inbox — Caixa de E-mail Inteligente
 
 Data da decisão: 13/11/2026  
-Estado: **proposta aprovada pelo dono; não implementada**.  
+Estado: **proposta aprovada pelo dono; não implementada; escopo e arquitetura redefinidos em 13/11/2026 (seção 13)**.  
 Prioridade: **próxima grande frente após a conclusão da modernização da Saúde (S1–S5)**.  
 Objetivo de produto: tornar o RAC o cliente principal de e-mail do dono e permitir que o Spark seja desinstalado somente depois de uma substituição comprovada no uso real.
 
@@ -10,6 +10,8 @@ Objetivo de produto: tornar o RAC o cliente principal de e-mail do dono e permit
 O RAC Inbox não será apenas um cartão que reúne links ou uma tela que lê mensagens. Será um **cliente de e-mail completo, multicon­ta e inteligente**, integrado ao restante do RAC.
 
 A experiência deverá permitir administrar diretamente as caixas Gmail, Outlook/Microsoft e iCloud, respeitando as capacidades reais de cada provedor. O usuário não deve precisar voltar ao Spark para tarefas cotidianas como responder, enviar, arquivar, excluir, marcar spam, organizar pastas ou administrar filtros.
+
+**Escopo redefinido em 13/11/2026 (leia a seção 13 antes de planejar ou implementar):** o RAC Inbox é um **cliente de e-mail completo para uso pessoal de dois usuários (o dono e sua esposa)**, com iCloud Mail primeiro e outros provedores depois. **Não é um painel de notificações ou de metadados**, e nenhuma prova técnica deve terminar em "autenticou": as provas avançam até ler, baixar, organizar e enviar mensagens de teste, cada passo com a autorização e a segurança próprias.
 
 A meta é superar a experiência atual do Spark no uso diário, com controle real sobre as contas originais e com funcionalidades de inteligência que agreguem valor ao RAC.
 
@@ -223,15 +225,17 @@ Requisitos obrigatórios:
 
 A frente será aberta depois que Saúde S1–S5 estiver concluída e validada. O trabalho do Inbox deverá seguir lotes coesos, sem começar a implementação antes da prova de viabilidade dos conectores.
 
-| Fase | Entrega | Critério de saída |
+| Lote | Entrega | Critério de conclusão (objetivo e verificável) |
 |---|---|---|
-| **I0 · Viabilidade e arquitetura** | Auditar implementação Gmail atual; provar OAuth e leitura/escrita Gmail e Graph; provar IMAP iCloud; testar SMTP iCloud na infraestrutura pretendida; mapear scopes, custos, limites e armazenamento | Matriz real de capacidades por provedor e arquitetura aprovada, sem operação de produção não autorizada |
-| **I1 · Fundação multicon­ta** | Registro de contas, autenticação segura, adaptadores e contrato comum, sincronização incremental e estado das contas | Três tipos de conta conectáveis em ambiente controlado; reconexão e revogação testadas |
-| **I2 · Cliente de e-mail** | Caixa unificada, pastas, busca, leitura, conversas, composição, respostas, encaminhamento, rascunhos e anexos | Fluxos completos de entrada e saída testados em cada provedor suportado |
-| **I3 · Administração** | Lido/não lido, arquivar, mover, lixeira, spam, bloqueios, pastas, regras nativas e regras RAC; prévia de ações em massa | Ações reais confirmadas pelo provedor; diferenças documentadas; falhas recuperáveis |
-| **I4 · Inteligência** | Classificação, resumo, busca em linguagem natural, extração, sugestão de filtros e rascunhos | IA com evidência, orçamento, minimização, consentimento e confirmação das ações |
-| **I5 · Ecossistema RAC** | Carreira, Compras, Finanças, Agenda, RAC Hoje, notificações, lembretes e biblioteca de anexos | Integrações com confirmação e rastreabilidade; sem duplicação de dados financeiros |
-| **I6 · Substituição do Spark** | Uso real diário, estabilidade, reconexão, sincronização, ações e testes em iPhone/desktop | Checklist da seção 8 integralmente validado pelo dono |
+| **I0 · Provas e decisão de runtime (iCloud)** | Sequência de provas P1 a P7 da seção 13.11, com conta de teste e mensagens de teste; medição de CPU, latência e confiabilidade; decisão do runtime do conector | P1 a P7 executadas e registradas com evidência; operações que alteram a caixa ou enviam e-mail só com autorização específica; runtime decidido por medição (Workers Free, Workers Paid ou serviço convencional) e custo aprovado pelo dono |
+| **I1 · Fundação** | Contas e credenciais (Vault), Edge Function como fronteira, contrato do conector com assinatura HMAC, esquema do índice com RLS, sincronização de pastas e metadados, lista mínima na interface | Conta de teste conectada pelo fluxo definitivo; teste automatizado de isolamento (um usuário nunca lê dados do outro, nem pelo banco nem pela função); nenhum segredo em log, resposta ou navegador (testes); remover a conta apaga o segredo |
+| **I2 · Leitura completa** | Mensagem completa (texto e HTML sanitizado), cabeçalhos, anexos para download, conversas, busca, sincronização incremental, notificações e não lidas | Corpus de mensagens maliciosas de teste (script, rastreador, CSS com exfiltração, `javascript:`, anexo de nome perigoso) bloqueado; sincronização incremental correta, inclusive com troca de UIDVALIDITY; notificação de nova mensagem em teste real |
+| **I3 · Organização** | Lido/não lido, sinalizar, arquivar, mover, excluir (com semântica de lixeira), pastas, rascunhos, ações em lote com prévia | Toda ação confirmada pelo servidor antes de aparecer como feita; falha reverte a tela; ações idempotentes; exclusão definitiva só com confirmação; testes com mensagens identificadas como teste |
+| **I4 · Composição e envio** | Escrever, responder, responder a todos, encaminhar, Cc/Cco, assinatura, anexos, SMTP, cópia em Enviados, fila de saída | Envio de teste a endereço autorizado com anexo; retentativa nunca duplica o envio; limites da Apple aplicados (20 MB, 500 destinatários por mensagem, 1.000 mensagens e 1.000 destinatários por dia); a mensagem enviada aparece em Enviados |
+| **I5 · Experiência e confiabilidade** | Interface responsiva (desktop e iPhone) no design do RAC, estados de erro e reautenticação, Web Push, cache de leitura, observabilidade sem conteúdo, limites de volume; liberação para a segunda usuária | Uso real do dono por período combinado sem perda de mensagem nem envio duplicado; falhas de conexão e de credencial claras; segunda usuária liberada somente com o isolamento provado e a experiência dela já existente intacta |
+| **I6 · Substituição do Spark (iCloud)** | Uso diário no lugar do Spark | Checklist da seção 8 validado pelo dono |
+| **I7 · Inteligência e ecossistema RAC** | Classificação, resumo, busca em linguagem natural, sugestões; integração com Carreira, Compras, Finanças, Agenda e RAC Hoje | IA só com evidência, orçamento, minimização e confirmação; integrações com rastreabilidade |
+| **I8 · Provedores adicionais** | Gmail e Microsoft (Graph) pelo mesmo contrato de conector | Matriz de capacidades por provedor baseada em testes reais |
 
 ## 8. Critérios para substituir e desinstalar o Spark
 
@@ -257,7 +261,7 @@ O RAC Inbox só será considerado substituto quando o dono comprovar no uso real
 - Substituir provedores de e-mail ou alterar DNS/domínios.
 - Enviar e-mails automaticamente por decisão da IA.
 - Exclusão permanente automática, bloqueios em massa ou regras destrutivas sem aprovação.
-- Compartilhar e-mails ou anexos com a conta da casa.
+- Compartilhar contas, e-mails ou anexos entre os dois usuários sem autorização explícita de cada um (cada usuário tem suas contas isoladas; ver 13.8).
 - Armazenar todo o histórico ou todos os anexos no Supabase sem necessidade demonstrada.
 - Criar regra nativa de iCloud sem API documentada e validada.
 - Prometer paridade absoluta entre os provedores antes das provas de conceito.
@@ -339,7 +343,7 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 | SMTP iCloud | **Conectividade 587 + STARTTLS + novo EHLO comprovada no Cloudflare Workers Free (13/11/2026); autenticação e envio pendentes** (direto no Supabase Edge Functions a porta 587 é bloqueada) | Autenticar sem enviar mensagem (seção 12.14); só depois, com autorização, enviar e-mail de teste |
 | Arquitetura final e custos | **Em aberto** | Comparar runtime do worker, armazenamento de tokens, operação, monitoramento e custo mensal |
 
-**Critério de saída da I0:** os três provedores devem ter matriz de capacidades baseada em testes reais, fluxo seguro de renovação/revogação de credenciais, conectividade de entrada/saída e custos conhecidos. Até lá, não iniciar I1, não aplicar migrations e não conectar as caixas pessoais de produção.
+**Critério de saída da I0 (revisado em 13/11/2026):** como o iCloud é o primeiro provedor, a I0 só termina com as provas P1 a P7 da seção 13.11 registradas para o iCloud, fluxo seguro de credencial e revogação, decisão de runtime por medição e custos conhecidos. As provas de Gmail e Microsoft Graph saem da I0 e passam ao lote I8. Até lá, não iniciar I1, não aplicar migrations e não conectar as caixas pessoais de produção.
 
 ### Referências novas da auditoria
 
@@ -446,6 +450,8 @@ O workflow, seu teste e o guia operacional (desenho, configuração manual e pen
 
 ### 12.14 Proposta da próxima prova — autenticação iCloud (13/11/2026, não executada)
 
+> **Superada pela seção 13.11.** Esta proposta terminava em autenticação e leitura mínima de metadados, o que subdimensiona o produto. Permanecem válidos seus cuidados com a credencial, a conta de teste e a medição; o alcance das provas foi ampliado.
+
 **Escopo.** Provar apenas: (1) login IMAP com senha específica de app; (2) leitura mínima de metadados de uma pasta, sem corpos nem anexos; (3) login SMTP sem enviar mensagem; (4) falha de credencial; (5) efeito da revogação; (6) custo de CPU, latência e confiabilidade no runtime Cloudflare. Fora de escopo: sincronização, IDLE, envio real, Cron, conta pessoal de produção.
 
 **Pré-requisitos da conta (decisão do dono).** Conta Apple **de teste, dedicada e descartável** (não a pessoal): autenticação de dois fatores ativa, iCloud Mail habilitado e uma senha específica de app com rótulo próprio, gerada no painel da Apple. Nunca a senha principal. O endereço da conta de teste não é escrito no repositório (o teste de estrutura bloqueia endereços iCloud).
@@ -470,3 +476,179 @@ O workflow, seu teste e o guia operacional (desenho, configuração manual e pen
 **O que precisa ser criado e validado (nada existe ainda).** Módulo de autenticação IMAP/SMTP no Worker de teste (preferencialmente Worker separado, para não alterar a POC de conectividade), com lista fixa de comandos e saneamento de erros; testes com sockets simulados cobrindo sucesso, falha de login e ausência de vazamento; workflow manual com Environment próprio; e, só na 2B, Vault, Edge Function e HMAC.
 
 **Decisões do dono antes de executar:** (1) criar a conta Apple de teste e a senha de app (exige um aparelho Apple para o 2FA); (2) escolher 2A (simples) ou ir direto à 2B; (3) autorizar novo Environment e novo Worker de teste; (4) confirmar que a prova fica no Free; (5) definir quem lê as métricas de CPU no painel Cloudflare.
+
+## 13. Redefinição de escopo e arquitetura recomendada (13/11/2026)
+
+### 13.1 Decisão de produto
+
+O RAC Inbox é um **cliente de e-mail completo, de uso pessoal e privado**, para as duas únicas pessoas que usam o RAC: o dono e sua esposa, ambos autenticados pelo sistema atual do RAC. Não é um serviço público. O objetivo é administrar as caixas dentro do RAC e **substituir progressivamente o Spark**. O primeiro provedor é o **iCloud Mail**; a arquitetura deve permitir outros depois (Gmail, Microsoft).
+
+**Escopo funcional (visão do produto, não é a próxima etapa):**
+
+- *Leitura:* listar e sincronizar; mensagem completa; HTML e texto com segurança; remetente, destinatários, assunto, data e cabeçalhos relevantes; conversas e encadeamento; busca por remetente, destinatário, assunto e conteúdo; atualização e acompanhamento de novas mensagens.
+- *Organização:* criar, consultar e organizar pastas (conforme o provedor); lido/não lido; sinalizar; arquivar, mover e excluir; rascunhos; ações em várias mensagens.
+- *Envio:* escrever, responder, responder a todos, encaminhar; Para, Cc e Cco; rascunhos; assinatura quando viável; anexos.
+- *Anexos:* listar, baixar, visualizar formatos compatíveis, enviar, com limites de tamanho e validações de segurança.
+- *Experiência:* responsiva (desktop e celular); notificações; indicadores de não lidas; sincronização confiável; erros de conexão e autenticação tratados; integrada ao design e à navegação do RAC.
+
+**Regra para sessões futuras:** as limitações da POC de conectividade **não** são limitações do produto, e nenhuma prova deve terminar em autenticação ou em leitura de metadados. Segurança não significa restrição funcional: o sistema deve ler, baixar, enviar, mover e excluir quando o usuário autorizar a operação.
+
+### 13.2 Diagnóstico da arquitetura anterior
+
+| Item | Decisão | Motivo |
+|---|---|---|
+| POC de conectividade (Worker, testes, workflow manual, Environment protegido, execução 43500897569) | **Manter** como evidência e como mecanismo de provas | Comprovou TCP/TLS com a Apple a partir do Workers Free; o workflow é o único meio de acionar a Cloudflare sem token na sessão |
+| Princípios de segurança (credencial só no servidor, Vault, Edge Function como fronteira, sem `service_role` no conector, sem segredo em log) | **Manter** | Servem ao produto completo |
+| Worker como "ponte TCP" | **Alterar**: passa a ser um **conector de transporte substituível**, sem estado e sem credencial própria | A escolha de runtime depende de medições que ainda não existem |
+| "Não persistir cópias de mensagens por padrão" | **Alterar** | Um cliente completo precisa de índice (metadados, estado de sincronização, trecho para busca) no Supabase; corpos e anexos seguem sob demanda |
+| Proposta de prova 12.14 (autenticação e metadados mínimos) | **Substituir** pela sequência P1 a P7 (13.11) | Subdimensiona o produto |
+| Provas de Gmail e Graph como condição da I0 | **Mover** para o lote I8 | iCloud é o primeiro provedor |
+| Cloudflare Workers Paid como candidata inicial | **Alterar**: decisão do runtime por medição na I0 | Não há medição de CPU; Free pode bastar para parte das operações |
+| Credencial por corpo de requisição vindo do GitHub (rota 2A da 12.14) | **Manter só para as provas P1 a P4** com conta de teste | O fluxo definitivo é Vault, Edge Function e HMAC |
+
+### 13.3 Arquitetura recomendada
+
+```
+Navegador (RAC, módulo Inbox)
+   │  JWT do usuário (HTTPS)
+   ▼
+Supabase
+ ├─ Postgres (RLS por usuário): contas, pastas, índice de mensagens (metadados e trecho),
+ │   estado de sincronização por pasta, ações, fila de saída, rascunhos locais
+ ├─ Vault: senha específica de app (lida só pela Edge Function)
+ ├─ Edge Function do Inbox: autentica o usuário, confere que a conta é dele, lê o Vault,
+ │   assina a tarefa (HMAC), analisa o MIME, sanitiza o HTML, grava o índice, envia Web Push
+ └─ pg_cron: dispara a sincronização periódica
+        │  HTTPS + HMAC (uma operação curta, com validade e nonce)
+        ▼
+Conector de transporte IMAP/SMTP (Cloudflare Worker; trocável por Workers Paid ou serviço convencional)
+        │  TCP/TLS (connect())
+        ▼
+iCloud: imap.mail.me.com:993 · smtp.mail.me.com:587
+```
+
+**Responsabilidades (decisão central: o conector só transporta; a inteligência fica no Supabase).**
+
+| Componente | Faz | Não faz |
+|---|---|---|
+| Navegador | Interface; lê o índice por RLS; pede ações à Edge Function; mostra HTML sanitizado em `iframe` isolado | Nunca vê senha, token ou segredo; nunca fala com o iCloud |
+| Edge Function | Autorização por usuário e conta; Vault; assinatura da tarefa; MIME, sanitização, índice, notificação; limites e registro sem conteúdo | Não abre SMTP 587 (bloqueado no Supabase); não guarda segredo fora do Vault |
+| Conector | Executa uma lista fechada de operações IMAP/SMTP e devolve bytes ou resultados; confere assinatura, validade e nonce | Não tem `service_role`, não lê o banco, não guarda credencial, não registra conteúdo, não aceita host nem comando livre |
+| Postgres | Índice, estado e trilha de ações com RLS | Não guarda senha; não guarda corpos e anexos por padrão |
+
+**Operações do contrato do conector:** testar login; listar pastas e capacidades; sincronizar pasta (a partir de UID, e de MODSEQ quando houver); buscar mensagem (cabeçalhos, corpo, parte de anexo); alterar sinalizadores; mover/copiar; excluir e expurgar; anexar mensagem a uma pasta (rascunho, Enviados); enviar por SMTP. Um segundo provedor (Gmail, Graph) entraria como outro conector com o mesmo contrato.
+
+**Por que não o desenho mais simples (tudo no Worker, ou tudo na Edge Function):** a Edge Function não consegue SMTP (porta 587 bloqueada) e tem 2 s de CPU por requisição; o Worker Free tem 10 ms de CPU por requisição HTTP, pouco para analisar MIME e codificar anexos. Dividir o trabalho põe o processamento pesado onde há mais CPU e deixa o conector leve, mas **isso é hipótese até a medição da I0**.
+
+### 13.4 Dados, identidade e busca
+
+- **Identidade de mensagem:** (conta, pasta, UIDVALIDITY, UID) é a chave no provedor; o cabeçalho Message-ID identifica a mensagem entre pastas. Se a UIDVALIDITY de uma pasta mudar, o índice dela é refeito.
+- **Conversas:** montadas pelo RAC com Message-ID, In-Reply-To, References e assunto normalizado (não se presume suporte a THREAD no servidor da Apple).
+- **Índice no Supabase (migrations só com autorização):** contas (sem segredo; apenas a referência ao Vault), pastas, mensagens (metadados, sinalizadores, trecho curto, conversa), estado de sincronização, fila de ações e de envio, rascunhos. Tudo com RLS por usuário. Tabela pessoal nova entra no backup e na trava de MFA por regra do projeto; como o índice é recriável a partir do provedor, avaliar na I1 se ele deve ficar de fora do backup, o que exige justificativa e ajuste dos testes existentes.
+- **Corpos e anexos:** buscados sob demanda; corpo já sanitizado pode ter cache curto e limitado; anexo nunca é guardado, exceto o de uma mensagem em composição, em área temporária apagada após o envio.
+- **Busca:** índice de texto em português sobre metadados e trecho, mais `SEARCH` do IMAP para busca no conteúdo completo. Indexar todo o corpo é decisão posterior (privacidade, volume, custo).
+- **Dimensionamento:** duas pessoas e dezenas de milhares de mensagens cabem no banco em metadados; retenção e limite de linhas a definir na I1.
+
+### 13.5 Sincronização e notificações
+
+- **Polling, não IMAP IDLE**, no Workers: o runtime não é um processo de longa duração. Intervalo inicial de poucos minutos por conta via pg_cron, mais atualização sob demanda quando o app está aberto. Detecção por UIDNEXT e, se o iCloud suportar, CONDSTORE/QRESYNC; sem isso, comparação de UIDs.
+- **Notificação:** a Edge Function, ao encontrar mensagem nova, envia Web Push pela infraestrutura já existente no RAC; por padrão, texto genérico ("nova mensagem em <conta>"), sem remetente nem assunto.
+- **Tempo real:** só um serviço com conexão persistente (IDLE) oferece. Fica como alternativa se o polling não satisfizer o uso diário.
+- **Erros:** estado da conta (ok, falha de rede, credencial recusada, revogada) sempre visível; uma conta sem conexão nunca aparece como caixa vazia.
+
+### 13.6 Leitura segura
+
+- **HTML:** sanitização no servidor por lista de permissões (sem script, formulário, objeto, `base`, `meta refresh`, eventos, `javascript:`, CSS com `url()` ou `@import`) e exibição em `iframe` com `sandbox` sem scripts e sem mesma origem, com política de conteúdo restritiva.
+- **Conteúdo remoto:** imagens e recursos externos **bloqueados por padrão** (rastreadores); liberação por mensagem ou remetente, preferencialmente por proxy no servidor, que esconde o IP. Links externos com `noopener noreferrer`.
+- **Anexos:** download com `Content-Disposition: attachment` e `nosniff`; prévia só de tipos seguros (imagens e PDF em contexto isolado); aviso para executáveis; limite de tamanho.
+- **Fallback:** texto simples sempre disponível.
+
+### 13.7 Escrita: ações, envio e exclusão
+
+- **Fonte da verdade é o provedor:** uma ação só aparece como concluída depois que o servidor a aceitou e o estado foi relido; falha reverte a tela.
+- **Idempotência:** toda ação e todo envio têm chave única e registro em fila, para uma retentativa nunca duplicar.
+- **Exclusão:** mover para a lixeira é o padrão; apagar definitivamente (marcar e expurgar) só com confirmação explícita; a semântica exata do iCloud (nomes das pastas, atributo de uso especial, suporte a MOVE) é verificada na prova P3.
+- **Rascunhos:** salvos no provedor (anexar à pasta de rascunhos) com buffer local de edição.
+- **Envio:** a mensagem MIME é montada na Edge Function e enviada pelo conector por SMTP; a cópia em Enviados é anexada por IMAP (se o iCloud não a criar sozinho, a verificar). Limites da Apple respeitados antes do envio.
+- **IA:** nunca envia nem altera mensagem sozinha (regra mantida).
+
+### 13.8 Segurança e isolamento
+
+- **Isolamento dos dois usuários:** RLS por `auth.uid()` em toda tabela do Inbox; a Edge Function confere que a conta pertence ao usuário do JWT antes de qualquer leitura do Vault; sem acesso administrativo cruzado. Teste automatizado obrigatório (um usuário não lê nem age na conta do outro), incluindo o papel da casa.
+- **Experiência da segunda usuária:** o Inbox só aparece para ela quando o dono liberar, depois do isolamento provado, sem alterar o que ela já vê e faz.
+- **Credenciais:** senha de app só no Vault; entra uma vez pelo formulário de adicionar conta (HTTPS, direto à Edge Function) e nunca é devolvida, guardada no navegador ou registrada. Remover a conta apaga o segredo; a Apple permite revogar a senha de app no painel dela.
+- **Canal Edge→conector:** HMAC com validade curta, nonce (anti-repetição), conta e operação; lista fechada de comandos; host e porta fixos no código.
+- **Limites:** tamanho de mensagem e de anexo, tempo por operação, número de operações por minuto e por dia, tamanho de resposta.
+- **Logs e erros:** sem credenciais, sem conteúdo de mensagens ou anexos, sem endereços completos; erros genéricos ao cliente, detalhes técnicos só em log interno.
+- **Sem `service_role` no conector**, sem leitura do Vault fora da Edge Function.
+
+### 13.9 Limitações: comprovadas, documentadas e não verificadas
+
+**Comprovado na POC (13/11/2026, uma execução, Workers Free):** TCP/TLS e saudação IMAP em `imap.mail.me.com:993` (55 ms); conexão, EHLO, STARTTLS, handshake TLS e novo EHLO em `smtp.mail.me.com:587` (481 ms); nenhum erro de limite de CPU.
+
+**Documentado nas fontes oficiais (conferido em 13/11/2026; reconferir antes de decidir):**
+
+| Plataforma | Limite documentado |
+|---|---|
+| [Cloudflare Workers Free](https://developers.cloudflare.com/workers/platform/limits/) | 10 ms de CPU por requisição HTTP; 50 subrequisições por invocação; 100.000 requisições por dia; 128 MB de memória |
+| [Cloudflare Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) | Cobrança mínima de US$ 5 por mês; CPU de 30 s por padrão, até 5 min, por requisição HTTP; 10.000 subrequisições por invocação; inclui uso de Durable Objects |
+| [Durable Objects no Free](https://developers.cloudflare.com/durable-objects/platform/limits/) | Só com armazenamento SQLite; 5 GB por conta; 100.000 requisições por dia; útil como estado do conector, não como conexão IMAP persistente (soquete não mantém o objeto vivo após 15 min) |
+| [Cloudflare Containers](https://developers.cloudflare.com/containers/) | Exigem o plano Paid |
+| [Sockets TCP no Workers](https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/) | Até seis conexões simultâneas por invocação; porta 25 bloqueada; o runtime não é um processo de longa duração |
+| [Supabase Edge Functions](https://supabase.com/docs/guides/functions/limits) | 2 s de CPU por requisição (sem contar I/O assíncrono); 150 s (Free) ou 400 s de relógio; 256 MB; saída para as portas 25 e 587 não permitida |
+| [Apple iCloud Mail](https://support.apple.com/en-us/102198) | 20 MB por mensagem (Mail Drop até 5 GB, anexos por link); 1.000 mensagens e 1.000 destinatários por dia; 500 destinatários por mensagem. A página tem cerca de 600 dias: reconfirmar |
+
+**Não verificado (cada item vira critério de uma prova):** CPU real por operação no Workers Free; compatibilidade de bibliotecas IMAP e MIME com `connect()` e `nodejs_compat`; suporte do iCloud a IDLE, MOVE, CONDSTORE, QRESYNC, UIDPLUS, SPECIAL-USE, SORT e THREAD; limite de sessões simultâneas por conta e política antiabuso para logins frequentes (risco de bloqueio da conta de teste); se o SMTP da Apple grava em Enviados; tamanho máximo de requisição na Edge Function; IMAP 993 a partir de Edge Functions; custo de CPU do TLS em polling frequente; tamanho prático de anexo que o Worker Free consegue transportar.
+
+**Alternativas se alguma restrição inviabilizar uma função:**
+
+| Se falhar | Alternativa | Custo |
+|---|---|---|
+| CPU do Free insuficiente (TLS, análise ou anexo grande) | Workers Paid, mesmo contrato do conector | US$ 5/mês de mínimo |
+| Biblioteca IMAP/SMTP incompatível com Workers, ou IDLE necessário para tempo real | Serviço convencional (por exemplo Railway Pro) com o mesmo contrato | US$ 20/mês de assinatura-base (crédito de uso incluído) |
+| Anexo grande no envio | Montagem do MIME por streaming no conector, ou limite menor que 20 MB | Sem custo extra |
+| IMAP 993 viável direto da Edge Function | Edge Function faz o IMAP e o Worker faz só o SMTP, reduzindo o conector ao mínimo | Sem custo extra; exige prova própria |
+
+Nenhum plano pago será contratado sem evidência de necessidade e aprovação do dono.
+
+### 13.10 Riscos
+
+| Risco | Impacto | Mitigação |
+|---|---|---|
+| CPU do Workers Free insuficiente | Operações falham ou são cortadas | Medir na I0; conector trocável; decisão de plano pelo dono |
+| Bloqueio da conta Apple por logins frequentes ou falhas | Perda temporária de acesso | Conta de teste na I0; reutilizar sessão quando possível; sem retentativa automática de login; intervalo de polling conservador |
+| Vazamento de credencial (log, resposta, repositório, GitHub) | Acesso à caixa | Vault; testes que procuram segredo em logs e respostas; revogação da senha de app; segredos de teste só em Environment protegido |
+| HTML malicioso, rastreadores, anexo perigoso | Execução de script, rastreio, malware | Sanitização, `iframe` isolado, bloqueio remoto, download seguro, corpus de testes |
+| Ação destrutiva por erro | Perda de mensagens | Lixeira como padrão, confirmação, prévia em lote, testes só com mensagens de teste |
+| Envio duplicado ou indevido | Constrangimento, limites da Apple | Idempotência, fila, confirmação, limites |
+| Falha de isolamento entre os dois usuários | Acesso à caixa do outro | RLS, conferência de dono na Edge Function, teste automatizado, sem acesso cruzado |
+| Sincronização inconsistente (UIDVALIDITY, expurgos) | Mensagens perdidas ou fantasmas | Refazer índice quando a UIDVALIDITY mudar; reconciliação periódica; estado da conta visível |
+| Dependência de serviços e custos que mudam | Surpresa de custo ou quebra | Contrato de conector estável; reconferir limites; aprovação de custo |
+| Banco gratuito do Supabase cheio | Falha geral do RAC | Índice enxuto, limite de linhas, monitoramento do tamanho |
+| Impacto sobre a experiência da segunda usuária | Mudança não pedida | Liberação só pelo dono, depois dos testes de isolamento |
+
+### 13.11 Sequência de provas (provas de conceito, não são o produto)
+
+Todas com **conta Apple de teste** (2FA ativo e senha específica de app, nunca a senha principal nem a conta pessoal de produção) e **mensagens identificadas como teste**. Mensagens de teste com anexo são enviadas pelo dono, de outro endereço, para a conta de teste. Provas que alteram a caixa ou enviam e-mail exigem avaliação de segurança e **autorização específica antes de cada execução**. A credencial entra por Environment protegido do GitHub (provas P1 a P4) e nunca no chat, no código ou em log.
+
+| Prova | O que demonstra | Natureza |
+|---|---|---|
+| **P0** · Conectividade TCP/TLS (feita) | IMAP 993 e SMTP 587 alcançáveis no Workers Free | Somente leitura, sem credencial |
+| **P1** · Autenticação e estrutura | Login IMAP; capacidades do servidor; lista de pastas e atributos de uso especial; contagens por pasta | Somente leitura |
+| **P2** · Leitura | Listar mensagens de teste; ler cabeçalhos e corpo de uma mensagem de teste; baixar um anexo de teste, com limite de tamanho | Somente leitura; mede CPU e latência |
+| **P3** · Alterações reversíveis | Marcar lida/não lida e sinalizar; criar pasta de teste; mover mensagem de teste entre pastas | Altera a caixa de teste |
+| **P4** · Exclusão controlada | Semântica da lixeira (mover para a lixeira, restaurar, expurgar) numa mensagem de teste | Destrutivo, só em mensagem de teste |
+| **P5** · SMTP | Login SMTP sem enviar; depois envio de uma mensagem de teste com anexo a endereço autorizado; cópia em Enviados | Envia e-mail (autorização específica) |
+| **P6** · Sincronização e notificação | Sincronização incremental (UIDNEXT, CONDSTORE se houver), mudança de UIDVALIDITY simulada, polling por 24 a 48 h com taxa de falha, Web Push de teste | Mede confiabilidade e bloqueios |
+| **P7** · Fronteira definitiva | Vault, Edge Function e HMAC: credencial lida só na Edge Function, tarefa assinada, conector sem segredo, teste de isolamento entre dois usuários de teste | Exige migration e função publicada (autorizações próprias) |
+
+**Cada prova** registra: o que passou, o que falhou, CPU/latência/taxa de erro, limitações e se a conclusão é "comprovado" ou "não comprovado". Uma prova só encerra o que ela de fato demonstrou. As provas P1 a P6 usam código de experimento descartável; **o produto é construído nos lotes I1 a I5**, com os testes automatizados do projeto, e reaproveita das provas apenas o que for medido e aprovado.
+
+### 13.12 Decisões pendentes do dono
+
+1. Confirmar a redefinição de escopo desta seção como definitiva (dois usuários, iCloud primeiro, cliente completo).
+2. Criar a conta Apple de teste (2FA, senha específica de app) e quais mensagens de teste enviar.
+3. Autorizar, prova a prova, as que alteram a caixa ou enviam e-mail (P3 a P5).
+4. Aprovar o custo se a medição mostrar que o Workers Free não basta (Paid ou serviço convencional).
+5. Definir quando a segunda usuária recebe o Inbox e quem lê as métricas de CPU no painel da Cloudflare.
+6. Remover o Worker de conectividade (`rac-icloud-connectivity-poc`) só em atividade futura com autorização específica; mantê-lo agora.

@@ -8,6 +8,7 @@ como substituída. Convenções: ver o [Documento 1](01-visao-e-mapa-mestre.md#c
 
 | Data | Decisão | Fonte |
 |---|---|---|
+| 13/11/2026 | **Escopo do RAC Inbox redefinido:** cliente de e-mail completo, de uso pessoal do dono e da esposa, com isolamento total entre os dois usuários; iCloud primeiro e outros provedores depois; substituição progressiva do Spark. Não é um painel de metadados, e nenhuma prova técnica deve terminar em autenticação. Arquitetura recomendada: Supabase (Postgres com RLS, Vault e Edge Function) como fronteira e inteligência, e conector de transporte IMAP/SMTP substituível (Cloudflare Worker primeiro, runtime decidido por medição) | pedido explícito do dono em 13/11/2026; Documento 10, seção 13 |
 | (permanente) | **Protocolo de autonomia do RAC**: dono define objetivos e decisões restritas; Claude Code executa lotes completos; ChatGPT arquiteta e revisa; sem aprovações técnicas microetapa; commit/push/PR dentro do lote autorizado; merge/publicação somente se incluídos; consulta ao dono apenas para custos, credenciais/permissões sensíveis, perdas irreversíveis, mudanças relevantes de produto/privacidade ou fora de escopo | pedido explícito do dono em 13/11/2026; `CLAUDE.md` § Protocolo Permanente |
 | (permanente) | Autorizações do proprietário: sem commit, push, SQL em produção, deploy de função, publicação, segredos, cobrança ou IA paga sem autorização explícita; a experiência da Fernanda é preservada; a função `garmin` é intocável sem autorização expressa | `CLAUDE.md` |
 | (permanente) | JavaScript ES5 puro, sem framework, sem build, sem dependências novas; bibliotecas só de CDN com versão exata | `CLAUDE.md` |
@@ -169,3 +170,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Não comprovado:** autenticação Apple, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. Fase I0 não concluída.
 - **Decisão pendente do dono:** ambiente da prova de autenticação iCloud (conta Apple de teste, rota 2A ou 2B, novo Environment e Worker de teste, métricas de CPU); proposta na seção 12.14.
 - **Pendente:** remoção do Worker `rac-icloud-connectivity-poc` (atividade futura, com autorização específica); decisão de encerrar ou manter a PR #17 em draft.
+
+## Atualização de 13/11/2026 · RAC Inbox (redefinição de escopo e arquitetura)
+
+- **Decisão do dono:** o RAC Inbox é um cliente completo, não um painel de metadados; as limitações da POC de conectividade não são limitações do produto. A proposta de prova de autenticação da seção 12.14 do Documento 10 foi **superada** pela sequência P1 a P7 (13.11), que avança até leitura, anexos, organização, exclusão controlada e envio de e-mail de teste.
+- **Registrado como recomendação (aguarda confirmação do dono):** divisão de responsabilidades (conector só transporta; Supabase autoriza, analisa e sanitiza); polling no lugar de IMAP IDLE no Workers; índice de metadados no Supabase com corpos e anexos sob demanda; lotes I0 a I8 (seção 7); provas de Gmail e Graph movidas para o lote I8.
+- **Pendente, depende do dono:** conta Apple de teste (2FA, senha de app) e mensagens de teste; autorização específica antes de cada prova que altera a caixa ou envia e-mail (P3 a P5); aprovação de custo se o Workers Free não bastar; quando liberar o Inbox à esposa; quem lê as métricas de CPU da Cloudflare; remoção futura do Worker de conectividade.
+- **Pendente, técnico (virá das provas):** CPU real no Workers Free; compatibilidade de bibliotecas IMAP e MIME; suporte do iCloud a IDLE, MOVE, CONDSTORE e QRESYNC; limite de sessões e política antiabuso da Apple; IMAP direto da Edge Function; tamanho máximo de requisição da Edge Function.

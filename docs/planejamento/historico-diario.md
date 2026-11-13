@@ -805,3 +805,24 @@ Família e da Casa.
 2. Implementar e testar com sockets simulados o módulo de autenticação (lista fixa de comandos, sem corpos nem anexos); executar as provas de credencial válida, inválida e revogada, e SMTP autenticado sem envio.
 3. Registrar CPU, latência e confiabilidade; decidir Free versus Paid só com evidência e aprovação do dono.
 4. Remoção do Worker atual: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — redefinição de escopo e arquitetura (cliente completo)
+
+### 1. O que fizemos
+
+- Registrada a decisão do dono: o RAC Inbox é um **cliente de e-mail completo** para uso pessoal dele e da esposa (isolamento total entre os dois), iCloud primeiro e outros provedores depois, substituindo progressivamente o Spark. **Não é um painel de metadados**, e as limitações da POC de conectividade não são do produto.
+- Revisada a arquitetura (Documento 10, seção 13): o Worker deixa de ser "ponte TCP" e vira **conector de transporte substituível**; Supabase (Postgres com RLS, Vault e Edge Function) é a fronteira de autorização e a camada de análise, sanitização e índice. Mantido o que serve (POC como evidência, workflow manual, Vault e HMAC, sem `service_role` no conector); alterado ou descartado o que subdimensionava o produto (prova 12.14, "sem persistência", Paid como candidata inicial, Gmail e Graph como condição da I0).
+- Verificados nas fontes oficiais os limites de Workers Free e Paid, Durable Objects, Containers, Supabase Edge Functions e iCloud Mail; separados em **comprovado**, **documentado** e **não verificado**.
+- Definidas as provas P0 a P7 (autenticação, estrutura, leitura, anexo, sinalizadores, mover, excluir, SMTP, envio de teste, sincronização, fronteira definitiva) e os lotes I0 a I8 com critérios de conclusão. Riscos técnicos e de segurança listados.
+- Atualizados Documento 10, roadmap, decisões e pendências. **Nada foi executado**: sem operação na conta iCloud, deploy, secret, migration, alteração do Supabase, plano pago ou merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando as decisões do dono (Documento 10, seção 13.12): confirmar o escopo, criar a conta Apple de teste, autorizar as provas que alteram a caixa ou enviam e-mail, e aprovar custo se o Workers Free não bastar.
+- Continua **não comprovado**: autenticação, leitura, organização, envio, sincronização, CPU medida e substituição do Spark. A fase I0 não está concluída. O Worker de conectividade segue publicado e a PR #17 em Draft.
+
+### 3. O que vamos fazer
+
+1. Com a conta de teste e a credencial no Environment protegido, executar P1 e P2 (somente leitura) e medir CPU, latência e capacidades do iCloud.
+2. Decidir o runtime do conector por medição; autorizar P3 a P5 uma a uma; executar P6 e P7.
+3. Só então iniciar o lote I1 (fundação), com migrations e função publicada mediante autorização específica.

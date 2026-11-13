@@ -155,6 +155,8 @@ Família e da Casa.
 - **E · Robôs depois da ruleset**: investigação dos workflows e do push condicional (ver as pendências técnicas do
   [Documento 07](07-decisoes-e-pendencias.md#pendências-técnicas)). A `main` continua protegida (consulta às 02h42 UTC). Nenhum push de
   robô na `main` desde a revisão do PR #6: **ainda sem evidência**. Nada foi forçado, nenhum commit vazio, nenhum serviço pago.
+  Conferido de novo às 05h48 UTC: o GitHub não disparou nenhuma execução do robô de Notícias depois da de 02h05 UTC (as rodadas
+  agendadas de 03h15 em diante não rodaram), e o de Vagas não roda desde 12/11 (o próximo costuma começar entre 16h e 20h UTC).
 - **Versão do site na branch**: `2026-11-13.1` (`VERSAO` em `sw.js` e `MOD_VERSAO` em `js/app.js`, juntas).
 - **Testes novos**: `tests/monitor.test.mjs`, `tests/notificacao.test.mjs`, `tests/voltar_aba.test.mjs` e `tests/busca_lateral.test.mjs`.
   Os testes do P-19 e do service worker falham com o código anterior e passam com o novo (conferido).
@@ -168,7 +170,16 @@ Família e da Casa.
 
 ### 2. O que estamos fazendo
 
-- O trabalho está na branch `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1 para a `main`, aguardando revisão e merge do dono.
+- O trabalho está na branch `claude/fase-1-confiabilidade-rac-dhwm7a`, no **PR #7** para a `main`, aguardando revisão e merge do dono.
+
+| Entrega | Situação |
+|---|---|
+| Branch `claude/fase-1-confiabilidade-rac-dhwm7a` | Commit `6847746` (o trabalho) e um segundo com este registro do PR; push feito |
+| PR #7 | Aberto para a `main` |
+| Merge na `main` | **Não feito** (é do dono) |
+| Publicação do site | **Nenhuma**: o site segue na versão `2026-11-12.9`; com o merge, o GitHub Pages publica a `2026-11-13.1` |
+| SQL em produção e Edge Functions | Nenhum (a Fase 1 não precisa) |
+
 - **A Fase 1 não está concluída.** Dependem de evidência de fora: (a) o clique na notificação no iPhone, nos 3 cenários (app aberto,
   fechado e recém-atualizado), depois da publicação; (b) um push bem-sucedido de cada robô (Notícias e Vagas) na `main` depois da ruleset.
 - **Decisão do dono**: D-15 (a atualização ao voltar vale também para a casa?). Continuam em aberto D-02, D-05, D-10 e D-13; D-14 é ação do

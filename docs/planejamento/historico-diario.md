@@ -624,3 +624,23 @@ Família e da Casa.
 1. Validar o contrato HTTPS assinado entre Edge Function e Worker, sem credenciais reais e sem chave `service_role` no Worker.
 2. Fazer a prova de conectividade TCP no runtime Cloudflare; depois, testar autenticação somente com uma conta iCloud de teste e autorização específica.
 3. Revisar permissões, retenção, escopo de logs e comportamento de revogação antes de qualquer conta pessoal.
+
+## 13/11/2026 · RAC Inbox — refinamento de escopos e runtime após validação oficial
+
+### 1. O que fizemos
+
+- Refinada a matriz OAuth do Gmail: `gmail.send` é sensível; `gmail.modify` e `gmail.settings.basic` são restritos. A avaliação independente de segurança é exigida quando dados de escopos restritos são armazenados ou transmitidos em servidores, ressalvadas as exceções oficiais.
+- Refinada a matriz Microsoft Graph: listar regras da Inbox pede `MailboxSettings.Read`; criar/alterar regras pede `MailboxSettings.ReadWrite`; `Mail.Send` é separado de `Mail.ReadWrite`. A documentação lista permissões delegadas também para contas pessoais Microsoft.
+- Corrigida a descrição dos limites de Cloudflare Workers Paid: até 15 minutos de tempo total em Cron, até 5 minutos de CPU no plano pago e seis conexões TCP de saída simultâneas por requisição. STARTTLS suportado; apenas a porta 25 aparece como bloqueada na documentação de TCP sockets.
+- Atualizadas referências e comparação de custo: Cloudflare Workers Paid tem mínimo de US$ 5/mês com franquias e cobrança de excedentes; Railway Pro tem US$ 20/mês com crédito equivalente e habilita SMTP. A conectividade real para o SMTP Apple na porta 587 permanece pendente.
+
+### 2. O que estamos fazendo
+
+- A arquitetura do worker iCloud permanece provisória. Cloudflare é o primeiro candidato por custo e capacidade TCP documentada, não uma escolha final. Railway continua como alternativa se o modelo Cloudflare não suportar a sincronização necessária.
+- O CI da revisão anterior da PR #16 foi cancelado durante o grupo de testes PGlite; o primeiro grupo havia passado. Esta revisão atualizada deverá rodar a suíte completa novamente.
+
+### 3. O que vamos fazer
+
+1. Concluir o CI completo da revisão atual da PR #16 e integrar o pacote documental depois do gate verde.
+2. Preparar prova de conectividade Cloudflare TCP para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem autenticação.
+3. Só testar autenticação depois de criar ambiente/contas de teste e obter autorização específica. Não usar senha ou token no chat e não conectar caixas pessoais de produção.

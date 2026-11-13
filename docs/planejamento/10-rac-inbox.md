@@ -302,14 +302,14 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 
 - `gmail.readonly` é escopo restrito; não serve para envio nem para alterar mensagens.
 - `gmail.modify` permite ler, compor, enviar e alterar mensagens, inclusive movê-las para a lixeira; não permite exclusão permanente imediata. É o candidato mais abrangente para a operação comum, mas é restrito.
-- `gmail.send` é classificado como sensível. `gmail.settings.basic` é restrito e é relevante para administrar filtros nativos. A prova I0 deve confirmar a combinação mínima exata por operação e evitar pedir `https://mail.google.com/`, que concede acesso mais amplo e exclusão permanente.
+- `gmail.send` é classificado como sensível; `gmail.modify` e `gmail.settings.basic` são restritos. `gmail.modify` permite leitura, composição, envio e alteração de mensagens sem exclusão permanente imediata; `gmail.settings.basic` é necessário para ler/criar/alterar filtros nativos. A prova I0 deve confirmar a combinação mínima por capacidade e evitar pedir `https://mail.google.com/`, que concede acesso mais amplo e exclusão permanente.
 - Para um fluxo de servidor que precise funcionar sem o usuário presente, o Google documenta OAuth de servidor com autorização offline e token de atualização armazenado em local seguro. Tokens de atualização podem ser revogados/expirar; no estado Externo/em teste, a validade é de sete dias para escopos Gmail.
-- O Google exige verificação para escopos sensíveis/restritos; quando dados de escopo restrito são armazenados ou transmitidos por servidores, pode ser necessária avaliação de segurança independente. Isso é uma dependência de produto, prazo e custo a esclarecer antes de assumir produção.
+- Os escopos sensíveis/restritos exigem os procedimentos de verificação aplicáveis do Google. **Se dados de escopo restrito forem armazenados ou transmitidos por servidores, o Google exige uma avaliação de segurança independente**, sujeita às exceções previstas na política. Isso é uma dependência de produto, prazo e custo a esclarecer antes de assumir produção.
 
 ### 12.3 Outlook / Hotmail / Live
 
 - Microsoft Graph documenta acesso a caixas pessoais e corporativas, mensagens e pastas, envio, movimentação e regras da Caixa de Entrada.
-- As permissões delegadas são distintas: leitura, gravação/movimentação, envio e administração de regras devem ser solicitadas conforme o recurso habilitado. A API de regras exige `MailboxSettings.ReadWrite`; envio usa `Mail.Send`; movimentação usa `Mail.ReadWrite`.
+- As permissões delegadas são distintas e podem ser solicitadas progressivamente: leitura usa `Mail.Read`, gravação/movimentação usa `Mail.ReadWrite` e envio usa `Mail.Send` (permissão separada; `Mail.ReadWrite` não inclui envio). Para regras da Caixa de Entrada, listar/consultar usa `MailboxSettings.Read`; criar/alterar usa `MailboxSettings.ReadWrite`. A documentação atual lista essas permissões delegadas também para contas pessoais Microsoft.
 - O fluxo recomendado é Authorization Code com PKCE; para manter acesso no servidor sem pedir login a cada sincronização, solicitar `offline_access` e proteger o token de atualização. A sincronização incremental por delta é **por pasta**, não uma única consulta global da caixa.
 - A prova ainda precisa validar uma conta Microsoft pessoal real (Hotmail/Outlook/Live) e confirmar as permissões delegadas e a renovação no app registration escolhido.
 
@@ -350,6 +350,12 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 - Microsoft — delta por pasta: https://learn.microsoft.com/en-us/graph/delta-query-messages
 - Supabase — limites de Edge Functions e portas de saída: https://supabase.com/docs/guides/functions/limits
 - Supabase — runtime Deno e TCP: https://supabase.com/docs/guides/database/connecting-to-postgres/serverless-drivers
+- Cloudflare — TCP Sockets e STARTTLS: https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/
+- Cloudflare — limites de Workers: https://developers.cloudflare.com/workers/platform/limits/
+- Cloudflare — Cron Triggers: https://developers.cloudflare.com/workers/configuration/cron-triggers/
+- Cloudflare — preços do Workers: https://developers.cloudflare.com/workers/platform/pricing/
+- Railway — preços e franquias: https://docs.railway.com/pricing
+- Railway — SMTP de saída por plano: https://docs.railway.com/networking/outbound-networking
 
 ### 12.7 Opções de worker para o conector iCloud
 
@@ -357,7 +363,7 @@ A limitação de saída SMTP do Supabase não obriga a hospedar o RAC inteiro fo
 
 | Candidato | Capacidade relevante documentada | Custo-base publicado | Limite/risco para o RAC |
 |---|---|---:|---|
-| **Cloudflare Workers Paid** | TCP de saída via `connect()`; API `startTls()` para protocolos como SMTP; a restrição documentada é a porta 25, não 587. Cron pode executar a cada minuto. | **US$ 5/mês** mínimo por conta Workers Paid, mais eventual excedente | Não é um processo Node/Deno convencional de longa duração. Cron tem até 15 min de parede e 30 s de CPU por execução paga; no modelo Workers há limite documentado de 6 conexões de saída simultâneas por requisição. A primeira solução pode precisar de *polling*, não IMAP IDLE persistente. É o candidato prioritário de POC pelo custo, não uma escolha aprovada. |
+| **Cloudflare Workers Paid** | TCP de saída via `connect()` e `startTls()` para protocolos como SMTP. A restrição documentada é a porta 25; a porta 587 não aparece como bloqueada, mas isso não comprova conectividade com `smtp.mail.me.com`. Cron aceita agenda de minuto em minuto. | **US$ 5/mês** de cobrança mínima por conta Workers Paid; há franquias mensais incluídas e excedentes de uso podem ser cobrados. | Cron tem até 15 min de tempo total e o plano Paid permite até 5 min de CPU por invocação; limite de 6 conexões TCP de saída simultâneas por requisição. Não é um processo convencional de longa duração. A primeira solução pode precisar de *polling*, não IMAP IDLE persistente. É candidato de POC pelo custo, não uma escolha aprovada. |
 | **Railway Pro** | Serviço convencional/worker; SMTP de saída habilitado no plano Pro. A documentação recomenda redeploy depois de mudar de plano. | **US$ 20/mês** de assinatura-base; o valor entra como crédito de uso da plataforma, com consumo adicional possível | Mais simples para bibliotecas IMAP/SMTP tradicionais e processos de fundo, mas custa mais. Conectividade da porta 587 ainda deve ser testada contra o servidor Apple. |
 
 **Proposta de ordem:** testar primeiro Cloudflare Workers Paid com conexões TCP sem credenciais, depois IMAP 993 autenticado e SMTP 587/STARTTLS numa conta iCloud de teste. Medir latência e confiabilidade do *polling* a cada minuto, renovação/reconexão e compatibilidade da biblioteca. Só migrar para Railway Pro se o Worker não comportar o protocolo ou o modelo de sincronização exigido. Não contratar nenhum plano nem criar Worker nesta auditoria.
@@ -382,3 +388,14 @@ A consulta foi somente a `information_schema.role_table_grants` e `information_s
 **Implicação:** a chave Supabase `service_role` é ampla e não pode ser colocada no Cloudflare Worker. A arquitetura a validar deve manter a leitura do Vault dentro de uma Edge Function Supabase, que autentica e autoriza cada conta, e chamar o worker por HTTPS com uma assinatura de serviço/HMAC e uma tarefa limitada. O worker recebe a credencial necessária apenas para aquela operação, abre a conexão TCP, devolve o resultado estritamente necessário e não persiste tokens, senhas ou corpos de e-mail. A chave de assinatura do canal fica em Secrets nos dois backends; nunca no navegador. A implementação precisa ainda limitar validade, replay, conta/provedor, tamanho de resposta e logs.
 
 O worker não recebe a chave `service_role`, não consulta o Vault diretamente e não tem acesso direto ao banco. Este desenho é **proposta para POC**, não arquitetura implementada ou aprovada.
+
+### 12.10 Ajustes após verificação das documentações (13/11/2026)
+
+A revisão das fontes oficiais refinou alguns itens da análise inicial:
+
+- Gmail: o escopo `gmail.send` é sensível; `gmail.modify` e `gmail.settings.basic` são restritos. A avaliação independente de segurança é exigida quando dados de escopos restritos são armazenados ou transmitidos em servidores, ressalvadas as exceções da política Google.
+- Microsoft Graph: listar regras da Inbox exige `MailboxSettings.Read`; criar/alterar exige `MailboxSettings.ReadWrite`. `Mail.Send` é separado de `Mail.ReadWrite`; o Graph documenta permissões delegadas para contas pessoais Microsoft.
+- Cloudflare Workers Paid: cobrança mínima atual de US$ 5/mês; a documentação lista TCP sockets de saída, STARTTLS, bloqueio específico da porta 25, máximo de seis sockets de saída simultâneos por requisição, Cron com até 15 minutos de tempo total e até cinco minutos de CPU no plano pago. A porta SMTP 587 não está na lista de bloqueios, mas a conectividade real com a Apple continua pendente.
+- Railway: Pro é US$ 20/mês de assinatura com crédito de uso correspondente; SMTP é habilitado a partir do Pro. O valor final depende do consumo acima do crédito.
+
+A decisão não muda: Cloudflare é a primeira candidata de teste, Railway é alternativa, nenhum serviço foi contratado nem implantado.

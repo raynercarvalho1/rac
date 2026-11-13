@@ -528,13 +528,13 @@ Família e da Casa.
 - A PR #13 incorporou os quatro commits documentais que estavam na PR #12. A PR #12 permanece aberta, mas seu conteúdo já está na `main`; ela será encerrada como supersedida, sem segundo merge.
 - A documentação do RAC Inbox foi reconstruída em uma branch nova diretamente a partir da `main` pós-merge, para evitar que a PR documental carregue novamente o histórico inteiro da Saúde.
 
-### 2. Estado atual
+### 2. O que estamos fazendo
 
 - Saúde S1–S5: implementada, testada e integrada à `main`. A confirmação da execução do GitHub Pages após o merge ainda está em verificação.
 - RAC Inbox: planejamento apenas. O Documento 10 descreve as fases I0–I6; nenhuma implementação, conta conectada, credencial, migration ou serviço publicado.
 - A PR documental do RAC Inbox deve conter somente o planejamento e suas referências, sem reapresentar código ou commits da Saúde.
 
-### 3. Próximos passos
+### 3. O que vamos fazer
 
 1. Validar CI e publicação do GitHub Pages após o merge da PR #13.
 2. Encerrar a PR #12 como supersedida, pois os quatro commits documentais foram incorporados pela PR #13.
@@ -542,8 +542,20 @@ Família e da Casa.
 
 ## 13/11/2026 · Confirmação da publicação e encerramento das PRs anteriores
 
+### 1. O que fizemos
+
 - GitHub Actions da `main` após o merge da PR #13: workflow **Testes** concluído com sucesso (execução `43451157429`).
 - GitHub Pages após o merge da PR #13: **build and deployment concluído com sucesso** (execução `43451156616`). A versão publicada no `sw.js` da `main` é `2026-11-13.7`.
 - A PR #12 foi encerrada sem merge separado; seus quatro commits documentais já estão incorporados à `main` pelo merge da PR #13.
 - A PR #14 empilhada foi encerrada como substituída por uma branch documental limpa, criada diretamente a partir da `main` pós-merge.
-- A nova PR documental do RAC Inbox é a **PR #16**, branch `docs/rac-inbox-main`, base `main`. Contém somente cinco arquivos de documentação e não reapresenta o código/histórico da Saúde.
+
+### 2. O que estamos fazendo
+
+- A PR #16 está aberta sobre a `main`, com alterações restritas a cinco arquivos de documentação.
+- O primeiro CI da PR #16 falhou em dois testes de consistência documental: referência a arquivo futuro ainda inexistente e cabeçalhos não padronizados no histórico. As correções foram aplicadas na própria branch; a nova execução do CI deverá confirmar o resultado.
+
+### 3. O que vamos fazer
+
+1. Conferir a nova execução completa do CI da PR #16.
+2. Com o CI aprovado, revisar e integrar o planejamento do RAC Inbox à `main`.
+3. Iniciar a fase I0 somente depois de o planejamento estar integrado: provas técnicas dos conectores e infraestrutura antes de fechar a arquitetura.

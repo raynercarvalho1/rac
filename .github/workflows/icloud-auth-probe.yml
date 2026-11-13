@@ -1,0 +1,164 @@
+# RAC Inbox · POC autenticada iCloud, arquitetura S3 (OIDC): MANUAL e, nesta etapa, só um ensaio de validação do JWT.
+# Dois jobs, cada um com o seu Environment e SEM segredo em comum (nada passa entre eles por output, artefato ou log):
+#   provisionar (Environment cloudflare-poc) publica o Worker "rac-icloud-auth-poc" usando só as credenciais da Cloudflare;
+#   executar (Environment icloud-auth-poc) pede um token OIDC ao GitHub e envia a credencial iCloud ao Worker por HTTPS, só durante a
+#   execução. O Worker valida o JWT antes de ler o corpo. A senha Apple nunca vai para o Worker como secret, variável ou armazenamento.
+# Operação disponível hoje: validar_oidc (não fala com a Apple). IMAP e SMTP reais exigem implementação e autorização específicas.
+# Pré-requisitos do dono (nada disso existe ainda): Environment icloud-auth-poc com aprovador obrigatório, branch restrita e os secrets
+# ICLOUD_USER e ICLOUD_APP_PASSWORD. Sem eles o job executar falha antes de pedir o token. Detalhes: Documento 10, seção 13.13.
+name: Prova autenticada iCloud (OIDC, manual)
+
+on:
+  workflow_dispatch: {}
+
+# nenhuma permissão por padrão: cada job declara só o que precisa
+permissions: {}
+
+concurrency:
+  group: icloud-auth-probe
+  cancel-in-progress: false
+
+jobs:
+  provisionar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: cloudflare-poc
+    permissions:
+      contents: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só nas branches previstas
+        run: |
+          case "$GITHUB_REF_NAME" in
+            main|poc/icloud-cloudflare-connectivity) ;;
+            *) echo "::error::Branch não permitida para publicar o Worker: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # este passo roda código do repositório, por isso não recebe nenhum secret
+      - name: Testes do Worker autenticado e do escopo
+        run: node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_escopo.test.mjs
+
+      - name: Conferir o token Cloudflare (sem mostrar dados da conta)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Faltam os secrets CLOUDFLARE_API_TOKEN e/ou CLOUDFLARE_ACCOUNT_ID no ambiente cloudflare-poc."
+            exit 1
+          fi
+          verificar() {
+            curl -sS -m 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" | jq -r 'select(.success == true) | .result.status' || true
+          }
+          STATUS=$(verificar "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          [ "$STATUS" = "active" ] || STATUS=$(verificar "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          if [ "$STATUS" != "active" ]; then
+            echo "::error::A Cloudflare não confirmou o token como ativo."
+            exit 1
+          fi
+          echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
+
+      - name: Publicar o Worker da prova autenticada (Workers Free)
+        working-directory: experimentos/icloud-auth-probe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.161.0 deploy
+
+  executar:
+    needs: provisionar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: icloud-auth-poc
+    # a única permissão deste job: pedir o token OIDC. Sem contents, sem escrita, sem credencial Cloudflare.
+    permissions:
+      id-token: write
+    env:
+      # URL fixa e não sensível (nada vem do job anterior)
+      WORKER_URL: https://rac-icloud-auth-poc.raynercarvalho.workers.dev
+      AUDIENCIA: rac-inbox-icloud-poc:validar_oidc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só nas branches previstas
+        run: |
+          case "$GITHUB_REF_NAME" in
+            poc/icloud-cloudflare-connectivity) ;;
+            *) echo "::error::Branch não permitida para a prova autenticada: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      # o token OIDC e a credencial só passam por variável de ambiente, pipe e substituição de processo (/dev/fd): nunca por argumento
+      # de comando, arquivo ou artefato. Os valores já chegam mascarados no log.
+      - name: Validar o JWT no Worker (sem usar a Apple)
+        env:
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+        run: |
+          if [ -z "$ICLOUD_USER" ] || [ -z "$ICLOUD_APP_PASSWORD" ]; then
+            echo "::error::Faltam os secrets ICLOUD_USER e/ou ICLOUD_APP_PASSWORD no ambiente icloud-auth-poc."
+            exit 1
+          fi
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+
+          PEDIDO=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCIA}")
+          JWT=$(jq -r '.value // empty' <<< "$PEDIDO")
+          unset PEDIDO
+          if [ -z "$JWT" ]; then
+            echo "::error::O GitHub não devolveu o token OIDC."
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+
+          RESP="$RUNNER_TEMP/auth-probe.json"
+          : > "$RESP"
+          CODE=000
+          for TENTATIVA in 1 2 3 4 5; do
+            CODE=$(jq -n '{operacao: "validar_oidc", usuario: env.ICLOUD_USER, senha: env.ICLOUD_APP_PASSWORD}' \
+              | curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                  -K <(printf 'header = "Authorization: Bearer %s"\n' "$JWT") \
+                  -H "Content-Type: application/json" --data-binary @- || true)
+            CODE=${CODE:-000}
+            [ "$CODE" = "200" ] && break
+            # repete só enquanto o Worker novo ainda propaga (sem rede ou 404); qualquer resposta da política é evidência e encerra
+            if [ "$CODE" = "000" ] || [ "$CODE" = "404" ]; then
+              echo "Tentativa $TENTATIVA: HTTP $CODE; aguardando a propagação do Worker."
+              sleep 6
+            else
+              break
+            fi
+          done
+          unset JWT
+
+          {
+            echo "### Prova autenticada iCloud · validação OIDC (sem acesso à Apple)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Resposta HTTP do Worker: $CODE"
+            echo "- Resposta (só códigos e booleanos, sem credencial):"
+            echo '```json'
+            head -c 600 "$RESP" | jq . 2>/dev/null || echo '(resposta não é JSON)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CODE" = "200" ] && jq -e '.ok == true and .oidc == "validado"' "$RESP" > /dev/null 2>&1; then
+            echo "JWT OIDC aceito pelo Worker; a credencial foi recebida e não foi usada (sem acesso à Apple)."
+            exit 0
+          fi
+          echo "::error::O Worker não aceitou a validação (HTTP $CODE); veja o motivo no resumo. Nenhuma ação fora do escopo."
+          exit 1

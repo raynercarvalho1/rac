@@ -873,3 +873,24 @@ Família e da Casa.
 1. Dono decide D-ENV e cria o Environment `icloud-auth-poc` quando for executar a P1.
 2. Confirmar a documentação do GitHub sobre OIDC e medir o custo de CPU da verificação no Workers Free, antes de implementar a S3.
 3. Implementar a POC autenticada (P1 e P2, somente leitura, restrita à pasta de teste) com testes de sockets simulados e de ausência de vazamento de credencial.
+
+## 13/11/2026 · RAC Inbox — arquitetura S3 (OIDC) implementada localmente, sem execução
+
+### 1. O que fizemos
+
+- **D-ENV decidida pelo dono: S3.** Substitui a recomendação anterior de misturar credenciais no `cloudflare-poc` e a alternativa S2 (ambas marcadas como superadas nos documentos).
+- Validado em fonte oficial: formato do `sub` (clássico e imutável; este repositório, criado em 23/10/2026, usa o imutável, cujo exemplo com Environment é inferência), claims disponíveis, audiência personalizada, validade do token, JWKS pelo documento de descoberta do emissor, suporte de RSASSA-PKCS1-v1_5 no Web Crypto e limites do Workers Free.
+- Implementado **localmente**: Worker de validação (`experimentos/icloud-auth-probe`: política fixa, JWT RS256, JWKS com cache e rotação, corpo lido só depois do OIDC, sem `console`, sem armazenamento) e workflow de dois jobs (`provisionar` com `cloudflare-poc`; `executar` com `icloud-auth-poc` e único `id-token: write`), sem outputs, artefatos ou segredo entre jobs. Operação disponível: só `validar_oidc`; IMAP e SMTP não existem.
+- 34 testes novos (24 funcionais e 10 de escopo), com fixtures sintéticas; CPU medido em Node (mediana de 0,25 ms por requisição, indicativo, contra 10 ms do Free). Documento 10 ganhou a seção 13.13; README do Worker; roadmap, decisões e mapa atualizados.
+- **Nada foi executado:** sem Environment ou secret criado, sem run do workflow, sem deploy, sem acesso à Apple ou à conta iCloud, sem recurso novo na Cloudflare.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: criar o Environment `icloud-auth-poc` e os secrets, autorizar a PR independente do workflow (o arquivo precisa estar na branch padrão) e o primeiro run (só ensaio do JWT), e decidir o uso único do token (Durable Object com SQLite) antes de P3 a P5.
+- **Não comprovado:** formato real das claims, leitura do JWKS real, verificação RSA no runtime da Cloudflare, CPU real, autenticação Apple e qualquer operação de e-mail. A fase I0 não está concluída. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Com a configuração do dono e autorização, executar o ensaio `validar_oidc` para confirmar `sub`, `runner_environment`, JWKS e CPU no runtime real.
+2. Só depois implementar IMAP somente leitura restrito à pasta de teste (P1 e P2), com testes de sockets simulados, e propor P3 a P5 com autorização específica.
+3. Decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail.

@@ -270,6 +270,18 @@ Cada passo é pequeno, não muda o que o usuário vê, tem teste próprio e pode
 | A8 | Dividir `nucleo.js` por domínio, carregando cada parte com o seu módulo | Testes carregam todas as partes; carga inicial menor (medida) | Médio; só depois de A1–A4 |
 | A9 | Corrigir P-19 (busca chama Esportes sem carregar) e P-16/P-17 (retorno à aba e notificação) | Ver [Documento 08](08-frentes-funcionais.md#rac-hoje-painel-central) | Baixo |
 
+**Atualização de 13/11/2026 (Fase 2 · Fundação técnica, na branch `claude/fase-2-fundacao-tecnica-rnfabm`, sem merge):** A1 a A6
+implementados e testados; a tabela acima fica como foi planejada. Ajustes em relação ao plano, depois de conferir o código atual:
+
+| Passo | O que foi feito | Diferença em relação ao plano |
+|---|---|---|
+| A1 | `js/dados.js`: cliente único (pedidos simultâneos recebem a mesma instância), `dadosPaginar`, `sbOk` com o código do erro; `RACmercado.client`, `.url` e `.chave` como apelidos; login, Lista e `js/hoje.js` usam a camada | A leitura paginada é usada pelo RAC Hoje; as demais leituras paginadas com código próprio (Resumo, Painel, Sistema…) passam a usá-la aos poucos, quando o módulo for mexido |
+| A2 | `js/graficos.js` (módulo leve) com `rsColunas`, `rsBarras`, `rsKpis`, `rsTabela` e `RS_MESES`, código idêntico; `BRL` virou apelido de `brl` | Achado: a Alimentação usava `enviarArquivos` da Família sem declarar (vinha escondido pelo Resumo); agora declarado. O Painel declara Saúde, MBA e Família, que usa de verdade. `money` do Mercado e o `brl` do Sistema têm comportamento diferente e ficaram |
+| A3 | `js/rotas.js` (base): uma linha por seção gera `tabs`, `DA_CASA`, `ROTA_MODS`, o menu lateral e o desenho de cada rota; a regra de CSS da casa passou a olhar `data-casa` | O código antigo e o novo de `route()` rodam lado a lado no teste: só a ordem interna de esconder as seções mudou (sem efeito na tela). Os "Times" do Esportes continuam HTML fixo (subnavegação) |
+| A4 | `js/fontes.js` (contrato) e `js/fonte-agenda.js`, `js/fonte-newsletter.js`, `js/fonte-mba.js`, `js/fonte-familia.js`; `js/hoje.js` sem `NLS`, `FAM`, `mbaFin`, `AGENDA_ICO` e sem carregar Sistema e MBA | A configuração dos integrantes (`FAM`, tipos e ícones) mudou de casa para a fonte da Família (a tela da Família, a Agenda e o Painel usam a mesma); a leitura da Agenda saiu de `js/sistema.js` para a fonte |
+| A5 | `NUCLEO.saudeInsights`, `NUCLEO.famMeds`, `NUCLEO.agendaItens` (a escolha dos itens da Agenda) e a normalização do MBA (`NUCLEO.mba*De`) | Comparadas com o código de antes em centenas de cenários (Brasília e UTC). A duplicação site × servidor (`agendaServidor` na `garmin`) continua: mexer nela depende de autorização (A7) |
+| A6 | `supabase/050_seguranca_catalogo.sql`: catálogo `seguranca_catalogo` e `seguranca_estado()` lendo dele; tabela nova só entra na auditoria pelo catálogo e aparece como `fora_do_catalogo` se ninguém a classificar | **Preparada e testada (PGlite), não aplicada**: o critério "migration aplicada" depende do dono. Achado: 6 tabelas pessoais faltavam no teste "sem login não lê" e foram incluídas |
+
 ## 10. O que manter, refatorar e não mexer
 
 **Manter como está** (é ponto forte): ES5 sem build e o teste de nomes únicos; `nucleo.js` com funções puras e testadas; RLS em

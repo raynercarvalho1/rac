@@ -137,6 +137,13 @@ O assistente do dia do dono: junta o que pede atenção em todos os módulos, ex
 
 ## Fontes
 
+**Fase 2 · A4 (13/11/2026, contrato de fontes)**: Agenda, Newsletter, MBA e Família chegam ao RAC Hoje pelo contrato de fontes
+(`js/fontes.js`: `fonteLer`/`fonteOuErro`, formato `{ok, v, vazio, quando, ultimo, origem}`), em arquivos leves sem tela
+(`js/fonte-agenda.js`, `js/fonte-newsletter.js`, `js/fonte-mba.js`, `js/fonte-familia.js`). O RAC Hoje não lê mais `NLS`, `FAM`,
+`mbaFin` nem `AGENDA_ICO` e não carrega as telas do Sistema e do MBA. O que cada fonte entrega, a origem e o que a IA recebe são os
+mesmos de antes (`tests/fontes.test.mjs` compara com os leitores de antes); a tabela abaixo continua valendo, lida assim: a Newsletter
+"memória do site" é a edição que a tela da Newsletter guardou na memória da fonte; MBA = `NUCLEO.mbaAulasDe`, `mbaAvalsDe`, `mbaFinDe`.
+
 | Fonte | De onde | Período | Origem da leitura | Data que a tela mostra |
 |---|---|---|---|---|
 | Agenda e aniversários | `agendaColetarLeitura()` (Família, Veículos, Documentos, IPVA, MBA, aniversários, lembretes, Carreira, backup) | o que a agenda já junta | banco e dados do site | nenhuma. Estado da leitura: **completa**, **vazia** (tudo lido, nada a mostrar), **parcial** (a leitura de `registros` ou do backup falhou; sobra o que veio da memória do site, e a falha fica dita) ou **falha** (falhou e não sobrou nada: vira falha da fonte, nunca "sem dados") |
@@ -167,7 +174,8 @@ Segurança (estado do código de verificação; precisa do módulo da Central); 
 Rede (a Rede já entra pela agenda e sai do site no roteiro).
 
 **Consultas repetidas eliminadas**: a Agenda e a Próxima ação do Início (e o resumo falado) liam a tabela `registros` inteira cada uma;
-agora quem pede enquanto uma leitura está em curso usa a mesma (`agendaColetar` em `js/sistema.js`; nada fica guardado depois).
+agora quem pede enquanto uma leitura está em curso usa a mesma (`agendaColetar`, que estava em `js/sistema.js` e desde a Fase 2 · A4 mora
+na fonte da Agenda, `js/fonte-agenda.js`; nada fica guardado depois).
 O RAC Hoje não chama a Próxima ação (usa a mesma régua do núcleo, `NUCLEO.pri*`), então não repete a leitura da agenda nem a do relógio.
 
 ## Régua de prioridades (Próxima melhor ação, Agenda, resumo falado e RAC Hoje)

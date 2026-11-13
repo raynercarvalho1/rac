@@ -6,6 +6,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { createRequire } from "node:module";
 import { CASOS, BASES, cpfDe, formatar, corromper } from "./fixtures/fiscal/cpf_casos.mjs";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
@@ -91,11 +92,11 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
 
 test("ligação ao site: rota, menu, seção, módulo no sw.js e acesso da Fernanda (papel casa)", () => {
   const app = ler("js/app.js"), html = ler("index.html"), sw = ler("sw.js");
-  assert.match(app, /var DA_CASA=\["mercado","alimentacao","compras","fiscal",/);
-  assert.match(app, /top==="fiscal"\)\{sideMark\("fiscal","fiscal"\);renderFiscal\(\)/);
-  assert.match(app, /fiscal:\["fiscal"\]/);
-  assert.match(html, /<section id="fiscal" hidden>/); assert.match(html, /href="#fiscal" data-k="fiscal"/);
-  assert.match(html, /:not\(\[data-k="fiscal"\]\)/, "o menu da casa mostra a Central Fiscal");
+  const RT = registro(); assert.ok(RT.DA_CASA.includes("fiscal"));
+  const rf = rota("fiscal"); assert.ok(!rf.marcaPropria); assert.match(rf.abrirTexto, /renderFiscal\(\)/);
+  assert.deepEqual(RT.ROTA_MODS.fiscal, ["fiscal"]);
+  assert.match(html, /<section id="fiscal" hidden>/); assert.match(RT.menu, /href="#fiscal" data-k="fiscal" data-casa="1"/);
+  assert.match(html, /html\.casa #navgrp a\.it:not\(\[data-casa\]\)/, "o menu da casa mostra a Central Fiscal (item com data-casa)");
   assert.match(sw, /"\.\/js\/fiscal\.js"/);
 });
 

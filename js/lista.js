@@ -78,7 +78,7 @@
   /* ===== Atalhos do iPhone: a Siri e a nota compartilhada mandam itens direto para esta lista ===== */
   function listaAtalhos(){
     var d=h("details",{class:"panel famvals"},h("summary",{text:"📱 Siri e a nota do iPhone"}));
-    var URL=((window.RACmercado||{}).url||"")+"/functions/v1/garmin",PUB=(window.RACmercado||{}).chave||"";
+    var URL=((window.RACdados||{}).url||"")+"/functions/v1/garmin",PUB=(window.RACdados||{}).chave||"";
     d.appendChild(h("p",{class:"sub",text:"Dois atalhos no app Atalhos do iPhone: um para falar com a Siri (\"E aí Siri, Lista RAC\" → \"leite, pão e café\") e outro que lê a nota compartilhada \"Lista de compras\" toda vez que o Notas é fechado e traz para cá só o que for novo. A chave abaixo é o que libera os atalhos; ela vale para a casa toda (pode instalar no iPhone da Fernanda também)."}));
     var st=h("p",{class:"sub",role:"status"}),gerar=h("button",{type:"button",text:PESSOAL.atalho?"Criar uma chave nova":"Criar a chave dos atalhos"}),out=h("div",{class:"stack"});
     if(PESSOAL.atalho)st.textContent="Chave criada em "+dataBR(String(PESSOAL.atalho.criado).slice(0,10))+". Por segurança ela só aparece na hora de criar; se perdeu, crie uma nova (a antiga para de funcionar).";

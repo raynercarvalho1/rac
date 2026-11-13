@@ -111,7 +111,7 @@
           h("span",{class:"pd",text:dt.toLocaleDateString("pt-BR",{weekday:"narrow"}).toUpperCase()+" "+x[0].slice(8,10)})),
           function(){return [dt.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"2-digit"}),x[1]==null?"Sem dados do relógio":"Prontidão "+x[1]+" · "+(x[1]>=70?"pronto para treinar forte":x[1]>=45?"bom para treino moderado":"dia de recuperação")]})})));
       if(pr.alertas.length)p.appendChild(h("ul",{class:"wl"},pr.alertas.map(function(t){return h("li",{class:"qrwarn"},h("span",{class:"grow",text:"⚠ "+t}))})));
-      var ins=saudeInsights(dias,ativs);
+      var ins=NUCLEO.saudeInsights(dias,ativs,hojeISO(),isOwner());   /* regra no núcleo (Fase 2 · A5) */
       if(ins.length){p.appendChild(h("h3",{class:"dayh",text:"O que os seus dados mostram"}));p.appendChild(h("ul",{class:"wl"},ins.map(function(t){return h("li",null,h("span",{class:"grow",text:t}))})))}
       return p}
     function saudeDiario(){
@@ -125,39 +125,6 @@
       /* últimas 2 semanas */
       var fx=h("div",{class:"humorfx"});for(var i=13;i>=0;i--){var dt=maisDias(hoje,-i),y=di[dt];fx.appendChild(h("span",{title:dataBR(dt)+(y&&y.t?": "+y.t:""),class:y?null:"vazio",text:y?HUMOR[y.h-1]:"·"}))}
       p.appendChild(fx);return p}
-    function saudeInsights(dias,ativs){
-      var ini=NUCLEO.somaDiasISO(hojeISO(),-120),D=dias.filter(function(x){return x.data>=ini}),por={},out=[];D.forEach(function(x){por[x.data]=x.dados||{}});
-      function media(l){return l.length?l.reduce(function(a,b){return a+b},0)/l.length:null}
-      /* carga de treino por dia (soma da "carga" do Garmin, ou minutos quando não tem) */
-      var carga={};ativs.forEach(function(a){var k=a.inicio.slice(0,10);if(k<ini)return;carga[k]=(carga[k]||0)+(a.dados.carga||(a.dados.duracao||0)/60)});
-      var cs=Object.keys(carga).map(function(k){return carga[k]}).sort(function(a,b){return a-b}),forte=cs.length?cs[Math.floor(cs.length*.6)]:Infinity;
-      var vf=[],vd=[],sf=[],sd=[];
-      D.forEach(function(x){var ont=NUCLEO.somaDiasISO(x.data,-1);if(!por[ont])return;var c=carga[ont]||0,v=x.dados.vfc&&x.dados.vfc.noite,n=x.dados.sono&&x.dados.sono.nota;
-        if(c>=forte){if(v)vf.push(v);if(n)sf.push(n)}else if(!c){if(v)vd.push(v);if(n)sd.push(n)}});
-      if(vf.length>=5&&vd.length>=5){var dv=media(vf)-media(vd);if(Math.abs(dv)>=2)out.push("Na noite depois de um treino forte, a sua variabilidade cardíaca fica em média "+Math.abs(Math.round(dv))+" ms "+(dv<0?"mais baixa":"mais alta")+" do que depois de um dia sem treino ("+Math.round(media(vf))+" × "+Math.round(media(vd))+" ms).")}
-      if(sf.length>=5&&sd.length>=5){var dn=media(sf)-media(sd);if(Math.abs(dn)>=3)out.push("A nota do sono é "+Math.abs(Math.round(dn))+" pontos "+(dn>0?"maior":"menor")+" nas noites depois de treino forte.")}
-      /* horário de dormir contra a nota do sono */
-      var cedo=[],tarde=[];D.forEach(function(x){var s2=x.dados.sono;if(!s2||!s2.inicio||!s2.nota)return;var m=+s2.inicio.slice(0,2)*60+ +s2.inicio.slice(3,5);if(m<12*60)m+=1440;(m<=23*60?cedo:m>=23*60+45?tarde:[]).push(s2.nota)});
-      if(cedo.length>=5&&tarde.length>=5){var dc=media(cedo)-media(tarde);if(Math.abs(dc)>=3)out.push("Quando você dorme até 23h, a nota do sono fica em "+Math.round(media(cedo))+"; depois de 23h45, cai para "+Math.round(media(tarde))+".")}
-      /* estresse por dia da semana */
-      var DS=["domingo","segunda","terça","quarta","quinta","sexta","sábado"],sem=[[],[],[],[],[],[],[]];
-      D.forEach(function(x){if(typeof x.dados.estresse==="number")sem[new Date(x.data+"T12:00:00").getDay()].push(x.dados.estresse)});
-      var ms=sem.map(function(l,i){return [i,l.length>=4?media(l):null]}).filter(function(x){return x[1]!=null}).sort(function(a,b){return b[1]-a[1]});
-      if(ms.length>=5&&ms[0][1]-ms[ms.length-1][1]>=5)out.push("O dia da semana mais estressante é "+DS[ms[0][0]]+" (média "+Math.round(ms[0][1])+"); o mais tranquilo, "+DS[ms[ms.length-1][0]]+" ("+Math.round(ms[ms.length-1][1])+").");
-      /* passos do dia contra o sono da noite seguinte */
-      var xs=[],ys=[];D.forEach(function(x){var am=por[NUCLEO.somaDiasISO(x.data,1)];if(am&&am.sono&&am.sono.total&&x.dados.passos){xs.push(x.dados.passos);ys.push(am.sono.total/3600)}});
-      var rc=NUCLEO.correlacao(xs,ys);if(rc!=null&&Math.abs(rc)>=.25)out.push("Nos dias em que você anda mais, você "+(rc>0?"dorme mais":"dorme menos")+" na noite seguinte (correlação "+fmtN(Math.round(rc*100)/100)+").");
-      /* humor do diário contra sono, treino e estresse */
-      var hs=D.filter(function(x){return typeof x.dados.humor==="number"});
-      if(hs.length>=8){
-        var bom=[],ruim=[];hs.forEach(function(x){var s3=x.dados.sono&&x.dados.sono.total/3600;if(s3>=7)bom.push(x.dados.humor);else if(s3&&s3<6)ruim.push(x.dados.humor)});
-        if(bom.length>=3&&ruim.length>=3&&media(bom)-media(ruim)>=.4)out.push("Depois de noites com 7 h ou mais de sono, o seu humor fica em "+fmtN(Math.round(media(bom)*10)/10)+" de 5; com menos de 6 h, cai para "+fmtN(Math.round(media(ruim)*10)/10)+".");
-        var tr=[],des=[];hs.forEach(function(x){(carga[x.data]?tr:des).push(x.dados.humor)});
-        if(tr.length>=3&&des.length>=3&&Math.abs(media(tr)-media(des))>=.3)out.push("Nos dias com treino o seu humor médio é "+fmtN(Math.round(media(tr)*10)/10)+"; sem treino, "+fmtN(Math.round(media(des)*10)/10)+".");
-        var ex=[],ey=[];hs.forEach(function(x){if(typeof x.dados.estresse==="number"){ex.push(x.dados.estresse);ey.push(x.dados.humor)}});
-        var re=NUCLEO.correlacao(ex,ey);if(re!=null&&re<=-.3)out.push("Quanto mais estresse o relógio mede no dia, pior o humor que você anota (correlação "+fmtN(Math.round(re*100)/100)+").")}
-      else if(isOwner())out.push("Anote o humor por mais "+(8-hs.length)+(8-hs.length===1?" dia":" dias")+" para o site cruzar com o sono e o treino.");
-      return out}
     function saudeHoje(dias){
       var d=dias[dias.length-1];if(!d)return null;var x=d.dados,ont=dias[dias.length-2];
       var p=panel(d.data===hojeISO()?"Hoje":"Em "+dataBR(d.data),"Toque numa métrica para ver o gráfico."),g=h("div",{class:"kgasto saudekpi"});

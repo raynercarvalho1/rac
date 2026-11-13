@@ -10,7 +10,7 @@ import fs from "node:fs";
 const raiz = new URL("../", import.meta.url);
 const pular = process.env.SEM_REDE === "1";
 /* endereço e chave pública lidos do próprio site, para não ter duas cópias */
-const site = fs.readFileSync(new URL("mercado.js", raiz), "utf8");
+const site = fs.readFileSync(new URL("js/dados.js", raiz), "utf8");   // camada de dados (Fase 2 · A1): o cliente único do site
 const URL_SB = /https:\/\/[a-z0-9]+\.supabase\.co/.exec(site)[0], CHAVE = /sb_publishable_[\w-]+/.exec(site)[0];
 const H = { apikey: CHAVE, Authorization: "Bearer " + CHAVE, "Content-Type": "application/json" };
 

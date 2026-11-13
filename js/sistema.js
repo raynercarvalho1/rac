@@ -63,61 +63,12 @@
 
   /* ---------- agenda única: tudo que tem data no site ---------- */
   var AGENDA_TIPOS={familia:["🐾","Família"],veiculo:["🚗","Veículos"],mba:["🎓","MBA"],niver:["🎂","Aniversário"],lembrete:["📌","Lembrete"],sistema:["🛟","Sistema"],carreira:["💼","Carreira"],docs:["📄","Documentos"],saude:["❤️","Saúde"]};
-  /* a área de cada item aparece só como ícone (o título fica curto e cabe no celular); "pre" é a área por extenso, usada no briefing falado */
-  var AGENDA_ICO={eddie:"🐶",olivia:"👶",civic:"🚗",moto:"🛵",c3:"🚙",docs:"📄"};
+  /* a área de cada item aparece só como ícone (o título fica curto e cabe no celular); "pre" é a área por extenso, usada no briefing falado.
+     O ícone de cada integrante (AGENDA_ICO) mora na fonte da Família (js/fonte-familia.js, Fase 2 · A4) */
   function agendaIco(e){return e.ico||(AGENDA_TIPOS[e.tipo]||["•"])[0]}
-  /* a Agenda, a Próxima ação, o resumo falado e o RAC Hoje pedem a agenda quase juntos: quem chega enquanto uma leitura está em curso
-     usa a mesma (uma consulta a registros em vez de duas ou três); terminada, nada fica guardado, então a próxima vem sempre nova */
-  var AGENDA_EM_CURSO=null;
-  /* agendaColetarLeitura devolve {eventos, falhas, estado}: estado "completa" (tudo lido), "vazia" (tudo lido, sem itens), "parcial" (uma leitura falhou e o que
-     aparece vem do resto, por exemplo da memória do site) ou "falha" (uma leitura falhou e não sobrou nada). Falha nunca vira "vazia" nem "completa".
-     agendaColetar devolve só os eventos, como sempre (quem não precisa do estado). */
-  function agendaColetarLeitura(){if(AGENDA_EM_CURSO)return AGENDA_EM_CURSO;
-    AGENDA_EM_CURSO=agendaLer().then(function(r){AGENDA_EM_CURSO=null;var f=r.falhas.map(function(x){return x.fonte+": "+x.erro});
-      return {eventos:r.eventos,falhas:f,estado:f.length?(r.eventos.length?"parcial":"falha"):(r.eventos.length?"completa":"vazia")}},function(e){AGENDA_EM_CURSO=null;throw e});return AGENDA_EM_CURSO}
-  function agendaColetar(){return agendaColetarLeitura().then(function(r){return r.eventos})}
+  /* a leitura da Agenda (agendaColetarLeitura, agendaColetar) mora na fonte da Agenda (js/fonte-agenda.js, Fase 2 · A4) e a escolha dos itens
+     no núcleo (NUCLEO.agendaItens, A5); aqui fica o que é da tela */
   function agendaAviso(r){return r&&r.falhas&&r.falhas.length?"Leitura parcial da agenda ("+r.falhas.join("; ")+"): o que aparece vem do que o site já tinha na memória e pode estar incompleto.":""}
-  function agendaLer(){
-    var hoje=hojeISO(),ev=[],falhas=[];
-    function add(data,t,sub,tipo,href,extra){if(data)ev.push(Object.assign({data:String(data).slice(0,10),t:t,sub:sub||"",tipo:tipo,href:href||""},extra||{}))}
-    var pReg=isOwner()?SB.from("registros").select("id,quem,tipo,data,titulo,proxima,dados").order("data",{ascending:false}).then(sbOk).catch(function(e){logErro("agenda",e);falhas.push({fonte:"registros",erro:String(e&&e.message||e).slice(0,100)});return []}):Promise.resolve([]);
-    return pReg.then(function(regs){
-      var visto={};
-      regs.forEach(function(r){var F=FAM[r.quem];if(!F)return;var k=r.quem+"|"+r.tipo,tipo=F.veic?"veiculo":F.docs?"docs":"familia",href=F.veic?"#veiculos/"+r.quem:F.docs?"#documentos":"#"+r.quem,d=r.dados||{};
-        /* vale só o registro mais novo de cada tipo: um mais novo sem "próxima" (ex.: revisão feita) substitui o aviso do anterior */
-        var ex={reg:r,ico:AGENDA_ICO[r.quem],pre:F.n};
-        if(!visto[k+"p"]){visto[k+"p"]=1;if(r.proxima&&r.proxima>=maisDias(hoje,-60))add(r.proxima,r.titulo,F.n+" · "+tipoInfo(r.tipo)[1]+(r.proxima<hoje?" · estava previsto para "+dataBR(r.proxima):""),tipo,href,ex)}
-        if(d.vigenciaFim&&!visto[k+"v"]){visto[k+"v"]=1;add(d.vigenciaFim,"Fim do "+r.titulo,F.n+" · renovar antes",tipo,href,ex)}
-        if(d.garantiaAte&&!visto[k+"g"]&&d.garantiaAte>=hoje){visto[k+"g"]=1;add(d.garantiaAte,"Fim da garantia de "+r.titulo,F.n,tipo,href,ex)}});
-      /* rede em Sorocaba: contatos de RH com os posts sem olhar há 7 dias ou mais viram um lembrete só */
-      var rede=regs.filter(function(r){return r.quem==="rede"&&r.tipo==="contato"}),atras=rede.filter(function(r){var v=(r.dados||{}).visto;return !v||String(v).slice(0,10)<=maisDias(hoje,-7)});
-      if(atras.length)add(hoje,"Olhar os posts de "+atras.length+(atras.length===1?" contato":" contatos")+" de RH",atras.slice(0,4).map(function(r){return r.titulo+" ("+r.valor+")"}).join(", ")+(atras.length>4?"…":""),"carreira","#rede",{ico:"🤝",pre:"Rede",prazo:"calculado"});
-      /* IPVA de SP: vence em janeiro pelo final da placa (cota única com desconto ou 1ª parcela); aparece de novembro até quitar.
-         Some quando houver um registro "Licenciamento e impostos" com IPVA do ano. */
-      var ano=+hoje.slice(0,4)+(+hoje.slice(5,7)>=11?1:0),dIpva=ano+"-01-09";
-      if(dIpva>=maisDias(hoje,-60)&&dIpva<=maisDias(hoje,75))Object.keys(FAM).forEach(function(q){var F=FAM[q];if(!F.veic||/antigo/i.test(F.n))return;
-        if(regs.some(function(r){return r.quem===q&&r.tipo==="documento"&&/ipva/i.test(r.titulo||"")&&(String(r.titulo).indexOf(String(ano))>=0||r.data>=(ano-1)+"-12-01")}))return;
-        add(dIpva,"IPVA "+ano,F.n+" · vence em janeiro conforme o final da placa · veja a data na Sefaz-SP","veiculo","https://portal.fazenda.sp.gov.br/servicos/ipva",{ext:true,ico:AGENDA_ICO[q],pre:F.n})});
-      if(isOwner()){
-        mbaAulas().forEach(function(a){if(a.data>=hoje)add(a.data,a.t,"aula às "+a.hora+(a.prof?" · "+a.prof:""),"mba","#mba",{pre:"Aula"})});
-        mbaAvals().forEach(function(a){if(!a.feita)add(a.ate,a.t+(a.disc?" ("+a.disc+")":""),"responder a avaliação do MBA","mba",a.link||"#mba",{ext:!!a.link,pre:"Responder"})});
-        var fin=mbaFin();if(fin)fin.ps.forEach(function(q){if(!q.paga)add(q.venc,q.n,"boleto do MBA · "+BRL(q.v),"mba","#mba",{pre:"Boleto"})});
-        withDates().forEach(function(x){if(x.dias<=7||(x.fav&&x.dias<=30))add(maisDias(hoje,x.dias),x.nome,"aniversário"+(x.fav?" · marcado":""), "niver","#aniversarios",{pre:"Aniversário de"})});
-        (PESSOAL.lembretes||[]).forEach(function(l){if(!l.feito)add(l.data,l.t,"lembrete","lembrete","",{lembrete:l})});
-        /* carreira: 5 dias depois de se candidatar sem resposta, hora do follow-up. É um prazo CALCULADO (NUCLEO.priFollowup): vale até 10 dias depois de vencer;
-           depois vira "sem retorno" (só apresentação: o resultado real da candidatura não é tocado). Resultado preenchido ou follow-up feito: nada. */
-        (PESSOAL.candidaturas||[]).forEach(function(c){var f=NUCLEO.priFollowup(c,hoje);if(f.estado==="nenhum")return;
-          var ex={pre:"Follow-up",prazo:"calculado",acao:"followup",cid:c.id,id:"cand:"+c.id},t=c.t+(c.e?" · "+c.e:"");
-          if(f.estado==="sem_retorno")add(f.data,t,"sem retorno · candidatura de "+dataBR(f.desde),"carreira","#carreira/editar/"+c.id,Object.assign(ex,{pre:"Sem retorno",prazo:"informativo",semRetorno:true}));
-          else add(f.data,t,"candidatura de "+dataBR(f.desde),"carreira","#carreira/editar/"+c.id,ex)});
-        if(!PESSOAL.ultimoBackup||PESSOAL.ultimoBackup<maisDias(hoje,-30))add(hoje,"Baixar um backup do site",PESSOAL.ultimoBackup?"o último foi em "+dataBR(PESSOAL.ultimoBackup):"nunca foi feito","sistema","#sistema",{prazo:"calculado"})}
-      /* o backup automático de domingo (no cofre privado do servidor): se o mais novo tiver mais de 9 dias, alguma coisa parou */
-      if(!isOwner())return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas};
-      return Promise.resolve().then(function(){return SB.storage.from("backups").list(EU.id,{sortBy:{column:"name",order:"desc"},limit:1})}).then(function(r){
-        var ult=r&&r.data&&r.data[0]&&r.data[0].name.slice(0,10);
-        if(r&&r.error)falhas.push({fonte:"backup",erro:String(r.error.message||r.error).slice(0,100)});
-        else if(!ult||ult<maisDias(hoje,-9))add(hoje,"O backup automático de domingo não rodou",ult?"o último é de "+dataBR(ult):"ainda não há nenhum no servidor","sistema","#sistema",{prazo:"calculado"})},function(e){falhas.push({fonte:"backup",erro:String(e&&e.message||e).slice(0,100)})})
-        .then(function(){return {eventos:ev.sort(function(a,b){return a.data.localeCompare(b.data)}),falhas:falhas}})})}
   /* ===== Próxima melhor ação: só o que pede algo de você, agora =====
      A régua é uma só e mora no núcleo (NUCLEO.pri*, docs/hoje.md "Régua de prioridades"): prazo real > prazo calculado (follow-up, com validade de 10 dias) > informativo (vaga, treino).
      Fontes: a Agenda (nunca relida: é a mesma leitura da Agenda), vagas muito compatíveis ainda fora do funil e a prontidão para treinar (só com dado de ontem ou de hoje).

@@ -54,6 +54,8 @@
     if((e.sem_rls||[]).length)p.push("sem RLS: "+e.sem_rls.join(", "));
     if((e.anon_le||[]).length)p.push("o visitante sem login lê: "+e.anon_le.join(", "));
     if((e.sem_trava_mfa||[]).length)p.push("sem a trava da 2ª etapa: "+e.sem_trava_mfa.join(", "));
+    /* catálogo da auditoria (supabase/050, Fase 2 · A6): tabela que existe e ninguém classificou não entra sozinha na conferência; vira pendência */
+    if((e.fora_do_catalogo||[]).length)p.push("tabela fora do catálogo da auditoria: "+e.fora_do_catalogo.join(", "));
     if((e.cofres_publicos||[]).length)p.push("cofre de arquivos público: "+e.cofres_publicos.join(", "));
     if((e.funcoes_abertas||[]).length)p.push("função do servidor aberta a quem não entrou: "+e.funcoes_abertas.join(", "));
     return p}
@@ -320,6 +322,9 @@
       li(!(e.sem_rls||[]).length,"RLS ligado em todas as tabelas",(e.sem_rls||[]).length?"Sem RLS: "+e.sem_rls.join(", "):"Toda tabela só mostra as linhas de quem pode ver.");
       li(!(e.anon_le||[]).length,"Visitante sem login",(e.anon_le||[]).length?"Consegue ler: "+e.anon_le.join(", "):"Não lê nenhuma tabela.");
       li(!(e.sem_trava_mfa||[]).length,"Trava da 2ª etapa",(e.sem_trava_mfa||[]).length?"Faltam: "+e.sem_trava_mfa.join(", "):"Em todas as tabelas pessoais e nos cofres de arquivos.");
+      /* só aparece com a conferência nova (supabase/050): antes dela, a Auditoria fica exatamente como era */
+      if(e.fora_do_catalogo)li(!e.fora_do_catalogo.length,"Catálogo da auditoria",e.fora_do_catalogo.length?"Tabelas sem classificação (não entram sozinhas na conferência da trava): "+e.fora_do_catalogo.join(", "):
+        "Toda tabela do banco está no catálogo da auditoria."+((e.catalogo_sem_tabela||[]).length?" No catálogo, mas sem tabela: "+e.catalogo_sem_tabela.join(", ")+".":""));
       li(!(e.cofres_publicos||[]).length,"Cofres de arquivos",(e.cofres_publicos||[]).length?"Públicos: "+e.cofres_publicos.join(", "):"Todos privados (fotos e PDFs só por link temporário).");
       li(!(e.funcoes_abertas||[]).length,"Funções do servidor",(e.funcoes_abertas||[]).length?"Abertas a quem não entrou: "+e.funcoes_abertas.join(", "):"Nenhuma função privilegiada aberta a quem não entrou.");
       p.appendChild(h("p",{class:"sub",text:"Conferido "+segQuando(e.conferido)+" · sessão "+(e.aal==="aal2"?"com código (aal2)":"só com senha (aal1)")}))}

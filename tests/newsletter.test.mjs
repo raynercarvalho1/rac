@@ -16,6 +16,7 @@ import * as O from "../supabase/functions/rac-ia/orcamento.ts";
 import { atenderPedido } from "../supabase/functions/rac-ia/servico.ts";
 import { pedidoDaRotina, ACOES_ROTINA } from "../supabase/functions/rac-ia/rotina.ts";
 import * as R from "../supabase/functions/rac-newsletter/rotina.ts";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
 const ler = (a) => fs.readFileSync(path.join(raiz, a), "utf8").replace(/\r\n/g, "\n");
@@ -605,11 +606,11 @@ test("SQL 020: só permite a Newsletter em REAL; não liga nada, não acrescenta
 /* ---------- integração com o site ---------- */
 test("site: Newsletter na navegação, na rota, no Início, na busca, no Sistema, no service worker e fora do papel casa", () => {
   const app = ler("js/app.js"), html = ler("index.html"), sw = ler("sw.js"), sis = ler("js/sistema.js");
-  assert.match(app, /var tabs=\[[^\]]*"newsletter"/); assert.match(app, /newsletter:\["newsletter"\]/);
-  assert.match(app, /if\(top==="newsletter"\)\{sideMark\("newsletter","newsletter"\);renderNewsletter\(/);
+  const RT = registro(); assert.ok(RT.tabs.includes("newsletter")); assert.deepEqual(RT.ROTA_MODS.newsletter, ["newsletter"]);
+  const rn = rota("newsletter"); assert.ok(!rn.marcaPropria); assert.match(rn.abrirTexto, /renderNewsletter\(/);
   assert.match(app, /wLazy\(\["newsletter"\],"wNewsletter"\)/);
-  assert.ok(!/DA_CASA=\[[^\]]*newsletter/.test(app), "quem é da casa não vê a Newsletter");
-  assert.match(html, /<a class="it" href="#newsletter" data-k="newsletter">/); assert.match(html, /<section id="newsletter" hidden><div id="newsletter-view"><\/div><\/section>/);
+  assert.ok(!RT.DA_CASA.includes("newsletter"), "quem é da casa não vê a Newsletter");
+  assert.match(RT.menu, /<a class="it" href="#newsletter" data-k="newsletter">/); assert.match(html, /<section id="newsletter" hidden><div id="newsletter-view"><\/div><\/section>/);
   assert.match(sw, /"\.\/js\/newsletter\.js"/); assert.match(sw, /\/\\\.json\$\/\.test\(url\.pathname\)/, "newsletter.json com a cópia guardada (sem internet)");
   assert.match(sis, /getJson\("newsletter\.json"\)\.then\(function\(v\)\{\(v\.grupos\|\|\[\]\)\.forEach/, "a busca do site acha as notícias");
   /* desde a Fase 1 (13/11/2026) o painel "Robôs de coleta" está dentro do Monitor de integrações (tests/monitor.test.mjs testa as fontes fora do ar) */

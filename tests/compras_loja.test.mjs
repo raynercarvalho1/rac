@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
+import { rota } from "./_rotas.mjs";   // registro de rotas (js/rotas.js, Fase 2 · A3)
 
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
@@ -412,7 +413,7 @@ test("Resumo: cada barra de loja e de categoria é um link para a tela própria 
   assert.ok(!/class:"modal|showModal|alert\(|confirm\(|prompt\(/.test(bloco), "nada de modal improvisado");
   assert.match(js, /function renderCompras\(sub,id,extra\)/); assert.match(js, /ccDetalheRota\(sub,id,extra\)/);
   assert.match(js, /href:ccRotaProduto\(x\.chave,"produtos"\)/, "a aba Produtos também leva ao histórico do produto");
-  assert.match(ler("js/app.js"), /renderCompras\(parts\[1\],parts\[2\],parts\[3\]\)/);
+  assert.match(rota("compras").abrirTexto, /renderCompras\(p\[1\],p\[2\],p\[3\]\)/, "a rota passa o 3º trecho (registro de rotas, Fase 2 · A3)");
 });
 test("as telas usam o núcleo e o gráfico do Mercado, sem regra financeira própria", () => {
   const { bloco } = tela();

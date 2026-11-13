@@ -196,3 +196,68 @@ Família e da Casa.
    depois da ruleset ou, se o push falhar, o erro (o monitor mostrará "falhou").
 4. Conferir no celular a volta ao site (sair por 5 minutos ou mais e voltar) e o painel do monitor.
 5. Só depois: reconciliar os documentos (D-14) e, com autorização do dono, a Fase 2.
+
+## 13/11/2026 · Fase 2 — Fundação técnica
+
+### 1. O que fizemos
+
+- **Preparação conferida**: a `main` contém o merge do PR #7 (commit `95940e4`, 05h55 UTC). Workflows desse commit: "pages build and
+  deployment" concluído com sucesso (05h55–05h56 UTC) e "Testes" (execução 147) também (05h55–05h58 UTC). A branch `claude/fase-2-fundacao-tecnica-rnfabm` foi avançada até `95940e4` (avanço rápido, nada descartado).
+  Linha de base antes de mexer: Grupo 1 com 1.422 testes (0 falhas, 1 "todo"), Grupo 2 com 73/73.
+- **Decisão do dono** (registrada no [Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas)): a Fase 1 está encerrada para fins de
+  planejamento; as validações de fora (iPhone e robôs) não bloqueiam a Fase 2.
+- **Auditoria conferida contra o código atual** (não presumida): achados novos que mudaram o plano. A Alimentação usava `enviarArquivos`
+  da Família sem declarar (vinha pelo Resumo); o Painel usava Saúde, MBA e Família por tabela; a seleção da Agenda dependia de `FAM`,
+  `AGENDA_ICO` e `tipoInfo`, espalhados entre Família e Sistema; existe a migration 049 (posterior à auditoria), então a nova é a 050;
+  6 tabelas pessoais faltavam no teste "sem login não lê".
+- **Implementado na branch** (A1 a A6, detalhes no [Documento 02](02-auditoria-arquitetural.md#9-plano-gradual-de-melhoria)):
+  - A1 · camada de dados `js/dados.js`: cliente único do Supabase (pedidos simultâneos recebem a mesma instância), `dadosPaginar`, `sbOk`
+    com o código do erro; `RACmercado.client`, `.url` e `.chave` como apelidos; login, Lista e RAC Hoje pela camada.
+  - A2 · `js/graficos.js` com os gráficos `rs*` (código idêntico); Compras e Custos de IA carregam só o kit; a Alimentação só o kit e a
+    Família (que ela usa); nenhum dos quatro carrega mais o Resumo; `BRL` virou apelido de `brl`.
+  - A3 · registro de rotas `js/rotas.js`: `tabs`, `DA_CASA`, `ROTA_MODS`, o menu lateral (antes HTML fixo) e o desenho de cada rota saem de
+    uma tabela; a regra de CSS da casa olha `data-casa`. Menu, rotas e permissões iguais (o que a Fernanda vê não mudou).
+  - A4 · contrato de fontes `js/fontes.js` + `js/fonte-agenda.js`, `js/fonte-newsletter.js`, `js/fonte-mba.js`, `js/fonte-familia.js`:
+    o RAC Hoje não lê mais `NLS`, `FAM`, `mbaFin` nem `AGENDA_ICO` e não carrega as telas do Sistema e do MBA.
+  - A5 · `NUCLEO.saudeInsights`, `NUCLEO.famMeds`, `NUCLEO.agendaItens` e `NUCLEO.mba*De`, puras; as telas chamam o núcleo.
+  - A6 · `supabase/050_seguranca_catalogo.sql` (catálogo `seguranca_catalogo` + `seguranca_estado()` lendo dele) e a conferência
+    `supabase/conferencias/050_conferir_producao.sql`; procedimento de tabela nova em `docs/seguranca.md`; a Auditoria do dono ganha a linha
+    "Catálogo da auditoria" só quando a função nova existir. **Migration preparada e testada, NÃO aplicada.**
+- **Testes novos**: `tests/dados.test.mjs` (5), `tests/graficos.test.mjs` (5, inclui "nenhuma dependência escondida" para todos os
+  módulos), `tests/rotas.test.mjs` (4; route() de antes e de agora lado a lado em mais de 250 combinações), `tests/fontes.test.mjs` (7),
+  `tests/nucleo_fase2.test.mjs` (7; centenas de cenários comparados com o código de antes, em Brasília e UTC),
+  `tests/seguranca_catalogo.test.mjs` (10, 5 no PGlite). Cópias do código de antes em `tests/fixtures/fase2/`.
+- **Testes ajustados** (o texto antigo virou registro ou fonte; o que cada um confere continua): rotas e menu em `alimentacao`, `central`,
+  `central_compras_tela`, `compras`, `compras_loja`, `fiscal_tela`, `hoje`, `newsletter`, `painel`, `esportes`, `estrutura`,
+  `mercado_alertas_push`, `central_radar_tela`; o cliente em `banco`, `central`, `hoje` e `navegador`; ambientes falsos que agora carregam as
+  fontes (`hoje`, `atualizar_modulos`, `olivia_medidas`); a 050 em `banco_lote3` e `central_compras_tela`; 6 tabelas a mais em `seguranca`.
+- **Versão do site na branch**: `2026-11-13.2` (`VERSAO` e `MOD_VERSAO` juntas).
+- **Fora do escopo, intocados**: Central de Compras, Central Fiscal, função `garmin`, `rac-ia`, orçamento de IA, segredos, cron, workflows
+  dos robôs e `.claude/settings.json`. Nenhuma chamada paga de IA, nenhum SQL em produção, nenhum deploy de função, nenhuma publicação.
+
+### 2. O que estamos fazendo
+
+- O trabalho está na branch `claude/fase-2-fundacao-tecnica-rnfabm`, no **PR #8** para a `main`, aguardando revisão e merge do dono.
+  O resultado do CI do PR fica no próprio PR e no relatório da sessão (este registro vai no commit que dispara o CI).
+
+| Entrega | Situação |
+|---|---|
+| Implementação A1 a A5 | Feita na branch, testada |
+| A6 (migration 050) | Preparada e testada (PGlite); **não aplicada** em produção |
+| Commits na branch | `a323fb5` (A1 a A5), `12028b2` (A6, migration 050 preparada) e `cfc4234` (documentos); um quarto com este registro do PR |
+| Push da branch | Feito (autorizado pelo dono para esta fase) |
+| PR para a `main` | **PR #8** aberto (autorizado pelo dono) |
+| Merge na `main` | **Não feito** (é do dono) |
+| Publicação do site | **Nenhuma**: o site segue na versão `2026-11-13.1`; com o merge, o GitHub Pages publica a `2026-11-13.2` |
+| SQL em produção e Edge Functions | Nenhum |
+
+- **A Fase 2 não está concluída**: falta o merge (dono) e a aplicação da 050 (dono, com autorização própria).
+- **Bloqueios**: nenhum.
+
+### 3. O que vamos fazer
+
+1. Depois do merge: registrar aqui o merge e a publicação do site `2026-11-13.2` e conferir no celular o login, o Mercado, a Lista, o menu
+   do dono e o da casa, o RAC Hoje, a Agenda, a Saúde, a Família, o Resumo, Compras e o Painel.
+2. Quando o dono autorizar: aplicar `supabase/050_seguranca_catalogo.sql` no SQL Editor, rodar `supabase/conferencias/050_conferir_producao.sql`
+   (tudo `true`), tirar a marca `-- status: pendente` e conferir a Auditoria no site.
+3. Seguir para a Fase 3 (Design System base) e a Fase 4 (Família e Casa), que já nascem sobre o registro de rotas, as fontes e o catálogo.

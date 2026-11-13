@@ -1,30 +1,11 @@
 /* Dia a Dia RAC — módulo carregado quando a seção abre. Eddie, Olivia e veículos: registros, resumo, exames, gráficos, importação, abastecimento e quilometragem.
    Usa as funções do núcleo (js/app.js), que ficam no escopo global. */
-  function tipoInfo(k){return TIPOS.concat(TIPOS_VEIC).filter(function(t){return t[0]===k})[0]||TIPOS[TIPOS.length-1]}
   /* ===== Eddie e Olivia: linha do tempo com exames, vacinas, consultas, peso e momentos, com fotos, PDFs e vídeos.
      Tabela "registros" e cofre de arquivos "familia" no Supabase (004_familia.sql); o Rayner e a esposa veem juntos. ===== */
-  var FAM={eddie:{n:"Eddie",peso:true},olivia:{n:"Olivia",peso:true,bebe:true,
-    /* compras do Mercado que também são gastos dela: lata de NAN, fraldas e lenços (entram sozinhas nos Gastos) */
-    merc:{termos:["nan","fralda","pampers","huggies","umedec"],re:/(^|[^a-zà-ú])nan([^a-zà-ú]|$)|fralda|pampers|huggies|umedec/i}},
-    /* veículos: mesma tabela de registros, outra lista de tipos e outro resumo; aparecem na página Veículos.
-       Placa, ano e cor ficam num registro com dados.ficha, na conta, e não aqui no código (o repositório é público) */
-    civic:{n:"Civic",veic:true,root:"veiculos-view",desc:"Honda Civic"},
-    moto:{n:"Moto",veic:true,root:"veiculos-view",desc:"Yamaha NMax"},
-    c3:{n:"C3 (antigo)",veic:true,root:"veiculos-view",desc:"Citroën C3"},
-    /* cofre de documentos da casa: mesmo motor, com validade ("Vence em") que entra na Agenda */
-    docs:{n:"Documentos",docs:true,root:"documentos-view"}};
-  var TIPOS_DOCS=[["identidade","Documento pessoal","Ex.: CNH do Rayner","Número (opcional)"],["garantia","Garantia","Ex.: Geladeira Brastemp","Loja"],["nota","Nota fiscal","Ex.: Notebook","Loja"],
-    ["contrato","Contrato","Ex.: Aluguel","Com quem"],["apolice","Apólice e plano","Ex.: Plano de saúde","Empresa"],["imposto","Impostos e taxas","Ex.: IPTU 2027",""],["outro","Outro","",""]];
-  var TIPOS_VEIC=[["revisao","Revisão","Ex.: Revisão de 70.000 km","Oficina"],["oleo","Troca de óleo","Ex.: Troca de óleo e filtro","Oficina"],["manutencao","Manutenção","Ex.: Troca de pastilhas","Oficina"],
-    ["abastecimento","Abastecimento","Ex.: Etanol","Posto"],["seguro","Seguro","Ex.: Seguro Allianz 2026","Seguradora"],["documento","Licenciamento e impostos","Ex.: Licenciamento 2026",""],
-    ["bateria","Bateria","Ex.: Bateria Moura","Loja"],["pneu","Pneus","Ex.: 4 pneus novos","Loja"],["outro","Outro","",""]];
+  /* a configuração dos integrantes (FAM), os tipos de registro (TIPOS, TIPOS_VEIC, TIPOS_DOCS) e tipoInfo moram na fonte da Família
+     (js/fonte-familia.js, Fase 2 · A4), que carrega antes desta tela e também serve a Agenda e o RAC Hoje sem carregar a tela */
   function ehVeic(quem){return !!(FAM[quem]&&FAM[quem].veic)}
   function tiposDe(quem){return ehVeic(quem)?TIPOS_VEIC:FAM[quem]&&FAM[quem].docs?TIPOS_DOCS:TIPOS}
-  var TIPOS=[["exame","Exame","Ex.: Hemograma completo","Resultado"],["consulta","Consulta","Ex.: Consulta de rotina","Profissional"],["tratamento","Receita / tratamento","Ex.: Receita da endocrinologista","Profissional"],
-    ["sintoma","Sintomas","Ex.: Diarreia e vômito",""],["vacina","Vacina","Ex.: V10, Antirrábica, Hepatite B","Dose"],["preventivo","Antipulgas / vermífugo","Ex.: Bravecto","Produto"],
-    ["peso","Peso","Ex.: Pesagem","Peso (kg)"],["alimentacao","Alimentação","Ex.: Troca de ração","Ração"],["pedido","Pedido de exames","Ex.: Exames de controle",""],["diario","Diário (mamadas e fraldas)","Ex.: Diário da semana",""],["produto","Fraldas e produtos","Ex.: Pacote de fraldas","Marca"],
-    ["momento","Momento","Ex.: Primeiro passeio na praia","Onde"],["carta","Carta para o futuro","Ex.: Para você ler aos 18 anos","Abrir em"],["midia","Fotos e vídeos","Ex.: Fotos do aniversário",""],
-    ["nascimento","Nascimento","Ex.: Nascimento","Onde"],["outro","Outro","",""]];
   /* abre o formulário de edição de um registro (definido quando a tela de Eddie/Olivia desenha); usado pelos botões "Editar" das tabelas da caderneta e dos gráficos */
   var famEditar=null;
   var famFiltro={},famVista={},famAlvo={};Object.keys(FAM).forEach(function(k){famFiltro[k]="";famVista[k]="resumo";famAlvo[k]=null});
@@ -48,13 +29,8 @@
   function foraRef(it){return it.max!=null&&it.v>it.max?"alto":it.min!=null&&it.v<it.min?"baixo":""}
   function pesoNum(r){var v=parseFloat(String(r.valor||"").replace(",","."));return isFinite(v)?v:null}
   function dadosDe(r){return r.dados||{}}
-  /* remédios de todas as receitas, com início, fim e se está em uso hoje */
-  function famMeds(regs){
-    var hoje=hojeISO(),out=[];
-    regs.forEach(function(r){(dadosDe(r).meds||[]).forEach(function(m){
-      var ini=m.inicio||r.data,fim=m.continuo?null:maisDias(ini,Math.max(1,m.dias||1)-1);
-      out.push({m:m,r:r,ini:ini,fim:fim,ativo:ini<=hoje&&(m.continuo||fim>=hoje)})})});
-    return out.sort(function(a,b){return b.ini.localeCompare(a.ini)})}
+  /* remédios de todas as receitas, com início, fim e se está em uso hoje: a regra mora no núcleo (NUCLEO.famMeds, Fase 2 · A5) */
+  function famMeds(regs){return NUCLEO.famMeds(regs,hojeISO())}
   function famAtivos(regs){var vis={};return famMeds(regs).filter(function(x){var k=norm(x.m.nome).split(/\s+/).slice(0,2).join(" ");if(!x.ativo||vis[k])return false;vis[k]=1;return true})}
   function medLinha(x){
     var m=x.m,quando=m.continuo?"uso contínuo desde "+dataBR(x.ini):dataBR(x.ini)+(x.fim!==x.ini?" a "+dataBR(x.fim):"")+(m.dias?" ("+m.dias+(m.dias===1?" dia)":" dias)"):"");

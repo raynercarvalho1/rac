@@ -1,5 +1,5 @@
 /* Dia a Dia RAC — núcleo: login, menu e rotas, utilidades, tela inicial, aniversários, perfis do X, estudos, sincronização e falhas.
-   As seções grandes ficam em js/<seção>.js e carregam só quando abertas (veja modulo() e ROTA_MODS). */
+   As seções grandes ficam em js/<seção>.js e carregam só quando abertas (veja modulo() e o registro de rotas, js/rotas.js). */
   var NUCLEO=window.RACnucleo,urlAbs=NUCLEO.urlAbs,lerAbast=NUCLEO.lerAbast,TEMAS=NUCLEO.TEMAS,temasDe=NUCLEO.temasDe,juntarDados=NUCLEO.juntarDados;
   var MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   var $=function(s){return document.querySelector(s)};
@@ -8,11 +8,8 @@
   $("#hoje").textContent=now.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"});
 
   /* Rotas por hash: #esportes/beisebol/liga, #esportes/beisebol/time-119, #esportes/beisebol/jogo-849805,
-     #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... */
-  var tabs=["inicio","esportes","vagas","mercado","aniversarios","em-breve","x","estudos","mba","saude","conexoes","agenda","busca","sistema","resumo","lista","carreira","rede","documentos","eddie","olivia","veiculos","seguranca","painel","alimentacao","compras","fiscal","newsletter","rachoje","iacustos"];
-  var DA_CASA=["mercado","alimentacao","compras","fiscal","lista","eddie","olivia","veiculos","documentos","rede","seguranca"];
-  /* #esportes abre a Central Esportiva (o Giro mora dentro dela; #esportes/giro, de links antigos, também abre a Central); o futebol também mora na Central (js/esportes-central.js) */
-  var sports=["central","beisebol","basquete","futebol-americano","futebol"],SP_CENTRAL=["central","futebol"];
+     #esportes/basquete/jogo-401909092, #x/jornalistas, #vagas ... As páginas, o menu, quem vê cada uma (dono ou casa) e os módulos que cada uma
+     carrega vêm do registro de rotas (js/rotas.js, Fase 2 · A3): RAC_ROTAS e as listas tiradas dele (tabs, DA_CASA, ROTA_MODS, ROTAS). */
   function mark(sel,attr,val){document.querySelectorAll(sel).forEach(function(a){
     if(a.dataset[attr]===val)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
   /* Marca o item da barra lateral e copia o ícone e o nome dele para o título da página */
@@ -25,10 +22,14 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-13.1",MODULOS={},MOD_OK={};
-  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude"],carreira:["sistema"],bebe:["familia","oms"],resumo:["saude","mba","familia"],seguranca:["sistema"],painel:["resumo","sistema"],alimentacao:["resumo"],compras:["resumo"],hoje:["sistema","mba"],iacustos:["resumo"]};
-  var ROTA_MODS={esportes:["esportes","esportes-central"],eddie:["familia"],olivia:["familia"],veiculos:["familia"],mba:["mba"],saude:["saude"],
-    conexoes:["conexoes"],newsletter:["newsletter"],agenda:["sistema"],busca:["sistema"],sistema:["sistema"],lista:["lista"],carreira:["carreira"],documentos:["familia"],resumo:["resumo"],rede:["rede"],seguranca:["seguranca"],painel:["painel"],alimentacao:["alimentacao"],compras:["compras"],fiscal:["fiscal"],rachoje:["hoje"],iacustos:["iacustos"]};
+  var MOD_VERSAO="2026-11-13.2",MODULOS={},MOD_OK={};
+  /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
+     Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
+     o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
+     As fontes (Fase 2 · A4, js/fontes.js e js/fonte-*.js) são módulos leves, sem tela: o RAC Hoje lê Agenda, Newsletter, MBA e Família por elas, sem carregar
+     o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. */
+  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia"],iacustos:["graficos"],
+    familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
     MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
@@ -99,44 +100,8 @@
     var vf=$(".voltarbtn");if(vf)vf.hidden=!(PROF>0||VOLTAR_PAI);   /* o ← flutuante (celular) segue a MESMA regra do voltar da barra de título: em todas as páginas, menos onde não há para onde voltar (Início) */
     setSide(false);
     window.scrollTo(0,0);
-    if(top==="x"){var cat=xCats().some(function(c){return c.k===parts[1]})?parts[1]:"";sideMark(cat?"x/"+cat:"x","x");renderX(cat);return}
-    if(top==="mercado"){sideMark("mercado","mercado");if(window.RACmercado)window.RACmercado.render(parts[1]||"",parts[2]||"");return}
-    if(top==="inicio"){sideMark("inicio","inicio");renderInicio();return}
-    if(top==="estudos"){sideMark("estudos","estudos");renderEstudos();return}
-    if(top==="mba"){sideMark("mba","mba");renderMba(parts[1]);return}
-    if(top==="documentos"){sideMark("documentos","documentos");renderFamilia("docs");return}
-    if(top==="vagas")vgAlertas();
-    if(top==="rede"){sideMark("rede","rede");renderRede();return}
-    if(top==="carreira"){sideMark("carreira","carreira");renderCarreira(parts[1],parts[2]);return}
-    if(top==="lista"){sideMark("lista","lista");renderLista(parts[1]);return}
-    if(top==="agenda"){sideMark("agenda","agenda");renderAgenda();return}
-    if(top==="resumo"){sideMark("resumo","resumo");renderResumo(parts[1],parts[2]);return}
-    if(top==="painel"){sideMark("painel","painel");renderPainel(parts[1]);return}
-    if(top==="alimentacao"){sideMark("alimentacao","alimentacao");renderAlimentacao(parts[1],parts[2]);return}
-    if(top==="compras"){sideMark("compras","compras");renderCompras(parts[1],parts[2],parts[3]);return}
-    if(top==="fiscal"){sideMark("fiscal","fiscal");renderFiscal();return}
-    if(top==="rachoje"){sideMark("rachoje","rachoje");renderHoje();return}
-    if(top==="iacustos"){sideMark("iacustos","iacustos");renderCustosIa();return}
-    if(top==="busca"){sideMark("busca","busca");$("#ptitle").textContent="Busca";renderBusca(decodeURIComponent(parts.slice(1).join("/")||""));return}
-    if(top==="sistema"){sideMark("sistema","sistema");renderSistema();return}
-    if(top==="seguranca"){sideMark("seguranca","seguranca");renderSeguranca(parts[1]);return}
-    if(top==="conexoes"){sideMark("conexoes","conexoes");renderConexoes(parts[1],decodeURIComponent(parts[2]||""));return}
-    if(top==="newsletter"){sideMark("newsletter","newsletter");renderNewsletter(parts[1],decodeURIComponent(parts.slice(2).join("/")||""));return}
-    if(top==="saude"){sideMark("saude","saude");renderSaude(parts[1]==="treino"?parts[2]:null);return}
-    if(top==="eddie"||top==="olivia"){sideMark(top,top);renderFamilia(top);return}
-    if(top==="veiculos"){sideMark("veiculos","veiculos");renderVeiculos(parts[1]);return}
-    if(top!=="esportes"){sideMark(top,top);return}
-    var sp=sports.indexOf(parts[1])<0?"central":parts[1],naCentral=SP_CENTRAL.indexOf(sp)>=0;
-    ["central","beisebol","basquete","futebol-americano"].forEach(function(x){document.getElementById("sp-"+x).hidden=(x!==(naCentral?"central":sp))});
-    var v=parts[2]||"";
-    mark(".espnav a","v",sp==="beisebol"&&v==="dodgers"?"dodgers":sp);
-    sideMark(sp==="central"?"esportes":"esportes/"+sp+(sp==="beisebol"&&v==="dodgers"?"/dodgers":""),"esportes");
-    if(naCentral){renderCentral(sp);return}
-    if(sp==="beisebol"){
-      v=v||"liga";
-      mark("#sp-beisebol .pills a","v",/^time-/.test(v)?"times":v);
-      renderMlb(v)}
-    else renderEspn(sp==="basquete"?"nba":"nfl",v)
+    /* a página: o registro (js/rotas.js) diz como desenhar; sem marcaPropria, o item do menu é o da própria página */
+    var R=ROTAS[top];if(!R.marcaPropria)sideMark(top,top);if(R.abrir)R.abrir(parts)
   }
   window.addEventListener("hashchange",route);
   /* profundidade da navegação dentro do site, guardada no próprio histórico: o Voltar só usa o histórico se for daqui */
@@ -448,7 +413,7 @@
   /* ===== Datas, números e banco: usados por todas as seções ===== */
   function hojeISO(){var d=new Date();return d.getFullYear()+"-"+dd(d.getMonth()+1)+"-"+dd(d.getDate())}
   function dataBR(iso){var p=String(iso).split("-");return p[2]+"/"+p[1]+"/"+p[0]}
-  function sbOk(r){if(r.error)throw new Error(r.error.message);return r.data}
+  /* sbOk (resposta do banco → dados ou erro) e o cliente único do Supabase moram na camada de dados: js/dados.js (Fase 2 · A1) */
   /* Foto grande do celular vira JPEG de até 2000 px (exame continua legível e ocupa bem menos) */
   function encolher(f){
     if(!/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type)||f.size<700e3)return Promise.resolve(f);
@@ -462,7 +427,7 @@
   function maisDias(iso,n){var d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+dd(d.getMonth()+1)+"-"+dd(d.getDate())}
   function brl(v){return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
   /* ===== Login do site =====
-     O site é pessoal: sem login só aparece a tela de entrar. Usa as mesmas contas do Mercado (Supabase).
+     O site é pessoal: sem login só aparece a tela de entrar. Usa as mesmas contas do Mercado (Supabase), pelo cliente único de js/dados.js.
      Quem está na tabela "membros" (a esposa) é "casa" e vê só o Mercado; o dono vê tudo. */
   var PAPEL=null,SB=null,EU=null,DONO=null,PESSOAL={},SEM_TABELA=false;
   function isOwner(){return PAPEL==="dono"}
@@ -552,7 +517,7 @@
   $("#gate-esqueci").addEventListener("click",function(){
     var em=$("#gate-email").value.trim(),m=$("#gate-msg");if(!/.+@.+\..+/.test(em)){m.textContent="Digite o seu e-mail no campo acima e toque de novo em Esqueci a senha.";$("#gate-email").focus();return}
     m.textContent="Enviando…";
-    window.RACmercado.client().then(function(sb){return sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname})}).then(function(r){
+    window.RACdados.cliente().then(function(sb){return sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname})}).then(function(r){
       if(r&&r.error)throw r.error;m.textContent="Se esse e-mail tiver conta, chega um link em instantes (olhe também o spam). Abra o link neste aparelho para criar a senha nova."})
       .catch(function(e){m.textContent=/rate|seconds/i.test(e.message||"")?"Já enviei um link há pouco; espere um minuto e tente de novo.":"Não consegui enviar: "+(e.message||e)})});
   function mostrarGate(texto){
@@ -560,7 +525,7 @@
     $("#gate").hidden=false;$("#gate-msg").textContent=texto||"";
     setTimeout(function(){$("#gate-email").focus()},50)}
   function entrar(){
-    window.RACmercado.client().then(function(sb){SB=sb;return sb.auth.getSession()}).then(function(r){
+    window.RACdados.cliente().then(function(sb){SB=sb;return sb.auth.getSession()}).then(function(r){
       var ses=r.data&&r.data.session;
       if(!ses){hojeLimparLocal();mostrarGate(RECUPERAR?"O link expirou ou já foi usado. Peça outro em Esqueci a senha.":"");return}
       EU=ses.user;hojeAoEntrar(EU.id);
@@ -613,7 +578,7 @@
   $("#gate-form").addEventListener("submit",function(e){
     e.preventDefault();
     var b=$("#gate-enter"),m=$("#gate-msg");b.disabled=true;m.textContent="Entrando…";
-    window.RACmercado.client().then(function(sb){return sb.auth.signInWithPassword({email:$("#gate-email").value.trim(),password:$("#gate-pw").value})}).then(function(res){
+    window.RACdados.cliente().then(function(sb){return sb.auth.signInWithPassword({email:$("#gate-email").value.trim(),password:$("#gate-pw").value})}).then(function(res){
       b.disabled=false;
       if(res.error){m.textContent=/invalid/i.test(res.error.message)?"E-mail ou senha incorretos.":"Não consegui entrar: "+res.error.message;return}
       $("#gate-pw").value="";m.textContent="";entrar()
@@ -634,7 +599,7 @@
   if(passkeyOk()){$("#gate-passkey").hidden=false;$("#gate-ou").hidden=false}
   $("#gate-passkey").addEventListener("click",function(){
     var b=$("#gate-passkey"),m=$("#gate-msg");b.disabled=true;m.textContent="Esperando o Face ID…";
-    window.RACmercado.client().then(function(sb){return sb.auth.signInWithPasskey()}).then(function(res){
+    window.RACdados.cliente().then(function(sb){return sb.auth.signInWithPasskey()}).then(function(res){
       b.disabled=false;if(res.error)throw res.error;
       m.textContent="";entrar()
     }).catch(function(err){b.disabled=false;m.textContent=passkeyMsg(err)})});
@@ -1213,7 +1178,8 @@
   /* MBA: aulas, progresso, links e parte financeira (preenchidos por você, guardados na sua conta) */
   function proxVenc(dia){if(!dia)return null;var t=new Date(),d=new Date(t.getFullYear(),t.getMonth(),dia);if(d<new Date(t.getFullYear(),t.getMonth(),t.getDate()))d=new Date(t.getFullYear(),t.getMonth()+1,dia);return d}
   function num2(v){var s=String(v||"").replace(/[R$\s]/g,"");if(/,\d{1,2}$/.test(s))s=s.replace(/\./g,"").replace(",",".");return parseFloat(s)||0}
-  function BRL(v){return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+  /* moeda: BRL é o mesmo brl de cima (eram duas funções idênticas, Fase 2 · A2) */
+  var BRL=brl;
 
   /* Notícias de Sorocaba (noticias.json, atualizado pelo robô do GitHub a cada 3 horas) */
   function wNoticias(){

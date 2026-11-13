@@ -6,9 +6,11 @@ saúde (relógio Garmin), MBA, agenda, resumo, Newsletter, notificações no cel
 
 ## Como funciona
 
-- **Site estático, sem build.** `index.html` (CSS e telas) + `nucleo.js` (funções puras, testadas) + `mercado.js`
-  (Mercado e o cliente do Supabase) + `js/app.js` (rotas `#seção/sub`, login, Início). Os outros módulos de `js/`
-  são carregados quando a seção abre (`ROTA_MODS`, `MOD_DEPS` e `precisa()` em `js/app.js`).
+- **Site estático, sem build.** `index.html` (CSS e telas) + `nucleo.js` (funções puras, testadas) + `js/dados.js` (o cliente
+  único do Supabase, leitura paginada e erros) + `mercado.js` (Mercado) + `js/rotas.js` (registro de rotas e do menu: páginas, quem vê,
+  módulos de cada rota) + `js/app.js` (login, `route()`, Início). Os outros módulos de `js/` são carregados quando a seção abre
+  (`ROTA_MODS` do registro, `MOD_DEPS` e `precisa()` em `js/app.js`). Desde a Fase 2 (13/11/2026): gráficos compartilhados em
+  `js/graficos.js` e os agregadores leem outros domínios pelo contrato de fontes (`js/fontes.js` e `js/fonte-*.js`).
 - **Os módulos conversam por nomes globais** (sem import/export). Por isso um teste proíbe nome repetido entre arquivos.
 - **Dados no Supabase** (Postgres + Auth + Storage). O site usa só a chave pública; quem protege os dados é o RLS
   (cada linha é do dono; a casa compartilhada usa `dono_da_casa()`).

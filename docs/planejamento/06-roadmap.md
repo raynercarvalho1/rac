@@ -111,6 +111,26 @@ mesclado nem publicado, e dois critérios dependem de evidência de fora (o iPho
 | Robôs de Notícias e Vagas depois da ruleset | **Pendente**: investigação feita, sem evidência de push ainda | Um push bem-sucedido de cada robô na `main` depois da ruleset, registrado no histórico |
 | Reconciliar o estado dos documentos (I-01 a I-10) | **Não iniciado** nesta execução | Conferência só leitura do dono (D-14) |
 
+## 3.2 Andamento da Fase 2 (13/11/2026)
+
+A Fase 1 foi encerrada para fins de planejamento pelo dono em 13/11/2026 (PR #7 mesclado na `main`, commit `95940e4`); as validações de fora
+que restavam (iPhone e robôs depois da ruleset) não bloqueiam a Fase 2 e serão registradas à parte. A Fase 2 é executada na branch
+`claude/fase-2-fundacao-tecnica-rnfabm`, no PR #8 para a `main`. **A Fase 2 não está concluída**: falta o merge (do dono) e a A6 depende de
+SQL em produção, que só o dono aplica, com autorização própria.
+
+| Item | Situação | O que falta para concluir |
+|---|---|---|
+| A1 · Camada de dados | **Implementado na branch** (`js/dados.js`), teste de cliente único | Merge e publicação; conferir login, Mercado e Lista no celular |
+| A2 · Kit de UI e gráficos | **Implementado na branch** (`js/graficos.js`), teste de dependências | Merge e publicação |
+| A3 · Registro de rotas e menu | **Implementado na branch** (`js/rotas.js`), teste antes × depois | Merge e publicação; conferir o menu do dono e o da casa |
+| A4 · Contrato de fontes | **Implementado na branch** (Newsletter, Família, MBA e Agenda), testes de contrato | Merge e publicação |
+| A5 · Regras das telas no núcleo | **Implementado na branch** (`saudeInsights`, `famMeds`, Agenda, MBA), testes de equivalência | Merge e publicação |
+| A6 · Auditoria sem lista fixa | **Migration 050 preparada e testada (PGlite), não aplicada** | Merge; o dono aplicar a `supabase/050_seguranca_catalogo.sql` no SQL Editor e rodar a conferência `supabase/conferencias/050_conferir_producao.sql` (autorização própria) |
+
+Ordem de publicação depois do merge: o site funciona com ou sem a 050 (a linha nova da Auditoria só aparece com ela), então o merge pode
+vir antes; a 050 é aplicada quando o dono autorizar. Detalhes e achados no [Documento 02](02-auditoria-arquitetural.md#9-plano-gradual-de-melhoria)
+e no [histórico diário](historico-diario.md).
+
 ## 4. Como cada fase é entregue
 
 - Um **lote funcional** por vez: planejar, implementar, rodar o teste do módulo, rodar a suíte inteira, relatório objetivo.

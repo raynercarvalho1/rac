@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { ACOES } from "../supabase/functions/rac-ia/acoes.ts";
 import { custoDetalhe } from "../supabase/functions/rac-ia/orcamento.ts";
 import { atenderPedido } from "../supabase/functions/rac-ia/servico.ts";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
@@ -285,7 +286,13 @@ function site({ resp = {}, dono = true, racIA, jsons = {}, agenda, extra = {}, a
   if (locks) ctx.navigator = navegador(locks);
   ctx.agendaColetarLeitura = () => Promise.resolve(ctx.agendaColetar()).then((ev) => (ev && ev.estado ? ev : { eventos: ev, falhas: [], estado: ev.length ? "completa" : "vazia" }));
   ctx.atuLer = (f) => Promise.resolve().then(f).then((v) => ({ ok: true, v }), (e) => ({ ok: false, erro: e && e.message || String(e) }));
-  Object.assign(ctx, extra); ctx.window = ctx; vm.createContext(ctx); vm.runInContext(ler("js/hoje.js"), ctx, { filename: "hoje.js" });
+  /* Fase 2 · A4: o RAC Hoje lê Agenda, Newsletter, MBA e Família pelo contrato de fontes. Os arquivos de fonte de verdade (e a camada de
+     dados, A1) rodam aqui; depois voltam os dados simulados de sempre: a leitura da Agenda (agendaColetarLeitura) e os dados do MBA */
+  Object.assign(ctx, extra); ctx.window = ctx; vm.createContext(ctx);
+  const simulados = { agendaColetar: ctx.agendaColetar, agendaColetarLeitura: ctx.agendaColetarLeitura, sbOk: ctx.sbOk };
+  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), ctx, { filename: f });
+  Object.assign(ctx, simulados, { fonteMbaDados: () => ({ aulas: ctx.mbaAulas(), avals: ctx.mbaAvals(), fin: ctx.mbaFin() }) }, extra);
+  vm.runInContext(ler("js/hoje.js"), ctx, { filename: "hoje.js" });
   for (const f of arquivos) vm.runInContext(ler("js/" + f), ctx, { filename: f });
   return { ctx, b, mem, ia: ctxIA };
 }
@@ -332,9 +339,10 @@ test("só o dono: a casa (Fernanda) não coleta nem analisa, e nenhuma consulta 
   await assert.rejects(s.ctx.hojeColetar(), /só da conta do dono/); await assert.rejects(s.ctx.hojeAnalisar(), /só da conta do dono/);
   assert.equal(s.b.log.length, 0);
   const app = ler("js/app.js");
-  assert.match(app, /var DA_CASA=\["mercado","alimentacao","compras","fiscal","lista","eddie","olivia","veiculos","documentos","rede","seguranca"\];/, "as páginas da Fernanda são as mesmas (a Central Fiscal entrou por decisão do dono em 07/11/2026)");
-  assert.match(/var ROTA_MODS=\{[^}]*\}/.exec(app)[0], /rachoje:\["hoje"\]/, "o RAC Hoje tem página (#rachoje), mas só o dono chega nela");
-  assert.ok(!/DA_CASA=\[[^\]]*(hoje|iacustos)/.test(app), "a Fernanda não vê o RAC Hoje nem os Custos de IA");
+  const RT = registro();
+  assert.deepEqual(RT.DA_CASA, ["rede", "mercado", "alimentacao", "compras", "fiscal", "lista", "olivia", "eddie", "veiculos", "documentos", "seguranca"], "as páginas da Fernanda são as mesmas (a Central Fiscal entrou por decisão do dono em 07/11/2026); a ordem é a do menu (registro de rotas, A3)");
+  assert.deepEqual(RT.ROTA_MODS.rachoje, ["hoje"], "o RAC Hoje tem página (#rachoje), mas só o dono chega nela");
+  assert.ok(!RT.DA_CASA.some((x) => /hoje|iacustos/.test(x)), "a Fernanda não vê o RAC Hoje nem os Custos de IA");
   assert.match(ler("supabase/028_hoje.sql"), /check \(not \('hoje\.analise' = any \(acoes_reais_casa\)\)\)/, "o banco proíbe o RAC Hoje para a casa");
 });
 
@@ -653,17 +661,16 @@ test("código das telas: ES5, a IA só é chamada pelo botão confirmado, nada g
   assert.ok(/function hjBotaoPago/.test(tela) && /Confirmar e chamar a IA/.test(tela) && /if\(HJ\.ocupado\)return/.test(tela), "confirmação e trava de pedido duplicado");
   assert.ok(!/racIA\(|functions\.invoke|\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/.test(ic), "Custos de IA só lê");
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(|functions\.invoke/.test(tela), "o RAC Hoje não grava nem chama funções além do racIA do botão");
-  assert.match(app, /MOD_DEPS=\{[^}]*iacustos:\["resumo"\]/);
-  assert.match(app, /"newsletter","rachoje","iacustos"\]/);
-  assert.match(app, /if\(top==="rachoje"\)\{sideMark\("rachoje","rachoje"\);renderHoje\(\);return\}/);
-  assert.match(app, /if\(top==="iacustos"\)\{sideMark\("iacustos","iacustos"\);renderCustosIa\(\);return\}/);
+  assert.match(app, /MOD_DEPS=\{[^}]*iacustos:\["graficos"\]/, "os gráficos vêm do kit (js/graficos.js, Fase 2 · A2), sem carregar o Resumo");
+  const RT = registro(); assert.ok(RT.tabs.includes("rachoje") && RT.tabs.includes("iacustos"));
+  const rh = rota("rachoje"), ri = rota("iacustos"); assert.ok(!rh.marcaPropria && !ri.marcaPropria); assert.match(rh.abrirTexto, /renderHoje\(\)/); assert.match(ri.abrirTexto, /renderCustosIa\(\)/);
   assert.match(ler("sw.js"), /"\.\/js\/iacustos\.js"/);
   const html = ler("index.html");
   assert.match(html, /<section id="rachoje" hidden><div id="rachoje-view"/);
   assert.match(html, /<section id="iacustos" hidden><div id="iacustos-view"/);
-  assert.match(html, /href="#rachoje" data-k="rachoje"/);
-  assert.match(html, /href="#iacustos" data-k="iacustos"/);
-  assert.ok(/html\.casa #navgrp a\.it:not\(\[data-k="mercado"\]\)/.test(html) && !/data-k="hoje"\]\)/.test(html), "o menu da Fernanda continua só com as páginas dela");
+  assert.match(RT.menu, /href="#rachoje" data-k="rachoje">/, "item do menu sem data-casa");
+  assert.match(RT.menu, /href="#iacustos" data-k="iacustos">/, "item do menu sem data-casa");
+  assert.ok(/html\.casa #navgrp a\.it:not\(\[data-casa\]\)/.test(html), "o menu da Fernanda continua só com as páginas dela");
 });
 
 /* ---------------------------------------------------------------- revisão final das telas */
@@ -980,17 +987,20 @@ test("R1: sem a chave ou o pedido originais, o reenvio não é oferecido nem ace
   assert.ok(botao(u.alvos["#rachoje-view"], "Pedir outra análise (nova cobrança)"), "a saída explícita (nova cobrança) continua");
 });
 
-/* ---- R2: o estado real da Agenda (a função de verdade, extraída de js/sistema.js) */
+/* ---- R2: o estado real da Agenda (as funções de verdade: a fonte da Agenda, js/fonte-agenda.js desde a Fase 2 · A4, com a escolha dos itens no
+   núcleo, NUCLEO.agendaItens, A5; e o trecho da tela que ficou em js/sistema.js) */
 function agendaReal({ registros, owner = true, backup, aulas = true, lembretes = true, veic = true, candidaturas = [] } = {}) {
   const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  /* ===== Próxima melhor ação");
-  assert.ok(i > 0 && j > i, "o trecho da Agenda está no sistema.js");
+  assert.ok(i > 0 && j > i, "o trecho da tela da Agenda está no sistema.js");
   const pronto = (r) => (r && r.rejeita ? Promise.reject(new Error(r.rejeita)) : Promise.resolve(r));
   const ctx = { console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, hojeISO: () => HOJE, isOwner: () => owner, logErro: () => {},
     sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, maisDias: (d, n) => N.somaDiasISO(d, n), tipoInfo: () => ["x", "Revisão"], dataBR: (d) => d.split("-").reverse().join("/"), BRL: (v) => "R$ " + v,
-    FAM: { civic: { n: "Civic", veic }, eddie: { n: "Eddie" } }, withDates: () => [], mbaAulas: () => (aulas ? [{ data: "2026-11-12", hora: "19:00", t: "Python II" }] : []), mbaAvals: () => [], mbaFin: () => null,
+    FAM: { civic: { n: "Civic", veic }, eddie: { n: "Eddie" } }, AGENDA_ICO: {}, withDates: () => [],
+    fonteMbaDados: () => ({ aulas: aulas ? [{ data: "2026-11-12", hora: "19:00", t: "Python II" }] : [], avals: [], fin: null }),
     NUCLEO: N, PESSOAL: { ultimoBackup: HOJE, candidaturas, lembretes: lembretes ? [{ id: "l1", data: "2026-11-11", t: "Ligar para o seguro" }] : [] }, EU: { id: "dono-1" },
     SB: { from: () => ({ select: () => ({ order: () => pronto(registros) }) }), storage: { from: () => ({ list: () => pronto(backup || { data: [{ name: "2026-11-08.zip" }], error: null }) }) } } };
-  vm.createContext(ctx); vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda)" });
+  vm.createContext(ctx); for (const f of ["js/fontes.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), ctx, { filename: f });
+  vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda)" });
   return ctx;
 }
 const REGS_OK = { data: [{ id: 1, quem: "civic", tipo: "revisao", data: "2026-10-01", titulo: "Revisão 30 mil", proxima: "2026-11-15", dados: {} }], error: null };
@@ -1477,7 +1487,7 @@ test("E5/2: a conta da casa continua exatamente como era: mesma tela, nenhum eve
   /* o app.js: os caminhos de saída e da casa continuam os de antes, e nada de autenticação foi tocado */
   const app = ler("js/app.js"); assert.match(app, /if\(PAPEL!=="dono"\)\{hojeLimparLocal\(\);return\}/); assert.match(app, /hojeAoEntrar\(EU\.id\)/);
   assert.ok(!/onAuthStateChange/.test(app + ler("js/hoje.js").replace(/\/\*[\s\S]*?\*\//g, "")), "nenhum listener de autenticação foi criado");
-  const mer = ler("mercado.js"); assert.match(mer, /persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth", experimental: \{ passkey: true \}/, "a configuração do Supabase não foi alterada");
+  const mer = ler("js/dados.js"); assert.match(mer, /persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth", experimental: \{ passkey: true \}/, "a configuração do Supabase não foi alterada (mora na camada de dados desde a Fase 2 · A1)");
   assert.match(ler("js/hoje.js"), /HOJE_AUTH_CHAVE="rac-mercado-auth"/, "e a chave vigiada é a mesma da configuração");
   const d = ler("docs/hoje.md"); assert.match(d, /Sessão em outra aba/); assert.match(d, /não foi exercitad[oa] em navegadores reais/);
 });
@@ -1623,19 +1633,20 @@ const acharTodos = (e, f, acc = []) => { if (e && typeof e === "object") { if (f
 const pausa = () => new Promise((r) => setTimeout(r, 15));
 function inicioReal({ registros = { data: [], error: null }, candidaturas = [], lembretes = [], dias = [], ativs = [], vagas = [], recolhido = false } = {}) {
   const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  function renderAgenda(");
-  assert.ok(i > 0 && j > i, "o trecho da Agenda e da Próxima melhor ação está no sistema.js");
+  assert.ok(i > 0 && j > i, "o trecho da tela da Agenda e da Próxima melhor ação está no sistema.js (a leitura está em js/fonte-agenda.js)");
   const ouv = {}, gravados = [], estado = { recolhido };
   const doc = { addEventListener: (n, f) => { (ouv[n] = ouv[n] || []).push(f); }, removeEventListener: (n, f) => { ouv[n] = (ouv[n] || []).filter((x) => x !== f); }, dispatchEvent: (e) => { (ouv[e.type] || []).slice().forEach((f) => f(e)); } };
   const ok = (data) => Promise.resolve({ data, error: null });
   const ctx = { console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, hojeISO: () => HOJE, isOwner: () => true, logErro: () => {}, document: doc, Event: class { constructor(t) { this.type = t; } },
     sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, maisDias: (d, n) => N.somaDiasISO(d, n), tipoInfo: () => ["x", "Revisão"], dataBR: (d) => d.split("-").reverse().join("/"), BRL: (v) => "R$ " + v,
-    FAM: { civic: { n: "Civic", veic: true } }, withDates: () => [], mbaAulas: () => [], mbaAvals: () => [], mbaFin: () => null, NUCLEO: N, EU: { id: "dono-1" }, location: { hash: "" }, window: { open() {} },
+    FAM: { civic: { n: "Civic", veic: true } }, AGENDA_ICO: {}, withDates: () => [], fonteMbaDados: () => ({ aulas: [], avals: [], fin: null }), NUCLEO: N, EU: { id: "dono-1" }, location: { hash: "" }, window: { open() {} },
     PESSOAL: { ultimoBackup: HOJE, candidaturas, lembretes }, VG: { all: vagas }, vgHidden: {}, h: elFalso, recolhidos: () => (estado.recolhido ? { "Próxima melhor ação": 1 } : {}),
     wCard: (t, ic, cor, more, cls) => { const e = elFalso("div", { class: "panel " + cls }); e.titulo = t; return e; },
     pessoalGravar: (k, v) => { ctx.PESSOAL[k] = v; gravados.push(k); },
     SB: { from: (t) => (t === "registros" ? { select: () => ({ order: () => Promise.resolve(registros) }) } : t === "garmin_dia" ? { select: () => ({ gte: () => ({ order: () => ok(dias) }) }) } : { select: () => ({ gte: () => ok(ativs) }) }),
       storage: { from: () => ({ list: () => ok([{ name: HOJE + ".zip" }]) }) } } };
-  vm.createContext(ctx); vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda + próxima ação)" });
+  vm.createContext(ctx); for (const f of ["js/fontes.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), ctx, { filename: f });
+  vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda + próxima ação)" });
   ctx.estado = estado; ctx.gravados = gravados; ctx.doc = doc; return ctx;
 }
 const CAND_VELHA = { id: "c-velha", t: "Técnico de Suporte N2", e: "Acme", coluna: "candidatei", datas: { candidatei: "2026-09-20" }, interacoes: [{ d: "2026-09-20", tipo: "E-mail", t: "Candidatura: Recebemos" }] };

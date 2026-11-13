@@ -491,7 +491,7 @@ test("Face ID: entrar com passkey no login, cadastrar, listar e remover na Centr
         mfa: { listFactors: () => Promise.resolve({ data: { all: [], totp: [] } }), getAuthenticatorAssuranceLevel: () => Promise.resolve({ data: { currentLevel: "aal1", nextLevel: "aal1" } }) } };
       const tabela = () => { const q = { select: () => q, order: () => q, limit: () => q, insert: () => q, then: (ok, no) => Promise.resolve({ data: [], error: null }).then(ok, no) }; return q; };
       window.__sbFalso = { auth, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "Could not find the function" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) } };
-      window.RACmercado.client = () => Promise.resolve(window.__sbFalso);
+      window.RACdados.cliente = () => Promise.resolve(window.__sbFalso);   // o cliente único do site (js/dados.js, Fase 2 · A1)
       entrar = () => { reg.chamadas.push("entrar"); };
     });
     await pag.click("#gate-passkey");

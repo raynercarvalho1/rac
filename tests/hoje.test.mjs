@@ -1632,8 +1632,8 @@ const textoDe = (e) => (e == null ? "" : typeof e === "string" ? e : [e.attrs &&
 const acharTodos = (e, f, acc = []) => { if (e && typeof e === "object") { if (f(e)) acc.push(e); (e.children || []).forEach((c) => acharTodos(c, f, acc)); } return acc; };
 const pausa = () => new Promise((r) => setTimeout(r, 15));
 function inicioReal({ registros = { data: [], error: null }, candidaturas = [], lembretes = [], dias = [], ativs = [], vagas = [], recolhido = false } = {}) {
-  const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  function renderAgenda(");
-  assert.ok(i > 0 && j > i, "o trecho da tela da Agenda e da Próxima melhor ação está no sistema.js (a leitura está em js/fonte-agenda.js)");
+  const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  /* A página Agenda (renderAgenda:");
+  assert.ok(i > 0 && j > i, "o trecho do cartão da Agenda do Início e da Próxima melhor ação está no sistema.js (a leitura está em js/fonte-agenda.js; a página Agenda, desde a DS-4.1, é js/agenda.js)");
   const ouv = {}, gravados = [], estado = { recolhido };
   const doc = { addEventListener: (n, f) => { (ouv[n] = ouv[n] || []).push(f); }, removeEventListener: (n, f) => { ouv[n] = (ouv[n] || []).filter((x) => x !== f); }, dispatchEvent: (e) => { (ouv[e.type] || []).slice().forEach((f) => f(e)); } };
   const ok = (data) => Promise.resolve({ data, error: null });
@@ -1717,7 +1717,9 @@ test("Próxima ação 6: a Agenda do Início não mostra 'sem retorno' como atra
   const c = inicioReal({ candidaturas: [CAND_VELHA] }); const ag = c.wAgenda(); await pausa();
   assert.ok(!textoDe(ag).includes("Técnico de Suporte N2"), "a candidatura antiga não toma as primeiras linhas");
   assert.match(textoDe(ag), /Nada vencendo nos próximos 7 dias/);
-  const src = ler("js/sistema.js"); assert.match(src, /\["Candidaturas sem retorno",function\(e\)\{return !!e\.semRetorno\},true\]/); assert.match(src, /\["Atrasados",function\(e\)\{return e\.data<hoje&&!e\.semRetorno\}/);
+  /* desde a DS-4.1 o agrupamento da página Agenda é do núcleo (NUCLEO.agdGrupos) e a tela está em js/agenda.js; os critérios são os mesmos (tests/nucleo.test.mjs compara com os de antes) */
+  const src = ler("nucleo.js"); assert.match(src, /\["semretorno","Candidaturas sem retorno"\]/); assert.match(src, /atrasados:function\(e\)\{return e\.data<hoje&&!e\.semRetorno\}/); assert.match(src, /semretorno:function\(e\)\{return !!e\.semRetorno\}/);
+  assert.match(ler("js/agenda.js"), /NUCLEO\.agdGrupos\(NUCLEO\.agdFiltrar\(ev,AGD\.filtro\),hoje\)/, "a página Agenda usa o agrupamento do núcleo");
   assert.match(ler("js/painel.js"), /e\.data<hoje&&!e\.semRetorno/, "o Painel também não conta 'sem retorno' como atrasado");
 });
 

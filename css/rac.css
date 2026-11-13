@@ -267,3 +267,42 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
   .rac-t-num{font-size:calc(28px + var(--fz))}
 }
 @media(max-width:380px){.rh-kpis{gap:var(--rac-esp-2)}.rac-t-num{font-size:calc(25px + var(--fz))}}
+
+/* ---------- 5. AGENDA (#agenda; DS-4.1) ---------- */
+/* a página usa o esqueleto do piloto (.rh: abertura, indicadores, colunas 7/5) e os componentes rac-*; aqui só o que é da Agenda. Só o dono abre a página. */
+.ag-col,.ag-corpo,.ag-graf{display:flex;flex-direction:column;gap:var(--rac-esp-4);min-width:0}
+.ag-hero-desc{font-size:calc(13px + var(--fz));opacity:.88}
+.ag-chips{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2)}
+.ag-chip-n{margin-left:var(--rac-esp-2);font-variant-numeric:tabular-nums;opacity:.85}
+/* lista: a linha é um link inteiro (marca, ícone da área, texto, quando) e, se houver, as ações rápidas ficam ao lado ou abaixo, alinhadas com o texto */
+.ag-item{display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--rac-esp-2);border-bottom:1px solid var(--rac-borda)}
+.ag-item:last-child{border-bottom:0}
+.ag-item .rac-linha-item{border-bottom:0}
+.ag-main{flex:1 1 280px;min-width:0}
+.ag-ico{flex:none;width:32px;height:32px;display:grid;place-items:center;border-radius:var(--rac-raio-1);background:var(--rac-papel-2);font-size:calc(17px + var(--fz));line-height:1}
+.ag-marca-vazia{background:transparent}
+.ag-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);flex:none;padding:var(--rac-esp-2)}
+.ag-acoes .rac-btn{padding:0 var(--rac-esp-4)}
+/* próxima melhor ação: o destaque em bloco, com as ações à vista */
+.ag-destaque{display:flex;flex-direction:column;align-items:flex-start;gap:var(--rac-esp-2);padding:var(--rac-esp-4);border-radius:var(--rac-raio-2);background:var(--rac-azul-suave);min-width:0}
+.ag-dest-cab{display:flex;align-items:center;gap:var(--rac-esp-2);flex-wrap:wrap}
+.ag-destaque .ag-ico{background:var(--rac-papel)}
+.ag-destaque .rac-t-sec{color:var(--rac-texto)}
+.ag-dest-titulo{color:var(--rac-texto);text-decoration:none;overflow-wrap:anywhere}
+a.ag-dest-titulo:hover{text-decoration:underline}
+.ag-destaque .ag-acoes{padding:var(--rac-esp-2) 0 0}
+/* os próximos 14 dias: uma célula por dia (data, dia da semana e quantos itens); mais azul = mais itens; hoje com contorno */
+.ag-dias{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--rac-alvo),1fr));gap:var(--rac-esp-1)}
+.ag-dia{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:var(--rac-alvo);min-height:60px;padding:6px 2px;border-radius:var(--rac-raio-1);border:2px solid transparent;background:var(--rac-papel-2);color:var(--rac-texto);cursor:pointer}
+.ag-dia .sem{font:600 calc(10.5px + var(--fz)) var(--f-ui);text-transform:uppercase;letter-spacing:.04em;color:var(--rac-texto-2)}
+.ag-dia .dd{font:700 calc(16px + var(--fz)) var(--f-ui);font-variant-numeric:tabular-nums}
+.ag-dia .qt{font:600 calc(12px + var(--fz)) var(--f-ui);font-variant-numeric:tabular-nums;color:var(--rac-texto-2)}
+.ag-dia--1{background:var(--rac-azul-suave)}.ag-dia--1 .qt{color:var(--rac-info)}
+.ag-dia--2{background:var(--rac-dodger);color:var(--rac-sobre-fill)}.ag-dia--2 .sem,.ag-dia--2 .qt{color:var(--rac-sobre-fill)}
+.ag-dia--hoje{border-color:var(--rac-info)}
+.ag-dia:focus-visible{outline:2px solid var(--rac-foco);outline-offset:2px}
+.ag-dia.dicaon{filter:brightness(.92)}
+@media(max-width:760px){
+  .ag-acoes{flex:1 1 100%;padding:0 var(--rac-esp-2) var(--rac-esp-3) 68px}
+  .ag-hero-desc{display:none}
+}

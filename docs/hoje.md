@@ -185,7 +185,7 @@ O RAC Hoje não chama a Próxima ação (usa a mesma régua do núcleo, `NUCLEO.
 ## Régua de prioridades (Próxima melhor ação, Agenda, resumo falado e RAC Hoje)
 
 Uma régua só, em `nucleo.js` (`NUCLEO.pri*`, funções puras que recebem a data de referência). Quem usa: o cartão **Próxima melhor ação** do Início
-(`proximasSelecao` em `js/sistema.js`), a Agenda do Início e a página Agenda, o resumo falado (`briefingTexto`, `js/app.js`) e o RAC Hoje
+(`proximasSelecao` em `js/sistema.js`), a Agenda do Início e a página Agenda (`js/agenda.js`, desde a DS-4.1; ver [`docs/agenda.md`](agenda.md)), o resumo falado (`briefingTexto`, `js/app.js`) e o RAC Hoje
 (`hojePrioridade`/`hojeItem`/`hojeItens` chamam a mesma `priPontos`).
 
 | Prazo | O que é | Pontos | Validade |

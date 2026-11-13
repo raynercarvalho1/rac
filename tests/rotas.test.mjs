@@ -19,8 +19,11 @@ test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (a
   assert.ok(R.tabs.includes("componentes") && !R.DA_CASA.includes("componentes"), "a página de componentes existe e a casa não a vê");
   assert.deepEqual(ordenado(R.DA_CASA), ordenado(antes.DA_CASA), "a Fernanda vê exatamente as mesmas páginas");
   assert.deepEqual(ordenado(R.DA_CASA), ["alimentacao", "compras", "documentos", "eddie", "fiscal", "lista", "mercado", "olivia", "rede", "seguranca", "veiculos"]);
-  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, ...modsSemNova } = R.ROTA_MODS;
-  assert.deepEqual(modsSemNova, antes.ROTA_MODS, "cada rota carrega os mesmos módulos sob demanda");
+  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, agenda: _a, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, ...modsAntesSemAgenda } = antes.ROTA_MODS;
+  assert.deepEqual(modsSemNova, modsAntesSemAgenda, "cada rota carrega os mesmos módulos sob demanda");
+  /* DS-4.1: a Agenda saiu do Sistema para o próprio módulo (js/agenda.js); ele depende do Sistema, então abrir a Agenda continua carregando o que carregava */
+  assert.deepEqual(antes.ROTA_MODS.agenda, ["sistema"]); assert.deepEqual(R.ROTA_MODS.agenda, ["agenda"]);
+  assert.match(app, /agenda:\["sistema","kit","graficos"\]/, "o módulo da Agenda declara o Sistema (régua e ações), o kit e os gráficos");
   for (const r of R.rotas) assert.ok(!r.mods || r.mods.every((m) => lerArq("js/" + m + ".js")), r.id);
   for (const id of R.tabs) assert.match(html, new RegExp(`<section id="${id}" hidden>`), id + " tem a sua <section>");
   assert.ok(!/var tabs=|var DA_CASA=|var ROTA_MODS=|var sports=/.test(app), "as listas não são mais mantidas à mão em js/app.js");
@@ -52,8 +55,8 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
 const RENDER = ["renderX", "renderInicio", "renderEstudos", "renderMba", "renderFamilia", "renderRede", "renderCarreira", "renderLista", "renderAgenda", "renderResumo", "renderPainel",
   "renderAlimentacao", "renderCompras", "renderFiscal", "renderHoje", "renderCustosIa", "renderBusca", "renderSistema", "renderSeguranca", "renderConexoes", "renderNewsletter", "renderSaude",
   "renderVeiculos", "renderCentral", "renderMlb", "renderEspn", "vgAlertas", "abrirCaptura", "sideMark", "mark", "atuBotao", "atuAviso", "fundoPagina", "marcarProfundidade", "setSide", "logErro"];
-const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "conexoes", "newsletter", "sistema", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
-function rodar(codigo, { papel, hash, carregados }) {
+const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
+function rodar(codigo, { papel, hash, carregados, cru }) {
   const log = [], el = (nome) => new Proxy({}, { set(_, k, v) { log.push(["set", nome, k, v]); return true; }, get(_, k) { if (k === "insertAdjacentHTML") return () => {}; if (k === "insertBefore") return () => log.push(["erro na tela", nome]); return undefined; } });
   const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
     location: { hash }, history: { state: null, replaceState: (s, t, u) => log.push(["replaceState", u]) }, isOwner: () => papel === "dono",
@@ -63,14 +66,16 @@ function rodar(codigo, { papel, hash, carregados }) {
     document: { getElementById: (id) => el("#" + id), querySelector: (s) => el(s), documentElement: { setAttribute: (k, v) => log.push(["attr", k, v]) } } };
   for (const n of RENDER) ctx[n] = (...a) => { log.push([n, ...a]); };
   ctx.window = ctx; vm.createContext(ctx); vm.runInContext(codigo, ctx); ctx.route();
-  return juntarSecoes(log);
+  return juntarSecoes(log, cru);
 }
 /* a única diferença aceita: a ORDEM em que as <section> são escondidas dentro do mesmo laço (tabs.forEach), que antes seguia a lista
    escrita à mão e agora segue o registro. É um laço síncrono, sem desenho no meio: o resultado na tela é o mesmo. Cada sequência de
    "esconde/mostra seção" vira um bloco ordenado; todo o resto (o que é chamado, com que argumentos e em que ordem) é comparado como veio */
-function juntarSecoes(log) {
+function juntarSecoes(log, cru) {
   const out = []; let bloco = null;
-  for (const x of log) {
+  for (let x of log) {
+    /* DS-4.1: abrir a Agenda carrega o módulo "agenda" (que traz o "sistema" como dependência) em vez de só o "sistema"; fora do modo cru, é comparado como o mesmo pedido de antes */
+    if (!cru && x[0] === "precisa" && x[1] === "agenda") x = ["precisa", "sistema"];
     if (x[0] === "set" && x[1] === "#componentes") continue;   // a seção nova (Fase 3) não existia na cópia de antes
     if (x[0] === "set" && x[2] === "hidden" && /^#[a-z-]+$/.test(x[1]) && !/^#(sp-|homebtn|voltarbtn)/.test(x[1])) { if (!bloco) { bloco = []; out.push(["seções", bloco]); } bloco.push(x[1] + "=" + x[3]); continue; }
     if (bloco) bloco.sort(); bloco = null; out.push(x);
@@ -95,7 +100,9 @@ test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas
   /* e o que se espera de alguns, para o teste não comparar dois "nada" */
   const dono = rodar(NOVO, { papel: "dono", hash: "#saude/treino/123", carregados: true }), casa = rodar(NOVO, { papel: "casa", hash: "#rachoje", carregados: true });
   assert.ok(dono.some((x) => x[0] === "renderSaude" && x[1] === "123")); assert.ok(casa.some((x) => x[0] === "RACmercado.render"), "a casa num endereço do dono vai para a Central de Compras");
-  assert.deepEqual(rodar(NOVO, { papel: "dono", hash: "#agenda", carregados: false }).filter((x) => x[0] === "precisa"), [["precisa", "sistema"]], "carrega o módulo antes de abrir");
+  assert.deepEqual(rodar(NOVO, { papel: "dono", hash: "#agenda", carregados: false }).filter((x) => x[0] === "precisa"), [["precisa", "sistema"]], "carrega o módulo antes de abrir (comparado como antes)");
+  assert.deepEqual(rodar(NOVO, { papel: "dono", hash: "#agenda", carregados: false, cru: true }).filter((x) => x[0] === "precisa"), [["precisa", "agenda"]], "de fato pede o módulo da Agenda");
+  assert.ok(rodar(NOVO, { papel: "dono", hash: "#agenda", carregados: true }).some((x) => x[0] === "renderAgenda"), "com o módulo carregado, abre a página da Agenda");
 });
 
 test("destinos das notificações (Agenda, Resumo, Lista e outros do site) abrem a mesma página de antes", () => {

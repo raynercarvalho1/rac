@@ -136,7 +136,7 @@ e no [histórico diário](historico-diario.md).
 A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em 13/11/2026). A Fase 3 é executada na branch `claude/rac-fase-3-design-system-0msm91`, no **PR #9**.
 **Direção redefinida pelo dono em 13/11/2026: RAC Modern Workspace** (tema claro padrão; fundo e azul Dodger preservados; escuro funcional). A F3 passa a incluir o **piloto no RAC Hoje**
 (antes DS-3) e o menu por área (antes DS-2), porque a primeira versão do DS-1 não entregava transformação perceptível. Guia: [`docs/design-system.md`](../design-system.md).
-**A Fase 3 não está concluída**: falta o merge (do dono) e a aprovação do piloto no iPhone (critério da F3). Nada foi publicado.
+**Atualização (13/11/2026, informada pelo dono): a Fase 3 está concluída**: PR #9 mesclado na `main` (`f75a1f1`) e o piloto RAC Hoje validado no iPhone pelo dono; a direção RAC Modern Workspace está aprovada. (O texto e a tabela abaixo são o registro de como a fase foi entregue.)
 
 | Item | Situação | O que falta para concluir |
 |---|---|---|
@@ -144,10 +144,26 @@ A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em
 | DS-1 · Componentes `rac-*`, kit `js/kit.js` e página `#componentes` | **Redefinidos na branch**: cartões por função, gráficos (medidor, comparação, colunas, barras), estados, campos | Merge; o dono conferir no iPhone |
 | DS-2 · Menu por área e barra inferior no celular | **Feito na branch** (só dono; casa idêntica, comprovado em 20 telas) | Merge e publicação |
 | DS-3 · Piloto RAC Hoje | **Feito na branch**: painel com indicadores, gráficos, prioridades, contexto, saúde, IA e fontes recolhidas; lógica de IA intacta | Merge; uso real e aprovação do dono |
-| DS-4 · Demais módulos por área | **Não iniciado**; um módulo por vez, baixando a catraca | Aprovação do piloto |
+| DS-4 · Demais módulos por área | **Em andamento**: DS-4.1 Agenda feita na branch (seção 3.4); **Saúde é a próxima**; depois Finanças, Carreira e Informação | Um módulo por vez, baixando a catraca quando o CSS antigo sair de uso |
 | DS-5 · Telas da casa | **Não iniciado** | **Autorização expressa do dono** |
 
 Próximos passos técnicos: DS-4 pelo que o dono mais usa (Agenda e Saúde são os candidatos, por já alimentarem o painel); D-12 (Início × RAC Hoje); quando a Fase 4 criar medicamentos, encomendas e contas, o painel ganha esses blocos sem novo desenho.
+
+## 3.4 Andamento da DS-4 · Agenda (13/11/2026)
+
+A DS-4 migra os módulos para o Design System um por vez. O primeiro é a **Agenda** (DS-4.1), na branch `claude/agenda-modernizacao-ds4-xuijw0` (PR para a `main`; **merge e publicação são do dono**).
+Descrição da página, regras preservadas e testes: [`docs/agenda.md`](../agenda.md). **A DS-4.1 só conta como concluída quando o dono a vir no iPhone e o PR for mesclado.**
+
+| Item | Situação | O que falta |
+|---|---|---|
+| Página Agenda no RAC Modern Workspace (abertura, indicadores, Próxima melhor ação, filtro por área, lista agrupada, 14 dias, por área, novo lembrete) | **Feita na branch**, testada (Node e Chromium em 390, 768 e 1280 px, claro e escuro) | Merge e publicação; o dono ver no iPhone |
+| Regras de negócio, leitura e ações rápidas | **Preservadas**: mesmos grupos e critérios, mesma régua, mesmos caminhos de gravação (testes comparam com os de antes) | — |
+| Isolamento de `js/sistema.js` | Só a tela saiu para `js/agenda.js`; Backup, Busca, Monitor, IA, Sistema e os cartões do Início ficaram intactos | — |
+| Casa (Fernanda) | A página não existe para a casa; 44 telas da casa comparadas com a `main` (11 rotas × 390 e 1280 px × claro e escuro): idênticas byte a byte | — |
+| Início (`#inicio`) com os cartões antigos "Próxima melhor ação" e "Agenda" | **Não migrado** (convive até a decisão D-12) | Decisão do dono (Início × RAC Hoje) |
+| Catraca de cores (`LINHA_DE_BASE_CORES`, 115) | **Não baixou**: o CSS antigo da Agenda ainda serve os cartões do Início | Baixar quando o Início migrar |
+
+**Próximo módulo da DS-4: Saúde** (não iniciado; só começa depois do pedido do dono).
 
 ## 4. Como cada fase é entregue
 

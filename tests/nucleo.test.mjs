@@ -617,3 +617,67 @@ test("prioridades: a sugestão de Saúde só existe com dado de ontem ou hoje e 
   assert.equal(N.priSaude({ prontidao: 80, atraso: 1, semTreino: null }), null, "sem treino registrado, não inventa");
   assert.deepEqual([N.priSaude({ prontidao: 30, atraso: 0, semTreino: 1, alertas: ["sono curto"] }).tipo, N.priSaude({ prontidao: 72, atraso: 1, semTreino: 4 }).tipo, N.priSaude({ prontidao: 72, atraso: 1, semTreino: 4 }).forte], ["recuperacao", "treino", true]);
 });
+
+/* ---------- DS-4.1 · Agenda (RAC Modern Workspace): agrupamento, indicadores, série e filtro (NUCLEO.agd*) ---------- */
+const AG_HOJE = "2026-11-13";
+const dia = (n) => N.somaDiasISO(AG_HOJE, n);
+const evAg = (data, t, extra = {}) => ({ data, t, sub: "", tipo: "familia", href: "", ...extra });
+/* os critérios de ANTES, copiados de renderAgenda (js/sistema.js até a DS-4.1): o agrupamento novo tem que dar exatamente o mesmo */
+function gruposAntes(ev, hoje) {
+  const mais = (d, n) => N.somaDiasISO(d, n);
+  const G = [["Atrasados", (e) => e.data < hoje && !e.semRetorno], ["Hoje", (e) => e.data === hoje], ["Próximos 7 dias", (e) => e.data > hoje && e.data <= mais(hoje, 7)],
+    ["Até 30 dias", (e) => e.data > mais(hoje, 7) && e.data <= mais(hoje, 30)], ["Depois", (e) => e.data > mais(hoje, 30) && e.data <= mais(hoje, 120)], ["Candidaturas sem retorno", (e) => !!e.semRetorno]];
+  return G.map((g) => ({ rotulo: g[0], itens: ev.filter(g[1]) }));
+}
+
+test("Agenda: os 6 grupos têm os mesmos nomes, a mesma ordem e os mesmos critérios de antes (todas as bordas de data)", () => {
+  assert.deepEqual(N.AGD_GRUPOS.map((g) => g[1]), ["Atrasados", "Hoje", "Próximos 7 dias", "Até 30 dias", "Depois", "Candidaturas sem retorno"]);
+  const ev = [];
+  for (let n = -15; n <= 125; n++) { ev.push(evAg(dia(n), "item " + n)); }
+  ev.push(evAg(dia(-12), "sem retorno antigo", { semRetorno: true }), evAg(dia(-40), "sem retorno mais antigo", { semRetorno: true }), evAg(dia(3), "sem retorno futuro (não acontece, mas a regra é a de antes)", { semRetorno: true }));
+  const novo = N.agdGrupos(ev, AG_HOJE).map((g) => ({ rotulo: g.rotulo, itens: g.itens })), antes = gruposAntes(ev, AG_HOJE);
+  assert.deepEqual(novo, antes, "mesmos eventos em cada grupo, na mesma ordem");
+  const por = Object.fromEntries(N.agdGrupos(ev, AG_HOJE).map((g) => [g.k, g.itens.map((e) => e.data)]));
+  assert.equal(por.hoje.length, 1, "só o item de hoje");
+  assert.ok(por.atrasados.every((d) => d < AG_HOJE) && por.atrasados.length === 15, "atrasados: 15 dias, sem os 'sem retorno'");
+  assert.ok(!N.agdGrupos(ev, AG_HOJE)[0].itens.some((e) => e.semRetorno), "sem retorno não é atraso");
+  assert.deepEqual(N.agdGrupos(ev, AG_HOJE)[2].itens.map((e) => e.data)[0], dia(1)); assert.equal(N.agdGrupos(ev, AG_HOJE)[2].itens.filter((e) => !e.semRetorno).length, 7, "7 dias: de amanhã a hoje+7");
+  assert.equal(N.agdGrupos(ev, AG_HOJE)[3].itens.length, 23, "até 30 dias: de hoje+8 a hoje+30"); assert.equal(N.agdGrupos(ev, AG_HOJE)[4].itens.length, 90, "depois: de hoje+31 a hoje+120; o que passa de 120 dias não aparece (como antes)");
+  assert.deepEqual(N.agdGrupos([], AG_HOJE).map((g) => g.itens.length), [0, 0, 0, 0, 0, 0]); assert.deepEqual(N.agdGrupos(null, AG_HOJE).map((g) => g.itens.length), [0, 0, 0, 0, 0, 0]);
+});
+
+test("Agenda: 'quando' diz há N dias, hoje, amanhã ou o dia da semana, como a linha de antes", () => {
+  assert.equal(N.agdQuando(dia(-1), AG_HOJE), "há 1 dia"); assert.equal(N.agdQuando(dia(-9), AG_HOJE), "há 9 dias");
+  assert.equal(N.agdQuando(AG_HOJE, AG_HOJE), "hoje"); assert.equal(N.agdQuando(dia(1), AG_HOJE), "amanhã");
+  const d = N.agdQuando(dia(5), AG_HOJE); assert.match(d, /18\/11/); assert.match(d, /^[a-zç]+\.?,? ?18\/11$|18\/11/, "dia da semana e data: " + d);
+  assert.equal(N.agdQuando(dia(-1) + "T10:00:00", AG_HOJE), "há 1 dia", "aceita data com hora");
+});
+
+test("Agenda: indicadores e frase só com contagens que existem; sem nada, diz que não há nada", () => {
+  const ev = [evAg(dia(-4), "Revisão"), evAg(dia(-1), "Boleto", { tipo: "mba" }), evAg(AG_HOJE, "Aula", { tipo: "mba" }), evAg(dia(2), "Vacina"), evAg(dia(20), "Seguro", { tipo: "docs" }), evAg(dia(-30), "Velho", { semRetorno: true, tipo: "carreira" })];
+  const r = N.agdResumo(ev, AG_HOJE);
+  assert.deepEqual([r.atrasados, r.hoje, r.sete, r.trinta, r.depois, r.semretorno, r.total], [2, 1, 1, 1, 0, 1, 6]);
+  assert.equal(r.maisAntigo, 4, "o mais antigo atrasado venceu há 4 dias (o sem retorno não conta)"); assert.equal(r.primeiroHoje, "Aula"); assert.equal(r.ateSete, dia(7));
+  assert.equal(N.agdFrase(r), "2 itens atrasados · 1 para hoje · 1 no próximo 7 dias.");
+  assert.equal(N.agdFrase(N.agdResumo([evAg(dia(-1), "x"), evAg(dia(3), "a"), evAg(dia(4), "b")], AG_HOJE)), "1 item atrasado · 2 nos próximos 7 dias.");
+  assert.equal(N.agdFrase(N.agdResumo([evAg(dia(25), "longe")], AG_HOJE)), "Nada atrasado, para hoje ou nos próximos 7 dias.");
+  assert.equal(N.agdFrase(N.agdResumo([], AG_HOJE)), "Nada com data por enquanto."); assert.equal(N.agdResumo([], AG_HOJE).maisAntigo, null);
+  assert.equal(N.agdFrase(N.agdResumo([evAg(dia(-30), "Velho", { semRetorno: true })], AG_HOJE)), "Nada atrasado, para hoje ou nos próximos 7 dias.", "só 'sem retorno': não é atraso");
+});
+
+test("Agenda: série dos próximos dias (carga por dia), áreas com contagem e filtro por área", () => {
+  const ev = [evAg(AG_HOJE, "a"), evAg(AG_HOJE, "b", { tipo: "mba" }), evAg(dia(2), "c"), evAg(dia(2), "d", { semRetorno: true }), evAg(dia(14), "fora da janela"), evAg(dia(-1), "atrasado (não entra na série)"), evAg(dia(40), "e", { tipo: "docs" })];
+  const s = N.agdSerie(ev, AG_HOJE, 14);
+  assert.equal(s.length, 14); assert.deepEqual(s.map((x) => x.data), Array.from({ length: 14 }, (_, i) => dia(i))); assert.deepEqual(s.map((x) => x.n), [2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(N.agdAreas(ev, AG_HOJE), [{ k: "familia", n: 5 }, { k: "docs", n: 1 }, { k: "mba", n: 1 }], "só o que a página mostra; mais cheia primeiro, empate por nome");
+  assert.deepEqual(N.agdAreas([evAg(AG_HOJE, "x", { tipo: undefined })], AG_HOJE), [{ k: "outros", n: 1 }]);
+  assert.deepEqual(N.agdFiltrar(ev, "mba").map((e) => e.t), ["b"]); assert.equal(N.agdFiltrar(ev, "todos").length, ev.length); assert.equal(N.agdFiltrar(ev, "").length, ev.length); assert.equal(N.agdFiltrar(null, "mba").length, 0);
+  assert.deepEqual(N.agdFiltrar([evAg(AG_HOJE, "x", { tipo: undefined })], "outros").length, 1);
+});
+
+test("Agenda: o peso da linha (atrasado = alta; o resto pela régua de prioridades; sem retorno e distante = nenhum)", () => {
+  assert.equal(N.agdTom(evAg(dia(-3), "boleto", { tipo: "mba" }), AG_HOJE), "alta"); assert.equal(N.agdTom(evAg(AG_HOJE, "aula", { tipo: "mba" }), AG_HOJE), "alta", "prazo real de hoje é urgente");
+  assert.equal(N.agdTom(evAg(dia(2), "vacina"), AG_HOJE), "media", "prazo real em até 3 dias é importante"); assert.equal(N.agdTom(evAg(dia(20), "seguro"), AG_HOJE), null);
+  assert.equal(N.agdTom(evAg(dia(-12), "velho", { semRetorno: true }), AG_HOJE), null); assert.equal(N.agdTom(null, AG_HOJE), null);
+  assert.equal(N.agdTom(evAg(dia(-2), "follow-up", { prazo: "calculado", acao: "followup" }), AG_HOJE), "alta", "follow-up vencido continua alerta, como antes");
+});

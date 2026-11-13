@@ -1,7 +1,7 @@
 // Design System RAC · "RAC Modern Workspace" (Fase 3; docs/design-system.md). Trava o que não pode estragar:
 // (1) catraca de cores soltas, (2) tokens --rac-* nos três temas, (3) contraste WCAG, (4) componentes só com variáveis,
 // (5) o shell novo só vale para o dono (a Fernanda, papel "casa", não muda), (6) kit e página #componentes, (7) RAC Hoje (piloto),
-// (8) ES5 e nomes globais, (9) versões e cache offline.
+// (8) ES5 e nomes globais (kit, componentes e a Agenda), (9) versões e cache offline, (10) a Agenda (DS-4.1) no kit e sem cor solta.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
@@ -157,12 +157,12 @@ test("RAC Hoje (piloto): usa o kit e o kit de gráficos declarados no MOD_DEPS, 
 });
 
 test("JavaScript novo em ES5 puro e sem nome global repetido (kit e componentes)", () => {
-  for (const a of ["js/kit.js", "js/componentes.js"]) {
+  for (const a of ["js/kit.js", "js/componentes.js", "js/agenda.js"]) {
     const js = lerArq(a), limpo = js.replace(/\/\*[\s\S]*?\*\//g, "").replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
     assert.ok(!/\b(let|const)\s|=>|`|\bclass\s+\w|\.\.\.|\basync\b|\bawait\b/.test(limpo), a + ": sintaxe além do ES5");
     const nomesTopo = [...js.matchAll(/^\s{2}(?:function|var)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
     assert.ok(nomesTopo.length >= 3 && new Set(nomesTopo).size === nomesTopo.length, a + ": nome repetido");
-    const outros = ["js/app.js", "js/rotas.js", "nucleo.js", "mercado.js", ...["hoje", "sistema", "familia", "mba", "saude", "painel", "resumo", "radar", "compras", "fiscal", "iacustos", "seguranca", "newsletter", "carreira", "lista", "alimentacao", "esportes", "graficos", "fontes", "dados", "bebe", "conexoes", "rede", "oms", "kit", "componentes"].map((m) => "js/" + m + ".js").filter((x) => x !== a)].map(lerArq).join("\n");
+    const outros = ["js/app.js", "js/rotas.js", "nucleo.js", "mercado.js", ...["hoje", "sistema", "familia", "mba", "saude", "painel", "resumo", "radar", "compras", "fiscal", "iacustos", "seguranca", "newsletter", "carreira", "lista", "alimentacao", "esportes", "graficos", "fontes", "dados", "bebe", "conexoes", "rede", "oms", "kit", "componentes", "agenda"].map((m) => "js/" + m + ".js").filter((x) => x !== a)].map(lerArq).join("\n");
     for (const n of nomesTopo) assert.ok(!new RegExp("(?:function|var)\\s+" + n.replace("$", "\\$") + "\\b").test(outros), `${a}: o nome ${n} já existe em outro arquivo`);
   }
 });
@@ -170,7 +170,7 @@ test("JavaScript novo em ES5 puro e sem nome global repetido (kit e componentes)
 test("versões e cache offline: VERSAO = MOD_VERSAO = ?v= do CSS; css, kit e componentes no cache; nenhuma biblioteca nova", () => {
   const sw = lerArq("sw.js"), app = lerArq("js/app.js"), v = /VERSAO\s*=\s*"([^"]+)"/.exec(sw)[1];
   assert.equal(v, /MOD_VERSAO="([^"]+)"/.exec(app)[1]); assert.match(html, new RegExp(`<link rel="stylesheet" href="css/rac\\.css\\?v=${v.replace(/\./g, "\\.")}">`));
-  for (const a of ["./css/rac.css", "./js/kit.js", "./js/componentes.js"]) assert.ok(sw.includes(`"${a}"`), a);
+  for (const a of ["./css/rac.css", "./js/kit.js", "./js/componentes.js", "./js/agenda.js"]) assert.ok(sw.includes(`"${a}"`), a);
   assert.ok(html.indexOf('href="css/rac.css') > html.indexOf("</style>"), "o CSS novo vem depois do antigo (é ele quem refina)");
   assert.deepEqual([...html.matchAll(/<script[^>]+src="https?:\/\/[^"]+"/g)].length, [...lerArq("index.html").matchAll(/<script[^>]+src="https?:\/\/[^"]+"/g)].length);
   assert.match(html, /<section id="componentes" hidden><div id="componentes-view" class="stack"><\/div><\/section>/);

@@ -3,7 +3,7 @@
 **Leia somente os arquivos relevantes para a tarefa atual. Consulte dependências adicionais somente quando necessário.**
 Comece pela linha do módulo; abra o doc pelo título da seção que interessa, não inteiro. Os testes grandes (`ia`, `navegador`,
 `newsletter`, `hoje`) se leem por busca (`describe`/`test` com o nome), nunca inteiros. Conferido em 06/11/2026 (linha da navegação de mercado em 12/11/2026;
-base e linhas da Fase 2 em 13/11/2026); se um caminho mudar, corrija esta tabela.
+base e linhas da Fase 2 em 13/11/2026; Agenda da DS-4.1 em 13/11/2026); se um caminho mudar, corrija esta tabela.
 
 Base de tudo (só quando a tarefa mexe nela): `index.html` (CSS e telas), `js/app.js` (`route()`, dependências `MOD_DEPS`,
 login, Início, `racIA`, `racDica`, botão ↻), `js/rotas.js` (registro de rotas e do menu: `RAC_ROTAS`, `tabs`, `DA_CASA`, `ROTA_MODS`),
@@ -37,7 +37,8 @@ decisões, frentes e o histórico diário): `docs/planejamento/` (comece por `01
 | Saúde e treinos (`#saude`) | `js/saude.js`; padrões (insights) em `NUCLEO.saudeInsights` | — | `fit.test.mjs` | `007` | **`garmin` — intocável sem autorização expressa** |
 | MBA, Conexões (`#mba`, `#conexoes`) | `js/mba.js`, `js/conexoes.js`; normalização em `NUCLEO.mba*De` e a fonte "mba" em `js/fonte-mba.js` | — | — | `003` (`pessoal`) | `scripts/atualizar_tecdados.py` |
 | Carreira, Rede (`#carreira`, `#rede`) | `js/carreira.js`, `js/rede.js` | — | `nucleo.test.mjs` | `003`, `004` | `scripts/atualizar_vagas.py` |
-| Sistema, Agenda, Busca (`#sistema`, `#agenda`, `#busca`) | `js/sistema.js` (tela da Agenda e cartão Próxima melhor ação; régua em `nucleo.js`, `NUCLEO.pri*`); leitura da Agenda e a fonte "agenda" em `js/fonte-agenda.js`, escolha dos itens em `NUCLEO.agendaItens` | `docs/hoje.md` (Régua de prioridades) | `estrutura.test.mjs`, `nucleo.test.mjs`, `hoje.test.mjs` | `008`, `011`, `012`, `014` | `garmin` (rotina, push, backup) |
+| Agenda (`#agenda`; **DS-4.1**, só o dono: abertura, indicadores, Próxima melhor ação, filtro por área, lista agrupada, 14 dias, novo lembrete) | `js/agenda.js` (tela `renderAgenda`; depende de `sistema`, `kit`, `graficos`); `nucleo.js` (`agd*`: grupos, resumo, série, áreas, filtro); régua `NUCLEO.pri*`; `proximasSelecao`, ações rápidas (`proximaAcao`) e cartões do Início em `js/sistema.js`; leitura e a fonte "agenda" em `js/fonte-agenda.js`, escolha dos itens em `NUCLEO.agendaItens` | `docs/agenda.md`, `docs/hoje.md` (Régua de prioridades) | `agenda_tela.test.mjs` (tela), `nucleo.test.mjs` (`agd*`), `hoje.test.mjs`, `rotas.test.mjs`, `design_system.test.mjs` | `008`, `011`, `012`, `014` | `garmin` (rotina, push, backup) |
+| Sistema, Busca (`#sistema`, `#busca`; o Backup, a Busca, o Monitor e a IA do Sistema **não** mudaram na DS-4.1) | `js/sistema.js` (backup e restauração, busca global, página Sistema, Monitor; a régua da Próxima melhor ação e os cartões "Próxima melhor ação" e "Agenda" do Início continuam aqui) | `docs/hoje.md` (Régua de prioridades), `docs/planejamento/05-integracoes-e-automacoes.md` | `estrutura.test.mjs`, `nucleo.test.mjs`, `hoje.test.mjs`, `monitor.test.mjs` | `008`, `011`, `012`, `014` | `garmin` (rotina, push, backup) |
 | Resumo (`#resumo`) | `js/resumo.js`; gráficos `rs*` em `js/graficos.js` (também de Painel, Compras, Alimentação e Custos de IA) | — | — | — | — |
 | Segurança (`#seguranca`) | `js/seguranca.js` | `docs/seguranca.md` (Catálogo da auditoria) | `central.test.mjs`, `seguranca.test.mjs`, `seguranca_catalogo.test.mjs` (PGlite) | `022`; `050_seguranca_catalogo.sql` (**pendente, não aplicada**) | — |
 | Painel (`#painel`) | `js/painel.js` | `docs/painel.md` | `painel.test.mjs` | — | — |
@@ -58,17 +59,19 @@ Procedimentos: skills `rac-publicar`, `rac-sql-novo` e `rac-acao-ia` (em `.claud
 
 ## Andamento da Fase 3 (Design System · RAC Modern Workspace) — 13/11/2026
 Legenda: ✅ concluído (verde) · 🟡 em andamento (amarelo) · ⚪ planejado ou pendente (cinza). Os estados Git/publicação são diferentes entre si e vêm na última coluna.
+**Atualização (informada pelo dono ao pedir a DS-4.1):** a Fase 3 foi concluída: PR #9 mesclado na `main` (`f75a1f1`) e o piloto RAC Hoje validado no iPhone pelo dono. A publicação do site no GitHub Pages não foi conferida nesta sessão.
 
 | Item | Situação | Git e publicação |
 |---|---|---|
-| ✅ DS-0 tokens `--rac-*` e catraca de cores | Feito e testado | Commit `385b327`, push e PR #9 · sem merge · não publicado |
-| ✅ DS-1 componentes e página `#componentes` (primeira versão) | **Substituída** pela versão definitiva (ver abaixo) | idem |
-| ✅ Redefinição visual: `css/rac.css`, `js/kit.js`, cartões por função, gráficos, estados | Feito, testado local e em Chromium | Commit e push na branch do PR #9 (hash no histórico diário) · sem merge · não publicado |
-| ✅ Navegação: menu do dono por área (registro de rotas) e barra inferior no celular | Feito e testado | idem |
-| ✅ Piloto RAC Hoje (painel central) | Feito e testado; lógica de IA intacta | idem |
+| ✅ DS-0 tokens `--rac-*` e catraca de cores | Feito e testado | Commit `385b327`, PR #9 mesclado (`f75a1f1`) |
+| ✅ DS-1 componentes e página `#componentes` (primeira versão) | **Substituída** pela versão definitiva (ver abaixo) | idem (PR #9 mesclado) |
+| ✅ Redefinição visual: `css/rac.css`, `js/kit.js`, cartões por função, gráficos, estados | Feito, testado local e em Chromium | PR #9 mesclado (`f75a1f1`) |
+| ✅ Navegação: menu do dono por área (registro de rotas) e barra inferior no celular | Feito e testado | idem (PR #9 mesclado) |
+| ✅ Piloto RAC Hoje (painel central) | Feito e testado; lógica de IA intacta | idem (PR #9 mesclado) |
 | ✅ Casa (Fernanda) preservada | 20 telas comparadas com a `main` | — |
-| 🟡 Aprovação do dono no iPhone (critério da F3) | Aguardando o dono abrir o PR/prévia | depende do merge e da publicação (do dono) |
-| ⚪ DS-4 · demais módulos por área (Saúde, Finanças, Carreira, Informação…) | Planejado; um módulo por vez, com seu próprio teste visual | — |
+| ✅ Aprovação do dono no iPhone (critério da F3) | O dono validou o piloto RAC Hoje no iPhone | informado pelo dono em 13/11/2026 |
+| 🟡 DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | **Implementada e validada na branch** `claude/agenda-modernizacao-ds4-xuijw0` (testes, Chromium em 390/768/1280 e dois temas, Casa idêntica); falta o dono ver no iPhone | PR para a `main` · sem merge · não publicado |
+| ⚪ DS-4 · demais módulos por área (**Saúde** é a próxima; depois Finanças, Carreira, Informação…) | Planejado; um módulo por vez, com seu próprio teste visual | — |
 | ⚪ DS-5 · telas da casa (Mercado, Lista, Família, Veículos) | Pendente de **autorização expressa** do dono | — |
 | ⚪ Início (`#inicio`) como painel único ou convivendo com o RAC Hoje (D-12) | Pendente de decisão do dono | — |
 | ⚪ Fase 4 · Família e Casa (medicamentos, encomendas, contas) alimentam o painel | Planejado; o painel só mostra o que existir | — |

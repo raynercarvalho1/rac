@@ -436,6 +436,7 @@ Família e da Casa.
 - **M5**: `tests/saude_marco.test.mjs` (16 testes: bordas do marco, guarda permanente contra exclusões, a função real contra banco de mentira, trava de versão); documentos atualizados (Documento 09 seções 16 e 17, mapa, roadmap, `docs/painel.md`, Documento 05).
 - **Verificação em Chromium real** (390 e 1280 px, claro e escuro, dados inventados): só dados de 01/01/2026 em diante nas análises, 01/01 incluído; nenhuma gravação nem exclusão ao abrir; medição sem gravar; recuperação só com `somenteNovos`; sem erro de console nem rolagem horizontal. Bug achado e corrigido: o relatório sumia ao redesenhar.
 - **Sem migration, sem SQL, sem mudança de cron, workflow, secret, `rac-ia` ou outras integrações.**
+- **Git**: commit `7972a64` na branch `claude/agenda-modernizacao-ds4-xuijw0`, push e **PR #11** para a `main` (merge só depois do CI verde; o resultado fica no próprio PR).
 
 ### 2. O que estamos fazendo
 

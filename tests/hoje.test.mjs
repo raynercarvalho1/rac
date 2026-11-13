@@ -290,7 +290,7 @@ function site({ resp = {}, dono = true, racIA, jsons = {}, agenda, extra = {}, a
      dados, A1) rodam aqui; depois voltam os dados simulados de sempre: a leitura da Agenda (agendaColetarLeitura) e os dados do MBA */
   Object.assign(ctx, extra); ctx.window = ctx; vm.createContext(ctx);
   const simulados = { agendaColetar: ctx.agendaColetar, agendaColetarLeitura: ctx.agendaColetarLeitura, sbOk: ctx.sbOk };
-  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js", "js/graficos.js", "js/kit.js"]) vm.runInContext(ler(f), ctx, { filename: f });   /* Fase 3: o painel usa o kit de componentes e de gráficos (MOD_DEPS do hoje) */
+  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js", "js/fonte-saude.js", "js/graficos.js", "js/kit.js"]) vm.runInContext(ler(f), ctx, { filename: f });   /* DS-4.3: a Saúde vem da fonte única; Fase 3: o painel usa o kit de componentes e de gráficos (MOD_DEPS do hoje) */
   Object.assign(ctx, simulados, { fonteMbaDados: () => ({ aulas: ctx.mbaAulas(), avals: ctx.mbaAvals(), fin: ctx.mbaFin() }) }, extra);
   vm.runInContext(ler("js/hoje.js"), ctx, { filename: "hoje.js" });
   for (const f of arquivos) vm.runInContext(ler("js/" + f), ctx, { filename: f });
@@ -1631,6 +1631,8 @@ function elFalso(tag, attrs, ...kids) {
 const textoDe = (e) => (e == null ? "" : typeof e === "string" ? e : [e.attrs && e.attrs.text, ...(e.children || []).map(textoDe)].filter(Boolean).join(" "));
 const acharTodos = (e, f, acc = []) => { if (e && typeof e === "object") { if (f(e)) acc.push(e); (e.children || []).forEach((c) => acharTodos(c, f, acc)); } return acc; };
 const pausa = () => new Promise((r) => setTimeout(r, 15));
+/* consulta falsa: qualquer método devolve a mesma consulta e, ao esperar, ela responde com os dados (só a página inicial, como o banco faria) */
+function cadeiaFalsa(dados) { const p = new Proxy({}, { get(_, k) { if (k === "then") { const pr = Promise.resolve({ data: dados, error: null }); return pr.then.bind(pr); } return () => p; } }); return p; }
 function inicioReal({ registros = { data: [], error: null }, candidaturas = [], lembretes = [], dias = [], ativs = [], vagas = [], recolhido = false } = {}) {
   const src = ler("js/sistema.js"), i = src.indexOf("  var AGENDA_TIPOS"), j = src.indexOf("  /* A página Agenda (renderAgenda:");
   assert.ok(i > 0 && j > i, "o trecho do cartão da Agenda do Início e da Próxima melhor ação está no sistema.js (a leitura está em js/fonte-agenda.js; a página Agenda, desde a DS-4.1, é js/agenda.js)");
@@ -1643,9 +1645,11 @@ function inicioReal({ registros = { data: [], error: null }, candidaturas = [], 
     PESSOAL: { ultimoBackup: HOJE, candidaturas, lembretes }, VG: { all: vagas }, vgHidden: {}, h: elFalso, recolhidos: () => (estado.recolhido ? { "Próxima melhor ação": 1 } : {}),
     wCard: (t, ic, cor, more, cls) => { const e = elFalso("div", { class: "panel " + cls }); e.titulo = t; return e; },
     pessoalGravar: (k, v) => { ctx.PESSOAL[k] = v; gravados.push(k); },
-    SB: { from: (t) => (t === "registros" ? { select: () => ({ order: () => Promise.resolve(registros) }) } : t === "garmin_dia" ? { select: () => ({ gte: () => ({ order: () => ok(dias) }) }) } : { select: () => ({ gte: () => ok(ativs) }) }),
+    /* a Saúde vem da fonte única (js/fonte-saude.js, DS-4.3): a consulta pode ter qualquer sequência de filtros e termina na resposta */
+    SB: { from: (t) => (t === "registros" ? { select: () => ({ order: () => Promise.resolve(registros) }) } : { select: () => cadeiaFalsa(t === "garmin_dia" ? dias : ativs) }),
       storage: { from: () => ({ list: () => ok([{ name: HOJE + ".zip" }]) }) } } };
-  vm.createContext(ctx); for (const f of ["js/fontes.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), ctx, { filename: f });
+  vm.createContext(ctx); vm.runInContext("var DADOS_PAGINA=1000;" + /function dadosPaginar\(consulta\)\{[\s\S]*?return pag\(0\)\}/.exec(ler("js/dados.js"))[0], ctx, { filename: "dados.js (dadosPaginar)" });
+  for (const f of ["js/fontes.js", "js/fonte-agenda.js", "js/fonte-saude.js"]) vm.runInContext(ler(f), ctx, { filename: f });
   vm.runInContext(src.slice(i, j), ctx, { filename: "sistema.js (agenda + próxima ação)" });
   ctx.estado = estado; ctx.gravados = gravados; ctx.doc = doc; return ctx;
 }

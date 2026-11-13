@@ -222,3 +222,8 @@ que começa ou termina em casa revela o endereço; por isso qualquer evolução 
 L2 e L3 exigem mudar a função `garmin` (para gravar a rota reduzida na sincronização) e uma migration: **só com autorização
 expressa do dono**. Um caminho que não toca a `garmin`: gravar a rota reduzida pelo navegador quando o dono abre um treino
 (guarda só o que ele já viu), com as mesmas proteções.
+
+
+### Atualização DS-4.3 (13/11/2026): leitura única do relógio no site
+
+Desde a DS-4.3 todo o site lê `garmin_dia` e `garmin_ativ` para análise por uma fonte só, `js/fonte-saude.js` (contrato de fontes), que classifica pelo marco de propriedade e nunca grava. A integração em si (função `garmin`, rotina, coleta) não mudou. Detalhes: [`docs/saude.md`](../saude.md).

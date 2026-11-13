@@ -3,7 +3,7 @@
   /* ===== Saúde e treinos: dados do relógio Garmin =====
      A função "garmin" do Supabase busca na Garmin (API pessoal oficial) e grava em garmin_dia e garmin_ativ;
      esta página lê as tabelas, mostra o dia, as tendências e os treinos, e pede uma atualização quando abre. */
-  var SAUDE={dias:null,ativs:null,legado:null,relLegado:null,met:"sono",per:"30",tipo:"",mais:30,sinc:null};
+  var SAUDE={dias:null,ativs:null,legado:null,relLegado:null,met:"sono",per:"30",tipo:"",mais:30,sinc:null};   /* met, per, tipo e mais: o hub (saude-hub.js) e o Painel os leem */
   var ATIV_TIPOS={running:["Corrida","🏃"],treadmill_running:["Esteira","🏃"],walking:["Caminhada","🚶"],strength_training:["Musculação","🏋️"],
     lap_swimming:["Natação","🏊"],open_water_swimming:["Águas abertas","🌊"],cycling:["Bike","🚴"],fitness_equipment:["Aparelhos","⚙️"]};
   /* esportes que não aparecem no quadro de Treinos: aparelhos, águas abertas e bike */
@@ -45,14 +45,9 @@
       ["Faixas de batimentos","Em inglês, heart rate zones: de 1 (leve, aquecimento) a 5 (esforço máximo), pela porcentagem dos seus batimentos máximos."],
       ["Idade do condicionamento físico","Em inglês, fitness age. A idade que o seu condicionamento aparenta, comparada com a média das pessoas."]];
     return h("details",{class:"famvals"},h("summary",{text:"O que significa cada número"}),h("dl",{class:"glos"},G.map(function(g){return [h("dt",{text:g[0]}),h("dd",{text:g[1]})]}).reduce(function(a,b){return a.concat(b)},[])))}
+  /* a leitura é a da fonte única (saudeLer, js/fonte-saude.js); aqui só guarda o resultado no estado da tela */
   function saudeCarregar(){
     return saudeLer().then(function(x){SAUDE.dias=x.dias;SAUDE.ativs=x.ativs;SAUDE.legado=x.legado})}
-  /* só lê do banco o que o relógio já mandou (não mexe em SAUDE e não chama a função garmin) */
-  function saudeLer(){
-    function pag(t,cols,ord,from,acc){return SB.from(t).select(cols).order(ord,{ascending:false}).range(from,from+999).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(t,cols,ord,from+1000,acc):acc})}
-    return Promise.all([pag("garmin_dia","data,dados,atualizado","data",0,[]),pag("garmin_ativ","id,inicio,tipo,dados","inicio",0,[])])
-      .then(function(r){var c=NUCLEO.sauClassificar(r[0].reverse(),r[1]);   /* só separa: o legado continua no banco */
-        return {dias:c.meus.dias,ativs:c.meus.ativs,legado:c.contagem.legado}})}
   /* botão de atualizar: relê do banco os dias e os treinos (o que o relógio já mandou) e só troca com as duas leituras. Não sincroniza
      com o Garmin: isso é o "Atualizar agora" daqui. Enquanto ele roda, o ↻ espera. O filtro, o período e a métrica ficam em SAUDE */
   atuModulo("saude",{
@@ -92,190 +87,7 @@
     function dias(){st("Buscando no relógio… (dias)");return chamar({tipo:"dias"}).then(function(d){n+=d.salvos||0;if(d.mais)return dias()})}
     function ativs(ini){st("Buscando no relógio… (treinos)");return chamar({tipo:"ativ",inicio:ini||0}).then(function(d){if(d.mais)return ativs(d.inicio)})}
     return dias().then(function(){return ativs(0)})}
-  function renderSaude(treino){
-    var root=$("#saude-view");root.innerHTML="";window.scrollTo(0,0);
-    if(treino){(SAUDE.ativs?Promise.resolve():saudeCarregar()).then(function(){saudeTreino(root,treino)}).catch(function(e){root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui carregar ("+e.message+")."})))});return}
-    var topo=panel("Relógio Garmin","Fenix 6S Pro · dados oficiais da Garmin"),st=h("p",{class:"sub",role:"status"}),bt=h("button",{type:"button",class:"ghostbtn",text:"Atualizar agora"});
-    topo.appendChild(h("div",{class:"vfil"},bt,st));root.appendChild(topo);
-    var corpo=h("div",{class:"stack"});root.appendChild(corpo);
-    function sinc(){bt.disabled=true;SAUDE.sinc=saudeSincronizar(function(t){st.textContent=t}).then(function(){return saudeCarregar()}).then(function(){SAUDE.sinc=null;bt.disabled=false;st.textContent="✓ Atualizado agora.";desenhar()})
-      .catch(function(e){SAUDE.sinc=null;bt.disabled=false;logErro("Garmin",e);
-        st.textContent=/Failed to send|not found|404|FunctionsFetchError/i.test(e.message)?"A função “garmin” ainda não está no Supabase (veja o passo a passo).":"Não consegui atualizar: "+e.message})}
-    bt.onclick=sinc;
-    (SAUDE.dias?Promise.resolve():saudeCarregar()).then(function(){
-      desenhar();
-      var ult=SAUDE.dias.length?SAUDE.dias[SAUDE.dias.length-1].atualizado:null;
-      st.textContent=ult?"Última atualização: "+new Date(ult).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
-      /* abre atualizando se faz mais de 2 horas */
-      if(!SAUDE.sinc&&!ATU.semExternos&&(!ult||Date.now()-new Date(ult).getTime()>2*3600e3))sinc()
-    }).catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:/garmin_dia|relation|schema cache/i.test(e.message)?"Falta rodar o supabase/007_garmin.sql no Supabase para ligar esta área.":"Não consegui carregar ("+e.message+")."})))});
-    function desenhar(){
-      corpo.innerHTML="";var dias=SAUDE.dias||[],ativs=SAUDE.ativs||[];
-      if(!dias.length&&!ativs.length){corpo.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Ainda sem dados. Toque em Atualizar agora."})));return}
-      /* o humor do diário entra nos dados do dia (só na tela), para a tendência e os cruzamentos */
-      var di=PESSOAL.diario||{};dias.forEach(function(d){var x=di[d.data];if(d.dados)d.dados.humor=x?x.h:undefined});
-      [saudeDiario(),saudeProntidao(dias,ativs),saudeHoje(dias),saudeTendencia(dias),saudeSono(dias),saudeTreinos(ativs),saudeLegado()].forEach(function(x){if(x)corpo.appendChild(x)})}
-    /* histórico anterior ao marco de propriedade: preservado, fora das análises; só o dono mede e recupera (saudeRecuperar) */
-    function saudeLegado(){
-      if(!isOwner())return null;var L=SAUDE.legado||{dias:0,ativs:0},M=NUCLEO.SAU_MARCO.data;
-      var p=panel("Histórico anterior à posse","A posse do relógio começa em "+dataBR(M)+". O que veio antes é legado: continua guardado no banco e no backup, não entra em nenhuma análise e nunca é apagado.");
-      p.appendChild(h("p",{class:"sub",text:"Guardados no banco: "+L.dias+(L.dias===1?" dia":" dias")+" e "+L.ativs+(L.ativs===1?" treino":" treinos")+" anteriores a "+dataBR(M)+"."}));
-      var bm=h("button",{type:"button",class:"ghostbtn",text:"Medir o que a Garmin ainda tem"}),br=h("button",{type:"button",text:"Recuperar o que falta"}),st=h("p",{class:"sub",role:"status"}),rel=h("div",{class:"famtabw"});
-      br.disabled=true;
-      function mostrar(r){rel.innerHTML="";var ms={};Object.keys(r.dias).concat(Object.keys(r.ativs)).forEach(function(k){ms[k]=1});var ks=Object.keys(ms).sort().reverse();
-        if(!ks.length){rel.appendChild(h("p",{class:"empty",text:"A Garmin não devolveu nenhum dia nem treino anterior a "+dataBR(M)+"."}));return}
-        var tb=h("table",{class:"famtab"});tb.appendChild(h("thead",null,h("tr",null,["Mês","Dias na Garmin","Dias novos","Treinos na Garmin","Treinos novos"].map(function(c){return h("th",{text:c})}))));
-        tb.appendChild(h("tbody",null,ks.map(function(k){var d=r.dias[k]||{garmin:0,novos:0},a=r.ativs[k]||{garmin:0,novos:0};
-          return h("tr",null,h("td",{text:k.slice(5)+"/"+k.slice(0,4)}),h("td",{text:String(d.garmin)}),h("td",{text:String(d.novos)}),h("td",{text:String(a.garmin)}),h("td",{text:String(a.novos)}))})));rel.appendChild(tb)}
-      function rodar(contar){bm.disabled=br.disabled=true;
-        saudeRecuperar(contar,function(t){st.textContent=t}).then(function(r){mostrar(r);
-          if(contar){st.textContent="✓ Medição pronta. Nada foi gravado. “Dias novos” e “Treinos novos” são o que a Garmin devolveu e ainda não está no banco.";SAUDE.relLegado={msg:st.textContent,r:r};bm.disabled=false;br.disabled=false;return}
-          st.textContent="✓ Recuperação concluída: "+r.novosDias+" dias e "+r.novosAtivs+" treinos gravados. Nenhuma linha existente foi alterada ou apagada.";
-          SAUDE.relLegado={msg:st.textContent,r:r};   /* o relatório sobrevive ao redesenho da tela */
-          return saudeCarregar().then(function(){bm.disabled=false;desenhar()})})
-        .catch(function(e){logErro("Garmin (histórico)",e);bm.disabled=false;st.textContent="Não consegui: "+e.message})}
-      if(SAUDE.relLegado){st.textContent=SAUDE.relLegado.msg;mostrar(SAUDE.relLegado.r);br.disabled=false}
-      bm.onclick=function(){rodar(true)};
-      br.onclick=function(){if(window.confirm("Gravar na sua conta os dias e treinos anteriores a "+dataBR(M)+" que a Garmin ainda devolve e que ainda não estão no banco? Nada que já existe é alterado ou apagado."))rodar(false)};
-      p.appendChild(h("div",{class:"vfil"},bm,br));p.appendChild(st);p.appendChild(rel);return p}
-    /* prontidão do dia (VFC, FC de repouso, sono e Body Battery contra a sua faixa dos últimos 60 dias) e cruzamentos dos últimos 120 dias */
-    function saudeProntidao(dias,ativs){
-      var d=dias[dias.length-1];if(!d)return null;var pr=NUCLEO.prontidao(dias,d.data);if(!pr)return null;
-      var cor=pr.nota>=70?"var(--good)":pr.nota>=45?"#E8A317":"#D6283B";
-      var p=panel("Prontidão "+(d.data===hojeISO()?"de hoje":"em "+dataBR(d.data)),"Comparada com o seu normal dos últimos 60 dias, não com a média da população.");
-      var P=pr.partes,itens=[P.vfc?["Variabilidade cardíaca",P.vfc.v+" ms","normal "+Math.round(P.vfc.mediana),P.vfc.nota]:null,P.fc?["Batimentos em repouso",P.fc.v+" por minuto","normal "+Math.round(P.fc.mediana),P.fc.nota]:null,
-        P.sono?["Sono",hmDur(P.sono.v*3600),"",P.sono.nota]:null,P.bb?["Energia do corpo",String(P.bb.v),"",P.bb.nota]:null].filter(Boolean);
-      /* últimos 14 dias em barrinhas */
-      var serie=dias.slice(-14).map(function(x){var q=NUCLEO.prontidao(dias,x.data);return [x.data,q&&q.nota]});
-      p.appendChild(h("div",{class:"prontw"},h("div",{class:"pronto",style:"--c:"+cor},h("b",{text:String(pr.nota)}),h("span",{text:pr.rotulo})),
-        h("div",{class:"prontp"},itens.map(function(i){return h("div",{class:"prontl"},h("span",{class:"kl",text:i[0]}),h("i",{class:"prontb"},h("i",{style:"width:"+i[3]+"%"})),h("span",{class:"sub",text:i[1]+(i[2]?" · "+i[2]:"")}))}))));
-      /* cada barra com o valor em cima e o dia embaixo, sempre visíveis */
-      p.appendChild(h("p",{class:"kl",text:"Prontidão dos últimos 14 dias"}));
-      p.appendChild(h("div",{class:"prontserie"},serie.map(function(x){var dt=new Date(x[0]+"T12:00:00");
-        return racDica.ligar(h("div",{class:"pcol",tabindex:"0"},h("span",{class:"pv",text:x[1]==null?"–":String(x[1])}),
-          h("span",{class:"pbar"},h("i",{style:"height:"+(x[1]||2)+"%;background:"+(x[1]==null?"var(--line)":x[1]>=70?"#1a8a4a":x[1]>=45?"#E8A317":"#D6283B")})),
-          h("span",{class:"pd",text:dt.toLocaleDateString("pt-BR",{weekday:"narrow"}).toUpperCase()+" "+x[0].slice(8,10)})),
-          function(){return [dt.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"2-digit"}),x[1]==null?"Sem dados do relógio":"Prontidão "+x[1]+" · "+(x[1]>=70?"pronto para treinar forte":x[1]>=45?"bom para treino moderado":"dia de recuperação")]})})));
-      if(pr.alertas.length)p.appendChild(h("ul",{class:"wl"},pr.alertas.map(function(t){return h("li",{class:"qrwarn"},h("span",{class:"grow",text:"⚠ "+t}))})));
-      var ins=NUCLEO.saudeInsights(dias,ativs,hojeISO(),isOwner());   /* regra no núcleo (Fase 2 · A5) */
-      if(ins.length){p.appendChild(h("h3",{class:"dayh",text:"O que os seus dados mostram"}));p.appendChild(h("ul",{class:"wl"},ins.map(function(t){return h("li",null,h("span",{class:"grow",text:t}))})))}
-      return p}
-    function saudeDiario(){
-      if(!isOwner())return null;var hoje=hojeISO(),di=PESSOAL.diario||{},x=di[hoje]||{};
-      var p=panel("Como foi hoje?","Uma linha por dia. Com algumas semanas, dá para ver o que o sono, o treino e o estresse fazem com o seu humor.");
-      var esc=h("div",{class:"humor",role:"group","aria-label":"Humor de hoje"}),sel=x.h||0;
-      HUMOR.forEach(function(e,i){var b=h("button",{type:"button","aria-pressed":String(sel===i+1),title:["Péssimo","Ruim","Normal","Bom","Ótimo"][i],text:e});b.onclick=function(){sel=i+1;[].forEach.call(esc.children,function(c,j){c.setAttribute("aria-pressed",String(j===i))})};esc.appendChild(b)});
-      var t=h("input",{type:"text",maxlength:"140",placeholder:"Uma linha sobre o dia (opcional)",value:x.t||""}),sv=h("button",{type:"button",text:x.h?"Atualizar":"Salvar"}),st=h("span",{class:"sub",role:"status"});
-      sv.onclick=function(){if(!sel){st.textContent="Escolha um rosto.";return}var n=Object.assign({},PESSOAL.diario||{});n[hoje]={h:sel,t:t.value.trim()||undefined};pessoalGravar("diario",n);st.textContent="✓ Anotado.";sv.textContent="Atualizar";desenhar()};
-      p.appendChild(esc);p.appendChild(h("div",{class:"listaadd"},t,sv));p.appendChild(st);
-      /* últimas 2 semanas */
-      var fx=h("div",{class:"humorfx"});for(var i=13;i>=0;i--){var dt=maisDias(hoje,-i),y=di[dt];fx.appendChild(h("span",{title:dataBR(dt)+(y&&y.t?": "+y.t:""),class:y?null:"vazio",text:y?HUMOR[y.h-1]:"·"}))}
-      p.appendChild(fx);return p}
-    function saudeHoje(dias){
-      var d=dias[dias.length-1];if(!d)return null;var x=d.dados,ont=dias[dias.length-2];
-      var p=panel(d.data===hojeISO()?"Hoje":"Em "+dataBR(d.data),"Toque numa métrica para ver o gráfico."),g=h("div",{class:"kgasto saudekpi"});
-      function kpi(k,rot,val,sub){var b=h("button",{type:"button",class:"skpi"+(SAUDE.met===k?" on":"")},h("span",{class:"kl",text:rot}),h("b",{class:"kv",text:val}),sub?h("span",{class:"sub",text:sub}):null);
-        b.onclick=function(){SAUDE.met=k;desenhar();var t=corpo.querySelector(".saudetend");if(t)t.scrollIntoView({behavior:"smooth",block:"start"})};g.appendChild(b)}
-      var s=x.sono,v=x.vfc,VS={BALANCED:"equilibrada",UNBALANCED:"desequilibrada",LOW:"baixa",POOR:"ruim"};
-      if(s)kpi("sono","Sono",hmDur(s.total),(s.nota?"nota "+s.nota:"")+(s.inicio?" · "+s.inicio+"–"+s.fim:""));
-      if(v)kpi("vfc","Variabilidade cardíaca (noite)",v.noite+" ms",(VS[v.status]||"")+(v.faixaMin?" (normal "+v.faixaMin+"–"+v.faixaMax+")":""));
-      if(x.fcRepouso)kpi("fc","Batimentos em repouso",x.fcRepouso+" por minuto","mín. do dia "+(x.fcMin||"—")+" · máx "+(x.fcMax||"—"));
-      if(x.bbMax!=null)kpi("bb","Energia do corpo",String(x.bbMax),"carregou "+(x.bbCarga||0)+" · gastou "+(x.bbGasto||0));
-      if(x.estresse!=null)kpi("estresse","Estresse médio",String(x.estresse),x.estresseAlto!=null?Math.round(x.estresseAlto*100)+"% do dia alto":"");
-      if(x.passos!=null)kpi("passos","Passos",x.passos.toLocaleString("pt-BR"),"meta "+(x.metaPassos||0).toLocaleString("pt-BR")+(x.distancia?" · "+fmtN(Math.round(x.distancia/100)/10)+" km":""));
-      p.appendChild(g);
-      var fit=(dias.slice().reverse().filter(function(q){return q.dados.idadeFitness})[0]||{}).dados;
-      var extra=[x.minModerados!=null?"Minutos de intensidade hoje: "+((x.minModerados||0)+2*(x.minVigorosos||0))+" (meta semanal "+(x.metaMinutos||150)+")":"",
-        x.calorias?"Calorias: "+x.calorias.toLocaleString("pt-BR")+" ("+(x.caloriasAtivas||0)+" ativas)":"",x.spo2?"Oxigênio no sangue (média da noite): "+x.spo2+"%":"",x.respiracao?"Respiração: "+x.respiracao+" respirações por minuto":"",
-        fit?"Idade do condicionamento físico: "+fmtN(Math.round(fit.idadeFitness.fitness*10)/10)+" anos (real "+fit.idadeFitness.real+"; dá para chegar a "+fmtN(Math.round(fit.idadeFitness.possivel*10)/10)+")":""].filter(Boolean);
-      if(extra.length)p.appendChild(h("ul",{class:"wl"},extra.map(function(t){return h("li",null,h("span",{class:"grow",text:t}))})));
-      p.appendChild(saudeGlossario());
-      return p}
-    /* tendência: 30 dias = um por dia; 90 dias = média por semana; 1 ano = média por mês */
-    function saudeTendencia(dias){
-      var M=SAUDE_MET.filter(function(m){return m[0]===SAUDE.met})[0]||SAUDE_MET[0];
-      var p=panel("Tendência: "+M[1]);p.classList.add("saudetend");
-      var segM=h("div",{class:"seg famseg famper",role:"group","aria-label":"Métrica"});
-      SAUDE_MET.forEach(function(m){var b=h("button",{type:"button",text:m[1],"aria-pressed":String(m[0]===M[0])});b.onclick=function(){SAUDE.met=m[0];desenhar()};segM.appendChild(b)});
-      var segP=h("div",{class:"seg famseg famper",role:"group","aria-label":"Período"});
-      [["30","30 dias"],["90","3 meses"],["365","1 ano"]].forEach(function(x){var b=h("button",{type:"button",text:x[1],"aria-pressed":String(x[0]===SAUDE.per)});b.onclick=function(){SAUDE.per=x[0];desenhar()};segP.appendChild(b)});
-      p.appendChild(segM);p.appendChild(segP);
-      var ini=maisDias(hojeISO(),-(+SAUDE.per)+1),pts=dias.filter(function(d){return d.data>=ini&&M[2](d.dados)!=null});
-      if(pts.length<2){p.appendChild(h("p",{class:"empty",text:"Poucos dados nesse período."}));return p}
-      var grupos=[];
-      /* legenda de cada barra em duas linhas curtas (cabe em todas): dia + inicial da semana; semana: dia + mês; mês: mês + ano */
-      var MESES3=MES3;
-      if(SAUDE.per==="30")pts.forEach(function(d){var dt=new Date(d.data+"T12:00:00");grupos.push({rot:d.data.slice(8),rot2:"DSTQQSS".charAt(dt.getDay()),det:dt.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}),vs:[M[2](d.dados)]})});
-      else{var chave=SAUDE.per==="90"?function(s){var dt=new Date(s+"T12:00:00");dt.setDate(dt.getDate()-((dt.getDay()+6)%7));return dt.toISOString().slice(0,10)}:function(s){return s.slice(0,7)};
-        var mapa={};pts.forEach(function(d){var k=chave(d.data);if(!mapa[k]){mapa[k]={k:k,vs:[]};grupos.push(mapa[k])}mapa[k].vs.push(M[2](d.dados))});
-        grupos.forEach(function(g){g.rot=SAUDE.per==="90"?g.k.slice(8):MESES3[+g.k.slice(5,7)-1];g.rot2=SAUDE.per==="90"?MESES3[+g.k.slice(5,7)-1]:g.k.slice(2,4);
-          g.det=(SAUDE.per==="90"?"semana de "+dataBR(g.k):g.rot+"/"+g.rot2)+" · média de "+g.vs.length+(g.vs.length===1?" dia":" dias")})}
-      grupos.forEach(function(g){g.v=g.vs.reduce(function(s,x){return s+x},0)/g.vs.length});
-      var vs=grupos.map(function(g){return g.v}),media=vs.reduce(function(s,x){return s+x},0)/vs.length,maxv=Math.max.apply(null,vs),minv=Math.min.apply(null,vs);
-      var ult=grupos[grupos.length-1].v,dif=ult-media,bom=M[5]?dif>=0:dif<=0;
-      p.appendChild(h("div",{class:"kgasto"},h("div",null,h("span",{class:"kl",text:"Média do período"}),h("b",{class:"kv",text:M[3](media)})),
-        h("div",null,h("span",{class:"kl",text:"Melhor"}),h("b",{class:"kv",text:M[3](M[5]?maxv:minv)})),
-        h("div",null,h("span",{class:"kl",text:"Pior"}),h("b",{class:"kv",text:M[3](M[5]?minv:maxv)})),
-        h("div",null,h("span",{class:"kl",text:"Último vs. média"}),h("b",{class:"kv "+(Math.abs(dif)<media*0.03?"":bom?"bom":"ruim"),text:(dif>0?"+":"−")+M[3](Math.abs(dif))}))));
-      var n=grupos.length,cap=h("p",{class:"vbcap",role:"status"}),barras=[];
-      /* as colunas começam perto do menor valor, senão ficariam todas iguais (VFC, FC) */
-      var base=M[0]==="passos"||M[0]==="sono"?0:Math.max(0,Math.floor(minv*0.85));
-      function marcar(i){barras.forEach(function(b,j){b.classList.toggle("on",j===i)});cap.textContent=grupos[i].det+" · "+M[3](grupos[i].v)}
-      var vb=h("div",{class:"vbars vbpeso"},grupos.map(function(g,i){
-        var b=h("button",{type:"button",class:"vb","aria-label":g.det+" "+M[3](g.v),title:g.det+" · "+M[3](g.v)},
-          h("span",{class:"vbv"+(n<=14||i===n-1||g.v===maxv||g.v===minv?"":" opc"),text:M[0]==="sono"?hmDur(g.v*3600).replace(/^(\d+)h(\d+)$/,"$1:$2"):M[0]==="passos"?(g.v>=1000?fmtN(Math.round(g.v/100)/10)+"k":Math.round(g.v)):String(Math.round(g.v))}),
-          h("span",{class:"vbt"},h("span",{class:"vbf",style:"background:"+M[4]+";height:"+Math.max(2,(g.v-base)/((maxv-base)||1)*100).toFixed(1)+"%"})),
-          h("span",{class:"vbl"},h("b",{text:g.rot}),h("small",{text:g.rot2||""})));
-        b.onclick=function(){marcar(i)};b.onmouseenter=function(){marcar(i)};barras.push(b);
-        racDica.ligar(b,function(){var d=g.det.split(" · ");return [d[0],M[1]+": "+M[3](g.v)+(d[1]?" · "+d[1]:"")]});return b}));
-      p.appendChild(vb);p.appendChild(cap);marcar(n-1);
-      /* no celular o gráfico rola para o lado: começa mostrando os dias mais recentes */
-      vbFim(vb);
-      return p}
-    /* sono das últimas 14 noites: fases empilhadas */
-    function saudeSono(dias){
-      var l=dias.filter(function(d){return d.dados.sono&&d.dados.sono.total}).slice(-14);if(!l.length)return null;
-      var p=panel("Sono das últimas noites","Profundo, REM, leve e acordado, em horas."),mx=Math.max.apply(null,l.map(function(d){var s=d.dados.sono;return s.total+(s.acordado||0)}));
-      var F=[["profundo","Profundo","#3B3B98"],["rem","REM","#7C6FE0"],["leve","Leve","#9DB4E8"],["acordado","Acordado","#E8A317"]];
-      p.appendChild(h("div",{class:"sonoleg"},F.map(function(f){return h("span",null,h("i",{style:"background:"+f[2]}),f[1])})));
-      p.appendChild(h("div",{class:"sonol"},l.map(function(d){var s=d.dados.sono,tot=s.total+(s.acordado||0);
-        return racDica.ligar(h("div",{class:"sonorow",tabindex:"0"},
-          h("span",{class:"sonod",text:d.data.slice(8)+"/"+d.data.slice(5,7)}),
-          h("span",{class:"sonobar",style:"width:"+(tot/mx*100).toFixed(1)+"%"},F.map(function(f){return s[f[0]]?h("i",{style:"background:"+f[2]+";flex:"+s[f[0]],title:f[1]+": "+hmDur(s[f[0]])}):null})),
-          h("span",{class:"sonot",text:hmDur(s.total)+(s.nota?" · "+s.nota:"")})),
-          function(){return [new Date(d.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"2-digit"}),hmDur(s.total)+" de sono"+(s.nota?" · nota "+s.nota:"")+" · "+F.filter(function(f){return s[f[0]]}).map(function(f){return f[1].toLowerCase()+" "+hmDur(s[f[0]])}).join(", ")]})})));
-      return p}
-    function saudeTreinos(ativs){
-      ativs=ativs.filter(function(a){return TREINO_OCULTOS.indexOf(a.tipo)<0});
-      if(!ativs.length)return null;
-      var p=panel("Treinos",ativs.length+" atividades desde "+dataBR(ativs[ativs.length-1].inicio.slice(0,10)));
-      /* resumo do mês e do ano por esporte */
-      var mes=hojeISO().slice(0,7),ano=hojeISO().slice(0,4),tot={};
-      ativs.forEach(function(a){var t=ativTipo(a.tipo)[0],o=tot[t]=tot[t]||{n:0,km:0,seg:0,nm:0,kmm:0,ico:ativTipo(a.tipo)[1]};
-        if(a.inicio.slice(0,4)===ano){o.n++;o.km+=(a.dados.distancia||0)/1000;o.seg+=a.dados.duracao||0}
-        if(a.inicio.slice(0,7)===mes){o.nm++;o.kmm+=(a.dados.distancia||0)/1000}});
-      var tb=h("table",{class:"famtab"});
-      tb.appendChild(h("thead",null,h("tr",null,["Esporte","Este mês","Em "+ano,"Tempo no ano"].map(function(c){return h("th",{text:c})}))));
-      tb.appendChild(h("tbody",null,Object.keys(tot).filter(function(t){return tot[t].n}).sort(function(a,b){return tot[b].n-tot[a].n}).map(function(t){var o=tot[t],km=function(v){return v>=1?fmtN(Math.round(v*10)/10)+" km":""};
-        return h("tr",null,h("td",null,h("b",{text:o.ico+" "+t})),h("td",{text:o.nm?o.nm+"× "+(km(o.kmm)?"· "+km(o.kmm):""):"—"}),h("td",{text:o.n+"× "+(km(o.km)?"· "+km(o.km):"")}),h("td",{text:durTxt(o.seg)}))})));
-      p.appendChild(h("div",{class:"famtabw"},tb));
-      /* filtro por esporte e lista */
-      var usados=[];ativs.forEach(function(a){if(usados.indexOf(a.tipo)<0)usados.push(a.tipo)});
-      var seg=h("div",{class:"seg famseg",role:"group","aria-label":"Esporte"});
-      [""].concat(usados).forEach(function(t){var b=h("button",{type:"button",text:t?ativTipo(t)[1]+" "+ativTipo(t)[0]:"Todos","aria-pressed":String(SAUDE.tipo===t)});b.onclick=function(){SAUDE.tipo=t;SAUDE.mais=30;desenhar()};seg.appendChild(b)});
-      p.appendChild(seg);
-      var l=ativs.filter(function(a){return !SAUDE.tipo||a.tipo===SAUDE.tipo}),ul=h("ul",{class:"wl saudeativ"});
-      l.slice(0,SAUDE.mais).forEach(function(a){var d=a.dados,T=ativTipo(a.tipo);
-        var linha2=[distTxt(a),d.duracao?durTxt(d.duracao):"",ritmo(a),d.fc?"batimentos "+Math.round(d.fc)+(d.fcMax?" (máx. "+Math.round(d.fcMax)+")":""):"",d.calorias?Math.round(d.calorias)+" kcal":"",d.series?d.series+" séries":""].filter(Boolean).join(" · ");
-        var li=h("li",{class:"clic",tabindex:"0",role:"button",title:"Ver o treino completo"},h("span",{class:"grow"},h("b",{text:T[1]+" "+(d.nome||T[0])+(d.recorde?" 🏅":"")}),h("span",{class:"sub",text:new Date(a.inicio).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",year:"2-digit"})+", "+a.inicio.slice(11,16)+(d.local&&(d.nome||"").indexOf(d.local)<0?" · "+d.local:"")}),
-          h("span",{class:"sub",text:linha2})),d.efeitoAerobico?h("span",{class:"end",title:"Efeito aeróbico do treino (0 a 5): quanto melhorou o condicionamento",text:fmtN(d.efeitoAerobico)}):null);
-        if(d.zonas){var tz=d.zonas.reduce(function(s,x){return s+x},0);if(tz)li.querySelector(".grow").appendChild(h("span",{class:"zonas",title:"Tempo em cada faixa de batimentos (1 leve a 5 máxima)"},d.zonas.map(function(z,i){return z?h("i",{class:"z"+(i+1),style:"flex:"+z}):null})))}
-        li.onclick=function(){location.hash="#saude/treino/"+a.id};li.onkeydown=function(e){if(e.key==="Enter")li.onclick()};
-        ul.appendChild(li)});
-      p.appendChild(ul);
-      if(l.length>SAUDE.mais){var mais=h("button",{type:"button",class:"ghostbtn",text:"Ver mais ("+(l.length-SAUDE.mais)+")"});mais.onclick=function(){SAUDE.mais+=50;desenhar()};p.appendChild(mais)}
-      return p}
-  }
+  /* a página #saude (renderSaude) é o hub com abas, em js/saude-hub.js; a página do treino abaixo continua aqui */
 
   /* ===== Um treino aberto (#saude/treino/<id>): mapa, números, gráficos, zonas, voltas e séries =====
      O detalhe vem da função "garmin" ({tipo:"detalhe"}) e fica guardado enquanto a página estiver aberta. */
@@ -359,10 +171,10 @@
     return h("div",{class:"mapcfg"},abrir,f,msg)}
   function saudeTreino(root,id){
     var a=(SAUDE.ativs||[]).filter(function(x){return String(x.id)===String(id)})[0];
-    var volta=h("a",{href:"#saude",class:"ghostbtn",text:"← Treinos"});
+    var volta=h("a",{href:"#saude/atividades",class:"ghostbtn",text:"← Atividades"});
     if(!a){root.appendChild(h("div",{class:"panel"},volta,h("p",{class:"empty",text:"Treino não encontrado."})));return}
     var T=ativTipo(a.tipo),d=a.dados;
-    var topo=panel(T[1]+" "+(d.nome||T[0]),new Date(a.inicio).toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+" às "+a.inicio.slice(11,16)+(d.local?" · "+d.local:""));
+    var topo=panel(T[1]+" "+(d.nome||T[0]),new Date(a.inicio).toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+" às "+a.inicio.slice(11,16)+(d.local&&!NUCLEO.sauPrefs(PESSOAL.saudePrefs).esconderLocal?" · "+d.local:""));   /* o dono pode esconder o local (Saúde → Inteligência → Ajustes) */
     topo.insertBefore(h("div",{class:"vfil"},volta),topo.firstChild);root.appendChild(topo);
     var st=h("p",{class:"sub",role:"status",text:"Carregando o treino…"});topo.appendChild(st);
     var corpo=h("div",{class:"stack"});root.appendChild(corpo);

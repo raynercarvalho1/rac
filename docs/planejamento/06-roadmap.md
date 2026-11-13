@@ -165,28 +165,31 @@ Descrição da página, regras preservadas e testes: [`docs/agenda.md`](../agend
 
 **Próximo módulo da DS-4: Saúde** (não iniciado; só começa depois do pedido do dono).
 
-## 3.5 Andamento da DS-4.2 · Saúde (13/11/2026)
+## 3.5 Andamento da DS-4.2 · Saúde e Garmin (encerrada em 13/11/2026)
 
-**DS-4.1 (Agenda):** mesclada na `main` (PR #10, `81c9999`; informado pelo dono e conferido no `origin/main`). A DS-4.2 parte dela.
+A DS-4.2 foi concluída no escopo de preservação, classificação e publicação em produção. O redesenho visual da Saúde e as novas análises S2–S5 continuam como evolução futura, não como pendência desta entrega.
 
-**DS-4.2A · Auditoria da Saúde e do potencial de Inteligência Garmin: concluída como relatório** (só leitura; nenhum código funcional, SQL, função, secret ou cron alterado).
-Relatório completo: [Documento 09](09-auditoria-saude-garmin.md). **A DS-4.2B (implementação) não começou: depende da aprovação do dono.**
-
-| Item | Situação | O que falta |
+| Item | Situação | Evidência / pendência |
 |---|---|---|
-| Auditoria da arquitetura da Saúde, da integração Garmin, do inventário de métricas e do potencial de inteligência | **Feita** (Documento 09). Limite: sem consulta ao banco real nem à Garmin | Dono rodar a conferência de cobertura (seção 3.4 do Documento 09) |
-| Escopo de implementação proposto: S0 conferência · S1 fundação · S2 Visão geral, Recuperação e Sono · S3 Atividades · S4 Condicionamento · S5 Tendências e Inteligência (regras) | **Proposto**, não aprovado | Decisões D-S1 a D-S12 do dono (Documento 09, seção 13) |
-| S6 integração (sub-escores do sono, `idadeFitness` diário, séries de musculação, dados extras) · S7 mapas e trajetos · S8 IA da Saúde | **Proposto**, depende de autorização expressa | D-08, privacidade e IA paga (por chamada) |
+| Auditoria da Saúde, integração Garmin e inventário de métricas | **Concluída** | Documento 09 |
+| M1 · Marco de propriedade 01/01/2026 e `NUCLEO.sauClassificar` | **Concluído e testado** | Classifica pela data do evento; antes do marco = `legado`; a partir do marco = `meus` |
+| M2 · Leitores e fim das exclusões no site | **Concluído, mergeado e publicado** | PR #11; Pages com sucesso; site `2026-11-13.6` |
+| M3 · Função `garmin` sem corte nem exclusão | **Concluído e publicado em produção** | Edge Function `garmin`, versão 13, ativa |
+| M4 · Painel e ferramenta de medição/recuperação | **Implementados e publicados** | Medição é somente leitura; recuperação insere apenas ausentes, sem sobrescrever ou apagar |
+| R0–R4 · Recuperação do histórico anterior a 01/11/2025 | **Opcional, não bloqueia o encerramento** | O dono decidiu não executar agora; poderá solicitar se sentir falta de algum registro. Não exigir nova medição ou uso do relógio para considerar a DS-4.2 concluída |
+| S2–S5 · Redesenho da Saúde no Design System e sinais | **Não iniciados; evolução futura** | Próxima etapa possível da DS-4, com escopo próprio |
 
-**Atualização (13/11/2026): execução da DS-4.2 pelo marco de propriedade** (autorização geral do dono; seções 16 e 17 do [Documento 09](09-auditoria-saude-garmin.md)).
+**Conferência de produção em 13/11/2026**
 
-| Item | Situação | O que falta |
-|---|---|---|
-| M1 · Marco 01/01/2026 e `NUCLEO.sauClassificar` | **Feito e testado** | — |
-| M2 · Nove pontos e leitores (Saúde, Painel, Resumo, RAC Hoje, Sistema, Carreira); fim da exclusão ao abrir a Saúde | **Feito e testado** (Node e Chromium) | Merge e publicação do site |
-| M3 · Função `garmin` sem corte e sem exclusão; modos `somenteNovos` e `apenasContar` | **Código feito e testado** | **Dono publica a função** (sem credenciais aqui) |
-| M4 · Recuperação do histórico | **Ferramenta feita** (painel na Saúde, com trava contra a função antiga) | Executar depois da função publicada; contagens reais |
-| S2 a S5 (Saúde redesenhada no Design System, sinais, abas) | **Não iniciados**: fora do escopo da seção 16 | Aprovação do dono |
+- CI da `main`: sucesso no commit `b893d34`.
+- GitHub Pages: execução de publicação concluída com sucesso; versão do site `2026-11-13.6`.
+- Edge Function `garmin`: versão 13, ativa; o código publicado não contém o corte `GARMIN_DESDE` nem exclusão das tabelas `garmin_dia` e `garmin_ativ`.
+- Banco de produção: `garmin_dia` = 314 registros (19 legados e 295 do dono); `garmin_ativ` = 952 registros (952 do dono, nenhum legado).
+- Os 19 dias legados existentes são 5 de novembro/2025 e 14 de dezembro/2025. Os dias do dono vão de 23/01/2026 a 13/11/2026. As atividades existentes vão de 24/01/2026 a 13/11/2026.
+- Há backup semanal verificado no cofre privado em 08/11/2026. Não foi feita nova exportação manual nesta etapa.
+- A recuperação de registros anteriores a 01/11/2025 **não foi executada**; a rotina Garmin havia apresentado respostas 504 em 12 e 13/11. O dono preferiu deixar essa recuperação para eventual necessidade futura. Isso não afeta a regra de propriedade: todo esse período é legado.
+
+**Estado final:** DS-4.2 encerrada. A funcionalidade de proteção está em produção. A recuperação histórica permanece disponível como ação opcional do dono, não como bloqueio técnico ou de planejamento.
 
 ## 4. Como cada fase é entregue
 
@@ -195,3 +198,8 @@ Relatório completo: [Documento 09](09-auditoria-saude-garmin.md). **A DS-4.2B (
 - Cada lote termina com o registro no [histórico diário](historico-diario.md) (o que fizemos, o que estamos fazendo, o que
   vamos fazer) e, se mudar decisão ou estado, no [Documento 07](07-decisoes-e-pendencias.md).
 - Telas da casa (Fernanda) e a função `garmin` só com autorização expressa.
+
+
+## 3.6 Andamento da DS-4.3 · Saúde S1–S5 (13/11/2026)
+
+Implementada e testada na branch `claude/saude-modernizacao-s2-s5` (base: a branch da PR #12, que continua aberta e sem alteração). **Não mesclada e não publicada.** Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin`, SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).

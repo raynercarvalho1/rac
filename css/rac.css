@@ -306,3 +306,33 @@ a.ag-dest-titulo:hover{text-decoration:underline}
   .ag-acoes{flex:1 1 100%;padding:0 var(--rac-esp-2) var(--rac-esp-3) 68px}
   .ag-hero-desc{display:none}
 }
+
+/* ---------- 6. SAÚDE (#saude; DS-4.3) ---------- */
+/* a página usa o esqueleto do piloto (.rh: abertura, colunas 7/5) e os componentes rac-*; aqui só o que é da Saúde: a faixa de abas, os 5 indicadores, os estágios do sono e os ajustes */
+.sh-col{display:flex;flex-direction:column;gap:var(--rac-esp-4);min-width:0}
+.sh-abas{display:flex;gap:var(--rac-esp-2);overflow-x:auto;padding:2px 0 var(--rac-esp-1);scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.sh-abas .rac-chip{flex:none}
+.sh-kpis{grid-column:1/-1;display:grid;gap:var(--rac-esp-3);grid-template-columns:repeat(5,minmax(0,1fr))}
+.sh-kpis>*{min-width:0}
+.sh-sinal--ativo{border-left:4px solid var(--rac-aviso-fill)}
+.sh-sinal--suprimido{opacity:.92}
+.sh-leg{display:flex;flex-wrap:wrap;gap:var(--rac-esp-3);font:500 calc(12px + var(--fz)) var(--f-ui);color:var(--rac-texto-2)}
+.sh-leg span{display:inline-flex;align-items:center;gap:6px}.sh-leg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sh-f1{background:var(--rac-dodger-forte)}.sh-f2{background:var(--rac-info)}.sh-f3{background:var(--rac-dodger-claro)}.sh-f4{background:var(--rac-aviso-fill)}
+.sh-estagios{display:flex;flex-direction:column;gap:var(--rac-esp-1)}
+.sh-estrow{display:grid;grid-template-columns:44px minmax(0,1fr) 78px;align-items:center;gap:var(--rac-esp-2);min-height:var(--rac-alvo);border-radius:var(--rac-raio-1);cursor:pointer}
+.sh-estd{font:600 calc(12px + var(--fz)) var(--f-ui);color:var(--rac-texto-2);font-variant-numeric:tabular-nums}
+.sh-estbar{display:flex;height:18px;border-radius:6px;overflow:hidden;background:var(--rac-papel-3);min-width:4px}.sh-estbar i{display:block;height:100%}
+.sh-estt{font:600 calc(12px + var(--fz)) var(--f-ui);text-align:right;font-variant-numeric:tabular-nums}
+.sh-estrow.dicaon{background:var(--rac-azul-suave)}
+.sh-chk{display:flex;align-items:center;gap:var(--rac-esp-3);min-height:var(--rac-alvo);cursor:pointer}
+.sh-chk input{width:22px;height:22px;flex:none;accent-color:var(--rac-dodger)}
+.sh .rac-campo-entrada[type=number]{max-width:200px}
+@media(max-width:1100px){.sh-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sh-kpis>:last-child:nth-child(odd){grid-column:1/-1}}
+@media(max-width:760px){.sh .rh-hero-acoes{width:100%}.sh .rh-hero-acoes .rac-btn{flex:1 1 auto}.sh .ag-hero-desc{display:none}}
+/* gráficos de 30 dias: cada coluna tem pelo menos 44 px (valor e rótulo legíveis, alvo de toque) e o gráfico rola por dentro do cartão em qualquer largura */
+.sh .vbars.vbpeso{overflow-x:auto;overflow-y:hidden;padding-bottom:6px;scrollbar-width:thin}
+.sh .vbars.vbpeso .vb{flex:1 0 44px;min-height:var(--rac-alvo)}
+.sh .vbars.vbpeso .vbv.opc{visibility:visible}
+.sh .famvals>summary{display:flex;align-items:center;min-height:var(--rac-alvo)}
+#saude-view .ghostbtn{display:inline-flex;align-items:center;min-height:var(--rac-alvo)}

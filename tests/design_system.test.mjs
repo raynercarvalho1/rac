@@ -147,7 +147,7 @@ test("kit: componentes de interface sem banco, sem regra de negócio e sem cor e
 
 test("RAC Hoje (piloto): usa o kit e o kit de gráficos declarados no MOD_DEPS, mantém a IA e a cobrança onde estavam e aponta cada área para uma rota que existe", () => {
   const app = lerArq("js/app.js"), hoje = lerArq("js/hoje.js"), R = registro();
-  assert.match(app, /hoje:\["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","kit","graficos"\]/); assert.match(app, /componentes:\["kit","graficos"\]/);
+  assert.match(app, /hoje:\["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"\]/); assert.match(app, /componentes:\["kit","graficos"\]/);
   const dest = JSON.parse(/var HJ_DESTINO=(\{[^;]*\});/.exec(hoje)[1].replace(/([{,])([a-z]+):/g, '$1"$2":'));
   for (const [area, href] of Object.entries(dest)) assert.ok(R.tabs.includes(href.slice(1)), `${area} aponta para ${href}, que não é rota`);
   for (const f of ["hjAnalisar", "hjBotaoPago", "hjAnalise", "hjErro", "hojeAnalisar", "hojeCoordenar", "hojeReenviar", "hojePendMarcar"]) assert.match(hoje, new RegExp("function " + f + "\\("), f + " continua no módulo");

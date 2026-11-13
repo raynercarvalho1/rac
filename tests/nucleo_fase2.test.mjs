@@ -118,7 +118,7 @@ test("Agenda: NUCLEO.agendaItens, casos conhecidos (só o registro mais novo val
 
 /* ---------- as telas usam o núcleo; o núcleo não toca em tela, banco nem relógio ---------- */
 test("as telas chamam o núcleo (sem cópia da regra) e as funções novas do núcleo são puras", () => {
-  assert.match(ler("js/saude.js"), /var ins=NUCLEO\.saudeInsights\(dias,ativs,hojeISO\(\),isOwner\(\)\);/); assert.ok(!/function saudeInsights\(/.test(ler("js/saude.js")));
+  assert.match(ler("js/saude-hub.js"), /var ins=NUCLEO\.saudeInsights\(C\.dias,C\.ativs,C\.hoje,isOwner\(\)\);/); assert.ok(!/function saudeInsights\(/.test(ler("js/saude.js")) && !/function saudeInsights\(/.test(ler("js/saude-hub.js")));   /* DS-4.3: a tela é o hub */
   assert.match(ler("js/familia.js"), /function famMeds\(regs\)\{return NUCLEO\.famMeds\(regs,hojeISO\(\)\)\}/);
   const mba = ler("js/mba.js"); for (const [f, n] of [["mbaAulas", "mbaAulasDe"], ["mbaAvals", "mbaAvalsDe"], ["mbaFin", "mbaFinDe"]]) assert.match(mba, new RegExp(`function ${f}\\(\\)\\{return NUCLEO\\.${n}\\(`));
   assert.match(ler("js/fonte-agenda.js"), /NUCLEO\.agendaItens\(\{/); assert.ok(!/function agendaLer\(|visto\[k\+"p"\]|dIpva/.test(ler("js/sistema.js")), "a escolha dos itens saiu da tela do Sistema");

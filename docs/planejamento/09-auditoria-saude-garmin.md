@@ -765,3 +765,82 @@ Se a Garmin não devolver determinado período, **a limitação é um resultado 
 | M3 Função | Código **implementado e testado**; **publicação pendente do dono** (17.4, passo 2) |
 | M4 Recuperação | Ferramenta **implementada e testada** contra a função de mentira; **execução pendente** (depende da função publicada e da Garmin) |
 | M5 Documentação | Concluída com esta seção |
+
+
+## 18. Encerramento e confirmação de produção — 13/11/2026
+
+Esta seção atualiza o estado operacional que constava na seção 17. Os itens 17.3–17.6 registram corretamente o que era conhecido antes da publicação; os fatos abaixo são a conferência posterior em produção.
+
+### 18.1 Publicação confirmada
+
+- **PR #11:** mergeado na `main` pelo commit `b893d34bc74b10083328cb2a3caee4270e93f88f`.
+- **CI da `main`:** execução `43438657518`, concluída com sucesso.
+- **GitHub Pages:** execução `43438657212`, concluída com sucesso. Versão no `sw.js`: `2026-11-13.6`.
+- **Edge Function `garmin`:** publicada diretamente no projeto Supabase RAC, versão **13**, status `ACTIVE`, `verify_jwt: false` preservado. O deploy incluiu `index.ts` e a dependência `alertas_preco.ts`.
+- O entrypoint publicado não contém `GARMIN_DESDE` nem exclusão das tabelas `garmin_dia` e `garmin_ativ`; os modos `apenasContar` e `somenteNovos` estão disponíveis.
+- Nenhuma migration ou alteração SQL foi necessária para a DS-4.2.
+
+### 18.2 Contagens observadas no banco de produção
+
+Consultas somente leitura executadas após a publicação:
+
+| Tabela | Total | Legado (antes de 01/01/2026) | Meus (a partir de 01/01/2026) |
+|---|---:|---:|---:|
+| `garmin_dia` | 314 | 19 | 295 |
+| `garmin_ativ` | 952 | 0 | 952 |
+
+Detalhamento dos dias:
+- Novembro/2025: 5 registros, todos legados.
+- Dezembro/2025: 14 registros, todos legados.
+- Janeiro/2026: 9 registros (23 a 31/01), todos do dono.
+- Fevereiro a outubro/2026: 28, 31, 30, 31, 30, 31, 31, 30 e 31 registros, respectivamente.
+- Novembro/2026: 13 registros (01 a 13/11).
+
+Detalhamento das atividades: janeiro/2026 = 25; fevereiro = 109; março = 87; abril = 96; maio = 104; junho = 75; julho = 102; agosto = 105; setembro = 103; outubro = 105; novembro = 41. Total = 952, todas com data de evento a partir de 24/01/2026.
+
+Há dois backups no cofre privado `backups`: `2026-11-01.json` e `2026-11-08.json`. O backup de 08/11 registra `verificado: true` no log de rotina. Não foi executada nova exportação manual nesta etapa.
+
+### 18.3 Recuperação histórica: opcional e adiada
+
+- A ferramenta de medição/recuperação foi publicada com o site e a função nova. A medição não grava; a recuperação usa `somenteNovos`, preservando linhas existentes.
+- A recuperação do período anterior a 01/11/2025 **não foi executada**. A rotina Garmin teve respostas HTTP 504 ao solicitar o token em 12 e 13/11/2026; não foi possível confirmar a disponibilidade da API para o backfill.
+- O dono decidiu não gastar tempo com a medição ou recuperação agora e pediu que o assunto fosse considerado encerrado, podendo retornar caso sinta falta de algum registro.
+- Portanto, R0–R4 ficam **opcionais e fora do caminho crítico**. Não solicitar que o dono use o relógio por um dia, faça uma atividade ou rode medições para concluir a DS-4.2.
+- Os registros anteriores a 01/01/2026 são legados pela regra de propriedade. A contagem de dados históricos que a Garmin ainda poderia devolver permanece desconhecida; isso não impede o funcionamento da classificação nem a continuidade do desenvolvimento do site.
+
+### 18.4 Estado final e continuidade
+
+| Componente | Estado |
+|---|---|
+| M0 · Decisão do marco | Concluída |
+| M1 · Núcleo e classificação | Concluída e publicada |
+| M2 · Leitores e remoção das exclusões no site | Concluída e publicada (`2026-11-13.6`) |
+| M3 · Edge Function sem corte ou exclusão | Concluída e publicada (versão 13) |
+| M4 · Ferramenta de medição/recuperação | Concluída e publicada; uso do backfill opcional |
+| M5 · Documentação e validação | Concluída |
+| R0–R4 · Backfill do legado anterior a 01/11/2025 | Opcional; adiado pelo dono; não bloqueia |
+| S2–S5 · Redesenho da Saúde e sinais | Não iniciado; possível próxima etapa da DS-4 |
+
+**Conclusão:** DS-4.2 encerrada em 13/11/2026 no escopo de proteção, classificação e publicação em produção. A recuperação de legado não é critério de aceite nem pendência do desenvolvimento atual. Qualquer retomada futura será por solicitação do dono.
+
+
+## 19. Implementação S1–S5 (DS-4.3) — 13/11/2026
+
+Registro do que foi feito na branch `claude/saude-modernizacao-s2-s5`. Guia funcional: [`docs/saude.md`](../saude.md). Os estados abaixo são separados de propósito: **implementado e testado ≠ publicado**.
+
+| Item | Situação |
+|---|---|
+| S1 · Fonte única `js/fonte-saude.js` (paginação, classificação inalterada, estado completa/vazia/parcial/falha, leituras simultâneas compartilhadas) | Implementado e testado |
+| S1 · Consolidação dos leitores (RAC Hoje, Sistema, Carreira; Painel e Resumo por `saudeLer`) com os mesmos resultados | Implementado e testado (regressão contra os leitores de antes, `tests/fonte_saude.test.mjs`) |
+| S1 · Regras `sau*` no núcleo, sem mexer em `SAU_MARCO`, `sauClassificar`, `prontidao` ou `saudeInsights` | Implementado e testado (`tests/saude_regras.test.mjs`) |
+| S2 · Hub com 7 abas, Visão geral, Recuperação, Sono; sinais S1–S4 e S12 com histerese | Implementado e testado (`tests/saude_tela.test.mjs`, Chromium) |
+| S3 · Atividades e musculação (S6, S7 reaproveitado do Painel, S9) | Implementado e testado |
+| S4 · Condicionamento (S10, minutos de intensidade, eficiência aeróbica, idade do condicionamento só como valor atual) | Implementado e testado |
+| S5 · Tendências e Inteligência por regras (S5, S8, S11, histórico dos sinais) | Implementado e testado |
+| Preferências (metas, ocultar valores, esconder local) em `PESSOAL.saudePrefs` | Implementado e testado |
+
+Decisões de interpretação (onde o texto admitia mais de uma leitura): S4 dispara por sono curto **ou** por irregularidade com média abaixo da meta; baseline de S1/S3 = 60 dias que terminam 7 dias antes da janela, de S2 = 30 dias que terminam 5 dias antes; S6 usa 1,3×/0,7× em duas semanas completas para "persistente"; S11 usa uma segunda janela deslocada 2 semanas; S8 trata "não voltou em 5 dias" como 6 dias.
+
+**Fora do escopo (não feito):** mapas e trajetos históricos, IA de Saúde, coleta adicional da Garmin, alteração da função `garmin`, SQL, secrets, cron, workflows, recuperação do histórico anterior a 01/11/2025. Nenhuma ação de produção foi executada.
+
+**Publicação:** não publicado. Commit, envio ao GitHub e PR são tratados no histórico diário; o merge e a publicação em produção continuam do dono.

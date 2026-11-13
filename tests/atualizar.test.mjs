@@ -131,7 +131,7 @@ test("Garmin, Gmail e IA ficam fora: o Início não lê o Gmail sozinho, o trein
 
 test("Etapa B: o Painel não tem mais o próprio botão, a Saúde mantém o do Garmin; os módulos se ligam só por atuModulo (testes em atualizar_modulos)", () => {
   assert.ok(!/text:"Atualizar"/.test(ler("js/painel.js")), "o ↻ do topo atualiza o Painel");
-  assert.match(ler("js/saude.js"), /text:"Atualizar agora"/);
+  assert.match(ler("js/saude-hub.js"), /rkBtn\("fantasma","Atualizar agora"\)/);   /* DS-4.3: o botão está na abertura do hub */
   assert.match(ler("js/app.js"), /atuBotao\(\);if\(!ATU\.rodando\)atuAviso\(""\);/, "o aviso de uma página não fica na outra");
   for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) if (f !== "app.js") assert.ok(!/atuRegistrar\(/.test(ler("js/" + f)), f + ": usa atuModulo (busca, confere, troca)");
   assert.equal(/var MOD_VERSAO="([^"]+)"/.exec(ler("js/app.js"))[1], /const VERSAO = "([^"]+)"/.exec(ler("sw.js"))[1]);

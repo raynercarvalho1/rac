@@ -492,3 +492,53 @@ Família e da Casa.
 
 1. Dono revisa a PR, mescla se aprovar; o GitHub Pages publica o site (nenhum SQL nem função a publicar).
 2. Fora do escopo, para decisão futura: mapas e trajetos (S7), IA de Saúde (S8), coleta extra da Garmin (S6).
+
+
+## 13/11/2026 · RAC Inbox — prioridade aprovada após Saúde
+
+### 1. O que fizemos
+
+- O dono aprovou que, depois da conclusão da modernização da Saúde S1–S5, a próxima grande frente será o **RAC Inbox**, com prioridade máxima do desenvolvimento seguinte.
+- Objetivo confirmado: transformar o RAC no cliente principal de e-mail, com capacidade de substituir o Spark no uso diário — não apenas agregar mensagens ou abrir links de outras caixas.
+- Escopo planejado: Gmail, Outlook/Hotmail/Live e iCloud; caixa unificada; leitura, envio, resposta, encaminhamento, rascunhos, anexos, busca, organização de pastas, arquivamento, spam, lixeira, filtros e regras; IA e integração com os módulos RAC.
+- A aceitação de limitações pontuais do iCloud foi aprovada, desde que sejam pequenas, comprovadas e alinhadas. Receber, enviar e responder são essenciais para a substituição.
+- Criado o [Documento 10 · RAC Inbox](10-rac-inbox.md), que especifica visão de produto, conectores, arquitetura, segurança, fases I0–I6 e critérios para desinstalar o Spark.
+- Risco técnico registrado: a viabilidade de SMTP iCloud na infraestrutura Supabase precisa ser testada; não presumir que a porta documentada pela Apple esteja acessível pelo runtime escolhido.
+
+### 2. O que estamos fazendo
+
+- A Saúde S1–S5 já foi implementada e está em revisão na **PR #13**, branch `claude/saude-modernizacao-s2-s5`, head `97ac1a2434573e3f4cb500bd7aa8ab267c6ecf52`. No momento deste registro, o CI do commit estava em andamento; merge e publicação ainda não ocorreram.
+- O RAC Inbox está **planejado, não implementado**. Nenhuma conta foi conectada, nenhum segredo foi criado, nenhuma migration foi aplicada e nenhum serviço foi publicado.
+- Esta documentação está em uma branch/PR separada, empilhada sobre a branch da Saúde para não misturar o escopo do Inbox com a revisão da PR #13.
+- A PR #13 inclui os quatro commits documentais da antiga PR #12. A PR #12 permanece aberta por enquanto; depois que a PR #13 for aprovada e mesclada, conferir e encerrar a PR #12 como incorporada/supersedida, sem criar um segundo merge dos mesmos documentos.
+
+### 3. O que vamos fazer
+
+1. Revisar o CI e a PR #13; concluir Saúde S1–S5 por merge e publicação.
+2. Depois, integrar este planejamento à `main` e iniciar RAC Inbox pela fase I0: prova de viabilidade de OAuth/Gmail API, Microsoft Graph, IMAP iCloud e SMTP iCloud na infraestrutura pretendida.
+3. Fechar a arquitetura com base nos testes reais; depois desenvolver fundação multicon­ta, cliente de e-mail, administração/filtros, inteligência e ecossistema RAC.
+4. Manter o Spark como contingência até todos os critérios da seção 8 do Documento 10 estarem validados em uso real.
+
+
+
+## 13/11/2026 · Integração da Saúde e reorganização do planejamento RAC Inbox
+
+### 1. O que foi concluído
+
+- PR #13 (Saúde S1–S5) mesclada na `main` por squash, commit `e77c5e8`. O CI do head da PR foi aprovado: Grupo 1 com 1.570 testes (1.568 aprovados, 0 falhas, 2 todo) e Grupo 2/PGlite com 73 aprovados e 0 falhas.
+- Os quatro arquivos documentais da PR #12 foram incorporados na mesma integração; PR #12 encerrada como supersedida, sem segundo merge.
+- A publicação do GitHub Pages após o merge ainda não foi confirmada nesta conferência.
+
+### 2. RAC Inbox
+
+- O planejamento continua aprovado e não implementado. A PR #14 original estava empilhada sobre a branch da Saúde; como a Saúde entrou por squash, o planejamento será reapresentado em branch nova baseada diretamente na `main`, evitando duplicar o diff funcional da Saúde.
+- Esta atualização registra o estado atual sem reescrever os registros históricos anteriores.
+
+### 3. Próximo passo
+
+- Integrar os documentos do RAC Inbox à `main` por PR própria e iniciar a fase I0 (provas técnicas de Gmail, Microsoft Graph e iCloud), sem conectar contas ou publicar serviços nesta etapa.
+
+
+## 13/11/2026 · Confirmação da publicação DS-4.3
+
+- Após o squash merge da PR #13 (`e77c5e8`), o CI da `main` concluiu com sucesso (execução `43451157429`) e o workflow do GitHub Pages confirmou build e deploy bem-sucedidos (execução `43451156616`). A DS-4.3 está, portanto, integrada e publicada. Este registro complementa o estado de publicação pendente anotado antes da conclusão; os registros históricos anteriores foram preservados.

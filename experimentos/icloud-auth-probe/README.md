@@ -28,6 +28,6 @@ O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é acei
 
 ## Execução
 
-Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (dois jobs, Environments `cloudflare-poc` e `icloud-auth-poc`). **Não foi executado.** Pré-requisitos do dono: Environment `icloud-auth-poc` (aprovador obrigatório, branch restrita), **sem nenhum secret**, e o workflow presente na branch padrão para o botão "Run workflow" existir. Os guardas de branch dos dois jobs são idênticos. Secrets Apple só entrarão quando uma prova com a Apple (P1) for implementada e autorizada.
+Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (três jobs: `verificar` sem secrets, `provisionar` com o Environment `cloudflare-poc` e `executar` com o Environment `icloud-auth-poc`; auditoria de segurança na seção 13.14 do Documento 10). **Não foi executado.** Pré-requisitos do dono: Environment `icloud-auth-poc` (aprovador obrigatório, branch restrita), **sem nenhum secret**, e o workflow presente na branch padrão para o botão "Run workflow" existir. Os guardas de branch dos três jobs são idênticos. O Wrangler vem do lockfile da pasta `experimentos/icloud-auth-probe-ferramenta`, e a publicação usa uma configuração escrita no workflow (a `wrangler.jsonc` desta pasta não é lida na publicação, só conferida). Secrets Apple só entrarão quando uma prova com a Apple (P1) for implementada e autorizada.
 
 Testes: `node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_escopo.test.mjs`.

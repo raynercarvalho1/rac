@@ -917,3 +917,24 @@ Família e da Casa.
 1. Primeiro run (com autorização), só para confirmar `sub`, `runner_environment`, JWKS real e CPU no runtime da Cloudflare, sem credencial Apple.
 2. Só depois, com autorização específica, implementar a P1 (IMAP somente leitura restrito à pasta de teste); nessa etapa os secrets Apple entram, por mudança revisada do workflow.
 3. Decidir o uso único do token e reavaliar a política do JWKS antes de P3 a P5.
+
+## 13/11/2026 · RAC Inbox — I0, bloco 1: auditoria de segurança do caminho de publicação do Worker OIDC
+
+### 1. O que fizemos
+
+- Auditoria completa do workflow `icloud-auth-probe.yml` e de tudo que a publicação toca (código e `wrangler.jsonc` da branch, Wrangler e dependências, actions, permissões, Environments, logs, artefatos e integridade do pacote). Achado principal, **demonstrado localmente com token sintético**: o passo que recebia `CLOUDFLARE_API_TOKEN` executava o Wrangler numa pasta cuja configuração vem da branch, e um `build.command` executa comando de shell; além disso, código da branch (testes) rodava na mesma máquina dos secrets.
+- Correções (somente na segurança da POC OIDC): três jobs (`verificar` sem secrets, `provisionar` com o Environment sem executar nada da branch, `executar` inalterado); configuração de publicação escrita no workflow; lista fixa de arquivos; Wrangler 4.161.0 pelo lockfile (`npm ci --ignore-scripts`, 92 pacotes com integridade); pacote empacotado sem publicar, inspecionado e com `sha256` conferido antes de publicar o mesmo arquivo; actions por SHA; token Cloudflare fora do argumento de processo.
+- Evidências: simulação offline de todos os passos sem secret e da publicação em `--dry-run` (hash aprovado igual ao enviado; empacotamento determinístico); casos negativos barrados (`.env`, `.dev.vars`, `build.command`, `console.log`, hash adulterado); 10 testes novos de isolamento.
+- Documentação: Documento 10 (nova seção 13.14 e desenho dos jobs atualizado), decisões, roadmap, mapa e README do Worker. Entradas anteriores sobre dois jobs ficam como registro, marcadas como superadas.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado, sem acesso à Cloudflare, à Apple ou ao IMAP/SMTP, sem infraestrutura nova. PR #17 em Draft e sem merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: configurar os Environments (aprovador obrigatório e branches restritas), proteger a branch da POC, conferir os SHAs das actions e decidir o destino do workflow antigo `icloud-probe-deploy.yml`, que mantém o padrão vulnerável (registrado, não alterado).
+- **Não comprovado:** o primeiro deploy real com o desenho novo (a publicação sem bundle só foi exercitada em `--dry-run`), os SHAs das actions, o formato real das claims e do JWKS, o CPU real e qualquer operação com a Apple. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Apresentar ao dono a próxima autorização: preparar os Environments e executar a primeira validação OIDC real, **sem credenciais Apple**.
+2. Depois do primeiro run, confirmar `sub`, `runner_environment`, JWKS real, CPU real e o comportamento da publicação do pacote aprovado.
+3. Só então, com autorização específica, a P1; antes de P3 a P5, decidir o uso único do token e reavaliar a política do JWKS.

@@ -1,5 +1,5 @@
 // RAC Inbox · POC autenticada iCloud (S3): trava o ESCOPO por texto, sem rede e sem credencial.
-// Garante o desenho decidido pelo dono: dois jobs com Environments próprios, nenhum segredo entre eles, a senha Apple nunca no Worker
+// Garante o desenho decidido pelo dono: jobs com Environments próprios, nenhum segredo entre eles, a senha Apple nunca no Worker
 // (nem como secret, variável ou armazenamento), nenhum acesso à Apple nesta etapa e execução somente manual.
 // O primeiro ensaio OIDC NÃO usa credencial Apple alguma: nenhum secret Apple no workflow, corpo sintético e mínimo, Worker sem código de credencial.
 import { test } from "node:test";
@@ -13,7 +13,9 @@ const semComentarios = (t) => t.replace(/^\s*#.*$/gm, "").replace(/\s+#\s.*$/gm,
 const WFTXT = ler(".github/workflows/icloud-auth-probe.yml");
 const WF = semComentarios(WFTXT);
 const iExec = WF.search(/^  executar:/m);
-const PROV = WF.slice(WF.search(/^  provisionar:/m), iExec);
+const iProv = WF.search(/^  provisionar:/m);
+const VER = WF.slice(WF.search(/^  verificar:/m), iProv);
+const PROV = WF.slice(iProv, iExec);
 const EXEC = WF.slice(iExec);
 const FONTES = ["politica", "jwt", "jwks", "index"].map((n) => [n, ler("experimentos/icloud-auth-probe/src/" + n + ".mjs")]);
 const CODIGO = FONTES.map(([, t]) => semComentarios(t.replace(/^\s*\/\/.*$/gm, ""))).join("\n");
@@ -23,7 +25,7 @@ test("só dispara na mão e sem permissões por padrão", () => {
   for (const x of [/\bpush:/, /\bpull_request/, /\bschedule:/, /\bcron:/, /\bworkflow_run:/, /\bworkflow_call:/, /\brepository_dispatch:/, /\binputs:/])
     assert.ok(!x.test(WF), "gatilho ou entrada não permitido: " + x);
   assert.match(WF, /^permissions: \{\}\s*$/m);
-  assert.deepEqual([...WF.matchAll(/^  ([a-z]+):\s*$/gm)].map((m) => m[1]).filter((n) => ["provisionar", "executar"].includes(n)), ["provisionar", "executar"]);
+  assert.deepEqual([...WF.matchAll(/^  ([a-z]+):\s*$/gm)].map((m) => m[1]).filter((n) => ["verificar", "provisionar", "executar"].includes(n)), ["verificar", "provisionar", "executar"]);
 });
 
 test("job provisionar: Environment cloudflare-poc, só credenciais Cloudflare, nenhum segredo Apple, sem token OIDC", () => {
@@ -33,8 +35,9 @@ test("job provisionar: Environment cloudflare-poc, só credenciais Cloudflare, n
   const usados = [...PROV.matchAll(/\$\{\{\s*secrets\.([A-Z_]+)\s*\}\}/g)].map((m) => m[1]);
   assert.ok(usados.length >= 4);
   for (const n of usados) assert.ok(["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"].includes(n), "secret não previsto no provisionar: " + n);
-  assert.match(PROV, /npx --yes wrangler@4\.161\.0 deploy\s*$/m);
-  assert.ok(!/secret put|\bwrangler@\S+ (login|delete|secret|kv|d1|r2|tail|dev)\b/.test(PROV), "só deploy; nada de secret put");
+  assert.match(PROV, /node "\$GITHUB_WORKSPACE\/experimentos\/icloud-auth-probe-ferramenta\/node_modules\/wrangler\/bin\/wrangler\.js" deploy --config "\$RUNNER_TEMP\/publicar\/wrangler\.publicar\.jsonc"\s*$/m);
+  assert.ok(!/secret put|wrangler\.js"? (login|delete|secret|kv|d1|r2|tail|dev|versions|rollback)\b/.test(PROV), "só deploy; nada de secret put");
+  assert.ok(!/\bnpx\b/.test(WF), "nenhum npx: nada é baixado do registro com um secret no ambiente");
 });
 
 test("job executar: Environment icloud-auth-poc, id-token só aqui, SEM nenhum secret, sem credencial Cloudflare e sem código do repositório", () => {
@@ -55,20 +58,26 @@ test("o primeiro ensaio OIDC não depende de nenhuma credencial Apple: nem no wo
   assert.deepEqual([...new Set(usados)].sort(), ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"], "os únicos secrets do workflow inteiro são os da Cloudflare");
 });
 
-test("os guardas de branch dos dois jobs são idênticos e coincidem com a política do Worker (nada de publicar em main)", () => {
+test("os guardas de branch dos três jobs são idênticos e coincidem com a política do Worker (nada de publicar em main)", () => {
   const guardas = [...WF.matchAll(/case "\$GITHUB_REF_NAME" in\n\s+(\S+)\) ;;/g)].map((m) => m[1]);
-  assert.equal(guardas.length, 2, "um guarda em cada job");
-  assert.equal(guardas[0], guardas[1]);
+  assert.equal(guardas.length, 3, "um guarda em cada job");
+  assert.ok(guardas.every((g) => g === guardas[0]));
   assert.equal("refs/heads/" + guardas[0], POLITICA.refsPermitidos[0]);
-  assert.ok(!/\bmain\b/.test(WF), "nenhuma referência a main no workflow executável");
-  assert.ok(PROV.includes('case "$GITHUB_REF_NAME"') && EXEC.includes('case "$GITHUB_REF_NAME"'));
+  assert.ok(!/(?:\bmain\)|\|main\b|refs\/heads\/main|branches?:\s*\[?\s*main)/.test(WF), "main não é branch permitida em nenhum job (a chave \"main\" do Wrangler é outra coisa)");
+  for (const j of [VER, PROV, EXEC]) assert.ok(j.includes('case "$GITHUB_REF_NAME"'));
 });
 
-test("nada passa entre os jobs: sem outputs, artefatos, arquivos de ambiente ou referência ao job anterior", () => {
-  for (const x of [/\boutputs:/, /upload-artifact/, /download-artifact/, /\bcache@/, /GITHUB_OUTPUT/, /GITHUB_ENV/, /GITHUB_PATH/, /needs\.\w+\.outputs/, /steps\.\w+\.outputs/, /\bartifact/i])
+test("nada sensível passa entre os jobs: só o pacote público e o hash vão de verificar para provisionar; executar não lê nada", () => {
+  for (const x of [/upload-artifact/, /download-artifact/, /\bcache@/, /GITHUB_ENV/, /GITHUB_PATH/, /\bartifact/i, /steps\.\w+\.outputs\.(?!sha256|pacote)/])
     assert.ok(!x.test(WF), "mecanismo proibido entre jobs: " + x);
+  const outputs = [...VER.matchAll(/^      (\w+): \$\{\{ steps\.empacotar\.outputs\.(\w+) \}\}\s*$/gm)].map((m) => m[1]);
+  assert.deepEqual(outputs.sort(), ["pacote", "sha256"], "o job verificar só publica o pacote e o hash");
+  assert.ok(!/\boutputs:/.test(PROV) && !/\boutputs:/.test(EXEC), "provisionar e executar não publicam nenhuma saída");
+  assert.ok(!/GITHUB_OUTPUT/.test(PROV) && !/GITHUB_OUTPUT/.test(EXEC), "só o job verificar escreve saídas");
+  const lidos = [...PROV.matchAll(/needs\.(\w+)\.outputs\.(\w+)/g)].map((m) => m[1] + "." + m[2]);
+  assert.deepEqual(lidos.sort(), ["verificar.pacote", "verificar.sha256"]);
   assert.match(EXEC, /^      WORKER_URL: https:\/\/rac-icloud-auth-poc\.[a-z0-9-]+\.workers\.dev\s*$/m, "URL fixa e não sensível");
-  assert.ok(!/needs\./.test(EXEC.replace(/^    needs: provisionar\s*$/m, "")), "nenhum dado do job anterior é lido");
+  assert.ok(!/needs\./.test(EXEC.replace(/^    needs: provisionar\s*$/m, "")), "o job executar não lê nada do job anterior");
 });
 
 test("o JWT nunca vai por argumento, arquivo, eco ou log e é mascarado; o resumo não tem credencial", () => {
@@ -95,11 +104,15 @@ test("audiência, branch e Environment do workflow coincidem com a política do 
   assert.ok(POLITICA.refsPermitidos.every((r) => /^refs\/heads\/poc\//.test(r)), "só branch da POC");
 });
 
-test("actions só oficiais e Wrangler fixo", () => {
+test("actions só oficiais e fixadas por SHA de commit; Wrangler fixado pelo lockfile", () => {
   const usos = [...WF.matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)].map((m) => m[1]);
-  assert.ok(usos.length >= 2);
-  for (const u of usos) assert.match(u, /^actions\/(checkout|setup-node)@v\d+$/, u);
-  for (const m of WF.matchAll(/\bwrangler(@\S+)?/g)) assert.equal(m[1], "@4.161.0");
+  assert.equal(usos.length, 4, "checkout e setup-node nos jobs verificar e provisionar");
+  for (const u of usos) assert.match(u, /^actions\/(checkout|setup-node)@[0-9a-f]{40}$/, u);
+  for (const m of WFTXT.matchAll(/uses: (actions\/[\w-]+)@[0-9a-f]{40} # (v\d+\.\d+\.\d+)/g)) assert.match(m[2], /^v4\./);
+  assert.ok(!/@v\d+\b/.test(WF), "nenhuma action por tag móvel");
+  assert.ok(!/\bwrangler@/.test(WF), "o Wrangler não é pedido ao registro por nome: vem do lockfile");
+  assert.equal([...WF.matchAll(/npm ci --prefix "\$FERR" --ignore-scripts --no-audit --no-fund/g)].length, 2, "instalação só por npm ci, sem scripts, nos dois jobs");
+  assert.ok(!/\bnpm (?:i|install|exec)\b/.test(WF));
 });
 
 test("o Worker não guarda nada: sem secret, variável, KV, Durable Object, cache, console ou armazenamento", () => {

@@ -1,12 +1,16 @@
 # RAC Inbox · POC autenticada iCloud, arquitetura S3 (OIDC): MANUAL e, nesta etapa, só um ensaio de validação do JWT.
 # O primeiro ensaio OIDC NÃO usa nenhuma credencial Apple: o corpo enviado é sintético e mínimo ({"operacao":"validar_oidc"}), não existe
 # nenhum secret Apple neste workflow e o Worker não fala com a Apple.
-# Dois jobs, cada um com o seu Environment e SEM segredo em comum (nada passa entre eles por output, artefato ou log):
-#   provisionar (Environment cloudflare-poc) publica o Worker "rac-icloud-auth-poc" usando só as credenciais da Cloudflare;
+# Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
+#   verificar (sem Environment e sem secrets) é o ÚNICO que executa código vindo da branch (testes) e que empacota o Worker a partir de uma
+#     lista fixa de arquivos, inspeciona o resultado e calcula o sha256. Só entrega adiante o pacote (público) e o hash, nunca segredo;
+#   provisionar (Environment cloudflare-poc, só secrets da Cloudflare) NÃO executa nada vindo da branch: instala o Wrangler pelo lockfile
+#     (sem scripts), confere o hash do pacote aprovado e o publica com uma configuração escrita neste arquivo (a wrangler.jsonc da branch
+#     não é lida, então não existe build.command, .env ou .dev.vars da branch no caminho do token);
 #   executar (Environment icloud-auth-poc) pede um token OIDC ao GitHub e o envia ao Worker por HTTPS. O Worker valida o JWT antes de
-#   ler o corpo. O Environment icloud-auth-poc precisa existir (aprovador obrigatório e branch restrita), mas não precisa de nenhum secret.
-# Operação disponível hoje: validar_oidc. IMAP e SMTP reais, com credencial, exigem implementação e autorização específicas (e só então
-# secrets Apple, cadastrados pelo dono). Detalhes: Documento 10, seção 13.13.
+#     ler o corpo. O Environment precisa existir (aprovador obrigatório e branch restrita), mas não precisa de nenhum secret.
+# Este arquivo vem da branch escolhida em "Use workflow from": quem controla a branch controla o arquivo. A fronteira real é a configuração
+# manual do GitHub (Environments com aprovador e branches restritas; proteção da branch). Detalhes: Documento 10, seção 13.13.
 name: Prova autenticada iCloud (OIDC, manual)
 
 on:
@@ -20,7 +24,113 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+    # o pacote do Worker e o hash são públicos: não são segredo (nenhum secret existe neste job)
+    outputs:
+      sha256: ${{ steps.empacotar.outputs.sha256 }}
+      pacote: ${{ steps.empacotar.outputs.pacote }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só nas branches previstas
+        run: |
+          case "$GITHUB_REF_NAME" in
+            poc/icloud-cloudflare-connectivity) ;;
+            *) echo "::error::Branch não permitida para esta prova: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      # actions fixadas por SHA de commit (a tag fica no comentário); SHAs lidos das páginas públicas das releases, a conferir pelo dono
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      # só os arquivos desta lista entram no pacote; qualquer outro (inclusive .env, .dev.vars, package.json, wrangler.toml) derruba o job
+      - name: Montar o pacote a partir de uma lista fixa de arquivos
+        run: |
+          BASE=experimentos/icloud-auth-probe
+          ESPERADO=$'./README.md\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/politica.mjs\n./wrangler.jsonc'
+          ATUAL=$(cd "$BASE" && find . -type f | LC_ALL=C sort)
+          if [ "$ATUAL" != "$ESPERADO" ]; then
+            echo "::error::Arquivos inesperados em $BASE; só a lista fixa é permitida."
+            diff <(printf '%s\n' "$ESPERADO") <(printf '%s\n' "$ATUAL") || true
+            exit 1
+          fi
+          PACOTE="$RUNNER_TEMP/pacote"
+          mkdir -p "$PACOTE/src"
+          for ARQ in politica jwt jwks index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
+          cat > "$PACOTE/wrangler.jsonc" <<'JSON'
+          {
+            "name": "rac-icloud-auth-poc",
+            "main": "src/index.mjs",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false }
+          }
+          JSON
+          # a wrangler.jsonc da branch tem de ser equivalente à escrita aqui (que é a única usada)
+          if [ "$(jq -S 'del(."$schema")' "$BASE/wrangler.jsonc")" != "$(jq -S . "$PACOTE/wrangler.jsonc")" ]; then
+            echo "::error::A wrangler.jsonc da branch difere da configuração fixa do workflow."
+            exit 1
+          fi
+
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/icloud-auth-probe-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
+
+      # empacota sem publicar (dry-run, sem credencial), inspeciona e calcula o hash do arquivo que será publicado
+      - name: Empacotar sem publicar e inspecionar o resultado
+        id: empacotar
+        run: |
+          PACOTE="$RUNNER_TEMP/pacote"
+          DIST="$RUNNER_TEMP/dist"
+          (cd "$PACOTE" && node "$GITHUB_WORKSPACE/experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --dry-run --outdir "$DIST")
+          OUTROS=$(ls "$DIST" | grep -v -E '^(index\.js|index\.js\.map|README\.md)$' || true)
+          if [ -n "$OUTROS" ]; then echo "::error::Arquivos inesperados no pacote gerado."; exit 1; fi
+          BUNDLE="$DIST/index.js"
+          for PADRAO in 'process\.env' 'eval\(' 'new Function' 'cloudflare:' 'imap\.mail\.me\.com' 'smtp\.mail\.me\.com' 'import\(' 'require\(' 'console\.'; do
+            if grep -qE "$PADRAO" "$BUNDLE"; then echo "::error::O pacote contém uma construção proibida: $PADRAO"; exit 1; fi
+          done
+          HOSTS=$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)
+          if [ "$HOSTS" != "https://token.actions.githubusercontent.com" ]; then echo "::error::O pacote cita endereços fora do emissor do GitHub."; exit 1; fi
+          SHA=$(sha256sum "$BUNDLE" | cut -d' ' -f1)
+          {
+            echo "sha256=$SHA"
+            echo "pacote=$(base64 -w0 "$BUNDLE")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pacote do Worker rac-icloud-auth-poc (antes da aprovação do ambiente)"
+            echo
+            echo "- sha256 do arquivo que será publicado: \`$SHA\`"
+            echo "- tamanho: $(wc -c < "$BUNDLE") bytes; único endereço no pacote: token.actions.githubusercontent.com"
+            echo "- sem process.env, eval, console, sockets, endereços da Apple, import dinâmico ou require"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # este passo roda código da branch e por isso fica DEPOIS do empacotamento e neste job, que não tem nenhum secret
+      - name: Testes do Worker autenticado e do escopo
+        run: node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_escopo.test.mjs tests/icloud_auth_probe_isolamento.test.mjs
+
   provisionar:
+    needs: verificar
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: cloudflare-poc
@@ -28,6 +138,7 @@ jobs:
       contents: read
     env:
       WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
     defaults:
       run:
         shell: bash
@@ -39,18 +150,55 @@ jobs:
             *) echo "::error::Branch não permitida para publicar o Worker: $GITHUB_REF_NAME"; exit 1 ;;
           esac
 
-      - uses: actions/checkout@v4
+      # só os dados da ferramenta (package.json e lockfile) vêm do repositório; nada é executado a partir deles além do npm ci sem scripts
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /experimentos/icloud-auth-probe-ferramenta/
+          sparse-checkout-cone-mode: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
 
-      # este passo roda código do repositório, por isso não recebe nenhum secret
-      - name: Testes do Worker autenticado e do escopo
-        run: node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_escopo.test.mjs
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/icloud-auth-probe-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
 
+      # recebe só o pacote e o hash públicos do job verificar; confere o hash e escreve a configuração de publicação aqui mesmo
+      - name: Reconstituir o pacote aprovado e preparar a publicação (sem secrets)
+        env:
+          PACOTE_B64: ${{ needs.verificar.outputs.pacote }}
+          SHA256_ESPERADO: ${{ needs.verificar.outputs.sha256 }}
+        run: |
+          DEST="$RUNNER_TEMP/publicar"
+          mkdir -p "$DEST"
+          printf '%s' "$PACOTE_B64" | base64 -d > "$DEST/index.js"
+          if ! printf '%s  %s\n' "$SHA256_ESPERADO" "$DEST/index.js" | sha256sum -c - > /dev/null; then
+            echo "::error::O hash do pacote recebido não confere com o do job verificar."
+            exit 1
+          fi
+          cat > "$DEST/base.jsonc" <<'JSON'
+          {
+            "name": "rac-icloud-auth-poc",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false }
+          }
+          JSON
+          jq --arg main "$DEST/index.js" '. + {main: $main, no_bundle: true}' "$DEST/base.jsonc" > "$DEST/wrangler.publicar.jsonc"
+          echo "Pacote conferido: $SHA256_ESPERADO"
+
+      # só curl e jq; o token vai por substituição de processo, nunca como argumento visível na lista de processos
       - name: Conferir o token Cloudflare (sem mostrar dados da conta)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -61,7 +209,7 @@ jobs:
             exit 1
           fi
           verificar() {
-            curl -sS -m 20 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$1" | jq -r 'select(.success == true) | .result.status' || true
+            curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "$1" | jq -r 'select(.success == true) | .result.status' || true
           }
           STATUS=$(verificar "https://api.cloudflare.com/client/v4/user/tokens/verify")
           [ "$STATUS" = "active" ] || STATUS=$(verificar "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
@@ -71,12 +219,14 @@ jobs:
           fi
           echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
 
-      - name: Publicar o Worker da prova autenticada (Workers Free)
-        working-directory: experimentos/icloud-auth-probe
+      # último passo do job: o Wrangler fixado pelo lockfile, num diretório vazio, com a configuração escrita neste arquivo e o pacote aprovado
+      - name: Publicar o pacote aprovado (Workers Free)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4.161.0 deploy
+        run: |
+          cd "$RUNNER_TEMP/publicar"
+          node "$GITHUB_WORKSPACE/experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --config "$RUNNER_TEMP/publicar/wrangler.publicar.jsonc"
 
   executar:
     needs: provisionar

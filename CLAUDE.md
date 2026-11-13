@@ -118,3 +118,4 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
 - A única chave no código é a pública (publishable) do Supabase; a segurança vem do RLS.
 - Segredos do servidor só em Edge Functions → Secrets ou no Vault. Nunca pedir ao dono a chave secreta nem a senha do banco.
 - Sem automação ou raspagem do LinkedIn; respeitar os termos de cada fonte.
+- Credenciais de nuvem (Cloudflare e similares) só em Environments do GitHub, usados só por workflow privilegiado que existe na `main`, com os Environments aceitando só a `main`. Código de branch experimental entra nesse workflow apenas como dado verificado por hash e nunca é executado com secrets (`docs/icloud-poc-deploy.md`).

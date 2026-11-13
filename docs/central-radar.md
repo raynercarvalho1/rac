@@ -1,6 +1,6 @@
 # Central de Compras × Radar de Ofertas
 
-Liga o que o dono **pagou** (compras registradas) ao que a internet **oferece** (anúncios descobertos pelo Radar), sem misturar os dois. Só do dono: a casa (Fernanda) não vê nada disto e a experiência dela não muda.
+Liga o que o dono **pagou** (compras registradas) ao que a internet **oferece** (anúncios descobertos pelo Radar), sem misturar os dois. As ofertas são só do dono: a casa (Fernanda) não vê nada do Radar. Desde 12/11/2026 (pedido do dono) ela vê as páginas de categoria e produto com o que foi pago, sem o selo de ofertas e sem o quadro do Radar (docs/central-compras.md, "Navegação de mercado").
 
 ## Regras (valem em todo o código)
 1. Oferta encontrada na internet **não é compra**. O preço descoberto nunca é gravado como preço pago nem como preço verificado: a tela só o **compara**, de forma indicativa, com o último preço pago.

@@ -68,7 +68,8 @@
     client().then(function (c) { return c.auth.getSession(); }).then(function (r) {
       user = r.data && r.data.session && r.data.session.user;
       if (!user) { drawLogin(sub, arg); return; }
-      return loadRows().then(function () { return sub === "" || sub === "central" || sub === "categoria" || sub === "produto" || sub === "estabelecimento" ? loadOnline() : null; }).then(function () { drawApp(sub, arg); });
+      ligarAtualizar();
+      return loadRows().then(function () { return sub === "" || sub === "central" || sub === "categoria" || sub === "produto" || sub === "estabelecimento" ? loadOnline() : null; }).then(function () { drawApp(sub, arg); reler(sub, arg); });
     }).catch(function (e) { msg("Não consegui abrir o controle de mercado agora (" + (e.message || e) + ")."); });
   }
 
@@ -97,14 +98,13 @@
   }
 
   /* Todas as linhas da visão "compras" (um item por linha), em páginas de 1000 */
-  function loadRows(force) {
-    if (rows && !force) return Promise.resolve(rows);
-    if (loadingRows && !force) return loadingRows;
+  /* lê as linhas sem mexer na memória (quem guarda é loadRows ou a releitura); a ordem por id desempata as páginas: nenhuma linha some nem se repete entre uma página e outra */
+  function lerLinhas() {
     var out = [];
     function page(from) {
       var cols = "id,data,mes,mercado,numero,forma_pagamento,categoria,descricao,produto,produto_id,quantidade,unidade,valor_unitario,valor_total,desconto,observacao";
       return sb.from("compras").select(mig046 === false ? cols : cols + ",subcategoria")
-        .order("data", { ascending: true }).range(from, from + 999)
+        .order("data", { ascending: true }).order("id", { ascending: true }).range(from, from + 999)
         .then(function (r) {
           /* antes da migration 046 a coluna subcategoria não existe: tenta de novo sem ela (o Mercado continua funcionando) */
           if (r.error && mig046 !== false && /subcategoria/i.test(r.error.message || "")) { mig046 = false; return page(from); }
@@ -114,17 +114,27 @@
           return (r.data || []).length === 1000 ? page(from + 1000) : out;
         });
     }
-    loadingRows = page(0).then(function (d) {
+    return page(0).then(function (d) {
       d.forEach(function (x) { x.categoria = catOf(x.categoria); x.valor_total = +x.valor_total; x.valor_unitario = +x.valor_unitario; x.quantidade = +x.quantidade; x.desconto = +x.desconto; x.mk = mesKey(x.data); x.nota = x.data + "|" + x.mercado + "|" + (x.numero || ""); });
-      rows = d; loadingRows = null; return rows;
+      return d;
     });
+  }
+  /* quando cada fonte foi lida e a "assinatura" do que veio (para a releitura saber se algo mudou) */
+  var lidoEm = { notas: 0, online: 0, assNotas: "", assOnline: "" };
+  function assinaturaNotas(d) { return JSON.stringify((d || []).map(function (x) { return [x.id, x.data, x.mercado, x.numero, x.produto, x.categoria, x.subcategoria || null, x.quantidade, x.unidade, x.valor_unitario, x.valor_total, x.desconto]; })); }
+  function usarLinhas(d) { rows = d; lidoEm.notas = Date.now(); lidoEm.assNotas = assinaturaNotas(d); }
+  function loadRows(force) {
+    if (rows && !force) return Promise.resolve(rows);
+    if (loadingRows && !force) return loadingRows;
+    loadingRows = lerLinhas().then(function (d) { usarLinhas(d); loadingRows = null; return rows; }, function (e) { loadingRows = null; throw e; });
     return loadingRows;
   }
 
   /* ---------- casca: abas internas e sair ---------- */
   var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"], ["categoria", "Categoria"], ["produto", "Produto"], ["estabelecimento", "Estabelecimento"]];
   function drawApp(sub, arg) {
-    var v = VIEWS.some(function (x) { return x[0] === sub && ((x[0] !== "radar" && x[0] !== "categoria" && x[0] !== "produto" && x[0] !== "estabelecimento") || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
+    /* categoria, produto e estabelecimento são da casa também desde 12/11/2026 (pedido do dono); o Radar continua só do dono */
+    var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
     /* cabeçalho em 3 faixas: 1) título e ações gerais; 2) navegação principal em largura total (os 5 itens sempre visíveis, sem rolagem);
@@ -1203,21 +1213,32 @@
     }).sort(function (a, b) { return b.data.localeCompare(a.data); });
     var p = panel("Notas", g.length + " compras registradas");
     g.forEach(function (n) {
-      var d = h("details", { class: "mknota", open: st.notaAberta === n.data + "|" + n.mercado + "|" + (n.numero || "") ? "open" : null },
+      /* chegou por um item (página do produto, da categoria ou do estabelecimento): a nota abre pelo topo, com o item em destaque logo abaixo do cabeçalho e marcado na lista */
+      var aberta = st.notaAberta === n.data + "|" + n.mercado + "|" + (n.numero || ""), alvo = aberta && st.notaItem ? n.itens.filter(function (x) { return x.id === st.notaItem; })[0] || null : null, alvoBox = null, topo = null;
+      if (alvo) {
+        var irItem = h("button", { type: "button", class: "ghostbtn", text: "Ver o item na lista da nota ↓" });
+        irItem.onclick = function () { if (alvoBox && alvoBox.scrollIntoView) alvoBox.scrollIntoView({ block: "center", behavior: "smooth" }); };
+        topo = h("div", { class: "mkalvotopo", role: "status" }, h("span", { class: "sub", text: "Você abriu esta nota pelo item:" }), h("b", { text: alvo.descricao }),
+          h("span", { class: "sub", text: fmtQtd(alvo.quantidade, alvo.unidade) + " × " + money(alvo.valor_unitario) + " = " + money(alvo.valor_total) + " · " + alvo.categoria }), h("div", { class: "vfil" }, irItem));
+      }
+      var d = h("details", { class: "mknota", open: aberta ? "open" : null },
         h("summary", null, h("span", { class: "when", text: dataBR(n.data) }), h("span", { class: "mkn" }, h("b", { text: semCidade(estabDe(n.itens[0])) }), h("span", { class: "sub", text: emissorTxt(n.itens[0]) + " · " + n.itens.length + " itens" + (n.numero ? " · NF " + n.numero.replace(/^0+/, "") : "") })), h("b", { class: "mkt", text: money(n.total) })),
+        topo,
         h("div", { class: "mkitens" }, n.itens.map(function (x) {
           var cx = h("div");
           var edit = h("button", { type: "button", class: "ghostbtn", "aria-label": "Editar a classificação de " + x.descricao, text: "Editar" });
           edit.onclick = function () { cx.innerHTML = ""; cx.appendChild(formClasse(x, function (mudou) { if (mudou) { st.notaAberta = n.data + "|" + n.mercado + "|" + (n.numero || ""); drawApp("notas"); } else cx.innerHTML = ""; })); };
-          var box = h("div", { class: "mkitem" }, h("div", { class: "mkitlinha" }, h("span", { class: "grow" }, h("b", { text: x.descricao }), h("span", { class: "sub", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.valor_unitario) })),
+          var box = h("div", { class: "mkitem" + (x === alvo ? " mkalvo" : "") }, h("div", { class: "mkitlinha" }, h("span", { class: "grow" }, h("b", { text: x.descricao }), h("span", { class: "sub", text: fmtQtd(x.quantidade, x.unidade) + " × " + money(x.valor_unitario) })),
             h("span", { class: "end" }, h("b", { text: money(x.valor_total) }), h("span", { class: "vp", text: x.categoria + (x.subcategoria ? " › " + x.subcategoria : "") }))), h("div", { class: "vfil" }, edit), cx);
+          if (x === alvo) alvoBox = box;
           return box;
         })),
         n.pag ? h("p", { class: "sub", text: "Pagamento: " + n.pag }) : null, canalNota(n.data + "|" + n.mercado + "|" + (n.numero || ""), function () { st.notaAberta = n.data + "|" + n.mercado + "|" + (n.numero || ""); drawApp("notas"); }), botaoApagar(n.itens, function () { drawApp("notas"); }));
       p.appendChild(d);
     });
     body.appendChild(p);
-    if (st.notaAlvo) { st.notaAlvo = false; setTimeout(function () { var ab = p.querySelector && p.querySelector("details[open]"); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: "center" }); }, 30); }
+    /* rola até o TOPO da nota aberta (cabeçalho com data, loja e NF), não até o meio da lista de itens */
+    if (st.notaAlvo) { st.notaAlvo = false; setTimeout(function () { var ab = p.querySelector && p.querySelector("details[open]"); if (ab && ab.scrollIntoView) ab.scrollIntoView({ block: "start" }); }, 30); }
   }
 
   /* ---------- Categoria e Produto: o que foi pago × o que a internet oferece (docs/central-radar.md) ----------
@@ -1226,7 +1247,7 @@
   function linkCat(nome) { return "#mercado/categoria/" + encodeURIComponent(nome); }
   function linkProd(nome) { return "#mercado/produto/" + encodeURIComponent(nome); }
   /* abre a COMPRA (nota) onde um valor foi registrado: a tela Notas com aquela nota aberta e rolada até ela */
-  function abrirNota(chave) { st.notaAberta = chave; st.notaAlvo = true; if (location.hash !== "#mercado/notas") location.hash = "#mercado/notas"; else drawApp("notas"); }
+  function abrirNota(chave, item) { st.notaAberta = chave; st.notaAlvo = true; st.notaItem = item || null; if (location.hash !== "#mercado/notas") location.hash = "#mercado/notas"; else drawApp("notas"); }
   function trilha(partes) {
     var t = h("nav", { class: "mk-trilha", "aria-label": "Onde você está" });
     partes.forEach(function (x, i) { if (i) t.appendChild(h("span", { "aria-hidden": "true", text: " › " })); t.appendChild(x.href ? h("a", { class: "link", href: x.href, text: x.txt }) : h("span", { text: x.txt, "aria-current": "page" })); });
@@ -1239,7 +1260,8 @@
   }
   /* ---------- Navegação de mercado (docs/central-compras.md, "Navegação de mercado") ----------
      Categoria → produtos → preços; estabelecimento → compras, produtos e comparação. Os números vêm de NUCLEO.cm* sobre as MESMAS compras da aba Central
-     (notas do Mercado + pedidos online que contam, sem duplicidade): o total de uma página bate com a barra da Central no mesmo período e canal. Só leitura; só o dono. */
+     (notas do Mercado + pedidos online que contam, sem duplicidade): o total de uma página bate com a barra da Central no mesmo período e canal. Só leitura.
+     O dono e a casa veem as páginas (a casa desde 12/11/2026, a pedido do dono); as ofertas do Radar e a junção de produtos são só do dono. */
   var CM = { ord: "gasto", ordE: "gasto", histTodas: false, opoTodas: false };
   function linkEst(nome) { return "#mercado/estabelecimento/" + encodeURIComponent(nome); }
   function cmUn(u) { return u === "kg" ? "/kg" : u === "l" ? "/L" : u === "un" ? "/un" : "/" + u; }
@@ -1256,7 +1278,7 @@
     Object.assign(CU, { per: String(data).slice(0, 7), canal: "", estab: "", cat: "", aberta: id, todas: true, sel: null, alvo: true });
     if (location.hash !== "#mercado/central") location.hash = "#mercado/central"; else drawApp("central");
   }
-  function abrirLinha(x) { if (x.abre) abrirNota(x.abre); else abrirCompraCentral(x.compra, x.data); }
+  function abrirLinha(x) { if (x.abre) abrirNota(x.abre, x.item_id); else abrirCompraCentral(x.compra, x.data); }
   function linkCompra(a, x) { a.onclick = function (e) { if (e && e.preventDefault) e.preventDefault(); abrirLinha(x); }; return a; }
   function hrefCompra(x) { return x && !x.abre ? "#mercado/central" : "#mercado/notas"; }
   /* a linha (compra) de um ponto de preço de mkcProduto: mesma data, estabelecimento, unidade e preço */
@@ -1306,7 +1328,7 @@
     var s = h("select", { "aria-label": "Ordenar produtos" }, [["gasto", "Maior gasto"], ["compras", "Mais comprados"], ["alta", "Maior alta de preço"], ["baixa", "Maior queda de preço"], ["nome", "Nome (A a Z)"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
     s.value = atual; s.onchange = function () { grava(s.value); redesenhar(); }; return h("div", { class: "vfil" }, s);
   }
-  /* entrada da navegação, na Central (só o dono): categorias e estabelecimentos do período e canal escolhidos */
+  /* entrada da navegação, na Central: categorias e estabelecimentos do período e canal escolhidos */
   function painelExplorar(lista) {
     var X = NU().cmExplorar(lista), per = cmPer(), fr = h("div", { class: "stack" });
     var p = panel("Explorar por categoria", "Abra uma categoria para ver os produtos, quanto gastou em cada um, os preços pagos e onde comprou (" + cmRotPer(per).replace(/^em /, "") + (CU.canal ? ", " + (CU.canal === "online" ? "online" : "presencial") : "") + "). Os filtros de estabelecimento e categoria acima não valem aqui.");
@@ -1324,14 +1346,14 @@
     }
     return fr;
   }
-  /* evolução do gasto mês a mês na Central (só o dono), com os filtros da Central; clicar num mês escolhe o mês */
+  /* evolução do gasto mês a mês na Central, com os filtros da Central; clicar num mês escolhe o mês */
   function painelEvolucao(all) {
     var N = NU(), per = cmPer(), E = N.cmPorMes(all, { canal: CU.canal, estab: CU.estab, categoria: CU.cat }, cmFim(per), 12);
     var p = panel("Evolução dos gastos", "Os 12 meses até " + mesNome(E.meses.length ? E.meses[E.meses.length - 1].mes : cmFim(per)) + ", com os filtros de canal, estabelecimento e categoria acima. Toque num mês para vê-lo." + (E.media != null ? " Média de " + money(E.media) + " por mês desde " + mesNome(E.desde) + "." : ""));
     p.appendChild(cmVbars(E.meses, /^\d{4}-\d{2}$/.test(per) ? per : null, function (m) { CU.per = m; CU.aberta = null; CU.sel = null; drawApp("central"); }, "gastos"));
     return p;
   }
-  /* oportunidades de economia (só o dono): o mesmo produto, na mesma unidade, saiu mais barato em outro estabelecimento nos últimos 12 meses */
+  /* oportunidades de economia: o mesmo produto, na mesma unidade, saiu mais barato em outro estabelecimento nos últimos 12 meses */
   function painelOportunidades(all) {
     var N = NU(), O = N.cmOportunidades(N.cmLinhas(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo("12m", hojeLocal()), { canal: CU.canal }))));
     var tot = O.reduce(function (s, x) { return s + x.economia; }, 0);
@@ -1371,8 +1393,8 @@
     var lista = h("div", { class: "mkpcs" }), selos = {}, porProd = groupBy(lin, function (x) { return x.produto; });
     c.produtos.forEach(function (x) {
       var un = cmUn(x.unidade), ls = porProd[x.nome] || [], lu = linhaDoPonto(ls, x.unidade, x.ultimo), lm = linhaDoPonto(ls, x.unidade, x.menor), lM = linhaDoPonto(ls, x.unidade, x.maior);
-      var selo = h("p", { class: "mkoferta sub", text: ehDono() ? "Ofertas: conferindo…" : "" });
-      selos[N.pcChave(x.nome)] = selo;
+      var selo = ehDono() ? h("p", { class: "mkoferta sub", text: "Ofertas: conferindo…" }) : null;   /* ofertas do Radar: só o dono */
+      if (selo) selos[N.pcChave(x.nome)] = selo;
       var ult = h("a", { class: "mkpc-pago mk-linkcompra", href: hrefCompra(lu), title: "Abrir a compra do último preço pago" }, h("span", { class: "sub", text: "Último preço pago " }), h("b", { text: money(x.ultimo.preco) + un }), h("span", { class: "sub", text: " em " + dataBR(x.ultimo.data) + (x.ultimo.mercado ? " · " + x.ultimo.mercado : "") + " ›" }));
       if (lu) linkCompra(ult, lu);
       var faixa = h("p", { class: "sub" });
@@ -1531,13 +1553,14 @@
     var tabelaHist = function (l) {
       return h("div", { class: "plst" }, l.map(function (x) {
         var a = h("a", { class: "plr mk-linkcompra", href: hrefCompra(x), title: "Abrir a compra de " + dataBR(x.data) },
-          h("span", { class: "pln" }, h("b", { text: dataBR(x.data) }), h("span", { class: "sub", text: x.mercado + (x.fonte === "online" ? " · online" : "") })), h("span", { class: "plq", text: fmtQtd(+x.quantidade || 0, x.unidade) + " × " + money(x.valor_unitario) }), h("span", { class: "plt", text: money(x.valor_total) }));
+          h("span", { class: "pln" }, h("b", { text: dataBR(x.data) }), h("span", { class: "sub", text: x.mercado + (x.fonte === "online" ? " · online" : "") + (x.nome_original ? " · no pedido: " + x.nome_original : "") })), h("span", { class: "plq", text: fmtQtd(+x.quantidade || 0, x.unidade) + " × " + money(x.valor_unitario) }), h("span", { class: "plt", text: money(x.valor_total) }));
         return linkCompra(a, x);
       }));
     };
     hist.appendChild(tabelaHist(linhas.slice(0, 12)));
     if (linhas.length > 12) { var mais = h("details", { class: "rtnovo" }, h("summary", { text: "Ver as outras " + (linhas.length - 12) + " compras" })); mais.appendChild(tabelaHist(linhas.slice(12))); hist.appendChild(mais); }
     body.appendChild(hist);
+    if (ehDono()) body.appendChild(painelJuntar(nome, rp, arg));
     /* 2) registrar uma compra: sempre pelo fluxo normal (nota ou pedido), nunca a partir de um anúncio. Fica DEPOIS das ofertas (o dono vê o que a internet oferece antes de decidir comprar). */
     var reg = panel("Comprou? Registre a compra", "O preço de um anúncio só entra no histórico depois que a compra for registrada pelo fluxo normal da Central de Compras (nota ou pedido). Nada é gravado automaticamente a partir das ofertas.");
     reg.appendChild(h("p", null, h("a", { class: "mkadd", href: "#mercado/importar", text: "Registrar compra (adicionar nota)" })));
@@ -1583,6 +1606,65 @@
       p.appendChild(h("p", null, novo)); p.appendChild(msg); box.appendChild(p);
     }).catch(function (e) { box.innerHTML = ""; box.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Não consegui ler o Radar agora (" + (e && e.message ? e.message : e) + ")." }))); });
   }
+  /* ---------- Juntar produtos com nomes diferentes (pedido online × nota do Mercado; docs/central-compras.md, "Juntar produtos") ----------
+     Só o dono. O sistema só SUGERE (NUCLEO.cmSugerirJuncoes); juntar e separar gravam só PESSOAL["mercado-equivalencias"]: o pedido gravado, os valores e a categoria não mudam. */
+  function gravarEquiv(mapa, msg, depois) {
+    if (typeof pessoalGravar !== "function") { msg.textContent = "Não consegui guardar agora."; return; }
+    var v = { v: 1, itens: mapa };
+    pessoalGravar("mercado-equivalencias", v, function (erro) { if (erro) msg.textContent = erro; });
+    if (typeof PESSOAL !== "undefined" && PESSOAL) PESSOAL["mercado-equivalencias"] = v;
+    cuMemo = null; depois();
+  }
+  function juntarProduto(origem, destino, msg, depois) { var r = NU().cmJuntar(equivLer(), origem, destino); if (!r.ok) { msg.textContent = r.erro; return; } gravarEquiv(r.mapa, msg, depois); }
+  function separarProduto(origem, msg, depois) { gravarEquiv(NU().cmSeparar(equivLer(), origem), msg, depois); }
+  function botaoAcao(txt, pri, f) { var b = h("button", { type: "button", class: "ghostbtn" + (pri ? " pri" : ""), text: txt }); b.onclick = function () { b.disabled = true; f(); }; return b; }
+  /* na página do produto: separar o que foi juntado, juntar este produto (só de pedido online) a outro, ou trazer para cá um pedido online parecido */
+  function painelJuntar(nome, rp, arg) {
+    var N = NU(), lin = N.cmLinhas(centralDados().compras), sug = N.cmSugerirJuncoes(lin), msg = h("p", { class: "sub", role: "status" }), aqui = function () { drawApp("produto", arg); };
+    var p = panel("Mesmo produto com outro nome", "Junte o produto que aparece com nomes diferentes na nota do Mercado e no pedido online (ou em dois pedidos). Só muda o nome na Central: o pedido gravado, os valores e a categoria não mudam, e dá para separar quando quiser.");
+    var orig = {}; rp.forEach(function (x) { if (x.nome_original) orig[x.nome_original] = 1; });
+    Object.keys(orig).forEach(function (o) { p.appendChild(h("div", { class: "rtlinha" }, h("span", { text: "Inclui o pedido online registrado como “" + o + "”" }), botaoAcao("Separar", false, function () { separarProduto(o, msg, aqui); }))); });
+    var soOnline = rp.every(function (x) { return x.fonte === "online"; }) && !Object.keys(orig).length;
+    if (soOnline) {
+      var meu = sug.filter(function (s) { return s.origem === nome; })[0];
+      if (meu) { p.appendChild(h("h3", { text: "Parecidos" })); meu.candidatos.forEach(function (c) { p.appendChild(h("div", { class: "rtlinha" }, h("span", { text: c.nome + " (" + (c.fonte === "nota" ? "Mercado" : "online") + ", " + c.compras + (c.compras === 1 ? " compra" : " compras") + ", " + c.pontos + "% parecido)" }), botaoAcao("Juntar a “" + c.nome + "”", true, function () { juntarProduto(nome, c.nome, msg, function () { location.hash = linkProd(c.nome); }); }))); }); }
+      var outros = Object.keys(groupBy(lin, function (x) { return x.produto; })).filter(function (n) { return n !== nome; }).sort(function (a, b) { return a.localeCompare(b); });
+      if (outros.length) {
+        var sel = h("select", { "aria-label": "Juntar a outro produto" }, h("option", { value: "", text: "Juntar a outro produto…" }), outros.map(function (n) { return h("option", { value: n, text: n }); }));
+        var ok = h("button", { type: "button", class: "ghostbtn", text: "Juntar" }); ok.onclick = function () { var d = sel.value; if (!d) { msg.textContent = "Escolha o produto."; return; } juntarProduto(nome, d, msg, function () { location.hash = linkProd(d); }); };
+        p.appendChild(h("div", { class: "vfil" }, sel, ok));
+      }
+    } else {
+      var vem = sug.filter(function (s) { return s.candidatos.some(function (c) { return c.nome === nome; }); });
+      if (vem.length) { p.appendChild(h("h3", { text: "Pedidos online parecidos" })); vem.forEach(function (s) { p.appendChild(h("div", { class: "rtlinha" }, h("span", { text: "“" + s.origem + "” (" + s.compras + (s.compras === 1 ? " pedido" : " pedidos") + ")" }), botaoAcao("Juntar a este", true, function () { juntarProduto(s.origem, nome, msg, aqui); }))); }); }
+      else if (!Object.keys(orig).length) p.appendChild(h("p", { class: "sub", text: "Nenhum pedido online com nome parecido. Para juntar dois produtos do Mercado, use a aba Produtos." }));
+    }
+    p.appendChild(msg);
+    return p;
+  }
+  /* na aba Produtos: todas as sugestões e as junções feitas, num quadro recolhido */
+  function painelJuncoes() {
+    var caixa = h("details", { class: "mknota" }), corpo = h("div", null), rot = h("span", { class: "sub", text: " carregando…" });
+    caixa.appendChild(h("summary", null, h("span", { class: "mkn" }, h("b", { text: "Pedidos online com nome diferente" }), rot)));
+    caixa.appendChild(corpo);
+    function pintar() {
+      var N = NU(), lin = N.cmLinhas(centralDados().compras), sug = N.cmSugerirJuncoes(lin), mapa = equivLer(), feitos = [], msg = h("p", { class: "sub", role: "status" });
+      lin.forEach(function (x) { if (x.nome_original && !feitos.some(function (f) { return f[0] === x.nome_original; })) feitos.push([x.nome_original, x.produto]); });
+      rot.textContent = " · " + sug.length + (sug.length === 1 ? " sugestão" : " sugestões") + " · " + feitos.length + (feitos.length === 1 ? " junção feita" : " junções feitas") + (Object.keys(mapa).length > feitos.length ? " (outras sem compra no histórico)" : "");
+      corpo.innerHTML = "";
+      corpo.appendChild(h("p", { class: "sub", text: "O mesmo produto pode vir com nomes diferentes na nota do Mercado e no pedido online. Juntar só muda o nome na Central (o pedido não muda); dá para separar quando quiser. Nada é juntado sozinho." }));
+      sug.forEach(function (s) {
+        var l = h("div", { class: "mkitem" }, h("b", { text: "“" + s.origem + "”" }), h("span", { class: "sub", text: "pedido online · " + s.categoria + " · " + s.compras + (s.compras === 1 ? " compra" : " compras") + " · parece com:" }));
+        s.candidatos.forEach(function (c) { l.appendChild(h("div", { class: "rtlinha" }, h("span", { text: c.nome + " (" + (c.fonte === "nota" ? "Mercado" : "online") + ", " + c.pontos + "%)" }), botaoAcao("Juntar", true, function () { juntarProduto(s.origem, c.nome, msg, pintar); }))); });
+        corpo.appendChild(l);
+      });
+      if (!sug.length) corpo.appendChild(h("p", { class: "empty", text: "Nenhuma sugestão agora." }));
+      if (feitos.length) { corpo.appendChild(h("h3", { text: "Junções feitas" })); feitos.forEach(function (f) { corpo.appendChild(h("div", { class: "rtlinha" }, h("span", { text: "“" + f[0] + "” → " + f[1] }), botaoAcao("Separar", false, function () { separarProduto(f[0], msg, pintar); }))); }); }
+      corpo.appendChild(msg);
+    }
+    if (onl === null) loadOnline().then(pintar); else pintar();
+    return h("div", { class: "panel" }, caixa);
+  }
   /* ---------- Produtos: renomear, juntar repetidos e trocar categoria ---------- */
   function viewProdutos(body) {
     var p = panel("Produtos", "Junte nomes diferentes do mesmo produto para o histórico de preços ficar num lugar só. A categoria escolhida aqui vale para todas as compras do produto.");
@@ -1593,6 +1675,7 @@
     var form = h("div", { class: "mkmerge", hidden: "" }); p.appendChild(form);
     var info = h("p", { class: "sub", role: "status" }); p.appendChild(info);
     var list = h("div", { class: "mkplist" }); p.appendChild(list);
+    if (ehDono()) body.appendChild(painelJuncoes());   /* pedido online × nota com nomes diferentes (só o dono) */
     body.appendChild(p);
     var prods = [], sel = {};
     var cats = listaCats(rows);
@@ -2266,8 +2349,7 @@
   var onl = null, onlAviso = "", cuMemo = null;
   var CU = { per: "", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, alvo: false };
   /* pedidos online, só leitura, com os campos que a regra financeira precisa; se falhar, a Central segue só com o Mercado e avisa */
-  function loadOnline(force) {
-    if (onl && !force) return Promise.resolve(onl);
+  function lerOnline() {
     var out = [], cols = "id,loja,numero,data,vendedor,status,subtotal,desconto,frete,taxas,total_pago,categoria,numero_nf,emitente,fora_das_contas,canal,natureza,historico,origem,compras_online_itens(ordem,descricao,qtd,unitario,total,desconto,categoria,natureza,total_linha,situacao)";
     function page(from) {
       return sb.from("compras_online").select(cols).order("data", { ascending: true }).order("id", { ascending: true }).range(from, from + 199).then(function (r) {
@@ -2276,18 +2358,60 @@
         return (r.data || []).length === 200 ? page(from + 200) : out;
       });
     }
-    return page(0).then(function (d) { onl = d.map(function (x) { return NU().coDeBanco(x); }); onlAviso = ""; cuMemo = null; return onl; },
-      function (e) { onl = []; onlAviso = "As compras online não carregaram agora (" + (e && e.message || e) + "). Os números abaixo são só do Mercado."; cuMemo = null; return onl; });
+    return page(0).then(function (d) { return d.map(function (x) { return NU().coDeBanco(x); }); });
+  }
+  function usarOnline(d) { onl = d; onlAviso = ""; cuMemo = null; lidoEm.online = Date.now(); lidoEm.assOnline = JSON.stringify(d); }
+  function loadOnline(force) {
+    if (onl && !force) return Promise.resolve(onl);
+    return lerOnline().then(function (d) { usarOnline(d); return onl; },
+      function (e) { onl = []; onlAviso = "As compras online não carregaram agora (" + (e && e.message || e) + "). Os números abaixo são só do Mercado."; cuMemo = null; lidoEm.online = Date.now(); lidoEm.assOnline = ""; return onl; });
+  }
+  /* ---------- dados sempre frescos, sem esperar recarregar o site ----------
+     1) A tela abre na hora com o que está na memória; se a leitura passou do prazo (pedidos online: 15 s; notas: 60 s), as fontes são lidas de novo em segundo plano
+        e a tela só é redesenhada se algo mudou (mesma rolagem, mesmos filtros). Só nas telas de consulta: nunca em Adicionar nota, Notas ou Produtos (onde se edita).
+     2) O botão ↻ do topo lê as duas fontes de novo na hora ("busca antes, troca depois": se uma leitura falhar, nada muda).
+     3) Compras online avisa depois de gravar (esquecerOnline) e o Mercado relê as notas depois de salvar (loadRows(true)). */
+  var RELER_MS = { notas: 60000, online: 15000 }, VISTAS_CONSULTA = { central: 1, categoria: 1, produto: 1, estabelecimento: 1, painel: 1, precos: 1, consumo: 1, comparar: 1 }, VISTAS_UNIFICADAS = { central: 1, categoria: 1, produto: 1, estabelecimento: 1 };
+  var relendo = null, atuLigado = false;
+  function reler(sub, arg, agora) {
+    var v = sub || "central";
+    if (relendo || !rows || !VISTAS_CONSULTA[v]) return relendo;
+    agora = agora || Date.now();
+    var qN = agora - lidoEm.notas > RELER_MS.notas, qO = VISTAS_UNIFICADAS[v] && onl !== null && agora - lidoEm.online > RELER_MS.online;
+    if (!qN && !qO) return null;
+    var hash = location.hash, falhou = function () { return null; };
+    relendo = Promise.all([qN ? lerLinhas().then(null, falhou) : null, qO ? lerOnline().then(null, falhou) : null]).then(function (r) {
+      relendo = null;
+      if (location.hash !== hash) return false;   /* a pessoa já foi para outra tela: a próxima abertura lê de novo */
+      var mudou = false;
+      if (r[0]) { var an = assinaturaNotas(r[0]); if (an !== lidoEm.assNotas) { mudou = true; usarLinhas(r[0]); } else lidoEm.notas = Date.now(); }
+      if (r[1]) { var ao = JSON.stringify(r[1]); if (ao !== lidoEm.assOnline) { mudou = true; usarOnline(r[1]); } else lidoEm.online = Date.now(); }
+      if (mudou) drawApp(sub, arg);
+      return mudou;
+    });
+    return relendo;
+  }
+  /* liga o botão ↻ ao Mercado (as funções do botão ficam em js/app.js, que carrega depois deste arquivo) */
+  function ligarAtualizar() {
+    if (atuLigado || typeof atuModulo !== "function" || typeof atuLer !== "function") return; atuLigado = true;
+    atuModulo("mercado", {
+      buscar: function () { return Promise.all([atuLer(lerLinhas), atuLer(lerOnline)]).then(function (r) { return { notas: r[0], online: r[1] }; }); },
+      antes: function () { var o = {}; if (rows) o.notas = { ok: true }; if (onl !== null) o.online = { ok: !onlAviso }; return o; },
+      trocar: function (n) { usarLinhas(n.notas.v); usarOnline(n.online.v); },
+      ocupado: function () { return /^#mercado\/importar/.test(location.hash) ? "a tela Adicionar nota (salve a nota ou saia dela antes de atualizar)" : ""; } });
   }
   var canCache = { raw: undefined, mapa: {}, ok: false };
   function canaisLer() { var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-canais"]) || null; if (!canCache.ok || canCache.raw !== raw) canCache = { raw: raw, mapa: NU().cuCanaisValidos(raw), ok: true }; return canCache.mapa; }
   /* nome do estabelecimento para exibir no Painel do Mercado e em Notas: a plataforma quando o dono marcou a compra como online; o emissor da nota continua em x.mercado */
   function estabDe(x) { var c = canaisLer()[x.nota]; return c && c.canal === "online" && c.plataforma ? c.plataforma : x.mercado; }
   function emissorTxt(x) { return estabDe(x) !== x.mercado ? " · emissor: " + semCidade(x.mercado) : ""; }
+  /* junções de produto (pedido online × nota) decididas pelo dono: PESSOAL["mercado-equivalencias"] (a casa não tem PESSOAL: vê os nomes como estão nos pedidos) */
+  function equivLer() { return NU().cmEquivalencias(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["mercado-equivalencias"] : null); }
   function centralDados() {
-    var canais = canaisLer(), k = JSON.stringify(canais);
+    var canais = canaisLer(), eq = equivLer(), k = JSON.stringify(canais) + "|" + JSON.stringify(eq);
     if (cuMemo && cuMemo.rows === rows && cuMemo.onl === onl && cuMemo.k === k) return cuMemo.d;
     var N = NU(), d = N.cuUnificar(N.cuDeNotas(rows || [], canais), N.cuDeOnline(onl || []));
+    if (Object.keys(eq).length) d = Object.assign({}, d, { compras: N.cmAplicarEquivalencias(d.compras, eq) });
     cuMemo = { rows: rows, onl: onl, k: k, d: d }; return d;
   }
   function canalTxt(c) { return c.canal === "online" ? "Online" + (c.plataforma && c.plataforma !== c.estabelecimento ? " · " + c.plataforma : "") : "Presencial"; }
@@ -2385,7 +2509,7 @@
       kpi("Itens comprados", String(R.itens), R.ajustes ? "fora dos itens (frete, taxas, descontos do pedido): " + sinalMoney(R.ajustes) : ""),
       kCanal));
     if (CU.cat) body.appendChild(h("p", { class: "sub", text: "Com categoria escolhida, valem só os itens dela: frete, taxas e descontos gerais do pedido não são divididos entre categorias." }));
-    if (ehDono()) body.appendChild(painelEvolucao(all));
+    body.appendChild(painelEvolucao(all));
     if (R.possiveisDuplicatas) body.appendChild(h("div", { class: "panel" }, h("p", { class: "sub", role: "status" }, "⚠ " + R.possiveisDuplicatas + (R.possiveisDuplicatas === 1 ? " pedido online tem" : " pedidos online têm") + " a mesma data e o mesmo valor de uma nota do Mercado. Os dois estão somados: se for a mesma compra, marque o pedido como “já contada em outro lugar” em ", h("a", { class: "link", href: "#compras", text: "Compras online" }), ".")));
 
     /* últimas compras */
@@ -2427,7 +2551,7 @@
     tot.appendChild(h("p", { class: "sub", text: "Cada fonte mantém o seu cálculo: o Mercado soma os itens das notas; o online usa o total pago do pedido (com desconto, frete e taxas). Nada é somado duas vezes." }));
     fo.forEach(function (k) { tot.appendChild(h("p", { class: "sub", text: "Fora da soma: " + D.fora[k].n + " " + (rot[k] || k) + " (" + money(D.fora[k].valor) + ")." })); });
     body.appendChild(tot);
-    if (ehDono()) { body.appendChild(painelExplorar(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal })))); body.appendChild(painelOportunidades(all)); }
+    body.appendChild(painelExplorar(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal })))); body.appendChild(painelOportunidades(all));
     body.appendChild(h("p", { class: "sub" }, "Detalhes de cada loja online: ", h("a", { class: "link", href: "#compras", text: "Compras online" }), " · cada nota: ", h("a", { class: "link", href: "#mercado/notas", text: "Notas" }), "."));
   }
   function adc(pai, filho) { if (filho) pai.appendChild(filho); }
@@ -2438,7 +2562,7 @@
     adc(p, kv("Emissor fiscal", c.emissor && c.emissor !== c.estabelecimento ? c.emissor : null)); adc(p, kv("Vendedor", c.vendedor && c.vendedor !== c.estabelecimento ? c.vendedor : null));
     adc(p, kv(c.fonte === "online" ? "Pedido" : "Nota", c.numero ? String(c.numero).replace(/^0+(?=.)/, "") : null)); adc(p, kv("Pagamento", c.pagamento));
     p.appendChild(h("div", { class: "plst" }, c.itens.map(function (i) {
-      return h("div", { class: "plr" }, h("span", { class: "pln" }, h("b", { text: i.nome }), h("span", { class: "sub", text: i.categoria + (i.sub ? " › " + i.sub : "") })),
+      return h("div", { class: "plr" }, h("span", { class: "pln" }, h("b", { text: i.nome }), h("span", { class: "sub", text: i.categoria + (i.sub ? " › " + i.sub : "") + (i.nome_original ? " · no pedido: " + i.nome_original : "") })),
         h("span", { class: "plq", text: fmtQtd(i.qtd, i.unidade) }), h("span", { class: "plt", text: money(i.valor) }));
     })));
     /* a conta do pedido, linha a linha: itens + ajustes = valor pago (nada é rateado nem vira produto) */
@@ -2451,7 +2575,7 @@
     if (c.possivel_duplicata) p.appendChild(h("p", { class: "sub", role: "status", text: "⚠ Mesma data e mesmo valor de uma nota do Mercado: confira se é a mesma compra (os dois estão somados)." }));
     if (c.fonte === "nota") {
       p.appendChild(canalNota(c.chave, function () { drawApp("central"); }));
-      var ab = h("button", { type: "button", class: "ghostbtn", text: "Abrir a nota em Notas (editar categorias)" }); ab.onclick = function () { st.notaAberta = c.chave; location.hash = "#mercado/notas"; }; p.appendChild(h("div", { class: "vfil" }, ab));
+      var ab = h("button", { type: "button", class: "ghostbtn", text: "Abrir a nota em Notas (editar categorias)" }); ab.onclick = function () { st.notaAberta = c.chave; st.notaItem = null; location.hash = "#mercado/notas"; }; p.appendChild(h("div", { class: "vfil" }, ab));
     } else p.appendChild(h("div", { class: "vfil" }, h("a", { class: "link", href: "#compras", text: "Abrir em Compras online (pedido, documentos e lojas)" })));
     return p;
   }
@@ -2461,7 +2585,7 @@
     var p = h("div", { class: "panel mkdet" }), tot = its.reduce(function (s, i) { return s + i.valor; }, 0);
     var fechar = h("button", { type: "button", class: "ghostbtn", text: "Fechar" }); fechar.onclick = function () { CU.sel = null; drawApp("central"); };
     p.appendChild(h("div", { class: "ulhead" }, h("div", null, h("h2", { text: valor }), h("p", { class: "sub", text: its.length + (its.length === 1 ? " item" : " itens") + " · " + money(tot) })), fechar));
-    if (ehDono()) p.appendChild(h("p", null, h("a", { class: "mkadd", href: tipo === "estab" ? linkEst(valor) : linkCat(valor), text: (tipo === "estab" ? "Abrir o estabelecimento" : "Abrir a categoria") + " (produtos, preços e comparação) ›" })));
+    p.appendChild(h("p", null, h("a", { class: "mkadd", href: tipo === "estab" ? linkEst(valor) : linkCat(valor), text: (tipo === "estab" ? "Abrir o estabelecimento" : "Abrir a categoria") + " (produtos, preços e comparação) ›" })));
     if (tipo === "estab") {
       var emis = {}, vend = {}; sub.forEach(function (c) { if (c.emissor && c.emissor !== valor) emis[c.emissor] = 1; if (c.vendedor && c.vendedor !== valor) vend[c.vendedor] = 1; });
       if (Object.keys(emis).length) p.appendChild(h("p", { class: "sub", text: "Emissor fiscal das notas: " + Object.keys(emis).join("; ") + "." }));
@@ -2501,7 +2625,7 @@
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
   window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* Compras online chama depois de gravar, anexar, marcar ou apagar um pedido: a Central lê os pedidos de novo na próxima vez que abrir */
-    esquecerOnline: function () { onl = null; cuMemo = null; },
+    esquecerOnline: function () { onl = null; cuMemo = null; lidoEm.online = 0; },
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { drawApp: drawApp, viewCentral: viewCentral, CU: CU, CM: CM, usarOnline: function (l) { onl = l; onlAviso = ""; cuMemo = null; }, centralDados: centralDados, viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { drawApp: drawApp, viewCentral: viewCentral, CU: CU, CM: CM, reler: reler, lidoEm: lidoEm, ligarAtualizar: ligarAtualizar, usarOnline: function (l) { onl = l; onlAviso = ""; cuMemo = null; lidoEm.assOnline = JSON.stringify(l); }, centralDados: centralDados, viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; lidoEm.assNotas = assinaturaNotas(r); if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
 })();

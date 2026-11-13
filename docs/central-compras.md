@@ -35,9 +35,11 @@ Período (últimos meses, 12 meses, Tudo) + canal (Todas/Presenciais/Online) + e
 A Central **não depende** da 046: sem ela as notas aparecem sem subcategoria. Com ela, a subcategoria (ex.: Automotivo › Proteção) aparece nos itens. A 046 foi **aplicada em produção em 10/11/2026** (conferência em `supabase/conferencias/central_compras_pos046.sql`, só leitura). Achado real: no online há um item Pet (Bravecto, Amazon) e um pedido de papel higiênico em 2 linhas, categoria "Outros" (não é Pet); não há Pet nas notas do Mercado nem repetição nota × pedido.
 Pendências conscientes (precisariam de SQL, não feitas): subcategoria dos itens online (hoje só a categoria) e gravar o canal da nota numa coluna em vez de `pessoal`.
 
-## Navegação de mercado (12/11/2026; no código da branch, **não publicado**; sem migration, sem SQL, sem Edge Function)
-A Central passou a ser navegável como um mercado: **Central → categoria → produto → compra** e **Central → estabelecimento → produtos e comparação**. Só o dono vê as páginas e os painéis novos;
-a Central da casa (Fernanda) continua exatamente como era (barras, detalhe da barra e compras), porque mudar o que ela vê depende de pedido do dono.
+## Navegação de mercado (12/11/2026; publicada na versão 2026-11-12.8 pelo merge do PR #4; sem migration, sem SQL, sem Edge Function)
+A Central passou a ser navegável como um mercado: **Central → categoria → produto → compra** e **Central → estabelecimento → produtos e comparação**.
+**Quem vê:** o dono e, desde 12/11/2026 (versão 2026-11-12.9, **pedido do dono**), também a casa (Fernanda): páginas de categoria, produto e estabelecimento, evolução, explorar e oportunidades.
+Continuam só do dono: as ofertas do Radar (selo na categoria e quadro no produto; regra do Radar, docs/central-radar.md), a junção de produtos (abaixo), o "Alterar canal" da nota e a aba Alertas.
+Na aba Produtos a casa continua editando o nome direto, como antes; ela chega às páginas de produto pelas categorias, estabelecimentos e oportunidades.
 
 **Uma fonte só.** Tudo sai das MESMAS compras da aba Central (`cuUnificar`: notas do Mercado + pedidos online que contam pela regra `coRegra`, sem a duplicidade forte nota × pedido).
 `NUCLEO.cmLinhas` transforma essas compras em linhas no formato das linhas do Mercado (produto, quantidade, unidade, preço, total, estabelecimento, compra), e as contas de produto
@@ -70,21 +72,43 @@ O histórico de preços das compras online com a regra do Lote 5.0 (`coPrecos`, 
 Últimos 12 meses (com o canal escolhido): produto, na mesma unidade, comprado em 2+ estabelecimentos. Economia **estimada** = Σ (preço médio pago num lugar − preço médio do lugar mais barato) × quantidade comprada lá,
 só onde a diferença passa de 3% e o total passa de R$ 1. É o que se teria gasto comprando as mesmas quantidades pelo preço médio do mais barato; a tela diz que não considera promoção, validade, marca nem deslocamento. Nada é previsto nem inventado.
 
-### Registro de compras
-O fluxo não mudou (Adicionar nota no Mercado; pedidos em Compras online). Depois de gravar uma nota, o Mercado já relia as linhas (`loadRows(true)`). Novo: depois de gravar, anexar, marcar ou apagar um pedido,
-Compras online (`ccEsquecer`, o mesmo ponto que já limpava o Painel) chama `RACmercado.esquecerOnline()`, e a Central lê os pedidos de novo na próxima vez que abrir; antes, o pedido novo só aparecia depois de recarregar o site.
+### Registro de compras e dados sempre frescos
+O fluxo não mudou (Adicionar nota no Mercado; pedidos em Compras online). Depois de gravar uma nota, o Mercado já relia as linhas (`loadRows(true)`). Depois de gravar, anexar, marcar ou apagar um pedido,
+Compras online (`ccEsquecer`, o mesmo ponto que já limpava o Painel) chama `RACmercado.esquecerOnline()`, e a Central lê os pedidos de novo na próxima vez que abrir.
+**Ajuste de 12/11/2026 (versão 2026-11-12.9), pedido pelo dono** (um pedido online levou mais de 3 minutos para aparecer): a memória da página só era renovada nesses dois casos; pedido gravado em outra aba ou aparelho,
+ou com o site aberto numa versão anterior, só aparecia ao recarregar, e o botão ↻ redesenhava sem ler de novo. Agora:
+- **Releitura em segundo plano** (`reler`): a tela abre na hora com o que está na memória e, se a leitura passou do prazo (pedidos online: 15 s; notas: 60 s), as fontes são lidas de novo sem travar a tela;
+  só redesenha se algo mudou (assinatura dos dados), com a mesma rolagem e os mesmos filtros. Só nas telas de consulta (Central, categoria, produto, estabelecimento, Painel, Preços, Consumo, Comparar);
+  nunca em Adicionar nota, Notas e Produtos (onde se edita). Se a pessoa trocou de tela durante a leitura, o resultado é descartado. Uma leitura por vez.
+- **Botão ↻** (`atuModulo("mercado")`, registrado quando o Mercado abre): lê as notas e os pedidos na hora, "busca antes, troca depois" (se uma leitura falhar, nada muda); espera a tela Adicionar nota.
+- A leitura das notas ganhou desempate por `id` entre as páginas de 1000 linhas (antes, com muitas linhas no mesmo dia, uma página podia repetir ou pular uma linha).
+
+### Abrir a compra por um item (Notas)
+Ao tocar num valor ou numa compra de um produto (página do produto, da categoria ou do estabelecimento), a tela Notas abre a nota pelo **topo** (cabeçalho com data, loja, NF e total) e mostra logo abaixo
+"Você abriu esta nota pelo item: …" (nome, quantidade × preço = total e categoria), com o botão "Ver o item na lista da nota ↓"; o item também fica em destaque na lista. Antes a tela parava no meio dos itens.
+O item vai junto (`item_id`, o id da linha da visão `compras`); abrir a nota pela Central (sem item) não deixa destaque.
 
 ### Código e testes
-`nucleo.js` (puro): `cmLinhas`, `cmFiltrar`, `cmPorEstab`, `cmResumoProduto`, `cmOrdenar`, `cmCategoria`, `cmEstabelecimento`, `cmComparar`, `cmOportunidades`, `cmPorMes`, `cmExplorar`; `cuDeNotas` ganhou, nos itens, o preço unitário da nota
+`nucleo.js` (puro): `cmLinhas` (cada linha leva `item_id` quando vem de nota), `cmFiltrar`, `cmPorEstab`, `cmResumoProduto`, `cmOrdenar`, `cmCategoria`, `cmEstabelecimento`, `cmComparar`, `cmOportunidades`, `cmPorMes`, `cmExplorar`; `cuDeNotas` ganhou, nos itens, o preço unitário da nota
 (`unitario`) e, na compra, a chave que abre a nota em Notas (`nota_abre`); nenhum total mudou. `mercado.js`: bloco "Navegação de mercado" (`viewCategoria`, `viewProduto`, `viewEstabelecimento`, `painelEvolucao`, `painelExplorar`, `painelOportunidades`).
 Testes: `tests/central_mercado.test.mjs` (núcleo: totais = barras da Central, preço da fonte, sem duplicidade, comparação, oportunidades, meses) e `tests/central_mercado_tela.test.mjs` (telas com DOM falso: navegação de ponta a ponta, notas e pedidos abrindo a compra,
-a casa sem nada novo, só leitura, compras online relidas depois de gravar). `central_radar_tela.test.mjs` continua valendo para as partes do Radar.
+a casa sem nada novo, só leitura, compras online relidas depois de gravar, nota aberta pelo item, releitura em segundo plano e o botão ↻). `central_radar_tela.test.mjs` continua valendo para as partes do Radar.
 
 ### Limites conhecidos
-- Produto = nome: o mesmo produto com nomes diferentes (na nota e no pedido online) aparece separado; juntar continua sendo pela aba Produtos (notas). A comparação entre estabelecimentos só usa a mesma unidade e o mesmo nome.
+- Produto = nome: nomes diferentes aparecem separados até serem juntados (notas: aba Produtos; pedido online: "Juntar produtos", abaixo). A comparação entre estabelecimentos só usa a mesma unidade e o mesmo nome.
 - Pedido online sem quantidade conta como 1 unidade (regra de `coPedidoPartes`); online não tem kg/L, então o preço é por unidade.
 - A variação e as oportunidades usam preços já pagos em datas diferentes: um lugar visitado há muitos meses pode parecer mais barato só pela data. A tela mostra as datas e chama o valor de estimativa.
-- Pedidos gravados em outro aparelho só aparecem depois de recarregar o site (como antes); o botão ↻ redesenha sem reler os dados do Mercado.
+- Pedido gravado em outro aparelho aparece na próxima abertura de uma tela de consulta depois do prazo (15 s) ou na hora com o ↻; não há aviso em tempo real (seria outra tarefa).
+
+## Juntar produtos com nomes diferentes (pedido online × nota do Mercado) · 12/11/2026, versão 2026-11-12.9, pedido do dono
+O mesmo produto pode vir com nomes diferentes na nota do Mercado e no pedido online (ou em dois pedidos). Produtos do Mercado já eram juntados pela aba Produtos (no banco: os itens passam para um produto e o outro some).
+Para o pedido online não há produto no banco, então a junção é uma **decisão do dono guardada em `PESSOAL["mercado-equivalencias"]`** (`{v:1, itens:{"o:<nome do item no pedido, normalizado>": "<nome do produto>"}}`; tabela `pessoal`: só o dono, trava MFA, entra no backup; **sem migration**).
+- **Só renomeia na leitura** (`cmAplicarEquivalencias`, em `centralDados`): o item do pedido passa a aparecer como o produto escolhido e o nome original fica à vista ("no pedido: …"). O pedido gravado, os valores, a categoria e as regras financeiras não mudam (há teste: nenhum total muda). Separar desfaz.
+- **O sistema só sugere** (`cmSugerirJuncoes`): para cada produto que só existe em pedido online, os nomes parecidos (palavras em comum ÷ palavras dos dois, sem números nem unidades; nome igual depois de normalizar = 100%), a partir de 40% e com 1+ palavra em comum, até 3, primeiro os do Mercado. Nada é juntado sozinho.
+- **Sem cadeia** (`cmJuntar`): se o destino já foi juntado a outro, a junção vai direto ao final; quem apontava para a origem passa a apontar para o destino. Máximo de 1000 junções.
+- **Onde:** na página do produto (quadro "Mesmo produto com outro nome": juntar este pedido a um produto parecido ou a outro escolhido, trazer para cá um pedido parecido, separar) e na aba Produtos (quadro recolhido "Pedidos online com nome diferente": todas as sugestões e as junções feitas).
+- **Efeito:** o produto passa a ter um histórico só (nota + pedido), com comparação de preço entre a loja online e o mercado, e entra junto nas oportunidades de economia.
+- **Limite:** a casa não tem `pessoal`, então ela vê os produtos pelos nomes como estão nos pedidos (sem as junções do dono). Uma junção que valesse para os dois precisaria de uma tabela nova (migration), decisão do dono.
 
 ## Futuro (não implementado; nada impede)
-Sugerir classificação de produto (sempre com confirmação), juntar o mesmo produto entre nota e pedido online e subcategoria dos itens online (precisaria de SQL).
+Sugerir classificação de produto (sempre com confirmação) e subcategoria dos itens online (precisaria de SQL).

@@ -150,3 +150,41 @@ test("as funções cm* não alteram o que recebem", () => {
   N.cmCategoria(lin, "Padaria"); N.cmEstabelecimento(U.compras, "Tauste"); N.cmComparar(lin, "Tauste"); N.cmOportunidades(lin); N.cmPorMes(U.compras, {}, HOJE, 12); N.cmExplorar(U.compras);
   assert.equal(JSON.stringify(U.compras), antes); assert.equal(JSON.stringify(lin), lAntes);
 });
+
+/* ---------- juntar o mesmo produto com nomes diferentes (pedido online × nota), pedido pelo dono em 12/11/2026 ---------- */
+const PET_NOTA = L("2026-10-20", "Petz (Sorocaba)", "30", "Ração Golden Adulto 10kg", "Pet", 1, 140);
+const UJ = N.cuUnificar(N.cuDeNotas(MERC.concat([PET_NOTA]), {}), N.cuDeOnline(ONLINE));
+
+test("cmEquivalencias / cmJuntar / cmSeparar: só o que é válido; sem juntar consigo mesmo; sem cadeia (o destino já juntado vai direto ao final)", () => {
+  assert.deepEqual(N.cmEquivalencias({ itens: { "o:racao": "Ração", "x:errado": "A", "o:vazio": "  ", "o:longo": "x".repeat(161), "o:num": 3 } }), { "o:racao": "Ração" });
+  assert.deepEqual(N.cmEquivalencias(null), {}); assert.deepEqual(N.cmEquivalencias({ itens: [] }), {});
+  let r = N.cmJuntar({}, "Ração Golden 10kg", "Ração Golden Adulto 10kg"); assert.ok(r.ok); assert.deepEqual(r.mapa, { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Golden Adulto 10kg" });
+  assert.equal(N.cmJuntar({}, "Leite", " leite ").ok, false, "mesmo produto"); assert.equal(N.cmJuntar({}, "", "A").ok, false); assert.equal(N.cmJuntar({}, "A", "x".repeat(161)).ok, false);
+  const r2 = N.cmJuntar(r.mapa, "Ração Golden Adulto 10kg", "Ração Premium"); assert.deepEqual(Object.values(r2.mapa), ["Ração Premium", "Ração Premium"], "quem apontava para a origem passa para o destino");
+  const r3 = N.cmJuntar(r.mapa, "Golden 10kg Amazon", "Ração Golden 10kg"); assert.equal(r3.mapa[N.cmChaveOn("Golden 10kg Amazon")], "Ração Golden Adulto 10kg", "o destino já juntado: vai ao final");
+  assert.deepEqual(N.cmSeparar(r.mapa, "Ração Golden 10kg"), {}); assert.deepEqual(r.mapa, { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Golden Adulto 10kg" }, "separar não altera o mapa recebido");
+});
+
+test("cmAplicarEquivalencias: renomeia SÓ o item do pedido online (o nome do pedido fica em nome_original); totais, categorias e notas não mudam; nada é alterado no que recebe", () => {
+  const mapa = N.cmJuntar({}, "Ração Golden 10kg", "Ração Golden Adulto 10kg").mapa, antes = JSON.stringify(UJ.compras), C = N.cmAplicarEquivalencias(UJ.compras, mapa);
+  assert.equal(JSON.stringify(UJ.compras), antes);
+  const o1 = C.find((c) => c.id === "online:o1"); assert.deepEqual([o1.itens[0].nome, o1.itens[0].nome_original, o1.itens[0].valor, o1.itens[0].categoria], ["Ração Golden Adulto 10kg", "Ração Golden 10kg", 100, "Pet"]);
+  assert.equal(C.find((c) => c.fonte === "nota" && c.itens.some((i) => i.nome === "Leite")), UJ.compras.find((c) => c.fonte === "nota" && c.itens.some((i) => i.nome === "Leite")), "notas: o mesmo objeto, intocado");
+  const R0 = N.cuResumo(N.cuFiltrar(UJ.compras, {})), R1 = N.cuResumo(N.cuFiltrar(C, {}));
+  assert.deepEqual([R1.total, R1.porCategoria, R1.porEstab], [R0.total, R0.porCategoria, R0.porEstab], "juntar não muda nenhum total");
+  const p = N.cmCategoria(N.cmLinhas(C), "Pet").produtos; assert.deepEqual(p.map((x) => [x.nome, x.compras, x.estabelecimentos]), [["Ração Golden Adulto 10kg", 3, 2]], "um produto só, das duas fontes, em 2 lugares");
+  const cmp = N.cmComparar(N.cmLinhas(C), "Amazon").produtos[0]; assert.deepEqual([cmp.produto, cmp.melhor.nome, cmp.leitura], ["Ração Golden Adulto 10kg", "Petz", "mais_barato_aqui"], "juntos, o pedido online e a nota passam a ser comparados");
+  assert.ok(N.cmLinhas(C).some((x) => x.nome_original === "Ração Golden 10kg"), "a linha guarda o nome do pedido");
+  assert.equal(N.cmAplicarEquivalencias(UJ.compras, {}), UJ.compras, "sem junções, nada muda");
+});
+
+test("cmSugerirJuncoes: só sugere para o produto que existe apenas em pedido online; nome parecido (palavras em comum) ou igual depois de normalizar; nunca junta sozinho", () => {
+  const S = N.cmSugerirJuncoes(N.cmLinhas(UJ.compras));
+  assert.deepEqual(S.map((s) => s.origem), ["Ração Golden 10kg"], "Leite, Pão etc. (notas) não são origem");
+  assert.deepEqual(S[0].candidatos.map((c) => [c.nome, c.fonte, c.pontos]), [["Ração Golden Adulto 10kg", "nota", 67]]);
+  const igual = N.cuUnificar(N.cuDeNotas([L("2026-11-01", "A", "1", "Café Pilão 500g", "Mercearia", 1, 20)], {}), N.cuDeOnline([{ id: "q", data: "2026-11-02", loja: "amazon", total_pago: 21, itens: [{ descricao: "CAFE PILAO 500G", qtd: 1, total: 21, categoria: "Mercearia" }] }]));
+  assert.equal(N.cmSugerirJuncoes(N.cmLinhas(igual.compras))[0].candidatos[0].pontos, 100, "o mesmo nome escrito de outro jeito");
+  assert.deepEqual(N.cmSugerirJuncoes(N.cmLinhas(UJ.compras), { min: 80 }), [], "abaixo do mínimo, nada");
+  const juntado = N.cmLinhas(N.cmAplicarEquivalencias(UJ.compras, N.cmJuntar({}, "Ração Golden 10kg", "Ração Golden Adulto 10kg").mapa));
+  assert.deepEqual(N.cmSugerirJuncoes(juntado), [], "depois de juntar, a sugestão some");
+});

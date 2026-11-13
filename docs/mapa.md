@@ -70,7 +70,7 @@ Legenda: ✅ concluído (verde) · 🟡 em andamento (amarelo) · ⚪ planejado 
 | ✅ Piloto RAC Hoje (painel central) | Feito e testado; lógica de IA intacta | idem (PR #9 mesclado) |
 | ✅ Casa (Fernanda) preservada | 20 telas comparadas com a `main` | — |
 | ✅ Aprovação do dono no iPhone (critério da F3) | O dono validou o piloto RAC Hoje no iPhone | informado pelo dono em 13/11/2026 |
-| 🟡 DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | **Implementada e validada na branch** `claude/agenda-modernizacao-ds4-xuijw0` (testes, Chromium em 390/768/1280 e dois temas, Casa idêntica); falta o dono ver no iPhone | PR para a `main` · sem merge · não publicado |
+| 🟡 DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | **Implementada e validada na branch** `claude/agenda-modernizacao-ds4-xuijw0` (testes, Chromium em 390/768/1280 e dois temas, Casa idêntica); falta o dono ver no iPhone | Commit `01eee35`, push e **PR #10** para a `main` · sem merge · não publicado |
 | ⚪ DS-4 · demais módulos por área (**Saúde** é a próxima; depois Finanças, Carreira, Informação…) | Planejado; um módulo por vez, com seu próprio teste visual | — |
 | ⚪ DS-5 · telas da casa (Mercado, Lista, Família, Veículos) | Pendente de **autorização expressa** do dono | — |
 | ⚪ Início (`#inicio`) como painel único ou convivendo com o RAC Hoje (D-12) | Pendente de decisão do dono | — |

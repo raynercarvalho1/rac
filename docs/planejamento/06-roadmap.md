@@ -151,7 +151,7 @@ Próximos passos técnicos: DS-4 pelo que o dono mais usa (Agenda e Saúde são 
 
 ## 3.4 Andamento da DS-4 · Agenda (13/11/2026)
 
-A DS-4 migra os módulos para o Design System um por vez. O primeiro é a **Agenda** (DS-4.1), na branch `claude/agenda-modernizacao-ds4-xuijw0` (PR para a `main`; **merge e publicação são do dono**).
+A DS-4 migra os módulos para o Design System um por vez. O primeiro é a **Agenda** (DS-4.1), na branch `claude/agenda-modernizacao-ds4-xuijw0` (commit `01eee35`, **PR #10** para a `main`; **merge e publicação são do dono**).
 Descrição da página, regras preservadas e testes: [`docs/agenda.md`](../agenda.md). **A DS-4.1 só conta como concluída quando o dono a vir no iPhone e o PR for mesclado.**
 
 | Item | Situação | O que falta |

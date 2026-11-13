@@ -349,7 +349,7 @@ Família e da Casa.
 
 ### 2. O que estamos fazendo
 
-- Trabalho na branch `claude/agenda-modernizacao-ds4-xuijw0`; commit, push e PR para a `main` conforme autorizado pelo dono no pedido da DS-4.1 (hashes e número do PR no próprio PR). **Merge: não feito (é do dono). Publicação: nenhuma.**
+- Trabalho na branch `claude/agenda-modernizacao-ds4-xuijw0`; commit `01eee35`, push e **PR #10** para a `main`, conforme autorizado pelo dono no pedido da DS-4.1 (o resultado do CI fica no próprio PR). **Merge: não feito (é do dono). Publicação: nenhuma.**
 - **A DS-4.1 não está concluída**: falta o dono ver a Agenda no iPhone e mesclar o PR.
 - Limitações: capturas no Chromium da nuvem com dados fictícios e fundo de reserva (a foto vem da internet); não testado no iPhone nem com os dados reais do dono; a comparação da Casa usou poucos dados fictícios (várias telas apareceram no estado vazio).
 

@@ -1,8 +1,8 @@
 # RAC · 08 · Frentes funcionais
 
 Propostas funcionais e técnicas de cada frente (13/11/2026). **Nada aqui foi implementado.** Toda tabela citada é proposta;
-os nomes são sugestões para discussão. Migrations novas começariam no número 050 (a 049 é a última aplicada; 040 está pendente;
-041 e 044 são propostas). Convenções [Fato] / [Hipótese] / [Recomendação]: ver o
+os nomes são sugestões para discussão. Migrations novas começariam no número 050 (a 049 é a última aplicada; a 040 não foi aplicada
+e não será, por decisão do dono; 041 e 044 são propostas). Convenções [Fato] / [Hipótese] / [Recomendação]: ver o
 [Documento 1](01-visao-e-mapa-mestre.md#como-ler-este-conjunto).
 
 Regras que valem para toda tabela nova (do `CLAUDE.md`): arquivo numerado em `supabase/` que pode rodar de novo, RLS ligado,
@@ -111,7 +111,7 @@ Tabela `medicamentos` (um registro por caixa ou frasco):
 aplica as regras `NUCLEO.hoje*`, monta o pacote de fatos e oferece a análise com IA (só REAL, a pedido). O Início (`renderInicio`)
 tem 13 cartões próprios, e Agenda, Resumo e Painel são outras visões agregadas (P-15 do [Documento 02](02-auditoria-arquitetural.md)).
 
-**Proposta** [Recomendação]: o RAC Hoje vira a **porta de entrada do dono** (o Início passa a mostrar o painel), com os blocos:
+**Proposta** [Recomendação]: o RAC Hoje vira a **porta de entrada do dono** (o Início passa a mostrar o painel; questão D-12, em aberto), com os blocos:
 Precisa de atenção (sinais) · Hoje e amanhã (compromissos, contas, medicamentos, encomendas) · Números do mês · Saúde ·
 Acontecimentos · Integrações (monitor) · Recomendações da IA (a pedido). **Sem duplicar dados**: cada bloco lê a fonte do módulo
 responsável (contrato de fontes, passo A4). A casa continua entrando pelo Mercado.
@@ -133,7 +133,8 @@ depois do `#` também pode não redesenhar se o destino já for a página aberta
    (com as mesmas proteções do item 2 abaixo).
 3. Testar sem esperar as 6h: Sistema → "Notificações neste aparelho" → **Mandar um teste** (a função já envia um push de
    teste que abre `#sistema`).
-4. Trocar o destino de `#agenda` para `#rachoje` (ou para o item) exige mudar a `garmin`: **só com autorização**.
+4. Qual deve ser o destino é a questão D-05, em aberto. Trocar o destino de `#agenda` (para `#rachoje` ou para o item) exige
+   mudar a `garmin`: **só com autorização**.
 
 ### Requisito anterior 2: atualizar ao voltar, sem apagar o que está sendo digitado
 
@@ -210,6 +211,6 @@ garantias e manutenção.
 **Fica para uma etapa própria**: kits e combos, patrimônio (bens duráveis ligados à nota e à garantia em Documentos) e
 manutenção. Pendentes desta área: a proposta `041` (categorias oficiais) e a `044` (IA do Radar).
 
-**Fora do planejamento** (decisão de 13/11/2026): funcionalidades fiscais, OCR, SEFAZ e acompanhamento fiscal. A Central Fiscal
-continua no ar como está; a proposta `040` (dar entrada da nota no Mercado) depende de decisão do dono
-([Documento 07](07-decisoes-e-pendencias.md)).
+**Fora do planejamento** (decisão de 13/11/2026): funcionalidades fiscais, OCR, SEFAZ, emissão e acompanhamento fiscal. A Central Fiscal
+continua no ar, congelada e sem evolução; não volta ao roadmap. A migration `040` (dar entrada da nota no Mercado) não será
+implementada e não é pendência ([Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas)).

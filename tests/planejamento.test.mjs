@@ -83,7 +83,8 @@ test("planejamento: nada que pareça dado pessoal (o repositório é público)",
 
 test("histórico diário: cada dia tem as três partes, em ordem, e o primeiro registro continua lá", () => {
   const t = ler("historico-diario.md");
-  const dias = [...t.matchAll(/^## (\d{2})\/(\d{2})\/(\d{4})\s*$/gm)];
+  /* "## 13/11/2026" ou, para mais de um registro no mesmo dia, "## 13/11/2026 · assunto" */
+  const dias = [...t.matchAll(/^## (\d{2})\/(\d{2})\/(\d{4})(?: · .+)?\s*$/gm)];
   assert.ok(dias.length >= 1, "nenhum dia registrado");
   assert.equal(`${dias[0][1]}/${dias[0][2]}/${dias[0][3]}`, "13/11/2026", "o primeiro registro (13/11/2026) não pode ser apagado");
   let anterior = "";

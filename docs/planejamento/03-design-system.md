@@ -260,7 +260,7 @@ No computador, os mesmos cartões em grade de 2 ou 3 colunas, com o menu agrupad
 |---|---|---|---|
 | DS-0 · Tokens | Tokens `--rac-*` no `:root`; os nomes atuais viram apelidos; um teste "catraca" impede aumentar o número de cores fora do `:root` (linha de base: 196) | Não | Suíte passa; contagem de cores não sobe |
 | DS-1 · Componentes base | Classes `rac-` (cartão, botão, chip, estado, ícone) ao lado das antigas; uma página interna "Componentes" só do dono, para conferir no celular | Não (só a página interna) | Página de componentes nos dois temas, 390 px e 1280 px |
-| DS-2 · Tema e navegação | "Noite Dodger" refinado e menu agrupado (depende do registro de rotas, A3) | Sim, só para o dono | Dono aprova no celular |
+| DS-2 · Tema e navegação | O tema que o dono escolher (questão D-01, em aberto; "Noite Dodger" é a proposta) e o menu agrupado (depende do registro de rotas, A3) | Sim, só para o dono | Dono aprova no celular |
 | DS-3 · Piloto | RAC Hoje e Sistema/Monitor no padrão novo | Sim, só dono | Capturas antes × depois no PR; nenhum teste de tela quebrado |
 | DS-4 · Por área | Saúde, Finanças, Carreira, Informação, uma área por publicação | Sim | Cada área sem classes antigas de botão e cartão; catraca de cores desce |
 | DS-5 · Telas da casa | Mercado, Lista, Família e Veículos | Sim, para a Fernanda | **Só com autorização do dono** |

@@ -46,7 +46,9 @@ Supabase limita arquivos a 50 MB.
 | Publicação | GitHub Pages | a cada push na `main` | — | Publica o site (inclusive a cada commit dos robôs) |
 
 [Fato] Os robôs fazem commit direto na `main` como `github-actions[bot]` (284 dos 358 commits do histórico são desse autor,
-somando robôs e o fluxo antigo de publicação). Cada commit de robô dispara uma publicação do Pages.
+somando robôs e o fluxo antigo de publicação). Cada commit de robô dispara uma publicação do Pages. Desde 13/11/2026 a `main`
+tem uma ruleset de proteção ativa (criada pelo dono); falta comprovar que os pushes dos robôs de Notícias e Vagas continuam
+passando depois dela ([Documento 07](07-decisoes-e-pendencias.md#pendências-técnicas)).
 
 ## 3. Registros (logs) que já existem [Fato]
 

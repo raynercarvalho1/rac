@@ -1,7 +1,7 @@
 # RAC · 02 · Auditoria arquitetural
 
 Auditoria feita em **13/11/2026** sobre a `main` em `256edfa` (site `2026-11-12.9`), lendo o código, os testes, as migrations, as
-Edge Functions, os workflows, o histórico completo (358 commits) e o GitHub (5 PRs, todos mesclados). O banco de produção foi
+Edge Functions, os workflows, o histórico completo (358 commits) e o GitHub (PRs #1 a #5, todos mesclados). O banco de produção foi
 consultado só por leitura e sem login (`tests/banco.test.mjs`: 96 objetos conferidos, nenhum dado lido).
 Convenções [Fato] / [Hipótese] / [Recomendação]: ver o [Documento 1](01-visao-e-mapa-mestre.md#como-ler-este-conjunto).
 
@@ -70,7 +70,7 @@ regras de **todos** os domínios mesmo para quem só abre a Lista.
 | Auth | E-mail e senha, recuperação por e-mail, TOTP opcional, passkey (Face ID); papel pela tabela `membros` | `entrar()`, `mfaPedir()`, docs/seguranca.md |
 | Agendamentos | `rac-rotina` 9h UTC (6h de Brasília) → função `garmin`; `rac-newsletter` de hora em hora (:50); `radar-rotina` 6h20 e 18h20 | `008`, `023`, `045` |
 | Edge Functions | `garmin` (relógio, rotina das 6h, push, atalhos do iPhone, backup semanal), `rac-ia` (IA), `rac-newsletter` (edição e avisos), `radar` (coleta, descoberta pelo SerpApi, avisos) | `supabase/functions/` |
-| Estado em produção | Tudo o que as migrations não pendentes criam existe (96 objetos); a 040 está pendente; 041 e 044 são propostas | `tests/banco.test.mjs` (13/11/2026); `supabase/propostas/` |
+| Estado em produção | Tudo o que as migrations não pendentes criam existe (96 objetos); a 040 não foi aplicada (congelada com a Central Fiscal, sem plano de aplicação); 041 e 044 são propostas | `tests/banco.test.mjs` (13/11/2026); `supabase/propostas/` |
 
 [Fato] Fluxo típico de gravação: tela → conferência na tela → RPC atômica ou `insert/update` direto com RLS → releitura.
 Fluxo de leitura: cada tela consulta as tabelas que precisa, com paginação própria (`.range()`).

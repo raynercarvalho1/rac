@@ -447,3 +447,29 @@ Família e da Casa.
 
 1. Dono: publicar a função (Edge Functions → garmin → Code → Deploy), exportar um backup, abrir Saúde → "Histórico anterior à posse", **medir**, **recuperar** e **medir de novo** (seção 17.4 do Documento 09); então registrar aqui as contagens reais.
 2. Depois, se o dono quiser: redesenho da Saúde no Design System e os sinais (S2 a S5 da seção 11), que **não** fazem parte desta entrega.
+
+
+## 13/11/2026 · Encerramento da DS-4.2 em produção
+
+### 1. O que fizemos
+
+- **Encerramento funcional da DS-4.2**, a pedido do dono. O backfill do histórico anterior a 01/11/2025 foi considerado opcional e não bloqueia mais a conclusão nem a continuidade do desenvolvimento do site.
+- **CI e publicação do site conferidos:** CI da `main` (execução `43438657518`) e GitHub Pages (execução `43438657212`) concluídos com sucesso; versão `2026-11-13.6`.
+- **Edge Function `garmin` publicada em produção:** versão 13, ativa. Deploy incluiu `index.ts` e `alertas_preco.ts`; manteve `verify_jwt: false`. O código publicado não possui mais o corte `GARMIN_DESDE` nem exclusões em `garmin_dia`/`garmin_ativ`.
+- **Conferência somente leitura do banco de produção:** `garmin_dia` = 314 (19 legados, 295 do dono); `garmin_ativ` = 952 (0 legados, 952 do dono). Os 19 dias legados são 5 de novembro/2025 e 14 de dezembro/2025. Atividades existentes vão de 24/01/2026 a 13/11/2026.
+- **Backup disponível:** cofre privado contém backup de 08/11/2026, com `verificado: true` no log da rotina. Nenhuma recuperação ou nova exportação manual foi realizada nesta sessão.
+- **Limite conhecido:** o log da rotina registra HTTP 504 da Garmin ao pedir token em 12 e 13/11. O dono preferiu não executar a medição ou recuperação agora. Não foram inventadas contagens do período anterior a 01/11/2025.
+- Nenhuma migration ou alteração SQL foi necessária. PR #11 permanece como entrega de código mergeada (`b893d34`); CI e Pages confirmados acima.
+
+### 2. O que estamos fazendo
+
+- **DS-4.2 está encerrada** no escopo aprovado: propriedade temporal, classificação em todos os leitores, fim dos descartes, função publicada e painel de backfill disponível.
+- A recuperação do legado anterior a 01/11/2025 permanece **opcional, adiada e fora do caminho crítico**. O dono poderá solicitá-la caso sinta falta de algum registro; não pedir que use o relógio por um dia ou faça uma atividade para concluir este tópico.
+- O redesenho visual da Saúde no Design System (S2–S5) ainda não foi iniciado.
+
+### 3. O que vamos fazer
+
+1. Seguir com o desenvolvimento do RAC sem aguardar backfill Garmin.
+2. Próxima evolução possível da DS-4: redesenho da Saúde no RAC Modern Workspace (S2–S5), com escopo e critérios próprios; depois, seguir para os demais módulos por área conforme prioridade do dono.
+3. Só reabrir a recuperação histórica se o dono solicitar.
+

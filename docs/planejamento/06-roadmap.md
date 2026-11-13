@@ -115,7 +115,7 @@ mesclado nem publicado, e dois critérios dependem de evidência de fora (o iPho
 
 A Fase 1 foi encerrada para fins de planejamento pelo dono em 13/11/2026 (PR #7 mesclado na `main`, commit `95940e4`); as validações de fora
 que restavam (iPhone e robôs depois da ruleset) não bloqueiam a Fase 2 e serão registradas à parte. A Fase 2 é executada na branch
-`claude/fase-2-fundacao-tecnica-rnfabm`, num PR para a `main`. **A Fase 2 não está concluída**: falta o merge (do dono) e a A6 depende de
+`claude/fase-2-fundacao-tecnica-rnfabm`, no PR #8 para a `main`. **A Fase 2 não está concluída**: falta o merge (do dono) e a A6 depende de
 SQL em produção, que só o dono aplica, com autorização própria.
 
 | Item | Situação | O que falta para concluir |

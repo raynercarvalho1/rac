@@ -237,15 +237,16 @@ Família e da Casa.
 
 ### 2. O que estamos fazendo
 
-- O trabalho está na branch `claude/fase-2-fundacao-tecnica-rnfabm`, com commits por assunto e PR para a `main` (número e resultado do CI
-  registrados no relatório do PR).
+- O trabalho está na branch `claude/fase-2-fundacao-tecnica-rnfabm`, no **PR #8** para a `main`, aguardando revisão e merge do dono.
+  O resultado do CI do PR fica no próprio PR e no relatório da sessão (este registro vai no commit que dispara o CI).
 
 | Entrega | Situação |
 |---|---|
 | Implementação A1 a A5 | Feita na branch, testada |
 | A6 (migration 050) | Preparada e testada (PGlite); **não aplicada** em produção |
-| Commit e push da branch | Autorizados pelo dono para esta fase |
-| PR para a `main` | Autorizado pelo dono; aberto pela sessão |
+| Commits na branch | `a323fb5` (A1 a A5), `12028b2` (A6, migration 050 preparada) e `cfc4234` (documentos); um quarto com este registro do PR |
+| Push da branch | Feito (autorizado pelo dono para esta fase) |
+| PR para a `main` | **PR #8** aberto (autorizado pelo dono) |
 | Merge na `main` | **Não feito** (é do dono) |
 | Publicação do site | **Nenhuma**: o site segue na versão `2026-11-13.1`; com o merge, o GitHub Pages publica a `2026-11-13.2` |
 | SQL em produção e Edge Functions | Nenhum |

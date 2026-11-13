@@ -10,6 +10,8 @@ login, Início, `racIA`, `racDica`, botão ↻), `nucleo.js` (funções puras, `
 Testes da base: `tests/estrutura.test.mjs`, `tests/nucleo.test.mjs`, `tests/atualizar.test.mjs`, `tests/atualizar_modulos.test.mjs`.
 Nuvem do Claude Code (ambiente, testes como o CI, proteção da `main`): `scripts/nuvem_preparar.sh`, `scripts/nuvem_testes.sh`,
 `docs/nuvem.md`, teste `tests/nuvem.test.mjs`.
+Planejamento e arquitetura (Documento 1, desde 13/11/2026: visão, auditoria, Design System, RAC Intelligence, integrações, roadmap,
+decisões, frentes e o histórico diário): `docs/planejamento/` (comece por `01-visao-e-mapa-mestre.md`), teste `tests/planejamento.test.mjs`.
 
 | Módulo (rota) | JavaScript | Documento | Teste | SQL | Edge Function / robô |
 |---|---|---|---|---|---|

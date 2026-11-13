@@ -5,8 +5,8 @@ import {
   readSmtpReply,
   probeImap,
   probeSmtp,
-} from "../src/probes.mjs";
-import { bearerTokenMatches } from "../src/auth.mjs";
+} from "../experimentos/icloud-probe/src/probes.mjs";
+import { bearerTokenMatches } from "../experimentos/icloud-probe/src/auth.mjs";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

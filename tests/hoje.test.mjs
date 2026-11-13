@@ -290,7 +290,7 @@ function site({ resp = {}, dono = true, racIA, jsons = {}, agenda, extra = {}, a
      dados, A1) rodam aqui; depois voltam os dados simulados de sempre: a leitura da Agenda (agendaColetarLeitura) e os dados do MBA */
   Object.assign(ctx, extra); ctx.window = ctx; vm.createContext(ctx);
   const simulados = { agendaColetar: ctx.agendaColetar, agendaColetarLeitura: ctx.agendaColetarLeitura, sbOk: ctx.sbOk };
-  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js"]) vm.runInContext(ler(f), ctx, { filename: f });
+  for (const f of ["js/dados.js", "js/fontes.js", "js/fonte-familia.js", "js/fonte-mba.js", "js/fonte-newsletter.js", "js/fonte-agenda.js", "js/graficos.js", "js/kit.js"]) vm.runInContext(ler(f), ctx, { filename: f });   /* Fase 3: o painel usa o kit de componentes e de gráficos (MOD_DEPS do hoje) */
   Object.assign(ctx, simulados, { fonteMbaDados: () => ({ aulas: ctx.mbaAulas(), avals: ctx.mbaAvals(), fin: ctx.mbaFin() }) }, extra);
   vm.runInContext(ler("js/hoje.js"), ctx, { filename: "hoje.js" });
   for (const f of arquivos) vm.runInContext(ler("js/" + f), ctx, { filename: f });
@@ -668,8 +668,8 @@ test("código das telas: ES5, a IA só é chamada pelo botão confirmado, nada g
   const html = ler("index.html");
   assert.match(html, /<section id="rachoje" hidden><div id="rachoje-view"/);
   assert.match(html, /<section id="iacustos" hidden><div id="iacustos-view"/);
-  assert.match(RT.menu, /href="#rachoje" data-k="rachoje">/, "item do menu sem data-casa");
-  assert.match(RT.menu, /href="#iacustos" data-k="iacustos">/, "item do menu sem data-casa");
+  assert.match(RT.menu, /href="#rachoje" data-k="rachoje" data-area="hoje"/, "item do menu sem data-casa"); assert.ok(!/href="#rachoje" data-k="rachoje" data-casa/.test(RT.menu));
+  assert.match(RT.menu, /href="#iacustos" data-k="iacustos" data-area="sis"/, "item do menu sem data-casa"); assert.ok(!/href="#iacustos" data-k="iacustos" data-casa/.test(RT.menu));
   assert.ok(/html\.casa #navgrp a\.it:not\(\[data-casa\]\)/.test(html), "o menu da Fernanda continua só com as páginas dela");
 });
 

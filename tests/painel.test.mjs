@@ -13,7 +13,7 @@ test("Painel: rota, menu, seção, módulo com as dependências do Resumo e da A
   const RT = registro(); assert.ok(RT.tabs.includes("painel"));
   assert.deepEqual(RT.ROTA_MODS.painel, ["painel"]); assert.match(app, /painel:\["graficos","sistema","saude","mba","familia"\]/, "reaproveita os gráficos do kit (A2), a Agenda do Sistema e declara o que usa da Saúde, do MBA e da Família");
   const rp = rota("painel"); assert.ok(!rp.marcaPropria); assert.match(rp.abrirTexto, /renderPainel\(p\[1\]\)/);
-  assert.match(RT.menu, /<a class="it" href="#painel" data-k="painel">/); assert.match(html, /<section id="painel" hidden><div id="painel-view" class="stack"><\/div><\/section>/);
+  assert.match(RT.menu, /<a class="it" href="#painel" data-k="painel" data-area="hoje" style="--o:\d+">/); assert.match(html, /<section id="painel" hidden><div id="painel-view" class="stack"><\/div><\/section>/);
   assert.match(sw, /"\.\/js\/painel\.js"/);
   assert.ok(!RT.DA_CASA.includes("painel"), "dados pessoais: quem é da casa não vê o Painel");
 });

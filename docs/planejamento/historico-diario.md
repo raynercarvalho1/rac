@@ -261,3 +261,62 @@ Família e da Casa.
 2. Quando o dono autorizar: aplicar `supabase/050_seguranca_catalogo.sql` no SQL Editor, rodar `supabase/conferencias/050_conferir_producao.sql`
    (tudo `true`), tirar a marca `-- status: pendente` e conferir a Auditoria no site.
 3. Seguir para a Fase 3 (Design System base) e a Fase 4 (Família e Casa), que já nascem sobre o registro de rotas, as fontes e o catálogo.
+
+## 13/11/2026 · Fase 3 — Design System (DS-0 e DS-1)
+
+### 1. O que fizemos
+
+- **Conferência de partida**: PR #8 mesclado (`1654395`); workflow "Testes" da `main` com sucesso (run 150) e Pages publicado. A branch da sessão estava atrás da `main`
+  (sem trabalho próprio) e foi avançada por fast-forward até `1654395`.
+- **Auditoria**: o [Documento 03](03-design-system.md) já continha o diagnóstico completo; foi reaproveitado, com os números-chave reconferidos no código
+  (cores soltas fora de variáveis: 115; 29 itens de menu num grupo só). Não foi repetida.
+- **DS-0**: tokens `--rac-*` em `index.html` (marca, estados, superfícies, espaço, raio, sombra, movimento, camadas, alvo de 44 px, tipografia), apontando para os tokens atuais.
+- **DS-1**: classes `rac-*` (cartão, botão, chip, selo, estado, esqueleto, campo, lista, tabela, tipografia); página interna `#componentes` (só dono, sem menu, `js/componentes.js`); módulo no cache offline (`sw.js`).
+- **Testes**: novo `tests/design_system.test.mjs` (8 testes); `tests/rotas.test.mjs` ajustado para aceitar a única rota nova (30 → 31). Versão do site na branch: `2026-11-13.3` (`VERSAO` e `MOD_VERSAO`).
+- **Resultados reais**: suíte completa `bash scripts/nuvem_testes.sh` — Grupo 1: 1475 testes, 1473 ok, 0 falhas, 2 `todo`; Grupo 2 (PGlite): 73 ok, 0 falhas. `git diff --check` limpo.
+  Chromium (Playwright): 4 capturas (390 e 1280 px × claro e escuro), sem rolagem lateral, menor alvo de toque 44 px, nenhum erro de console.
+- **Documentação**: `docs/design-system.md` (novo), `docs/mapa.md`, Documento 03 (§8), Documento 06 (§3.3), Documento 07 (atualização), este registro.
+- **Decisões**: tokens novos apontam para os atuais (nenhuma tela muda); página de componentes é rota só do dono. **Não decidido**: tema padrão (D-01), só recomendação.
+- **Fora do escopo, intocados**: Central de Compras, Central Fiscal, `garmin`, `rac-ia`, segredos, cron, workflows, `.claude/settings.json`, SQL. Nenhuma IA paga, nenhuma publicação.
+
+### 2. O que estamos fazendo
+
+- Trabalho na branch `claude/rac-fase-3-design-system-0msm91`; commit, push e PR conforme autorizado no pedido da fase (ver o PR para os hashes). **Merge: não feito (é do dono).** Site em produção segue sem a Fase 3.
+- Limitações: a verificação visual foi no Chromium da nuvem, não no iPhone; o `tests/navegador.test.mjs` roda de fato no GitHub (CI).
+
+### 3. O que vamos fazer
+
+1. Dono: revisar o PR, abrir `#componentes` no celular nos dois temas e, se aprovar, mesclar (a publicação é o GitHub Pages).
+2. Decidir D-01 (tema padrão) com a recomendação de `docs/design-system.md`.
+3. DS-2 e DS-3: tema escuro como opção, menu agrupado e piloto no RAC Hoje e no Monitor; baixar a catraca (`LINHA_DE_BASE_CORES`). DS-5 (casa) só com autorização expressa.
+
+## 13/11/2026 · Fase 3 — Redefinição visual e piloto RAC Hoje (RAC Modern Workspace)
+
+### 1. O que fizemos
+
+- **Conferência de partida**: branch = cabeça do PR #9 (`385b327`), baseada na `main` atual (`1654395`), sem divergência; PR #9 aberto e limpo.
+- **Decisão do dono (substitui a direção "Noite Dodger")**: **RAC Modern Workspace** (produtividade moderna + analytics minimalista + dashboard analítico); tema **claro** como padrão; fundo e azul Dodger preservados;
+  escuro existente funcional. **D-01 está decidida** (a recomendação anterior de escuro como opção primeiro foi superada). O DS-1 da primeira entrega foi auditado: mantidos os nomes `rac-*`, escalas e testes; refinados tokens,
+  botões, chips, campos, lista e tabela; **substituídos** o cartão com borda, a tipografia condensada nos números e a página `#componentes` (classificação completa em `docs/design-system.md`).
+- **Design System**: `css/rac.css` (tokens, componentes por função, shell do dono, piloto) e `js/kit.js` (`rk*`); gráficos reaproveitam `js/graficos.js` (inalterado) com `racDica`.
+- **Navegação**: menu do dono em 6 áreas e **barra inferior no celular**, ambos gerados pelo registro `js/rotas.js` (campos `area` e `curto`; a ordem do registro não mudou); item ativo com tinta azul e indicador.
+- **Piloto RAC Hoje**: painel com abertura, indicadores (atenção, gasto com variação, orçamento com medidor, prontidão), prioridades com link para o módulo, gastos atual × mês passado, contexto do dia, saúde
+  (série real de passos e treinos), análise da IA e pergunta lado a lado, histórico e fontes recolhidos. **Sem fonte nova, sem dado inventado**; a lógica de IA, cache e cobrança não foi alterada.
+- **Casa preservada**: todo o shell novo está sob `html.logado:not(.casa)`; 20 telas da casa (5 rotas × 390 e 1280 px × claro e escuro) comparadas com a `main`: 18 idênticas byte a byte, 2 com 1 pixel de diferença (antialiasing). Central de Compras (`#mercado`) não tocada.
+- **Testes** (resultado real): `bash scripts/nuvem_testes.sh` — Grupo 1: 1478 testes, 1476 ok, 0 falhas, 2 `todo`; Grupo 2 (PGlite): 73 ok, 0 falhas. `git diff --check` limpo. `tests/design_system.test.mjs` reescrito
+  (catraca, 40 pares de contraste, escopo do dono, menu por área, kit, página, piloto, ES5, versões); testes legados ajustados só nos pontos que mudaram (rotas, fontes, hoje, painel, newsletter, central).
+- **Chromium real** (3 larguras: 390, 768, 1280; claro e escuro; dono e casa): sem rolagem horizontal, alvos de toque ≥ 44 px, **console sem erros**; interações conferidas (barra inferior, gaveta, "mostrar todas", dica dos gráficos, recolher, link do indicador, foco por teclado).
+- **Versão do site na branch**: `2026-11-13.4` (`VERSAO`, `MOD_VERSAO` e `?v=` do CSS juntas).
+- **Fora do escopo, intocados**: Central de Compras, Central Fiscal, `garmin`, `rac-ia`, orçamento, segredos, cron, workflows, `.claude/settings.json`, SQL, Edge Functions. Nenhuma chamada de IA, nada publicado, sem merge.
+
+### 2. O que estamos fazendo
+
+- Trabalho na branch `claude/rac-fase-3-design-system-0msm91`, **PR #9** (aberto; commit desta etapa depois do `385b327`, hash no PR). **Merge: não feito (é do dono). Publicação: nenhuma**; o site em produção segue sem a Fase 3.
+- Aguardando o dono: ver o resultado e aprovar o piloto no iPhone (critério da F3).
+- Limitações: capturas em Chromium da nuvem com dados fictícios e o fundo de fallback (a foto vem da internet); não testado no iPhone nem com os dados reais do dono.
+
+### 3. O que vamos fazer
+
+1. Dono: revisar o PR #9; depois do merge e da publicação, abrir `#rachoje` e o menu no iPhone e dizer o que ajustar.
+2. DS-4: migrar os demais módulos um por vez (candidatos: Agenda e Saúde, que já alimentam o painel), baixando `LINHA_DE_BASE_CORES`; o Início ainda usa a tipografia condensada antiga (convive até a migração, D-12).
+3. DS-5 (telas da casa) só com autorização expressa; Fase 4 (medicamentos, encomendas, contas) alimenta o painel sem novo desenho.

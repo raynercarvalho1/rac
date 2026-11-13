@@ -20,9 +20,12 @@ test("o RAC Hoje não usa mais nada de dentro de outras telas e não as carrega:
   for (const f of ["agenda", "newsletter", "mba"]) assert.match(h, new RegExp(`${f}:function\\(\\)\\{return fonteOuErro\\("${f}"\\)`), f + " vem da fonte");
   assert.match(h, /fonteLer\("familia"\)/); assert.match(h, /NUCLEO\.hojeQuemDe\(/);
   const D = modDeps();
-  assert.deepEqual(D.hoje, ["fonte-agenda", "fonte-newsletter", "fonte-mba", "fonte-familia"]);
-  assert.deepEqual([...fecho(D, "hoje")].sort(), ["fonte-agenda", "fonte-familia", "fonte-mba", "fonte-newsletter", "fontes"], "nenhuma tela carrega junto (antes: Sistema, Família, MBA e Saúde)");
-  assert.deepEqual(usosDeOutros("js/hoje.js"), { fonteLer: "js/fontes.js", fonteOuErro: "js/fontes.js" }, "de outros módulos, só o contrato");
+  assert.deepEqual(D.hoje, ["fonte-agenda", "fonte-newsletter", "fonte-mba", "fonte-familia", "kit", "graficos"], "Fase 3: o painel do RAC Hoje usa o kit de componentes e o de gráficos");
+  assert.deepEqual([...fecho(D, "hoje")].sort(), ["fonte-agenda", "fonte-familia", "fonte-mba", "fonte-newsletter", "fontes", "graficos", "kit"], "nenhuma tela carrega junto (antes: Sistema, Família, MBA e Saúde); só os dois kits leves, sem tela");
+  /* Fase 3: além do contrato de fontes, o painel usa os dois kits leves (js/kit.js e js/graficos.js), sem tela e declarados no MOD_DEPS; de outra TELA, nada */
+  const usos = usosDeOutros("js/hoje.js"), deTela = Object.fromEntries(Object.entries(usos).filter(([, a]) => !["js/kit.js", "js/graficos.js"].includes(a)));
+  assert.deepEqual(deTela, { fonteLer: "js/fontes.js", fonteOuErro: "js/fontes.js" }, "de outras telas, só o contrato");
+  assert.ok(Object.values(usos).includes("js/kit.js") && Object.values(usos).includes("js/graficos.js"), "e usa de fato os dois kits");
   /* as fontes são leves: consulta e normalização, sem tela */
   for (const f of ["fontes", "fonte-familia", "fonte-mba", "fonte-newsletter", "fonte-agenda"]) {
     const t = ler("js/" + f + ".js"); assert.ok(!/\bh\(|panel\(|document\.|innerHTML|appendChild/.test(t.replace(/\/\*[\s\S]*?\*\//g, "")), f + " não desenha nada");

@@ -268,3 +268,14 @@ No computador, os mesmos cartões em grade de 2 ou 3 colunas, com o menu agrupad
 Proteções: o CSS novo fica escopado nas classes `rac-` (o antigo continua funcionando até ser removido); capturas de tela
 automáticas (Playwright, que o CI já instala) em 390 px e 1280 px nos dois temas para cada página migrada; a regra dos gráficos
 (`racDica`) vale para tudo; nenhuma biblioteca nova.
+
+## 8. Situação de implementação (atualização de 13/11/2026, Fase 3)
+
+As seções 1 a 7 acima continuam sendo o diagnóstico (13/11/2026) e o plano original. **A direção visual mudou em 13/11/2026**: o dono aprovou o **RAC Modern Workspace**
+(produtividade moderna + analytics minimalista + dashboard analítico), com **tema claro como padrão**, fundo e azul Dodger preservados e o escuro funcional. A seção 2 ("Noite Dodger",
+escuro como direção principal) e a proposta de DS-2 "tema" ficam **substituídas**; a decisão D-01 está tomada. O guia vivo é [`docs/design-system.md`](../design-system.md).
+
+- **Feito na branch `claude/rac-fase-3-design-system-0msm91` (PR #9, sem merge, não publicado)**: DS-0 (tokens) e DS-1 (componentes) na primeira versão, depois **redefinidos** em `css/rac.css` e `js/kit.js`;
+  menu do dono por área e barra inferior no celular (pelo registro de rotas); piloto no RAC Hoje. Classificação do que foi mantido, refinado e substituído em [`docs/design-system.md`](../design-system.md#classificação-do-ds-1-anterior-auditoria-desta-etapa).
+- **Diferença em relação à seção 3**: os tokens `--rac-*` apontam para os atuais onde existem; as superfícies novas (papel 1/2/3, tintas) e o degradê de marca são novos. Breakpoints seguem como convenção (480/860/1180 px).
+- **Não feito ainda**: DS-4 (demais módulos, um por vez), DS-5 (telas da casa, só com autorização), cores por área nos gráficos, `<symbol>` de ícones.

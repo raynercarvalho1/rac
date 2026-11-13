@@ -131,6 +131,24 @@ Ordem de publicação depois do merge: o site funciona com ou sem a 050 (a linha
 vir antes; a 050 é aplicada quando o dono autorizar. Detalhes e achados no [Documento 02](02-auditoria-arquitetural.md#9-plano-gradual-de-melhoria)
 e no [histórico diário](historico-diario.md).
 
+## 3.3 Andamento da Fase 3 (13/11/2026)
+
+A Fase 2 foi mesclada (PR #8, `1654395`; testes e Pages da `main` com sucesso em 13/11/2026). A Fase 3 é executada na branch `claude/rac-fase-3-design-system-0msm91`, no **PR #9**.
+**Direção redefinida pelo dono em 13/11/2026: RAC Modern Workspace** (tema claro padrão; fundo e azul Dodger preservados; escuro funcional). A F3 passa a incluir o **piloto no RAC Hoje**
+(antes DS-3) e o menu por área (antes DS-2), porque a primeira versão do DS-1 não entregava transformação perceptível. Guia: [`docs/design-system.md`](../design-system.md).
+**A Fase 3 não está concluída**: falta o merge (do dono) e a aprovação do piloto no iPhone (critério da F3). Nada foi publicado.
+
+| Item | Situação | O que falta para concluir |
+|---|---|---|
+| DS-0 · Tokens `--rac-*` e catraca de cores | **Feito na branch** (commit `385b327`) e depois **redefinido** (papel 1/2/3, tintas, degradê) em `css/rac.css` | Merge e publicação |
+| DS-1 · Componentes `rac-*`, kit `js/kit.js` e página `#componentes` | **Redefinidos na branch**: cartões por função, gráficos (medidor, comparação, colunas, barras), estados, campos | Merge; o dono conferir no iPhone |
+| DS-2 · Menu por área e barra inferior no celular | **Feito na branch** (só dono; casa idêntica, comprovado em 20 telas) | Merge e publicação |
+| DS-3 · Piloto RAC Hoje | **Feito na branch**: painel com indicadores, gráficos, prioridades, contexto, saúde, IA e fontes recolhidas; lógica de IA intacta | Merge; uso real e aprovação do dono |
+| DS-4 · Demais módulos por área | **Não iniciado**; um módulo por vez, baixando a catraca | Aprovação do piloto |
+| DS-5 · Telas da casa | **Não iniciado** | **Autorização expressa do dono** |
+
+Próximos passos técnicos: DS-4 pelo que o dono mais usa (Agenda e Saúde são os candidatos, por já alimentarem o painel); D-12 (Início × RAC Hoje); quando a Fase 4 criar medicamentos, encomendas e contas, o painel ganha esses blocos sem novo desenho.
+
 ## 4. Como cada fase é entregue
 
 - Um **lote funcional** por vez: planejar, implementar, rodar o teste do módulo, rodar a suíte inteira, relatório objetivo.

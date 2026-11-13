@@ -392,37 +392,97 @@
     t+=c?" Pelas "+c.n+(c.n===1?" análise guardada":" análises guardadas")+" neste aparelho, cada chamada custou "+(c.min===c.max?NUCLEO.iaUsdFino(c.min):"entre "+NUCLEO.iaUsdFino(c.min)+" e "+NUCLEO.iaUsdFino(c.max))+" (estimativa do RAC; não é valor garantido, a fatura é a do Console)."
       :" Ainda não há base neste aparelho para estimar o custo; o valor real é o da fatura do Console.";
     return {paga:true,texto:t+" Nada é gravado nem executado pela IA."}}
+  /* ===== Painel (Fase 3 · piloto do Design System RAC): a MESMA informação e as MESMAS regras de antes, recompostas como painel central. Nada novo é lido ou
+     inventado: cada bloco usa o que a coleta e o núcleo (NUCLEO.hoje*) já entregam, e some quando a fonte não trouxe dado. A IA, o cache, a cobrança e as
+     chamadas sem resultado continuam exatamente nas funções de antes (hjAnalisar, hjBotaoPago, hjAnalise, hjErro, hjPint*). ===== */
+  /* o módulo dono de cada área (os ids são os do registro de rotas, js/rotas.js): cada item do painel leva para onde o dado vive */
+  var HJ_DESTINO={agenda:"#agenda",tarefas:"#lista",mba:"#mba",compras:"#compras",saude:"#saude",vagas:"#vagas",mercado:"#mercado",alimentacao:"#alimentacao",financas:"#mercado",newsletter:"#newsletter",noticias:"#inicio"};
+  var HJ_NOMES_FIN={mercado:"Mercado",alimentacao:"Pedidos de comida",compras:"Compras online"};
+  function hjDestino(it){if(it.href&&String(it.href).charAt(0)==="#")return it.href;var f=(it.fontes||[]).filter(function(k){return HJ_DESTINO[k]})[0];return f?HJ_DESTINO[f]:null}
+  function hjPrazoTxt(it){return it.dias==null?"":it.dias<0?"atrasado há "+(-it.dias)+(it.dias===-1?" dia":" dias"):it.dias===0?"hoje":it.dias===1?"amanhã":"em "+it.dias+" dias"}
+  function hjFonteDoDia(k){var c=HOJE.coleta&&HOJE.coleta.fontes&&HOJE.coleta.fontes[k];return c&&c.ok&&c.v?c.v:null}
+  /* uma frase só sobre o dia, só com contagens que existem nos itens */
+  function hjResumoDia(x){var it=x.itens||[],alta=it.filter(function(i){return i.nivel==="alta"}).length,atr=it.filter(function(i){return i.dias!=null&&i.dias<0}).length,hoje=it.filter(function(i){return i.dias===0}).length,p=[];
+    if(!it.length)return "Nada pedindo atenção nas fontes lidas.";
+    if(alta)p.push(alta+(alta===1?" prioridade alta":" prioridades altas"));if(atr)p.push(atr+(atr===1?" item atrasado":" itens atrasados"));if(hoje)p.push(hoje+(hoje===1?" para hoje":" para hoje"));
+    p.push(it.length+(it.length===1?" item no total":" itens no total"));return p.join(" · ")+"."}
+  function hjKpis(x){var k=[],f=x.financas,s=x.saude,it=x.itens||[];
+    var atr=it.filter(function(i){return i.dias!=null&&i.dias<0}).length,alta=it.filter(function(i){return i.nivel==="alta"}).length,aten=it.filter(function(i){return i.nivel==="alta"||(i.dias!=null&&i.dias<0)}).length;
+    k.push(rkKpi({rotulo:"Pede atenção",valor:aten,alerta:aten>0,apoio:aten?(atr?atr+(atr===1?" atrasado":" atrasados")+(alta?" · ":""):"")+(alta?alta+" de prioridade alta":""):"nada urgente agora"}));
+    if(f&&f.fontes.length)k.push(rkKpi({rotulo:"Gasto no mês",valor:NUCLEO.hojeReais(f.total),delta:rkDelta(f.pct,"alta","vs. mês passado"),href:"#mercado",apoio:"até o dia "+f.dia+" · "+f.fontes.map(function(n){return HJ_NOMES_FIN[n]}).join(", ")}));
+    if(f&&f.orcamento)k.push(rkKpi({rotulo:"Orçamento usado",valor:f.orcamento.pct+"%",meter:rkMedidor(f.orcamento.pct,f.orcamento.projecaoPct,"Orçamento usado",f.orcamento.projecaoPct!=null?"projeção do mês: "+f.orcamento.projecaoPct+"% de "+NUCLEO.hojeReais(f.orcamento.valor):"de "+NUCLEO.hojeReais(f.orcamento.valor)),
+      apoio:"de "+NUCLEO.hojeReais(f.orcamento.valor)+(f.orcamento.projecaoPct!=null?" · projeção "+f.orcamento.projecaoPct+"%":"")}));
+    else if(f&&f.projecao!=null)k.push(rkKpi({rotulo:"Projeção do mês",valor:NUCLEO.hojeReais(f.projecao),apoio:"no ritmo atual de gastos"}));
+    if(s&&!s.semDados&&s.prontidao!=null)k.push(rkKpi({rotulo:"Prontidão",valor:s.prontidao,href:"#saude",apoio:(s.rotulo||"")+(s.atraso>1?" · dados de "+s.atraso+" dias atrás":"")}));
+    return k}
+  /* prioridades: as mesmas regras do núcleo (x.itens), cada linha leva ao módulo do dado; as 5 primeiras, o resto sob demanda */
+  function hjCardPrioridades(x){var itens=x.itens||[],corpo=h("div",{class:"rac-pilha",style:"gap:8px"});
+    function linha(it){var d=hjPrazoTxt(it),nv=String(it.nivel).replace("é","e");
+      return {titulo:it.titulo,sub:[d,it.sub].filter(Boolean).join(" · "),href:hjDestino(it),marca:nv==="alta"?"alta":nv==="media"?"media":null,
+        meta:rkSelo(nv==="alta"?"erro":nv==="media"?"aviso":"neutro",HJ_PRIO[it.nivel]||it.nivel)}}
+    if(!itens.length)corpo.appendChild(rkEstado("vazio","Nada pedindo atenção nas fontes lidas."));
+    else{var lista=h("div",null,rkLista(itens.slice(0,5).map(linha)));corpo.appendChild(lista);
+      if(itens.length>5){var mais=rkBtn("ter","Mostrar todas ("+itens.length+")",{"aria-expanded":"false"}),aberto=false;
+        mais.onclick=function(){aberto=!aberto;lista.innerHTML="";lista.appendChild(rkLista((aberto?itens:itens.slice(0,5)).map(linha)));mais.textContent=aberto?"Mostrar menos":"Mostrar todas ("+itens.length+")";mais.setAttribute("aria-expanded",aberto?"true":"false")};
+        corpo.appendChild(mais)}}
+    if(x.mudancas.length){corpo.appendChild(h("span",{class:"rac-t-rotulo rac-grupo-rotulo",text:"O que mudou desde ontem"}));
+      corpo.appendChild(rkLista(x.mudancas.map(function(m){return {titulo:m.texto,href:HJ_DESTINO[m.area]||null}}),true))}
+    var c=rkCard("Prioridades do dia",corpo,{sub:"Ordenadas pelas regras do RAC (atraso, prazo e área), sem IA.",classe:"rh-prio"});c.id="rh-prio";return c}
+  /* gastos: este mês × mesmo trecho do mês passado, por origem (a conta é a do núcleo: NUCLEO.hojeFinancas) */
+  function hjCardGastos(x){var f=x.financas;if(!f||!f.fontes.length)return null;
+    var L=f.fontes.map(function(n){return {nome:HJ_NOMES_FIN[n],atual:f.atual[n]||0,anterior:f.anterior[n]||0,txtAtual:NUCLEO.hojeReais(f.atual[n]||0),txtAnterior:NUCLEO.hojeReais(f.anterior[n]||0)}});
+    var corpo=h("div",{class:"rac-grafico rac-pilha"},rkComparar(L,"Este mês","Mês passado"));
+    return rkCard("Gastos do mês",corpo,{sub:"Do dia 1º ao dia "+f.dia+", contra o mesmo trecho do mês passado.",acao:rkLink("ter","Ver na Central","#mercado"),origem:f.delta>0?"Total "+NUCLEO.hojeReais(f.total)+": "+NUCLEO.hojeReais(f.delta)+" a mais que no mesmo trecho do mês passado.":"Total "+NUCLEO.hojeReais(f.total)+(f.totalAnt?": "+NUCLEO.hojeReais(-f.delta)+" a menos que no mesmo trecho do mês passado.":".")})}
+  /* contexto do dia: tempo, jogo, destaques da Newsletter e notícias (as mesmas fontes lidas; cada bloco leva ao seu módulo) */
+  function hjCardContexto(x){var itens=[],tempo=hjFonteDoDia("tempo"),esp=hjFonteDoDia("esportes"),nl=hjFonteDoDia("newsletter"),nt=hjFonteDoDia("noticias");
+    if(typeof tempo==="string")itens.push(rkInfo("⛅","Tempo",tempo.replace(/^Em Sorocaba:\s*/,"Sorocaba: ")));
+    if(typeof esp==="string")itens.push(rkInfo("⚾","Dodgers",esp,"#esportes"));
+    if(nl&&nl.destaques&&nl.destaques.length)itens.push(rkInfo("📰","Na Newsletter",nl.destaques.slice(0,2).map(function(g){return g.t}).join(" · "),"#newsletter"));
+    if(nt&&nt.length)itens.push(rkInfo("📍","Sorocaba",nt.slice(0,2).map(function(n){return n.t}).join(" · "),"#inicio"));
+    if(!itens.length)return null;return rkCard("Contexto do dia",h("div",{class:"rh-ctx-lista"},itens))}
+  /* saúde: passos dos últimos dias (série real do relógio) e treinos da semana por tipo; só com dados */
+  function hjCardSaude(x){var s=x.saude;if(!s||s.semDados)return null;var corpo=h("div",{class:"rac-pilha rac-grafico"}),sf=hjFonteDoDia("saude"),dias=(sf&&sf.dias||[]).filter(function(d){return d.dados&&d.dados.passos>0}).slice(-10);
+    if(dias.length>=3){var B=dias.map(function(d){var p=d.data.split("-");return {nome:p[2]+"/"+p[1],cima:p[2]+"/"+p[1],baixo:""}}),V=dias.map(function(d){return d.dados.passos});
+      corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Passos por dia"}),rsColunas(B,V,function(v){return NUCLEO.iaNum(v,0)},function(i,v){return [B[i].nome,NUCLEO.iaNum(v,0)+" passos"]})))}
+    var tipos=Object.keys(s.tipos7||{}).sort(function(a,b){return s.tipos7[b]-s.tipos7[a]});
+    if(tipos.length)corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Treinos nos últimos 7 dias"}),rsBarras(tipos.map(function(k){return {nome:k.replace(/_/g," "),v:s.tipos7[k],txt:String(s.tipos7[k]),dica:s.tipos7[k]+(s.tipos7[k]===1?" atividade":" atividades")}}))));
+    var sub=[s.prontidao!=null?"prontidão "+s.prontidao+(s.rotulo?" ("+s.rotulo+")":""):"",s.semTreino!=null?"último treino há "+s.semTreino+(s.semTreino===1?" dia":" dias"):""].filter(Boolean).join(" · ");
+    if(s.alertas&&s.alertas.length)corpo.appendChild(rkAlerta("aviso","Atenção na recuperação",s.alertas.join("; ")));
+    return rkCard("Saúde e treino",corpo,{sub:sub||"Dados do relógio.",acao:rkLink("ter","Abrir Saúde","#saude"),origem:"Último dia com dados: "+hjDataBR(s.ultimo)+(s.atraso>1?" ("+s.atraso+" dias atrás; a Saúde se sincroniza pelo botão próprio)":"")})}
+  function hjPontos(est){var p=h("span",{class:"rh-pontos","aria-hidden":"true"});est.forEach(function(e){var c=e.estado==="falhou"?"erro":e.estado==="ausente"?"neutro":(e.estado==="ok"||e.estado==="lida")?"":"aviso";p.appendChild(h("i",{class:c}))});return p}
   function hjDesenhar(){
     var x=HJ.x,corpo=HJ.corpo;if(!x||!corpo)return;corpo.innerHTML="";
     var hist=hojeHistorico(),a=hist.filter(function(y){return y.chave===HJ.sel})[0]||hist[0]||null,pacote=hojePacote(x),def=a?NUCLEO.hojeDefasagem(a,pacote,x.hoje,Date.now()):null,
       uteis=NUCLEO.hojeFontesUteis(x.estados),qual=NUCLEO.hojeQualidadeFontes(x.estados),prev=hojePrever(x,"",false);
-    /* 1. fontes de informação */
-    var pf=panel("Fontes de informação","Coleta feita"+(x.coletado?" às "+hjQuando(x.coletado).slice(-5)+" ("+hjIdade(x.coletado)+")":"")+". Só leitura; cada coleta vale por até 10 minutos. Origem: "+(hjOrigens(x.estados)||"nenhuma fonte lida")+
-      ". \"Memória do site\" é dado já carregado, não relido aqui. Uma fonte que falha não derruba as outras.");
-    pf.appendChild(h("p",{class:"sub",text:qual.resumo+"."}));
-    pf.appendChild(h("p",{class:"sub",text:"\"Leitura realizada\" quer dizer só que a leitura funcionou e trouxe registros: o dado pode ser de semanas atrás, e a data do último registro (quando a fonte tem) aparece em cada linha. \"Dados recentes\" só aparece quando a data foi conferida (Vagas, Newsletter, Notícias, Saúde e Tempo) ou o último registro é de hoje."}));
-    pf.appendChild(h("ul",{class:"wl hjfontes"},x.estados.map(function(e){return hjLinhaFonte(e,x.hoje)})));
-    /* 2. prioridades do dia (regras do RAC, sem IA) */
-    var pp=panel("Prioridades do dia","Ordenadas pelas regras do RAC (atraso, prazo e área), sem IA.");
-    if(!x.itens.length)pp.appendChild(h("p",{class:"empty",text:"Nada pedindo atenção nas fontes lidas."}));
-    else pp.appendChild(h("ul",{class:"wl hjitens"},x.itens.slice(0,8).map(function(it){var d=it.dias==null?"":it.dias<0?"atrasado há "+(-it.dias)+(it.dias===-1?" dia":" dias"):it.dias===0?"hoje":it.dias===1?"amanhã":"em "+it.dias+" dias";
-      var ok=it.href&&String(it.href).charAt(0)==="#",t=ok?h("a",{href:it.href,text:it.titulo}):h("span",{text:it.titulo});
-      return h("li",null,h("span",{class:"grow"},h("b",null,t),h("span",{class:"sub",text:[d,it.sub].filter(Boolean).join(" · ")})),hjTag(HJ_PRIO[it.nivel]||it.nivel,"hjp-"+String(it.nivel).replace("é","e")))})));
-    if(x.mudancas.length){pp.appendChild(h("h3",{class:"dayh",text:"O que mudou desde ontem"}));
-      pp.appendChild(h("ul",{class:"wl hjitens"},x.mudancas.map(function(m){return h("li",null,h("span",{class:"grow"},h("span",{class:"sub",text:m.texto})))})))}
-    /* 3. análise da IA */
-    var pa=panel("Análise da IA","Interpretação feita pelo Claude sobre os fatos acima. Só acontece quando você pede.");HJ.slotAviso=h("div");pa.appendChild(HJ.slotAviso);
-    if(HJ.aviso)pa.appendChild(h("p",{class:"sub",role:"status",text:HJ.aviso}));
-    if(HJ.ocupado)pa.appendChild(h("p",{class:"empty",role:"status",text:"Analisando com a IA… pode levar até 2 minutos. Não toque de novo: uma chamada só é feita."}));
+    /* 0. abertura: saudação, o dia numa frase, contexto e as duas ações de sempre (reler as fontes, custos de IA) */
+    var agora=new Date(),rel=rkBtn("fantasma","↻ Reler as fontes"),cus=rkLink("fantasma","Custos de IA","#iacustos"),ctx=h("div",{class:"rh-hero-ctx"}),tempo=hjFonteDoDia("tempo"),esp=hjFonteDoDia("esportes");
+    rel.onclick=function(){if(HJ.ocupado)return;HJ.erro=null;HJ.aviso="";hjCarregar(true)};
+    if(typeof tempo==="string")ctx.appendChild(h("span",{class:"rh-chip"},"⛅ "+tempo.replace(/^Em Sorocaba:\s*/,"Sorocaba: ").replace(/\.$/,"")));
+    if(typeof esp==="string")ctx.appendChild(h("span",{class:"rh-chip"},"⚾ "+esp.replace(/\.$/,"")));
+    corpo.appendChild(h("section",{class:"rh-hero","aria-label":"Visão geral do dia"},
+      h("div",null,h("h2",{text:saudacao()+", Rayner"}),h("p",{class:"rh-hero-data",text:agora.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}),
+        h("p",{class:"rh-hero-resumo",text:hjResumoDia(x)+" Abrir esta tela só lê os seus dados; a IA é chamada somente quando você confirma."})),
+      h("div",{class:"rh-hero-acoes"},rel,cus),ctx.children.length?ctx:null));
+    var falhas=x.estados.filter(function(e){return e.estado==="falhou"});
+    if(falhas.length)corpo.appendChild(h("div",{class:"rh-largo"},rkAlerta("aviso",falhas.length+(falhas.length===1?" fonte falhou":" fontes falharam"),falhas.map(function(e){return e.nome}).join(", ")+". O resto do painel continua valendo; a lista completa está em \"Fontes de informação\", mais abaixo.")));
+    /* 1. indicadores */
+    var ks=hjKpis(x);corpo.appendChild(h("section",{class:"rh-kpis","aria-label":"Indicadores"},ks));
+    /* 2. o que resolver (regras do núcleo) e, ao lado, gastos e contexto */
+    corpo.appendChild(hjCardPrioridades(x));
+    var lado=h("div",{class:"rh-lado"}),cg=hjCardGastos(x),cc=hjCardContexto(x);if(cg)lado.appendChild(cg);if(cc)lado.appendChild(cc);if(lado.children.length)corpo.appendChild(lado);
+    var cs=hjCardSaude(x);if(cs){cs.className+=" rh-largo rh-saude";corpo.appendChild(cs)}
+    /* 3. análise da IA e pergunta (a lógica, o cache e a cobrança são os de antes) */
+    var pa=h("div",{class:"rac-pilha"});HJ.slotAviso=h("div");pa.appendChild(HJ.slotAviso);
+    if(HJ.aviso)pa.appendChild(h("p",{class:"rac-t-sec",role:"status",style:"margin:0",text:HJ.aviso}));
+    if(HJ.ocupado)pa.appendChild(rkEstado("carregando","Analisando com a IA… pode levar até 2 minutos. Não toque de novo: uma chamada só é feita."));
     if(HJ.erro)pa.appendChild(hjErro(HJ.erro));
     if(prev.pend&&!(HJ.erro&&HJ.erro.chave===prev.pend.chave))pa.appendChild(hjErro(prev.pend));
     if(a)pa.appendChild(hjAnalise(a,def));
-    else if(!HJ.ocupado)pa.appendChild(h("p",{class:"empty",text:"Ainda não há análise da IA neste aparelho. Nada foi chamado ao abrir a tela."}));
+    else if(!HJ.ocupado)pa.appendChild(rkEstado("vazio","Ainda não há análise da IA neste aparelho. Nada foi chamado ao abrir a tela."));
     var existe=hist.some(function(y){return y.pacote===pacote&&!y.pergunta&&y.hoje===x.hoje});
     if(!uteis.ok)pa.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Análise bloqueada. "+uteis.motivo}));
     else if(!prev.pend)pa.appendChild(hjBotaoPago(existe?"✨ Analisar de novo (nova cobrança)":"✨ Analisar o dia",function(){return hjAviso(x,"",existe)},function(){hjAnalisar({nova:existe})}));
-    /* 4. pergunta contextualizada */
-    var pq=panel("Pergunte sobre o seu dia","A IA responde só com os fatos acima; se eles não bastarem, ela diz isso.");
+    var pq=h("div",{class:"rac-pilha"});
     if(!uteis.ok)pq.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Perguntas bloqueadas. "+uteis.motivo}));
     else{
       var campo=h("textarea",{rows:"2",maxlength:"500",placeholder:"Ex.: o que devo resolver primeiro hoje?","aria-label":"Pergunta sobre os dados de hoje"});
@@ -430,14 +490,24 @@
       pq.appendChild(h("div",{class:"wform hjperg"},h("label",null,"Sua pergunta",campo)));
       pq.appendChild(hjBotaoPago("Perguntar",function(){var t=campo.value.trim();if(!t)return {texto:"Escreva a pergunta antes de confirmar.",semConfirmar:true};return hjAviso(x,t,false)},
         function(){var t=campo.value.trim();if(!t){HJ.aviso="Escreva a pergunta antes de confirmar.";hjDesenhar();return}hjAnalisar({pergunta:t})}));
-      pq.appendChild(h("p",{class:"sub",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
-    /* 5. histórico recente */
-    var ph=panel("Histórico recente","Duas origens diferentes: o que está guardado só neste aparelho (com o conteúdo) e o registro de chamadas do banco (só estado e custo, nunca o texto da análise).");
+      pq.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
+    corpo.appendChild(h("div",{class:"rh-dois"},rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Só acontece quando você pede."}),
+      rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."})));
+    /* 4. histórico e fontes: detalhe técnico recolhido (o conteúdo continua inteiro, é só abrir) */
+    var ph=h("div",{class:"rac-pilha"});
     HJ.exibida=a?a.chave:null;HJ.slotHist=h("div");HJ.slotPend=h("div");
+    ph.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Duas origens diferentes: o que está guardado só neste aparelho (com o conteúdo) e o registro de chamadas do banco (só estado e custo, nunca o texto da análise)."}));
     ph.appendChild(HJ.slotHist);ph.appendChild(HJ.slotPend);hjPintarHist();hjPintarPend();hjPintarAviso();
-    var banco=h("div",null,h("p",{class:"sub",text:"Lendo o registro de chamadas…"}));ph.appendChild(h("h3",{class:"dayh",text:"Registro de chamadas no banco (ia_custos)"}));ph.appendChild(banco);
+    var banco=h("div",null,h("p",{class:"sub",text:"Lendo o registro de chamadas…"}));ph.appendChild(h("span",{class:"rac-t-rotulo",text:"Registro de chamadas no banco (ia_custos)"}));ph.appendChild(banco);
     hjRegistro(banco);
-    [pf,pp,pa,pq,ph].forEach(function(p){corpo.appendChild(p)})}
+    corpo.appendChild(h("div",{class:"rh-largo"},rkRecolher("Histórico recente",null,ph)));
+    var pf=h("div",{class:"rac-pilha"});
+    pf.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Coleta feita"+(x.coletado?" às "+hjQuando(x.coletado).slice(-5)+" ("+hjIdade(x.coletado)+")":"")+". Só leitura; cada coleta vale por até 10 minutos. Origem: "+(hjOrigens(x.estados)||"nenhuma fonte lida")+
+      ". \"Memória do site\" é dado já carregado, não relido aqui. Uma fonte que falha não derruba as outras."}));
+    pf.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"\"Reler as fontes\" lê de novo o banco e os arquivos do site. Vagas, MBA, a Newsletter já aberta e o Tempo do Início vêm da memória do site e não são buscados de novo aqui (a origem de cada fonte aparece abaixo)."}));
+    pf.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"\"Leitura realizada\" quer dizer só que a leitura funcionou e trouxe registros: o dado pode ser de semanas atrás, e a data do último registro (quando a fonte tem) aparece em cada linha. \"Dados recentes\" só aparece quando a data foi conferida (Vagas, Newsletter, Notícias, Saúde e Tempo) ou o último registro é de hoje."}));
+    pf.appendChild(h("ul",{class:"wl hjfontes"},x.estados.map(function(e){return hjLinhaFonte(e,x.hoje)})));
+    corpo.appendChild(h("div",{class:"rh-largo"},rkRecolher("Fontes de informação",h("span",{class:"rh-fontes-resumo"},hjPontos(x.estados),h("span",{class:"rac-t-sec",text:qual.resumo})),pf)))}
   /* Atualização entre abas: só estes três trechos são repintados (nunca a pergunta digitada, o foco nem uma confirmação aberta). Só leem o armazenamento. */
   function hjPintarHist(){var box=HJ.slotHist,x=HJ.x;if(!box||!x)return;box.innerHTML="";var hist=hojeHistorico(),pacote=hojePacote(x);
     box.appendChild(h("h3",{class:"dayh",text:"Guardadas neste aparelho"}));
@@ -566,24 +636,19 @@
       if(r.ok){HJ.sel=r.analise.chave;HJ.aviso=r.deCache?"Esta análise já existia neste aparelho, com os mesmos dados: nada foi cobrado.":"Chamada concluída e análise disponível (guardada neste aparelho)."}else{r.pedido=hjPedido(o,{});HJ.erro=r}
       return hojeMontar(false).then(function(x){HJ.x=x;hjDesenhar()})},
       function(e){if(HOJE.suspenso)return;HJ.ocupado=false;HJ.erro={motivo:"Não consegui analisar ("+(e&&e.message||e)+")."};hjDesenhar()})}
-  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},loading()));
+  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
     return hjConfig().then(function(){return hojeMontar(forcar)}).then(function(x){HJ.x=x;hjDesenhar()})
-      .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(function(){hjCarregar(forcar)},e)));logErro("hoje",e)})}
+      .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("erro","Não consegui carregar agora.",h("div",{class:"rac-linha-flex"},rkBtn("sec","tentar de novo",{onclick:null}),e?h("span",{class:"rac-t-mono",text:"Detalhe técnico: "+(e.message||e)}):null))));
+        var b=corpo.querySelector("button");if(b)b.onclick=function(){hjCarregar(forcar)};logErro("hoje",e)})}
   function renderHoje(){var root=$("#rachoje-view");root.innerHTML="";
     if(!isOwner()){root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"O RAC Hoje é só da conta do dono."})));return}
     if(HOJE.suspenso){hojeOuvir();hjSessaoAviso(root);return}/* sessão mudou em outra aba: nada é lido nem mostrado */
-    var hoje=new Date(),topo=panel(saudacao()+", Rayner",hoje.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})),
-      rel=h("button",{type:"button",class:"ghostbtn",text:"↻ Reler as fontes"}),cus=h("a",{class:"ghostbtn",href:"#iacustos",text:"Custos de IA"});
-    rel.onclick=function(){if(HJ.ocupado)return;HJ.erro=null;HJ.aviso="";hjCarregar(true)};
-    topo.appendChild(h("p",{class:"sub",text:"Abrir esta tela só lê os seus dados. A IA é chamada somente quando você confirma uma análise ou uma pergunta."}));
-    topo.appendChild(h("p",{class:"sub",text:"\"Reler as fontes\" lê de novo o banco e os arquivos do site. Vagas, MBA, a Newsletter já aberta e o Tempo do Início vêm da memória do site e não são buscados de novo aqui (a origem de cada fonte aparece abaixo)."}));
-    topo.appendChild(h("div",{class:"vfil"},rel,cus));root.appendChild(topo);
     if(!HJ.ocupado){HJ.erro=null;HJ.aviso="";HJ.sel=null}
     /* uma resposta que chega depois do prazo é guardada pela camada de IA; aqui a tela só mostra */
     HOJE.aoChegar=function(f){if(!HJ.corpo||!HJ.x)return;if(f&&f.ok){HJ.sel=f.analise.chave;HJ.erro=null;HJ.aviso="A resposta de uma chamada anterior chegou depois do prazo e foi guardada. Nada foi cobrado de novo."}hjDesenhar()};
     /* outra aba deste aparelho mudou o que o RAC Hoje guarda (análise, chamada sem resultado): repinta só o histórico, as chamadas sem resultado e o aviso, sem chamar nada.
        O listener é um só (hojeOuvir, também usado pela sessão em outra aba). */
     hojeOuvir();
-    HJ.corpo=h("div",{class:"stack"});root.appendChild(HJ.corpo);hjCarregar(false)}
+    HJ.corpo=h("div",{class:"rh"});root.appendChild(HJ.corpo);hjCarregar(false)}
   /* a vigilância da sessão começa quando o módulo carrega (antes de a tela abrir), para a memória do RAC Hoje não sobreviver a um logout em outra aba */
   hojeOuvir();

@@ -156,3 +156,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Decisões técnicas tomadas na implementação (reversíveis)**: o CSS do Design System mora em `css/rac.css` (não no `index.html`); o shell novo vale só para o dono (`html.logado:not(.casa)`); a Central de Compras não é tocada;
   o menu por área é CSS sobre o registro de rotas (campo `area`), sem reordenar o registro; a barra inferior do celular sai do mesmo registro (campo `curto`); `js/kit.js` guarda os componentes (sem tela, sem banco).
 - **Pendente, depende do dono**: aprovar o piloto no iPhone (critério da F3); D-12 (o Início convive com o RAC Hoje ou é substituído); autorizar DS-5 (telas da casa) quando chegar a hora; merge e publicação.
+
+## Atualização de 13/11/2026 · RAC Inbox (POC iCloud)
+
+- **Decisão do dono:** a POC iCloud é publicada por workflow manual do GitHub Actions, com credenciais Cloudflare em secrets de um Environment protegido; nenhum token Cloudflare é entregue à sessão do Claude. `PROBE_TOKEN` aleatório por execução, nunca persistido. Remoção do Worker só em atividade futura autorizada. Detalhes: [guia](../icloud-poc-deploy.md).
+- **Pendente, depende do dono:** token Cloudflare só com `Account → Workers Scripts → Edit`; Environment `cloudflare-poc` (aprovador e branches `main` e `poc/icloud-cloudflare-connectivity`); secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; merge desta PR e da PR #17 (Worker).
+- **A confirmar no primeiro uso:** que o botão "Run workflow" só aparece com o arquivo na `main`; se o deploy não interativo exige subdomínio `workers.dev` já registrado.

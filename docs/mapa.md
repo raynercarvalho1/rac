@@ -70,9 +70,9 @@ Legenda: ✅ concluído (verde) · 🟡 em andamento (amarelo) · ⚪ planejado 
 | ✅ Piloto RAC Hoje (painel central) | Feito e testado; lógica de IA intacta | idem (PR #9 mesclado) |
 | ✅ Casa (Fernanda) preservada | 20 telas comparadas com a `main` | — |
 | ✅ Aprovação do dono no iPhone (critério da F3) | O dono validou o piloto RAC Hoje no iPhone | informado pelo dono em 13/11/2026 |
-| 🟡 DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | **Implementada e validada na branch** `claude/agenda-modernizacao-ds4-xuijw0` (testes, Chromium em 390/768/1280 e dois temas, Casa idêntica); falta o dono ver no iPhone | Commit `01eee35`, push e **PR #10** para a `main` · sem merge · não publicado |
-| ⚪ DS-4 · demais módulos por área (**Saúde** é a próxima; depois Finanças, Carreira, Informação…) | Planejado; um módulo por vez, com seu próprio teste visual | — |
-| 🟡 DS-4.2 · Saúde e Garmin (`#saude`, `docs/planejamento/09-auditoria-saude-garmin.md`, seções 16 e 17) | **Feito e testado:** auditoria, marco de propriedade (M1, M2), função sem exclusão nem corte (M3, código) e ferramenta de recuperação (M4). **Pendente do dono:** publicar a função `garmin` e rodar a medição e a recuperação (seção 17.4). O redesenho da Saúde no Design System (S2 a S5) **não** foi feito | commit `7972a64`, **PR #11** (merge conforme o CI; ver o histórico diário) |
+| ✅ DS-4.1 · Agenda (`#agenda`, `docs/agenda.md`) | Implementada, validada pelo dono no iPhone e integrada | PR #10 mergeado; commit de merge `81c9999` |
+| ⚪ DS-4.3 · Saúde no Design System (S2–S5) e demais módulos por área | Próxima evolução possível; a proteção Garmin já está concluída. Saúde visual, depois Finanças, Carreira e Informação, um módulo por vez | — |
+| ✅ DS-4.2 · Saúde e Garmin (`#saude`, Documento 09, seção 18) | **Concluída em produção:** marco 01/01/2026, classificação em todos os leitores, exclusões removidas, Edge Function `garmin` versão 13 ativa e painel de medição/recuperação publicado. Backfill anterior a 01/11/2025 é opcional e foi adiado pelo dono; não bloqueia o desenvolvimento. O redesenho visual S2–S5 permanece futuro | PR #11 mergeado (`b893d34`); Pages `2026-11-13.6` com sucesso; função v13 ativa |
 | ⚪ DS-5 · telas da casa (Mercado, Lista, Família, Veículos) | Pendente de **autorização expressa** do dono | — |
 | ⚪ Início (`#inicio`) como painel único ou convivendo com o RAC Hoje (D-12) | Pendente de decisão do dono | — |
 | ⚪ Fase 4 · Família e Casa (medicamentos, encomendas, contas) alimentam o painel | Planejado; o painel só mostra o que existir | — |

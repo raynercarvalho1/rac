@@ -823,3 +823,24 @@ Há dois backups no cofre privado `backups`: `2026-11-01.json` e `2026-11-08.jso
 
 **Conclusão:** DS-4.2 encerrada em 13/11/2026 no escopo de proteção, classificação e publicação em produção. A recuperação de legado não é critério de aceite nem pendência do desenvolvimento atual. Qualquer retomada futura será por solicitação do dono.
 
+
+## 19. Implementação S1–S5 (DS-4.3) — 13/11/2026
+
+Registro do que foi feito na branch `claude/saude-modernizacao-s2-s5`. Guia funcional: [`docs/saude.md`](../saude.md). Os estados abaixo são separados de propósito: **implementado e testado ≠ publicado**.
+
+| Item | Situação |
+|---|---|
+| S1 · Fonte única `js/fonte-saude.js` (paginação, classificação inalterada, estado completa/vazia/parcial/falha, leituras simultâneas compartilhadas) | Implementado e testado |
+| S1 · Consolidação dos leitores (RAC Hoje, Sistema, Carreira; Painel e Resumo por `saudeLer`) com os mesmos resultados | Implementado e testado (regressão contra os leitores de antes, `tests/fonte_saude.test.mjs`) |
+| S1 · Regras `sau*` no núcleo, sem mexer em `SAU_MARCO`, `sauClassificar`, `prontidao` ou `saudeInsights` | Implementado e testado (`tests/saude_regras.test.mjs`) |
+| S2 · Hub com 7 abas, Visão geral, Recuperação, Sono; sinais S1–S4 e S12 com histerese | Implementado e testado (`tests/saude_tela.test.mjs`, Chromium) |
+| S3 · Atividades e musculação (S6, S7 reaproveitado do Painel, S9) | Implementado e testado |
+| S4 · Condicionamento (S10, minutos de intensidade, eficiência aeróbica, idade do condicionamento só como valor atual) | Implementado e testado |
+| S5 · Tendências e Inteligência por regras (S5, S8, S11, histórico dos sinais) | Implementado e testado |
+| Preferências (metas, ocultar valores, esconder local) em `PESSOAL.saudePrefs` | Implementado e testado |
+
+Decisões de interpretação (onde o texto admitia mais de uma leitura): S4 dispara por sono curto **ou** por irregularidade com média abaixo da meta; baseline de S1/S3 = 60 dias que terminam 7 dias antes da janela, de S2 = 30 dias que terminam 5 dias antes; S6 usa 1,3×/0,7× em duas semanas completas para "persistente"; S11 usa uma segunda janela deslocada 2 semanas; S8 trata "não voltou em 5 dias" como 6 dias.
+
+**Fora do escopo (não feito):** mapas e trajetos históricos, IA de Saúde, coleta adicional da Garmin, alteração da função `garmin`, SQL, secrets, cron, workflows, recuperação do histórico anterior a 01/11/2025. Nenhuma ação de produção foi executada.
+
+**Publicação:** não publicado. Commit, envio ao GitHub e PR são tratados no histórico diário; o merge e a publicação em produção continuam do dono.

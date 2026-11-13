@@ -198,3 +198,8 @@ A DS-4.2 foi concluída no escopo de preservação, classificação e publicaç�
 - Cada lote termina com o registro no [histórico diário](historico-diario.md) (o que fizemos, o que estamos fazendo, o que
   vamos fazer) e, se mudar decisão ou estado, no [Documento 07](07-decisoes-e-pendencias.md).
 - Telas da casa (Fernanda) e a função `garmin` só com autorização expressa.
+
+
+## 3.6 Andamento da DS-4.3 · Saúde S1–S5 (13/11/2026)
+
+Implementada e testada na branch `claude/saude-modernizacao-s2-s5` (base: a branch da PR #12, que continua aberta e sem alteração). **Não mesclada e não publicada.** Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin`, SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).

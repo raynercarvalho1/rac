@@ -473,3 +473,22 @@ Família e da Casa.
 2. Próxima evolução possível da DS-4: redesenho da Saúde no RAC Modern Workspace (S2–S5), com escopo e critérios próprios; depois, seguir para os demais módulos por área conforme prioridade do dono.
 3. Só reabrir a recuperação histórica se o dono solicitar.
 
+
+## 13/11/2026 · DS-4.3 · modernização da Saúde (S1–S5)
+
+### 1. O que fizemos
+
+- **Implementado e testado** na branch `claude/saude-modernizacao-s2-s5` (a partir da branch da PR #12, sem alterá-la): fonte única `js/fonte-saude.js`; regras `sau*` no núcleo; hub `js/saude-hub.js` com Visão geral, Recuperação, Sono, Atividades, Condicionamento, Tendências e Inteligência; sinais S1–S4 e S12 com histerese; S5, S6, S8, S9, S10 e S11; preferências (metas, ocultar valores, esconder local) em `PESSOAL.saudePrefs`.
+- Leitores consolidados (RAC Hoje, Sistema, Carreira; Painel e Resumo por `saudeLer`) com regressão contra os leitores de antes. Tela da Fernanda comparada com a `main` em 390 e 1280 px, claro e escuro: idêntica.
+- Testes novos: `tests/saude_regras.test.mjs`, `tests/fonte_saude.test.mjs`, `tests/saude_tela.test.mjs`; testes existentes ajustados só onde codificavam a estrutura antiga (rotas, deps do RAC Hoje, leitores). Chromium 390/768/1280, claro e escuro: sem rolagem horizontal, alvos de 44 px, sem erro de console.
+- Versão do site `2026-11-13.7` (`sw.js`, `MOD_VERSAO`, CSS). Nada de SQL, Edge Function, secrets, cron ou produção.
+- Commit, envio e PR: ver o item 2 (registrados só depois de feitos).
+
+### 2. O que estamos fazendo
+
+- Aguardando revisão do dono. **Não mesclado, não publicado.** A PR #12 segue aberta e sem alteração.
+
+### 3. O que vamos fazer
+
+1. Dono revisa a PR, mescla se aprovar; o GitHub Pages publica o site (nenhum SQL nem função a publicar).
+2. Fora do escopo, para decisão futura: mapas e trajetos (S7), IA de Saúde (S8), coleta extra da Garmin (S6).

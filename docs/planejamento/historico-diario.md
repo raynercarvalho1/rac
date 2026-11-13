@@ -706,3 +706,41 @@ Família e da Casa.
 2. Com conta Cloudflare acessível e decisão do dono, publicar o Worker temporário no Free, definir `PROBE_TOKEN` como Secret e executar apenas a rota `/probe`.
 3. Guardar o resultado de rede/TLS sem segredo; apagar o Worker após a prova ou deixá-lo ativo apenas mediante decisão explícita.
 4. Não autenticar a conta Apple, ler mensagens, enviar e-mail nem contratar o plano Paid nesta etapa.
+
+## 13/11/2026 · Atualização da PR #18 (protocolo permanente de autonomia)
+
+### 1. O que fizemos
+
+- Investigada a condição `mergeable: false` da PR #18: a PR só altera `CLAUDE.md` e `docs/planejamento/07-decisoes-e-pendencias.md`; a `main` avançou apenas com commits dos robôs (`vagas.json`, notícias), sem arquivo em comum. Não havia conflito; o GitHub passou a reportar `mergeable_state: clean`. O falso provavelmente veio do cálculo logo após a criação da PR, com a base defasada.
+- Branch da PR atualizada com um merge normal da `main` (sem force push), em `git worktree` separado; o trabalho local da POC iCloud não foi tocado.
+- Validação local no worktree: `planejamento`, `estrutura`, `nuvem`, `monitor` e `seguranca` — 92 testes, 92 aprovados, 0 falhas. A suíte completa fica para o CI da PR.
+
+### 2. O que estamos fazendo
+
+- A PR #18 aguarda o CI e o merge do dono (não mesclada por esta sessão). A PR #17 (POC iCloud) não foi alterada.
+- O trabalho da POC (workflow, teste e documentação) segue só no working tree da sessão, sem commit.
+
+### 3. O que vamos fazer
+
+1. Dono mescla a PR #18 depois do CI verde.
+2. Retomar a POC iCloud já sob o protocolo novo: commit, PR separada do workflow e configuração do Environment `cloudflare-poc` pelo dono.
+3. Atenção: PR #17 e PR #18 acrescentam texto ao fim deste histórico; o segundo merge pode pedir resolução trivial de ordem das seções.
+
+## 13/11/2026 · RAC Inbox — integração da PR #17 com a main e separação do workflow de deploy
+
+### 1. O que fizemos
+
+- A PR #17 estava `mergeable: false` depois do merge da PR #18 (`778e148`): conflito de texto em `historico-diario.md`, onde as duas branches acrescentaram entradas ao fim. Resolvido mantendo as entradas dos dois lados; sem outros conflitos.
+- Decisão do dono (13/11/2026): a POC será publicada por workflow manual do GitHub Actions, com credenciais Cloudflare em Environment protegido e sem token na sessão do Claude (a nuvem não alcança `api.cloudflare.com`). O workflow, seu teste e o guia operacional foram separados em PR independente; esta PR continua só com o Worker de diagnóstico, seus testes e a documentação que depende dele.
+- Documento 10: ponteiro na 12.11 e nova seção 12.12 com a decisão. README da POC com a nota operacional do caminho pelo Actions.
+
+### 2. O que estamos fazendo
+
+- PR #17 segue draft e sem merge. Nada foi publicado: sem login ou deploy na Cloudflare, sem token/secret, sem conta Apple, sem leitura ou envio de e-mail.
+- A conectividade com a Apple **continua não comprovada**; só há testes com sockets simulados.
+
+### 3. O que vamos fazer
+
+1. Dono mescla a PR independente do workflow e configura o Environment `cloudflare-poc` e os dois secrets Cloudflare.
+2. Acionar o workflow a partir desta branch, ler o resultado do `/probe` e registrar a evidência real.
+3. Remoção do Worker: atividade futura, com autorização específica.

@@ -17,6 +17,16 @@ node --test tests/icloud_probe.test.mjs
 
 O modo local do Wrangler é útil para conferir a rota e o token, mas não comprova a saída de rede da infraestrutura Cloudflare. A prova real de rede ocorre somente depois de publicar este Worker temporário na conta Cloudflare. O `wrangler dev` local não comprova a saída TCP dos datacenters Cloudflare.
 
+## Publicação pelo GitHub Actions (caminho preferido)
+
+Decisão de 13/11/2026: a POC é publicada pelo workflow manual `.github/workflows/icloud-probe-deploy.yml`, sem token Cloudflare em sessão de nuvem nem em computador.
+
+1. Configuração única do dono: token Cloudflare só com `Account → Workers Scripts → Edit`; no GitHub, Settings → Environments → `cloudflare-poc` (aprovador obrigatório, branches `main` e `poc/icloud-cloudflare-connectivity`) com os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`.
+2. Actions → "Publicar POC iCloud (manual)" → Run workflow → "Use workflow from" `poc/icloud-cloudflare-connectivity`. O workflow testa, publica no Workers Free, gera um `PROBE_TOKEN` aleatório (usado só nesse run e descartado), chama `POST /probe` e mostra o resultado no resumo da execução.
+3. O workflow nunca faz login, remove o Worker, muda de plano ou imprime segredos. Como o `PROBE_TOKEN` não é guardado, o Worker só volta a ser chamado por uma nova execução do workflow.
+
+Os passos abaixo ficam como alternativa manual, para quem tiver o Wrangler autenticado no próprio computador.
+
 ## Publicação manual (conta Cloudflare do dono)
 
 1. Autentique o Wrangler na conta Cloudflare do dono e confira a conta ativa:

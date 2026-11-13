@@ -413,4 +413,12 @@ O worker não recebe parâmetros de host/porta, não autentica, não lê mensage
 
 **Ainda não comprovado:** conectividade na rede Cloudflare, TLS com os servidores Apple, autenticação iCloud, leitura, envio, sincronização ou IMAP IDLE. O modo local Wrangler não comprova a saída de rede real. Não houve login Cloudflare, deploy, contratação/upgrading de plano, criação de token/segredo, conexão de conta Apple ou alteração no Supabase.
 
-Procedimento de deploy manual, uso e remoção: `experimentos/icloud-probe/README.md`. A primeira tentativa será no Workers Free; se o limite HTTP de 10 ms de CPU impedir a verificação TLS, avaliar a execução e pedir autorização específica antes de qualquer upgrade para Workers Paid. A POC é descartável e não cria domínio, rota, Cron, Durable Object ou binding de produção.
+Procedimento de deploy manual, uso e remoção: `experimentos/icloud-probe/README.md`. **Caminho preferido, decidido em 13/11/2026: publicação pelo GitHub Actions (seção 12.12).** A primeira tentativa será no Workers Free; se o limite HTTP de 10 ms de CPU impedir a verificação TLS, avaliar a execução e pedir autorização específica antes de qualquer upgrade para Workers Paid. A POC é descartável e não cria domínio, rota, Cron, Durable Object ou binding de produção.
+
+### 12.12 Publicação da POC pelo GitHub Actions — decisão (13/11/2026)
+
+**Fatos confirmados.** A sessão de nuvem do Claude Code não alcança `api.cloudflare.com` nem `dash.cloudflare.com` (a proxy da política de rede recusa com 403), não há token Cloudflare e o `wrangler login` interativo não funciona em máquina de nuvem. O dono decidiu não fornecer token Cloudflare à sessão. Nada foi publicado e a conectividade com a Apple **continua não comprovada**.
+
+**Decisão.** O deploy da POC é feito por workflow **exclusivamente manual** do GitHub Actions (`icloud-probe-deploy.yml`), com secrets Cloudflare num Environment protegido (`cloudflare-poc`, aprovador e branches restritas), `PROBE_TOKEN` aleatório por execução e nunca persistido, Wrangler fixo em `4.161.0` e permissão Cloudflare mínima (`Account → Workers Scripts → Edit`). A remoção do Worker fica para atividade futura autorizada.
+
+O workflow, seu teste e o guia operacional (desenho, configuração manual e pendências) estão em **PR independente** — guia docs/icloud-poc-deploy.md, ainda fora desta branch — para que esta PR #17 contenha só o Worker de diagnóstico e seus testes. O registro da prova real (HTTP, IMAP 993, SMTP 587/STARTTLS, tempos, erros) só entra aqui depois da execução do workflow.

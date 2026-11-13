@@ -644,3 +644,20 @@ Família e da Casa.
 1. Concluir o CI completo da revisão atual da PR #16 e integrar o pacote documental depois do gate verde.
 2. Preparar prova de conectividade Cloudflare TCP para Apple IMAP 993 e SMTP 587/STARTTLS, primeiro sem autenticação.
 3. Só testar autenticação depois de criar ambiente/contas de teste e obter autorização específica. Não usar senha ou token no chat e não conectar caixas pessoais de produção.
+
+## 13/11/2026 · RAC Inbox — precisão do limite CPU no Cron do Cloudflare
+
+### 1. O que fizemos
+
+- Corrigida a interpretação da tabela oficial de limites do Cloudflare: o teto de 5 minutos de CPU no Workers Paid é para requisições HTTP. Para Cron com frequência menor que uma hora (caso do polling a cada minuto), o teto é **30 segundos de CPU por execução**; o tempo total de parede permanece até 15 minutos. No Free, Cron tem 10 ms de CPU.
+- Ajustadas as seções 12.7 e 12.10 do Documento 10 e o resumo no Documento 05 para não confundir os dois tipos de invocação.
+
+### 2. O que estamos fazendo
+
+- A estratégia de polling por minuto continua tecnicamente candidata; 30 segundos de CPU no Paid devem ser medidos na POC com IMAP/SMTP real. Nenhum cron ou Worker foi criado, e nenhum plano foi contratado.
+
+### 3. O que vamos fazer
+
+1. Quando houver acesso ao Cloudflare, começar por uma chamada HTTP de teste sem credenciais; medir tempo de CPU e verificar handshake TCP/STARTTLS com as portas Apple.
+2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
+3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.

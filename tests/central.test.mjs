@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 const raiz = new URL("../", import.meta.url);
 const ler = (a) => fs.readFileSync(new URL(a, raiz), "utf8");
@@ -108,11 +109,11 @@ test("MFA: o login pede o código antes de ler qualquer tabela, e nada liga MFA 
 
 test("Central: rota, menu, seção, papel casa, service worker e versão", () => {
   const html = ler("index.html"), sw = ler("sw.js");
-  assert.match(app, /var tabs=\[[^\]]*"seguranca"/); assert.match(app, /DA_CASA=\[[^\]]*"seguranca"/);
-  assert.match(app, /seguranca:\["seguranca"\]/); assert.match(app, /seguranca:\["sistema"\]/);
-  assert.match(app, /if\(top==="seguranca"\)\{sideMark\("seguranca","seguranca"\);renderSeguranca\(parts\[1\]\);return\}/);
-  assert.match(html, /<a class="it" href="#seguranca" data-k="seguranca">/); assert.match(html, /<section id="seguranca" hidden><div id="seguranca-view" class="stack"><\/div><\/section>/);
-  assert.match(html, /:not\(\[data-k="seguranca"\]\)/, "quem é da casa vê a Central (só MFA e recuperação)");
+  const RT = registro(); assert.ok(RT.tabs.includes("seguranca")); assert.ok(RT.DA_CASA.includes("seguranca"));
+  assert.deepEqual(RT.ROTA_MODS.seguranca, ["seguranca"]); assert.match(app, /seguranca:\["sistema"\]/);
+  const rs = rota("seguranca"); assert.ok(!rs.marcaPropria); assert.match(rs.abrirTexto, /renderSeguranca\(p\[1\]\)/);
+  assert.match(RT.menu, /<a class="it" href="#seguranca" data-k="seguranca" data-casa="1">/); assert.match(html, /<section id="seguranca" hidden><div id="seguranca-view" class="stack"><\/div><\/section>/);
+  assert.match(html, /html\.casa #navgrp a\.it:not\(\[data-casa\]\)/, "quem é da casa vê a Central (só MFA e recuperação): item com data-casa");
   assert.match(sw, /"\.\/js\/seguranca\.js"/);
   assert.match(seg, /if\(isOwner\(\)\)\{root\.appendChild\(segBackupPainel\(\)\)/, "backup, restauração, histórico e auditoria só para o dono");
   assert.match(sis, /href:"#seguranca",text:"Abrir a Central de Segurança"/, "o Sistema aponta para a Central em vez de repetir o backup");
@@ -134,7 +135,8 @@ test("Face ID: botão no login só com suporte do navegador, senha continua igua
   assert.match(clique, /sb\.auth\.signInWithPasskey\(\)/);
   assert.match(clique, /entrar\(\)/, "depois do Face ID, o mesmo caminho da senha (papel, código se a conta usa TOTP)");
   assert.equal((app.match(/signInWithPasskey\(/g) || []).length, 1, "o Face ID só é pedido no toque do botão");
-  assert.match(merc, /experimental: \{ passkey: true \}/, "opção do SDK para as passkeys");
+  assert.match(ler("js/dados.js"), /experimental: \{ passkey: true \}/, "opção do SDK para as passkeys (no cliente único, js/dados.js)");
+  assert.ok(!/createClient/.test(merc), "o Mercado não cria outro cliente");
 });
 
 test("Face ID na Central: cada conta vê e cadastra só as suas; remover pede confirmação; nada de API de administrador", () => {

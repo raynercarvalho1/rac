@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { ACOES, fatosDaEntrada, montarPedido } from "../supabase/functions/rac-ia/acoes.ts";
 import { respostaDemo } from "../supabase/functions/rac-ia/demo.ts";
 import * as O from "../supabase/functions/rac-ia/orcamento.ts";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
@@ -184,8 +185,8 @@ test("sem temporada fixa nem resultado escrito à mão no módulo de esportes", 
   assert.match(esp, /MLB_TEMP\.fase==="fora"\|\|MLB_TEMP\.fase==="pre"\)mlbAbertura\(\)\.then\(function\(a\)\{if\(a\)/, "fora de temporada, a faixa dos Dodgers mostra a abertura oficial da próxima (se divulgada)");
 });
 test("rotas: #esportes abre a Central (com o Giro dentro, sem aba própria); futebol existe; o módulo novo carrega com a seção", () => {
-  assert.match(app, /sports=\["central","beisebol","basquete","futebol-americano","futebol"\]/);
-  assert.match(app, /esportes:\["esportes","esportes-central"\]/);
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /sports=\["central","beisebol","basquete","futebol-americano","futebol"\]/, "subpáginas no registro de rotas (A3)");
+  assert.deepEqual(registro().ROTA_MODS.esportes, ["esportes", "esportes-central"]); assert.ok(rota("esportes").marcaPropria);
   assert.match(app, /"esportes-central":\["esportes"\]/);
   for (const id of ["sp-central", "esc-view", "sp-beisebol", "sp-basquete", "sp-futebol-americano"]) assert.ok(html.includes(`id="${id}"`), id);
   assert.ok(html.includes('href="#esportes/futebol"'));

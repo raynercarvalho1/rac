@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { rota } from "./_rotas.mjs";   // registro de rotas (js/rotas.js, Fase 2 · A3)
 
 class El {
   constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.value = ""; this.className = ""; this.cl = new Set(); this.ev = {}; this.classList = { add: (c) => this.cl.add(c), remove: (c) => this.cl.delete(c) }; }
@@ -110,7 +111,7 @@ test("código: as visões novas só leem as compras e só escrevem em radar_iten
   assert.equal([...b.matchAll(/\.insert\(/g)].length, 1); assert.match(b, /from\("radar_itens"\)\.insert\(\{ nome: nome\.slice\(0, 160\), origem: "comprado" \}\)/);
   assert.ok(!/\.(update|delete|upsert|rpc)\(|functions\.invoke|racIA|anthropic|serpapi/i.test(b)); assert.ok(!/from\("(compras|radar_precos|radar_ofertas|radar_coletas|radar_lojas)"\)/.test(b), "não toca em compras nem em preços");
   assert.match(b, /pessoalGravar\("radar-vinculos"/); assert.match(b, /if \(!ehDono\(\)\) \{ body\.appendChild\(reg\); return; \}/);
-  assert.match(ler("js/app.js"), /RACmercado\.render\(parts\[1\]\|\|"",parts\[2\]\|\|""\)/);
+  assert.match(rota("mercado").abrirTexto, /RACmercado\.render\(p\[1\]\|\|"",p\[2\]\|\|""\)/, "a rota passa o 2º trecho (registro de rotas, Fase 2 · A3)");
 });
 
 /* ---------- ajustes pedidos pelo dono em 12/11/2026: ordem, compra de origem, Produtos, voltar ---------- */

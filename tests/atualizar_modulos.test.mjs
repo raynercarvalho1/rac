@@ -72,7 +72,11 @@ function montar({ sec, hash, modulos = [], resp = {}, extra = {} }) {
   vm.runInContext(/function getJson\(u\)\{[^\n]*/.exec(APP)[0], ctx, { filename: "app.js (getJson)" });
   /* o redesenho de verdade (route + espera da página) fica de fora: aqui só conta que aconteceu, depois da troca */
   vm.runInContext("function atuPadrao(raiz){redesenhos++;return Promise.resolve(0)}", ctx);
-  for (const m of modulos) vm.runInContext(ler("js/" + m + ".js"), ctx, { filename: m + ".js" });
+  /* como o carregador do site (modulo() em js/app.js): as dependências declaradas no MOD_DEPS carregam antes, uma vez só (Fase 2 · A4: a Família
+     traz a sua fonte, js/fonte-familia.js; o Sistema, a da Agenda) */
+  const DEPS = JSON.parse(/var MOD_DEPS=(\{[^;]*\});/.exec(APP)[1].replace(/([{,])\s*([A-Za-z_][\w]*)\s*:/g, '$1"$2":')), feitos = new Set();
+  const carregar = (m) => { if (feitos.has(m)) return; feitos.add(m); for (const d of DEPS[m] || []) if (modulos.includes(d) || /^fonte/.test(d)) carregar(d); vm.runInContext(ler("js/" + m + ".js"), ctx, { filename: m + ".js" }); };
+  for (const m of modulos) carregar(m);
   return { ctx, banco, raiz, rolagens, avisos, mod: () => ctx.ATU.mods[sec] };
 }
 /* uma resposta que só chega quando o teste mandar */
@@ -326,7 +330,8 @@ test("todo módulo com dados em memória está ligado ao botão (os nove da Etap
   /* fora da Etapa B (pendentes, ver o relatório): o Resumo e o Esportes guardam leituras; a Lista guarda sugestões e histórico */
   const FORA = { "resumo.js": "usa o relógio da memória (SAUDE); o ↻ cai no caminho padrão da Etapa A", "esportes.js": "APIs públicas de esportes guardadas por once()",
     "esportes-central.js": "APIs públicas de esportes guardadas por once()", "lista.js": "sugestões e histórico da Lista",
-    "fiscal.js": "só a trava de \"lendo\" e os documentos já lidos nesta tela, identificados pelo conteúdo (Lote 1.4); não guarda leitura do banco, então nada fica velho" };
+    "fiscal.js": "só a trava de \"lendo\" e os documentos já lidos nesta tela, identificados pelo conteúdo (Lote 1.4); não guarda leitura do banco, então nada fica velho",
+    "dados.js": "camada de dados (Fase 2 · A1): guarda só o cliente do Supabase (a conexão), nenhuma leitura do banco" };
   const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js"]));
   /* o RAC Hoje ainda não tem página: a coleta vale 10 minutos e o ↻ (ATU.fresco) faz ler de novo (tests/hoje.test.mjs) */
   ligados.add("hoje.js"); assert.match(ler("js/hoje.js"), /typeof ATU!=="undefined"&&ATU\.fresco/);

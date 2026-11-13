@@ -9,25 +9,26 @@
   /* uma fonte: {ok, v, vazio, quando, ultimo, origem, nota, parcial, falhas} ou {ok:false, erro}; uma falha nunca derruba as outras.
      quando = a data que a PRÓPRIA fonte informa; ultimo = a data do registro mais recente (não é "data de atualização"); origem = de onde veio a leitura */
   function hojeFonte(f){return atuLer(function(){return hojePrazo(Promise.resolve().then(f),HOJE_PRAZO)}).then(function(r){
-    return r.ok?{ok:true,v:r.v.v,vazio:!!r.v.vazio,quando:r.v.quando||null,ultimo:r.v.ultimo||null,origem:r.v.origem||null,nota:r.v.nota||null,parcial:!!r.v.parcial,falhas:r.v.falhas||null}:r})}
-  function hojePag(q){var acc=[];function pag(f){return Promise.resolve().then(function(){return q(f)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(f+1000):acc})}return pag(0)}
+    return r.ok?NUCLEO.fonteContrato(r.v):r})}
+  /* leitura paginada da camada de dados (js/dados.js, Fase 2 · A1) */
+  function hojePag(q){return dadosPaginar(q)}
+  /* Newsletter, Família, MBA e Agenda vêm pelo contrato de fontes (js/fontes.js e js/fonte-*.js, Fase 2 · A4): o RAC Hoje não lê variável
+     de outra tela nem carrega a tela inteira só para ter os dados */
+  var HOJE_MODULOS=["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia"];
   /* a data (AAAA-MM-DD) mais recente de uma lista de registros; sem registro com data válida, nada */
   function hojeUltimo(l,campo){var m=null;(l||[]).forEach(function(x){var d=String(x&&x[campo]||"").slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&(!m||d>m))m=d});return m}
   /* cada fonte lê só o período que interessa ao dia (do 1º dia do mês passado em diante, ou menos) */
   var HOJE_LEITORES={
     /* a Agenda diz como foi a leitura: falha (nada utilizável) vira falha da fonte; parcial (o banco falhou e sobrou só o da memória) segue, marcada; vazia só se tudo foi lido */
-    agenda:function(){return agendaColetarLeitura().then(function(r){
-      if(r.estado==="falha")throw new Error("a leitura da Agenda falhou ("+r.falhas.join("; ")+")");
-      return {v:r.eventos,vazio:r.estado==="vazia",parcial:r.estado==="parcial",falhas:r.falhas,origem:"banco e dados do site"}})},
+    agenda:function(){return fonteOuErro("agenda")},
     tarefas:function(){return Promise.resolve().then(function(){return SB.from("lista").select("id,item,criado").eq("tipo","tarefa").eq("feito",false).order("criado").limit(50)}).then(sbOk)
       .then(function(l){return {v:l,vazio:!l.length,origem:"banco"}})},
     vagas:function(){return (vgPronto||Promise.resolve()).then(function(){var c=PESSOAL.candidaturas||[];
       return {v:{vagas:VG.all||[],skills:((PESSOAL.perfilCarreira||{}).skills)||["sql","powerbi","excel","negocio","estat"],noFunil:c.map(function(x){return x.vagaId}).filter(Boolean),
         ocultas:typeof vgHidden!=="undefined"?vgHidden:{},funil:c.filter(function(x){return x.coluna&&x.coluna!=="arquivo"}).length},vazio:!(VG.all||[]).length,quando:VG.coletado||null,origem:"memória do site"}})},
     /* a edição montada aqui, em memória (NUCLEO.nlEdicao): a aba Hoje da Newsletter não é aberta, então nada é gravado no histórico */
-    newsletter:function(){var mem=typeof NLS!=="undefined"&&NLS.dados,d0=mem?Promise.resolve(NLS.dados):getJson("newsletter.json?v="+Math.floor(Date.now()/6e5));
-      return d0.then(function(d){var c=NUCLEO.nlEdicao(d,PESSOAL.newsletter,Date.now());
-        return {v:{destaques:(c.destaques||[]).map(function(g){return {t:g.titulo_pt||g.t,cat:NUCLEO.nlCat(g.c).n,n:g.n||1}})},vazio:!(c.destaques||[]).length,quando:d.coletado||null,origem:mem?"memória do site":"arquivo do site"}})},
+    newsletter:function(){return fonteOuErro("newsletter").then(function(c){
+        return {v:{destaques:(c.v.destaques||[]).map(function(g){return {t:g.titulo_pt||g.t,cat:NUCLEO.nlCat(g.c).n,n:g.n||1}})},vazio:c.vazio,quando:c.quando,origem:c.origem}})},
     noticias:function(){return getJson("noticias.json").then(function(d){var l=(d.noticias||[]).slice(0,6).map(function(n){return {t:n.t,f:n.f,d:n.d}});return {v:l,vazio:!l.length,quando:d.coletado||null,origem:"arquivo do site"}})},
     /* o jogo dos Dodgers hoje (a mesma consulta pública do resumo falado do Início) */
     esportes:function(){var hoje=hojeISO();return getJson("https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId=119&date="+hoje+"&hydrate=team").then(function(d){
@@ -45,10 +46,10 @@
       return Promise.all([hojePag(function(f){return SB.from("garmin_dia").select("data,dados").gte("data",NUCLEO.somaDiasISO(hoje,-60)).order("data").range(f,f+999)}),
         Promise.resolve().then(function(){return SB.from("garmin_ativ").select("inicio,tipo").gte("inicio",NUCLEO.somaDiasISO(hoje,-14))}).then(sbOk)])
       .then(function(r){var ult=r[0][r[0].length-1];return {v:{dias:r[0],ativs:r[1].filter(function(a){return ocultos.indexOf(a.tipo)<0})},vazio:!r[0].length,quando:ult?ult.data+"T23:59:00-03:00":null,ultimo:ult?ult.data:null,origem:"banco"}})},
-    mba:function(){var hoje=hojeISO(),fin=mbaFin();
-      var o={aulas:mbaAulas().filter(function(a){return a.data>=hoje}).slice(0,3),avals:mbaAvals().filter(function(a){return !a.feita}),
+    mba:function(){return fonteOuErro("mba").then(function(c){var hoje=hojeISO(),fin=c.v.fin;
+      var o={aulas:c.v.aulas.filter(function(a){return a.data>=hoje}).slice(0,3),avals:c.v.avals.filter(function(a){return !a.feita}),
         progresso:fin?"MBA: "+fin.pagas+" de "+fin.ps.length+" parcelas pagas; falta pagar "+NUCLEO.hojeReais(fin.falta)+(fin.prox?"; próxima de "+NUCLEO.hojeReais(fin.prox.v)+" vence em "+fin.prox.venc:"")+".":""};
-      return {v:o,vazio:!o.aulas.length&&!o.avals.length&&!fin,origem:"memória do site"}},
+      return {v:o,vazio:!o.aulas.length&&!o.avals.length&&!fin,origem:c.origem}})},
     tempo:function(){return (TEMPO_HOJE?Promise.resolve(TEMPO_HOJE):getJson("https://api.open-meteo.com/v1/forecast?latitude=-23.50&longitude=-47.46&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&hourly=precipitation_probability,precipitation&timezone=America%2FSao_Paulo&forecast_days=2"))
       .then(function(d){var c=NUCLEO.chuvaAviso(d.hourly,d.current.time);
         return {v:"Em Sorocaba: "+Math.round(d.current.temperature_2m)+" graus agora, máxima "+Math.round(d.daily.temperature_2m_max[0])+", mínima "+Math.round(d.daily.temperature_2m_min[0])+(c?"; "+c.texto:"; sem chuva prevista nas próximas horas")+".",
@@ -59,16 +60,14 @@
     if(HOJE.prom)return HOJE.prom;
     if(HOJE.coleta&&!forcar&&!(typeof ATU!=="undefined"&&ATU.fresco)&&Date.now()-HOJE.quando<HOJE_VIDA)return Promise.resolve(HOJE.coleta);
     var hoje=hojeISO(),ini=new Date(Date.UTC(+hoje.slice(0,4),+hoje.slice(5,7)-2,1)).toISOString().slice(0,10),nomes=Object.keys(HOJE_LEITORES);
-    HOJE.prom=precisa(["sistema","mba"]).then(function(){return Promise.all(nomes.map(function(k){return hojeFonte(function(){return HOJE_LEITORES[k](ini)})}))})
-      .then(function(r){var f={};nomes.forEach(function(k,i){f[k]=r[i]});HOJE.coleta={hoje:hoje,quando:new Date().toISOString(),fontes:f};HOJE.quando=Date.now();HOJE.prom=null;return HOJE.coleta},
+    /* a Família (quem é quem, para a IA) vem junto, pela fonte, mas não é uma das fontes do dia: a lista e a tela das fontes não mudam */
+    HOJE.prom=precisa(HOJE_MODULOS).then(function(){return Promise.all([Promise.all(nomes.map(function(k){return hojeFonte(function(){return HOJE_LEITORES[k](ini)})})),fonteLer("familia")])})
+      .then(function(rr){var r=rr[0],f={};nomes.forEach(function(k,i){f[k]=r[i]});HOJE.coleta={hoje:hoje,quando:new Date().toISOString(),fontes:f,quem:rr[1].ok?NUCLEO.hojeQuemDe(rr[1].v.integrantes):""};HOJE.quando=Date.now();HOJE.prom=null;return HOJE.coleta},
         function(e){HOJE.prom=null;throw e});
     return HOJE.prom}
   /* as regras do dia e o pacote de fatos (o que a IA recebe), prontos sem IA */
-  /* quem é quem, pela configuração da Família (bebê, cachorro, veículos): sem isso a IA chamou a Olivia de pet */
-  function hojeQuem(){if(typeof FAM==="undefined")return "";
-    return Object.keys(FAM).map(function(k){var F=FAM[k];if(F.bebe)return F.n+" é a filha bebê do dono";if(F.veic)return /antigo/i.test(F.n)?null:F.n+" é um veículo do dono";
-      if(F.docs)return null;return typeof AGENDA_ICO!=="undefined"&&AGENDA_ICO[k]==="🐶"?F.n+" é o cachorro da família":null}).filter(Boolean).join("; ")}
-  function hojeMontar(forcar){return hojeColetar(forcar).then(function(c){var x=NUCLEO.hojeContexto(c.fontes,c.hoje,Date.now(),undefined,{quem:hojeQuem()});x.hoje=c.hoje;x.coletado=c.quando;return x})}
+  /* quem é quem, pela fonte da Família (bebê, cachorro, veículos; NUCLEO.hojeQuemDe): sem isso a IA chamou a Olivia de pet */
+  function hojeMontar(forcar){return hojeColetar(forcar).then(function(c){var x=NUCLEO.hojeContexto(c.fontes,c.hoje,Date.now(),undefined,{quem:c.quem||""});x.hoje=c.hoje;x.coletado=c.quando;return x})}
   /* ===== Escopo deste aparelho. Tudo que o RAC Hoje guarda aqui (análises, tentativas, chamadas sem resultado, trava entre abas) fica numa chave POR CONTA
      (nome + ":" + id do usuário): outra conta que entre neste navegador, sem passar pelo Sair, não enxerga nem altera o que é da anterior, e o registro
      da anterior continua lá se ela voltar. Sem id da conta, nada é lido nem gravado. A memória da página também é zerada quando a conta muda

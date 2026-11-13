@@ -3,9 +3,7 @@
    A chave abaixo é a publicável, feita para ficar no site; a segurança vem das regras do banco.
    Bibliotecas (supabase-js e SheetJS) só carregam quando a aba é aberta. */
 (function () {
-  var SB_URL = "https://hofnhbxnfebfnncwxrds.supabase.co";
-  var SB_KEY = "sb_publishable_kpEqdxunDeIbStJrgxrngg_tNPv6VTL";
-  var SUPA_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js";
+  /* o cliente do Supabase, o endereço e a chave pública moram na camada de dados (js/dados.js, Fase 2 · A1): o Mercado usa a mesma instância do site */
   var XLSX_JS = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   var MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   var BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -54,10 +52,7 @@
   }
   function client() {
     if (sb) return Promise.resolve(sb);
-    return (window.supabase ? Promise.resolve() : loadScript(SUPA_JS)).then(function () {
-      sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth", experimental: { passkey: true } } });
-      return sb;
-    });
+    return window.RACdados.cliente().then(function (c) { sb = c; return sb; });
   }
   function root() { return document.getElementById("mercado-view"); }
   function msg(text) { var r = root(); r.innerHTML = ""; r.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: text }))); }
@@ -2620,12 +2615,14 @@
         ultima: ult ? { mercado: String(ult[0].mercado).replace(/\s*\(.*\)$/, ""), data: dataBR(ult[0].data), total: sum(ult, function (x) { return x.valor_total; }), itens: ult.length } : null };
     });
   }
-  /* O login do Mercado é o login do site todo: a página inteira usa este mesmo cliente */
+  /* O login do Mercado é o login do site todo: a página inteira usa o mesmo cliente (o único, criado em js/dados.js) */
   /* abre o histórico de preço de um produto (usado pelos Gastos da Olivia) */
   function verProduto(nome) { st.prod = nome; st.q = ""; st.voltar = false; st.voltarY = null; location.hash = "#mercado/precos"; }
-  window.RACmercado = { url: SB_URL, chave: SB_KEY, render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
+  window.RACmercado = { render: render, client: client, resumo: resumo, money: money, grafico: graficoLinha, verProduto: verProduto,
     /* Compras online chama depois de gravar, anexar, marcar ou apagar um pedido: a Central lê os pedidos de novo na próxima vez que abrir */
     esquecerOnline: function () { onl = null; cuMemo = null; lidoEm.online = 0; },
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
     _teste: { drawApp: drawApp, viewCentral: viewCentral, CU: CU, CM: CM, reler: reler, lidoEm: lidoEm, ligarAtualizar: ligarAtualizar, usarOnline: function (l) { onl = l; onlAviso = ""; cuMemo = null; lidoEm.assOnline = JSON.stringify(l); }, centralDados: centralDados, viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; lidoEm.assNotas = assinaturaNotas(r); if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+  /* apelidos de compatibilidade (Fase 2 · A1): RACmercado.url e .chave leem a camada de dados (js/dados.js) */
+  ["url", "chave"].forEach(function (k) { Object.defineProperty(window.RACmercado, k, { enumerable: true, get: function () { return window.RACdados ? window.RACdados[k] : undefined; } }); });
 })();

@@ -31,6 +31,8 @@ function montar() {
     update: (d) => { gravados.push(["update", d]); return { eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "r1", arquivos: [] }, error: null }) }) }) }; } }) };
   const ctx = vm.createContext({ console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, parseInt, parseFloat, RegExp, h, panel: (t) => h("div", { class: "panel" }, h("h2", { text: t })), hojeISO: () => "2026-11-09", SB, sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; },
     atuModulo() {}, window: {}, document: {}, location: {}, localStorage: { getItem: () => null, setItem() {} } });
+  /* a configuração dos integrantes e dos tipos vem da fonte da Família (js/fonte-familia.js, Fase 2 · A4), que o site carrega antes da tela */
+  for (const f of ["js/fontes.js", "js/fonte-familia.js"]) vm.runInContext(ler(f), ctx, { filename: f });
   vm.runInContext(ler("js/familia.js") + "\n;globalThis.__f={famForm:famForm,tiposDe:tiposDe,FAM:FAM};", ctx);
   return { ctx, gravados };
 }

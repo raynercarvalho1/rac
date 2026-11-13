@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo;
@@ -118,8 +119,8 @@ test("SQL 025: casa, RLS, trava da 2ª etapa, nada para anon, conta fechada, cof
   assert.deepEqual(N.segDef("compras_online_itens").fk, { compra_id: "compras_online" }); assert.deepEqual(N.segDef("compras_online_docs").nat, [["sha256"]]);
   assert.match(ler("js/sistema.js"), /t==="compras_online_docs"/);
   const app = ler("js/app.js"), html = ler("index.html"), js = ler("js/compras.js");
-  assert.match(app, /var DA_CASA=\["mercado","alimentacao","compras","fiscal",/); assert.match(app, /renderCompras\(parts\[1\],parts\[2\],parts\[3\]\)/, "Lote 5.2: a rota passa o 3º trecho (origem do produto)");
-  assert.match(html, /<section id="compras" hidden>/); assert.match(html, /href="#compras" data-k="compras"/); assert.match(ler("sw.js"), /"\.\/js\/compras\.js"/);
+  const RT = registro(); assert.ok(RT.DA_CASA.includes("compras")); assert.match(rota("compras").abrirTexto, /renderCompras\(p\[1\],p\[2\],p\[3\]\)/, "Lote 5.2: a rota passa o 3º trecho (origem do produto)");
+  assert.match(html, /<section id="compras" hidden>/); assert.match(RT.menu, /href="#compras" data-k="compras" data-casa="1"/); assert.match(ler("sw.js"), /"\.\/js\/compras\.js"/);
   assert.match(js, /pdf\.js\/3\.11\.174\//); assert.match(js, /jszip\/3\.10\.1\//); assert.match(js, /tesseract\.js@5\.1\.1\//);
   assert.match(js, /upload\(path,d\.blob,\{contentType:d\.mime,upsert:false\}\)/, "o original vai como veio");
   assert.ok(!/racIA\(|rac-ia|anthropic|type:"password"/i.test(js), "sem IA paga e sem campo de senha da loja");

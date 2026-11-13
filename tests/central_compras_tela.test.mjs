@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { registro, rota } from "./_rotas.mjs";   // registro de rotas e do menu (js/rotas.js, Fase 2 · A3)
 
 class El {
   constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.value = ""; this.hidden = false; this.classList = { add() {}, remove() {}, toggle() {} }; }
@@ -76,7 +77,7 @@ test("só leitura nas tabelas de compras: a Central não insere, atualiza nem ap
 });
 test("o módulo se chama Central de Compras no menu e na casca, e as telas existentes continuam", () => {
   const idx = ler("index.html"), src = ler("mercado.js");
-  assert.match(idx, /data-k="mercado">.*?<span class="t">Central de Compras<\/span>/s); assert.match(idx, /<span class="t">Compras online<\/span>/);
+  const menu = registro().menu; assert.match(menu, /data-k="mercado"[^>]*>.*?<span class="t">Central de Compras<\/span>/s); assert.match(menu, /<span class="t">Compras online<\/span>/);
   assert.match(src, /\["central", "Central"\], \["painel", "Painel do Mercado"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\]/);
   for (const k of ["notas", "produtos", "importar", "alertas", "radar"]) assert.match(src, new RegExp('\\["' + k + '"'));
 });

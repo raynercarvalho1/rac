@@ -57,16 +57,13 @@
     return {d:d,prox:r,exf:exf,ext:ex.length}}
   function mbaAulasTxt(a){return (a||[]).map(function(x){var p=x.split("-");return p[2]+"/"+p[1]}).join(", ")}
   /* calendário de aulas do portal (PESSOAL.mba.aulas); o link de cada aula pode ser colado depois (PESSOAL.mbaLinks) */
-  function mbaAulas(){var L=PESSOAL.mbaLinks||{};return ((PESSOAL.mba||{}).aulas||[]).map(function(a){return Object.assign({},a,{link:L[a.id]||a.link||""})}).sort(function(a,b){return (a.data+a.hora).localeCompare(b.data+b.hora)})}
+  /* aulas, avaliações e parcelas: a normalização mora no núcleo (NUCLEO.mba*De, Fase 2 · A4), a mesma que a fonte do MBA usa (js/fonte-mba.js) */
+  function mbaAulas(){return NUCLEO.mbaAulasDe(PESSOAL.mba,PESSOAL.mbaLinks)}
   function mbaQuando(a){return new Date(a.data+"T"+(a.hora||"19:00")+":00")}
   /* a próxima aula ainda não terminada (conta 3 horas de aula) */
   function mbaProxAula(){var ag=Date.now()-3*3600e3;return mbaAulas().filter(function(a){return mbaQuando(a).getTime()>ag})[0]||null}
   /* financeiro: parcelas com vencimento; pagas ficam marcadas em PESSOAL.mbaFeito ("pg:…") */
-  function mbaFin(){var F=(PESSOAL.mba||{}).financeiro;if(!F||!(F.parcelas||[]).length)return null;var f=mbaFeito(),hoje=hojeISO();
-    var ps=F.parcelas.map(function(p){return Object.assign({},p,{paga:!!f["pg:"+p.k],atrasada:!f["pg:"+p.k]&&p.venc<hoje})});
-    var abertas=ps.filter(function(p){return !p.paga});
-    return {F:F,ps:ps,pagas:ps.length-abertas.length,prox:abertas[0]||null,atrasadas:abertas.filter(function(p){return p.atrasada}),
-      pago:ps.filter(function(p){return p.paga}).reduce(function(s,p){return s+p.v},0),falta:abertas.reduce(function(s,p){return s+p.v},0)}}
+  function mbaFin(){return NUCLEO.mbaFinDe(PESSOAL.mba,mbaFeito(),hojeISO())}
   /* aula ao vivo: no portal, quem não dá o play durante a transmissão só assiste 48 horas depois.
      No dia da aula o Início mostra o aviso; 15 minutos antes vira "ao vivo agora" com o botão para entrar */
   var MBA_PORTAL="https://newdashboard.mbx.academy/classes";
@@ -131,7 +128,7 @@
     p.appendChild(h("details",{class:"famvals"},h("summary",{text:"Todas as parcelas (marque quando pagar)"}),l));
     return p}
   /* avaliações do portal (pesquisas e provas): o link abre direto a avaliação; "já respondi" fica em PESSOAL.mbaFeito */
-  function mbaAvals(){var f=mbaFeito(),hoje=hojeISO();return ((PESSOAL.mba||{}).avaliacoes||[]).map(function(a){return Object.assign({},a,{feita:!!f["av:"+a.id],vencida:a.ate<hoje})}).sort(function(a,b){return a.ate.localeCompare(b.ate)})}
+  function mbaAvals(){return NUCLEO.mbaAvalsDe(PESSOAL.mba,mbaFeito(),hojeISO())}
   function mbaPainelAval(){
     var l=mbaAvals();if(!l.length)return null;var abertas=l.filter(function(a){return !a.feita&&!a.vencida});
     var p=panel("Avaliações",abertas.length?abertas.length+(abertas.length===1?" para responder":" para responder")+", a próxima até "+dataBR(abertas[0].ate):"Nenhuma pendente");p.id="mba-avaliacoes";

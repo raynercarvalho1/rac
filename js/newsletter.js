@@ -11,7 +11,9 @@
   /* newsletter.json: o service worker devolve a cópia guardada na hora (funciona sem internet) e atualiza por trás */
   function nlCarregar(forcar){
     if(NLS.dados&&!forcar&&Date.now()-NLS.quando<5*60e3)return Promise.resolve(NLS.dados);
-    return nlLerEdicao().then(function(d){NLS.dados=d;NLS.quando=Date.now();return d})}
+    return nlLerEdicao().then(function(d){NLS.dados=d;NLS.quando=Date.now();nlFonteGuardar(d);return d})}
+  /* a edição lida fica também na memória da fonte da Newsletter (js/fonte-newsletter.js, Fase 2 · A4): o RAC Hoje reaproveita sem abrir esta tela */
+  function nlFonteGuardar(d){if(typeof fonteNewsletterGuardar==="function")fonteNewsletterGuardar(d)}
   /* só lê (não mexe em NLS); com o botão de atualizar, getJson pede o newsletter.json à rede agora (?atualizar=1) */
   function nlLerEdicao(){return getJson("newsletter.json?v="+Math.floor(Date.now()/6e5)).then(function(d){
       if(!d||!Array.isArray(d.grupos))throw new Error("newsletter.json sem grupos");return d})}
@@ -24,7 +26,7 @@
       if(a===""||a==="busca")return atuLer(nlLerEdicao).then(function(r){return {edicao:r}});
       return {}},
     antes:function(){var a=nlAba();return a==="historico"||a==="semana"?(NLS.hist?{historico:{ok:true}}:{}):a===""||a==="busca"?(NLS.dados?{edicao:{ok:true}}:{}):{}},
-    trocar:function(n){if(n.edicao){NLS.dados=n.edicao.v;NLS.quando=Date.now()}if(n.historico)NLS.hist=n.historico.v},
+    trocar:function(n){if(n.edicao){NLS.dados=n.edicao.v;NLS.quando=Date.now();nlFonteGuardar(NLS.dados)}if(n.historico)NLS.hist=n.historico.v},
     ocupado:function(){return document.querySelector("#newsletter-view .nlprevia:not(.iaprevia) .nlacts")?"o resumo da IA esperando Salvar ou Descartar":""}});
   function nlQuando(iso){var d=new Date(iso);return isNaN(d)?"":d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"}).replace(","," ·")}
   function nlDataLonga(data){return new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
@@ -64,7 +66,7 @@
     return h("nav",{class:"seg nltabs","aria-label":"Newsletter"},T.map(function(t){return h("a",{href:"#newsletter"+(t[0]?"/"+t[0]:""),"aria-pressed":String(t[0]===atual),"aria-current":t[0]===atual?"page":null,text:t[1]})}))}
   function nlFalha(e){var p=panel("Newsletter");
     p.appendChild(h("p",{class:"empty",text:navigator.onLine===false?"Sem internet e sem edição guardada neste aparelho. Abra a Newsletter uma vez com internet para ela ficar disponível offline.":"A edição ainda não foi coletada. O robô coleta às 6h, 12h e 18h (horário de Brasília)."}));
-    var b=h("button",{type:"button",class:"ghostbtn",text:"Tentar de novo"});b.onclick=function(){NLS.dados=null;renderNewsletter("")};p.appendChild(b);
+    var b=h("button",{type:"button",class:"ghostbtn",text:"Tentar de novo"});b.onclick=function(){NLS.dados=null;nlFonteGuardar(null);renderNewsletter("")};p.appendChild(b);
     if(e&&e.message)p.appendChild(h("p",{class:"diag",text:"Detalhe técnico: "+e.message}));
     return p}
 

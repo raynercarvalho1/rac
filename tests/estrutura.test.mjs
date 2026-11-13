@@ -28,7 +28,10 @@ test("nenhuma função ou variável de topo repetida entre os arquivos do site",
 
 test("toda seção carregada sob demanda tem o seu arquivo", () => {
   const app = fs.readFileSync(new URL("js/app.js", raiz), "utf8");
-  const mods = new Set([...app.matchAll(/ROTA_MODS=\{([\s\S]*?)\};/g)].flatMap((m) => [...m[1].matchAll(/"([\w-]+)"/g)].map((x) => x[1])));
+  /* os módulos de cada rota moram no registro de rotas (js/rotas.js, Fase 2 · A3) */
+  const rotas = fs.readFileSync(new URL("js/rotas.js", raiz), "utf8");
+  const mods = new Set([...rotas.matchAll(/mods:\[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([\w-]+)"/g)].map((x) => x[1])));
+  assert.ok(mods.size >= 15, "achou os módulos das rotas");
   for (const m of app.matchAll(/MOD_DEPS=\{([\s\S]*?)\};/g)) for (const x of m[1].matchAll(/"([\w-]+)"/g)) mods.add(x[1]);
   for (const m of app.matchAll(/wLazy\(\[([^\]]*)\]/g)) for (const x of m[1].matchAll(/"([\w-]+)"/g)) mods.add(x[1]);
   assert.ok(mods.size >= 5, "achou os módulos");

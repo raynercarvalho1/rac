@@ -1,0 +1,361 @@
+# RAC Inbox · POC autenticada iCloud — DESENHO B: workflow privilegiado que existe SÓ na main (reunião de segurança de 13/11/2026).
+# Este arquivo só muda por merge na main (decisão do dono). Ele é disparado a partir da main com o commit da branch da POC como ENTRADA DE DADOS:
+# os arquivos do Worker daquele commit são copiados por uma lista fixa, empacotados e inspecionados, mas NADA da branch é executado,
+# nem com secrets, nem sem. Os Environments cloudflare-poc e icloud-auth-poc devem aceitar SÓ a main (configuração do dono no GitHub): assim,
+# mesmo um workflow alterado numa branch, disparado de lá, não recebe nenhum secret nem o Environment.
+# O primeiro ensaio OIDC NÃO usa nenhuma credencial Apple: o corpo enviado é sintético e mínimo ({"operacao":"validar_oidc"}).
+# Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
+#   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, monta o pacote, empacota sem publicar, inspeciona e calcula o
+#     sha256. Só entrega adiante o pacote (público) e o hash. O Wrangler vem do lockfile da main, instalado sem scripts;
+#   provisionar (Environment cloudflare-poc, só secrets da Cloudflare) não baixa nem executa nada da branch: confere o hash do pacote
+#     aprovado e o publica com uma configuração escrita neste arquivo;
+#   executar (Environment icloud-auth-poc, sem nenhum secret) pede um token OIDC ao GitHub e o envia ao Worker por HTTPS. O Worker valida o
+#     JWT (ref e workflow da main) antes de ler o corpo.
+# Antes de aprovar o Environment, o aprovador confere no resumo do job verificar: o commit, o sha256 e os hashes dos arquivos, e confere que o
+# CI do commit na PR da POC passou. Detalhes: docs/icloud-poc-deploy.md.
+name: Prova autenticada iCloud (OIDC, manual, só main)
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit da branch da POC a publicar, com 40 caracteres hexadecimais. É tratado só como dado."
+        required: true
+        type: string
+
+# nenhuma permissão por padrão: cada job declara só o que precisa
+permissions: {}
+
+concurrency:
+  group: icloud-auth-probe
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+    # o pacote do Worker, o hash e o commit são públicos: não são segredo (nenhum secret existe neste job)
+    outputs:
+      commit: ${{ steps.empacotar.outputs.commit }}
+      sha256: ${{ steps.empacotar.outputs.sha256 }}
+      pacote: ${{ steps.empacotar.outputs.pacote }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # a entrada entra só por variável de ambiente (nunca colada no script)
+      - name: Só na main e com um commit válido
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Este workflow só roda a partir da main (ref atual: $GITHUB_REF)."
+            exit 1
+          fi
+          case "$COMMIT" in
+            ""|*[!0-9a-f]*) echo "::error::O commit deve ter só caracteres hexadecimais minúsculos."; exit 1 ;;
+          esac
+          if [ "${#COMMIT}" != "40" ]; then
+            echo "::error::O commit deve ter exatamente 40 caracteres."
+            exit 1
+          fi
+
+      # actions fixadas por SHA de commit (a tag fica no comentário; SHAs conferidos direto nos repositórios oficiais)
+      # 1) a parte CONFIÁVEL: só a ferramenta (package.json e lockfile do Wrangler) da main
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/icloud-auth-probe-ferramenta/
+          sparse-checkout-cone-mode: false
+
+      # 2) a parte NÃO CONFIÁVEL: os arquivos do Worker daquele commit, só como dados, numa pasta à parte
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit }}
+          path: poc
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/icloud-auth-probe/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      # só os arquivos desta lista entram no pacote; qualquer outro (inclusive .env, .dev.vars, package.json, wrangler.toml) ou um link
+      # simbólico derruba o job. Nada da pasta poc é executado: os arquivos só são copiados.
+      - name: Montar o pacote a partir de uma lista fixa de arquivos (dados)
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          if [ "$(git -C poc rev-parse HEAD)" != "$COMMIT" ]; then
+            echo "::error::O checkout da POC não está no commit pedido."
+            exit 1
+          fi
+          BASE=poc/experimentos/icloud-auth-probe
+          ESPERADO=$'./README.md\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/politica.mjs\n./wrangler.jsonc'
+          if [ ! -d "$BASE" ]; then
+            echo "::error::A pasta do Worker não existe neste commit."
+            exit 1
+          fi
+          if [ -n "$(find "$BASE" -type l)" ]; then
+            echo "::error::Link simbólico na pasta do Worker; não é permitido."
+            exit 1
+          fi
+          ATUAL=$(cd "$BASE" && find . -type f | LC_ALL=C sort)
+          if [ "$ATUAL" != "$ESPERADO" ]; then
+            echo "::error::Arquivos inesperados em $BASE; só a lista fixa é permitida."
+            diff <(printf '%s\n' "$ESPERADO") <(printf '%s\n' "$ATUAL") || true
+            exit 1
+          fi
+          PACOTE="$RUNNER_TEMP/pacote"
+          mkdir -p "$PACOTE/src"
+          for ARQ in politica jwt jwks index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
+          cat > "$PACOTE/wrangler.jsonc" <<'JSON'
+          {
+            "name": "rac-icloud-auth-poc",
+            "main": "src/index.mjs",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false }
+          }
+          JSON
+          # a wrangler.jsonc do commit tem de ser equivalente à escrita aqui (que é a única usada)
+          if [ "$(jq -S 'del(."$schema")' "$BASE/wrangler.jsonc")" != "$(jq -S . "$PACOTE/wrangler.jsonc")" ]; then
+            echo "::error::A wrangler.jsonc do commit difere da configuração fixa do workflow."
+            exit 1
+          fi
+          (cd "$BASE" && sha256sum ./README.md ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/politica.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
+
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/icloud-auth-probe-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
+
+      # empacota sem publicar (dry-run, sem credencial), inspeciona e calcula o hash do arquivo que será publicado
+      - name: Empacotar sem publicar e inspecionar o resultado
+        id: empacotar
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          PACOTE="$RUNNER_TEMP/pacote"
+          DIST="$RUNNER_TEMP/dist"
+          (cd "$PACOTE" && node "$GITHUB_WORKSPACE/experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --dry-run --outdir "$DIST")
+          OUTROS=$(ls "$DIST" | grep -v -E '^(index\.js|index\.js\.map|README\.md)$' || true)
+          if [ -n "$OUTROS" ]; then echo "::error::Arquivos inesperados no pacote gerado."; exit 1; fi
+          BUNDLE="$DIST/index.js"
+          for PADRAO in 'process\.env' 'eval\(' 'new Function' 'cloudflare:' 'imap\.mail\.me\.com' 'smtp\.mail\.me\.com' 'import\(' 'require\(' 'console\.'; do
+            if grep -qE "$PADRAO" "$BUNDLE"; then echo "::error::O pacote contém uma construção proibida: $PADRAO"; exit 1; fi
+          done
+          HOSTS=$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)
+          if [ "$HOSTS" != "https://token.actions.githubusercontent.com" ]; then echo "::error::O pacote cita endereços fora do emissor do GitHub."; exit 1; fi
+          SHA=$(sha256sum "$BUNDLE" | cut -d' ' -f1)
+          {
+            echo "commit=$COMMIT"
+            echo "sha256=$SHA"
+            echo "pacote=$(base64 -w0 "$BUNDLE")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pacote do Worker rac-icloud-auth-poc (antes da aprovação do ambiente)"
+            echo
+            echo "- commit da POC (dado de entrada): \`$COMMIT\`"
+            echo "- sha256 do arquivo que será publicado: \`$SHA\`"
+            echo "- tamanho: $(wc -c < "$BUNDLE") bytes; único endereço no pacote: token.actions.githubusercontent.com"
+            echo "- sem process.env, eval, console, sockets, endereços da Apple, import dinâmico ou require"
+            echo "- **Antes de aprovar:** conferir o diff dos arquivos abaixo no commit e se o CI desse commit passou na PR da POC."
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/fontes.sha256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  provisionar:
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: cloudflare-poc
+    permissions:
+      contents: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só na main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Este workflow só roda a partir da main (ref atual: $GITHUB_REF)."
+            exit 1
+          fi
+
+      # só os dados da ferramenta (package.json e lockfile) vêm do repositório, da main; a branch da POC não é baixada aqui
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/icloud-auth-probe-ferramenta/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/icloud-auth-probe-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
+
+      # recebe só o pacote, o hash e o commit públicos do job verificar; confere o hash e escreve a configuração de publicação aqui mesmo
+      - name: Reconstituir o pacote aprovado e preparar a publicação (sem secrets)
+        env:
+          PACOTE_B64: ${{ needs.verificar.outputs.pacote }}
+          SHA256_ESPERADO: ${{ needs.verificar.outputs.sha256 }}
+          COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
+        run: |
+          DEST="$RUNNER_TEMP/publicar"
+          mkdir -p "$DEST"
+          printf '%s' "$PACOTE_B64" | base64 -d > "$DEST/index.js"
+          if ! printf '%s  %s\n' "$SHA256_ESPERADO" "$DEST/index.js" | sha256sum -c - > /dev/null; then
+            echo "::error::O hash do pacote recebido não confere com o do job verificar."
+            exit 1
+          fi
+          cat > "$DEST/base.jsonc" <<'JSON'
+          {
+            "name": "rac-icloud-auth-poc",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false }
+          }
+          JSON
+          jq --arg main "$DEST/index.js" '. + {main: $main, no_bundle: true}' "$DEST/base.jsonc" > "$DEST/wrangler.publicar.jsonc"
+          echo "Pacote conferido: sha256 $SHA256_ESPERADO (commit da POC $COMMIT_APROVADO)"
+
+      # só curl e jq; o token vai por substituição de processo, nunca como argumento visível na lista de processos
+      - name: Conferir o token Cloudflare (sem mostrar dados da conta)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Faltam os secrets CLOUDFLARE_API_TOKEN e/ou CLOUDFLARE_ACCOUNT_ID no ambiente cloudflare-poc."
+            exit 1
+          fi
+          verificar() {
+            curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "$1" | jq -r 'select(.success == true) | .result.status' || true
+          }
+          STATUS=$(verificar "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          [ "$STATUS" = "active" ] || STATUS=$(verificar "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          if [ "$STATUS" != "active" ]; then
+            echo "::error::A Cloudflare não confirmou o token como ativo."
+            exit 1
+          fi
+          echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
+
+      # último passo do job: o Wrangler fixado pelo lockfile, num diretório vazio, com a configuração escrita neste arquivo e o pacote aprovado
+      - name: Publicar o pacote aprovado (Workers Free)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd "$RUNNER_TEMP/publicar"
+          node "$GITHUB_WORKSPACE/experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --config "$RUNNER_TEMP/publicar/wrangler.publicar.jsonc"
+
+  executar:
+    needs: provisionar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: icloud-auth-poc
+    # a única permissão deste job: pedir o token OIDC. Sem contents, sem escrita, sem credencial Cloudflare e sem nenhum secret.
+    permissions:
+      id-token: write
+    env:
+      # URL fixa e não sensível (nada vem do job anterior)
+      WORKER_URL: https://rac-icloud-auth-poc.raynercarvalho.workers.dev
+      AUDIENCIA: rac-inbox-icloud-poc:validar_oidc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só na main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Este workflow só roda a partir da main (ref atual: $GITHUB_REF)."
+            exit 1
+          fi
+
+      # o token OIDC só passa por variável de ambiente, pipe e substituição de processo (/dev/fd): nunca por argumento de comando, arquivo ou
+      # artefato; o valor já é mascarado no log. O corpo é fixo, sintético e sem credencial.
+      - name: Validar o JWT no Worker (sem credencial e sem acesso à Apple)
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+
+          PEDIDO=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCIA}")
+          JWT=$(jq -r '.value // empty' <<< "$PEDIDO")
+          unset PEDIDO
+          if [ -z "$JWT" ]; then
+            echo "::error::O GitHub não devolveu o token OIDC."
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+
+          RESP="$RUNNER_TEMP/auth-probe.json"
+          : > "$RESP"
+          CODE=000
+          for TENTATIVA in 1 2 3 4 5; do
+            CODE=$(curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                  -K <(printf 'header = "Authorization: Bearer %s"\n' "$JWT") \
+                  -H "Content-Type: application/json" --data '{"operacao":"validar_oidc"}' || true)
+            CODE=${CODE:-000}
+            [ "$CODE" = "200" ] && break
+            # repete só enquanto o Worker novo ainda propaga (sem rede ou 404); qualquer resposta da política é evidência e encerra
+            if [ "$CODE" = "000" ] || [ "$CODE" = "404" ]; then
+              echo "Tentativa $TENTATIVA: HTTP $CODE; aguardando a propagação do Worker."
+              sleep 6
+            else
+              break
+            fi
+          done
+          unset JWT
+
+          {
+            echo "### Prova autenticada iCloud · validação OIDC (sem credencial e sem acesso à Apple)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Resposta HTTP do Worker: $CODE"
+            echo "- Resposta (só códigos e booleanos):"
+            echo '```json'
+            head -c 600 "$RESP" | jq . 2>/dev/null || echo '(resposta não é JSON)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CODE" = "200" ] && jq -e '.ok == true and .oidc == "validado" and .operacao_reconhecida == true' "$RESP" > /dev/null 2>&1; then
+            echo "JWT OIDC aceito pelo Worker e operação reconhecida (sem credencial e sem acesso à Apple)."
+            exit 0
+          fi
+          echo "::error::O Worker não aceitou a validação (HTTP $CODE); veja o motivo no resumo. Nenhuma ação fora do escopo."
+          exit 1

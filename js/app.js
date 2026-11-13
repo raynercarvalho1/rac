@@ -24,13 +24,14 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-13.4",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-13.5",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
      As fontes (Fase 2 · A4, js/fontes.js e js/fonte-*.js) são módulos leves, sem tela: o RAC Hoje lê Agenda, Newsletter, MBA e Família por elas, sem carregar
-     o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. */
-  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
+     o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. A página Agenda é o módulo próprio "agenda" (DS-4.1): ele declara o Sistema
+     (régua da Próxima melhor ação e ações rápidas), o kit e os gráficos. */
+  var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],agenda:["sistema","kit","graficos"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
     familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];

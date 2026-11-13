@@ -320,3 +320,40 @@ Família e da Casa.
 1. Dono: revisar o PR #9; depois do merge e da publicação, abrir `#rachoje` e o menu no iPhone e dizer o que ajustar.
 2. DS-4: migrar os demais módulos um por vez (candidatos: Agenda e Saúde, que já alimentam o painel), baixando `LINHA_DE_BASE_CORES`; o Início ainda usa a tipografia condensada antiga (convive até a migração, D-12).
 3. DS-5 (telas da casa) só com autorização expressa; Fase 4 (medicamentos, encomendas, contas) alimenta o painel sem novo desenho.
+
+## 13/11/2026 · DS-4.1 — Modernização da Agenda (RAC Modern Workspace)
+
+### 1. O que fizemos
+
+- **Conferência de partida** (informada pelo dono): Fase 3 concluída, PR #9 mesclado na `main` (`f75a1f1`), piloto RAC Hoje validado no iPhone, direção RAC Modern Workspace aprovada. A branch da sessão
+  (`claude/agenda-modernizacao-ds4-xuijw0`) estava 17 commits atrás da `main` e sem trabalho próprio; foi avançada por fast-forward até `f75a1f1`. A branch do PR #9 não foi reutilizada.
+- **Página Agenda (`#agenda`) refeita no Design System**, só a tela, em módulo novo `js/agenda.js` (depende de `sistema`, `kit` e `graficos`): abertura azul com uma frase só com contagens reais; 4 indicadores
+  (Atrasados, Hoje, Próximos 7 dias, Até 30 dias); **Próxima melhor ação** (destaque com ações rápidas e linhas secundárias); filtro por área; lista agrupada com marca de prioridade e "quando" em palavra, cor e marca;
+  **Próximos 14 dias** (uma célula por dia, com data, dia da semana e quantidade); **Por área** (barras do kit); formulário de novo lembrete. Reaproveita o esqueleto `.rh-*` do piloto e o kit; só o que é da Agenda
+  entrou numa seção nova do CSS (`.ag-*`, sem cor escrita). Guia: [`docs/agenda.md`](../agenda.md).
+- **Regras no núcleo** (`NUCLEO.agd*`, funções puras): grupos, "quando", indicadores, frase, série de dias, áreas, filtro e peso da linha. Os critérios dos 6 grupos são os de antes (o teste copia os antigos e compara em todas as bordas de data).
+- **Regras e comportamentos preservados**: leitura só por `agendaColetarLeitura`; régua `proximasSelecao`; ações rápidas `proximaAcao` (mesmos caminhos de gravação); "sem retorno" não é atraso; leitura parcial/falha dizem a verdade
+  (falha total **não** mostra indicadores zerados); formulário grava em `PESSOAL.lembretes` como sempre. Melhorias pequenas de apresentação, sem mudar regra: botões da linha desligados após o toque (toque duplo não adia duas vezes),
+  link de fora só http/https, aviso quando o filtro não deixa nada. O Início continua com os cartões antigos "Próxima melhor ação" e "Agenda" (`js/sistema.js` sem mudança nessas funções; D-12 em aberto).
+- **Isolamento de `js/sistema.js`**: a única mudança é a saída de `renderAgenda` (para `js/agenda.js`) e dois comentários. Backup, Busca, Monitor, IA, página Sistema, régua, ações rápidas e cartões do Início ficaram como estavam.
+- **Registro**: rota `agenda` com `mods:["agenda"]`, `MOD_DEPS.agenda`, módulo no cache offline (`sw.js`). Versão do site na branch: `2026-11-13.5` (`VERSAO`, `MOD_VERSAO` e `?v=` do CSS juntas).
+- **Testes** (resultado real): `bash scripts/nuvem_testes.sh` — Grupo 1: 1493 testes, 1491 ok, 0 falhas, 2 `todo` (eram 1478 antes: +5 do núcleo e +10 da tela); Grupo 2 (PGlite): 73 ok, 0 falhas. `git diff --check` limpo.
+  Novo `tests/agenda_tela.test.mjs` (10 testes, a tela de verdade num ambiente falso) e 5 testes `agd*` em `tests/nucleo.test.mjs`; ajustados só nos pontos que mudaram: marcadores de `tests/hoje.test.mjs`, equivalência de módulos por rota em `tests/rotas.test.mjs`
+  (a única mudança aceita é a Agenda) e ES5/nomes/cache em `tests/design_system.test.mjs`. Áreas compartilhadas rodadas à parte: hoje 96, monitor 15, busca_lateral 5, seguranca 59, central 12, atualizar_modulos 16, painel 5, estrutura 7, rotas 4, fontes 7, planejamento 6, todas sem falha.
+- **Chromium real** (Playwright, 390, 768 e 1280 px × claro e escuro, Supabase falso com dados fictícios): sem rolagem horizontal; 49 alvos de toque na página e **nenhum abaixo de 44 px**; console sem erros;
+  interações conferidas (filtro, dica do dia, atalho do formulário, adicionar lembrete, Feito, Adiar 3 dias, link para o módulo, botão ↻ mantendo filtro e o texto digitado, foco por teclado). Início, Busca e Sistema abrem normalmente.
+- **Casa (Fernanda)**: 44 telas (11 rotas × 390 e 1280 px × claro e escuro) comparadas com a `main`: **44 idênticas byte a byte**, sem erro de console. A Agenda não existe para a casa.
+- **Áreas do dono que compartilham código** (Início, RAC Hoje, Sistema, Busca, Saúde, Painel, Carreira, Segurança, Resumo, Componentes × 390 e 1280 px × claro e escuro): 30 de 40 idênticas byte a byte; as 10 restantes diferem **no mesmo grau em que a própria `main` difere dela mesma**
+  entre duas capturas (relógio ao vivo no Início e antialiasing de 1 px em contadores do menu; ex.: Início 1280 claro 17.477 px de ruído contra 17.480 antes × depois), sem diferença visível.
+- **Fora do escopo, intocados**: função `garmin`, `rac-ia`, Edge Functions, SQL, secrets, cron, workflows, `.claude/settings.json`, Central de Compras. Nenhuma chamada paga de IA, nenhum SQL, nada publicado.
+
+### 2. O que estamos fazendo
+
+- Trabalho na branch `claude/agenda-modernizacao-ds4-xuijw0`; commit `01eee35`, push e **PR #10** para a `main`, conforme autorizado pelo dono no pedido da DS-4.1 (o resultado do CI fica no próprio PR). **Merge: não feito (é do dono). Publicação: nenhuma.**
+- **A DS-4.1 não está concluída**: falta o dono ver a Agenda no iPhone e mesclar o PR.
+- Limitações: capturas no Chromium da nuvem com dados fictícios e fundo de reserva (a foto vem da internet); não testado no iPhone nem com os dados reais do dono; a comparação da Casa usou poucos dados fictícios (várias telas apareceram no estado vazio).
+
+### 3. O que vamos fazer
+
+1. Dono: abrir a Agenda no iPhone (claro e escuro), dizer o que ajustar e, se aprovar, mesclar o PR (a publicação é o GitHub Pages).
+2. Depois: **Saúde** (próxima área da DS-4; não iniciada), um módulo por vez; migrar o Início só com a decisão D-12; baixar a catraca de cores quando o CSS antigo sair de uso.

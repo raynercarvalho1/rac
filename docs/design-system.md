@@ -67,6 +67,12 @@ abertura azul (saudação, o dia numa frase só com contagens reais, tempo e jog
 **Saúde e treino** (passos por dia e treinos da semana, da série real do relógio) → **Análise da IA** e **Pergunte** (lado a lado) → **Histórico** e **Fontes de informação** recolhidos.
 A análise, o cache, a cobrança, as chamadas sem resultado e os selos de fonte são as funções de antes, sem alteração. Medicamentos, encomendas e contas ainda não existem como fonte (Fase 4): não aparecem.
 
+## DS-4.1 · Agenda (13/11/2026): primeira página migrada depois do piloto
+`#agenda` (`js/agenda.js`, `docs/agenda.md`) usa o **mesmo esqueleto do piloto** (classes `.rh`, `.rh-hero`, `.rh-kpis`, `.rh-prio`/`.rh-lado`, `.rh-largo`, reaproveitadas em vez de copiadas) e os componentes do kit
+(`rkKpi`, `rkCard`, `rkBtn`, `rkSelo`, `rkEstado`, `rkAlerta`, `rkCampo`, `rsBarras`). O que é só da Agenda mora na seção 5 de `css/rac.css` (`.ag-*`: linha da lista com ações, destaque da próxima ação, célula de dia),
+sem cor escrita e sem regra de escopo (a página só existe para o dono). A catraca `LINHA_DE_BASE_CORES` **não baixou** (continua 115): o CSS antigo da Agenda (`.agl`, `.prox*`) ainda é usado pelos cartões do Início.
+Modelo para as próximas páginas: `js/<modulo>.js` com a tela; regras puras no núcleo; leitura pelo contrato existente; nada de acesso novo ao banco.
+
 ## Classificação do DS-1 anterior (auditoria desta etapa)
 | Grupo | Elementos |
 |---|---|

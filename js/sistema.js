@@ -1,4 +1,4 @@
-/* Dia a Dia RAC — módulo carregado quando a seção abre. Sistema: backup e restauração, agenda única, busca global e a página Sistema.
+/* Dia a Dia RAC — módulo carregado quando a seção abre. Sistema: backup e restauração, a régua e os cartões da Agenda (a página Agenda é js/agenda.js), busca global e a página Sistema.
    Usa as funções do núcleo (js/app.js), que ficam no escopo global. */
   /* ---------- zip sem dependências (para o backup) ---------- */
   var CRC=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
@@ -154,26 +154,8 @@
     function ouvir(){if(p.isConnected)visto=true;else if(visto){["rac-proxima","rac-proxima-exibida","rac-recolher"].forEach(function(n){document.removeEventListener(n,ouvir)});return}desenhar()}
     ["rac-proxima","rac-proxima-exibida","rac-recolher"].forEach(function(n){document.addEventListener(n,ouvir)});desenhar();
     return p}
-  function renderAgenda(){
-    var root=$("#agenda-view");root.innerHTML="";
-    var p=panel("Agenda","Tudo que tem data no site num lugar só: retornos e vacinas, seguros e garantias, aulas, avaliações e boletos do MBA, aniversários e seus lembretes.");
-    var box=h("div",{class:"stack"},h("p",{class:"sub",text:"Carregando…"}));p.appendChild(box);root.appendChild(p);
-    /* lembretes avulsos (tarefas com data) */
-    var lp=panel("Novo lembrete"),t=h("input",{type:"text",placeholder:"Ex.: ativar a conta paga do Google Cloud"}),d=h("input",{type:"date",value:hojeISO()}),ok=h("button",{type:"button",text:"Adicionar"});
-    ok.onclick=function(){if(!t.value.trim()){t.focus();return}pessoalGravar("lembretes",[{id:"l"+Date.now().toString(36),data:d.value||hojeISO(),t:t.value.trim()}].concat(PESSOAL.lembretes||[]));t.value="";desenhar()};
-    lp.appendChild(h("div",{class:"wform"},h("div",{class:"two"},h("label",null,"O quê",t),h("label",null,"Quando",d)),h("div",{class:"vfil"},ok)));root.appendChild(lp);
-    function desenhar(){agendaColetarLeitura().then(function(lei){var ev=lei.eventos;box.innerHTML="";var hoje=hojeISO();
-      if(lei.falhas.length)box.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+agendaAviso(lei)}));
-      /* "sem retorno" (follow-up de mais de 10 dias) não é atraso: fica no próprio grupo, no fim, sem alerta */
-      var G=[["Atrasados",function(e){return e.data<hoje&&!e.semRetorno}],["Hoje",function(e){return e.data===hoje}],["Próximos 7 dias",function(e){return e.data>hoje&&e.data<=maisDias(hoje,7)}],
-        ["Até 30 dias",function(e){return e.data>maisDias(hoje,7)&&e.data<=maisDias(hoje,30)}],["Depois",function(e){return e.data>maisDias(hoje,30)&&e.data<=maisDias(hoje,120)}],
-        ["Candidaturas sem retorno",function(e){return !!e.semRetorno},true]];
-      G.forEach(function(g){var l=ev.filter(g[1]);if(!l.length)return;box.appendChild(h("h3",{class:"mbag",text:g[0]+" ("+l.length+")"}));
-        if(g[2])box.appendChild(h("p",{class:"sub",text:"Sem resposta há mais de "+NUCLEO.PRI_VALIDADE_CALC+" dias do follow-up. Não exigem ação; o resultado da candidatura não foi alterado. “Encerrar” marca o resultado como “sem retorno”."}));
-        box.appendChild(h("ul",{class:"wl agl"},l.map(function(e){return agendaLinha(e,desenhar)})))});
-      if(!ev.length)box.appendChild(h("p",{class:"empty",text:lei.falhas.length?"Nenhum item na parte que foi lida (a leitura falhou: não dá para dizer que não há nada).":"Nada com data por enquanto."}))}).catch(function(e){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Não consegui montar a agenda ("+e.message+")."}));logErro("agenda",e)})}
-    desenhar()}
-
+  /* A página Agenda (renderAgenda: abertura, indicadores, próxima ação, grupos, 14 dias e o novo lembrete) mora em js/agenda.js desde a DS-4.1. Aqui ficam, sem mudança, o que o Início, o
+     resumo falado e a própria página usam: a régua da Próxima melhor ação (proximasSelecao), as ações rápidas (proximaAcao, proximaAcoesDe) e os cartões do Início (wProxima, wAgenda). */
   /* ---------- busca global: conteúdo, não só nomes de seções ---------- */
   var BUSCA={idx:null,carregando:null,fontes:null,tmr:null};
   function buscaIndice(){

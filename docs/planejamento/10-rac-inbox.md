@@ -473,7 +473,7 @@ O workflow, seu teste e o guia operacional (desenho, configuração manual e pen
 
 **Custos e limites, Free versus Paid (a verificar na documentação vigente antes da decisão).** Free: sem custo; limite de 10 ms de CPU por requisição HTTP, e a prova atual passou sem erro de CPU, mas a CPU não foi medida e o login adiciona trabalho de TLS e *parsing*. Paid: cobrança mínima de US$ 5/mês, limite maior de CPU e 30 s de CPU por invocação de Cron abaixo de 1 hora (seção 12.8). A decisão de pagar só entra com evidência de que o Free não basta e com aprovação do dono.
 
-**O que precisa ser criado e validado (nada existe ainda).** Módulo de autenticação IMAP/SMTP no Worker de teste (preferencialmente Worker separado, para não alterar a POC de conectividade), com lista fixa de comandos e saneamento de erros; testes com sockets simulados cobrindo sucesso, falha de login e ausência de vazamento; workflow manual com Environment próprio; e, só na 2B, Vault, Edge Function e HMAC.
+**O que precisa ser criado e validado (nada existe ainda).** Módulo de autenticação IMAP/SMTP no Worker de teste (preferencialmente Worker separado, para não alterar a POC de conectividade), com lista fixa de comandos e saneamento de erros; testes com sockets simulados cobrindo sucesso, falha de login e ausência de vazamento; workflow manual com Environment próprio e jobs separados (seção 13.11); e, só na 2B, Vault, Edge Function e HMAC.
 
 **Decisões do dono antes de executar (atualizado em 13/11/2026):** a conta (a do dono), a senha de app e a rota 2A **já foram decididas**. Seguem pendentes: autorização específica das provas que alteram a caixa ou enviam e-mail, custo adicional e quem lê as métricas de CPU (seção 13.12).
 
@@ -635,18 +635,41 @@ Nenhum plano pago será contratado sem evidência de necessidade e aprovação d
 
 **Credencial e transporte (2A):**
 
-- Secrets do Environment protegido (aprovador obrigatório, branches restritas): usuário e senha de app do iCloud. Recomendação: acrescentá-los ao Environment `cloudflare-poc` já existente, porque um job só usa um Environment e o mesmo run precisa dos secrets da Cloudflare e da Apple; o workflow atual não os referencia e, portanto, não os expõe.
-- **Token de proteção do Worker: não precisa ser cadastrado como secret.** Segue o padrão já comprovado do `PROBE_TOKEN`: o próprio workflow gera um valor aleatório a cada execução (64 caracteres hexadecimais), mascara antes de usar, grava no Worker com `wrangler secret put` por entrada padrão e o descarta ao fim do run. Cadastrá-lo à mão só criaria um segredo permanente e um passo manual a mais.
+- Os secrets do iCloud (usuário e senha de app) ficam num **Environment dedicado, `icloud-auth-poc`**, com aprovador obrigatório e branches restritas, **separado** do `cloudflare-poc` (que continua só com as credenciais da Cloudflare, para a POC de conectividade). Não misturar as duas famílias de credenciais no mesmo Environment; ver a tabela abaixo.
+- **Proteção do Worker: nenhum token é cadastrado à mão.** O mecanismo (OIDC do GitHub ou token efêmero gerado no run) depende da decisão de segurança D-ENV da tabela abaixo. Em qualquer caso, a **senha Apple nunca é gravada como secret do Worker** (nada de `wrangler secret put` para ela, nem variável, KV, Durable Object ou log): ela existe só em memória, durante a requisição.
 - Transporte exclusivamente por HTTPS: o workflow envia a credencial no corpo da requisição ao Worker; o Worker a usa só durante a requisição, em memória, e não grava, não registra e não devolve.
 - Nenhum segredo em logs, respostas, rastreamentos ou mensagens de erro (teste automatizado que procura segredos), e nenhuma credencial no repositório ou no navegador.
 - Ao fim da POC o dono **revoga a senha de app** no painel da Apple.
+
+**Separação de credenciais e Environments (recomendação de 13/11/2026; decisão D-ENV pendente do dono).**
+
+Regras do GitHub que condicionam o desenho: um job usa **um único** Environment; os secrets de um Environment só chegam aos jobs que o declaram; e segredo **não pode** passar de um job a outro por output, artefato ou log (proibido por esta POC). Logo, quem precisa da senha Apple e quem precisa do token administrativo da Cloudflare ficam em jobs diferentes, e o job da senha Apple precisa se autenticar no Worker **sem um segredo compartilhado**.
+
+| Solução | Como funciona | Credenciais por Environment | Avaliação |
+|---|---|---|---|
+| **S1 · Um job, `cloudflare-poc`** | iCloud e Cloudflare no mesmo Environment | Mistura as duas famílias | **Rejeitada** (decisão do dono) |
+| **S2 · Um job, `icloud-auth-poc` com token Cloudflare duplicado** | O mesmo job publica o Worker, grava um token efêmero com `wrangler secret put` e chama o Worker com a senha Apple no corpo | `icloud-auth-poc`: iCloud **e** uma cópia do token Cloudflare | Mais simples. Duplica um segredo administrativo e junta a senha da caixa com o poder de publicar Workers no mesmo job |
+| **S3 · Dois jobs, autenticação por OIDC do GitHub (recomendada)** | Job 1 `provisionar` (`cloudflare-poc`) só publica o Worker da prova autenticada, sem nenhum segredo da Apple. Job 2 `executar` (`icloud-auth-poc`, depende do job 1, com permissão para pedir token OIDC) obtém um token OIDC do GitHub, de curta duração e com audiência própria, e o envia ao Worker junto da credencial Apple no corpo HTTPS. O Worker valida assinatura (chaves públicas do GitHub), emissor, audiência, validade, repositório, branch e o Environment `icloud-auth-poc` | `cloudflare-poc`: só Cloudflare. `icloud-auth-poc`: só iCloud | Mais segura: nenhum segredo compartilhado entre jobs, nenhuma duplicação do token da Cloudflare, e a senha Apple nunca está no mesmo job que o poder de publicar. Mais complexa: o Worker passa a verificar JWT, e isso precisa caber no limite de CPU do Free |
+| **S4 · Dois jobs com token efêmero por output ou artefato** | Job 1 grava o token e o entrega ao job 2 | — | **Proibida** (segredo entre jobs) |
+
+**Recomendação: S3.** Se a verificação do JWT não couber no Workers Free (medição obrigatória) ou se o dono preferir a simplicidade da S2, usa-se a S2 com um **token Cloudflare dedicado e de permissão mínima** (Workers Scripts, edição), nunca o mesmo token do `cloudflare-poc`. **Decisão de segurança que depende do dono: D-ENV (S3 ou S2).** Ainda **a confirmar antes de implementar a S3:** a documentação do GitHub sobre OIDC (campo do Environment no token e audiência personalizada), a disponibilidade das chaves públicas a partir do Worker e o custo de CPU da verificação.
+
+**Secrets necessários em cada Environment (nenhum foi cadastrado; cadastro é ação do dono, quando for executar a P1):**
+
+| Environment | Secrets | Observação |
+|---|---|---|
+| `cloudflare-poc` (existente, inalterado) | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Só para publicar Workers. **Nenhuma credencial iCloud.** Segue servindo a POC de conectividade |
+| `icloud-auth-poc` (novo, a criar pelo dono) | `ICLOUD_USER`, `ICLOUD_APP_PASSWORD`; e `ICLOUD_DESTINO_TESTE` somente quando o envio da P5 for autorizado | Aprovador obrigatório (o dono) e branches restritas. **Nenhuma credencial Cloudflare** na S3 (na S2 receberia uma cópia dedicada) |
+| Repositório | Nenhum | Nada de credencial no nível do repositório |
+
+**A senha Apple não persiste em lugar nenhum fora do GitHub Environment:** o job lê o secret em variável de ambiente (já mascarada), monta o corpo da requisição em memória e o envia por HTTPS, de preferência por entrada padrão e não por argumento de linha de comando; o Worker usa a credencial só durante a requisição, não a grava (nem como secret do Worker, variável, KV ou Durable Object), não a registra (registros e observabilidade do Worker desligados, sem `console.log` de entrada) e não a devolve na resposta nem em mensagens de erro. Um teste automatizado deve falhar se o texto da senha aparecer em resposta, erro ou registro.
 
 **Cuidados por usar a conta real (obrigatórios; a senha de app dá acesso à caixa inteira e não pode ser restrita a uma pasta, então a restrição é imposta pelo código do conector):**
 
 - Pasta de teste dedicada e identificada (criada pelo dono ou pela prova P3, com autorização) e mensagens claramente marcadas como teste.
 - Leitura limitada à pasta de teste e às mensagens marcadas como teste. Pastas e mensagens pessoais não são lidas; sobre elas só se aceitam contagens numéricas, quando necessárias.
 - **Nenhuma alteração ou exclusão em mensagem pessoal.** Escrita só na pasta de teste, em mensagens marcadas, sempre por UID; **nunca `EXPUNGE` geral** (ele apagaria todas as mensagens com a marca de exclusão naquela pasta); sem `UID EXPUNGE` disponível, a exclusão definitiva só ocorre dentro da pasta de teste. Sem expurgo na caixa de entrada nem na lixeira.
-- Nenhum envio a destinatário sem autorização específica; o endereço autorizado fica no Environment, não no repositório.
+- Nenhum envio a destinatário sem autorização específica; o endereço autorizado fica como secret do Environment `icloud-auth-poc` (só quando o envio da P5 for autorizado), não no repositório.
 - **Logs e relatórios sem remetente, assunto, corpo, nome de arquivo ou conteúdo de anexo, e sem nome de pastas pessoais:** só contagens, booleanos, códigos de estágio, tamanhos, tempos e o resumo criptográfico de um anexo de teste.
 - Lista fechada de comandos, limite de tamanho, de mensagens por prova e de tentativas de login (uma por prova).
 
@@ -670,12 +693,13 @@ Nenhum plano pago será contratado sem evidência de necessidade e aprovação d
 1. **Escopo:** o RAC Inbox é um cliente de e-mail completo, de uso pessoal do dono e da esposa, com isolamento total entre os dois e iCloud primeiro (seção 13.1).
 2. **Conta da POC:** a conta iCloud do próprio dono; não haverá conta Apple de teste.
 3. **Credencial:** somente senha específica de app, cadastrada diretamente como secret de GitHub Environment (rota 2A); nunca no chat, no código, em log ou em commit.
-4. **Token de proteção do Worker:** efêmero, gerado pelo workflow a cada execução; não é cadastrado como secret.
+4. **Proteção do Worker:** nenhum token é cadastrado à mão (efêmero ou OIDC, conforme D-ENV); a senha Apple nunca é gravada como secret do Worker.
 
 **Pendentes (dependem do dono):**
 
 1. **Autorização específica antes de cada prova que altera a caixa ou envia e-mail:** P3 (alterações), P4 (exclusão em mensagem de teste) e P5 (envio de mensagem de teste, com o destinatário autorizado indicado).
-2. **Cadastro dos secrets no Environment** (usuário e senha de app do iCloud), quando o dono quiser executar a P1. É ação do dono; a sessão não cria nem altera secrets.
+2. **Decisão de segurança D-ENV (seção 13.11): S3 (dois jobs, OIDC, recomendada) ou S2 (um job com token Cloudflare dedicado).** Sem essa decisão a POC autenticada não é implementada.
+2b. **Cadastro dos secrets no Environment `icloud-auth-poc`** (`ICLOUD_USER`, `ICLOUD_APP_PASSWORD` e, só se o envio da P5 for autorizado, `ICLOUD_DESTINO_TESTE`), quando o dono quiser executar a P1. É ação do dono; a sessão não cria nem altera secrets. O `cloudflare-poc` não recebe credencial iCloud.
 3. **Custo adicional:** só se a medição mostrar que o Workers Free não basta (Workers Paid ou serviço convencional).
 4. **Segunda usuária:** quando liberar o Inbox para a esposa, e quem lê as métricas de CPU no painel da Cloudflare.
 5. **Mecanismo agendado da P6** (agenda do GitHub ou Cron do Worker): proposta e autorização à parte.

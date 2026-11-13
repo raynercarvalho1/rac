@@ -664,6 +664,8 @@ Família e da Casa.
 
 ## 13/11/2026 · RAC Inbox — probe de conectividade iCloud preparado
 
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
 ### 1. O que fizemos
 
 - Criada a branch isolada `poc/icloud-cloudflare-connectivity` a partir da `main` após o merge da documentação RAC Inbox (`5cc1cfd`).
@@ -786,6 +788,8 @@ Família e da Casa.
 
 ## 13/11/2026 · RAC Inbox — prova de conectividade iCloud concluída e proposta da autenticação
 
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
 ### 1. O que fizemos
 
 - Auditada a execução real do workflow manual: [43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569), `workflow_dispatch` na branch da POC, commit `3d1fccc`, sucesso, 20:22:05 a 20:22:50 UTC. Worker `rac-icloud-connectivity-poc` publicado no Cloudflare Workers Free (URL no Documento 10, seção 12.13).
@@ -808,6 +812,8 @@ Família e da Casa.
 
 ## 13/11/2026 · RAC Inbox — redefinição de escopo e arquitetura (cliente completo)
 
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
 ### 1. O que fizemos
 
 - Registrada a decisão do dono: o RAC Inbox é um **cliente de e-mail completo** para uso pessoal dele e da esposa (isolamento total entre os dois), iCloud primeiro e outros provedores depois, substituindo progressivamente o Spark. **Não é um painel de metadados**, e as limitações da POC de conectividade não são do produto.
@@ -847,3 +853,23 @@ Família e da Casa.
 1. Preparar o código da P1 e P2 (somente leitura, restrito à pasta de teste) e o workflow correspondente, com testes de sockets simulados, quando o dono pedir.
 2. Executar P1 e P2 após o dono cadastrar os secrets; só então propor P3 a P5, cada uma com autorização específica.
 3. Medir CPU, latência e confiabilidade e decidir o runtime do conector; depois P6 e P7 e o lote I1.
+
+## 13/11/2026 · RAC Inbox — separação de credenciais e Environments da POC autenticada
+
+### 1. O que fizemos
+
+- Corrigidas as referências operacionais que ainda contradiziam a decisão do dono: o roadmap falava em provas com "conta de teste"; agora diz que a POC usa a conta iCloud do dono, com senha específica de app. Busca final feita nos documentos oficiais e na descrição da PR #17; as entradas antigas deste histórico ficaram como registro, agora marcadas como superadas.
+- **Retirada a recomendação** de acrescentar credenciais iCloud ao Environment `cloudflare-poc`, que permanece só com as credenciais da Cloudflare para a POC de conectividade.
+- Reavaliada a separação: um job usa um único Environment e o segredo não pode passar entre jobs. Recomendada a solução S3 (Environment dedicado `icloud-auth-poc` e dois jobs, com autenticação do job da senha Apple no Worker por OIDC do GitHub, sem segredo compartilhado); alternativa S2 (um job, token Cloudflare dedicado). Tabela de secrets por Environment no Documento 10, seção 13.11.
+- Reforçado que a senha Apple **não é gravada no Worker** em nenhuma forma (nem `wrangler secret put`, variável, KV ou Durable Object) e existe só em memória durante a requisição, sem registro nem eco.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão de segurança D-ENV do dono (S3 ou S2), as autorizações específicas de P3 a P5 e o cadastro dos secrets no Environment `icloud-auth-poc` quando ele quiser executar a P1. Nenhum secret foi pedido, criado ou alterado.
+- A POC autenticada **não foi implementada** e nada foi executado na conta iCloud. A autenticação, a leitura e as demais operações do iCloud seguem **não comprovadas**. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Dono decide D-ENV e cria o Environment `icloud-auth-poc` quando for executar a P1.
+2. Confirmar a documentação do GitHub sobre OIDC e medir o custo de CPU da verificação no Workers Free, antes de implementar a S3.
+3. Implementar a POC autenticada (P1 e P2, somente leitura, restrita à pasta de teste) com testes de sockets simulados e de ausência de vazamento de credencial.

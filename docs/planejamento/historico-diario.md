@@ -783,3 +783,25 @@ Família e da Casa.
 1. Dono aciona "Publicar POC iCloud (manual)" com "Use workflow from" `poc/icloud-cloudflare-connectivity`.
 2. Ler o resultado do `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
 3. Remoção do Worker: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — prova de conectividade iCloud concluída e proposta da autenticação
+
+### 1. O que fizemos
+
+- Auditada a execução real do workflow manual: [43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569), `workflow_dispatch` na branch da POC, commit `3d1fccc`, sucesso, 20:22:05 a 20:22:50 UTC. Worker `rac-icloud-connectivity-poc` publicado no Cloudflare Workers Free (URL no Documento 10, seção 12.13).
+- Resultado do `/probe` (dos logs do job): IMAP `imap.mail.me.com:993` ok em `imap_greeting`, 55 ms; SMTP `smtp.mail.me.com:587` ok em `smtp_tls_ready` (STARTTLS e novo EHLO), 481 ms; `authenticated: false`, `emailSent: false`. A 1ª chamada devolveu 503 por propagação do secret e foi repetida; a 2ª devolveu 200.
+- Documentação atualizada: Documento 10 (12.4, 12.6, 12.11 retificada, novas 12.13 e 12.14), roadmap e decisões/pendências. Descrição da PR #17 atualizada.
+- Sem plano pago, sem conta pessoal, sem senha específica de app, sem leitura ou envio de e-mail, sem alteração de banco, Supabase ou produção.
+
+### 2. O que estamos fazendo
+
+- **Comprovado:** TCP/TLS com a Apple a partir do Cloudflare Workers Free, em uma execução. **Não comprovado:** autenticação, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. A fase I0 **não** está concluída (faltam Gmail, Graph, autenticação iCloud e custos finais).
+- PR #17 segue em draft e sem merge; o Worker segue publicado e inacessível sem nova execução do workflow (token descartado).
+- Aguardando a decisão do dono sobre o ambiente da prova de autenticação (Documento 10, seção 12.14).
+
+### 3. O que vamos fazer
+
+1. Dono decide: conta Apple de teste com 2FA e senha de app, rota 2A (credencial no corpo da requisição, via Environment do GitHub) ou 2B (Vault e Edge Function), novo Environment e Worker de teste, e quem lê as métricas de CPU na Cloudflare.
+2. Implementar e testar com sockets simulados o módulo de autenticação (lista fixa de comandos, sem corpos nem anexos); executar as provas de credencial válida, inválida e revogada, e SMTP autenticado sem envio.
+3. Registrar CPU, latência e confiabilidade; decidir Free versus Paid só com evidência e aprovação do dono.
+4. Remoção do Worker atual: atividade futura, com autorização específica.

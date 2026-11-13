@@ -317,7 +317,7 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 
 - A Apple documenta IMAP em `imap.mail.me.com:993` com SSL e SMTP em `smtp.mail.me.com:587` com SSL/TLS ou STARTTLS; exige autenticação e senha específica do app. A conta Apple precisa ter autenticação de dois fatores.
 - A documentação atual do Supabase informa que conexões de saída das Edge Functions para a porta **587 não são permitidas**. Portanto, o envio iCloud por SMTP diretamente numa Edge Function hospedada pelo Supabase não é uma arquitetura viável.
-- O runtime Edge do Supabase suporta conexões TCP em geral; a porta IMAP 993 não está na lista de portas bloqueadas documentada, mas **a conectividade real ainda não foi testada**. Não presumir que IMAP funcionará até a prova no ambiente escolhido.
+- O runtime Edge do Supabase suporta conexões TCP em geral; a porta IMAP 993 não está na lista de portas bloqueadas documentada, mas **a conectividade real a partir das Edge Functions do Supabase não foi testada**. A prova de 13/11/2026 (seção 12.13) comprovou TCP/TLS com a Apple **a partir do Cloudflare Workers**, não a partir do Supabase.
 - Consequência preliminar: o iCloud precisa de um worker/serviço controlado com saída TCP para 993 e 587, ou de outra alternativa técnica oficialmente suportada e comprovada. A senha específica do app ficará somente no servidor. Não usar senha no navegador, proxy público ou serviço SMTP genérico que não consiga autenticar a conta iCloud.
 
 ### 12.5 Arquitetura preliminar — ainda não aprovada como definitiva
@@ -335,8 +335,8 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 | Auditoria do Gmail existente | **Concluída por leitura do repositório** | Revisar o Console Google atual e confirmar status de publicação, escopos e usuário de teste |
 | Capacidades Gmail API e requisitos OAuth | **Mapeados na documentação oficial** | OAuth de servidor com refresh token, leitura, envio, alteração, filtros e verificação do app |
 | Capacidades Microsoft Graph | **Mapeadas na documentação oficial** | App registration e teste real em conta pessoal, incluindo leitura, envio, movimento, regra e delta |
-| IMAP iCloud | **Probe de conectividade preparado; publicação pendente** | Publicar o Worker de diagnóstico e comprovar TLS 993; depois, com autorização, autenticar numa conta de teste e sincronizar uma pasta |
-| SMTP iCloud | **Bloqueado diretamente no Supabase Edge Functions (porta 587); probe STARTTLS preparado** | Publicar o Worker e comprovar TCP 587 + STARTTLS; depois, com autorização, autenticar e enviar e-mail de teste |
+| IMAP iCloud | **Conectividade TCP/TLS 993 comprovada no Cloudflare Workers Free (13/11/2026); autenticação pendente** | Com conta de teste e autorização, autenticar com senha específica de app, ler só metadados mínimos de uma pasta e medir CPU/latência/confiabilidade (proposta na seção 12.14); depois, sincronizar uma pasta |
+| SMTP iCloud | **Conectividade 587 + STARTTLS + novo EHLO comprovada no Cloudflare Workers Free (13/11/2026); autenticação e envio pendentes** (direto no Supabase Edge Functions a porta 587 é bloqueada) | Autenticar sem enviar mensagem (seção 12.14); só depois, com autorização, enviar e-mail de teste |
 | Arquitetura final e custos | **Em aberto** | Comparar runtime do worker, armazenamento de tokens, operação, monitoramento e custo mensal |
 
 **Critério de saída da I0:** os três provedores devem ter matriz de capacidades baseada em testes reais, fluxo seguro de renovação/revogação de credenciais, conectividade de entrada/saída e custos conhecidos. Até lá, não iniciar I1, não aplicar migrations e não conectar as caixas pessoais de produção.
@@ -400,7 +400,7 @@ A revisão das fontes oficiais refinou alguns itens da análise inicial:
 
 A decisão não muda: Cloudflare é a primeira candidata de teste, Railway é alternativa, nenhum serviço foi contratado nem implantado.
 
-### 12.11 Probe de conectividade iCloud — código preparado, publicação pendente (13/11/2026)
+### 12.11 Probe de conectividade iCloud — código preparado (13/11/2026); prova real na seção 12.13
 
 Foi preparado em `experimentos/icloud-probe/` um Cloudflare Worker isolado para provar a rede real sem usar credenciais iCloud. A rota autenticada `POST /probe` verifica:
 
@@ -411,14 +411,62 @@ O worker não recebe parâmetros de host/porta, não autentica, não lê mensage
 
 **Validação automatizada concluída no GitHub Actions (execução `43465102985`, commit `6dbf10d`):** Grupo 1 — 1.578 testes, 1.576 aprovados, 0 falhas, 0 ignorados (2 `todo`); os oito casos desta POC foram carregados e aprovados, inclusive o teste 7 de negociação SMTP STARTTLS e o teste 8 de falha de handshake sem vazamento do banner. Grupo 2 — 73 testes PGlite aprovados, 0 falhas/ignorados. A primeira execução falhou antes de carregar os testes da POC devido a imports relativos incorretos; foram corrigidos no commit `6dbf10d`. A suíte local não foi executada nesta sessão.
 
-**Ainda não comprovado:** conectividade na rede Cloudflare, TLS com os servidores Apple, autenticação iCloud, leitura, envio, sincronização ou IMAP IDLE. O modo local Wrangler não comprova a saída de rede real. Não houve login Cloudflare, deploy, contratação/upgrading de plano, criação de token/segredo, conexão de conta Apple ou alteração no Supabase.
+**Situação em 13/11/2026 (retificada):** a publicação e a prova real de rede foram feitas depois do preparo do código; resultado na seção 12.13. Continuam **não comprovados**: autenticação iCloud, leitura, envio, sincronização, IMAP IDLE e estabilidade de polling. O modo local do Wrangler não comprova a saída de rede real; a prova veio da execução no Cloudflare.
 
 Procedimento de deploy manual, uso e remoção: `experimentos/icloud-probe/README.md`. **Caminho preferido, decidido em 13/11/2026: publicação pelo GitHub Actions (seção 12.12).** A primeira tentativa será no Workers Free; se o limite HTTP de 10 ms de CPU impedir a verificação TLS, avaliar a execução e pedir autorização específica antes de qualquer upgrade para Workers Paid. A POC é descartável e não cria domínio, rota, Cron, Durable Object ou binding de produção.
 
 ### 12.12 Publicação da POC pelo GitHub Actions — decisão (13/11/2026)
 
-**Fatos confirmados.** A sessão de nuvem do Claude Code não alcança `api.cloudflare.com` nem `dash.cloudflare.com` (a proxy da política de rede recusa com 403), não há token Cloudflare e o `wrangler login` interativo não funciona em máquina de nuvem. O dono decidiu não fornecer token Cloudflare à sessão. Nada foi publicado e a conectividade com a Apple **continua não comprovada**.
+**Fatos confirmados.** A sessão de nuvem do Claude Code não alcança `api.cloudflare.com` nem `dash.cloudflare.com` (a proxy da política de rede recusa com 403), não há token Cloudflare e o `wrangler login` interativo não funciona em máquina de nuvem. O dono decidiu não fornecer token Cloudflare à sessão. À época, nada havia sido publicado; a prova real está na seção 12.13.
 
 **Decisão.** O deploy da POC é feito por workflow **exclusivamente manual** do GitHub Actions (`icloud-probe-deploy.yml`), com secrets Cloudflare num Environment protegido (`cloudflare-poc`, aprovador e branches restritas), `PROBE_TOKEN` aleatório por execução e nunca persistido, Wrangler fixo em `4.161.0` e permissão Cloudflare mínima (`Account → Workers Scripts → Edit`). A remoção do Worker fica para atividade futura autorizada.
 
-O workflow, seu teste e o guia operacional (desenho, configuração manual e pendências) foram entregues em **PR independente** (PR #19, na `main`) e integrados a esta branch, o que é necessário para ela aparecer em "Run workflow"; o Worker e seus testes ficam na PR #17. Guia operacional: `docs/icloud-poc-deploy.md`. O registro da prova real (HTTP, IMAP 993, SMTP 587/STARTTLS, tempos, erros) só entra aqui depois da execução do workflow.
+O workflow, seu teste e o guia operacional (desenho, configuração manual e pendências) foram entregues em **PR independente** (PR #19, na `main`) e integrados a esta branch, o que é necessário para ela aparecer em "Run workflow"; o Worker e seus testes ficam na PR #17. Guia operacional: `docs/icloud-poc-deploy.md`. O registro da prova real está na seção 12.13.
+
+### 12.13 Prova real de conectividade iCloud no Cloudflare Workers Free (13/11/2026)
+
+**Resultado: sucesso.** Evidência: execução do workflow manual "Publicar POC iCloud (manual)" — [execução 43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569) (disparo `workflow_dispatch`, tentativa 1, branch `poc/icloud-cloudflare-connectivity`, commit `3d1fccc`, 20:22:05 a 20:22:50 UTC, job `publicar` concluído com sucesso). Dados abaixo lidos dos logs do job; o Step Summary não foi lido diretamente (o log traz o mesmo JSON).
+
+| Item | Registrado |
+|---|---|
+| Worker | `rac-icloud-connectivity-poc`, URL pública `https://rac-icloud-connectivity-poc.raynercarvalho.workers.dev`; Wrangler 4.161.0; upload de 7,15 KiB (gzip 2,27 KiB); Worker Startup Time de 3 ms; versão `1be2a685-c1b1-4870-b75c-823a66ace1fc` |
+| IMAP `imap.mail.me.com:993` | `ok: true`, etapa `imap_greeting` (conexão TCP/TLS e saudação), **55 ms** |
+| SMTP `smtp.mail.me.com:587` | `ok: true`, etapa `smtp_tls_ready` (conexão, saudação, EHLO, STARTTLS, handshake TLS e novo EHLO), **481 ms** |
+| Tempo total no Worker | 481 ms (as duas verificações rodam em paralelo; o total acompanha a mais lenta) |
+| Flags da resposta | `authenticated: false`, `emailSent: false`, `purpose: connectivity_only` |
+| Repetição | A 1ª chamada ao `/probe` devolveu HTTP 503, repetida pelo workflow enquanto o secret propagava (o código só repete 503 nesse caso); a 2ª devolveu 200. |
+| Limite de CPU do Free | Nenhum erro de limite de CPU (1102) ocorreu. **O tempo de CPU não foi medido**: os 55/481 ms são tempo de relógio, não CPU. |
+| Plano | O workflow não tem nenhuma operação de plano ou cobrança e o log não exibe o plano; a informação de que foi Workers Free e de que não houve contratação vem do dono. |
+
+**O que está comprovado:** a partir da infraestrutura Cloudflare Workers Free, o `connect()` alcança a Apple em IMAP 993 (TLS e saudação) e em SMTP 587 (STARTTLS e handshake TLS), numa execução.
+
+**O que NÃO está comprovado:** autenticação Apple; leitura de mensagens ou pastas; envio; sincronização; estabilidade de polling (foi uma única execução); consumo real de CPU; comportamento sob Cron; IMAP IDLE; substituição do Spark. Não houve conta pessoal conectada, senha específica de app, e-mail lido ou enviado, alteração de banco, Supabase ou produção, nem plano pago. O Worker permanece publicado; como o `PROBE_TOKEN` daquela execução foi descartado, ninguém consegue chamá-lo até uma nova execução do workflow. A remoção do Worker é atividade futura, com autorização específica.
+
+**Fase I0:** **não concluída.** Falta, no iCloud, a autenticação e as operações reais; e faltam as provas de Gmail e Microsoft Graph e os custos finais (matriz da seção 12.6).
+
+### 12.14 Proposta da próxima prova — autenticação iCloud (13/11/2026, não executada)
+
+**Escopo.** Provar apenas: (1) login IMAP com senha específica de app; (2) leitura mínima de metadados de uma pasta, sem corpos nem anexos; (3) login SMTP sem enviar mensagem; (4) falha de credencial; (5) efeito da revogação; (6) custo de CPU, latência e confiabilidade no runtime Cloudflare. Fora de escopo: sincronização, IDLE, envio real, Cron, conta pessoal de produção.
+
+**Pré-requisitos da conta (decisão do dono).** Conta Apple **de teste, dedicada e descartável** (não a pessoal): autenticação de dois fatores ativa, iCloud Mail habilitado e uma senha específica de app com rótulo próprio, gerada no painel da Apple. Nunca a senha principal. O endereço da conta de teste não é escrito no repositório (o teste de estrutura bloqueia endereços iCloud).
+
+**Entrega da credencial sem exposição.**
+- *Prova 2A (recomendada primeiro, a mais simples):* o dono cadastra usuário e senha de app como secrets de um Environment novo do GitHub (aprovador obrigatório, branches restritas), digitando diretamente no formulário do GitHub — nunca no chat, no código ou em arquivo. O workflow manual lê o secret em variável de ambiente (mascarada), monta o corpo da requisição em memória e o envia por HTTPS, **no corpo do POST**, ao Worker de teste, junto de um token por execução (padrão atual). O Worker usa a credencial só durante a requisição: não grava, não registra em log, não devolve na resposta e fecha a sessão. Assim **nada da Apple fica armazenado no Cloudflare**.
+- *Prova 2B (arquitetura-alvo, depois):* a credencial vive no Vault do Supabase; uma Edge Function autentica o dono, lê o Vault, assina a tarefa (HMAC com validade curta, nonce, conta, operação) e chama o Worker; o Worker verifica a assinatura e usa a credencial só naquela operação, sem `service_role`. **Nada disso existe hoje**: exigiria migration/tabela de contas, Edge Function nova, verificação HMAC no Worker e proteção contra replay, cada um com autorização própria (SQL em produção e publicação de função).
+- Ressalva da 2A: o GitHub passa a guardar uma senha de app de uma conta descartável. É um risco aceitável porque a credencial é revogável e a conta é de teste, mas **não** é o desenho final.
+
+**Limitar a leitura ao mínimo.** O Worker só executa uma lista fixa de comandos, escrita no código, sem aceitar comando do cliente: `CAPABILITY`, `LOGIN`, `EXAMINE INBOX` (somente leitura), `STATUS`/contagens (`EXISTS`, `UIDVALIDITY`, `UIDNEXT`), opcionalmente `FETCH` de `UID FLAGS RFC822.SIZE` de poucas mensagens, e `LOGOUT`. Sem `BODY[]`, sem `ENVELOPE`, sem anexos, sem remetente ou assunto. A resposta devolve só números e booleanos por etapa, sem texto bruto do servidor nem nome de pasta ou usuário.
+
+**SMTP autenticado, separado.** `EHLO` → `STARTTLS` → `EHLO` → `AUTH` (sucesso `235`) → `QUIT`, **sem** `MAIL FROM`, `RCPT TO` ou `DATA`. Nenhuma mensagem é criada. Uma tentativa por prova, sem repetição automática, para não bloquear a conta por tentativas de login.
+
+**Encerramento e persistência.** `LOGOUT`/`QUIT` e fechamento dos sockets em `finally`; credencial só em memória durante a requisição; token por execução descartado; ao final, o dono **revoga a senha de app** no painel Apple.
+
+**Comprovar autenticação, falha e revogação.** Três execuções registradas: (a) credencial válida → login aceito e metadados lidos; (b) credencial deliberadamente inválida → falha de autenticação classificada, sem eco de credencial; (c) depois da revogação pelo dono → nova tentativa com a mesma senha falha. A (c) prova que a revogação corta o acesso.
+
+**Medir limites, CPU, latência e confiabilidade.** Latência por etapa (TCP/TLS, saudação, login, seleção, logout) devolvida na resposta; confiabilidade em N execuções (por exemplo 20, espaçadas) com taxa de sucesso e classificação dos erros. O tempo de CPU **não** aparece na resposta; precisa vir das métricas do Cloudflare (painel/observabilidade) — hipótese a confirmar, e o dono teria de ler ou colar os números, porque esta sessão não acessa a Cloudflare. O relógio dentro do Worker só avança com I/O, então o tempo medido na resposta não equivale a CPU.
+
+**Custos e limites, Free versus Paid (a verificar na documentação vigente antes da decisão).** Free: sem custo; limite de 10 ms de CPU por requisição HTTP, e a prova atual passou sem erro de CPU, mas a CPU não foi medida e o login adiciona trabalho de TLS e *parsing*. Paid: cobrança mínima de US$ 5/mês, limite maior de CPU e 30 s de CPU por invocação de Cron abaixo de 1 hora (seção 12.8). A decisão de pagar só entra com evidência de que o Free não basta e com aprovação do dono.
+
+**O que precisa ser criado e validado (nada existe ainda).** Módulo de autenticação IMAP/SMTP no Worker de teste (preferencialmente Worker separado, para não alterar a POC de conectividade), com lista fixa de comandos e saneamento de erros; testes com sockets simulados cobrindo sucesso, falha de login e ausência de vazamento; workflow manual com Environment próprio; e, só na 2B, Vault, Edge Function e HMAC.
+
+**Decisões do dono antes de executar:** (1) criar a conta Apple de teste e a senha de app (exige um aparelho Apple para o 2FA); (2) escolher 2A (simples) ou ir direto à 2B; (3) autorizar novo Environment e novo Worker de teste; (4) confirmar que a prova fica no Free; (5) definir quem lê as métricas de CPU no painel Cloudflare.

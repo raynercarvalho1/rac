@@ -162,3 +162,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Decisão do dono:** a POC iCloud é publicada por workflow manual do GitHub Actions, com credenciais Cloudflare em secrets de um Environment protegido; nenhum token Cloudflare é entregue à sessão do Claude. `PROBE_TOKEN` aleatório por execução, nunca persistido. Remoção do Worker só em atividade futura autorizada. Detalhes: [guia](../icloud-poc-deploy.md).
 - **Pendente, depende do dono:** token Cloudflare só com `Account → Workers Scripts → Edit`; Environment `cloudflare-poc` (aprovador e branches `main` e `poc/icloud-cloudflare-connectivity`); secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; merge desta PR e da PR #17 (Worker).
 - **A confirmar no primeiro uso:** que o botão "Run workflow" só aparece com o arquivo na `main`; se o deploy não interativo exige subdomínio `workers.dev` já registrado.
+
+## Atualização de 13/11/2026 · RAC Inbox (prova de conectividade iCloud concluída)
+
+- **Resultado:** a POC publicada pelo workflow manual provou, no Cloudflare Workers Free, conexão TCP/TLS com IMAP 993 (55 ms) e SMTP 587 com STARTTLS (481 ms), sem autenticar e sem ler ou enviar e-mail ([execução 43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569)). Detalhes e limites: Documento 10, seção 12.13. Confirmado no uso: o botão "Run workflow" exige o arquivo na branch escolhida e o deploy não interativo funcionou.
+- **Não comprovado:** autenticação Apple, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. Fase I0 não concluída.
+- **Decisão pendente do dono:** ambiente da prova de autenticação iCloud (conta Apple de teste, rota 2A ou 2B, novo Environment e Worker de teste, métricas de CPU); proposta na seção 12.14.
+- **Pendente:** remoção do Worker `rac-icloud-connectivity-poc` (atividade futura, com autorização específica); decisão de encerrar ou manter a PR #17 em draft.

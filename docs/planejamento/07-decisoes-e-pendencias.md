@@ -168,12 +168,18 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 
 - **Resultado:** a POC publicada pelo workflow manual provou, no Cloudflare Workers Free, conexão TCP/TLS com IMAP 993 (55 ms) e SMTP 587 com STARTTLS (481 ms), sem autenticar e sem ler ou enviar e-mail ([execução 43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569)). Detalhes e limites: Documento 10, seção 12.13. Confirmado no uso: o botão "Run workflow" exige o arquivo na branch escolhida e o deploy não interativo funcionou.
 - **Não comprovado:** autenticação Apple, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. Fase I0 não concluída.
-- **Decisão pendente do dono:** ambiente da prova de autenticação iCloud (conta Apple de teste, rota 2A ou 2B, novo Environment e Worker de teste, métricas de CPU); proposta na seção 12.14.
+- **Decisão pendente do dono:** (corrigido em 13/11/2026) o ambiente da prova de autenticação já foi decidido: conta iCloud do dono, senha de app e rota 2A (ver abaixo); restam as pendências da seção 13.12 do Documento 10; proposta anterior na 12.14.
 - **Pendente:** remoção do Worker `rac-icloud-connectivity-poc` (atividade futura, com autorização específica); decisão de encerrar ou manter a PR #17 em draft.
 
 ## Atualização de 13/11/2026 · RAC Inbox (redefinição de escopo e arquitetura)
 
 - **Decisão do dono:** o RAC Inbox é um cliente completo, não um painel de metadados; as limitações da POC de conectividade não são limitações do produto. A proposta de prova de autenticação da seção 12.14 do Documento 10 foi **superada** pela sequência P1 a P7 (13.11), que avança até leitura, anexos, organização, exclusão controlada e envio de e-mail de teste.
 - **Registrado como recomendação (aguarda confirmação do dono):** divisão de responsabilidades (conector só transporta; Supabase autoriza, analisa e sanitiza); polling no lugar de IMAP IDLE no Workers; índice de metadados no Supabase com corpos e anexos sob demanda; lotes I0 a I8 (seção 7); provas de Gmail e Graph movidas para o lote I8.
-- **Pendente, depende do dono:** conta Apple de teste (2FA, senha de app) e mensagens de teste; autorização específica antes de cada prova que altera a caixa ou envia e-mail (P3 a P5); aprovação de custo se o Workers Free não bastar; quando liberar o Inbox à esposa; quem lê as métricas de CPU da Cloudflare; remoção futura do Worker de conectividade.
+- **Pendente, depende do dono:** autorização específica antes de cada prova que altera a caixa ou envia e-mail (P3 a P5, com destinatário autorizado); cadastro dos secrets do iCloud no Environment, quando for executar a P1; aprovação de custo se o Workers Free não bastar; quando liberar o Inbox à esposa; quem lê as métricas de CPU da Cloudflare; mecanismo agendado da P6; remoção futura do Worker de conectividade.
 - **Pendente, técnico (virá das provas):** CPU real no Workers Free; compatibilidade de bibliotecas IMAP e MIME; suporte do iCloud a IDLE, MOVE, CONDSTORE e QRESYNC; limite de sessões e política antiabuso da Apple; IMAP direto da Edge Function; tamanho máximo de requisição da Edge Function.
+
+## Correção de 13/11/2026 · RAC Inbox (conta e credencial da POC já decididas)
+
+- **Decisão do dono:** a POC usa a **conta iCloud do próprio dono**; **não haverá conta Apple de teste**. Somente senha específica de app, cadastrada diretamente como secret de GitHub Environment (rota 2A); o token de proteção do Worker é efêmero e gerado pelo workflow, sem cadastro manual. O escopo do Inbox como cliente completo também já está definido (Documento 10, seção 13.1).
+- **Salvaguardas por usar a conta real:** leitura e escrita restritas a pasta e mensagens de teste, impostas pelo código do conector; nenhuma alteração ou exclusão em mensagem pessoal; sem `EXPUNGE` geral; sem envio a destinatário não autorizado; logs sem remetente, assunto, conteúdo ou anexos; senha de app revogada ao fim da POC (seção 13.11).
+- **Texto anterior superado:** as menções a "conta de teste" nas entradas antigas deste arquivo e no histórico diário são registro histórico e foram substituídas por esta decisão.

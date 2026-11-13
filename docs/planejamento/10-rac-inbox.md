@@ -227,8 +227,8 @@ A frente será aberta depois que Saúde S1–S5 estiver concluída e validada. O
 
 | Lote | Entrega | Critério de conclusão (objetivo e verificável) |
 |---|---|---|
-| **I0 · Provas e decisão de runtime (iCloud)** | Sequência de provas P1 a P7 da seção 13.11, com conta de teste e mensagens de teste; medição de CPU, latência e confiabilidade; decisão do runtime do conector | P1 a P7 executadas e registradas com evidência; operações que alteram a caixa ou enviam e-mail só com autorização específica; runtime decidido por medição (Workers Free, Workers Paid ou serviço convencional) e custo aprovado pelo dono |
-| **I1 · Fundação** | Contas e credenciais (Vault), Edge Function como fronteira, contrato do conector com assinatura HMAC, esquema do índice com RLS, sincronização de pastas e metadados, lista mínima na interface | Conta de teste conectada pelo fluxo definitivo; teste automatizado de isolamento (um usuário nunca lê dados do outro, nem pelo banco nem pela função); nenhum segredo em log, resposta ou navegador (testes); remover a conta apaga o segredo |
+| **I0 · Provas e decisão de runtime (iCloud)** | Sequência de provas P1 a P7 da seção 13.11, com a conta iCloud do dono (senha específica de app), restrita a pasta e mensagens de teste; medição de CPU, latência e confiabilidade; decisão do runtime do conector | P1 a P7 executadas e registradas com evidência; operações que alteram a caixa ou enviam e-mail só com autorização específica; runtime decidido por medição (Workers Free, Workers Paid ou serviço convencional) e custo aprovado pelo dono |
+| **I1 · Fundação** | Contas e credenciais (Vault), Edge Function como fronteira, contrato do conector com assinatura HMAC, esquema do índice com RLS, sincronização de pastas e metadados, lista mínima na interface | Conta iCloud do dono conectada pelo fluxo definitivo (Vault); teste automatizado de isolamento (um usuário nunca lê dados do outro, nem pelo banco nem pela função); nenhum segredo em log, resposta ou navegador (testes); remover a conta apaga o segredo |
 | **I2 · Leitura completa** | Mensagem completa (texto e HTML sanitizado), cabeçalhos, anexos para download, conversas, busca, sincronização incremental, notificações e não lidas | Corpus de mensagens maliciosas de teste (script, rastreador, CSS com exfiltração, `javascript:`, anexo de nome perigoso) bloqueado; sincronização incremental correta, inclusive com troca de UIDVALIDITY; notificação de nova mensagem em teste real |
 | **I3 · Organização** | Lido/não lido, sinalizar, arquivar, mover, excluir (com semântica de lixeira), pastas, rascunhos, ações em lote com prévia | Toda ação confirmada pelo servidor antes de aparecer como feita; falha reverte a tela; ações idempotentes; exclusão definitiva só com confirmação; testes com mensagens identificadas como teste |
 | **I4 · Composição e envio** | Escrever, responder, responder a todos, encaminhar, Cc/Cco, assinatura, anexos, SMTP, cópia em Enviados, fila de saída | Envio de teste a endereço autorizado com anexo; retentativa nunca duplica o envio; limites da Apple aplicados (20 MB, 500 destinatários por mensagem, 1.000 mensagens e 1.000 destinatários por dia); a mensagem enviada aparece em Enviados |
@@ -339,7 +339,7 @@ O projeto está **planejado, não implementado**. Não há autorização nesta d
 | Auditoria do Gmail existente | **Concluída por leitura do repositório** | Revisar o Console Google atual e confirmar status de publicação, escopos e usuário de teste |
 | Capacidades Gmail API e requisitos OAuth | **Mapeados na documentação oficial** | OAuth de servidor com refresh token, leitura, envio, alteração, filtros e verificação do app |
 | Capacidades Microsoft Graph | **Mapeadas na documentação oficial** | App registration e teste real em conta pessoal, incluindo leitura, envio, movimento, regra e delta |
-| IMAP iCloud | **Conectividade TCP/TLS 993 comprovada no Cloudflare Workers Free (13/11/2026); autenticação pendente** | Com conta de teste e autorização, autenticar com senha específica de app, ler só metadados mínimos de uma pasta e medir CPU/latência/confiabilidade (proposta na seção 12.14); depois, sincronizar uma pasta |
+| IMAP iCloud | **Conectividade TCP/TLS 993 comprovada no Cloudflare Workers Free (13/11/2026); autenticação pendente** | Com a conta iCloud do dono e senha específica de app, autenticar, ler somente pasta e mensagens de teste e medir CPU/latência/confiabilidade (provas P1 e P2 da seção 13.11); depois, sincronizar |
 | SMTP iCloud | **Conectividade 587 + STARTTLS + novo EHLO comprovada no Cloudflare Workers Free (13/11/2026); autenticação e envio pendentes** (direto no Supabase Edge Functions a porta 587 é bloqueada) | Autenticar sem enviar mensagem (seção 12.14); só depois, com autorização, enviar e-mail de teste |
 | Arquitetura final e custos | **Em aberto** | Comparar runtime do worker, armazenamento de tokens, operação, monitoramento e custo mensal |
 
@@ -450,16 +450,16 @@ O workflow, seu teste e o guia operacional (desenho, configuração manual e pen
 
 ### 12.14 Proposta da próxima prova — autenticação iCloud (13/11/2026, não executada)
 
-> **Superada pela seção 13.11.** Esta proposta terminava em autenticação e leitura mínima de metadados, o que subdimensiona o produto. Permanecem válidos seus cuidados com a credencial, a conta de teste e a medição; o alcance das provas foi ampliado.
+> **Superada pela seção 13.11.** Esta proposta terminava em autenticação e leitura mínima de metadados, o que subdimensiona o produto. Permanecem válidos seus cuidados com a credencial e a medição (a conta é a do dono, ver 13.11); o alcance das provas foi ampliado.
 
 **Escopo.** Provar apenas: (1) login IMAP com senha específica de app; (2) leitura mínima de metadados de uma pasta, sem corpos nem anexos; (3) login SMTP sem enviar mensagem; (4) falha de credencial; (5) efeito da revogação; (6) custo de CPU, latência e confiabilidade no runtime Cloudflare. Fora de escopo: sincronização, IDLE, envio real, Cron, conta pessoal de produção.
 
-**Pré-requisitos da conta (decisão do dono).** Conta Apple **de teste, dedicada e descartável** (não a pessoal): autenticação de dois fatores ativa, iCloud Mail habilitado e uma senha específica de app com rótulo próprio, gerada no painel da Apple. Nunca a senha principal. O endereço da conta de teste não é escrito no repositório (o teste de estrutura bloqueia endereços iCloud).
+**Pré-requisitos da conta (corrigido em 13/11/2026).** Decisão do dono: **não será criada conta Apple de teste**; a prova usa a **conta iCloud do próprio dono**, com autenticação de dois fatores já ativa e uma senha específica de app com rótulo próprio, gerada no painel da Apple. Nunca a senha principal. O endereço da conta não é escrito no repositório (o teste de estrutura bloqueia endereços iCloud). Os cuidados por usar a conta real estão na seção 13.11.
 
 **Entrega da credencial sem exposição.**
 - *Prova 2A (recomendada primeiro, a mais simples):* o dono cadastra usuário e senha de app como secrets de um Environment novo do GitHub (aprovador obrigatório, branches restritas), digitando diretamente no formulário do GitHub — nunca no chat, no código ou em arquivo. O workflow manual lê o secret em variável de ambiente (mascarada), monta o corpo da requisição em memória e o envia por HTTPS, **no corpo do POST**, ao Worker de teste, junto de um token por execução (padrão atual). O Worker usa a credencial só durante a requisição: não grava, não registra em log, não devolve na resposta e fecha a sessão. Assim **nada da Apple fica armazenado no Cloudflare**.
 - *Prova 2B (arquitetura-alvo, depois):* a credencial vive no Vault do Supabase; uma Edge Function autentica o dono, lê o Vault, assina a tarefa (HMAC com validade curta, nonce, conta, operação) e chama o Worker; o Worker verifica a assinatura e usa a credencial só naquela operação, sem `service_role`. **Nada disso existe hoje**: exigiria migration/tabela de contas, Edge Function nova, verificação HMAC no Worker e proteção contra replay, cada um com autorização própria (SQL em produção e publicação de função).
-- Ressalva da 2A: o GitHub passa a guardar uma senha de app de uma conta descartável. É um risco aceitável porque a credencial é revogável e a conta é de teste, mas **não** é o desenho final.
+- Ressalva da 2A: o GitHub passa a guardar uma senha de app da conta real do dono, que dá acesso à caixa inteira (a Apple não permite restringi-la a uma pasta). É aceitável para a POC porque a credencial é revogável, o Environment tem aprovador e branches restritas e o Worker só executa comandos de uma lista fechada, mas **não** é o desenho final.
 
 **Limitar a leitura ao mínimo.** O Worker só executa uma lista fixa de comandos, escrita no código, sem aceitar comando do cliente: `CAPABILITY`, `LOGIN`, `EXAMINE INBOX` (somente leitura), `STATUS`/contagens (`EXISTS`, `UIDVALIDITY`, `UIDNEXT`), opcionalmente `FETCH` de `UID FLAGS RFC822.SIZE` de poucas mensagens, e `LOGOUT`. Sem `BODY[]`, sem `ENVELOPE`, sem anexos, sem remetente ou assunto. A resposta devolve só números e booleanos por etapa, sem texto bruto do servidor nem nome de pasta ou usuário.
 
@@ -475,7 +475,7 @@ O workflow, seu teste e o guia operacional (desenho, configuração manual e pen
 
 **O que precisa ser criado e validado (nada existe ainda).** Módulo de autenticação IMAP/SMTP no Worker de teste (preferencialmente Worker separado, para não alterar a POC de conectividade), com lista fixa de comandos e saneamento de erros; testes com sockets simulados cobrindo sucesso, falha de login e ausência de vazamento; workflow manual com Environment próprio; e, só na 2B, Vault, Edge Function e HMAC.
 
-**Decisões do dono antes de executar:** (1) criar a conta Apple de teste e a senha de app (exige um aparelho Apple para o 2FA); (2) escolher 2A (simples) ou ir direto à 2B; (3) autorizar novo Environment e novo Worker de teste; (4) confirmar que a prova fica no Free; (5) definir quem lê as métricas de CPU no painel Cloudflare.
+**Decisões do dono antes de executar (atualizado em 13/11/2026):** a conta (a do dono), a senha de app e a rota 2A **já foram decididas**. Seguem pendentes: autorização específica das provas que alteram a caixa ou enviam e-mail, custo adicional e quem lê as métricas de CPU (seção 13.12).
 
 ## 13. Redefinição de escopo e arquitetura recomendada (13/11/2026)
 
@@ -504,7 +504,7 @@ O RAC Inbox é um **cliente de e-mail completo, de uso pessoal e privado**, para
 | Proposta de prova 12.14 (autenticação e metadados mínimos) | **Substituir** pela sequência P1 a P7 (13.11) | Subdimensiona o produto |
 | Provas de Gmail e Graph como condição da I0 | **Mover** para o lote I8 | iCloud é o primeiro provedor |
 | Cloudflare Workers Paid como candidata inicial | **Alterar**: decisão do runtime por medição na I0 | Não há medição de CPU; Free pode bastar para parte das operações |
-| Credencial por corpo de requisição vindo do GitHub (rota 2A da 12.14) | **Manter só para as provas P1 a P4** com conta de teste | O fluxo definitivo é Vault, Edge Function e HMAC |
+| Credencial por corpo de requisição vindo do GitHub (rota 2A da 12.14) | **Manter só para as provas P1 a P6** com a conta do dono restrita a pasta e mensagens de teste | O fluxo definitivo é Vault, Edge Function e HMAC |
 
 ### 13.3 Arquitetura recomendada
 
@@ -598,7 +598,7 @@ iCloud: imap.mail.me.com:993 · smtp.mail.me.com:587
 | [Supabase Edge Functions](https://supabase.com/docs/guides/functions/limits) | 2 s de CPU por requisição (sem contar I/O assíncrono); 150 s (Free) ou 400 s de relógio; 256 MB; saída para as portas 25 e 587 não permitida |
 | [Apple iCloud Mail](https://support.apple.com/en-us/102198) | 20 MB por mensagem (Mail Drop até 5 GB, anexos por link); 1.000 mensagens e 1.000 destinatários por dia; 500 destinatários por mensagem. A página tem cerca de 600 dias: reconfirmar |
 
-**Não verificado (cada item vira critério de uma prova):** CPU real por operação no Workers Free; compatibilidade de bibliotecas IMAP e MIME com `connect()` e `nodejs_compat`; suporte do iCloud a IDLE, MOVE, CONDSTORE, QRESYNC, UIDPLUS, SPECIAL-USE, SORT e THREAD; limite de sessões simultâneas por conta e política antiabuso para logins frequentes (risco de bloqueio da conta de teste); se o SMTP da Apple grava em Enviados; tamanho máximo de requisição na Edge Function; IMAP 993 a partir de Edge Functions; custo de CPU do TLS em polling frequente; tamanho prático de anexo que o Worker Free consegue transportar.
+**Não verificado (cada item vira critério de uma prova):** CPU real por operação no Workers Free; compatibilidade de bibliotecas IMAP e MIME com `connect()` e `nodejs_compat`; suporte do iCloud a IDLE, MOVE, CONDSTORE, QRESYNC, UIDPLUS, SPECIAL-USE, SORT e THREAD; limite de sessões simultâneas por conta e política antiabuso para logins frequentes (risco de bloqueio da conta do dono); se o SMTP da Apple grava em Enviados; tamanho máximo de requisição na Edge Function; IMAP 993 a partir de Edge Functions; custo de CPU do TLS em polling frequente; tamanho prático de anexo que o Worker Free consegue transportar.
 
 **Alternativas se alguma restrição inviabilizar uma função:**
 
@@ -616,7 +616,9 @@ Nenhum plano pago será contratado sem evidência de necessidade e aprovação d
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | CPU do Workers Free insuficiente | Operações falham ou são cortadas | Medir na I0; conector trocável; decisão de plano pelo dono |
-| Bloqueio da conta Apple por logins frequentes ou falhas | Perda temporária de acesso | Conta de teste na I0; reutilizar sessão quando possível; sem retentativa automática de login; intervalo de polling conservador |
+| Bloqueio da conta Apple por logins frequentes ou falhas | Perda temporária de acesso ao e-mail pessoal do dono (a conta da POC é a real) | Um login por prova, sem retentativa automática; teste de credencial inválida uma única vez; intervalo de polling conservador; reutilizar sessão quando possível |
+| Senha de app da conta real guardada no GitHub e usada no conector | Acesso à caixa inteira se vazar (a senha de app não é restringível a uma pasta) | Environment com aprovador e branches restritas; senha de app com rótulo próprio e revogada ao fim da POC; segredo mascarado; lista fechada de comandos no conector; nenhuma resposta ou log com conteúdo |
+| Teste alterar ou apagar mensagem pessoal | Perda de e-mail real | Código restringe toda escrita à pasta de teste e a mensagens marcadas como teste, operação por UID, nunca `EXPUNGE` geral; autorização específica antes de cada prova que altera |
 | Vazamento de credencial (log, resposta, repositório, GitHub) | Acesso à caixa | Vault; testes que procuram segredo em logs e respostas; revogação da senha de app; segredos de teste só em Environment protegido |
 | HTML malicioso, rastreadores, anexo perigoso | Execução de script, rastreio, malware | Sanitização, `iframe` isolado, bloqueio remoto, download seguro, corpus de testes |
 | Ação destrutiva por erro | Perda de mensagens | Lixeira como padrão, confirmação, prévia em lote, testes só com mensagens de teste |
@@ -629,26 +631,52 @@ Nenhum plano pago será contratado sem evidência de necessidade e aprovação d
 
 ### 13.11 Sequência de provas (provas de conceito, não são o produto)
 
-Todas com **conta Apple de teste** (2FA ativo e senha específica de app, nunca a senha principal nem a conta pessoal de produção) e **mensagens identificadas como teste**. Mensagens de teste com anexo são enviadas pelo dono, de outro endereço, para a conta de teste. Provas que alteram a caixa ou enviam e-mail exigem avaliação de segurança e **autorização específica antes de cada execução**. A credencial entra por Environment protegido do GitHub (provas P1 a P4) e nunca no chat, no código ou em log.
+**Decisões do dono já tomadas (13/11/2026):** a POC usa a **conta iCloud do próprio dono**; **não será criada conta de teste**; é usada **somente a senha específica de app da Apple**, nunca a senha principal; a senha é cadastrada **diretamente como secret de um GitHub Environment** (rota 2A), nunca no chat, no código, em arquivo, em log ou em commit.
 
-| Prova | O que demonstra | Natureza |
+**Credencial e transporte (2A):**
+
+- Secrets do Environment protegido (aprovador obrigatório, branches restritas): usuário e senha de app do iCloud. Recomendação: acrescentá-los ao Environment `cloudflare-poc` já existente, porque um job só usa um Environment e o mesmo run precisa dos secrets da Cloudflare e da Apple; o workflow atual não os referencia e, portanto, não os expõe.
+- **Token de proteção do Worker: não precisa ser cadastrado como secret.** Segue o padrão já comprovado do `PROBE_TOKEN`: o próprio workflow gera um valor aleatório a cada execução (64 caracteres hexadecimais), mascara antes de usar, grava no Worker com `wrangler secret put` por entrada padrão e o descarta ao fim do run. Cadastrá-lo à mão só criaria um segredo permanente e um passo manual a mais.
+- Transporte exclusivamente por HTTPS: o workflow envia a credencial no corpo da requisição ao Worker; o Worker a usa só durante a requisição, em memória, e não grava, não registra e não devolve.
+- Nenhum segredo em logs, respostas, rastreamentos ou mensagens de erro (teste automatizado que procura segredos), e nenhuma credencial no repositório ou no navegador.
+- Ao fim da POC o dono **revoga a senha de app** no painel da Apple.
+
+**Cuidados por usar a conta real (obrigatórios; a senha de app dá acesso à caixa inteira e não pode ser restrita a uma pasta, então a restrição é imposta pelo código do conector):**
+
+- Pasta de teste dedicada e identificada (criada pelo dono ou pela prova P3, com autorização) e mensagens claramente marcadas como teste.
+- Leitura limitada à pasta de teste e às mensagens marcadas como teste. Pastas e mensagens pessoais não são lidas; sobre elas só se aceitam contagens numéricas, quando necessárias.
+- **Nenhuma alteração ou exclusão em mensagem pessoal.** Escrita só na pasta de teste, em mensagens marcadas, sempre por UID; **nunca `EXPUNGE` geral** (ele apagaria todas as mensagens com a marca de exclusão naquela pasta); sem `UID EXPUNGE` disponível, a exclusão definitiva só ocorre dentro da pasta de teste. Sem expurgo na caixa de entrada nem na lixeira.
+- Nenhum envio a destinatário sem autorização específica; o endereço autorizado fica no Environment, não no repositório.
+- **Logs e relatórios sem remetente, assunto, corpo, nome de arquivo ou conteúdo de anexo, e sem nome de pastas pessoais:** só contagens, booleanos, códigos de estágio, tamanhos, tempos e o resumo criptográfico de um anexo de teste.
+- Lista fechada de comandos, limite de tamanho, de mensagens por prova e de tentativas de login (uma por prova).
+
+| Prova | O que demonstra | Natureza e limites |
 |---|---|---|
 | **P0** · Conectividade TCP/TLS (feita) | IMAP 993 e SMTP 587 alcançáveis no Workers Free | Somente leitura, sem credencial |
-| **P1** · Autenticação e estrutura | Login IMAP; capacidades do servidor; lista de pastas e atributos de uso especial; contagens por pasta | Somente leitura |
-| **P2** · Leitura | Listar mensagens de teste; ler cabeçalhos e corpo de uma mensagem de teste; baixar um anexo de teste, com limite de tamanho | Somente leitura; mede CPU e latência |
-| **P3** · Alterações reversíveis | Marcar lida/não lida e sinalizar; criar pasta de teste; mover mensagem de teste entre pastas | Altera a caixa de teste |
-| **P4** · Exclusão controlada | Semântica da lixeira (mover para a lixeira, restaurar, expurgar) numa mensagem de teste | Destrutivo, só em mensagem de teste |
-| **P5** · SMTP | Login SMTP sem enviar; depois envio de uma mensagem de teste com anexo a endereço autorizado; cópia em Enviados | Envia e-mail (autorização específica) |
-| **P6** · Sincronização e notificação | Sincronização incremental (UIDNEXT, CONDSTORE se houver), mudança de UIDVALIDITY simulada, polling por 24 a 48 h com taxa de falha, Web Push de teste | Mede confiabilidade e bloqueios |
-| **P7** · Fronteira definitiva | Vault, Edge Function e HMAC: credencial lida só na Edge Function, tarefa assinada, conector sem segredo, teste de isolamento entre dois usuários de teste | Exige migration e função publicada (autorizações próprias) |
+| **P1** · Autenticação e estrutura | Login IMAP; capacidades do servidor; pastas (atributos de uso especial, se a pasta de teste existe, contagens); falha com credencial deliberadamente inválida, uma vez | Somente leitura; não lista nomes pessoais |
+| **P2** · Leitura | Listar mensagens de teste; ler cabeçalhos e corpo de mensagem de teste; baixar anexo de teste, com limite de tamanho e conferência por resumo criptográfico | Somente leitura, só na pasta de teste; mede CPU e latência |
+| **P3** · Alterações reversíveis | Marcar lida/não lida e sinalizar; criar a pasta de teste, se faltar; mover mensagem de teste entre pastas de teste | Altera a caixa **só em teste**; **autorização específica antes de executar** |
+| **P4** · Exclusão controlada | Semântica de lixeira e exclusão (mover, restaurar, excluir) numa mensagem de teste | Destrutivo **só em mensagem e pasta de teste**; **autorização específica antes de executar** |
+| **P5** · SMTP | Login SMTP **sem enviar**; depois envio de uma mensagem de teste com anexo; cópia em Enviados | O envio só ocorre **após autorização específica**, com destinatário autorizado |
+| **P6** · Sincronização e polling | Sincronização incremental (UIDNEXT, CONDSTORE se houver), simulação de mudança de UIDVALIDITY, polling por 24 a 48 h com taxa de falha, Web Push de teste | **Somente leitura, sem alteração destrutiva**; o mecanismo agendado (agenda do GitHub ou Cron do Worker) será proposto e autorizado à parte |
+| **P7** · Fronteira definitiva | Vault, Edge Function e HMAC: credencial lida só na Edge Function, tarefa assinada, conector sem segredo, teste de isolamento entre dois usuários simulados nos testes automatizados | Exige migration e função publicada (autorizações próprias) |
 
 **Cada prova** registra: o que passou, o que falhou, CPU/latência/taxa de erro, limitações e se a conclusão é "comprovado" ou "não comprovado". Uma prova só encerra o que ela de fato demonstrou. As provas P1 a P6 usam código de experimento descartável; **o produto é construído nos lotes I1 a I5**, com os testes automatizados do projeto, e reaproveita das provas apenas o que for medido e aprovado.
 
-### 13.12 Decisões pendentes do dono
+### 13.12 Decisões do dono
 
-1. Confirmar a redefinição de escopo desta seção como definitiva (dois usuários, iCloud primeiro, cliente completo).
-2. Criar a conta Apple de teste (2FA, senha específica de app) e quais mensagens de teste enviar.
-3. Autorizar, prova a prova, as que alteram a caixa ou enviam e-mail (P3 a P5).
-4. Aprovar o custo se a medição mostrar que o Workers Free não basta (Paid ou serviço convencional).
-5. Definir quando a segunda usuária recebe o Inbox e quem lê as métricas de CPU no painel da Cloudflare.
-6. Remover o Worker de conectividade (`rac-icloud-connectivity-poc`) só em atividade futura com autorização específica; mantê-lo agora.
+**Já decididas (não são pendências):**
+
+1. **Escopo:** o RAC Inbox é um cliente de e-mail completo, de uso pessoal do dono e da esposa, com isolamento total entre os dois e iCloud primeiro (seção 13.1).
+2. **Conta da POC:** a conta iCloud do próprio dono; não haverá conta Apple de teste.
+3. **Credencial:** somente senha específica de app, cadastrada diretamente como secret de GitHub Environment (rota 2A); nunca no chat, no código, em log ou em commit.
+4. **Token de proteção do Worker:** efêmero, gerado pelo workflow a cada execução; não é cadastrado como secret.
+
+**Pendentes (dependem do dono):**
+
+1. **Autorização específica antes de cada prova que altera a caixa ou envia e-mail:** P3 (alterações), P4 (exclusão em mensagem de teste) e P5 (envio de mensagem de teste, com o destinatário autorizado indicado).
+2. **Cadastro dos secrets no Environment** (usuário e senha de app do iCloud), quando o dono quiser executar a P1. É ação do dono; a sessão não cria nem altera secrets.
+3. **Custo adicional:** só se a medição mostrar que o Workers Free não basta (Workers Paid ou serviço convencional).
+4. **Segunda usuária:** quando liberar o Inbox para a esposa, e quem lê as métricas de CPU no painel da Cloudflare.
+5. **Mecanismo agendado da P6** (agenda do GitHub ou Cron do Worker): proposta e autorização à parte.
+6. **Worker de conectividade** (`rac-icloud-connectivity-poc`): remoção só em atividade futura com autorização específica; por ora fica publicado.

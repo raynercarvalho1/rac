@@ -826,3 +826,24 @@ Família e da Casa.
 1. Com a conta de teste e a credencial no Environment protegido, executar P1 e P2 (somente leitura) e medir CPU, latência e capacidades do iCloud.
 2. Decidir o runtime do conector por medição; autorizar P3 a P5 uma a uma; executar P6 e P7.
 3. Só então iniciar o lote I1 (fundação), com migrations e função publicada mediante autorização específica.
+
+## 13/11/2026 · RAC Inbox — correção: POC com a conta iCloud do dono e credencial por GitHub Environment
+
+### 1. O que fizemos
+
+- Corrigida a divergência entre a documentação e decisões já tomadas pelo dono: **não será criada conta Apple de teste**; a POC usa a **conta iCloud do próprio dono**, somente com **senha específica de app**, cadastrada diretamente como secret de GitHub Environment (rota 2A). Entradas anteriores deste histórico que falam em "conta de teste" são registro histórico, superado por esta correção.
+- Documento 10: seções 13.11 e 13.12 reescritas; ajustadas as linhas da tabela de lotes (I0 e I1), a matriz da 12.6, a 12.14 (superada), o contrato da rota 2A e a tabela de riscos (novos riscos: senha de app da conta real e teste alterando mensagem pessoal). A 13.12 passa a separar o que **já foi decidido** do que **realmente depende do dono**.
+- Salvaguardas para a conta real, impostas pelo código do conector: leitura e escrita só em pasta e mensagens de teste; sem alteração ou exclusão de mensagem pessoal; nunca `EXPUNGE` geral; sem envio a destinatário não autorizado; logs só com contagens, códigos, tamanhos e tempos.
+- Reavaliado o token de proteção do Worker: **não precisa ser cadastrado como secret**; o workflow o gera a cada execução, como já faz com o `PROBE_TOKEN`.
+- Atualizados também `07-decisoes-e-pendencias.md` e a descrição da PR #17. Nenhuma operação na conta iCloud, nenhum secret criado ou alterado, nenhum deploy.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: autorização específica antes de P3, P4 e P5, cadastro dos secrets do iCloud quando quiser executar a P1, custo adicional (só se o Workers Free não bastar), liberação para a esposa e o mecanismo agendado da P6.
+- A autenticação, a leitura e as demais operações do iCloud continuam **não comprovadas**. A POC autenticada **não foi implementada**; PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Preparar o código da P1 e P2 (somente leitura, restrito à pasta de teste) e o workflow correspondente, com testes de sockets simulados, quando o dono pedir.
+2. Executar P1 e P2 após o dono cadastrar os secrets; só então propor P3 a P5, cada uma com autorização específica.
+3. Medir CPU, latência e confiabilidade e decidir o runtime do conector; depois P6 e P7 e o lote I1.

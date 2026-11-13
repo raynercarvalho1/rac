@@ -205,8 +205,7 @@ A DS-4.2 foi concluída no escopo de preservação, classificação e publicaç�
 
 ## 3.6 Andamento da DS-4.3 · Saúde S1–S5 (13/11/2026)
 
-Implementada, testada e integrada à `main` pela PR #13, com squash merge no commit `e77c5e8`. O CI da PR passou no head `97ac1a2` (Grupo 1: 1.570 testes, 1.568 aprovados, 0 falhas e 2 todo; Grupo 2/PGlite: 73 aprovados, 0 falhas). A publicação do GitHub Pages ainda precisa ser conferida. Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin` e SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).
-
+Implementada, testada e integrada à `main` pela PR #13, com squash merge no commit `e77c5e8`. O CI da PR passou no head `97ac1a2` (Grupo 1: 1.570 testes, 1.568 aprovados, 0 falhas e 2 todo; Grupo 2/PGlite: 73 aprovados, 0 falhas). O CI da `main` e o build/deploy do GitHub Pages após o merge também concluíram com sucesso (deploy `43451156616`). Fonte única, hub com 7 abas, sinais S1–S4 e S12 com histerese, atividades e musculação, condicionamento e Inteligência por regras. Fora do escopo: mapas, IA de Saúde, coleta extra da Garmin, função `garmin` e SQL. Guia: [`docs/saude.md`](../saude.md); registro técnico: [Documento 09, seção 19](09-auditoria-saude-garmin.md).
 ## 3.7 Próxima frente após a Saúde: RAC Inbox (13/11/2026)
 
 A prioridade seguinte à DS-4.3 é o **RAC Inbox**, aprovado pelo dono como a próxima grande frente do RAC e prioridade máxima posterior à Saúde.

@@ -343,6 +343,20 @@ test("P2 · conteúdo: FETCH sem cabeçalho, com tipo errado ou com NO viram err
   for (const x of [a, b, c, d, e, f, g]) semVazar(x.resposta, "conteúdo");
 });
 
+test("P2 · última mensagem: o UID é descoberto pelo NÚMERO (EXISTS), nunca por \"*\"; recusa do servidor devolve só NO/BAD e um código de lista fechada, sem texto livre", async () => {
+  const ok = await rodar(icloud({ msgs: [PLAIN(), PLAIN()] }));
+  assert.equal(ok.resposta.ok, true);
+  assert.ok(ok.srv.enviados.some((e) => /^a\d+ FETCH 2 \(UID\)\r\n$/.test(e)), "FETCH pelo número = total de mensagens");
+  assert.ok(!ok.srv.enviados.some((e) => /FETCH \* /.test(e)), "nenhum FETCH com curinga");
+  assert.equal(ok.resposta.motivo, undefined); assert.equal(ok.resposta.detalhe, undefined);
+  const no = await rodar(icloud({ msgs: [PLAIN()], status: { FETCH: (args, tag) => tag + " NO [CLIENTBUG] texto livre com " + SENHA + " e " + USUARIO + "\r\n" } }));
+  assert.equal(no.resposta.ok, false); assert.equal(no.resposta.erro, "mensagem_erro"); assert.equal(no.resposta.estagio, "mensagem_localizar");
+  assert.equal(no.resposta.motivo, "NO"); assert.equal(no.resposta.detalhe, "CLIENTBUG");
+  const bad = await rodar(icloud({ msgs: [PLAIN()], status: { FETCH: (args, tag) => tag + " BAD [XPTO-INVENTADO] qualquer coisa\r\n" } }));
+  assert.equal(bad.resposta.motivo, "BAD"); assert.equal(bad.resposta.detalhe, undefined);
+  for (const x of [ok, no, bad]) { semVazar(x.resposta, "diagnóstico"); assert.ok(!JSON.stringify(x.resposta).includes("texto livre")); assert.equal(x.r.logout, true); }
+});
+
 // ================= timeout, desconexão, autenticação =================
 
 test("P2 · timeout (servidor mudo) e desconexão no meio: erros fechados, sem travar e sem vazar", async () => {
@@ -399,7 +413,7 @@ test("P2 · só comandos de leitura: lista fechada de verbos, UID só com FETCH,
 });
 
 test("P2 · conferência de comandos: o que não está na lista exata é recusado ANTES de ir ao socket", () => {
-  const ok = [["CAPABILITY", ""], ["LOGOUT", ""], ["LOGIN", ' "a@b.co" "xxxx-xxxx-xxxx-xxxx"'], ["LIST", ' "" "RAC-TESTE"'], ["EXAMINE", ' "RAC-TESTE"'], ["FETCH", " * (UID)"],
+  const ok = [["CAPABILITY", ""], ["LOGOUT", ""], ["LOGIN", ' "a@b.co" "xxxx-xxxx-xxxx-xxxx"'], ["LIST", ' "" "RAC-TESTE"'], ["EXAMINE", ' "RAC-TESTE"'], ["FETCH", " 1 (UID)"], ["FETCH", " 4294967295 (UID)"],
     ["UID", " FETCH 7 (UID RFC822.SIZE BODYSTRUCTURE)"], ["UID", " FETCH 7 (BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID MIME-VERSION CONTENT-TYPE)]<0.8192> BODY.PEEK[1.2]<0.32768>)"], ["UID", " FETCH 4294967295 (BODY.PEEK[3]<0.24576>)"]];
   for (const [v, a] of ok) assert.equal(comandoPermitido(v, a, "RAC-TESTE"), true, v + a);
   const ruins = [["SELECT", ' "RAC-TESTE"'], ["EXAMINE", ' "INBOX"'], ["EXAMINE", ' "RAC-TESTE" (CONDSTORE)'], ["LIST", ' "" "*"'], ["LIST", ' "" "%"'], ["LIST", ' "" "INBOX"'], ["LIST", ' "" "RAC-TESTE" RETURN (STATUS (MESSAGES))'],
@@ -407,7 +421,7 @@ test("P2 · conferência de comandos: o que não está na lista exata é recusad
     ["UID", " FETCH 7 (BODY[1])"], ["UID", " FETCH 7 (BODY[1]<0.100>)"], ["UID", " FETCH 7 (BODY.PEEK[1])"], ["UID", " FETCH 7 (RFC822)"], ["UID", " FETCH 7 (RFC822.TEXT)"], ["UID", " FETCH 7 (FLAGS)"],
     ["UID", " FETCH 1:* (UID)"], ["UID", " FETCH 7,8 (UID)"], ["UID", " FETCH 0 (UID)"], ["UID", " FETCH 07 (UID)"], ["UID", " FETCH 7 (UID) (UID)"], ["UID", " FETCH 7 (BODY.PEEK[1]<0.100>; DELETE)"],
     ["UID", " FETCH 7 (BODY.PEEK[HEADER.FIELDS (BCC)]<0.100>)"], ["UID", " FETCH 7 (BODY.PEEK[1]<5.100>)"], ["UID", " FETCH 7 (BODY.PEEK[1]<0.0>)"],
-    ["FETCH", " 1:* (UID)"], ["FETCH", " * (FLAGS)"], ["FETCH", " 1 (BODY.PEEK[1]<0.9>)"], ["APPEND", ' "RAC-TESTE" {1}'], ["DELETE", ' "RAC-TESTE"'], ["CREATE", ' "X"'], ["RENAME", ' "A" "B"'],
+    ["FETCH", " * (UID)"], ["FETCH", " 0 (UID)"], ["FETCH", " 01 (UID)"], ["FETCH", " 1,2 (UID)"], ["FETCH", " 1 (UID) (UID)"], ["FETCH", " 12345678901 (UID)"], ["FETCH", " 1:* (UID)"], ["FETCH", " * (FLAGS)"], ["FETCH", " 1 (BODY.PEEK[1]<0.9>)"], ["APPEND", ' "RAC-TESTE" {1}'], ["DELETE", ' "RAC-TESTE"'], ["CREATE", ' "X"'], ["RENAME", ' "A" "B"'],
     ["EXPUNGE", ""], ["IDLE", ""], ["STARTTLS", ""], ["LOGIN", ' "a" "b" "c"'], ["LOGIN", ' "a"b" "c"'], ["CAPABILITY", " x"], ["NOOP", ""], ["", ""]];
   for (const [v, a] of ruins) assert.equal(comandoPermitido(v, a, "RAC-TESTE"), false, v + a);
   assert.equal(comandoPermitido("LIST", ' "" "RAC-TESTE"', "OUTRA"), false, "a pasta é sempre a da política");

@@ -1,6 +1,6 @@
 // P2 · leitura controlada de UMA mensagem da pasta de teste (RAC-TESTE), SOMENTE LEITURA. Nada é alterado, nada é guardado.
 // Comandos (lista fechada, conferida em código, em teste e na inspeção do pacote): CAPABILITY, LOGIN, LIST (só a pasta de teste), EXAMINE (só a pasta
-// de teste; abre somente leitura), FETCH (só "* (UID)") e UID FETCH (um UID; só estrutura e BODY.PEEK parcial) e LOGOUT. Uma única tentativa de login.
+// de teste; abre somente leitura), FETCH (só "N (UID)", N = total de mensagens do EXAMINE) e UID FETCH (um UID; só estrutura e BODY.PEEK parcial) e LOGOUT. Uma única tentativa de login.
 // Proibido (não existe no código): SELECT, STORE, COPY, MOVE, EXPUNGE, DELETE, APPEND, CREATE, RENAME, busca (SEARCH), BODY[...] sem PEEK, SMTP.
 // A resposta usa esquema fechado: só booleanos, contagens, tamanhos e códigos de lista fechada. Assunto, endereços, texto, HTML, nomes de pasta e de
 // arquivo, bytes de anexo e a credencial NUNCA saem daqui: a mensagem é lida em variáveis locais, resumida em indicadores e descartada.
@@ -51,7 +51,7 @@ export function comandoPermitido(verbo, args, pasta) {
   if (verbo === "LOGIN") return /^ "[^"\\\r\n\u0000]+" "[^"\\\r\n\u0000]+"$/.test(args);
   if (verbo === "LIST") return args === ' "" "' + pasta + '"';
   if (verbo === "EXAMINE") return args === ' "' + pasta + '"';
-  if (verbo === "FETCH") return args === " * (UID)";
+  if (verbo === "FETCH") return /^ [1-9][0-9]{0,9} \(UID\)$/.test(args); // só o número de ordem da mensagem a descobrir (o EXISTS do EXAMINE), nunca "*" nem faixa
   if (verbo === "UID") return UID_FETCH.test(args);
   return false;
 }
@@ -127,6 +127,15 @@ async function executarComando(ctx, verbo, args, maxLiteral) {
     }
     throw new ErroP2("resposta_inesperada"); // inclui "+" (o servidor pedindo literal, que nunca enviamos) e linhas fora de ordem
   }
+}
+
+// diagnóstico seguro de um comando recusado: só a palavra de status (NO/BAD) e, se houver, um código de resposta de uma lista FECHADA; nunca o texto livre do servidor
+const CODIGOS_RESPOSTA = Object.freeze(["NONEXISTENT", "CLIENTBUG", "SERVERBUG", "UNAVAILABLE", "LIMIT", "CANNOT", "NOPERM", "OVERQUOTA", "CORRUPTION", "EXPIRED", "INUSE", "PARSE", "UNKNOWN-CTE", "CONTACTADMIN", "PRIVACYREQUIRED", "AUTHORIZATIONFAILED", "READ-ONLY", "READ-WRITE"]);
+function registrarFalha(r, res) {
+  r.motivo = res.status === "NO" || res.status === "BAD" ? res.status : "OUTRO";
+  const m = /^[A-Za-z]+ \[([A-Za-z-]+)[\] ]/.exec(res.resto);
+  const cod = m ? m[1].toUpperCase() : null;
+  r.detalhe = cod !== null && CODIGOS_RESPOSTA.includes(cod) ? cod : null;
 }
 
 function capabilities(soltas) {
@@ -210,7 +219,7 @@ function mesclar(destino, campo, valor) {
   else if (!iguais(destino[campo], valor)) throw new ErroP2("resposta_conflitante");
 }
 
-// `alvo`: o UID pedido, ou null quando o próprio comando serve para DESCOBRIR o UID (FETCH * (UID)); nesse caso todas as respostas com dado têm de
+// `alvo`: o UID pedido, ou null quando o próprio comando serve para DESCOBRIR o UID (FETCH N (UID)); nesse caso todas as respostas com dado têm de
 // concordar em UM único UID. `permitidos`: { estrutura, cabecalho, partes: Set } do que o comando pediu. Devolve { respostas, uid, tamanho, estrutura,
 // cabecalho, partes } (campos não recebidos ficam undefined; `respostas` = quantas respostas traziam dado da mensagem).
 function consolidarFetch(respostas, { alvo, permitidos, lim }) {
@@ -284,7 +293,7 @@ function resumirTexto(parte, bruto, limite, ehHtml) {
 }
 
 function novoResultado() {
-  return { ok: false, estagio: "inicio", erro: null, autenticado: false, logout: false, pasta_teste_existe: null, somente_leitura: null, mensagens_na_pasta: null, mensagem: null };
+  return { ok: false, estagio: "inicio", erro: null, autenticado: false, logout: false, pasta_teste_existe: null, somente_leitura: null, mensagens_na_pasta: null, mensagem: null, motivo: null, detalhe: null };
 }
 
 // Executa a P2. `abrir(host, porta)` devolve o socket TLS já aberto ({ readable, writable, close }). `uid` (opcional): o UID a ler; sem ele, a última
@@ -341,8 +350,8 @@ export async function executarP2({ abrir, usuario, senha, uid = null, politica =
     r.estagio = "mensagem_localizar"; // uma única mensagem: o UID pedido ou, sem ele, a última da pasta
     let alvo = uid;
     if (alvo === null) {
-      const ultima = await executarComando(ctx, "FETCH", " * (UID)", 1024);
-      if (ultima.status !== "OK") throw new ErroP2("mensagem_erro");
+      const ultima = await executarComando(ctx, "FETCH", " " + existentes + " (UID)", 1024); // a última = a de número igual ao total (EXISTS)
+      if (ultima.status !== "OK") { registrarFalha(r, ultima); throw new ErroP2("mensagem_erro"); }
       const achada = consolidarFetch(lerRespostasFetch(ultima.soltas, cfg), { alvo: null, permitidos: SEM_PERMISSAO, lim: cfg });
       if (achada.respostas === 0 || !Number.isSafeInteger(achada.uid)) throw new ErroP2("resposta_inesperada");
       alvo = achada.uid;
@@ -350,7 +359,7 @@ export async function executarP2({ abrir, usuario, senha, uid = null, politica =
 
     r.estagio = "mensagem_estrutura";
     const est = await executarComando(ctx, "UID", " FETCH " + alvo + " (" + ITENS_ESTRUTURA + ")", 4096);
-    if (est.status !== "OK") throw new ErroP2("mensagem_erro");
+    if (est.status !== "OK") { registrarFalha(r, est); throw new ErroP2("mensagem_erro"); }
     const dEst = consolidarFetch(lerRespostasFetch(est.soltas, cfg), { alvo, permitidos: { estrutura: true, cabecalho: false, partes: new Set() }, lim: cfg });
     if (dEst.respostas === 0) throw new ErroP2("uid_inexistente");
     if (dEst.uid !== alvo || !Number.isSafeInteger(dEst.tamanho) || !Array.isArray(dEst.estrutura)) throw new ErroP2("resposta_inesperada");
@@ -385,7 +394,7 @@ export async function executarP2({ abrir, usuario, senha, uid = null, politica =
     r.estagio = "mensagem_conteudo";
     const maiorLimite = Math.max(...pedidos.map((p) => p[1]));
     const cont = await executarComando(ctx, "UID", " FETCH " + alvo + " (" + pedidos.map((p) => p[0]).join(" ") + ")", maiorLimite);
-    if (cont.status !== "OK") throw new ErroP2("conteudo_falhou");
+    if (cont.status !== "OK") { registrarFalha(r, cont); throw new ErroP2("conteudo_falhou"); }
     const dados = consolidarFetch(lerRespostasFetch(cont.soltas, cfg), { alvo, permitidos: { estrutura: false, cabecalho: true, partes: new Set(pedidos.slice(1).map((p) => /^BODY\.PEEK\[([\d.]+)\]/.exec(p[0])[1])) }, lim: cfg });
     if (dados.respostas === 0) throw new ErroP2("resposta_inesperada");
 
@@ -488,5 +497,7 @@ export function montarRespostaP2(r) {
   if (r && r.mensagens_na_pasta !== null && r.mensagens_na_pasta !== undefined) saida.mensagens_na_pasta = inteiroAte(r.mensagens_na_pasta, UID_MAX);
   if (r && r.mensagem && typeof r.mensagem === "object") saida.mensagem = montarMensagem(r.mensagem);
   if (!saida.ok) saida.erro = r && ERROS_P2.includes(r.erro) ? r.erro : "falha_inesperada";
+  if (r && ["NO", "BAD", "OUTRO"].includes(r.motivo)) saida.motivo = r.motivo;
+  if (r && CODIGOS_RESPOSTA.includes(r.detalhe)) saida.detalhe = r.detalhe;
   return saida;
 }

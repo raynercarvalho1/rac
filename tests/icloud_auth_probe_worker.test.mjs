@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { POLITICA, audienciasPermitidas, workflowRefEsperado } from "../experimentos/icloud-auth-probe/src/politica.mjs";
 
 const raiz = new URL("../", import.meta.url);
@@ -110,7 +111,17 @@ test("coerência com o workflow privilegiado da main (quando a versão com repla
   const heredoc = JSON.parse(/<<'JSON'\n([\s\S]*?)\n\s*JSON\n/.exec(wf)[1].replace(/^\s{10}/gm, ""));
   const cfg = JSON.parse(ler("experimentos/icloud-auth-probe/wrangler.jsonc")); delete cfg.$schema;
   assert.deepEqual(heredoc, cfg);
-  for (const arq of ARQUIVOS) assert.ok(wf.includes("./src/" + arq + ".mjs"), "arquivo fora da lista fixa do workflow: " + arq);
+  // a lista de arquivos NÃO é mais escrita no workflow: vem do pin P2 (aprovados.json), e o conteúdo atual do Worker tem de ser exatamente o pin
+  const pin = JSON.parse(ler("experimentos/icloud-auth-probe-ferramenta/aprovados.json")).pins.p2;
+  assert.deepEqual(Object.keys(pin.arquivos).sort(), [...ARQUIVOS.map((a) => "src/" + a + ".mjs"), "wrangler.jsonc"].sort(), "o pin P2 lista exatamente os arquivos do Worker");
+  const h = Object.fromEntries(Object.keys(pin.arquivos).map((k) => [k, createHash("sha256").update(fs.readFileSync(new URL("experimentos/icloud-auth-probe/" + k, raiz))).digest("hex")]));
+  assert.deepEqual(h, pin.arquivos, "DESVIO: o Worker mudou sem o pin P2 ser atualizado (PR na main)");
+  const manifesto = createHash("sha256").update("rac-pin-v1\n" + Object.keys(h).sort().map((k) => h[k] + "  " + k + "\n").join("")).digest("hex");
+  assert.equal(manifesto, pin.manifesto_sha256);
+  // as operações do workflow estão na tabela do pin e só a P2 aceita o pin P2 para credencial
+  const ops = JSON.parse(ler("experimentos/icloud-auth-probe-ferramenta/aprovados.json")).operacoes;
+  assert.deepEqual(Object.keys(ops).sort(), [...POLITICA.operacoes].sort());
+  assert.deepEqual(ops.p2_imap, ["p2"]); assert.deepEqual(ops.p1_imap, ["p1"]);
 });
 
 test("documentação: README do Worker e Documento 10 registram o Desenho B e que o primeiro ensaio não exige secrets Apple, sem escrever credencial", () => {

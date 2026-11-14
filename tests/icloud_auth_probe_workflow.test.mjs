@@ -273,7 +273,7 @@ test("actions oficiais fixadas por SHA (conferidos nos repositórios oficiais) e
   assert.deepEqual(fs.readdirSync(new URL(dir, raiz)).sort(), ["README.md", "aprovados.json", "package-lock.json", "package.json"]);
 });
 
-const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index"];
+const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index", "sincronizacao"];
 const CFG_FIXA = { name: "rac-icloud-auth-poc", main: "src/index.mjs", compatibility_date: "2026-11-13", workers_dev: true, observability: { enabled: false },
   durable_objects: { bindings: [{ name: "CONSUMO", class_name: "ConsumoUnico" }] }, migrations: [{ tag: "v1", new_sqlite_classes: ["ConsumoUnico"] }] };
 
@@ -726,7 +726,7 @@ test("o Worker (quando a versão com replay + P1 está presente) só aceita toke
   const prefixo = /AUDIENCIA_PREFIXO: (\S+)/.exec(J.executar)[1] + ":";
   assert.equal(prefixo, POLITICA.audienciaPrefixo);
   // toda operação da política tem o passo correspondente no workflow, e vice-versa
-  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]);
+  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]);
   for (const op of POLITICA.operacoes.filter((o) => o !== "validar_oidc")) assert.ok(J.executar.includes("inputs.operacao == '" + op + "'"), "passo ausente para " + op);
   assert.deepEqual(audienciasPermitidas(), POLITICA.operacoes.map((o) => POLITICA.audienciaPrefixo + o));
   // a configuração fixa do workflow é a wrangler.jsonc do Worker (Durable Object e migração incluídos)

@@ -791,3 +791,20 @@ Família e da Casa.
 
 1. Com autorização: publicar pelo workflow (o `verificar` confere o pin e o dono revisa o resumo antes de aprovar os Environments), executar `p2_imap` **uma vez** e registrar o resultado; só então marcar a P2 como concluída.
 
+
+## 14/11/2026 (tarde, 7) · RAC Inbox — primeiras execuções reais da P2 e novo pin
+
+### 1. O que fizemos
+
+- **Run 43616823166 (`p2_imap`, commit `2e1055e`, pin `a3d8…c997`):** `verificar` e publicação do Worker P2 no Cloudflare comprovados; OIDC validado; login iCloud e logout ok; falhou em `pasta_localizar` (`pasta_inexistente`): a pasta `RAC-TESTE` ainda não existia no iCloud. Nada lido nem alterado.
+- **Run 43618431506 (mesmo commit e pin), com a pasta criada (1 mensagem de teste):** pasta achada; falhou em `mensagem_localizar` (`mensagem_erro`, `somente_leitura_confirmado: false`): o servidor da Apple recusou `FETCH * (UID)`. O motivo exato é **hipótese** (o Worker descartava o texto do servidor). Nada lido nem alterado.
+- **Correção (commit `abc5251703928a1b796a7158c6d7c897dbf8c50d`, branch de trabalho):** o UID da última mensagem passa a ser pedido por `FETCH N (UID)` (N = total do EXAMINE, sem curinga) e a falha de comando devolve só `motivo` (`NO`/`BAD`/`OUTRO`) e `detalhe` (código de lista fechada), sem texto livre. Testes da P2, do FETCH e do contrato: 65/65, incluindo teste novo (sem vazamento).
+- **Novo pin P2** (manifesto `b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59`); P1 preservado; pins P2 anteriores recusados para `p2_imap`.
+
+### 2. O que estamos fazendo
+
+- PR do pin na `main` e nova rodada de `p2_imap` com o commit `abc5251`. P2 **não** concluída; I0 não concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Publicar e executar **uma** `p2_imap` com o pin novo (aprovação dos dois Environments pelo dono); registrar o resultado (se falhar de novo, usar `motivo`/`detalhe` para a próxima correção) e só então marcar a P2 como concluída.

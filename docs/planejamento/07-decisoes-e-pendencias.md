@@ -208,3 +208,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Guia:** as duas linhas "comprovado / não comprovado" da `main` estavam desatualizadas (o uso único e a P1 já foram provados); corrigidas por PR docs-only própria.
 - **Pendente, depende do dono:** ruleset de revisão obrigatória (o `CODEOWNERS` já existe); uma mensagem de teste em `RAC-TESTE`; **autorização específica** para publicar o Worker e executar **uma** `p2_imap`; a primeira execução real do portão no Actions. A P2 **não** está concluída.
 
+
+## 14/11/2026 · RAC Inbox I0 — P2: pasta de teste e descoberta do UID
+
+- **Fato (Run 43616823166):** a primeira `p2_imap` real falhou por a pasta `RAC-TESTE` não existir; criada pelo dono (1 mensagem de teste, sem conteúdo pessoal).
+- **Fato (Run 43618431506):** o servidor da Apple recusou `FETCH * (UID)`. **Decisão:** o UID da última mensagem é pedido por número (`FETCH N (UID)`, N = EXISTS) e a recusa devolve só `motivo`/`detalhe` de vocabulário fechado. Novo pin P2 `b88240b1…28e9` (commit `abc5251`).
+- **Pendente:** nova execução real; `somente_leitura_confirmado` veio `false` no EXAMINE real e precisa ser investigado se persistir. A P2 **não** está concluída.

@@ -259,3 +259,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Decisão registrada:** `redirect: "error"` fica proibido no Worker (não existe no runtime Workers); a falha de chaves devolve `detalhe` de lista fechada. A correção da seção 13.17 foi validada no Cloudflare Workers.
 - **Limite:** a validação OIDC não autentica conta Apple. **Continuam não comprovados:** IMAP e SMTP autenticados, leitura, sincronização, envio, CPU por requisição e uso único do token. A I0 **não** está concluída.
 - **Pendente, depende do dono:** autorização expressa para a P1 (autenticação IMAP), com a credencial cadastrada por você só num Environment, nunca pelo chat; decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail; decisão sobre a PR #17 (segue em Draft, sem merge).
+
+## Decisão de 14/11/2026 · RAC Inbox (replay com Durable Object e P1 IMAP autorizados)
+
+- **Decisão do dono:** implementar a proteção contra replay com Durable Object + SQLite (chave `run_id:run_attempt:operacao`, consumo antes da execução, 409 na repetição, 503 na falha) e a P1 (autenticação IMAP somente leitura); publicar o Worker e executar a P1, **criando o Durable Object**. KV e cache em memória ficam proibidos como exclusão mútua. O merge de qualquer PR segue dependendo de autorização explícita. Detalhes: Documento 10, seção 13.19.
+- **Limites absolutos da P1:** nenhuma leitura de mensagem, cabeçalho, remetente, assunto, corpo ou anexo; nenhuma alteração de flags, mover, excluir, `EXPUNGE`, criar, renomear ou excluir pasta; nenhum SMTP nem envio; nenhuma tentativa automática de login. P3, P4 e P5 **não** fazem parte desta entrega.
+- **Credencial:** só por secrets do Environment `icloud-auth-poc`, cadastrados pelo dono direto no GitHub; nunca pelo chat.
+- **Pendente, depende do dono:** mesclar a PR do workflow (replay + P1) na `main`; aprovar os Environments nas execuções; cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`; se necessário, ampliar a permissão do token Cloudflare para a migração do Durable Object. **Nada foi publicado ou executado nesta entrega.** I0 não concluída.

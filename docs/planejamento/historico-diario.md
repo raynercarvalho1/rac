@@ -1055,3 +1055,21 @@ Família e da Casa.
 
 1. Com autorização expressa, implementar a P1 (login IMAP em `imap.mail.me.com:993`, somente leitura) conforme a proposta aprovada; credencial só em Environment, nunca pelo chat.
 2. Decidir o uso único do token antes de qualquer P3 a P5; registrar cada prova só com evidência.
+
+## 14/11/2026 · RAC Inbox — replay com Durable Object e P1 IMAP (implementação)
+
+### 1. O que fizemos
+
+- **Implementação concluída (local):** registro de uso único (Durable Object com SQLite; chave `run_id:run_attempt:operacao`; 409 na repetição, 503 na falha), claims `jti`, `run_id` e `run_attempt` obrigatórias, idade máxima de 60 s com credencial e a P1 IMAP somente leitura (`CAPABILITY`, `LOGIN`, `LIST`, `LOGOUT`; resposta de esquema fechado). Workflow ajustado em PR separada na `main`.
+- **Testes automatizados:** ver o relatório da entrega; inclui 20 chamadas simultâneas, expiração, falha fechada, esquemas, ausência de credencial em logs e respostas, ausência de comandos IMAP proibidos e o passo de inspeção do pacote executado. Evidência local adicional: `wrangler deploy --dry-run` e Durable Object no workerd local (não substitui o runtime publicado).
+- **Publicação, prova sintética real e P1: não executadas.** Sem merge, sem deploy, sem acesso à Apple, sem alteração de Environments ou secrets.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: merge da PR do workflow, secrets Apple no Environment `icloud-auth-poc` e as aprovações de Environment. Possível pendência: permissão do token Cloudflare para a migração do Durable Object.
+- **Não comprovado:** o uso único no runtime publicado, a P1 no servidor real da Apple, o CPU por requisição. A I0 **não** está concluída; a I1 não foi iniciada.
+
+### 3. O que vamos fazer
+
+1. Com o workflow na `main`: atualizar a PR #17 com a `main`, publicar o Worker pelo workflow e rodar `validar_uso_unico`; só se passar, rodar `p1_imap`.
+2. Registrar cada resultado com evidência (execução, estágio, código de erro); P3 a P7 só com autorização específica.

@@ -1,7 +1,7 @@
 # RAC · 10 · RAC Inbox — Caixa de E-mail Inteligente
 
 Data da decisão: 13/11/2026  
-Estado: **proposta aprovada pelo dono; não implementada**.  
+Estado: **proposta aprovada pelo dono; I1 (fundação) implementada em código e testes em 14/11/2026, sem migration aplicada e sem leitura de e-mail** (ver [docs/inbox.md](../inbox.md)).  
 Prioridade: **próxima grande frente após a conclusão da modernização da Saúde (S1–S5)**.  
 Objetivo de produto: tornar o RAC o cliente principal de e-mail do dono e permitir que o Spark seja desinstalado somente depois de uma substituição comprovada no uso real.
 
@@ -399,3 +399,10 @@ A revisão das fontes oficiais refinou alguns itens da análise inicial:
 - Railway: Pro é US$ 20/mês de assinatura com crédito de uso correspondente; SMTP é habilitado a partir do Pro. O valor final depende do consumo acima do crédito.
 
 A decisão não muda: Cloudflare é a primeira candidata de teste, Railway é alternativa, nenhum serviço foi contratado nem implantado.
+
+## 14. Fase I1 — Fundação implementada (14/11/2026)
+
+Entrega da I1 (detalhes e fatos em [docs/inbox.md](../inbox.md)): página Inbox (só do dono) com três áreas no desktop e telas próprias no iPhone; modelo de dados mínimo em `supabase/051_inbox_fundacao.sql` (**preparada, não aplicada**), com RLS só do dono, trava "mfa", isolamento por chaves compostas e **sem coluna para credencial ou conteúdo de e-mail**; contrato e cliente do serviço de e-mail (só leitura, só IDs, credencial recusada, **não publicado**); exemplo da interface fictício, rotulado e isolado.
+Evidência usada: P6 real (UIDVALIDITY 1752612613, UIDNEXT 4; segunda rodada `sem_mudanca`) e o fato de o iCloud responder `[READ-WRITE]` ao `EXAMINE` (a garantia de somente leitura é do Worker, não do servidor).
+**Critério de saída da I1 atendido no código e nos testes; a aplicação da 051 em produção é do dono.** A I2 depende da decisão de custódia da credencial e da P7.
+

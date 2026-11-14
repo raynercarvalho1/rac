@@ -236,3 +236,25 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 2. Verificação de efeito, sem custo: o dono compara no Mail do iCloud o estado lida/não lida da mensagem de `RAC-TESTE` antes (captura de tela anterior à P2) e agora; igual = a leitura não marcou `\Seen`. Esta prova é auxiliar, não substitui a construção.
 
 **Encerramento da I0 (decisão do dono pendente):** pelo critério vigente (P1 a P7 do iCloud, fluxo de credencial e revogação, decisão de runtime por medição e custos; "até lá não iniciar a I1"), a I0 **não pode ser encerrada**: P3 a P7 não foram executadas. Provado: P0, P1, OIDC, uso único e P2.
+
+## 14/11/2026 · RAC Inbox I1 — fundação (decisões técnicas e pendências)
+
+**Direção visual (pedido do dono):** desktop com três áreas (lateral com contas, pastas e categorias; lista com remetente, assunto, prévia e horário; leitura à direita); iPhone com lista em tela cheia, leitura em tela própria, ações por toque e áreas seguras; acabamento limpo, temas claro e escuro do RAC, poucas bordas e cores; referência "organização do Spark com a clareza do Apple Mail", mantendo a identidade do RAC. Implementado com os tokens do Design System (sem cor nova).
+
+**Decisões técnicas tomadas (reversíveis; ver [docs/inbox.md](../inbox.md)):**
+- Inbox **só do dono** (a casa não vê; Documento 10, seção 6, item 7); a política do banco exclui membros da casa.
+- Provedor validado **por formato** (precedente da 048): provedor novo não exige migration; só o iCloud é cadastrável nesta fase.
+- Banco **sem coluna** de credencial ou de conteúdo de e-mail; erro e uso de pasta são **códigos fechados** (nunca texto do provedor).
+- **Dados de exemplo** só no módulo isolado do exemplo da interface, rotulados "DEMONSTRAÇÃO" e nunca gravados.
+- Backup do site: as tabelas do Inbox são **só-exportar** (o estado de sincronização é reconstruível; restaurar um cursor antigo perderia mensagens). **A confirmar pelo dono.**
+- Catálogo da auditoria: a 051 se inclui nele **se a 050 existir** (senão avisa e segue).
+- Serviço de e-mail: contrato só de leitura e só com IDs; **não publicado** (`INBS.publicado = false`), nada é simulado.
+- O iCloud respondeu `[READ-WRITE]` ao `EXAMINE`: a garantia de somente leitura é do Worker, não do servidor; nenhum comando de escrita foi adicionado.
+
+**Pendente, depende do dono:**
+1. **Custódia da credencial do iCloud** (bloqueia a I2): "credencial por operação, nunca persistida" e "nenhum segredo no navegador" não se cumprem juntas se a senha for digitada a cada uso; opções A (cofre do servidor, P7) e B (digitada por operação) em docs/inbox.md. Nenhuma foi escolhida.
+2. Autorizar a **aplicação da migration 051** (e, se quiser, da 050) no SQL Editor.
+3. Confirmar o backup só-exportar das tabelas do Inbox.
+4. Autorizações próprias para a P7, a Edge Function `rac-inbox` e o segredo do canal com o Worker (nada disso foi criado).
+5. Remoção do Worker de POC e dos Environments segue como atividade futura autorizada.
+

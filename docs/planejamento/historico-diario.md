@@ -898,3 +898,24 @@ Família e da Casa.
 
 1. Dono: revisar e mesclar o PR; abrir uma sessão nova e conferir que commit, push de `claude/*` e PR não pedem aprovação e que merge, `reset`, `rebase` e `stash` pedem.
 2. Ajustar a lista se alguma rotina ainda pedir aprovação sem necessidade (cada ajuste passa pelo teste de guarda).
+
+## 14/11/2026 · RAC Inbox — I1 (fundação)
+
+### 1. O que fizemos
+
+- **P6 comprovada em duas rodadas reais** (runs 43642891880 e 43647140993): primeira leitura UIDVALIDITY 1752612613 e UIDNEXT 4; segunda `sem_mudanca`, sem mudança de UIDVALIDITY e sem UIDs novos. O iCloud respondeu `[READ-WRITE]` ao `EXAMINE` (a garantia de somente leitura é do Worker).
+- **I1 implementada em código e testes** (detalhes em docs/inbox.md): página Inbox só do dono (três áreas no desktop; lista, leitura e caixas em telas próprias no iPhone, áreas seguras, tokens do Design System, temas claro e escuro); cadastro de conta (única gravação da tela); estados carregando, vazio, erro, estrutura pendente e desconectado; "exemplo da interface" fictício, rotulado e isolado; matriz de paridade honesta.
+- **Banco:** `supabase/051_inbox_fundacao.sql` (preparada, **não aplicada**): contas, pastas, sincronização por pasta e identidade externa de mensagens; RLS só do dono (a casa fora), trava "mfa", chaves compostas com o dono, sem credencial e sem conteúdo; nada para `anon` nem `service_role`. Testes em PGlite provam o isolamento entre usuários.
+- **Integração:** contrato só de leitura e só com IDs, cliente do serviço (não publicado, nada simulado) e normalizador no formato real da P6.
+- Testes novos: `inbox_nucleo` (12), `inbox_sql` (11) e `inbox_tela` (6); testes de rotas, segurança e backup ajustados à rota e às tabelas novas. Versão do site `2026-11-14.4`.
+- Registrado em branch de trabalho da sessão; **sem PR, sem merge, sem SQL em produção, sem publicação, sem deploy de função, sem alteração do Worker nem dos pins.**
+
+### 2. O que estamos fazendo
+
+- Aguardando as decisões do dono: custódia da credencial do iCloud (bloqueia a I2), autorização para aplicar a 051 e confirmação do backup só-exportar.
+
+### 3. O que vamos fazer
+
+1. Com a custódia decidida: P7 (cofre, função `rac-inbox` e canal assinado com o Worker), cada passo com autorização própria.
+2. I2: sincronizar pastas e estado (`inbox_pastas` e `inbox_sincronizacao`) e a lista real de mensagens no lugar do exemplo; decidir a retenção antes de guardar qualquer conteúdo.
+

@@ -35,10 +35,10 @@ const SUBTIPOS_MULTIPART = Object.freeze(["mixed", "alternative", "related", "ou
 // ÚNICOS verbos que este módulo pode enviar. Qualquer outro derruba a chamada antes de escrever no socket.
 const VERBOS_P2 = Object.freeze(["CAPABILITY", "LOGIN", "LIST", "EXAMINE", "FETCH", "UID", "LOGOUT"]);
 const CAMPOS_CABECALHO = "FROM TO CC SUBJECT DATE MESSAGE-ID MIME-VERSION CONTENT-TYPE";
-const SEGURO_PARA_COMANDO = /^[^"\\\r\n\u0000]+$/;
-const NOME_PASTA = /^[A-Za-z0-9._-]{1,64}$/;
+export const SEGURO_PARA_COMANDO = /^[^"\\\r\n\u0000]+$/;
+export const NOME_PASTA = /^[A-Za-z0-9._-]{1,64}$/;
 const ITENS_ESTRUTURA = "UID RFC822.SIZE BODYSTRUCTURE";
-const UID_MAX = 4294967295;
+export const UID_MAX = 4294967295;
 
 // Conferência final de CADA comando antes de ir ao socket: verbo permitido e argumentos exatamente nos formatos desta etapa.
 // FETCH só pede UID; UID FETCH só pede a estrutura ou leituras PARCIAIS com PEEK (que não mudam flags) de cabeçalhos ou de uma parte.
@@ -62,7 +62,7 @@ function latin1(u8) {
   return s; // 1 byte = 1 caractere, sem a tabela do windows-1252: os bytes originais continuam recuperáveis
 }
 
-function criarLeitor(readable, prazo, maxBytes) {
+export function criarLeitor(readable, prazo, maxBytes) {
   const leitor = readable.getReader();
   let buf = "";
   let total = 0;
@@ -93,7 +93,7 @@ function criarLeitor(readable, prazo, maxBytes) {
 
 // Envia UM comando e lê a resposta até a linha etiquetada. Devolve { status, resto, soltas } com `soltas` = linhas lógicas { texto, literais }:
 // cada literal do servidor vira o marcador \u0001<índice>\u0001 no texto e o conteúdo fica em `literais` (limite por literal: `maxLiteral`).
-async function executarComando(ctx, verbo, args, maxLiteral) {
+export async function executarComando(ctx, verbo, args, maxLiteral) {
   if (!comandoPermitido(verbo, args || "", ctx.pasta)) throw new ErroP2("comando_nao_permitido");
   ctx.n += 1;
   const tag = "a" + ctx.n;
@@ -138,7 +138,7 @@ function registrarFalha(r, res) {
   r.detalhe = cod !== null && CODIGOS_RESPOSTA.includes(cod) ? cod : null;
 }
 
-function capabilities(soltas) {
+export function capabilities(soltas) {
   const tokens = [];
   for (const s of soltas) {
     const m = /^\* CAPABILITY (.*)$/i.exec(s.texto);
@@ -148,7 +148,7 @@ function capabilities(soltas) {
 }
 
 // a pasta existe e pode ser aberta? Compara o nome só com a constante da política (nenhum nome sai daqui)
-function pastaListada(soltas, pasta) {
+export function pastaListada(soltas, pasta) {
   let achou = false;
   let abrivel = false;
   for (const s of soltas) {
@@ -262,7 +262,7 @@ function consolidarFetch(respostas, { alvo, permitidos, lim }) {
 
 const SEM_PERMISSAO = Object.freeze({ estrutura: false, cabecalho: false, partes: new Set() });
 
-const inteiroAte = (v, max) => (Number.isSafeInteger(v) && v >= 0 ? Math.min(v, max) : 0);
+export const inteiroAte = (v, max) => (Number.isSafeInteger(v) && v >= 0 ? Math.min(v, max) : 0);
 
 function parteVazia() {
   return { presente: false, status: "nao_presente", tamanho_bytes: 0, bytes_lidos: 0, truncado: false, charset: null, caracteres: 0, linhas: 0, caracteres_invalidos: false };

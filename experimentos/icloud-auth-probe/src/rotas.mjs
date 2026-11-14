@@ -7,6 +7,7 @@ import { POLITICA, DETALHES_CONSUMO, operacaoDaAudiencia } from "./politica.mjs"
 import { chaveDeConsumo } from "./consumo.mjs";
 import { montarRespostaP1 } from "./imap.mjs";
 import { montarRespostaP2 } from "./mensagem.mjs";
+import { montarRespostaP6 } from "./sincronizacao.mjs";
 
 function json(status, corpo) {
   return new Response(JSON.stringify(corpo), {
@@ -55,6 +56,7 @@ async function lerCorpoLimitado(request, maxBytes) {
 //   p1_imap: EXATAMENTE { operacao, usuario, senha } (nomes fixos do contrato com o workflow); usuario = endereço de e-mail; senha = senha
 //   específica de app da Apple (xxxx-xxxx-xxxx-xxxx, só letras minúsculas). Qualquer outro campo, tipo ou formato é recusado.
 //   p2_imap: os mesmos três campos e, OPCIONAL, `uid` (número inteiro de 1 a 4294967295: a mensagem da pasta de teste a ler; sem ele, a última).
+//   p6_imap: os mesmos três campos e, OPCIONAIS mas sempre JUNTOS, `uidvalidity_anterior` e `uidnext_anterior` (inteiros de 1 a 4294967295: o estado da execução anterior).
 // Falha de esquema: HTTP 400 com um `detalhe` de lista fechada que diz QUAL regra falhou (nunca o valor recebido).
 const FORMATO_USUARIO = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}$/;
 const FORMATO_SENHA_APP = /^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/;
@@ -62,6 +64,7 @@ const FORMATO_SENHA_APP = /^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/;
 export const DETALHES_CORPO = Object.freeze([
   "corpo_nao_json", "corpo_nao_objeto", "operacao_invalida", "campos_inesperados", "campo_ausente_usuario", "campo_ausente_senha",
   "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida", "uid_invalido",
+  "anterior_incompleto", "uidvalidity_anterior_invalido", "uidnext_anterior_invalido",
 ]);
 
 // Examina o corpo: { corpo } se válido, ou { detalhe } com o código da regra que falhou. Só devolve constantes (nunca texto vindo do cliente).
@@ -75,7 +78,8 @@ export function examinarCorpo(bytes, politica = POLITICA) {
   const chaves = Object.keys(dados);
   const comCredencial = (politica.operacoesComCredencial || []).includes(dados.operacao);
   const comUid = dados.operacao === "p2_imap";
-  const permitidas = comCredencial ? (comUid ? ["operacao", "usuario", "senha", "uid"] : ["operacao", "usuario", "senha"]) : ["operacao"];
+  const comAnterior = dados.operacao === "p6_imap";
+  const permitidas = comCredencial ? (comUid ? ["operacao", "usuario", "senha", "uid"] : comAnterior ? ["operacao", "usuario", "senha", "uidvalidity_anterior", "uidnext_anterior"] : ["operacao", "usuario", "senha"]) : ["operacao"];
   if (chaves.some((k) => !permitidas.includes(k))) return { detalhe: "campos_inesperados" };
   if (!comCredencial) return { corpo: { operacao: dados.operacao } };
   if (!Object.prototype.hasOwnProperty.call(dados, "usuario")) return { detalhe: "campo_ausente_usuario" };
@@ -91,6 +95,16 @@ export function examinarCorpo(bytes, politica = POLITICA) {
     if (!Number.isSafeInteger(dados.uid) || dados.uid < 1 || dados.uid > 4294967295) return { detalhe: "uid_invalido" };
     corpo.uid = dados.uid;
   }
+  if (comAnterior) {
+    const tem = (k) => Object.prototype.hasOwnProperty.call(dados, k);
+    if (tem("uidvalidity_anterior") !== tem("uidnext_anterior")) return { detalhe: "anterior_incompleto" };
+    if (tem("uidvalidity_anterior")) {
+      const bom = (v) => Number.isSafeInteger(v) && v >= 1 && v <= 4294967295;
+      if (!bom(dados.uidvalidity_anterior)) return { detalhe: "uidvalidity_anterior_invalido" };
+      if (!bom(dados.uidnext_anterior)) return { detalhe: "uidnext_anterior_invalido" };
+      corpo.anterior = { uidvalidity: dados.uidvalidity_anterior, uidnext: dados.uidnext_anterior };
+    }
+  }
   return { corpo };
 }
 
@@ -99,7 +113,7 @@ export function lerCorpo(bytes, politica = POLITICA) {
   return examinarCorpo(bytes, politica).corpo || null;
 }
 
-export async function tratar(request, { verificar, politica = POLITICA, consumir, executarP1, executarP2 }) {
+export async function tratar(request, { verificar, politica = POLITICA, consumir, executarP1, executarP2, executarP6 }) {
   try {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/auth-probe") return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
@@ -147,6 +161,11 @@ export async function tratar(request, { verificar, politica = POLITICA, consumir
     if (corpo.operacao === "p2_imap") {
       if (typeof executarP2 !== "function") return recusa(500, "falha_interna", "falha_interna");
       const saida = montarRespostaP2(await executarP2({ usuario: corpo.usuario, senha: corpo.senha, uid: corpo.uid === undefined ? null : corpo.uid }));
+      return json(saida.ok ? 200 : 502, saida);
+    }
+    if (corpo.operacao === "p6_imap") {
+      if (typeof executarP6 !== "function") return recusa(500, "falha_interna", "falha_interna");
+      const saida = montarRespostaP6(await executarP6({ usuario: corpo.usuario, senha: corpo.senha, anterior: corpo.anterior === undefined ? null : corpo.anterior }));
       return json(saida.ok ? 200 : 502, saida);
     }
     return recusa(400, "operacao_invalida", "operacao_nao_implementada");

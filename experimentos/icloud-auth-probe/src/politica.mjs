@@ -13,10 +13,11 @@ export const POLITICA = Object.freeze({
   // validar_oidc: ensaio sem efeito (já provado em 14/11/2026). validar_uso_unico: prova SINTÉTICA do registro de uso único, sem credencial.
   // p1_imap: autenticação IMAP somente leitura (P1), a única operação com credencial.
   // p2_imap: leitura controlada de UMA mensagem da pasta RAC-TESTE (EXAMINE, somente leitura), também com credencial.
-  operacoes: Object.freeze(["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]),
+  // p6_imap: sincronização incremental SOMENTE LEITURA (EXAMINE da pasta de teste: UIDVALIDITY, UIDNEXT, EXISTS, capacidades), sem verbo novo.
+  operacoes: Object.freeze(["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]),
   // operações cujo token só pode ser usado UMA vez por execução do workflow (Durable Object); o consumo acontece antes de ler o corpo
-  operacoesComConsumo: Object.freeze(["validar_uso_unico", "p1_imap", "p2_imap"]),
-  operacoesComCredencial: Object.freeze(["p1_imap", "p2_imap"]),
+  operacoesComConsumo: Object.freeze(["validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]),
+  operacoesComCredencial: Object.freeze(["p1_imap", "p2_imap", "p6_imap"]),
 
   // identidade do repositório (dados públicos)
   repository: "raynercarvalho1/rac",

@@ -12,6 +12,7 @@ import { tratar } from "./rotas.mjs";
 import { pedirConsumo } from "./consumo.mjs";
 import { executarP1 } from "./imap.mjs";
 import { executarP2 } from "./mensagem.mjs";
+import { executarP6 } from "./sincronizacao.mjs";
 
 export { ConsumoUnico } from "./consumo.mjs";
 
@@ -34,6 +35,7 @@ export default {
       consumir: (dados) => pedirConsumo(ambiente && ambiente.CONSUMO, dados, POLITICA),
       executarP1: (credencial) => executarP1({ abrir: abrirSocket, usuario: credencial.usuario, senha: credencial.senha, politica: POLITICA }),
       executarP2: (dados) => executarP2({ abrir: abrirSocket, usuario: dados.usuario, senha: dados.senha, uid: dados.uid, politica: POLITICA }),
+      executarP6: (dados) => executarP6({ abrir: abrirSocket, usuario: dados.usuario, senha: dados.senha, anterior: dados.anterior, politica: POLITICA }),
     });
   },
 };

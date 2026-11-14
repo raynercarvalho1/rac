@@ -826,3 +826,19 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Decidir com o dono o próximo passo da I0 (investigar o `[READ-ONLY]` ausente; planejar P3 marcação/flags com autorização específica) e o futuro do Worker de POC (remoção só com autorização).
+
+## 14/11/2026 (noite, 9) · RAC Inbox — investigação do `somente_leitura_confirmado: false`
+
+### 1. O que fizemos
+
+- Investigação documental e de código, **sem nenhuma execução nova** (P0, P1, OIDC, uso único e P2 não repetidos; Worker publicado, credenciais e secrets intactos; nenhum comando que altere mensagens; P3 a P5 não implementadas).
+- **Conclusão:** o campo só registra se a resposta etiquetada do `EXAMINE` trouxe `[READ-ONLY]`; o texto bruto do servidor é descartado, então a confirmação pelo servidor **não é obtenível** com o Worker atual. A garantia de somente leitura é **por construção** (verbos fechados e conferidos, só `BODY.PEEK`, inspeção do pacote a cada publicação). Risco baixo; não bloqueia P6; tratar antes de P3. Detalhes e recomendações em `07-decisoes-e-pendencias.md`.
+- Teste do módulo da P2 e do portão do workflow rodados (ver relatório). RFC 3501 não pôde ser conferido (proxy bloqueou `rfc-editor.org`): o que se diz do RFC é conhecimento, não verificação.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão do dono sobre o encerramento da I0 e sobre o próximo passo. I0 **não** concluída (P3 a P7 pendentes); I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com a decisão do dono: P6 (sincronização e polling, somente leitura) junto com o indicador de EXAMINE; só depois, com autorização específica, P3 a P5; P7 (Vault, Edge Function, HMAC) é a base da I1. Se o dono quiser iniciar a I1 antes de P3 a P5, o critério de saída da I0 precisa ser revisado e registrado (decisão do dono).

@@ -548,6 +548,36 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
   assert.ok(guia.includes("`" + versoes[0] + "`"), "o guia registra a mesma versão do Node");
 });
 
+// registro EXPLÍCITO dos pins: mudar um pin exige mudar estas constantes na mesma PR (segunda confirmação, revisável no diff)
+const PINS_CONHECIDOS = {
+  p1: { manifesto: "e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82", commit: "68403f5221ed3d371e5786ed8cbca6a7b5492b6e" },
+  p2: { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" },
+};
+// pins P2 SUBSTITUÍDOS (nunca mais aceitos para p2_imap): o original, de 7653915, que tratava a segunda resposta FETCH como erro
+const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }];
+
+test("pins: o P1 está PRESERVADO (bytes idênticos aos aprovados originalmente), o P2 é o novo e os P2 substituídos não existem mais no arquivo", () => {
+  const raw = ler(ARQ_PIN), pin = JSON.parse(raw);
+  assert.equal(pin.pins.p1.manifesto_sha256, PINS_CONHECIDOS.p1.manifesto); assert.equal(pin.pins.p1.commit_referencia, PINS_CONHECIDOS.p1.commit);
+  assert.equal(pin.pins.p2.manifesto_sha256, PINS_CONHECIDOS.p2.manifesto); assert.equal(pin.pins.p2.commit_referencia, PINS_CONHECIDOS.p2.commit);
+  for (const s of P2_SUBSTITUIDOS) {
+    assert.notEqual(pin.pins.p2.manifesto_sha256, s.manifesto, "o pin P2 anterior não pode continuar sendo o P2");
+    assert.ok(!raw.includes(s.manifesto) && !raw.includes(s.commit), "o pin P2 anterior não aparece em nenhuma operação nem em nenhum pin");
+    assert.notEqual(pin.pins.p1.manifesto_sha256, s.manifesto);
+  }
+  assert.deepEqual(pin.operacoes.p2_imap, ["p2"]); assert.deepEqual(pin.operacoes.p1_imap, ["p1"]);
+});
+
+test("EXECUÇÃO — pin: p2_imap RECUSA o conteúdo do pin P2 anterior (mensagem.mjs e politica.mjs antigos) e o P1, e aceita só o P2 novo", { skip: semFerramentas }, () => {
+  const atual = (extra) => fixture({ perfil: "p2", ...extra });
+  const antigo = { extra: { "src/mensagem.mjs": "export const mensagem = 'versao anterior do P2';\n", "src/politica.mjs": "export const politica = 'versao anterior do P2';\n" } };
+  recusaNoPin("conteúdo do P2 anterior", atual(antigo), "p2_imap");
+  recusaNoPin("conteúdo do P2 anterior só em mensagem.mjs", atual({ extra: { "src/mensagem.mjs": antigo.extra["src/mensagem.mjs"] } }), "p2_imap");
+  recusaNoPin("conteúdo do P2 anterior só em politica.mjs", atual({ extra: { "src/politica.mjs": antigo.extra["src/politica.mjs"] } }), "p2_imap");
+  recusaNoPin("o P1 não vale para p2_imap", fixture({ perfil: "p1" }), "p2_imap");
+  assert.equal(porta(atual({}), "p2_imap").status, 0, "o P2 vigente é aceito");
+});
+
 test("aprovados.json: formato, associação operação→pin, manifesto recalculado, ordem, lista de arquivos e P2 = P1 + os dois módulos novos", () => {
   const pin = JSON.parse(ler(ARQ_PIN));
   assert.deepEqual(Object.keys(pin).sort(), ["formato", "operacoes", "pins"]);

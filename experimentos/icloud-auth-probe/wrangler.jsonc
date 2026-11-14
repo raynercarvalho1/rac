@@ -4,5 +4,7 @@
   "main": "src/index.mjs",
   "compatibility_date": "2026-11-13",
   "workers_dev": true,
-  "observability": { "enabled": false }
+  "observability": { "enabled": false },
+  "durable_objects": { "bindings": [{ "name": "CONSUMO", "class_name": "ConsumoUnico" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ConsumoUnico"] }]
 }

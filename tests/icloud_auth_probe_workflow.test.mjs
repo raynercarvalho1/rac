@@ -278,7 +278,9 @@ test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere
 
 // ---------- coerência com a política do Worker e com a documentação ----------
 
-const temWorker = existe("experimentos/icloud-auth-probe/src/politica.mjs");
+// Com o Worker de replay + P1 (que traz consumo.mjs e três operações) esta coerência com o workflow ANTERIOR deixa de valer; a coerência com o workflow novo
+// é verificada pelo teste da versão nova deste arquivo, que chega a esta branch com o merge da PR do workflow (replay + P1) na main.
+const temWorker = existe("experimentos/icloud-auth-probe/src/politica.mjs") && !existe("experimentos/icloud-auth-probe/src/consumo.mjs");
 test("o Worker (quando presente) só aceita tokens da main, do workflow deste arquivo e do Environment icloud-auth-poc", { skip: !temWorker && "o código do Worker está na branch da POC e chega à main com a PR dela" }, async () => {
   const { POLITICA, workflowRefEsperado, audienciasPermitidas } = await import("../experimentos/icloud-auth-probe/src/politica.mjs");
   assert.deepEqual(POLITICA.refsPermitidos, ["refs/heads/main"]);

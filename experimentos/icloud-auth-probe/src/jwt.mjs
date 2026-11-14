@@ -1,6 +1,6 @@
 // Validação do JWT OIDC do GitHub Actions. Falha fechada: qualquer dúvida é recusa.
 // Devolve só um MOTIVO de lista fechada (nunca o token, nem valor de claim) para não vazar nada em erro ou resposta.
-import { audienciasPermitidas, workflowRefEsperado, DETALHES_JWKS } from "./politica.mjs";
+import { audienciasPermitidas, workflowRefEsperado, operacaoDaAudiencia, DETALHES_JWKS } from "./politica.mjs";
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
 const CABECALHOS_PROIBIDOS = ["jku", "x5u", "x5c", "jwk", "crit"];
@@ -23,6 +23,14 @@ function objetoJson(bytes) {
 function texto(valor) {
   return typeof valor === "string" && valor.length > 0 ? valor : null;
 }
+
+// identificadores da execução: só dígitos (o GitHub os emite como texto numérico; um inteiro seguro também é aceito) e sempre normalizados para texto
+const FORMATO_JTI = /^[A-Za-z0-9._:-]{8,128}$/;
+export function idNumerico(valor, maxDigitos) {
+  const t = typeof valor === "number" ? (Number.isSafeInteger(valor) ? String(valor) : "") : typeof valor === "string" ? valor : "";
+  return new RegExp("^[1-9][0-9]{0," + (maxDigitos - 1) + "}$").test(t) ? t : null;
+}
+const ausente = (v) => v === undefined || v === null || v === "";
 
 // confere o contexto do job (claims já com assinatura válida); devolve o motivo da recusa ou null
 export function conferirClaims(claims, politica, agoraS) {
@@ -58,6 +66,14 @@ export function conferirClaims(claims, politica, agoraS) {
   if (!texto(claims.runner_environment)) return "runner_environment_ausente";
   if (claims.runner_environment !== politica.runnerEnvironment) return "runner_environment_invalido";
 
+  // identificadores do token e da execução: obrigatórios, porque a chave de uso único é derivada deles
+  if (ausente(claims.jti)) return "jti_ausente";
+  if (typeof claims.jti !== "string" || !FORMATO_JTI.test(claims.jti)) return "jti_invalido";
+  if (ausente(claims.run_id)) return "run_id_ausente";
+  if (!idNumerico(claims.run_id, 20)) return "run_id_invalido";
+  if (ausente(claims.run_attempt)) return "run_attempt_ausente";
+  if (!idNumerico(claims.run_attempt, 4)) return "run_attempt_invalido";
+
   const tol = politica.toleranciaRelogioS;
   if (typeof claims.exp !== "number" || !Number.isFinite(claims.exp)) return "exp_ausente";
   if (typeof claims.iat !== "number" || !Number.isFinite(claims.iat)) return "iat_ausente";
@@ -67,7 +83,11 @@ export function conferirClaims(claims, politica, agoraS) {
     if (claims.nbf > agoraS + tol) return "token_ainda_nao_valido";
   }
   if (claims.iat > agoraS + tol) return "iat_no_futuro";
-  if (agoraS - claims.iat > politica.idadeMaximaS + tol) return "token_antigo_demais";
+  // operação com credencial: idade máxima curta e SEM somar a tolerância (limite total de idadeMaximaCredencialS)
+  const comCredencial = (politica.operacoesComCredencial || []).includes(operacaoDaAudiencia(claims.aud, politica));
+  if (comCredencial) {
+    if (agoraS - claims.iat > politica.idadeMaximaCredencialS) return "token_antigo_demais";
+  } else if (agoraS - claims.iat > politica.idadeMaximaS + tol) return "token_antigo_demais";
   if (claims.exp < claims.iat) return "exp_antes_de_iat";
   return null;
 }

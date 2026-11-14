@@ -3,11 +3,13 @@
 // nem sintética com valor operacional), nenhuma conta Apple: o ensaio OIDC não transmite credencial alguma. Prova a lógica local; NÃO prova o comportamento no runtime Cloudflare nem o formato real dos tokens do GitHub.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POLITICA, DETALHES_JWKS } from "../experimentos/icloud-auth-probe/src/politica.mjs";
+import { POLITICA, DETALHES_JWKS, DETALHES_CONSUMO } from "../experimentos/icloud-auth-probe/src/politica.mjs";
 import { verificarJwt, conferirClaims } from "../experimentos/icloud-auth-probe/src/jwt.mjs";
 import { criarProvedorChaves } from "../experimentos/icloud-auth-probe/src/jwks.mjs";
 import { readFileSync } from "node:fs";
-import { tratar, lerCorpo } from "../experimentos/icloud-auth-probe/src/index.mjs";
+import { tratar, lerCorpo } from "../experimentos/icloud-auth-probe/src/rotas.mjs";
+import { ConsumoUnico, pedirConsumo, ErroConsumo } from "../experimentos/icloud-auth-probe/src/consumo.mjs";
+import { DatabaseSync } from "node:sqlite";
 
 const AGORA = 1_800_000_000;
 const KID = "kid-sintetico-1";
@@ -38,7 +40,7 @@ function claimsValidos(extra = {}) {
     iss: POLITICA.issuer, aud: POLITICA.audienciaPrefixo + "validar_oidc", sub: POLITICA.subsPermitidos[0],
     repository: POLITICA.repository, repository_id: POLITICA.repositoryId, repository_owner: POLITICA.repositoryOwner, repository_owner_id: POLITICA.repositoryOwnerId,
     environment: POLITICA.environment, ref, event_name: "workflow_dispatch", workflow_ref: wf, job_workflow_ref: wf, runner_environment: "github-hosted",
-    iat: AGORA - 10, nbf: AGORA - 10, exp: AGORA + 290, jti: "jti-sintetico",
+    iat: AGORA - 10, nbf: AGORA - 10, exp: AGORA + 290, jti: "jti-sintetico", run_id: "26600000001", run_attempt: "1",
   };
   Object.assign(c, extra);
   for (const k of Object.keys(c)) if (c[k] === undefined) delete c[k];
@@ -151,7 +153,7 @@ test("claims ausentes: cada uma obrigatória derruba o token", async () => {
   const obrigatorias = { iss: "iss_invalido", aud: "aud_invalida", sub: "sub_ausente", repository: "repository_ausente", repository_id: "repository_id_ausente",
     repository_owner: "repository_owner_ausente", repository_owner_id: "repository_owner_id_ausente", environment: "environment_ausente", ref: "ref_ausente",
     event_name: "event_name_ausente", workflow_ref: "workflow_ref_ausente", job_workflow_ref: "job_workflow_ref_ausente", runner_environment: "runner_environment_ausente",
-    exp: "exp_ausente", iat: "iat_ausente" };
+    exp: "exp_ausente", iat: "iat_ausente", jti: "jti_ausente", run_id: "run_id_ausente", run_attempt: "run_attempt_ausente" };
   for (const [nome, esperado] of Object.entries(obrigatorias)) assert.equal(await motivo(c, await token(c, claimsValidos({ [nome]: undefined }))), esperado, nome);
   assert.equal(await motivo(c, await token(c, claimsValidos({ nbf: undefined }))), "ok", "nbf é opcional");
 });
@@ -550,4 +552,252 @@ test("DIAGNÓSTICO: a política continua estrita (TTL, janela de chave velha, ta
   assert.equal(POLITICA.jwksTimeoutMs, 5000);
   assert.equal(POLITICA.jwksMaxBytes, 65536);
   assert.equal(POLITICA.issuer, "https://token.actions.githubusercontent.com");
+});
+
+// ---------- Claims da execução: jti, run_id e run_attempt ----------
+
+test("jti, run_id e run_attempt: obrigatórios e com formato estrito (texto numérico, sem zeros à esquerda, sem lixo)", async () => {
+  const c = await cenario();
+  const tabela = [
+    ["jti_invalido", { jti: "curto" }], ["jti_invalido", { jti: "tem espaço ou \n quebra" }], ["jti_invalido", { jti: "x".repeat(129) }], ["jti_invalido", { jti: 12345678 }],
+    ["run_id_invalido", { run_id: "abc" }], ["run_id_invalido", { run_id: "0123" }], ["run_id_invalido", { run_id: "1".repeat(21) }], ["run_id_invalido", { run_id: "12:3" }],
+    ["run_id_invalido", { run_id: 1.5 }], ["run_id_invalido", { run_id: -1 }], ["run_id_invalido", { run_id: { a: 1 } }],
+    ["run_attempt_invalido", { run_attempt: "0" }], ["run_attempt_invalido", { run_attempt: "12345" }], ["run_attempt_invalido", { run_attempt: "a" }], ["run_attempt_invalido", { run_attempt: "1; DROP" }],
+  ];
+  for (const [esperado, extra] of tabela) assert.equal(await motivo(c, await token(c, claimsValidos(extra))), esperado, JSON.stringify(extra));
+  for (const nome of ["jti", "run_id", "run_attempt"]) for (const vazio of [undefined, null, ""]) assert.equal(await motivo(c, await token(c, claimsValidos({ [nome]: vazio }))), nome + "_ausente", nome);
+  assert.equal(await motivo(c, await token(c, claimsValidos({ run_id: 26600000001, run_attempt: 2 }))), "ok", "inteiro seguro também é aceito (e normalizado para texto)");
+  assert.equal(await motivo(c, await token(c, claimsValidos({ jti: "3f2b8c1e-9d4a-4e7b-8a61-5c0d2f9e7b10" }))), "ok", "jti em formato de UUID");
+});
+
+test("idade máxima do token: 60 s para operação com credencial (sem somar a tolerância); operações sem credencial seguem em 600 s", async () => {
+  assert.equal(POLITICA.idadeMaximaCredencialS, 60);
+  const c = await cenario();
+  const p1 = (iat, extra = {}) => claimsValidos({ aud: POLITICA.audienciaPrefixo + "p1_imap", iat, nbf: iat, exp: iat + 290, ...extra });
+  assert.equal(await motivo(c, await token(c, p1(AGORA - 60))), "ok", "60 s de idade ainda vale");
+  assert.equal(await motivo(c, await token(c, p1(AGORA - 61))), "token_antigo_demais", "61 s: recusado, mesmo dentro da tolerância de 60 s do relógio");
+  assert.equal(await motivo(c, await token(c, p1(AGORA - 120))), "token_antigo_demais");
+  assert.equal(await motivo(c, await token(c, p1(AGORA - 10, { exp: AGORA - 61 }))), "token_expirado");
+  assert.equal(await motivo(c, await token(c, p1(AGORA + 61, { nbf: undefined }))), "iat_no_futuro");
+  for (const op of ["validar_oidc", "validar_uso_unico"]) {
+    const sem = (iat) => claimsValidos({ aud: POLITICA.audienciaPrefixo + op, iat, nbf: iat, exp: iat + 700 });
+    assert.equal(await motivo(c, await token(c, sem(AGORA - 600))), "ok", op + ": até 600 s");
+    assert.equal(await motivo(c, await token(c, sem(AGORA - 700))), "token_antigo_demais", op);
+  }
+});
+
+// ---------- Uso único (proteção contra replay) no nível do Worker ----------
+
+function sqlDe(db) {
+  return {
+    exec(consulta, ...valores) {
+      if (/^\s*CREATE/i.test(consulta)) { db.exec(consulta); return { toArray: () => [] }; }
+      const linhas = db.prepare(consulta).all(...valores);
+      return { toArray: () => linhas };
+    },
+  };
+}
+// Durable Object de verdade (a classe ConsumoUnico), com SQLite real do Node, atrás de um namespace falso. NÃO é o runtime da Cloudflare.
+function namespaceFalso() {
+  const db = new DatabaseSync(":memory:");
+  const state = { storage: { sql: sqlDe(db), transactionSync: (fn) => fn() } };
+  const relogio = { t: AGORA };
+  let instancia = null;
+  const ns = {
+    pedidos: 0,
+    idFromName: (nome) => nome,
+    get: () => {
+      instancia = instancia || new ConsumoUnico(state, {}, { agora: () => relogio.t });
+      return { fetch: (url, init) => { ns.pedidos += 1; return instancia.fetch(new Request(url, init)); } };
+    },
+  };
+  return { ns, db, relogio };
+}
+const AUD = (op) => POLITICA.audienciaPrefixo + op;
+const SENHA_APP = "abcd-efgh-ijkl-mnop"; // sentinela com o formato da senha de app; NÃO é uma credencial
+const USUARIO_APPLE = "sentinela.usuario@example.com";
+async function chamar(c, { op = "validar_uso_unico", corpo, extraClaims = {}, consumir, executarP1, jwt }) {
+  const claims = claimsValidos({ aud: AUD(op), ...extraClaims });
+  const tk = jwt || (await token(c, claims));
+  const { req, estado } = pedido(tk, corpo || { operacao: op });
+  const r = await resposta(await tratar(req, { verificar: c.verificar, consumir, executarP1 }));
+  return { ...r, estado, tk };
+}
+
+test("USO ÚNICO: 20 chamadas simultâneas da mesma execução (jti diferentes) — exatamente UMA é aceita, as outras 19 recebem 409", async () => {
+  const c = await cenario();
+  const { ns } = namespaceFalso();
+  const consumir = (d) => pedirConsumo(ns, d);
+  const rs = await Promise.all(Array.from({ length: 20 }, (_, i) => chamar(c, { consumir, extraClaims: { jti: "jti-simultaneo-" + i } })));
+  assert.equal(rs.filter((r) => r.status === 200).length, 1, "exatamente uma aceita");
+  assert.equal(rs.filter((r) => r.status === 409).length, 19);
+  for (const r of rs.filter((x) => x.status === 409)) assert.deepEqual(JSON.parse(r.texto), { ok: false, erro: "ja_consumido", motivo: "uso_unico" });
+  assert.equal(rs.filter((r) => r.status === 409).every((r) => r.estado.lido === false), true, "quem perde nem chega a ler o corpo");
+  assert.equal(ns.pedidos, 20);
+});
+
+test("USO ÚNICO: o MESMO token enviado 20 vezes ao mesmo tempo também passa uma única vez", async () => {
+  const c = await cenario();
+  const { ns } = namespaceFalso();
+  const consumir = (d) => pedirConsumo(ns, d);
+  const tk = await token(c, claimsValidos({ aud: AUD("validar_uso_unico") }));
+  const rs = await Promise.all(Array.from({ length: 20 }, () => chamar(c, { consumir, jwt: tk })));
+  assert.deepEqual([rs.filter((r) => r.status === 200).length, rs.filter((r) => r.status === 409).length], [1, 19]);
+});
+
+test("USO ÚNICO: chaves distintas (outra execução, outra tentativa, outra operação) não se bloqueiam", async () => {
+  const c = await cenario();
+  const { ns } = namespaceFalso();
+  const consumir = (d) => pedirConsumo(ns, d);
+  const execs = await Promise.all(Array.from({ length: 20 }, (_, i) => chamar(c, { consumir, extraClaims: { run_id: String(26600001000 + i), jti: "jti-exec-" + i } })));
+  assert.equal(execs.filter((r) => r.status === 200).length, 20, "20 execuções diferentes, 20 aceitas");
+  const base = await chamar(c, { consumir, extraClaims: { run_id: "26600009999", run_attempt: "1" } });
+  assert.equal(base.status, 200);
+  assert.equal((await chamar(c, { consumir, extraClaims: { run_id: "26600009999", run_attempt: "2", jti: "jti-tentativa-2" } })).status, 200, "re-execução (run_attempt 2) tem chave própria");
+  assert.equal((await chamar(c, { consumir, extraClaims: { run_id: "26600009999", run_attempt: "1", jti: "jti-repetida-1" } })).status, 409, "a tentativa 1 continua consumida");
+  const p1 = await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir, executarP1: async () => ({ ok: false, estagio: "conexao", erro: "conexao_falhou" }), extraClaims: { run_id: "26600009999", run_attempt: "1", jti: "jti-p1-a" } });
+  assert.notEqual(p1.status, 409, "a operação faz parte da chave: a P1 da mesma execução é outra chave");
+});
+
+test("USO ÚNICO: replay depois do sucesso — mesmo token, token novo da mesma execução e jti repetido são recusados com 409", async () => {
+  const c = await cenario();
+  const { ns } = namespaceFalso();
+  const consumir = (d) => pedirConsumo(ns, d);
+  const tk = await token(c, claimsValidos({ aud: AUD("validar_uso_unico") }));
+  assert.equal((await chamar(c, { consumir, jwt: tk })).status, 200);
+  assert.equal((await chamar(c, { consumir, jwt: tk })).status, 409, "o mesmo token");
+  assert.equal((await chamar(c, { consumir, extraClaims: { jti: "outro-jti-mesma-execucao" } })).status, 409, "jti diferente, mesma execução");
+  assert.equal((await chamar(c, { consumir, extraClaims: { jti: "jti-sintetico" } })).status, 409, "jti repetido");
+});
+
+test("USO ÚNICO: falha, indisponibilidade ou timeout do registro = HTTP 503, o corpo não é lido e a operação NÃO acontece (falha fechada)", async () => {
+  const c = await cenario();
+  let executou = 0;
+  const executarP1 = async () => { executou += 1; return { ok: true }; };
+  const resp500 = () => new Response(JSON.stringify({ erro: "falha" }), { status: 500 });
+  const respRuim = (corpo) => () => new Response(corpo, { status: 200 });
+  const nsCom = (fetchDoStub) => ({ idFromName: (n) => n, get: () => ({ fetch: fetchDoStub }) });
+  const rapida = { ...POLITICA, consumo: { ...POLITICA.consumo, timeoutMs: 40 } };
+  const casos = [
+    ["consumir ausente", undefined, "consumo_nao_configurado"],
+    ["binding ausente", (d) => pedirConsumo(undefined, d), "consumo_nao_configurado"],
+    ["objeto lança", (d) => pedirConsumo(nsCom(() => { throw new Error("DO caiu"); }), d), "consumo_falha"],
+    ["objeto rejeita", (d) => pedirConsumo(nsCom(() => Promise.reject(new Error("DO caiu"))), d), "consumo_falha"],
+    ["objeto responde 500", (d) => pedirConsumo(nsCom(resp500), d), "consumo_resposta_invalida"],
+    ["objeto responde 404", (d) => pedirConsumo(nsCom(() => new Response("x", { status: 404 })), d), "consumo_resposta_invalida"],
+    ["corpo não é JSON", (d) => pedirConsumo(nsCom(respRuim("<html>")), d), "consumo_falha"],
+    ["consumido não booleano", (d) => pedirConsumo(nsCom(respRuim('{"consumido":"true"}')), d), "consumo_resposta_invalida"],
+    ["campo extra", (d) => pedirConsumo(nsCom(respRuim('{"consumido":true,"x":1}')), d), "consumo_resposta_invalida"],
+    ["sem o campo", (d) => pedirConsumo(nsCom(respRuim("{}")), d), "consumo_resposta_invalida"],
+    ["timeout (objeto nunca responde)", (d) => pedirConsumo(nsCom(() => new Promise(() => {})), d, rapida), "consumo_timeout"],
+    ["timeout lendo o corpo", (d) => pedirConsumo(nsCom(() => Promise.resolve({ status: 200, json: () => new Promise(() => {}) })), d, rapida), "consumo_timeout"],
+    ["consumir devolve algo que não é booleano", async () => "sim", "consumo_resposta_invalida"],
+    ["consumir devolve undefined", async () => undefined, "consumo_resposta_invalida"],
+    ["consumir lança erro estranho com texto sensível", async () => { throw new Error("SEGREDO " + SENHA_APP); }, "consumo_falha"],
+    ["consumir lança ErroConsumo com código fora da lista", async () => { throw new ErroConsumo("codigo_inventado"); }, "consumo_falha"],
+  ];
+  for (const [nome, consumir, detalhe] of casos) {
+    const r = await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir, executarP1 });
+    assert.equal(r.status, 503, nome);
+    assert.deepEqual(JSON.parse(r.texto), { ok: false, erro: "consumo_indisponivel", motivo: detalhe }, nome);
+    assert.ok(DETALHES_CONSUMO.includes(detalhe));
+    assert.equal(r.estado.lido, false, nome + ": o corpo (com a credencial) não pode ser lido");
+    assert.ok(!r.texto.includes(SENHA_APP) && !r.texto.includes("SEGREDO"), nome + ": nada sensível na resposta");
+  }
+  assert.equal(executou, 0, "a operação protegida nunca foi executada");
+});
+
+test("USO ÚNICO: o consumo acontece ANTES da leitura do corpo, e o corpo só é lido depois de aceito", async () => {
+  const c = await cenario();
+  const ordem = [];
+  let estadoAtual;
+  const consumir = async () => { ordem.push(estadoAtual.lido ? "corpo_lido_antes" : "consumo_antes_do_corpo"); return true; };
+  const claims = claimsValidos({ aud: AUD("p1_imap") });
+  const { req, estado } = pedido(await token(c, claims), { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP });
+  estadoAtual = estado;
+  const r = await tratar(req, { verificar: c.verificar, consumir, executarP1: async () => ({ ok: false, estagio: "conexao", erro: "conexao_falhou" }) });
+  assert.deepEqual(ordem, ["consumo_antes_do_corpo"]);
+  assert.equal(estado.lido, true);
+  assert.equal(r.status, 502);
+  // operação sem consumo (validar_oidc) não toca no registro
+  let chamadas = 0;
+  const c2 = await chamar(c, { op: "validar_oidc", consumir: async () => { chamadas += 1; return true; } });
+  assert.equal(c2.status, 200);
+  assert.equal(chamadas, 0);
+});
+
+test("P1 · esquema da requisição: exatamente operacao, usuario e senha, com formato estrito; o resto é recusado sem ecoar nada", async () => {
+  const c = await cenario();
+  let executou = 0;
+  const executarP1 = async () => { executou += 1; return { ok: false, estagio: "conexao", erro: "conexao_falhou" }; };
+  const ruins = [
+    ["sem usuário", { operacao: "p1_imap", senha: SENHA_APP }], ["sem senha", { operacao: "p1_imap", usuario: USUARIO_APPLE }],
+    ["campo extra", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP, pasta: "INBOX" }],
+    ["senha fora do formato de senha de app", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "SenhaPrincipal123" }],
+    ["senha com aspas", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: 'abcd-efgh-ijkl-mn"p' }],
+    ["usuário sem arroba", { operacao: "p1_imap", usuario: "sentinela", senha: SENHA_APP }],
+    ["usuário com aspas", { operacao: "p1_imap", usuario: 'a"b@example.com', senha: SENHA_APP }],
+    ["usuário com quebra de linha", { operacao: "p1_imap", usuario: "a\r\nb@example.com", senha: SENHA_APP }],
+    ["usuário não é texto", { operacao: "p1_imap", usuario: 1, senha: SENHA_APP }], ["senha não é texto", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: [SENHA_APP] }],
+    ["usuário enorme", { operacao: "p1_imap", usuario: "a".repeat(300) + "@example.com", senha: SENHA_APP }],
+  ];
+  for (const [nome, corpo] of ruins) {
+    const { ns } = namespaceFalso();
+    const r = await chamar(c, { op: "p1_imap", corpo, consumir: (d) => pedirConsumo(ns, d), executarP1 });
+    assert.equal(r.status, 400, nome);
+    assert.deepEqual(JSON.parse(r.texto), { ok: false, erro: "corpo_invalido", motivo: "esquema_invalido" }, nome);
+    assert.ok(!r.texto.includes(SENHA_APP) && !r.texto.includes("sentinela"), nome + ": nada da credencial volta");
+  }
+  assert.equal(executou, 0);
+  assert.equal(lerCorpo(new TextEncoder().encode(JSON.stringify({ operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }))).senha, SENHA_APP);
+  assert.equal(lerCorpo(new TextEncoder().encode(JSON.stringify({ operacao: "validar_uso_unico", senha: SENHA_APP }))), null, "operação sem credencial não aceita credencial");
+});
+
+test("P1 · resposta de esquema fechado: só campos conhecidos, mesmo que o executor devolva outras coisas", async () => {
+  const c = await cenario();
+  const { ns } = namespaceFalso();
+  const suja = { ok: true, estagio: "concluido", autenticado: true, logout: true, usuario: USUARIO_APPLE, senha: SENHA_APP, nomes_pastas: ["Pessoal/Banco"], erro: "texto do servidor",
+    capabilities: { total: 12, idle: true, move: true, remetente: "x@y.z", imap4rev1: "sim" }, pastas: { total: 9, nao_selecionaveis: 1, com_filhos: 2, uso_especial: { enviados: 1, lixeira: 1, nome: "Contas" }, itens: ["Pessoal"] }, pasta_teste_existe: true };
+  const r = await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir: (d) => pedirConsumo(ns, d), executarP1: async () => suja });
+  assert.equal(r.status, 200);
+  const saida = JSON.parse(r.texto);
+  assert.deepEqual(Object.keys(saida).sort(), ["autenticado", "capabilities", "estagio", "logout", "ok", "operacao", "pasta_teste_existe", "pastas"]);
+  assert.equal(saida.capabilities.imap4rev1, false, "só booleano verdadeiro vale");
+  assert.deepEqual(Object.keys(saida.pastas).sort(), ["com_filhos", "nao_selecionaveis", "total", "uso_especial"]);
+  for (const proibido of [USUARIO_APPLE, SENHA_APP, "Pessoal", "Banco", "Contas", "x@y.z", "texto do servidor"]) assert.ok(!r.texto.includes(proibido), "vazou: " + proibido);
+  // falha do IMAP: HTTP 502 com código de lista fechada e nada de texto do servidor
+  const { ns: ns2 } = namespaceFalso();
+  const f = await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir: (d) => pedirConsumo(ns2, d), executarP1: async () => ({ ok: false, estagio: "login", erro: "NO senha SENTINELA" }) });
+  assert.equal(f.status, 502);
+  assert.deepEqual(JSON.parse(f.texto), { ok: false, operacao: "p1_imap", estagio: "login", autenticado: false, logout: false, erro: "falha_inesperada" });
+  assert.ok(!f.texto.includes("SENTINELA"));
+});
+
+test("P1 · a credencial nunca vai a logs, respostas, cabeçalhos nem ao registro de uso único (SQLite guarda só chave, jti e instantes)", async () => {
+  const c = await cenario();
+  const { ns, db } = namespaceFalso();
+  const chamadasLog = [];
+  const originais = {};
+  for (const m of ["log", "info", "warn", "error", "debug", "trace"]) { originais[m] = console[m]; console[m] = (...a) => chamadasLog.push(a.map(String).join(" ")); }
+  const saidas = [];
+  let tk;
+  try {
+    const executarP1 = async () => ({ ok: false, estagio: "login", erro: "autenticacao_recusada", autenticado: false });
+    const consumir = (d) => pedirConsumo(ns, d);
+    tk = await token(c, claimsValidos({ aud: AUD("p1_imap") }));
+    saidas.push(await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir, executarP1, jwt: tk }));
+    saidas.push(await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir, executarP1, jwt: tk })); // replay
+    saidas.push(await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir: async () => { throw new Error("falhou " + SENHA_APP); }, executarP1 }));
+    saidas.push(await chamar(c, { op: "p1_imap", corpo: { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP }, consumir, executarP1: async () => { throw new Error("explodiu " + SENHA_APP); }, extraClaims: { run_id: "26600000777" } }));
+  } finally {
+    for (const m of Object.keys(originais)) console[m] = originais[m];
+  }
+  for (const s of saidas) for (const proibido of [SENHA_APP, USUARIO_APPLE, tk]) { assert.ok(!s.texto.includes(proibido), "resposta vazou"); assert.ok(!s.headers.includes(proibido), "cabeçalho vazou"); }
+  assert.equal(chamadasLog.length, 0, "nenhum console");
+  assert.deepEqual(saidas.map((s) => s.status), [502, 409, 503, 500]);
+  const tabela = db.prepare("SELECT * FROM consumo").all();
+  assert.equal(tabela.length, 2);
+  assert.deepEqual(Object.keys(tabela[0]).sort(), ["chave", "consumido_em", "expira_em", "jti"]);
+  assert.ok(!JSON.stringify(tabela).includes(SENHA_APP) && !JSON.stringify(tabela).includes("sentinela") && !JSON.stringify(tabela).includes(tk));
+  assert.deepEqual(tabela.map((l) => l.chave).sort(), ["26600000001:1:p1_imap", "26600000777:1:p1_imap"]);
 });

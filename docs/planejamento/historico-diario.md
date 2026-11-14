@@ -1092,3 +1092,23 @@ Família e da Casa.
 
 1. Com autorização: publicar o novo commit pelo workflow e rodar a P1 numa **nova** execução, depois de o dono conferir os secrets (e-mail completo; senha `xxxx-xxxx-xxxx-xxxx`).
 2. Registrar o resultado (estágio e código de erro, sem dados da conta); P3 a P7 só com autorização específica.
+
+## 14/11/2026 (noite) · RAC Inbox — P1 comprovada; P2 implementada e testada localmente
+
+### 1. O que fizemos
+
+- **Estado reconstruído pelo GitHub e pela documentação:** `main` `4ff3ed9` (PR #21); PR #17 aberta em Draft no head `68403f5` com CI `testes` aprovado; execução 43599209307 do workflow (P1) com conclusão `success` em 14/11/2026 13:19 UTC. **P1 registrada como comprovada** (autenticação IMAP, capabilities e estrutura de pastas; sem ler mensagens e sem alterar a caixa).
+- **P2 implementada (somente leitura, `RAC-TESTE`, uma mensagem por execução):** `src/mime.mjs` (análise pura de MIME e indicadores), `src/mensagem.mjs` (protocolo `LIST`/`EXAMINE`/`FETCH`/`UID FETCH` com `BODY.PEEK` parcial, conferência de cada comando antes do socket, resposta de esquema fechado), `politica.mjs` (operação `p2_imap` com credencial e uso único; limites `politica.p2`), `rotas.mjs` (`uid` opcional, validado), `index.mjs`; no workflow, a operação `p2_imap`, a entrada opcional `uid_mensagem`, os módulos novos na lista fixa, a inspeção do pacote com listas exatas de verbos (P1 e P2), sem `BODY[` e sem `RFC822` além do tamanho, e o passo "P2 IMAP" **sem retry**.
+- **Testes:** novo `icloud_auth_probe_p2.test.mjs` (servidor IMAP falso e sentinelas) e extensões de contrato, workflow, escopo do Worker e esquema do corpo. Suíte completa na nuvem com as regras do CI (Node 24): **Grupo 1 com 1.732 testes (1.730 aprovados, 0 falhas, 0 ignorados, 2 `todo`)** e **Grupo 2 com 73/73**. A integração workflow × Worker usa o `executarP2` real sobre um IMAP falso, com sentinelas, sem credencial real. O pacote real gerado pelo Wrangler do lockfile (`--dry-run`, 74.381 bytes) foi aprovado no passo de inspeção do workflow (a primeira tentativa revelou um falso positivo de `DELETE`/`CREATE`, que existem só como SQL do registro de uso único; a busca foi corrigida).
+- **Documentação:** README do Worker, Documento 10 (seção 13.21), decisões e pendências, roadmap, mapa e guia de publicação.
+- **Não feito (de propósito):** nenhuma publicação, nenhum run de workflow, nenhum acesso à Apple ou à Cloudflare, nenhuma alteração de secrets ou Environments, nenhum SMTP, nenhuma mutação na caixa, nenhum merge, sem force push.
+
+### 2. O que estamos fazendo
+
+- Aguardando decisões do dono: merge da PR com o workflow atualizado na `main` (privilegiado), atualização da branch da POC e autorização para publicar e executar **uma** `p2_imap`. PR #17 segue em Draft.
+- **Não comprovado:** a P2 no runtime publicado e no iCloud real (formato real de `BODYSTRUCTURE`/`FETCH` parcial), o CPU por requisição no plano Free. **P2 não está concluída.** I0 não concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização: mesclar o workflow na `main`, atualizar a branch da POC, deixar **uma** mensagem de teste em `RAC-TESTE` (sem conteúdo pessoal) e executar `p2_imap` **uma vez**, depois de revisar o resumo do job `verificar`.
+2. Registrar o resultado (estágio, códigos e indicadores) e só então marcar a P2 como concluída; falha não se repete sozinha. P3 a P7 só com autorização específica.

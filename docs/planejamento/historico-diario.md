@@ -842,3 +842,23 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Com a decisão do dono: P6 (sincronização e polling, somente leitura) junto com o indicador de EXAMINE; só depois, com autorização específica, P3 a P5; P7 (Vault, Edge Function, HMAC) é a base da I1. Se o dono quiser iniciar a I1 antes de P3 a P5, o critério de saída da I0 precisa ser revisado e registrado (decisão do dono).
+
+## 14/11/2026 · Saúde — a meta de treinos por semana não conta caminhada
+
+### 1. O que fizemos
+
+- **Pedido do dono** (a partir da tela "Ajustes de Saúde"): a meta de treinos por semana não pode considerar caminhada.
+- **Regra no núcleo** (`nucleo.js`): `NUCLEO.sauContaTreino` e `NUCLEO.SAU_NAO_TREINO` (`walking`, `casual_walking`, `speed_walking`). Trilha (`hiking`) **não** foi incluída, porque o dono falou de caminhada.
+- **Telas** (`js/saude-hub.js`): "Esta semana" (Visão geral) e "Por semana" (aba Atividades) contam só o que não é caminhada; a Visão geral diz "Caminhada não conta para a meta" e quantas caminhadas houve na semana; com o filtro só em caminhada, "Por semana" mostra "—" e não dispara alerta de meta; a ajuda do campo de ajustes avisa "Caminhada não conta". A caminhada **continua** na lista, no histórico e no total de atividades.
+- **Teste novo** em `tests/saude_tela.test.mjs` (22 testes no arquivo, todos ok) e conferência em Chromium real (390 px) com dados inventados. Versão do site na branch: `2026-11-14.1`. Documentado em `docs/saude.md`.
+- **Fora do escopo, intocados**: RAC Hoje ("dias sem treino"), Painel (consistência), sinais de carga e a função `garmin` continuam contando caminhada como atividade; não há SQL, migration, função, cron ou secret.
+
+### 2. O que estamos fazendo
+
+- Alteração **pronta e testada na branch local `claude/saude-meta-treinos`, sem commit, push nem PR**: aguarda o "autorizo commit" e o "autorizo push" do dono (regra do `CLAUDE.md`).
+- O campo "Meta de treinos" apareceu **vazio** no print do dono; não reproduzi no código atual (mostra 3 em todos os cenários testados), o que sugere uma versão antiga em cache no aparelho.
+
+### 3. O que vamos fazer
+
+1. Dono: autorizar commit e push (e dizer se quer PR e merge) e recarregar o site depois da publicação para conferir o campo.
+2. Se quiser, decidir se a caminhada também deve sair do RAC Hoje ("dias sem treino") e do Painel, e se trilha conta.

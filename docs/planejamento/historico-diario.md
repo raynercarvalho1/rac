@@ -850,17 +850,17 @@ Família e da Casa.
 - **Pedido do dono** (a partir da tela "Ajustes de Saúde"): a meta de treinos por semana não pode considerar caminhada.
 - **Regra no núcleo** (`nucleo.js`): `NUCLEO.sauContaTreino` e `NUCLEO.SAU_NAO_TREINO` (`walking`, `casual_walking`, `speed_walking`). Trilha (`hiking`) **não** foi incluída, porque o dono falou de caminhada.
 - **Telas** (`js/saude-hub.js`): "Esta semana" (Visão geral) e "Por semana" (aba Atividades) contam só o que não é caminhada; a Visão geral diz "Caminhada não conta para a meta" e quantas caminhadas houve na semana; com o filtro só em caminhada, "Por semana" mostra "—" e não dispara alerta de meta; a ajuda do campo de ajustes avisa "Caminhada não conta". A caminhada **continua** na lista, no histórico e no total de atividades.
-- **Teste novo** em `tests/saude_tela.test.mjs` (22 testes no arquivo, todos ok) e conferência em Chromium real (390 px) com dados inventados. Versão do site na branch: `2026-11-14.1`. Documentado em `docs/saude.md`.
+- **Teste novo** em `tests/saude_tela.test.mjs` (22 testes no arquivo, todos ok) e conferência em Chromium real (390 px) com dados inventados. Versão do site: `2026-11-14.3` (a `main` estava em `2026-11-14.2`). Documentado em `docs/saude.md`. Suíte completa com a `main` incorporada: Grupo 1 com 1651 testes (1648 ok, 0 falhas, 1 ignorado, 2 `todo`) e Grupo 2 com 73 de 73.
 - **Fora do escopo, intocados**: RAC Hoje ("dias sem treino"), Painel (consistência), sinais de carga e a função `garmin` continuam contando caminhada como atividade; não há SQL, migration, função, cron ou secret.
 
 ### 2. O que estamos fazendo
 
-- Alteração **pronta e testada na branch local `claude/saude-meta-treinos`, sem commit, push nem PR**: aguarda o "autorizo commit" e o "autorizo push" do dono (regra do `CLAUDE.md`).
+- Entrega no **PR #30** (`claude/saude-meta-treinos`), atualizado com a `main` por merge (único conflito, neste arquivo, resolvido mantendo as três entradas de 14/11). O merge por squash segue a política permanente (CI verde no SHA atual, sem conflito, dentro do escopo); a publicação e a conferência no iPhone ficam registradas abaixo depois do merge.
 - O campo "Meta de treinos" apareceu **vazio** no print do dono; não reproduzi no código atual (mostra 3 em todos os cenários testados), o que sugere uma versão antiga em cache no aparelho.
 
 ### 3. O que vamos fazer
 
-1. Dono: autorizar commit e push (e dizer se quer PR e merge) e recarregar o site depois da publicação para conferir o campo.
+1. Dono: depois da publicação, recarregar o site e conferir em Saúde que "Esta semana" não conta caminhada e que o campo "Meta de treinos" mostra 3.
 2. Se quiser, decidir se a caminhada também deve sair do RAC Hoje ("dias sem treino") e do Painel, e se trilha conta.
 
 ## 14/11/2026 · Central Fiscal — "Dar entrada no Mercado" passa a mostrar um OK claro

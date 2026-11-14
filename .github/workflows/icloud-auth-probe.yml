@@ -3,7 +3,10 @@
 # os arquivos do Worker daquele commit são copiados por uma lista fixa, empacotados e inspecionados, mas NADA da branch é executado,
 # nem com secrets, nem sem. Os Environments cloudflare-poc e icloud-auth-poc devem aceitar SÓ a main (configuração do dono no GitHub): assim,
 # mesmo um workflow alterado numa branch, disparado de lá, não recebe nenhum secret nem o Environment.
-# O primeiro ensaio OIDC NÃO usa nenhuma credencial Apple: o corpo enviado é sintético e mínimo ({"operacao":"validar_oidc"}).
+# Operações (entrada "operacao"): validar_oidc (ensaio sem efeito e sem credencial), validar_uso_unico (prova SINTÉTICA do registro de uso único,
+# sem credencial: concorrência e replay no runtime publicado) e p1_imap (autenticação IMAP somente leitura, com a credencial Apple vinda
+# SÓ dos secrets do Environment icloud-auth-poc, cadastrados pelo dono direto no GitHub). Todo token de operação protegida só vale UMA vez por
+# execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1 é única e SEM repetição automática.
 # Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
 #   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, monta o pacote, empacota sem publicar, inspeciona e calcula o
 #     sha256. Só entrega adiante o pacote (público) e o hash. O Wrangler vem do lockfile da main, instalado sem scripts;
@@ -22,6 +25,15 @@ on:
         description: "Commit da branch da POC a publicar, com 40 caracteres hexadecimais. É tratado só como dado."
         required: true
         type: string
+      operacao:
+        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial) ou p1_imap (IMAP somente leitura; exige os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc)."
+        required: true
+        default: validar_oidc
+        type: choice
+        options:
+          - validar_oidc
+          - validar_uso_unico
+          - p1_imap
 
 # nenhuma permissão por padrão: cada job declara só o que precisa
 permissions: {}
@@ -99,7 +111,7 @@ jobs:
             exit 1
           fi
           BASE=poc/experimentos/icloud-auth-probe
-          ESPERADO=$'./README.md\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/politica.mjs\n./wrangler.jsonc'
+          ESPERADO=$'./README.md\n./src/consumo.mjs\n./src/imap.mjs\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/politica.mjs\n./src/rotas.mjs\n./wrangler.jsonc'
           if [ ! -d "$BASE" ]; then
             echo "::error::A pasta do Worker não existe neste commit."
             exit 1
@@ -116,14 +128,16 @@ jobs:
           fi
           PACOTE="$RUNNER_TEMP/pacote"
           mkdir -p "$PACOTE/src"
-          for ARQ in politica jwt jwks index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
+          for ARQ in politica jwt jwks consumo imap rotas index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
           cat > "$PACOTE/wrangler.jsonc" <<'JSON'
           {
             "name": "rac-icloud-auth-poc",
             "main": "src/index.mjs",
             "compatibility_date": "2026-11-13",
             "workers_dev": true,
-            "observability": { "enabled": false }
+            "observability": { "enabled": false },
+            "durable_objects": { "bindings": [{ "name": "CONSUMO", "class_name": "ConsumoUnico" }] },
+            "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ConsumoUnico"] }]
           }
           JSON
           # a wrangler.jsonc do commit tem de ser equivalente à escrita aqui (que é a única usada)
@@ -131,7 +145,7 @@ jobs:
             echo "::error::A wrangler.jsonc do commit difere da configuração fixa do workflow."
             exit 1
           fi
-          (cd "$BASE" && sha256sum ./README.md ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/politica.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
+          (cd "$BASE" && sha256sum ./README.md ./src/consumo.mjs ./src/imap.mjs ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/politica.mjs ./src/rotas.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |
@@ -157,11 +171,21 @@ jobs:
           OUTROS=$(ls "$DIST" | grep -v -E '^(index\.js|index\.js\.map|README\.md)$' || true)
           if [ -n "$OUTROS" ]; then echo "::error::Arquivos inesperados no pacote gerado."; exit 1; fi
           BUNDLE="$DIST/index.js"
-          for PADRAO in 'process\.env' 'eval\(' 'new Function' 'cloudflare:' 'imap\.mail\.me\.com' 'smtp\.mail\.me\.com' 'import\(' 'require\(' 'console\.'; do
+          for PADRAO in 'process\.env' 'eval\(' 'new Function' 'smtp\.mail\.me\.com' 'import\(' 'require\(' 'console\.'; do
             if grep -qE "$PADRAO" "$BUNDLE"; then echo "::error::O pacote contém uma construção proibida: $PADRAO"; exit 1; fi
           done
+          # sockets: o único módulo "cloudflare:" permitido é cloudflare:sockets (IMAP da P1) e o único host da Apple é o IMAP
+          MODULOS=$(grep -oE 'cloudflare:[a-z]+' "$BUNDLE" | sort -u)
+          if [ "$MODULOS" != "cloudflare:sockets" ]; then echo "::error::O pacote importa módulos cloudflare: além de sockets."; exit 1; fi
+          APPLE=$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)
+          if [ "$APPLE" != "imap.mail.me.com" ]; then echo "::error::O pacote cita endereço da Apple além do IMAP."; exit 1; fi
+          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT: nenhum verbo IMAP de leitura de mensagem ou de alteração pode estar no pacote
+          if grep -qwE 'EXPUNGE|APPEND|FETCH|STORE|EXAMINE|SEARCH|RENAME|SUBSCRIBE|AUTHENTICATE|STARTTLS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
+          # o Durable Object do registro de uso único precisa estar no pacote E exportado (a migração e o binding o referenciam)
+          if ! grep -qE '^var ConsumoUnico = class' "$BUNDLE" || ! grep -qE '^  ConsumoUnico,?$' "$BUNDLE"; then echo "::error::A classe do Durable Object não está no pacote ou não é exportada."; exit 1; fi
+          # endereços http(s): o emissor do GitHub e o nome interno e fixo do Durable Object (não resolve na rede)
           HOSTS=$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)
-          if [ "$HOSTS" != "https://token.actions.githubusercontent.com" ]; then echo "::error::O pacote cita endereços fora do emissor do GitHub."; exit 1; fi
+          if [ "$HOSTS" != $'https://consumo.interno\nhttps://token.actions.githubusercontent.com' ]; then echo "::error::O pacote cita endereços fora do emissor do GitHub e do objeto interno."; exit 1; fi
           SHA=$(sha256sum "$BUNDLE" | cut -d' ' -f1)
           {
             echo "commit=$COMMIT"
@@ -173,8 +197,9 @@ jobs:
             echo
             echo "- commit da POC (dado de entrada): \`$COMMIT\`"
             echo "- sha256 do arquivo que será publicado: \`$SHA\`"
-            echo "- tamanho: $(wc -c < "$BUNDLE") bytes; único endereço no pacote: token.actions.githubusercontent.com"
-            echo "- sem process.env, eval, console, sockets, endereços da Apple, import dinâmico ou require"
+            echo "- tamanho: $(wc -c < "$BUNDLE") bytes; endereços no pacote: token.actions.githubusercontent.com e o nome interno consumo.interno (Durable Object)"
+            echo "- sem process.env, eval, console, SMTP, import dinâmico ou require; único módulo cloudflare: sockets; único host da Apple: imap.mail.me.com; sem verbos IMAP de leitura de mensagem ou alteração"
+            echo "- configuração fixa: Durable Object CONSUMO (classe ConsumoUnico, SQLite) e migração v1 (nova classe)"
             echo "- **Antes de aprovar:** conferir o diff dos arquivos abaixo no commit e se o CI desse commit passou na PR da POC."
             echo
             echo '```'
@@ -246,7 +271,9 @@ jobs:
             "name": "rac-icloud-auth-poc",
             "compatibility_date": "2026-11-13",
             "workers_dev": true,
-            "observability": { "enabled": false }
+            "observability": { "enabled": false },
+            "durable_objects": { "bindings": [{ "name": "CONSUMO", "class_name": "ConsumoUnico" }] },
+            "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ConsumoUnico"] }]
           }
           JSON
           jq --arg main "$DEST/index.js" '. + {main: $main, no_bundle: true}' "$DEST/base.jsonc" > "$DEST/wrangler.publicar.jsonc"
@@ -287,13 +314,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: icloud-auth-poc
-    # a única permissão deste job: pedir o token OIDC. Sem contents, sem escrita, sem credencial Cloudflare e sem nenhum secret.
+    # a única permissão deste job: pedir o token OIDC. Sem contents, sem escrita e sem credencial Cloudflare. Os secrets do Environment (Apple) só são
+    # citados no passo da P1, e só são injetados lá; nenhum outro passo os recebe.
     permissions:
       id-token: write
     env:
       # URL fixa e não sensível (nada vem do job anterior)
       WORKER_URL: https://rac-icloud-auth-poc.raynercarvalho.workers.dev
-      AUDIENCIA: rac-inbox-icloud-poc:validar_oidc
+      AUDIENCIA_PREFIXO: rac-inbox-icloud-poc
     defaults:
       run:
         shell: bash
@@ -305,10 +333,12 @@ jobs:
             exit 1
           fi
 
-      # o token OIDC só passa por variável de ambiente, pipe e substituição de processo (/dev/fd): nunca por argumento de comando, arquivo ou
-      # artefato; o valor já é mascarado no log. O corpo é fixo, sintético e sem credencial.
-      - name: Validar o JWT no Worker (sem credencial e sem acesso à Apple)
+      # pré-checagem SEM efeito e sem credencial (todas as operações): confirma que o Worker publicado já responde e aceita o JWT. Só aqui a repetição é
+      # permitida (propagação do Worker novo: sem rede ou 404). O token OIDC só passa por variável de ambiente, pipe e substituição de processo
+      # (/dev/fd): nunca por argumento de comando, arquivo ou artefato; o valor é mascarado no log.
+      - name: Validar o JWT no Worker (ensaio sem efeito, sem credencial e sem acesso à Apple)
         run: |
+          AUDIENCIA="$AUDIENCIA_PREFIXO:validar_oidc"
           if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
             echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
             exit 1
@@ -343,7 +373,7 @@ jobs:
           unset JWT
 
           {
-            echo "### Prova autenticada iCloud · validação OIDC (sem credencial e sem acesso à Apple)"
+            echo "### Validação OIDC (ensaio sem efeito, sem credencial e sem acesso à Apple)"
             echo
             echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
             echo "- Resposta HTTP do Worker: $CODE"
@@ -358,4 +388,119 @@ jobs:
             exit 0
           fi
           echo "::error::O Worker não aceitou a validação (HTTP $CODE); veja o motivo no resumo. Nenhuma ação fora do escopo."
+          exit 1
+
+      # prova SINTÉTICA do uso único no runtime publicado, sem credencial: dez chamadas simultâneas da MESMA execução (tokens diferentes) devem dar
+      # exatamente um 200 e nove 409; depois o mesmo token e um token novo da mesma execução devem dar 409. Estas são as chamadas sob teste (não há
+      # repetição por falha): cada código recebido é evidência e entra no resumo.
+      - name: Prova sintética do uso único (concorrência e replay, sem credencial e sem acesso à Apple)
+        if: ${{ inputs.operacao == 'validar_uso_unico' }}
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+          pedir_token() {
+            local pedido
+            pedido=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=$AUDIENCIA_PREFIXO:validar_uso_unico")
+            JWT=$(jq -r '.value // empty' <<< "$pedido")
+            [ -n "$JWT" ] || return 1
+            echo "::add-mask::$JWT"
+          }
+          # uma chamada: grava só o código HTTP em $1 e o corpo (resposta do Worker, sem dado sensível) em $1.corpo
+          chamar() {
+            local code
+            code=$(curl -sS -m 40 -o "$1.corpo" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                  -K <(printf 'header = "Authorization: Bearer %s"\n' "$2") \
+                  -H "Content-Type: application/json" --data '{"operacao":"validar_uso_unico"}' || true)
+            printf '%s' "${code:-000}" > "$1"
+          }
+          D="$RUNNER_TEMP/uso-unico"
+          mkdir -p "$D"
+          N=10
+          TOKENS=()
+          for I in $(seq 1 "$N"); do
+            pedir_token || { echo "::error::O GitHub não devolveu o token OIDC."; exit 1; }
+            TOKENS+=("$JWT")
+          done
+          for I in $(seq 0 $((N - 1))); do chamar "$D/c$I" "${TOKENS[$I]}" & done
+          wait
+          ACEITAS=0; REPETIDAS=0; OUTRAS=0
+          for I in $(seq 0 $((N - 1))); do
+            case "$(cat "$D/c$I")" in
+              200) ACEITAS=$((ACEITAS + 1)) ;;
+              409) REPETIDAS=$((REPETIDAS + 1)) ;;
+              *) OUTRAS=$((OUTRAS + 1)) ;;
+            esac
+          done
+          chamar "$D/r1" "${TOKENS[0]}"
+          pedir_token || { echo "::error::O GitHub não devolveu o token OIDC."; exit 1; }
+          chamar "$D/r2" "$JWT"
+          unset JWT TOKENS
+          R1=$(cat "$D/r1"); R2=$(cat "$D/r2")
+          {
+            echo "### Prova sintética do uso único (runtime publicado, sem credencial e sem acesso à Apple)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- $N chamadas simultâneas da mesma execução: **$ACEITAS aceita(s) (HTTP 200)**, **$REPETIDAS recusada(s) (HTTP 409)**, $OUTRAS outra(s)"
+            echo "- Replay do mesmo token depois do sucesso: HTTP $R1 (esperado 409)"
+            echo "- Token novo da mesma execução (jti diferente): HTTP $R2 (esperado 409)"
+            for ARQ in "$D"/c*.corpo "$D"/r*.corpo; do
+              jq -c '{ok, erro, motivo, detalhe}' "$ARQ" 2>/dev/null | sort -u
+            done | sort | uniq -c | sed 's/^ *//; s/^/- respostas (só códigos): /'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ACEITAS" = "1" ] && [ "$REPETIDAS" = "$((N - 1))" ] && [ "$OUTRAS" = "0" ] && [ "$R1" = "409" ] && [ "$R2" = "409" ]; then
+            echo "Uso único comprovado no runtime publicado: 1 aceita, $((N - 1)) recusadas, replay recusado."
+            exit 0
+          fi
+          echo "::error::A prova do uso único não deu o resultado esperado (aceitas=$ACEITAS, recusadas=$REPETIDAS, outras=$OUTRAS, replay=$R1/$R2). Veja o resumo."
+          exit 1
+
+      # P1: autenticação IMAP somente leitura. UMA única chamada, SEM repetição (um 000 ou 404 aqui encerra a prova). A credencial vem SÓ dos secrets do
+      # Environment (cadastrados pelo dono direto no GitHub), entra no corpo por entrada padrão (nunca por argumento, arquivo, artefato ou output) e nada
+      # a ecoa: o resumo mostra só os campos permitidos da resposta de esquema fechado do Worker.
+      - name: P1 IMAP — autenticação somente leitura (uma única chamada, sem repetição)
+        if: ${{ inputs.operacao == 'p1_imap' }}
+        env:
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+        run: |
+          if [ -z "$ICLOUD_USER" ] || [ -z "$ICLOUD_APP_PASSWORD" ]; then
+            echo "::error::Faltam os secrets ICLOUD_USER e/ou ICLOUD_APP_PASSWORD no Environment icloud-auth-poc. Cadastre-os direto no GitHub (nunca no chat) e rode de novo."
+            exit 1
+          fi
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+          PEDIDO=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=$AUDIENCIA_PREFIXO:p1_imap")
+          JWT=$(jq -r '.value // empty' <<< "$PEDIDO")
+          unset PEDIDO
+          if [ -z "$JWT" ]; then
+            echo "::error::O GitHub não devolveu o token OIDC."
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+          RESP="$RUNNER_TEMP/p1-imap.json"
+          : > "$RESP"
+          CODE=$(jq -n '{operacao: "p1_imap", usuario: env.ICLOUD_USER, senha: env.ICLOUD_APP_PASSWORD}' | curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                -K <(printf 'header = "Authorization: Bearer %s"\n' "$JWT") \
+                -H "Content-Type: application/json" --data-binary @- || true)
+          CODE=${CODE:-000}
+          unset JWT ICLOUD_USER ICLOUD_APP_PASSWORD
+          {
+            echo "### P1 · IMAP somente leitura (uma única chamada)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Resposta HTTP do Worker: $CODE"
+            echo "- Resposta (só os campos permitidos do esquema fechado):"
+            echo '```json'
+            head -c 4000 "$RESP" | jq '{ok, operacao, estagio, autenticado, logout, erro, motivo, detalhe, capabilities, pastas, pasta_teste_existe}' 2>/dev/null || echo '(resposta não é JSON)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" = "200" ] && jq -e '.ok == true and .autenticado == true' "$RESP" > /dev/null 2>&1; then
+            echo "P1 concluída: autenticação IMAP, capabilities e estrutura de pastas obtidas (sem ler mensagens e sem alterar a caixa)."
+            exit 0
+          fi
+          echo "::error::A P1 não foi concluída (HTTP $CODE); veja o estágio e o código de erro no resumo. Nenhuma nova tentativa é feita."
           exit 1

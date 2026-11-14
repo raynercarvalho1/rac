@@ -662,6 +662,53 @@ Família e da Casa.
 2. Depois testar Cron de um minuto no plano adequado e observar CPU real, reconexões e confiabilidade do polling.
 3. Não contratar Workers Paid até que o teste inicial comprove que a plataforma funciona para o protocolo iCloud.
 
+## 13/11/2026 · RAC Inbox — probe de conectividade iCloud preparado
+
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
+### 1. O que fizemos
+
+- Criada a branch isolada `poc/icloud-cloudflare-connectivity` a partir da `main` após o merge da documentação RAC Inbox (`5cc1cfd`).
+- Preparado o Worker temporário em `experimentos/icloud-probe/`: conexão TLS IMAP 993, STARTTLS SMTP 587 e endpoint `POST /probe` protegido por segredo aleatório, sem autenticação da Apple, leitura de mensagens, envio ou acesso ao Supabase.
+- Criados oito testes unitários para parser IMAP/SMTP, respostas multilinha, verificação do token e sequência STARTTLS. Execução local: 8 aprovados, 0 falhas; `node --check` passou nos módulos.
+- Incluído README com comandos Wrangler fixados em `4.161.0`, login, deploy manual, configuração segura do Secret, chamada de diagnóstico e remoção do Worker.
+- Conferidos os documentos oficiais Cloudflare TCP sockets e limites: a API suporta `connect()` e `startTls()`; no Workers Free, requisições HTTP têm 10 ms de CPU. A conectividade real para Apple continua não testada.
+
+### 2. O que estamos fazendo
+
+- O código está na branch do experimento, ainda sem PR criada/CI. A seção 12.11 do Documento 10 registra que a POC está preparada, não publicada.
+- Não houve login Cloudflare, deploy, upgrade de plano, criação de token/Secret, autenticação iCloud, conexão de conta Apple, envio/recebimento de mensagens ou alteração de produção/Supabase.
+
+### 3. O que vamos fazer
+
+1. Abrir uma PR separada para revisão do Worker e dos oito testes; aguardar CI verde antes de qualquer merge.
+2. Com acesso à conta Cloudflare do dono, publicar manualmente no Workers Free usando o README e configurar o token apenas como Secret. Não enviar tokens ao chat.
+3. Executar uma chamada de diagnóstico para verificar somente rede/TLS em IMAP 993 e SMTP 587. Registrar resultado e apagar o Worker após a prova, salvo decisão posterior.
+4. Se Free falhar por limite de CPU, não atualizar para Paid sem mostrar a evidência e obter autorização explícita do custo.
+5. Autenticação iCloud, envio e sincronização ficam para uma etapa posterior, com conta de teste e autorização própria.
+
+## 13/11/2026 · RAC Inbox — correção dos imports e aprovação do teste SMTP STARTTLS
+
+### 1. O que fizemos
+
+- A execução inicial do CI da PR #17 (`43463854161`) falhou no Grupo 1 porque o arquivo `tests/icloud_probe.test.mjs` importava `../src/probes.mjs` e `../src/auth.mjs`, caminhos inexistentes na raiz do repositório. O erro exato do Node foi `ERR_MODULE_NOT_FOUND` para `/rac/src/probes.mjs`; nenhum dos oito casos chegou a executar.
+- Corrigidos os dois imports para `../experimentos/icloud-probe/src/probes.mjs` e `../experimentos/icloud-probe/src/auth.mjs`, no commit `6dbf10d1b84e9bdde283755c17fc3b6c7b2472a8`.
+- CI completo da revisão corrigida: execução `43465102985`, **success**. Grupo 1: 1.578 testes, 1.576 aprovados, 0 falhas, 0 ignorados e 2 `todo`. Grupo 2: 73 testes PGlite, 73 aprovados, 0 falhas e 0 ignorados.
+- Os oito casos novos da POC executaram e passaram. Em particular, o teste 7 — negociação STARTTLS, novo EHLO já sob TLS e fechamento dos dois sockets — passou; o teste 8, sobre falha de handshake sem vazar a saudação do servidor, também passou.
+- Corrigido o Documento 10 para registrar os números reais do CI. **Retificação:** o registro anterior desta data dizia que os oito testes haviam passado localmente; isso não foi executado/confirmado naquela ocasião. A primeira evidência válida foi a execução CI acima.
+
+### 2. O que estamos fazendo
+
+- A PR #17 continua draft e não mesclada. O Worker ainda não foi publicado na Cloudflare; não houve conexão TCP real com os servidores Apple, autenticação, leitura ou envio de e-mail.
+- O deploy permanece separado e manual. O teste automatizado simula sockets e valida o protocolo; não prova acesso de rede real da Cloudflare nem a disponibilidade do serviço Apple.
+
+### 3. O que vamos fazer
+
+1. Revisar o diff e manter a PR em draft até concluir a leitura de segurança e os passos de publicação.
+2. Com conta Cloudflare acessível e decisão do dono, publicar o Worker temporário no Free, definir `PROBE_TOKEN` como Secret e executar apenas a rota `/probe`.
+3. Guardar o resultado de rede/TLS sem segredo; apagar o Worker após a prova ou deixá-lo ativo apenas mediante decisão explícita.
+4. Não autenticar a conta Apple, ler mensagens, enviar e-mail nem contratar o plano Paid nesta etapa.
+
 ## 13/11/2026 · RAC Inbox — workflow manual de deploy da POC iCloud (PR independente)
 
 ### 1. O que fizemos
@@ -720,3 +767,328 @@ Família e da Casa.
 1. Dono mescla a PR #18 depois do CI verde.
 2. Retomar a POC iCloud já sob o protocolo novo: commit, PR separada do workflow e configuração do Environment `cloudflare-poc` pelo dono.
 3. Atenção: PR #17 e PR #18 acrescentam texto ao fim deste histórico; o segundo merge pode pedir resolução trivial de ordem das seções.
+
+## 13/11/2026 · RAC Inbox — integração da PR #17 com a main e separação do workflow de deploy
+
+### 1. O que fizemos
+
+- A PR #17 estava `mergeable: false` depois do merge da PR #18 (`778e148`): conflito de texto em `historico-diario.md`, onde as duas branches acrescentaram entradas ao fim. Resolvido mantendo as entradas dos dois lados; sem outros conflitos.
+- Decisão do dono (13/11/2026): a POC será publicada por workflow manual do GitHub Actions, com credenciais Cloudflare em Environment protegido e sem token na sessão do Claude (a nuvem não alcança `api.cloudflare.com`). O workflow, seu teste e o guia operacional foram separados em PR independente; esta PR continua só com o Worker de diagnóstico, seus testes e a documentação que depende dele.
+- Documento 10: ponteiro na 12.11 e nova seção 12.12 com a decisão. README da POC com a nota operacional do caminho pelo Actions.
+
+### 2. O que estamos fazendo
+
+- PR #17 segue draft e sem merge. Nada foi publicado: sem login ou deploy na Cloudflare, sem token/secret, sem conta Apple, sem leitura ou envio de e-mail.
+- A conectividade com a Apple **continua não comprovada**; só há testes com sockets simulados.
+
+### 3. O que vamos fazer
+
+1. Dono mescla a PR independente do workflow e configura o Environment `cloudflare-poc` e os dois secrets Cloudflare.
+2. Acionar o workflow a partir desta branch, ler o resultado do `/probe` e registrar a evidência real.
+3. Remoção do Worker: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — workflow manual disponível na branch da POC
+
+### 1. O que fizemos
+
+- Ao acionar o workflow "Publicar POC iCloud (manual)", o GitHub informou que ele não existia ou não tinha o gatilho `workflow_dispatch` na branch `poc/icloud-cloudflare-connectivity`. Causa confirmada: o arquivo existia na `main` (PR #19, `745f999`), mas não na branch da POC. Para escolher uma branch em "Run workflow", o arquivo precisa existir nela.
+- A `main` foi integrada à branch da POC (merge normal, sem force push), trazendo o workflow idêntico ao da `main`, o teste de escopo e o guia `docs/icloud-poc-deploy.md`. Único conflito: este histórico (entradas dos dois lados mantidas). Código funcional da POC inalterado.
+- O Documento 10 (12.12) foi ajustado: o guia agora está na branch.
+
+### 2. O que estamos fazendo
+
+- PR #17 segue draft e sem merge. Nada foi publicado: sem deploy, sem acesso à Cloudflare, sem alteração de secrets. A conectividade com a Apple **continua não comprovada**.
+- Falta o dono confirmar o Environment `cloudflare-poc` (aprovador, branches e secrets) e acionar o workflow a partir desta branch.
+
+### 3. O que vamos fazer
+
+1. Dono aciona "Publicar POC iCloud (manual)" com "Use workflow from" `poc/icloud-cloudflare-connectivity`.
+2. Ler o resultado do `/probe` e registrar a evidência real (IMAP 993, SMTP 587/STARTTLS, tempos, erros).
+3. Remoção do Worker: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — prova de conectividade iCloud concluída e proposta da autenticação
+
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
+### 1. O que fizemos
+
+- Auditada a execução real do workflow manual: [43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569), `workflow_dispatch` na branch da POC, commit `3d1fccc`, sucesso, 20:22:05 a 20:22:50 UTC. Worker `rac-icloud-connectivity-poc` publicado no Cloudflare Workers Free (URL no Documento 10, seção 12.13).
+- Resultado do `/probe` (dos logs do job): IMAP `imap.mail.me.com:993` ok em `imap_greeting`, 55 ms; SMTP `smtp.mail.me.com:587` ok em `smtp_tls_ready` (STARTTLS e novo EHLO), 481 ms; `authenticated: false`, `emailSent: false`. A 1ª chamada devolveu 503 por propagação do secret e foi repetida; a 2ª devolveu 200.
+- Documentação atualizada: Documento 10 (12.4, 12.6, 12.11 retificada, novas 12.13 e 12.14), roadmap e decisões/pendências. Descrição da PR #17 atualizada.
+- Sem plano pago, sem conta pessoal, sem senha específica de app, sem leitura ou envio de e-mail, sem alteração de banco, Supabase ou produção.
+
+### 2. O que estamos fazendo
+
+- **Comprovado:** TCP/TLS com a Apple a partir do Cloudflare Workers Free, em uma execução. **Não comprovado:** autenticação, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. A fase I0 **não** está concluída (faltam Gmail, Graph, autenticação iCloud e custos finais).
+- PR #17 segue em draft e sem merge; o Worker segue publicado e inacessível sem nova execução do workflow (token descartado).
+- Aguardando a decisão do dono sobre o ambiente da prova de autenticação (Documento 10, seção 12.14).
+
+### 3. O que vamos fazer
+
+1. Dono decide: conta Apple de teste com 2FA e senha de app, rota 2A (credencial no corpo da requisição, via Environment do GitHub) ou 2B (Vault e Edge Function), novo Environment e Worker de teste, e quem lê as métricas de CPU na Cloudflare.
+2. Implementar e testar com sockets simulados o módulo de autenticação (lista fixa de comandos, sem corpos nem anexos); executar as provas de credencial válida, inválida e revogada, e SMTP autenticado sem envio.
+3. Registrar CPU, latência e confiabilidade; decidir Free versus Paid só com evidência e aprovação do dono.
+4. Remoção do Worker atual: atividade futura, com autorização específica.
+
+## 13/11/2026 · RAC Inbox — redefinição de escopo e arquitetura (cliente completo)
+
+
+> *Registro histórico: as menções a "conta de teste" ou à senha de app cadastrada no Environment `cloudflare-poc` neste dia foram **superadas** em 13/11/2026; vale a decisão atual (conta iCloud do dono; credenciais iCloud em Environment dedicado) da entrada "correção: POC com a conta iCloud do dono" e da última entrada deste arquivo.*
+### 1. O que fizemos
+
+- Registrada a decisão do dono: o RAC Inbox é um **cliente de e-mail completo** para uso pessoal dele e da esposa (isolamento total entre os dois), iCloud primeiro e outros provedores depois, substituindo progressivamente o Spark. **Não é um painel de metadados**, e as limitações da POC de conectividade não são do produto.
+- Revisada a arquitetura (Documento 10, seção 13): o Worker deixa de ser "ponte TCP" e vira **conector de transporte substituível**; Supabase (Postgres com RLS, Vault e Edge Function) é a fronteira de autorização e a camada de análise, sanitização e índice. Mantido o que serve (POC como evidência, workflow manual, Vault e HMAC, sem `service_role` no conector); alterado ou descartado o que subdimensionava o produto (prova 12.14, "sem persistência", Paid como candidata inicial, Gmail e Graph como condição da I0).
+- Verificados nas fontes oficiais os limites de Workers Free e Paid, Durable Objects, Containers, Supabase Edge Functions e iCloud Mail; separados em **comprovado**, **documentado** e **não verificado**.
+- Definidas as provas P0 a P7 (autenticação, estrutura, leitura, anexo, sinalizadores, mover, excluir, SMTP, envio de teste, sincronização, fronteira definitiva) e os lotes I0 a I8 com critérios de conclusão. Riscos técnicos e de segurança listados.
+- Atualizados Documento 10, roadmap, decisões e pendências. **Nada foi executado**: sem operação na conta iCloud, deploy, secret, migration, alteração do Supabase, plano pago ou merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando as decisões do dono (Documento 10, seção 13.12): confirmar o escopo, criar a conta Apple de teste, autorizar as provas que alteram a caixa ou enviam e-mail, e aprovar custo se o Workers Free não bastar.
+- Continua **não comprovado**: autenticação, leitura, organização, envio, sincronização, CPU medida e substituição do Spark. A fase I0 não está concluída. O Worker de conectividade segue publicado e a PR #17 em Draft.
+
+### 3. O que vamos fazer
+
+1. Com a conta de teste e a credencial no Environment protegido, executar P1 e P2 (somente leitura) e medir CPU, latência e capacidades do iCloud.
+2. Decidir o runtime do conector por medição; autorizar P3 a P5 uma a uma; executar P6 e P7.
+3. Só então iniciar o lote I1 (fundação), com migrations e função publicada mediante autorização específica.
+
+## 13/11/2026 · RAC Inbox — correção: POC com a conta iCloud do dono e credencial por GitHub Environment
+
+### 1. O que fizemos
+
+- Corrigida a divergência entre a documentação e decisões já tomadas pelo dono: **não será criada conta Apple de teste**; a POC usa a **conta iCloud do próprio dono**, somente com **senha específica de app**, cadastrada diretamente como secret de GitHub Environment (rota 2A). Entradas anteriores deste histórico que falam em "conta de teste" são registro histórico, superado por esta correção.
+- Documento 10: seções 13.11 e 13.12 reescritas; ajustadas as linhas da tabela de lotes (I0 e I1), a matriz da 12.6, a 12.14 (superada), o contrato da rota 2A e a tabela de riscos (novos riscos: senha de app da conta real e teste alterando mensagem pessoal). A 13.12 passa a separar o que **já foi decidido** do que **realmente depende do dono**.
+- Salvaguardas para a conta real, impostas pelo código do conector: leitura e escrita só em pasta e mensagens de teste; sem alteração ou exclusão de mensagem pessoal; nunca `EXPUNGE` geral; sem envio a destinatário não autorizado; logs só com contagens, códigos, tamanhos e tempos.
+- Reavaliado o token de proteção do Worker: **não precisa ser cadastrado como secret**; o workflow o gera a cada execução, como já faz com o `PROBE_TOKEN`.
+- Atualizados também `07-decisoes-e-pendencias.md` e a descrição da PR #17. Nenhuma operação na conta iCloud, nenhum secret criado ou alterado, nenhum deploy.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: autorização específica antes de P3, P4 e P5, cadastro dos secrets do iCloud quando quiser executar a P1, custo adicional (só se o Workers Free não bastar), liberação para a esposa e o mecanismo agendado da P6.
+- A autenticação, a leitura e as demais operações do iCloud continuam **não comprovadas**. A POC autenticada **não foi implementada**; PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Preparar o código da P1 e P2 (somente leitura, restrito à pasta de teste) e o workflow correspondente, com testes de sockets simulados, quando o dono pedir.
+2. Executar P1 e P2 após o dono cadastrar os secrets; só então propor P3 a P5, cada uma com autorização específica.
+3. Medir CPU, latência e confiabilidade e decidir o runtime do conector; depois P6 e P7 e o lote I1.
+
+## 13/11/2026 · RAC Inbox — separação de credenciais e Environments da POC autenticada
+
+### 1. O que fizemos
+
+- Corrigidas as referências operacionais que ainda contradiziam a decisão do dono: o roadmap falava em provas com "conta de teste"; agora diz que a POC usa a conta iCloud do dono, com senha específica de app. Busca final feita nos documentos oficiais e na descrição da PR #17; as entradas antigas deste histórico ficaram como registro, agora marcadas como superadas.
+- **Retirada a recomendação** de acrescentar credenciais iCloud ao Environment `cloudflare-poc`, que permanece só com as credenciais da Cloudflare para a POC de conectividade.
+- Reavaliada a separação: um job usa um único Environment e o segredo não pode passar entre jobs. Recomendada a solução S3 (Environment dedicado `icloud-auth-poc` e dois jobs, com autenticação do job da senha Apple no Worker por OIDC do GitHub, sem segredo compartilhado); alternativa S2 (um job, token Cloudflare dedicado). Tabela de secrets por Environment no Documento 10, seção 13.11.
+- Reforçado que a senha Apple **não é gravada no Worker** em nenhuma forma (nem `wrangler secret put`, variável, KV ou Durable Object) e existe só em memória durante a requisição, sem registro nem eco.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão de segurança D-ENV do dono (S3 ou S2), as autorizações específicas de P3 a P5 e o cadastro dos secrets no Environment `icloud-auth-poc` quando ele quiser executar a P1. Nenhum secret foi pedido, criado ou alterado.
+- A POC autenticada **não foi implementada** e nada foi executado na conta iCloud. A autenticação, a leitura e as demais operações do iCloud seguem **não comprovadas**. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Dono decide D-ENV e cria o Environment `icloud-auth-poc` quando for executar a P1.
+2. Confirmar a documentação do GitHub sobre OIDC e medir o custo de CPU da verificação no Workers Free, antes de implementar a S3.
+3. Implementar a POC autenticada (P1 e P2, somente leitura, restrita à pasta de teste) com testes de sockets simulados e de ausência de vazamento de credencial.
+
+## 13/11/2026 · RAC Inbox — arquitetura S3 (OIDC) implementada localmente, sem execução
+
+> *Superado em 13/11/2026 (correção de segurança, entrada abaixo): a necessidade de cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD` antes do primeiro ensaio e a janela de 1 hora do JWKS descritas nesta entrada foram retiradas.*
+
+### 1. O que fizemos
+
+- **D-ENV decidida pelo dono: S3.** Substitui a recomendação anterior de misturar credenciais no `cloudflare-poc` e a alternativa S2 (ambas marcadas como superadas nos documentos).
+- Validado em fonte oficial: formato do `sub` (clássico e imutável; este repositório, criado em 23/10/2026, usa o imutável, cujo exemplo com Environment é inferência), claims disponíveis, audiência personalizada, validade do token, JWKS pelo documento de descoberta do emissor, suporte de RSASSA-PKCS1-v1_5 no Web Crypto e limites do Workers Free.
+- Implementado **localmente**: Worker de validação (`experimentos/icloud-auth-probe`: política fixa, JWT RS256, JWKS com cache e rotação, corpo lido só depois do OIDC, sem `console`, sem armazenamento) e workflow de dois jobs (`provisionar` com `cloudflare-poc`; `executar` com `icloud-auth-poc` e único `id-token: write`), sem outputs, artefatos ou segredo entre jobs. Operação disponível: só `validar_oidc`; IMAP e SMTP não existem.
+- 34 testes novos (24 funcionais e 10 de escopo), com fixtures sintéticas; CPU medido em Node (mediana de 0,25 ms por requisição, indicativo, contra 10 ms do Free). Documento 10 ganhou a seção 13.13; README do Worker; roadmap, decisões e mapa atualizados.
+- **Nada foi executado:** sem Environment ou secret criado, sem run do workflow, sem deploy, sem acesso à Apple ou à conta iCloud, sem recurso novo na Cloudflare.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: criar o Environment `icloud-auth-poc` e os secrets, autorizar a PR independente do workflow (o arquivo precisa estar na branch padrão) e o primeiro run (só ensaio do JWT), e decidir o uso único do token (Durable Object com SQLite) antes de P3 a P5.
+- **Não comprovado:** formato real das claims, leitura do JWKS real, verificação RSA no runtime da Cloudflare, CPU real, autenticação Apple e qualquer operação de e-mail. A fase I0 não está concluída. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Com a configuração do dono e autorização, executar o ensaio `validar_oidc` para confirmar `sub`, `runner_environment`, JWKS e CPU no runtime real.
+2. Só depois implementar IMAP somente leitura restrito à pasta de teste (P1 e P2), com testes de sockets simulados, e propor P3 a P5 com autorização específica.
+3. Decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail.
+
+## 13/11/2026 · RAC Inbox — correção de segurança: ensaio OIDC sem credencial Apple
+
+### 1. O que fizemos
+
+- Corrigida a exposição desnecessária apontada na revisão do commit `480b8b4`: o ensaio `validar_oidc` não precisa de credencial Apple. O workflow deixou de declarar ou ler `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`; o corpo agora é sintético e mínimo (`{"operacao":"validar_oidc"}`); o Worker aceita só esse esquema, recusa campos extras (inclusive usuário e senha) e responde apenas `ok`, `oidc: validado` e `operacao_reconhecida`. Retirado do Worker todo o código de tratamento de usuário e senha.
+- **JWKS:** a janela de 1 hora para reaproveitar chaves antigas foi **retirada** (falha fechada na hora se o cache venceu e o emissor não responde). Registrado que uma chave revogada ainda vale até o fim do cache fresco (10 minutos) e que a política deve ser reavaliada antes de qualquer operação real sobre a caixa. Sem infraestrutura nova.
+- **Branches:** o job `provisionar` passou a aceitar só `poc/icloud-cloudflare-connectivity`, igual ao `executar` (antes aceitava também `main`).
+- Testes atualizados: 37 novos (25 funcionais e 12 de escopo). Provam, entre outros, que o ensaio funciona sem secrets Apple, que o workflow não os referencia, que o corpo só é lido depois do JWT, que campos extras e operações não autorizadas são recusados e que nada de credencial aparece em logs, respostas, arquivos ou documentação. CPU medido de novo em Node, com o corpo mínimo: mediana de 0,19 ms por requisição (indicativo).
+- Documentos atualizados, com as instruções anteriores marcadas como superadas e sem apagar histórico. Nada foi executado, publicado ou configurado.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: criar o Environment `icloud-auth-poc` **sem secrets**, autorizar a PR independente do workflow para a `main` (o arquivo precisa estar na branch padrão) e o primeiro run, que só valida o JWT.
+- **Não comprovado:** formato real das claims, leitura do JWKS real, verificação RSA no runtime da Cloudflare, CPU real, autenticação Apple e qualquer operação de e-mail. A fase I0 não está concluída. PR #17 em Draft e sem merge.
+
+### 3. O que vamos fazer
+
+1. Primeiro run (com autorização), só para confirmar `sub`, `runner_environment`, JWKS real e CPU no runtime da Cloudflare, sem credencial Apple.
+2. Só depois, com autorização específica, implementar a P1 (IMAP somente leitura restrito à pasta de teste); nessa etapa os secrets Apple entram, por mudança revisada do workflow.
+3. Decidir o uso único do token e reavaliar a política do JWKS antes de P3 a P5.
+
+## 13/11/2026 · RAC Inbox — I0, bloco 1: auditoria de segurança do caminho de publicação do Worker OIDC
+
+### 1. O que fizemos
+
+- Auditoria completa do workflow `icloud-auth-probe.yml` e de tudo que a publicação toca (código e `wrangler.jsonc` da branch, Wrangler e dependências, actions, permissões, Environments, logs, artefatos e integridade do pacote). Achado principal, **demonstrado localmente com token sintético**: o passo que recebia `CLOUDFLARE_API_TOKEN` executava o Wrangler numa pasta cuja configuração vem da branch, e um `build.command` executa comando de shell; além disso, código da branch (testes) rodava na mesma máquina dos secrets.
+- Correções (somente na segurança da POC OIDC): três jobs (`verificar` sem secrets, `provisionar` com o Environment sem executar nada da branch, `executar` inalterado); configuração de publicação escrita no workflow; lista fixa de arquivos; Wrangler 4.161.0 pelo lockfile (`npm ci --ignore-scripts`, 92 pacotes com integridade); pacote empacotado sem publicar, inspecionado e com `sha256` conferido antes de publicar o mesmo arquivo; actions por SHA; token Cloudflare fora do argumento de processo.
+- Evidências: simulação offline de todos os passos sem secret e da publicação em `--dry-run` (hash aprovado igual ao enviado; empacotamento determinístico); casos negativos barrados (`.env`, `.dev.vars`, `build.command`, `console.log`, hash adulterado); 10 testes novos de isolamento.
+- Documentação: Documento 10 (nova seção 13.14 e desenho dos jobs atualizado), decisões, roadmap, mapa e README do Worker. Entradas anteriores sobre dois jobs ficam como registro, marcadas como superadas.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado, sem acesso à Cloudflare, à Apple ou ao IMAP/SMTP, sem infraestrutura nova. PR #17 em Draft e sem merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: configurar os Environments (aprovador obrigatório e branches restritas), proteger a branch da POC, conferir os SHAs das actions e decidir o destino do workflow antigo `icloud-probe-deploy.yml`, que mantém o padrão vulnerável (registrado, não alterado).
+- **Não comprovado:** o primeiro deploy real com o desenho novo (a publicação sem bundle só foi exercitada em `--dry-run`), os SHAs das actions, o formato real das claims e do JWKS, o CPU real e qualquer operação com a Apple. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Apresentar ao dono a próxima autorização: preparar os Environments e executar a primeira validação OIDC real, **sem credenciais Apple**.
+2. Depois do primeiro run, confirmar `sub`, `runner_environment`, JWKS real, CPU real e o comportamento da publicação do pacote aprovado.
+3. Só então, com autorização específica, a P1; antes de P3 a P5, decidir o uso único do token e reavaliar a política do JWKS.
+
+## 13/11/2026 · RAC Inbox — I0: revisão final de segurança do OIDC e preparação do próximo gate
+
+### 1. O que fizemos
+
+- Consultado o CI: a execução 43519117496 terminou com **sucesso** e corresponde exatamente ao commit `bddd3c2`.
+- Conferidos os SHAs das actions por fonte independente (direto nos repositórios oficiais, por `git ls-remote` e `git fetch`): `actions/checkout` v4.4.0 (`11d5960…`) e `actions/setup-node` v4.4.0 (`49933ea…`) batem com o workflow. A pendência de conferência dos SHAs está resolvida.
+- Analisado o risco residual do workflow privilegiado armazenado na branch controlada: uma alteração do arquivo na branch derruba **todos** os controles (passos arbitrários, uso do Environment, publicação de outro pacote, contorno do hash). Aprovação de Environment e restrição à branch da POC **não** resolvem; o que fecha é um workflow privilegiado na `main` com Environments restritos à `main` (desenho B). Impactos e alternativas na seção 13.15 do Documento 10; **nada foi implementado**, a decisão é do dono.
+- Revisado o workflow antigo `icloud-probe-deploy.yml`: usa `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` em três passos, com `npx` sem lockfile e a configuração da ref; ainda é caminho de exposição pela cópia da branch. Recomendada a desativação; não alterado.
+- Lista objetiva da configuração manual do GitHub, classificada em requisito, recomendação e opcional. Corrigida a tabela da seção 13.14, que recomendava restringir os Environments à branch da POC.
+- **Nada foi executado:** sem deploy, sem run do workflow OIDC, sem criar ou alterar Environments, sem ler ou criar secrets, sem acesso à Apple, ao IMAP ou ao SMTP, sem alterar a `main` ou o workflow antigo.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão do dono entre o desenho B (recomendado) e o C, a desativação do workflow antigo e a configuração dos Environments. PR #17 em Draft e sem merge.
+- **Não comprovado:** o primeiro deploy real com o desenho novo, o formato real das claims e do JWKS, o CPU real, o comportamento das aprovações de Environment e qualquer operação com a Apple. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Dono decide B ou C; se B, tarefa de implementação com PR dedicada do workflow para a `main` (merge do dono).
+2. Dono configura os Environments (aprovador obrigatório, só `main`, `icloud-auth-poc` sem secrets), desativa o workflow antigo e emite o token Cloudflare de permissão mínima.
+3. Só então, com autorização, a primeira validação OIDC real, sem credencial Apple; a P1 e qualquer operação real continuam bloqueadas.
+
+## 13/11/2026 · RAC Inbox — Desenho B: política OIDC da main e Worker na branch da POC
+
+### 1. O que fizemos
+
+- Na branch da POC (PR #17): a política OIDC do Worker passou a exigir `ref` e `workflow_ref` da `main` (nenhum controle enfraquecido); as cópias do workflow privilegiado, da ferramenta (lockfile) e do workflow antigo saíram da branch e os testes foram reorganizados. Tokens da branch da POC, de branches de agente, de PRs e de tags agora são recusados (nova tabela de origens não autorizadas nos testes). Novo teste de escopo do Worker.
+- Em paralelo, a PR #20 (para a `main`) traz o workflow privilegiado só na `main`, a ferramenta, o teste com execução real dos passos sem rede e a retirada do workflow antigo. Documento 10 ganhou a seção 13.16 (critérios de aceite × testes); entradas anteriores sobre o workflow na branch ficam como registro, superadas.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado, lido ou alterado, sem acesso à Apple, ao IMAP ou ao SMTP, sem alteração de configuração do GitHub, sem merge.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: mesclar a PR #20, configurar os Environments (aprovador obrigatório, só `main`), neutralizar o workflow antigo até o merge e emitir o token Cloudflare mínimo. PR #17 segue em Draft.
+- **Não comprovado:** o primeiro deploy real com este desenho, o formato real das claims e do JWKS, o CPU real, o comportamento das aprovações de Environment, a autenticação na Apple e qualquer operação de e-mail. A fase I0 não está concluída.
+
+### 3. O que vamos fazer
+
+1. Depois do merge da PR #20 e da configuração, atualizar a PR #17 com a `main` e, com autorização, executar o primeiro ensaio OIDC (só validação do JWT, sem credencial Apple), a partir da `main` com o commit da POC como entrada.
+2. Decidir o uso único do token e reavaliar a política do JWKS antes de qualquer operação real; P1 e seguintes só com autorização específica.
+
+## 13/11/2026 · RAC Inbox — PR #20 mesclada; PR #17 atualizada com a main
+
+### 1. O que fizemos
+
+- O dono mesclou a PR #20 (workflow privilegiado só na `main`, Desenho B). A branch da POC (PR #17) foi atualizada com a `main` por merge, sem force push.
+- Conflitos só em documentação (`docs/mapa.md`, `06-roadmap.md`, `07-decisoes-e-pendencias.md`, `historico-diario.md`), resolvidos preservando o conteúdo das duas PRs; nenhum conflito de código.
+- Com o workflow na branch, o teste de coerência entre workflow e Worker deixa de ser ignorado. Resultado da suíte: ver o relatório da sessão e o CI da PR #17.
+- Correção de pendência: a PR #17 **não precisa ser mesclada** para o primeiro ensaio OIDC, pois o workflow usa o commit da POC só como dado.
+- **Nada foi executado:** sem deploy, sem run do workflow, sem Environment ou secret criado ou alterado, sem acesso à Apple, ao IMAP ou ao SMTP.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: configurar os Environments `cloudflare-poc` e `icloud-auth-poc` (aprovador obrigatório, só `main`; `icloud-auth-poc` sem secrets), confirmar o workflow antigo desativado e emitir o token Cloudflare mínimo com prazo.
+- **Não comprovado:** o primeiro deploy real, as claims e o JWKS reais, o CPU real, as aprovações de Environment, a autenticação na Apple (IMAP e SMTP autenticados).
+
+### 3. O que vamos fazer
+
+1. Com a configuração confirmada e autorização expressa, o dono dispara o workflow na `main` com o commit da POC; conferimos o resumo do job `verificar` antes da aprovação e o resultado do job `executar`.
+2. Registrar o resultado real do ensaio; decidir o uso único do token e a política do JWKS antes de qualquer operação real. A fase I0 não está concluída.
+
+## 14/11/2026 · RAC Inbox — diagnóstico da 1ª execução OIDC (`jwks_indisponivel`)
+
+### 1. O que fizemos
+
+- A primeira execução real do ensaio OIDC ([43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370)) respondeu HTTP 401 `jwks_indisponivel`. Diagnóstico por leitura de `jwks.mjs`, `jwt.mjs`, `politica.mjs` e testes, e do código-fonte do workerd.
+- Causa mais provável: `redirect: "error"` é rejeitado pelo runtime Workers (`TypeError`), engolido e convertido em `jwks_indisponivel`. Reproduzido localmente com um fetch que aplica a regra do workerd; **não comprovado** no Worker publicado.
+- Correção na branch da POC: `redirect: "manual"` recusando 3xx, leitura do corpo limitada por bytes e `detalhe` seguro de lista fechada (15 categorias) na resposta 401. Validação estrita inalterada. Testes novos para cada categoria e para o sucesso.
+- Documento 10 (seção 13.17), decisões e README do Worker atualizados. **Nada foi publicado, executado de novo ou alterado em Environments, secrets ou permissões; PR #17 segue em Draft, sem merge.**
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão do CI do novo commit na PR #17 e a autorização do dono para um novo run.
+- **Não comprovado:** o texto real do erro no Worker publicado, o formato real do JWKS (o ambiente de nuvem não alcança o emissor) e das claims, o CPU, IMAP e SMTP autenticados. A prova OIDC só se conclui com HTTP 200, `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`.
+
+### 3. O que vamos fazer
+
+1. Com autorização expressa, o dono dispara o workflow na `main` com o SHA completo do novo commit da POC; conferimos o resumo do `verificar` antes de aprovar e o `detalhe` na resposta do `executar`.
+2. Se ainda falhar, o `detalhe` indicará a etapa; corrigir só o necessário. A fase I0 não está concluída.
+
+## 14/11/2026 · RAC Inbox — validação OIDC real concluída
+
+### 1. O que fizemos
+
+- Segunda execução manual do workflow `icloud-auth-probe` ([43535195165](https://github.com/raynercarvalho1/rac/actions/runs/43535195165), `main` `f23d9d9`, 00:35 a 00:37 UTC): **sucesso nos três jobs**. Entrada de dados: commit da POC `d1f25d3d1b80ad6aa1712bb8563ce616cc5b7b58` (pacote sha256 `939d49a9…46bbb`). O `executar` confirmou o aceite do JWT e a operação reconhecida (HTTP 200, `ok`, `oidc: "validado"`, `operacao_reconhecida`, conforme o critério do workflow).
+- Comprovado: OIDC real GitHub → Worker; formato real das claims e do JWKS compatível; correção de compatibilidade do JWKS (13.17) validada no Cloudflare Workers (a 1ª execução, commit `2a7a439`, falhara com `jwks_indisponivel`).
+- Documentação consolidada (Documento 10 seção 13.18, roadmap, decisões, README do Worker). Sem commit nesta tarefa. **Nada novo foi executado, publicado ou alterado em Environments, secrets ou GitHub; sem acesso à Apple.**
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão da documentação e a decisão do dono sobre a próxima prova. PR #17 em Draft, CI aprovado em `d1f25d3`, sem merge.
+- **Não comprovado:** autenticação IMAP e SMTP, leitura, sincronização, envio, CPU por requisição, uso único do token. A validação OIDC não autentica conta Apple. A I0 **não** está concluída; a I1 não foi iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização expressa, implementar a P1 (login IMAP em `imap.mail.me.com:993`, somente leitura) conforme a proposta aprovada; credencial só em Environment, nunca pelo chat.
+2. Decidir o uso único do token antes de qualquer P3 a P5; registrar cada prova só com evidência.
+
+## 14/11/2026 · RAC Inbox — replay com Durable Object e P1 IMAP (implementação)
+
+### 1. O que fizemos
+
+- **Implementação concluída (local):** registro de uso único (Durable Object com SQLite; chave `run_id:run_attempt:operacao`; 409 na repetição, 503 na falha), claims `jti`, `run_id` e `run_attempt` obrigatórias, idade máxima de 60 s com credencial e a P1 IMAP somente leitura (`CAPABILITY`, `LOGIN`, `LIST`, `LOGOUT`; resposta de esquema fechado). Workflow ajustado em PR separada na `main`.
+- **Testes automatizados:** ver o relatório da entrega; inclui 20 chamadas simultâneas, expiração, falha fechada, esquemas, ausência de credencial em logs e respostas, ausência de comandos IMAP proibidos e o passo de inspeção do pacote executado. Evidência local adicional: `wrangler deploy --dry-run` e Durable Object no workerd local (não substitui o runtime publicado).
+- **Publicação, prova sintética real e P1: não executadas.** Sem merge, sem deploy, sem acesso à Apple, sem alteração de Environments ou secrets.
+
+### 2. O que estamos fazendo
+
+- Aguardando o dono: merge da PR do workflow, secrets Apple no Environment `icloud-auth-poc` e as aprovações de Environment. Possível pendência: permissão do token Cloudflare para a migração do Durable Object.
+- **Não comprovado:** o uso único no runtime publicado, a P1 no servidor real da Apple, o CPU por requisição. A I0 **não** está concluída; a I1 não foi iniciada.
+
+### 3. O que vamos fazer
+
+1. Com o workflow na `main`: atualizar a PR #17 com a `main`, publicar o Worker pelo workflow e rodar `validar_uso_unico`; só se passar, rodar `p1_imap`.
+2. Registrar cada resultado com evidência (execução, estágio, código de erro); P3 a P7 só com autorização específica.
+
+## 14/11/2026 (tarde) · RAC Inbox — uso único comprovado; P1 falhou no corpo; correção
+
+### 1. O que fizemos
+
+- **Publicação e prova sintética real concluídas:** execução 43585089326 (10:23 UTC): Durable Object criado, "Uso único comprovado no runtime publicado: 1 aceita, 9 recusadas, replay recusado".
+- **P1 falhou antes da Apple:** execução 43597133032 (12:55 UTC), HTTP 400 `corpo_invalido`/`esquema_invalido`; secrets chegaram (mascarados); nenhuma conexão ou autenticação Apple; uso único daquela execução consumido (não se repete).
+- **Diagnóstico:** o contrato de campos já estava correto; falhou o formato de `usuario` ou `senha` (qual, a resposta não dizia). **Correção na branch da PR #17:** `detalhe` de lista fechada no 400 do esquema, pontas dos segredos aparadas (formato estrito mantido), comentários e docs alinhados, e o teste de contrato `icloud_auth_probe_contrato` que executa os passos reais do workflow contra o Worker. Resultado da suíte: suíte oficial com Grupo 1 de 1.688 testes (1.686 aprovados, 0 falhas, 0 ignorados, 2 `todo`) e Grupo 2 com 73/73; `--dry-run` real do pacote corrigido aprovado na inspeção (39.138 bytes).
+- **Não feito (de propósito):** nenhuma publicação da correção, nenhuma nova execução da P1, nenhum merge, sem tocar em secrets, Environments ou na proteção contra replay.
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão do novo pacote pelo dono. PR #17 em Draft, sem merge.
+- **Não comprovado:** a P1 no servidor real da Apple, o CPU por requisição. I0 **não** concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização: publicar o novo commit pelo workflow e rodar a P1 numa **nova** execução, depois de o dono conferir os secrets (e-mail completo; senha `xxxx-xxxx-xxxx-xxxx`).
+2. Registrar o resultado (estágio e código de erro, sem dados da conta); P3 a P7 só com autorização específica.

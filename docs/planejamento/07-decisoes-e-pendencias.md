@@ -8,6 +8,7 @@ como substituída. Convenções: ver o [Documento 1](01-visao-e-mapa-mestre.md#c
 
 | Data | Decisão | Fonte |
 |---|---|---|
+| 13/11/2026 | **Escopo do RAC Inbox redefinido:** cliente de e-mail completo, de uso pessoal do dono e da esposa, com isolamento total entre os dois usuários; iCloud primeiro e outros provedores depois; substituição progressiva do Spark. Não é um painel de metadados, e nenhuma prova técnica deve terminar em autenticação. Arquitetura recomendada: Supabase (Postgres com RLS, Vault e Edge Function) como fronteira e inteligência, e conector de transporte IMAP/SMTP substituível (Cloudflare Worker primeiro, runtime decidido por medição) | pedido explícito do dono em 13/11/2026; Documento 10, seção 13 |
 | (permanente) | **Protocolo de autonomia do RAC**: dono define objetivos e decisões restritas; Claude Code executa lotes completos; ChatGPT arquiteta e revisa; sem aprovações técnicas microetapa; commit/push/PR dentro do lote autorizado; merge/publicação somente se incluídos; consulta ao dono apenas para custos, credenciais/permissões sensíveis, perdas irreversíveis, mudanças relevantes de produto/privacidade ou fora de escopo | pedido explícito do dono em 13/11/2026; `CLAUDE.md` § Protocolo Permanente |
 | (permanente) | Autorizações do proprietário: sem commit, push, SQL em produção, deploy de função, publicação, segredos, cobrança ou IA paga sem autorização explícita; a experiência da Fernanda é preservada; a função `garmin` é intocável sem autorização expressa | `CLAUDE.md` |
 | (permanente) | JavaScript ES5 puro, sem framework, sem build, sem dependências novas; bibliotecas só de CDN com versão exata | `CLAUDE.md` |
@@ -163,6 +164,79 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Pendente, depende do dono:** token Cloudflare só com `Account → Workers Scripts → Edit`; Environment `cloudflare-poc` (aprovador e branches `main` e `poc/icloud-cloudflare-connectivity`); secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; merge desta PR e da PR #17 (Worker).
 - **A confirmar no primeiro uso:** que o botão "Run workflow" só aparece com o arquivo na `main`; se o deploy não interativo exige subdomínio `workers.dev` já registrado.
 
+## Atualização de 13/11/2026 · RAC Inbox (prova de conectividade iCloud concluída)
+
+- **Resultado:** a POC publicada pelo workflow manual provou, no Cloudflare Workers Free, conexão TCP/TLS com IMAP 993 (55 ms) e SMTP 587 com STARTTLS (481 ms), sem autenticar e sem ler ou enviar e-mail ([execução 43500897569](https://github.com/raynercarvalho1/rac/actions/runs/43500897569)). Detalhes e limites: Documento 10, seção 12.13. Confirmado no uso: o botão "Run workflow" exige o arquivo na branch escolhida e o deploy não interativo funcionou.
+- **Não comprovado:** autenticação Apple, leitura, envio, sincronização, estabilidade de polling, CPU medida e substituição do Spark. Fase I0 não concluída.
+- **Decisão pendente do dono:** (corrigido em 13/11/2026) o ambiente da prova de autenticação já foi decidido: conta iCloud do dono, senha de app e rota 2A (ver abaixo); restam as pendências da seção 13.12 do Documento 10; proposta anterior na 12.14.
+- **Pendente:** remoção do Worker `rac-icloud-connectivity-poc` (atividade futura, com autorização específica); decisão de encerrar ou manter a PR #17 em draft.
+
+## Atualização de 13/11/2026 · RAC Inbox (redefinição de escopo e arquitetura)
+
+- **Decisão do dono:** o RAC Inbox é um cliente completo, não um painel de metadados; as limitações da POC de conectividade não são limitações do produto. A proposta de prova de autenticação da seção 12.14 do Documento 10 foi **superada** pela sequência P1 a P7 (13.11), que avança até leitura, anexos, organização, exclusão controlada e envio de e-mail de teste.
+- **Registrado como recomendação (aguarda confirmação do dono):** divisão de responsabilidades (conector só transporta; Supabase autoriza, analisa e sanitiza); polling no lugar de IMAP IDLE no Workers; índice de metadados no Supabase com corpos e anexos sob demanda; lotes I0 a I8 (seção 7); provas de Gmail e Graph movidas para o lote I8.
+- **Pendente, depende do dono:** autorização específica antes de cada prova que altera a caixa ou envia e-mail (P3 a P5, com destinatário autorizado); decisão de uso único do token (alternativa A da seção 13.13) antes de P3 a P5; criação do Environment `icloud-auth-poc` e cadastro dos secrets do iCloud no Environment dedicado, quando for executar a P1
+- **Pendente, técnico (virá das provas):** CPU real no Workers Free; compatibilidade de bibliotecas IMAP e MIME; suporte do iCloud a IDLE, MOVE, CONDSTORE e QRESYNC; limite de sessões e política antiabuso da Apple; IMAP direto da Edge Function; tamanho máximo de requisição da Edge Function.
+
+## Correção de 13/11/2026 · RAC Inbox (conta e credencial da POC já decididas)
+
+- **Decisão do dono:** a POC usa a **conta iCloud do próprio dono**; **não haverá conta Apple de teste**. Somente senha específica de app, cadastrada diretamente como secret de GitHub Environment (rota 2A); o token de proteção do Worker não é cadastrado à mão (mecanismo a decidir, ver a correção abaixo). O escopo do Inbox como cliente completo também já está definido (Documento 10, seção 13.1).
+- **Salvaguardas por usar a conta real:** leitura e escrita restritas a pasta e mensagens de teste, impostas pelo código do conector; nenhuma alteração ou exclusão em mensagem pessoal; sem `EXPUNGE` geral; sem envio a destinatário não autorizado; logs sem remetente, assunto, conteúdo ou anexos; senha de app revogada ao fim da POC (seção 13.11).
+- **Texto anterior superado:** as menções a "conta de teste" nas entradas antigas deste arquivo e no histórico diário são registro histórico e foram substituídas por esta decisão.
+
+## Correção de 13/11/2026 · RAC Inbox (separação de credenciais e Environments)
+
+- **Preservado:** a abordagem 2A. A senha específica de app é cadastrada como secret de GitHub Environment e enviada ao Worker só durante a prova, por HTTPS, em memória; **nunca** como secret do Worker (`wrangler secret put`), variável, KV, Durable Object ou registro.
+- **`cloudflare-poc` fica como está:** só `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`, para a POC de conectividade. A recomendação anterior de acrescentar credenciais iCloud a ele foi **retirada**.
+- **Recomendado:** Environment dedicado `icloud-auth-poc` (*atenção: a lista de secrets deste item foi superada em 13/11/2026 — o primeiro ensaio OIDC não exige secrets Apple; ver a correção de segurança no fim deste arquivo*) (`ICLOUD_USER`, `ICLOUD_APP_PASSWORD` e, na P5, `ICLOUD_DESTINO_TESTE`, sem credencial Cloudflare) e dois jobs: um publica o Worker (`cloudflare-poc`) e outro executa a prova (`icloud-auth-poc`), com o job da senha Apple autenticando-se no Worker por OIDC do GitHub, sem segredo compartilhado, sem output nem artefato com segredo e sem duplicar o token da Cloudflare (solução S3).
+- ~~**Decisão pendente do dono (D-ENV):** S3 ou S2~~ **Superada em 13/11/2026: D-ENV decidida como S3** (seção abaixo). Registro original: S3 (recomendada, mais segura e mais complexa) ou S2 (um job num Environment dedicado, com um token Cloudflare dedicado e de permissão mínima).
+- **A confirmar antes de implementar a S3:** campos do token OIDC do GitHub (Environment e audiência), disponibilidade das chaves públicas a partir do Worker e custo de CPU da verificação no Workers Free.
+
+## Decisão de 13/11/2026 · RAC Inbox (D-ENV: arquitetura S3 com OIDC)
+
+- **Decisão do dono:** S3. Dois jobs, cada um com o seu Environment e sem segredo em comum: `provisionar` (`cloudflare-poc`, só credenciais Cloudflare, publica o Worker) e `executar` (`icloud-auth-poc`, só credenciais iCloud, única permissão `id-token: write`). O Worker valida o token OIDC do GitHub **antes** de ler o corpo com a credencial; a senha Apple nunca é gravada no Worker (nem `wrangler secret put`, variável, KV ou Durable Object) e existe só em memória durante a requisição. Substitui a recomendação anterior de misturar credenciais no `cloudflare-poc` e a alternativa S2.
+- **Estado:** implementado e testado **localmente** (Worker de validação, workflow, 34 testes e README); **não executado, não publicado, sem Environment nem secret criado**. A única operação do Worker é o ensaio `validar_oidc`; IMAP e SMTP reais seguem não implementados. Detalhes, política de confiança, JWKS, replay e CPU medido: Documento 10, seção 13.13.
+- **Limites registrados:** reuso do token dentro da validade **não** é impedido por assinatura, `exp` ou audiência; uso único exige persistência (alternativa A, Durable Object com SQLite, a decidir antes de P3 a P5). CPU medido só em Node (mediana de 0,25 ms por requisição, indicativo); a medição no runtime da Cloudflare depende de deploy autorizado. O formato real do `sub` (imutável, com Environment) e o valor de `runner_environment` são a confirmar no primeiro run real.
+- ~~**Pendente, depende do dono:** criar o Environment `icloud-auth-poc` e cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`~~ **Superada em 13/11/2026:** o Environment é criado sem secrets e o primeiro ensaio OIDC não exige secrets Apple (correção de segurança abaixo). Resta: autorizar a PR independente do workflow (a regra do GitHub exige o arquivo na branch padrão) e o primeiro run, que só valida o JWT; decidir a alternativa de uso único; autorizar as provas P1 a P5, uma a uma; aprovar custo adicional, se houver.
+
+## Correção de segurança de 13/11/2026 · ensaio OIDC sem credencial Apple
+
+- **Decisão (revisão do dono do commit `480b8b4`):** o primeiro ensaio OIDC **não usa nenhuma credencial Apple**. O workflow não declara nem lê `ICLOUD_USER` ou `ICLOUD_APP_PASSWORD`; o corpo enviado é sintético e mínimo (`{"operacao":"validar_oidc"}`); o Worker aceita só esse esquema, recusa campos extras (inclusive usuário e senha) e responde apenas que o JWT foi validado e a operação reconhecida. Nenhuma credencial Apple é criada, solicitada, transmitida ou armazenada nessa fase, e nenhuma credencial artificial com valor operacional a substitui. **Supera** a instrução anterior de cadastrar secrets Apple antes do primeiro run.
+- **Política do JWKS:** a janela de reaproveitamento de chaves antigas durante indisponibilidade do emissor (1 hora no commit `480b8b4`) foi **retirada**: com o cache vencido e o emissor fora, a validação falha fechada na hora. Uma chave revogada ainda vale até o fim do cache fresco (10 minutos). Sem infraestrutura persistente ou paga. **Reavaliar antes de qualquer operação real sobre a caixa de e-mail**; não ampliar sem decisão do dono.
+- **Branches:** os guardas dos dois jobs ficaram idênticos (só `poc/icloud-cloudflare-connectivity`); a `main` deixou de poder publicar o Worker.
+- **Mantido:** S3, dois jobs, `id-token: write` só no job `executar`, nada entre jobs, execução manual, URL fixa, sem IMAP/SMTP e sem deploy ou execução nesta etapa.
+- **Pendente, depende do dono:** criar o Environment `icloud-auth-poc` (aprovador obrigatório, branch restrita, **sem secrets**); autorizar a PR independente do workflow e o primeiro run (só valida o JWT); decidir o uso único do token antes de P3 a P5; autorizar P1 a P5, uma a uma. Os secrets Apple só serão cadastrados quando a P1 for implementada e autorizada.
+
+## Auditoria de segurança de 13/11/2026 · caminho de publicação do Worker OIDC
+
+- **Achado principal (alto):** o desenho com dois jobs executava o Wrangler, com o token da Cloudflare no ambiente, numa pasta cuja `wrangler.jsonc` vem da branch; uma chave `build.command` executa comando de shell (demonstrado localmente com token sintético), e código da branch (testes) rodava na mesma máquina dos secrets. **Corrigido:** três jobs (`verificar` sem secrets executa o código da branch e constrói e inspeciona o pacote; `provisionar` com o Environment não executa nada da branch e publica o pacote aprovado com configuração escrita no workflow; `executar` inalterado), Wrangler pelo lockfile com integridade e sem scripts, actions por SHA. Detalhes, os outros sete riscos e as evidências: Documento 10, seção 13.14. **Supera** o desenho de dois jobs descrito nas seções anteriores deste arquivo.
+- **Registrado, não alterado:** o workflow `icloud-probe-deploy.yml` (na `main`) mantém o padrão antigo. Recomendação: desativá-lo ou endurecê-lo no mesmo padrão antes de qualquer novo uso; retirar a `main` das branches do Environment `cloudflare-poc` enquanto isso. Decisão do dono.
+- **Limite que o código não resolve:** o workflow vem da branch escolhida; só a configuração do GitHub (aprovador e branches restritas nos Environments, proteção da branch) fecha essa fronteira.
+- **Pendente, depende do dono (nada foi configurado):** configurar os Environments (aprovador obrigatório e branches restritas; `icloud-auth-poc` sem secrets); proteger a branch da POC (sem *force push* nem exclusão); conferir os SHAs das actions na página das releases; token Cloudflare de permissão mínima, com prazo e revogação ao fim; autorizar a PR independente do workflow e o primeiro run (só valida o JWT); decidir o destino do workflow antigo; decidir o uso único do token antes de P3 a P5.
+
+## Revisão final de segurança de 13/11/2026 · OIDC e próximo gate
+
+- **CI:** a execução 43519117496 concluiu com sucesso e corresponde exatamente ao commit `bddd3c2`.
+- **SHAs das actions:** conferidos de forma independente (direto nos repositórios oficiais) e iguais aos do workflow: `actions/checkout` v4.4.0 em `11d5960a326750d5838078e36cf38b85af677262` e `actions/setup-node` v4.4.0 em `49933ea5288caeca8642d1e84afbd3f7d6820020`. Fica **resolvida** a pendência anterior de conferir os SHAs.
+- **Correção de um requisito:** a recomendação de restringir os Environments à branch da POC **não fecha** o risco R10 (workflow privilegiado vindo de branch controlada). **Supera** a linha correspondente da tabela da seção 13.14. Recomendação nova, sujeita a decisão do dono: workflow privilegiado na `main` com Environments restritos à `main` e o código da POC só como dado verificado por hash (desenho B, Documento 10, seção 13.15). Nada foi implementado.
+- **Workflow antigo `icloud-probe-deploy.yml`:** continua sendo caminho de exposição (usa os secrets da Cloudflare em três passos, com `npx` sem lockfile e a configuração da ref; a cópia da branch é dispatchável). Recomendação: desativá-lo agora (ação do dono). Não foi alterado nem desativado.
+- **Indício a verificar:** o Environment `cloudflare-poc` pode não exigir aprovador (a execução real começou ~20 s depois da criação).
+- **Pendente, depende do dono:** decidir B ou C; configurar os Environments (aprovador obrigatório, só `main`); desativar o workflow antigo; token Cloudflare de permissão mínima com prazo; só depois autorizar o primeiro ensaio OIDC, sem credencial Apple.
+
+## Decisão de 13/11/2026 · Desenho B implementado (política OIDC da main)
+
+- **Aprovado pelo dono e implementado (não executado):** workflow privilegiado só na `main` (PR #20), Environments só a `main`, commit da POC como dado verificado por hash; **supera** a recomendação anterior de restringir os Environments à branch da POC e o desenho com o workflow dentro da branch. Documento 10, seção 13.16.
+- **Política OIDC do Worker** (esta branch, PR #17): `ref` e `workflow_ref` da `main`; nenhum controle enfraquecido; tokens da branch da POC, de agente, de PR e de tag recusados.
+- **Workflow antigo retirado** (PR #20), inclusive a cópia desta branch; procedimento manual até o merge: *Actions → o workflow → Disable workflow*.
+- **Replay:** limitação mantida e documentada; uso único exige persistência, não implementada e dependente de autorização específica.
+- **Pendente, depende do dono:** mesclar a PR #20; Environments com aprovador obrigatório e só a `main`; neutralizar o workflow antigo até o merge; token Cloudflare mínimo com prazo; mesclar a PR #17; só então o primeiro ensaio OIDC, sem credencial Apple.
+
+## Atualização de 13/11/2026 · PR #20 mesclada; PR #17 atualizada com a main
+
+- **Feito:** a PR #20 (workflow privilegiado só na `main`, Desenho B) foi mesclada pelo dono; o workflow antigo saiu da `main`. A branch da POC (PR #17) foi atualizada com a `main` por merge (sem force push), com os conflitos só em documentação resolvidos preservando as duas versões; o teste de coerência entre workflow e Worker deixou de ser ignorado.
+- **Correção de pendência:** "mesclar a PR #17 antes do ensaio" **não é necessário**. O workflow publica o commit da POC como dado (por SHA), então a #17 permanece em Draft até a decisão de encerrar a POC.
+- **Pendente, depende do dono (nada configurado):** Environments `cloudflare-poc` e `icloud-auth-poc` com aprovador obrigatório e só a `main` (`icloud-auth-poc` sem secrets); desativar o workflow antigo na interface do GitHub se ainda aparecer; token Cloudflare de permissão mínima com prazo; só então autorizar o primeiro ensaio OIDC, sem credencial Apple. A fase I0 não está concluída.
+
 ## Decisão de 13/11/2026 · Desenho B: workflow privilegiado só na main
 
 - **Decisão do dono (aprovada):** o workflow que acessa os secrets da Cloudflare existe **só na `main`**, é disparado a partir dela e recebe o commit da POC como **entrada de dados**; nada da branch é executado, com ou sem secrets. Os Environments `cloudflare-poc` e `icloud-auth-poc` devem aceitar **só a `main`**. Supera a recomendação anterior de restringir os Environments à branch da POC, que não fechava o risco de workflow privilegiado vindo de branch controlada.
@@ -171,3 +245,31 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Regra permanente registrada no `CLAUDE.md`** (seção Segurança): credenciais de nuvem só em Environments, usados só por workflow privilegiado da `main`, com Environments restritos à `main`.
 - **Limite registrado (replay):** o token OIDC pode ser reutilizado dentro da validade; uso único exige persistência, **não implementada** e dependente de autorização específica, a decidir antes de qualquer operação que altere a caixa ou envie e-mail.
 - **Pendente, depende do dono (nada foi configurado):** mesclar esta PR; Environments com aprovador obrigatório e só a `main`; desativar o workflow antigo até o merge; token Cloudflare de permissão mínima com prazo; mesclar a PR #17 (Worker e política OIDC da `main`); só então autorizar o primeiro ensaio OIDC, sem credencial Apple. A fase I0 não está concluída.
+
+## Atualização de 14/11/2026 · RAC Inbox (1ª execução OIDC falhou; diagnóstico do JWKS)
+
+- **Resultado real:** a [execução 43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370) (`main` `f23d9d9`, commit da POC `2a7a439`) terminou em HTTP 401 `jwks_indisponivel`. A prova OIDC **não** está concluída.
+- **Causa mais provável:** `redirect: "error"` não existe no Cloudflare Workers (só `follow` e `manual`; o `fetch` lança `TypeError`). O erro era engolido e virava `jwks_indisponivel`. Comprovado no código-fonte do workerd e reproduzido localmente; **não comprovado** no Worker publicado.
+- **Correção na branch da POC (PR #17):** `redirect: "manual"` com recusa de 3xx, leitura limitada por bytes e campo `detalhe` de lista fechada na resposta 401; validação estrita inalterada. Documento 10, seção 13.17.
+- **Pendente, depende do dono:** autorizar um novo run a partir da `main` com o novo commit da POC (o `2a7a439` não tem a correção); o formato real do JWKS e das claims só será comprovado nesse run.
+
+## Atualização de 14/11/2026 · RAC Inbox (validação OIDC real concluída)
+
+- **Resultado:** a [execução 43535195165](https://github.com/raynercarvalho1/rac/actions/runs/43535195165) (`main` `f23d9d9`, commit da POC `d1f25d3d1b80ad6aa1712bb8563ce616cc5b7b58`) terminou com sucesso nos três jobs; o `executar` registrou "JWT OIDC aceito pelo Worker e operação reconhecida", o que o workflow só emite com HTTP 200, `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`. Supera a pendência "autorizar o primeiro ensaio OIDC".
+- **Decisão registrada:** `redirect: "error"` fica proibido no Worker (não existe no runtime Workers); a falha de chaves devolve `detalhe` de lista fechada. A correção da seção 13.17 foi validada no Cloudflare Workers.
+- **Limite:** a validação OIDC não autentica conta Apple. **Continuam não comprovados:** IMAP e SMTP autenticados, leitura, sincronização, envio, CPU por requisição e uso único do token. A I0 **não** está concluída.
+- **Pendente, depende do dono:** autorização expressa para a P1 (autenticação IMAP), com a credencial cadastrada por você só num Environment, nunca pelo chat; decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail; decisão sobre a PR #17 (segue em Draft, sem merge).
+
+## Decisão de 14/11/2026 · RAC Inbox (replay com Durable Object e P1 IMAP autorizados)
+
+- **Decisão do dono:** implementar a proteção contra replay com Durable Object + SQLite (chave `run_id:run_attempt:operacao`, consumo antes da execução, 409 na repetição, 503 na falha) e a P1 (autenticação IMAP somente leitura); publicar o Worker e executar a P1, **criando o Durable Object**. KV e cache em memória ficam proibidos como exclusão mútua. O merge de qualquer PR segue dependendo de autorização explícita. Detalhes: Documento 10, seção 13.19.
+- **Limites absolutos da P1:** nenhuma leitura de mensagem, cabeçalho, remetente, assunto, corpo ou anexo; nenhuma alteração de flags, mover, excluir, `EXPUNGE`, criar, renomear ou excluir pasta; nenhum SMTP nem envio; nenhuma tentativa automática de login. P3, P4 e P5 **não** fazem parte desta entrega.
+- **Credencial:** só por secrets do Environment `icloud-auth-poc`, cadastrados pelo dono direto no GitHub; nunca pelo chat.
+- **Pendente, depende do dono:** mesclar a PR do workflow (replay + P1) na `main`; aprovar os Environments nas execuções; cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`; se necessário, ampliar a permissão do token Cloudflare para a migração do Durable Object. **Nada foi publicado ou executado nesta entrega.** I0 não concluída.
+
+## Atualização de 14/11/2026 (tarde) · RAC Inbox (uso único comprovado; falha da P1 no corpo; correção)
+
+- **Resultado real:** a prova sintética do uso único passou no runtime publicado (execução 43585089326: 1 aceita, 9 recusadas, replay recusado) e o Durable Object foi criado com o token Cloudflare existente. A P1 (execução 43597133032) falhou com HTTP 400 `esquema_invalido` **antes de qualquer conexão com a Apple**; o uso único daquela execução foi consumido.
+- **Causa:** o contrato de campos (`operacao`, `usuario`, `senha`) já estava correto no workflow e no Worker; a rejeição veio do **formato de um dos valores** (e a resposta não dizia qual). Hipótese mais provável, não comprovada: espaço ou quebra de linha nas pontas de um secret.
+- **Decisão técnica (reversível):** a resposta 400 do esquema passa a levar `detalhe` de lista fechada (nunca o valor); `usuario` e `senha` são aparados **só nas pontas**; o formato da senha de app **não** foi afrouxado. Replay e retenção intocados.
+- **Pendente, depende do dono:** revisar o novo pacote e autorizar a publicação e uma **nova** execução da P1 (nova execução = novo `run_id`); conferir os secrets no GitHub (e-mail completo sem espaços; senha `xxxx-xxxx-xxxx-xxxx`); **PR #17 segue em Draft, sem merge**. I0 não concluída.

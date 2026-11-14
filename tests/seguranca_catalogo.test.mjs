@@ -73,7 +73,7 @@ test("cobertura: toda tabela criada pelas migrations está no catálogo; toda ta
     }
   }
   const listaMfa = (txt) => [...(/foreach t in array array\[([\s\S]*?)\] loop/.exec(txt) || [, ""])[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-  const comMfa = new Set(["022_seguranca.sql", "033_seguranca_compras_fiscal.sql", "037_notas_fiscais_foto_pdf.sql", "043_radar_precos.sql", "048_radar_descoberta.sql", "051_inbox_fundacao.sql"].flatMap((a) => listaMfa(ler("supabase/" + a))));
+  const comMfa = new Set(["022_seguranca.sql", "033_seguranca_compras_fiscal.sql", "037_notas_fiscais_foto_pdf.sql", "043_radar_precos.sql", "048_radar_descoberta.sql", "051_inbox_fundacao.sql", "052_inbox_cofre.sql"].flatMap((a) => listaMfa(ler("supabase/" + a))));
   comMfa.add("seguranca_eventos");   // a 022 cria a trava dela à parte (create policy "mfa" on public.seguranca_eventos)
   assert.match(ler("supabase/022_seguranca.sql"), /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   const testeReal = JSON.parse(/for \(const t of (\[[^\]]+\])\)/.exec(ler("tests/seguranca.test.mjs"))[1]);

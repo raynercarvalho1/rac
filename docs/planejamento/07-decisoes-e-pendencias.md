@@ -258,3 +258,21 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 4. Autorizações próprias para a P7, a Edge Function `rac-inbox` e o segredo do canal com o Worker (nada disso foi criado).
 5. Remoção do Worker de POC e dos Environments segue como atividade futura autorizada.
 
+## 14/11/2026 · RAC Inbox — custódia persistente de credenciais no Vault (decisão do dono)
+
+**Decisão do dono (14/11/2026):** as credenciais de provedores de e-mail **podem ser guardadas de forma persistente no Supabase Vault**, para manter as contas conectadas sem pedir a senha a cada uso. **Substitui** a regra de 14/11/2026 ("credencial por operação, nunca persistida") e resolve a pendência "custódia da credencial do iCloud (bloqueia a I2)" do registro "RAC Inbox I1 — fundação" acima, **que fica preservado**: a opção A daquele registro (cofre do servidor) foi a escolhida, com ressalvas.
+**Mantido:** só a senha **específica de app** da Apple (nunca a principal); nenhuma credencial em tabela comum, no navegador depois do envio, em resposta, erro, log, telemetria, teste, fixture, captura de tela ou documentação; credencial só descriptografada em operação autorizada e nunca em variável global ou cache; falha do Vault interrompe a operação, sem alternativa insegura; sem envio, exclusão, movimentação, arquivamento ou marcação de mensagens; Worker experimental e pins P1/P2/P6 intocados; sem migration em produção, secret ou publicação sem autorização.
+
+**Decisões técnicas tomadas (reversíveis; ver [docs/inbox.md](../inbox.md)):**
+- Segredo no Vault com nome `inbox_conta_<conta>`; tabela comum só com o **ponteiro** e metadados (migration `supabase/052_inbox_cofre.sql`), sem coluna de senha, chave composta com dono e conta, fora do backup do site.
+- **Schema privado `inbox_cofre`**, sem RPC e sem privilégio para `anon`, `authenticated` nem `service_role`; a função `rac-inbox` conecta direto ao Postgres (`SUPABASE_DB_URL`) e **não usa a chave de serviço**. Alternativa descartada: RPC em `public` restrita ao `service_role` (mais simples, mas deixa uma função de descriptografia na Data API).
+- Login do ID Apple guardado **dentro** do segredo (JSON), não em coluna.
+- Substituir = `vault.update_secret` no mesmo registro (sem órfão); remover/apagar conta/apagar usuário apagam o segredo por gatilho.
+- O formulário de conexão só aparece com o serviço publicado (`INBS.publicado`).
+
+**Pendente, depende do dono:**
+1. Aplicar as migrations **051 e 052** (002 e 022 antes; 050 opcional) e conferir: `select inbox_cofre.conferir();` (zeros), os privilégios do rodapé da 052 e `show log_parameter_max_length_on_error;` / `show log_statement;` (parâmetros de erro não devem ser registrados).
+2. Autorizar a **publicação da função `rac-inbox`** e, depois, a troca de `INBS.publicado` no site.
+3. Canal assinado com o Worker (**P7**): um Worker de produto e a assinatura da tarefa; sem ele a credencial guardada não é usada.
+4. Aceitar ou não o risco residual: a função conecta como `postgres`, e o administrador do Supabase pode ler o Vault.
+5. Ao desconectar uma conta, **revogar também a senha de app na Apple** (o RAC não consegue).

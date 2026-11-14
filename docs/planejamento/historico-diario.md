@@ -919,3 +919,23 @@ Família e da Casa.
 1. Com a custódia decidida: P7 (cofre, função `rac-inbox` e canal assinado com o Worker), cada passo com autorização própria.
 2. I2: sincronizar pastas e estado (`inbox_pastas` e `inbox_sincronizacao`) e a lista real de mensagens no lugar do exemplo; decidir a retenção antes de guardar qualquer conteúdo.
 
+## 14/11/2026 · RAC Inbox — custódia de credenciais no Vault e evolução visual
+
+### 1. O que fizemos
+
+- **Decisão do dono:** credenciais de provedores podem ser guardadas de forma persistente no Supabase Vault (substitui a regra anterior; registro em 07 e 10). Só a senha **específica de app** da Apple; nunca a principal.
+- **Banco (preparado, não aplicado):** `supabase/052_inbox_cofre.sql`: ponteiro `inbox_credenciais` sem coluna de senha, schema **privado** `inbox_cofre` (sem RPC; só o dono das funções executa), funções `guardar`, `ler`, `remover`, `estado`, `marcar` e `conferir`, gatilho que apaga o segredo junto com o ponteiro, RLS só do dono e trava "mfa". Provado em PGlite com um **Vault de mentira**: isolamento entre usuários, substituição sem órfão, exclusão (inclusive em cascata), falha do Vault sem alternativa, privilégios.
+- **Função de servidor (escrita e testada, não publicada):** `supabase/functions/rac-inbox`: JWT e MFA, conexão direta ao Postgres sem chave de serviço, códigos fechados; testes provam que nenhuma resposta, erro ou registro contém a credencial, que conta sem credencial não chega ao Worker e que a falha do cofre não tem alternativa.
+- **Site:** contrato e cliente com as operações de credencial; formulário de conexão, substituição e desconexão (só com o serviço publicado; senha enviada uma vez, campo limpo na hora, nunca no estado); revisão visual completa do Inbox (lista agrupada por data, leitura com cabeçalho e anexos, gaveta no tablet, iPhone com lista em tela cheia, leitura e caixas em telas próprias, barra de ações inferior, áreas seguras); sem token ou cor nova. Versão do site `2026-11-14.5`.
+- Testes novos: `inbox_cofre_sql` (12) e `inbox_cofre_servico` (12); `inbox_nucleo` (14), `inbox_tela` (7) e `inbox_sql` (11) atualizados.
+- **Sem migration em produção, sem publicação de função, sem secret, sem alteração do Worker nem dos pins, sem operação IMAP/SMTP, sem PR.**
+
+### 2. O que estamos fazendo
+
+- Aguardando as autorizações do dono: aplicar 051 e 052, conferir o cofre e os logs, publicar a função e decidir o canal com o Worker (P7).
+
+### 3. O que vamos fazer
+
+1. Com as autorizações: aplicar e conferir as migrations; publicar a função; ligar `INBS.publicado`; conectar a conta do iCloud pela tela e conferir `inbox_cofre.conferir()`.
+2. P7 (Worker de produto e canal assinado) e, então, a I2: sincronizar pastas e estado e a lista real de mensagens no lugar do exemplo.
+

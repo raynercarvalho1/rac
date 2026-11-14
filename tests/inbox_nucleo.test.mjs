@@ -42,7 +42,16 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["estado_pasta", "listar_pastas", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "listar_pastas", "testar_conta"]);
+  /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
+  const SENHA_APP = "abcd-efgh-ijkl-mnop";
+  assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });
+  for (const ruim of ["MinhaSenhaPrincipal1!", "ABCD-EFGH-IJKL-MNOP", "abcd-efgh-ijkl", "abcdefghijklmnop", ""]) assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: ruim }), { ok: false, erro: "senha_formato_invalido" }, ruim);
+  assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "sem-arroba", senha_app: SENHA_APP }), { ok: false, erro: "usuario_invalido" });
+  assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example" }), { ok: false, erro: "campo_ausente" });
+  assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP, dono: UUID_B }), { ok: false, erro: "campos_inesperados" }, "o dono nunca vai no pedido");
+  for (const op of ["credencial_remover", "credencial_estado", "testar_conta", "estado_pasta"]) assert.deepEqual(N.inbPedido(op, { conta_id: UUID_A, pasta_id: UUID_B, senha_app: SENHA_APP }), { ok: false, erro: "credencial_proibida" }, op + " não aceita credencial");
+  assert.deepEqual(N.inbPedido("credencial_remover", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "credencial_remover", conta_id: UUID_A } });
   assert.ok(Object.values(N.INB_OPERACOES).every((o) => o.escreve === false), "nenhuma operação escreve");
   assert.deepEqual(N.inbPedido("testar_conta", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "testar_conta", conta_id: UUID_A } });
   assert.deepEqual(N.inbPedido("estado_pasta", { conta_id: UUID_A, pasta_id: UUID_B }), { ok: true, pedido: { operacao: "estado_pasta", conta_id: UUID_A, pasta_id: UUID_B } });
@@ -157,14 +166,35 @@ test("cliente do serviço (js/inbox-servico.js): valida antes de qualquer rede, 
   assert.equal((await chamar("estado_pasta", { conta_id: UUID_A, pasta_id: UUID_B })).erro, "resposta_invalida");
 });
 
-test("arquivos do Inbox: ES5 puro, sem credencial no código, sem chamada direta a e-mail, sem chave de serviço e sem armazenamento no aparelho", () => {
+test("formulário de credencial: login do ID Apple + SÓ senha específica de app (a senha principal é recusada com a explicação); os campos voltam já conferidos", () => {
+  assert.deepEqual(N.inbCredencialValida({ usuario: " a@icloud.example ", senha: " abcd-efgh-ijkl-mnop " }), { ok: true, usuario: "a@icloud.example", senha: "abcd-efgh-ijkl-mnop" });
+  const ruim = N.inbCredencialValida({ usuario: "x", senha: "MinhaSenhaPrincipal1!" });
+  assert.equal(ruim.ok, false); assert.ok(ruim.erros.usuario); assert.match(ruim.erros.senha, /senha principal da conta Apple não é aceita/);
+  assert.ok(!JSON.stringify(ruim).includes("MinhaSenhaPrincipal1!"), "o erro nunca repete o que foi digitado");
+  assert.deepEqual(Object.keys(N.INB_CRED_ROTULOS), ["ausente", "ativa", "invalida"]);
+  for (const c of ["usuario_invalido", "senha_formato_invalido", "credencial_ausente", "credencial_invalida", "cofre_indisponivel", "mfa_requerido", "worker_nao_configurado"]) assert.ok(N.INB_ERROS[c], c);
+  assert.ok(!Object.values(N.INB_ERROS).some((t) => /senha-?principal-?real|[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}/.test(t.replace("abcd-efgh-ijkl-mnop", ""))), "os textos de erro só trazem o exemplo fixo do formato");
+});
+
+test("mensagens (data): grupos Hoje / Ontem / Esta semana / Anteriores e a data por extenso", () => {
+  const agora = new Date(2026, 10, 14, 18, 0);
+  assert.deepEqual([new Date(2026, 10, 14, 1), new Date(2026, 10, 13), new Date(2026, 10, 10), new Date(2026, 9, 1), "lixo"].map((d) => N.inbGrupoData(d, agora)), ["Hoje", "Ontem", "Esta semana", "Anteriores", "Anteriores"]);
+  const g = N.inbAgrupar([{ id: 1, recebida: new Date(2026, 9, 1) }, { id: 2, recebida: new Date(2026, 10, 14, 9) }, { id: 3, recebida: new Date(2026, 10, 14, 12) }, { id: 4, recebida: new Date(2026, 10, 13) }], agora);
+  assert.deepEqual(g.map((x) => [x.rotulo, x.itens.map((m) => m.id)]), [["Hoje", [3, 2]], ["Ontem", [4]], ["Anteriores", [1]]]);
+  assert.equal(N.inbDataCompleta(new Date(2026, 10, 14, 18, 4)), "14 de novembro de 2026, 18:04"); assert.equal(N.inbDataCompleta("x"), "");
+});
+
+test("arquivos do Inbox: ES5 puro, sem segredo no código, sem acesso direto a e-mail, sem chave de serviço e sem armazenamento no aparelho; a senha nunca entra no estado da tela nem é registrada", () => {
   for (const a of ["js/inbox.js", "js/inbox-servico.js", "js/inbox-demo.js"]) {
     const t = ler(a);
     assert.ok(!/=>|\blet\b|\bconst\b|`|\basync\b|\bawait\b|\.\.\./.test(t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/"(?:[^"\\\n]|\\.)*"/g, '""')), a + " é ES5");
-    assert.ok(!/service_role|SUPABASE_SERVICE|localStorage|sessionStorage|indexedDB|imap\.mail\.me\.com|smtp\.|api\.anthropic|Authorization/i.test(t.replace(/\/\*[\s\S]*?\*\//g, "")), a + " sem segredo, armazenamento local nem acesso direto");
+    assert.ok(!/service_role|SUPABASE_SERVICE|localStorage|sessionStorage|indexedDB|imap\.mail\.me\.com|smtp\.|api\.anthropic|Authorization|console\./i.test(t.replace(/\/\*[\s\S]*?\*\//g, "")), a + " sem segredo, armazenamento local, registro nem acesso direto");
   }
-  assert.ok(!/senha|password|passwd/i.test(ler("js/inbox-servico.js").replace(/\/\*[\s\S]*?\*\//g, "")), "o cliente do serviço não sabe o que é senha");
-  assert.ok(!/\.(insert|update|delete|upsert)\(/.test(ler("js/inbox-servico.js")), "o cliente do serviço não grava no banco");
+  const srv = ler("js/inbox-servico.js").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(!/\.(insert|update|delete|upsert)\(/.test(srv), "o cliente do serviço não grava no banco"); assert.ok(!/senha|password/i.test(srv), "o cliente do serviço só repassa o pedido: não olha dentro dele");
   const ui = ler("js/inbox.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.deepEqual([...ui.matchAll(/SB\.from\("([a-z_]+)"\)\.(insert|update|delete|upsert)/g)].map((m) => m[1] + "." + m[2]), ["inbox_contas.insert"], "a tela só cadastra conta; não grava mensagem, pasta, cursor nem nada de e-mail");
+  assert.deepEqual([...ui.matchAll(/SB\.from\("([a-z_]+)"\)\.(insert|update|delete|upsert)/g)].map((m) => m[1] + "." + m[2]), ["inbox_contas.insert"], "a tela só cadastra conta; credencial só pelo serviço; nada de e-mail");
+  assert.ok(!/INBX\.[a-zA-Z]*(senha|Senha|segredo|password)|senha:[^,}]*INBX|valores\.senha/.test(ui), "a senha nunca é guardada no estado da tela");
+  assert.match(ui, /campo\.value="";/, "o campo da senha é limpo na hora, antes do envio");
+  assert.ok(!/credencial|senha/i.test(ler("js/inbox-demo.js")), "o exemplo não tem nada de credencial");
 });

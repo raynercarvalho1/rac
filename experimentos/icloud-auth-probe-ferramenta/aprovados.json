@@ -32,17 +32,17 @@
       }
     },
     "p2": {
-      "commit_referencia": "7653915635158455e45e8438c137f63928559969",
-      "manifesto_sha256": "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f",
+      "commit_referencia": "2e1055e34a253e896b27d2319f10cc90414338f9",
+      "manifesto_sha256": "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997",
       "arquivos": {
         "src/consumo.mjs": "37dbea8cfa3ced0361e9a6fdf462936e80fc0d5954c79c5fb5ef4dcb2bc5d854",
         "src/imap.mjs": "21a805d428499089212137e8173ce13378a8aa4e5f0d0ca2ff99b3a98bba1388",
         "src/index.mjs": "7897c3a3f9189f3e0b23014290a3e3ce482d6ebc0c6f39fb2f5007e17ae6a2ae",
         "src/jwks.mjs": "71848377b63b9242d65537932650aaf98643eb6ba23a42cf6a502d2f7e2e7984",
         "src/jwt.mjs": "d1900b68c2f808d003883b72c10ba255783cba7bbce6da72bd06349ab81be4b7",
-        "src/mensagem.mjs": "432c3929c57e0c0c9cf50977de2a39741edd72ce1e2ea84dfbcde6ee9baa637d",
+        "src/mensagem.mjs": "5bb7e8d8aa9562f6b374a111a2f380c6f8b6bfff208229c5129a0ee9c6b1ef82",
         "src/mime.mjs": "139159d78da0faa5d664d0dd0a174615f9f8cda354fae4b4acd0d3416ece0113",
-        "src/politica.mjs": "28a787bca2d0f85c82d5fa740b99fa93304959e45a8502c0e8adcbd8e6d3f526",
+        "src/politica.mjs": "d42a1bcd757c5728fc22ed1f0709ce7d73a9922eccebfed5986f530105afe1dc",
         "src/rotas.mjs": "516ac275562cb51a3c5e005a5be63f686f92dd3b45ee96e765d2e3f5d2ef54e6",
         "wrangler.jsonc": "afbb19dd67a43ee3da0e4c0627a1e73d0283347f54920f869407b83947f93f05"
       }

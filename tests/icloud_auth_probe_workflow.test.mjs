@@ -49,7 +49,8 @@ test("só dispara na mão, com duas entradas (o commit da POC e a operação, um
   const op = /^      operacao:\n((?:        .+\n)+)/m.exec(WF)[1];
   assert.match(op, /default: validar_oidc/, "o padrão é a operação sem efeito e sem credencial");
   assert.match(op, /type: choice/);
-  assert.deepEqual([...op.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]), ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"], "lista fechada");
+  assert.deepEqual([...op.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]), ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"], "lista fechada");
+  for (const n of ["uidvalidity_anterior", "uidnext_anterior"]) assert.match(WF, new RegExp("^      " + n + ":\\n        description: [^\\n]+\\n        required: false\\n        default: \"\"\\n        type: string\\n", "m"), "entradas opcionais da P6 (texto, vazias por padrão): " + n);
   assert.match(WF, /^      uid_mensagem:\n        description: [^\n]+\n        required: false\n        default: ""\n        type: string\n/m, "a única outra entrada é o UID opcional (texto, vazio por padrão)");
   for (const x of [/\bpush:/, /\bpull_request/, /\bschedule:/, /\bcron:/, /\bworkflow_run:/, /\bworkflow_call:/, /\brepository_dispatch:/])
     assert.ok(!x.test(WF), "gatilho automático não permitido: " + x);
@@ -76,12 +77,14 @@ test("a entrada commit só passa por env e por ref do checkout, e é validada (4
   assert.ok(!/inputs\.commit/.test(J.executar), "só o job verificar usa o commit");
   // a operação só aparece em condições `if:` (nunca em script nem em env), onde é uma comparação com valor fixo da lista fechada
   const usosOp = [...WF.matchAll(/inputs\.operacao/g)].length;
-  const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap|p2_imap)' \}\}\s*$/gm)].length;
-  assert.equal(usosOp, 4, "três condições if e UMA variável de ambiente (a do passo do pin)");
-  assert.equal(emIf, 3);
+  const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap|p2_imap|p6_imap)' \}\}\s*$/gm)].length;
+  assert.equal(usosOp, 6, "cinco condições if (uso único, P1, P2 e P6 no executar, mais a conferência numérica da P6 no verificar) e UMA variável de ambiente (a do passo do pin)");
+  assert.equal(emIf, 5);
   assert.equal([...WF.matchAll(/^          OPERACAO: \$\{\{ inputs\.operacao \}\}\s*$/gm)].length, 1);
   assert.ok(achar(PV, "Conferir o pin").includes("OPERACAO: ${{ inputs.operacao }}"), "a operação só entra por env no passo do pin");
   assert.equal([...WF.matchAll(/inputs\.uid_mensagem/g)].length, 1, "o UID só entra por env do passo da P2");
+  assert.equal([...WF.matchAll(/inputs\.uidvalidity_anterior/g)].length, 2, "o estado anterior só entra por env, em dois passos: a conferência antecipada (verificar) e o passo da P6");
+  assert.equal([...WF.matchAll(/inputs\.uidnext_anterior/g)].length, 2, "o estado anterior só entra por env, em dois passos: a conferência antecipada (verificar) e o passo da P6");
 });
 
 test("o commit da POC é só dado: baixado à parte, em pasta própria, e nada dela é executado", () => {
@@ -135,11 +138,11 @@ test("job executar: Environment icloud-auth-poc, id-token só aqui, sem actions,
   assert.match(J.executar, /^    permissions:\n      id-token: write\n    env:/m);
   assert.equal([...WF.matchAll(/id-token:\s*write/g)].length, 1);
   assert.ok(!/CLOUDFLARE_(?:API_TOKEN|ACCOUNT_ID)|wrangler|\buses:|checkout|contents:|\bnpm\b|\bnpx\b/i.test(J.executar));
-  assert.ok(!/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "").replace(/^        if: \$\{\{ inputs\.operacao == '\w+' \}\}\s*$/gm, "").replace(/^          ICLOUD_(?:USER|APP_PASSWORD): \$\{\{ secrets\.ICLOUD_(?:USER|APP_PASSWORD) \}\}\s*$/gm, "").replace(/^          UID_MENSAGEM: \$\{\{ inputs\.uid_mensagem \}\}\s*$/gm, "")), "só as condições if, os secrets Apple (P1 e P2) e o UID da P2 usam expressões");
+  assert.ok(!/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "").replace(/^        if: \$\{\{ inputs\.operacao == '\w+' \}\}\s*$/gm, "").replace(/^          ICLOUD_(?:USER|APP_PASSWORD): \$\{\{ secrets\.ICLOUD_(?:USER|APP_PASSWORD) \}\}\s*$/gm, "").replace(/^          UID_MENSAGEM: \$\{\{ inputs\.uid_mensagem \}\}\s*$/gm, "").replace(/^          (?:UIDVALIDITY|UIDNEXT)_ANTERIOR: \$\{\{ inputs\.uid(?:validity|next)_anterior \}\}\s*$/gm, "")), "só as condições if, os secrets Apple (P1, P2 e P6), o UID da P2 e o estado anterior da P6 usam expressões");
   assert.match(J.executar, /--data '\{"operacao":"validar_oidc"\}'/);
   assert.match(J.executar, /^      WORKER_URL: https:\/\/rac-icloud-auth-poc\.[a-z0-9-]+\.workers\.dev\s*$/m);
   assert.match(J.executar, /^      AUDIENCIA_PREFIXO: rac-inbox-icloud-poc\s*$/m);
-  assert.deepEqual(PE.map(nomeDe).map((n) => n.split(" (")[0].split(" —")[0]), ["Só na main", "Validar o JWT no Worker", "Prova sintética do uso único", "P1 IMAP", "P2 IMAP"]);
+  assert.deepEqual(PE.map(nomeDe).map((n) => n.split(" (")[0].split(" —")[0]), ["Só na main", "Validar o JWT no Worker", "Prova sintética do uso único", "P1 IMAP", "P2 IMAP", "P6 IMAP"]);
   for (const p of PE.slice(1)) {
     const s = script(p);
     assert.ok(!/echo[^\n]*\$\{?(JWT\b|ACTIONS_ID_TOKEN)/.test(s.replace(/echo "::add-mask::\$JWT"/g, "")), nomeDe(p) + ": o token nunca é impresso");
@@ -150,6 +153,83 @@ test("job executar: Environment icloud-auth-poc, id-token só aqui, sem actions,
   const pre = script(PE[1]);
   assert.ok(pre.indexOf("::add-mask::$JWT") < pre.indexOf('"$WORKER_URL/auth-probe"'));
   assert.match(pre, /unset JWT/);
+});
+
+// ---------- P6: validação do estado anterior (EXECUÇÃO real do passo, com curl falso) ----------
+// O passo real "P6 IMAP" roda em bash com um `curl` falso no PATH que só REGISTRA as chamadas. Prova que entrada inválida encerra o passo ANTES de qualquer curl
+// (nenhum pedido de token OIDC e nenhuma chamada ao Worker, que é quem consome o uso único) e que as válidas seguem: 1º curl = token OIDC, 2º = Worker.
+const TETO_UID = "4294967295";
+function rodarP6(anterior) {
+  const passo = achar(PE, "P6 IMAP");
+  const dir = tmp();
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin);
+  const log = path.join(dir, "curl.log"), corpo = path.join(dir, "corpo.json");
+  fs.writeFileSync(path.join(bin, "curl"), [
+    "#!/bin/bash",
+    'case "$*" in *audience=*) echo OIDC >> "$LOG_CURL"; echo \'{"value":"jwt.falso.sentinela"}\' ;;',
+    '*) echo WORKER >> "$LOG_CURL"; out=""; prev=""; for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done',
+    '   cat > "$LOG_CORPO"; [ -n "$out" ] && echo \'{"ok":true,"operacao":"p6_imap","autenticado":true}\' > "$out"; printf 200 ;; esac', "",
+  ].join("\n"), { mode: 0o755 });
+  const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script(passo)], {
+    cwd: dir, encoding: "utf8",
+    env: { PATH: bin + path.delimiter + process.env.PATH, HOME: dir, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: path.join(dir, "resumo.md"), LOG_CURL: log, LOG_CORPO: corpo,
+      WORKER_URL: "https://worker.invalid", AUDIENCIA_PREFIXO: "rac-inbox-icloud-poc", ICLOUD_USER: "sentinela@example.com", ICLOUD_APP_PASSWORD: "zzzz-yyyy-xxxx-wwww",
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.invalid/token?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "pedido-falso",
+      UIDVALIDITY_ANTERIOR: anterior[0], UIDNEXT_ANTERIOR: anterior[1] },
+  });
+  const chamadas = fs.existsSync(log) ? fs.readFileSync(log, "utf8").split("\n").filter(Boolean) : [];
+  return { ...r, chamadas, corpo: fs.existsSync(corpo) ? fs.readFileSync(corpo, "utf8") : null };
+}
+
+test("EXECUÇÃO — P6: estado anterior válido segue (1º curl = token OIDC, 2º = Worker) e vai ao Worker como NÚMEROS; o teto 4294967295 é aceito, inclusive", { skip: semFerramentas }, () => {
+  for (const par of [[TETO_UID, TETO_UID], ["1", "1"], ["1700000000", "42"], ["4294967295", "1"], ["1", "4294967295"]]) {
+    const r = rodarP6(par);
+    assert.equal(r.status, 0, par.join("/") + ": " + r.stderr + r.stdout);
+    assert.deepEqual(r.chamadas, ["OIDC", "WORKER"], par.join("/") + ": primeiro o token, depois o Worker, uma vez cada");
+    const c = JSON.parse(r.corpo);
+    assert.deepEqual([c.operacao, c.uidvalidity_anterior, c.uidnext_anterior], ["p6_imap", Number(par[0]), Number(par[1])], "o jq converte para número exato");
+    assert.equal(typeof c.uidvalidity_anterior, "number");
+  }
+});
+
+test("EXECUÇÃO — P6: ambos ausentes preserva o comportamento atual (primeira leitura): corpo sem os campos do estado anterior", { skip: semFerramentas }, () => {
+  const r = rodarP6(["", ""]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.chamadas, ["OIDC", "WORKER"]);
+  assert.deepEqual(Object.keys(JSON.parse(r.corpo)).sort(), ["operacao", "senha", "usuario"]);
+});
+
+test("EXECUÇÃO — P6: estado anterior inválido é RECUSADO antes de qualquer curl (nenhum token OIDC pedido e nenhuma chamada ao Worker, logo nenhum uso único consumido)", { skip: semFerramentas }, () => {
+  const ruins = [
+    ["4294967296", "5"], ["5", "4294967296"], ["9999999999", "9999999999"], ["5", "9999999999"], ["10000000000", "5"], ["99999999999999999999", "5"],
+    ["0", "5"], ["5", "0"], ["-1", "5"], ["5", "-1"], ["+5", "5"], ["1.5", "5"], ["5", "2.0"], ["abc", "5"], ["5", "abc"], ["1e3", "5"], ["0x10", "5"], ["007", "5"], [" 5", "5"], ["5 ", "5"], ["5\n", "5"], ["5;id", "5"], ["$(id)", "5"],
+    ["5", ""], ["", "5"], ["4294967295", ""], ["", "4294967295"],
+  ];
+  for (const par of ruins) {
+    const r = rodarP6(par);
+    assert.notEqual(r.status, 0, "deveria recusar: " + JSON.stringify(par));
+    assert.deepEqual(r.chamadas, [], "nenhum curl (token OIDC ou Worker) antes da recusa: " + JSON.stringify(par));
+    assert.equal(r.corpo, null, "nada foi enviado ao Worker: " + JSON.stringify(par));
+    assert.match(r.stdout + r.stderr, /::error::uidvalidity_anterior e uidnext_anterior/, "mensagem de erro: " + JSON.stringify(par));
+    assert.ok(!/sentinela|zzzz-yyyy/.test(r.stdout + r.stderr), "sem vazar a credencial: " + JSON.stringify(par));
+  }
+});
+
+test("P6 — workflow: validação numérica (teto 4294967295) escrita ANTES do pedido do token, descrição de p6_imap sem duplicação e texto sem a limitação antiga a P1/P2", () => {
+  const passo = achar(PE, "P6 IMAP"), s = script(passo);
+  assert.match(s, /\[ "\$V" -gt 4294967295 \]/, "o teto numérico é conferido");
+  assert.match(s, /\[\[ "\$V" =~ \^\[1-9\]\[0-9\]\{0,9\}\$ \]\]/, "só dígitos, sem zero à esquerda e no máximo 10 dígitos");
+  assert.ok(s.indexOf('-gt 4294967295') < s.indexOf("ACTIONS_ID_TOKEN_REQUEST_URL"), "a validação numérica vem antes de qualquer pedido de token");
+  assert.ok(s.indexOf('-gt 4294967295') < s.indexOf("::add-mask::$JWT"));
+  assert.ok(s.indexOf("devem ser informados juntos") < s.indexOf('-gt 4294967295'), "o par é conferido antes do valor");
+  const desc = /^      operacao:\n        description: "([^\n]+)"\n/m.exec(WF)[1];
+  assert.equal([...desc.matchAll(/p6_imap \(/g)].length, 1, "p6_imap é descrita uma única vez");
+  for (const op of ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]) assert.equal([...desc.matchAll(new RegExp(op + " \\(", "g"))].length, 1, "uma descrição de " + op);
+  assert.match(desc, /p1_imap, p2_imap e p6_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD/);
+  assert.match(WFTXT, /# \(sincronização somente leitura da pasta RAC-TESTE: UIDVALIDITY, UIDNEXT, EXISTS e capacidades, sem ler mensagens; as entradas opcionais/, "o cabeçalho cita a P6");
+  assert.ok(!/chamada protegida da P1 e da P2 é única/.test(WFTXT), "o cabeçalho não limita a chamada única só à P1 e à P2");
+  for (const n of ["uidvalidity_anterior", "uidnext_anterior"]) assert.match(WF, new RegExp("^      " + n + ":\\n        description: [^\\n]*1 a 4294967295", "m"), n + ": a descrição informa o teto");
 });
 
 test("pré-checagem: a única chamada com repetição é a sem efeito (validar_oidc); as operações protegidas nunca repetem sozinhas", () => {
@@ -232,9 +312,9 @@ test("P2: uma única chamada, mesma credencial só dos secrets do Environment po
   assert.ok(!/(?:^|[\s"'=])poc\//.test(s) && !/\bSMTP\b|smtp\./i.test(s), "sem SMTP e sem pasta da POC");
 });
 
-test("a credencial Apple nunca é citada fora dos passos da P1 e da P2 (nem nos jobs verificar e provisionar, nem em cabeçalho do workflow)", () => {
-  const fora = WF.replace(PE[3], "").replace(PE[4], "").replace(/^      operacao:\n(?:        .+\n)+/m, ""); // a descrição da entrada "operacao" só informa o nome dos secrets
-  assert.ok(!/ICLOUD_(?:USER|APP_PASSWORD)\b/.test(fora.replace(/#.*$/gm, "")), "só os passos da P1 e da P2 usam os secrets");
+test("a credencial Apple nunca é citada fora dos passos da P1, da P2 e da P6 (nem nos jobs verificar e provisionar, nem em cabeçalho do workflow)", () => {
+  const fora = WF.replace(PE[3], "").replace(PE[4], "").replace(PE[5], "").replace(/^      operacao:\n(?:        .+\n)+/m, ""); // a descrição da entrada "operacao" só informa o nome dos secrets
+  assert.ok(!/ICLOUD_(?:USER|APP_PASSWORD)\b/.test(fora.replace(/#.*$/gm, "")), "só os passos da P1, da P2 e da P6 usam os secrets");
   assert.ok(!/senha|password/i.test(J.verificar) && !/senha|password/i.test(J.provisionar));
 });
 
@@ -270,7 +350,7 @@ test("actions oficiais fixadas por SHA (conferidos nos repositórios oficiais) e
   assert.deepEqual(fs.readdirSync(new URL(dir, raiz)).sort(), ["README.md", "aprovados.json", "package-lock.json", "package.json"]);
 });
 
-const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index"];
+const ARQS_WORKER = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index", "sincronizacao"];
 const CFG_FIXA = { name: "rac-icloud-auth-poc", main: "src/index.mjs", compatibility_date: "2026-11-13", workers_dev: true, observability: { enabled: false },
   durable_objects: { bindings: [{ name: "CONSUMO", class_name: "ConsumoUnico" }] }, migrations: [{ tag: "v1", new_sqlite_classes: ["ConsumoUnico"] }] };
 
@@ -552,6 +632,7 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
 const PINS_CONHECIDOS = {
   p1: { manifesto: "e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82", commit: "68403f5221ed3d371e5786ed8cbca6a7b5492b6e" },
   p2: { manifesto: "b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59", commit: "abc5251703928a1b796a7158c6d7c897dbf8c50d" },
+  p6: { manifesto: "54800fce95f1dfe80659bdfae374fd65ea45b7a6d709d791110d0f1a2d903485", commit: "8bc17d710738d7b478f4dc6a8c8aacfeb7d01555" },
 };
 // pins P2 SUBSTITUÍDOS (nunca mais aceitos para p2_imap): o original, de 7653915, que tratava a segunda resposta FETCH como erro
 const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }, { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" }];
@@ -566,6 +647,7 @@ test("pins: o P1 está PRESERVADO (bytes idênticos aos aprovados originalmente)
     assert.notEqual(pin.pins.p1.manifesto_sha256, s.manifesto);
   }
   assert.deepEqual(pin.operacoes.p2_imap, ["p2"]); assert.deepEqual(pin.operacoes.p1_imap, ["p1"]);
+  assert.equal(pin.pins.p6.manifesto_sha256, PINS_CONHECIDOS.p6.manifesto); assert.equal(pin.pins.p6.commit_referencia, PINS_CONHECIDOS.p6.commit); assert.deepEqual(pin.operacoes.p6_imap, ["p6"]);
 });
 
 test("EXECUÇÃO — pin: p2_imap RECUSA o conteúdo do pin P2 anterior (mensagem.mjs e politica.mjs antigos) e o P1, e aceita só o P2 novo", { skip: semFerramentas }, () => {
@@ -582,10 +664,10 @@ test("aprovados.json: formato, associação operação→pin, manifesto recalcul
   const pin = JSON.parse(ler(ARQ_PIN));
   assert.deepEqual(Object.keys(pin).sort(), ["formato", "operacoes", "pins"]);
   assert.equal(pin.formato, "rac-pin-v1");
-  assert.deepEqual(pin.operacoes, OPERACOES_PIN, "p1_imap só o P1, p2_imap só o P2; as operações sem credencial aceitam os dois");
-  const ops = [...WF.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]).filter((o) => /^(validar_oidc|validar_uso_unico|p1_imap|p2_imap)$/.test(o));
+  assert.deepEqual(pin.operacoes, { ...OPERACOES_PIN, p6_imap: ["p6"] }, "p1_imap só o P1, p2_imap só o P2, p6_imap só o P6; as operações sem credencial aceitam P1 e P2");
+  const ops = [...WF.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]).filter((o) => /^(validar_oidc|validar_uso_unico|p1_imap|p2_imap|p6_imap)$/.test(o));
   assert.deepEqual(Object.keys(pin.operacoes).sort(), [...new Set(ops)].sort(), "a tabela cobre exatamente as operações do workflow");
-  assert.deepEqual(Object.keys(pin.pins), ["p1", "p2"]);
+  assert.deepEqual(Object.keys(pin.pins), ["p1", "p2", "p6"]);
   for (const [n, p] of Object.entries(pin.pins)) {
     assert.deepEqual(Object.keys(p).sort(), ["arquivos", "commit_referencia", "manifesto_sha256"], n);
     assert.match(p.commit_referencia, /^[0-9a-f]{40}$/); assert.match(p.manifesto_sha256, /^[0-9a-f]{64}$/);
@@ -601,6 +683,11 @@ test("aprovados.json: formato, associação operação→pin, manifesto recalcul
   assert.deepEqual(k1.filter((x) => !k2.includes(x)), []);
   for (const k of k1.filter((x) => x !== "src/index.mjs" && x !== "src/politica.mjs" && x !== "src/rotas.mjs")) assert.equal(pin.pins.p1.arquivos[k], pin.pins.p2.arquivos[k], k + ": só índice, política e rotas mudam entre P1 e P2");
   assert.notEqual(pin.pins.p1.manifesto_sha256, pin.pins.p2.manifesto_sha256);
+  // P6 = P2 + o módulo da sincronização; os arquivos de P1 e P2 que o P6 não toca continuam idênticos
+  const k6 = Object.keys(pin.pins.p6.arquivos);
+  assert.deepEqual(k6.filter((x) => !k2.includes(x)), ["src/sincronizacao.mjs"]);
+  assert.deepEqual(k2.filter((x) => !k6.includes(x)), []);
+  for (const k of ["src/consumo.mjs", "src/imap.mjs", "src/jwks.mjs", "src/jwt.mjs", "src/mime.mjs", "wrangler.jsonc"]) assert.equal(pin.pins.p6.arquivos[k], pin.pins.p2.arquivos[k], k + ": o P6 não muda este arquivo");
 });
 
 test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere; adulteração, hash errado ou vazio são recusados", { skip: semFerramentas }, () => {
@@ -716,7 +803,7 @@ test("o Worker (quando a versão com replay + P1 está presente) só aceita toke
   const prefixo = /AUDIENCIA_PREFIXO: (\S+)/.exec(J.executar)[1] + ":";
   assert.equal(prefixo, POLITICA.audienciaPrefixo);
   // toda operação da política tem o passo correspondente no workflow, e vice-versa
-  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]);
+  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]);
   for (const op of POLITICA.operacoes.filter((o) => o !== "validar_oidc")) assert.ok(J.executar.includes("inputs.operacao == '" + op + "'"), "passo ausente para " + op);
   assert.deepEqual(audienciasPermitidas(), POLITICA.operacoes.map((o) => POLITICA.audienciaPrefixo + o));
   // a configuração fixa do workflow é a wrangler.jsonc do Worker (Durable Object e migração incluídos)
@@ -732,4 +819,95 @@ test("documentação: o guia registra o desenho B, os SHAs conferidos, a limita�
   for (const sha of [SHA_CHECKOUT, SHA_NODE]) assert.ok(guia.includes(sha), "SHA ausente do guia: " + sha);
   for (const trecho of [/Desenho B/, /Disable workflow/i, /replay/i, /uso único/i, /Deployment branches/i, /icloud-probe-deploy\.yml/, /só a `main`|apenas a `main`|somente a `main`/i]) assert.match(guia, trecho);
   for (const t of [WFTXT, guia]) assert.ok(!/(?:cfut_|cfat_|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|Bearer [A-Za-z0-9_-]{30,})/.test(t), "parece um token escrito no texto");
+});
+
+/* ---------- P6: o estado anterior (UIDVALIDITY e UIDNEXT) é conferido, no limite de 32 bits, ANTES de qualquer token OIDC, secret ou uso único ---------- */
+const VAL_V = achar(PV, "Conferir as entradas numéricas da P6"), P6_PASSO = achar(PE, "P6 IMAP");
+const LIMITE_U32 = "4294967295";
+/* o trecho da conferência: de "export LC_ALL=C" até o "done" do laço; tem que ser idêntico nos dois passos */
+const blocoVal = (passo) => { const s = script(passo), i = s.indexOf("export LC_ALL=C"), j = s.indexOf("\ndone\n", i); assert.ok(i >= 0 && j > i, "bloco de conferência não encontrado em " + nomeDe(passo)); return s.slice(i, j + 6); };
+/* curl de mentira: registra cada chamada (sem rede) e guarda o corpo enviado ao Worker; devolve um token falso e uma resposta 200 do Worker */
+function curlFalso() {
+  const d = tmp(), marca = path.join(d, "chamadas.txt"), corpo = path.join(d, "corpo.json");
+  fs.writeFileSync(path.join(d, "curl"), `#!/usr/bin/env bash
+echo "curl" >> "${marca}"
+SAIDA=""; PEDE_CODIGO=0; TEM_CORPO=0
+while [ $# -gt 0 ]; do case "$1" in -o) SAIDA="$2"; shift ;; -w) PEDE_CODIGO=1; shift ;; --data-binary) TEM_CORPO=1; shift ;; esac; shift; done
+[ "$TEM_CORPO" = 1 ] && cat > "${corpo}"
+if [ "$PEDE_CODIGO" = 1 ]; then echo '{"ok":true,"operacao":"p6_imap","autenticado":true}' > "$SAIDA"; printf 200; else echo '{"value":"jwt-falso-de-teste"}'; fi
+`, { mode: 0o755 });
+  return { d, marca, corpo, chamadas: () => (fs.existsSync(marca) ? fs.readFileSync(marca, "utf8").split("\n").filter(Boolean).length : 0) };
+}
+const ENV_P6 = (cf, extra) => ({ PATH: cf.d + path.delimiter + process.env.PATH, ICLOUD_USER: "usuario-falso", ICLOUD_APP_PASSWORD: "senha-falsa", ACTIONS_ID_TOKEN_REQUEST_URL: "https://token.invalido/x?a=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "pedido-falso",
+  AUDIENCIA_PREFIXO: "aud-teste", WORKER_URL: "https://worker.invalido", ...extra });
+
+const ACEITOS = [["", ""], [LIMITE_U32, LIMITE_U32], ["1", "1"], ["1", LIMITE_U32], ["4294967294", "123456789"], ["987654321", "2147483648"]];
+const RECUSADOS = [
+  ["4294967296", "1", "um acima do limite (uidvalidity)"], ["1", "4294967296", "um acima do limite (uidnext)"], ["9999999999", "1", "dez noves"], ["1", "9999999999", "dez noves no outro campo"],
+  ["12345678901", "1", "11 dígitos"], ["0", "1", "zero (uidvalidity)"], ["1", "0", "zero (uidnext)"], ["00", "1", "zeros"], ["01", "1", "zero à esquerda"],
+  ["-1", "1", "negativo"], ["+1", "1", "com sinal de mais"], ["1.5", "1", "decimal"], ["1", "2.0", "decimal com zero"], ["1,5", "1", "decimal com vírgula"],
+  ["abc", "1", "texto"], ["1", "abc", "texto no outro campo"], ["0x10", "1", "hexadecimal"], ["1e3", "1", "notação científica"], [" 1", "1", "espaço antes"], ["1 ", "1", "espaço depois"],
+  ["1\n2", "1", "quebra de linha"], ["１２３", "1", "dígitos de largura total"], ["٣", "1", "dígito de outro alfabeto"], ["1", "", "só a uidvalidity informada"], ["", "1", "só a uidnext informada"],
+  [LIMITE_U32 + "0", "1", "limite com um zero a mais"], ["$(echo 1)", "1", "tentativa de expansão"], ["1;1", "1", "ponto e vírgula"],
+];
+
+test("P6 · validação numérica: a conferência é o 2º passo do job verificar (sem secrets e sem token), e o mesmo bloco vale no passo da P6", () => {
+  assert.ok(VAL_V && P6_PASSO, "passos encontrados");
+  assert.equal(PV.indexOf(VAL_V), 1, "logo depois da guarda da main e do commit; antes dos checkouts, do pin e do empacotamento");
+  assert.match(VAL_V, /if: \$\{\{ inputs\.operacao == 'p6_imap' \}\}/); assert.ok(!comSecret(VAL_V), "sem secrets");
+  assert.ok(!/ACTIONS_ID_TOKEN|curl|id-token/.test(script(VAL_V).replace(/^\s*#.*$/gm, "")), "a conferência antecipada não pede token nem chama nada");
+  assert.equal(blocoVal(VAL_V), blocoVal(P6_PASSO), "o bloco de conferência é idêntico nos dois passos (sem divergência entre eles)");
+  assert.match(blocoVal(VAL_V), /4294967295/); assert.ok(!/\{0,9\}\$\]\]\s*;\s*then\s*\n\s*echo[^\n]*até 10 dígitos/.test(script(P6_PASSO)), "a mensagem antiga de até 10 dígitos saiu");
+  /* os jobs seguintes dependem do verificar: uma recusa aqui impede a publicação do Worker e qualquer pedido de token */
+  assert.match(J.provisionar, /needs: verificar/); assert.match(J.executar, /needs: provisionar/);
+  /* no passo da P6 a conferência vem antes do pedido de token e do envio ao Worker */
+  const s = script(P6_PASSO), iVal = s.indexOf("export LC_ALL=C"), iTok = s.indexOf("ACTIONS_ID_TOKEN_REQUEST_URL"), iCurl = s.indexOf("curl ");
+  assert.ok(iVal > 0 && iVal < iTok && iTok < iCurl, "ordem no passo da P6: conferência → token OIDC → Worker");
+});
+
+for (const [uv, un] of ACEITOS) {
+  test(`P6 · validação numérica: aceita UIDVALIDITY ${JSON.stringify(uv)} e UIDNEXT ${JSON.stringify(un)} (limite de 32 bits, inclusive)`, { skip: semFerramentas }, () => {
+    const r1 = rodar(VAL_V, { cwd: tmp(), env: { UIDVALIDITY_ANTERIOR: uv, UIDNEXT_ANTERIOR: un } });
+    assert.equal(r1.status, 0, r1.stdout + r1.stderr);
+    const cf = curlFalso(), r2 = rodar(P6_PASSO, { cwd: tmp(), env: ENV_P6(cf, { UIDVALIDITY_ANTERIOR: uv, UIDNEXT_ANTERIOR: un }) });
+    assert.equal(r2.status, 0, r2.stdout + r2.stderr);
+    assert.equal(cf.chamadas(), 2, "um pedido de token e UMA chamada ao Worker, sem repetição");
+    const corpo = JSON.parse(fs.readFileSync(cf.corpo, "utf8"));
+    if (uv === "") { assert.ok(!("uidvalidity_anterior" in corpo) && !("uidnext_anterior" in corpo), "ambos ausentes: comportamento atual preservado (primeira leitura, sem estado anterior)"); }
+    else { assert.strictEqual(corpo.uidvalidity_anterior, Number(uv)); assert.strictEqual(corpo.uidnext_anterior, Number(un)); }
+    assert.equal(corpo.operacao, "p6_imap");
+  });
+}
+
+for (const [uv, un, motivo] of RECUSADOS) {
+  test(`P6 · validação numérica: recusa ${motivo} (UIDVALIDITY ${JSON.stringify(uv)}, UIDNEXT ${JSON.stringify(un)}) ANTES do token OIDC e da chamada ao Worker`, { skip: semFerramentas }, () => {
+    const r1 = rodar(VAL_V, { cwd: tmp(), env: { UIDVALIDITY_ANTERIOR: uv, UIDNEXT_ANTERIOR: un } });
+    assert.notEqual(r1.status, 0, "a conferência antecipada (job verificar) recusa");
+    assert.match(r1.stdout, /::error::uidvalidity_anterior e uidnext_anterior/);
+    const cf = curlFalso(), r2 = rodar(P6_PASSO, { cwd: tmp(), env: ENV_P6(cf, { UIDVALIDITY_ANTERIOR: uv, UIDNEXT_ANTERIOR: un }) });
+    assert.notEqual(r2.status, 0, "o passo da P6 também recusa (defesa em profundidade)");
+    assert.match(r2.stdout, /::error::uidvalidity_anterior e uidnext_anterior/);
+    assert.equal(cf.chamadas(), 0, "nenhum pedido de token OIDC e nenhuma chamada ao Worker (nada que consuma o uso único)");
+    assert.ok(!fs.existsSync(cf.corpo), "nada foi enviado");
+  });
+}
+
+test("P6 · validação numérica: o valor recusado nunca é convertido em número válido (nenhum 'tonumber' acontece antes da conferência)", () => {
+  const s = script(P6_PASSO), iVal = s.indexOf("export LC_ALL=C"), iConv = s.indexOf("tonumber");
+  assert.ok(iConv > iVal, "a conversão para número só existe depois da conferência");
+  assert.equal([...s.matchAll(/tonumber/g)].length, 2, "só o uidvalidity_anterior e o uidnext_anterior, e só na montagem do corpo");
+});
+
+test("limpeza do workflow: a operação p6_imap é descrita uma só vez no formulário e nenhum texto diz que só P1/P2 existem", () => {
+  const desc = /^      operacao:\n        description: "([^\n]*)"/m.exec(WFTXT)[1];
+  assert.equal([...desc.matchAll(/p6_imap \(/g)].length, 1, "descrição duplicada de p6_imap removida");
+  for (const o of ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]) assert.ok(desc.includes(o), "a descrição continua citando " + o);
+  assert.match(desc, /exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD/);
+  for (const n of ["uidvalidity_anterior", "uidnext_anterior"]) assert.match(WFTXT, new RegExp("^      " + n + ":\\n        description: \"[^\\n]*de 1 a 4294967295", "m"), n + ": a descrição informa o limite");
+  assert.ok(!/até 10 dígitos/.test(/^      uidvalidity_anterior:[\s\S]*?type: string/m.exec(WFTXT)[0] + /^      uidnext_anterior:[\s\S]*?type: string/m.exec(WFTXT)[0]));
+  const cab = WFTXT.split("\nname:")[0];
+  assert.match(cab, /p6_imap/); assert.match(cab, /da P1, da P2 e da P6/);
+  assert.ok(!/chamada protegida da P1 e da P2/.test(WFTXT), "o cabeçalho não diz mais que só P1 e P2 têm chamada única");
+  assert.match(WFTXT, /p1_imap só\s+#\s+publica o conteúdo P1, p2_imap só o P2 e p6_imap só o P6/);
+  assert.match(WFTXT, /citados\s+#?\s*nos passos da P1, da P2 e da P6/);
 });

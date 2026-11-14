@@ -726,7 +726,7 @@ Família e da Casa.
 ### 1. O que fizemos
 
 - Branch local `claude/inbox-p2-workflow`, criada a partir da `main` (`4ff3ed9`), **sem a PR #17** (que segue em Draft): o suporte `p2_imap` no workflow (operação, `uid_mensagem`, passo "P2 IMAP" sem retry, inspeção do pacote com listas exatas de verbos) e o **portão do pin**.
-- **Portão do pin:** `aprovados.json` com os pins P1 e P2 e a tabela operação → pin; conferência no job `verificar` (sem secrets) antes de montar e empacotar, com os hashes lidos dos objetos do Git, lista fixa validada, `wrangler.jsonc` incluída e reconferência após a cópia; inspeção do pacote dependente do pin. Node do workflow fixado em `24.22.3`. Hash do bundle **não** entra no pin.
+- **Portão do pin:** `aprovados.json` com os pins P1 e P2 e a tabela operação → pin; conferência no job `verificar` (sem secrets) antes de montar e empacotar, com os hashes lidos dos objetos do Git, lista fixa validada, `wrangler.jsonc` incluída e reconferência após a cópia; inspeção do pacote dependente do pin. Node do workflow fixado em `24.22.2`. Hash do bundle **não** entra no pin.
 - **Validação:** testes do workflow executando os passos reais (aceitação e recusa por operação, byte alterado, ausente, extra, renomeado, link, submódulo, executável, `.gitattributes`, pin inválido ou inconsistente, variável tentando trocar o pin, configuração do Wrangler adulterada) e mutações no próprio portão detectadas; passos reais executados contra os **commits reais** da POC (P1 `68403f5` e P2 `7653915`) com o Wrangler do lockfile em `--dry-run`: combinações corretas aprovadas e as cruzadas, um byte alterado e um arquivo extra recusados no portão. A execução real encontrou um defeito (a inspeção exigia a lista de verbos da P2 também no pacote P1, o que quebraria o rollback), corrigido e coberto por teste.
 - Documentação: guia de publicação (seção "Portão do pin" e regra de revisão), decisões e este histórico.
 - **Não feito (de propósito):** push, PR, merge, publicação do Worker, execução da P2 real, configuração do GitHub.
@@ -739,4 +739,22 @@ Família e da Casa.
 
 1. Com autorização: push da branch e PR-A para a `main`; o dono revisa o diff do workflow e do pin e o diff do Worker da P2 (`68403f5...7653915`).
 2. Depois do merge: atualizar a branch da P2 com a `main` (sem rebase) e acrescentar o teste de desvio do pin; o dono configura a regra de revisão; autorizar publicação e **uma** execução de `p2_imap`.
+
+## 14/11/2026 (noite, 3) · RAC Inbox — revisão da PR #22, correções e CODEOWNERS
+
+### 1. O que fizemos
+
+- **Revisão da PR #22** com evidências do GitHub: o log real da P1 (43599209307) confirmou o commit publicado (`68403f5`, igual ao pin P1), os comandos reais do `actions/checkout` (`--filter=blob:none --depth=1`, sparse-checkout, reproduzidos localmente: `git ls-tree` e `git cat-file` funcionam no checkout parcial) e o Node real do runner (`24.22.2`).
+- **Correções na PR:** Node fixado em `24.22.2` (era `24.22.3`); recusa, no `verificar`, de pacote acima de 120000 caracteres em base64 (limite de 131072 bytes por variável de ambiente no job seguinte; o bundle P2 usa ≈99 mil); textos e contagem do lockfile alinhados; testes novos (limite de tamanho, versão do Node, CODEOWNERS).
+- **`CODEOWNERS`** criado. **Ruleset: não configurado** (sem ferramenta nem permissão administrativa); documentado exatamente o que falta e dois riscos (conta única e robôs na `main`).
+- Não feito (de propósito): PR #17, Worker, secrets, publicação, execução da P2 real.
+
+### 2. O que estamos fazendo
+
+- Aguardando o CI da PR #22 com as correções; depois do merge, integrar a `main` à branch da P2 por merge e revalidar os pins.
+
+### 3. O que vamos fazer
+
+1. Mesclar a PR #22 se o CI e os critérios passarem; atualizar a branch da P2 (sem rebase, sem force push) e validar pins e compatibilidade.
+2. O dono decide o ruleset (bypass ou segundo revisor) e a correção opcional da segunda resposta FETCH do Worker. A execução real da P2 depende de autorização específica.
 

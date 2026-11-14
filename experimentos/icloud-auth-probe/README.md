@@ -17,7 +17,7 @@ Experimento descartável da Fase I0. O Worker valida o token OIDC do GitHub Acti
 1. Confere método e rota (qualquer outra coisa responde 404, sem ler o corpo).
 2. Valida o JWT do cabeçalho `Authorization: Bearer ...` (assinatura RS256 com as chaves do emissor oficial do GitHub e todas as claims da política). Falhou: 401 com um **motivo de lista fechada** (nunca valores) e **o corpo não é lido**.
 3. **Uso único** (`validar_uso_unico` e `p1_imap`): consome a chave `run_id:run_attempt:operacao` no Durable Object **antes de ler o corpo**. Chave já consumida: **409**. Falha, indisponibilidade ou tempo esgotado do registro: **503**, e a operação **não acontece**.
-4. Só então lê o corpo (limite de 2 KB, esquema fechado por operação). `validar_oidc` e `validar_uso_unico`: exatamente `operacao`. `p1_imap`: exatamente `operacao`, `usuario` e `senha`, com formato estrito (a senha é a senha específica de app `xxxx-xxxx-xxxx-xxxx`). Qualquer outro campo é recusado (400) e nunca devolvido.
+4. Só então lê o corpo (limite de 2 KB, esquema fechado por operação). `validar_oidc` e `validar_uso_unico`: exatamente `operacao`. `p1_imap`: exatamente `operacao`, `usuario` (endereço de e-mail) e `senha` (senha específica de app, `xxxx-xxxx-xxxx-xxxx`, letras minúsculas), com formato estrito; as **pontas** de `usuario` e `senha` são aparadas (segredos colados no GitHub costumam levar quebra de linha), espaço no meio continua recusado. Qualquer outro campo, tipo ou formato é recusado com **400** e um `detalhe` de lista fechada que diz qual regra falhou (`corpo_nao_json`, `corpo_nao_objeto`, `operacao_invalida`, `campos_inesperados`, `campo_ausente_usuario`, `campo_ausente_senha`, `usuario_tipo_invalido`, `usuario_formato_invalido`, `senha_tipo_invalida`, `senha_formato_invalida`), **nunca o valor recebido**.
 5. Confere que a operação do corpo é a da audiência do token (um token vale para uma operação).
 6. Executa a operação e responde com **esquema fechado**: só códigos, booleanos e contagens.
 
@@ -50,13 +50,14 @@ O documento de descoberta é lido do emissor fixo; o `jwks_uri` só é aceito em
 Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (três jobs: `verificar` sem secrets, `provisionar` com o Environment `cloudflare-poc` e `executar` com o Environment `icloud-auth-poc`), com a entrada `operacao`. Guia: `docs/icloud-poc-deploy.md`.
 
 - **Validação OIDC real:** executada em 14/11/2026 (execução 43535195165, commit da POC `d1f25d3`; Documento 10, seção 13.18). Não autentica conta Apple.
-- **Uso único e P1:** implementados e testados localmente; **publicação, prova sintética no runtime real e P1 ainda não executadas** (Documento 10, seção 13.19).
+- **Uso único:** publicado e **comprovado no runtime real** em 14/11/2026 (execução 43585089326: 1 aceita, 9 recusadas, replay recusado; Documento 10, seção 13.20).
+- **P1:** a execução 43597133032 falhou com HTTP 400 `esquema_invalido` **antes de tocar na Apple** (formato de um dos valores do corpo; a resposta ainda não dizia qual). Corrigido na branch (resposta com `detalhe` de lista fechada e pontas dos segredos aparadas), **ainda não publicado nem executado de novo** (Documento 10, seção 13.20).
 - **Pré-requisitos do dono:** o workflow com replay + P1 mesclado na `main`; os Environments com aprovador e só a `main`; para a P1, os secrets `ICLOUD_USER` e `ICLOUD_APP_PASSWORD` **só** no Environment `icloud-auth-poc`.
 - O Wrangler vem do lockfile da pasta `experimentos/icloud-auth-probe-ferramenta` e a publicação usa uma configuração escrita no workflow (a `wrangler.jsonc` desta pasta não é lida na publicação, só conferida; ela inclui o Durable Object `CONSUMO` e a migração `v1`).
 
 ## Limites que continuam valendo
 
-- **Não comprovado:** o uso único no runtime publicado (só em memória e no workerd local), a P1 no servidor real da Apple, o CPU por requisição no Workers Free e se `Workers Scripts → Edit` basta para a migração do Durable Object.
+- **Comprovado em 14/11/2026:** o uso único no runtime real e a criação do Durable Object com o token Cloudflare existente. **Não comprovado:** a P1 no servidor real da Apple (a execução parou no esquema do corpo) e o CPU por requisição no Workers Free.
 - **Fora do escopo desta etapa:** SMTP, leitura de mensagens, sincronização, envio e qualquer alteração da caixa (P2 a P7).
 
-Testes: `node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_consumo.test.mjs tests/icloud_auth_probe_imap.test.mjs tests/icloud_auth_probe_worker.test.mjs`.
+Testes: `node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_consumo.test.mjs tests/icloud_auth_probe_imap.test.mjs tests/icloud_auth_probe_worker.test.mjs tests/icloud_auth_probe_contrato.test.mjs` (o último executa os passos reais do workflow contra o Worker, sem rede externa).

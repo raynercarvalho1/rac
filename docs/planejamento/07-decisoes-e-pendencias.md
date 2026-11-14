@@ -266,3 +266,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Limites absolutos da P1:** nenhuma leitura de mensagem, cabeçalho, remetente, assunto, corpo ou anexo; nenhuma alteração de flags, mover, excluir, `EXPUNGE`, criar, renomear ou excluir pasta; nenhum SMTP nem envio; nenhuma tentativa automática de login. P3, P4 e P5 **não** fazem parte desta entrega.
 - **Credencial:** só por secrets do Environment `icloud-auth-poc`, cadastrados pelo dono direto no GitHub; nunca pelo chat.
 - **Pendente, depende do dono:** mesclar a PR do workflow (replay + P1) na `main`; aprovar os Environments nas execuções; cadastrar `ICLOUD_USER` e `ICLOUD_APP_PASSWORD`; se necessário, ampliar a permissão do token Cloudflare para a migração do Durable Object. **Nada foi publicado ou executado nesta entrega.** I0 não concluída.
+
+## Atualização de 14/11/2026 (tarde) · RAC Inbox (uso único comprovado; falha da P1 no corpo; correção)
+
+- **Resultado real:** a prova sintética do uso único passou no runtime publicado (execução 43585089326: 1 aceita, 9 recusadas, replay recusado) e o Durable Object foi criado com o token Cloudflare existente. A P1 (execução 43597133032) falhou com HTTP 400 `esquema_invalido` **antes de qualquer conexão com a Apple**; o uso único daquela execução foi consumido.
+- **Causa:** o contrato de campos (`operacao`, `usuario`, `senha`) já estava correto no workflow e no Worker; a rejeição veio do **formato de um dos valores** (e a resposta não dizia qual). Hipótese mais provável, não comprovada: espaço ou quebra de linha nas pontas de um secret.
+- **Decisão técnica (reversível):** a resposta 400 do esquema passa a levar `detalhe` de lista fechada (nunca o valor); `usuario` e `senha` são aparados **só nas pontas**; o formato da senha de app **não** foi afrouxado. Replay e retenção intocados.
+- **Pendente, depende do dono:** revisar o novo pacote e autorizar a publicação e uma **nova** execução da P1 (nova execução = novo `run_id`); conferir os secrets no GitHub (e-mail completo sem espaços; senha `xxxx-xxxx-xxxx-xxxx`); **PR #17 segue em Draft, sem merge**. I0 não concluída.

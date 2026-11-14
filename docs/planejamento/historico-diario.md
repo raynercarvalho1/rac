@@ -1073,3 +1073,22 @@ Família e da Casa.
 
 1. Com o workflow na `main`: atualizar a PR #17 com a `main`, publicar o Worker pelo workflow e rodar `validar_uso_unico`; só se passar, rodar `p1_imap`.
 2. Registrar cada resultado com evidência (execução, estágio, código de erro); P3 a P7 só com autorização específica.
+
+## 14/11/2026 (tarde) · RAC Inbox — uso único comprovado; P1 falhou no corpo; correção
+
+### 1. O que fizemos
+
+- **Publicação e prova sintética real concluídas:** execução 43585089326 (10:23 UTC): Durable Object criado, "Uso único comprovado no runtime publicado: 1 aceita, 9 recusadas, replay recusado".
+- **P1 falhou antes da Apple:** execução 43597133032 (12:55 UTC), HTTP 400 `corpo_invalido`/`esquema_invalido`; secrets chegaram (mascarados); nenhuma conexão ou autenticação Apple; uso único daquela execução consumido (não se repete).
+- **Diagnóstico:** o contrato de campos já estava correto; falhou o formato de `usuario` ou `senha` (qual, a resposta não dizia). **Correção na branch da PR #17:** `detalhe` de lista fechada no 400 do esquema, pontas dos segredos aparadas (formato estrito mantido), comentários e docs alinhados, e o teste de contrato `icloud_auth_probe_contrato` que executa os passos reais do workflow contra o Worker. Resultado da suíte: suíte oficial com Grupo 1 de 1.688 testes (1.686 aprovados, 0 falhas, 0 ignorados, 2 `todo`) e Grupo 2 com 73/73; `--dry-run` real do pacote corrigido aprovado na inspeção (39.138 bytes).
+- **Não feito (de propósito):** nenhuma publicação da correção, nenhuma nova execução da P1, nenhum merge, sem tocar em secrets, Environments ou na proteção contra replay.
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão do novo pacote pelo dono. PR #17 em Draft, sem merge.
+- **Não comprovado:** a P1 no servidor real da Apple, o CPU por requisição. I0 **não** concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização: publicar o novo commit pelo workflow e rodar a P1 numa **nova** execução, depois de o dono conferir os secrets (e-mail completo; senha `xxxx-xxxx-xxxx-xxxx`).
+2. Registrar o resultado (estágio e código de erro, sem dados da conta); P3 a P7 só com autorização específica.

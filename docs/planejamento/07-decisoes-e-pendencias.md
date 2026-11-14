@@ -324,3 +324,30 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Guia:** as duas linhas "comprovado / não comprovado" da `main` estavam desatualizadas (o uso único e a P1 já foram provados); corrigidas por PR docs-only própria.
 - **Pendente, depende do dono:** ruleset de revisão obrigatória (o `CODEOWNERS` já existe); uma mensagem de teste em `RAC-TESTE`; **autorização específica** para publicar o Worker e executar **uma** `p2_imap`; a primeira execução real do portão no Actions. A P2 **não** está concluída.
 
+
+## 14/11/2026 · RAC Inbox I0 — P2: pasta de teste e descoberta do UID
+
+- **Fato (Run 43616823166):** a primeira `p2_imap` real falhou por a pasta `RAC-TESTE` não existir; criada pelo dono (1 mensagem de teste, sem conteúdo pessoal).
+- **Fato (Run 43618431506):** o servidor da Apple recusou `FETCH * (UID)`. **Decisão:** o UID da última mensagem é pedido por número (`FETCH N (UID)`, N = EXISTS) e a recusa devolve só `motivo`/`detalhe` de vocabulário fechado. Novo pin P2 `b88240b1…28e9` (commit `abc5251`).
+- **Pendente:** nova execução real; `somente_leitura_confirmado` veio `false` no EXAMINE real e precisa ser investigado se persistir. A P2 **não** está concluída.
+
+## 14/11/2026 · RAC Inbox I0 — P2 comprovada
+
+- **Fato:** a P2 foi executada com sucesso no runtime real (Run 43620523689): uma mensagem de `RAC-TESTE` lida em somente leitura, só indicadores, nenhum conteúdo no resumo. A P2 está **concluída**; a I0 **não** (P3 a P5, sincronização e substituição do Spark não comprovados).
+- **Pendente:** `somente_leitura_confirmado` veio `false` (o `OK` etiquetado do EXAMINE do iCloud não traz `[READ-ONLY]`); decidir se a verificação muda (ex.: aceitar a ausência do código) antes de qualquer P3. P3 exige autorização específica. O Worker de POC continua publicado; remoção exige autorização futura.
+
+## 14/11/2026 · RAC Inbox I0 — `somente_leitura_confirmado: false` investigado
+
+**Fatos (código e evidência):**
+- O campo é `r.somente_leitura = /\[READ-ONLY\]/i.test(exame.resto)` (`mensagem.mjs`): verdadeiro só se a linha **etiquetada** de resposta ao `EXAMINE` contiver `[READ-ONLY]`. Não examina linhas não etiquetadas (`* OK [...]`), não é condição de sucesso e já tinha teste ("EXAMINE sem o código READ-ONLY não é falha").
+- No Run 43620523689 veio `false`, com a execução toda bem-sucedida. O texto bruto do servidor é descartado por desenho; portanto **não sabemos** se o iCloud não enviou o código, enviou outro, ou o enviou fora da linha etiquetada.
+
+**Hipóteses (não confirmadas):** o iCloud omite `[READ-ONLY]` na resposta ao EXAMINE; ou o envia em linha não inspecionada. Pelo conhecimento do RFC 3501, `EXAMINE` abre a caixa somente leitura e o código é informativo (não pude conferir o texto do RFC aqui: o proxy bloqueou o acesso a `rfc-editor.org`).
+
+**Conclusão:** a confirmação do modo somente leitura **pelo servidor não é obtenível de forma confiável** com a evidência atual. A garantia que de fato vale é **por construção**: verbos fechados e conferidos a cada envio (`comandoPermitido`) e na inspeção do pacote a cada publicação (sem `STORE`, `COPY`, `MOVE`, `EXPUNGE`, `APPEND`, `SELECT`, `RFC822` além do tamanho, nenhum `BODY[` sem `PEEK`); `EXAMINE` somente leitura por definição do protocolo; leitura só com `BODY.PEEK`. Risco avaliado: **baixo**; não bloqueia provas somente leitura (P6); **tratar antes de qualquer prova que altere a caixa (P3)**.
+
+**Recomendações (nada foi implementado; o Worker publicado não foi alterado):**
+1. Na próxima alteração do Worker que já seja necessária (por exemplo, a P6), acrescentar à resposta indicadores de vocabulário fechado: código da resposta etiquetada do EXAMINE (`READ-ONLY`/`READ-WRITE`/`NENHUM`) e se um `PERMANENTFLAGS ()` vazio foi anunciado; renomear o campo para refletir que ele mede "servidor anunciou `[READ-ONLY]`". Isso exige novo pin, PR e uma nova execução (autorizações próprias).
+2. Verificação de efeito, sem custo: o dono compara no Mail do iCloud o estado lida/não lida da mensagem de `RAC-TESTE` antes (captura de tela anterior à P2) e agora; igual = a leitura não marcou `\Seen`. Esta prova é auxiliar, não substitui a construção.
+
+**Encerramento da I0 (decisão do dono pendente):** pelo critério vigente (P1 a P7 do iCloud, fluxo de credencial e revogação, decisão de runtime por medição e custos; "até lá não iniciar a I1"), a I0 **não pode ser encerrada**: P3 a P7 não foram executadas. Provado: P0, P1, OIDC, uso único e P2.

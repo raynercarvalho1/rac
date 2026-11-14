@@ -49,7 +49,8 @@ test("só dispara na mão, com duas entradas (o commit da POC e a operação, um
   const op = /^      operacao:\n((?:        .+\n)+)/m.exec(WF)[1];
   assert.match(op, /default: validar_oidc/, "o padrão é a operação sem efeito e sem credencial");
   assert.match(op, /type: choice/);
-  assert.deepEqual([...op.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]), ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"], "lista fechada");
+  assert.deepEqual([...op.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]), ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"], "lista fechada");
+  for (const n of ["uidvalidity_anterior", "uidnext_anterior"]) assert.match(WF, new RegExp("^      " + n + ":\\n        description: [^\\n]+\\n        required: false\\n        default: \"\"\\n        type: string\\n", "m"), "entradas opcionais da P6 (texto, vazias por padrão): " + n);
   assert.match(WF, /^      uid_mensagem:\n        description: [^\n]+\n        required: false\n        default: ""\n        type: string\n/m, "a única outra entrada é o UID opcional (texto, vazio por padrão)");
   for (const x of [/\bpush:/, /\bpull_request/, /\bschedule:/, /\bcron:/, /\bworkflow_run:/, /\bworkflow_call:/, /\brepository_dispatch:/])
     assert.ok(!x.test(WF), "gatilho automático não permitido: " + x);
@@ -76,12 +77,14 @@ test("a entrada commit só passa por env e por ref do checkout, e é validada (4
   assert.ok(!/inputs\.commit/.test(J.executar), "só o job verificar usa o commit");
   // a operação só aparece em condições `if:` (nunca em script nem em env), onde é uma comparação com valor fixo da lista fechada
   const usosOp = [...WF.matchAll(/inputs\.operacao/g)].length;
-  const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap|p2_imap)' \}\}\s*$/gm)].length;
-  assert.equal(usosOp, 4, "três condições if e UMA variável de ambiente (a do passo do pin)");
-  assert.equal(emIf, 3);
+  const emIf = [...WF.matchAll(/^        if: \$\{\{ inputs\.operacao == '(validar_uso_unico|p1_imap|p2_imap|p6_imap)' \}\}\s*$/gm)].length;
+  assert.equal(usosOp, 5, "quatro condições if e UMA variável de ambiente (a do passo do pin)");
+  assert.equal(emIf, 4);
   assert.equal([...WF.matchAll(/^          OPERACAO: \$\{\{ inputs\.operacao \}\}\s*$/gm)].length, 1);
   assert.ok(achar(PV, "Conferir o pin").includes("OPERACAO: ${{ inputs.operacao }}"), "a operação só entra por env no passo do pin");
   assert.equal([...WF.matchAll(/inputs\.uid_mensagem/g)].length, 1, "o UID só entra por env do passo da P2");
+  assert.equal([...WF.matchAll(/inputs\.uidvalidity_anterior/g)].length, 1, "o estado anterior só entra por env do passo da P6");
+  assert.equal([...WF.matchAll(/inputs\.uidnext_anterior/g)].length, 1, "o estado anterior só entra por env do passo da P6");
 });
 
 test("o commit da POC é só dado: baixado à parte, em pasta própria, e nada dela é executado", () => {
@@ -135,11 +138,11 @@ test("job executar: Environment icloud-auth-poc, id-token só aqui, sem actions,
   assert.match(J.executar, /^    permissions:\n      id-token: write\n    env:/m);
   assert.equal([...WF.matchAll(/id-token:\s*write/g)].length, 1);
   assert.ok(!/CLOUDFLARE_(?:API_TOKEN|ACCOUNT_ID)|wrangler|\buses:|checkout|contents:|\bnpm\b|\bnpx\b/i.test(J.executar));
-  assert.ok(!/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "").replace(/^        if: \$\{\{ inputs\.operacao == '\w+' \}\}\s*$/gm, "").replace(/^          ICLOUD_(?:USER|APP_PASSWORD): \$\{\{ secrets\.ICLOUD_(?:USER|APP_PASSWORD) \}\}\s*$/gm, "").replace(/^          UID_MENSAGEM: \$\{\{ inputs\.uid_mensagem \}\}\s*$/gm, "")), "só as condições if, os secrets Apple (P1 e P2) e o UID da P2 usam expressões");
+  assert.ok(!/\$\{\{/.test(J.executar.replace(/^\s*runs-on:.*$/m, "").replace(/^        if: \$\{\{ inputs\.operacao == '\w+' \}\}\s*$/gm, "").replace(/^          ICLOUD_(?:USER|APP_PASSWORD): \$\{\{ secrets\.ICLOUD_(?:USER|APP_PASSWORD) \}\}\s*$/gm, "").replace(/^          UID_MENSAGEM: \$\{\{ inputs\.uid_mensagem \}\}\s*$/gm, "").replace(/^          (?:UIDVALIDITY|UIDNEXT)_ANTERIOR: \$\{\{ inputs\.uid(?:validity|next)_anterior \}\}\s*$/gm, "")), "só as condições if, os secrets Apple (P1, P2 e P6), o UID da P2 e o estado anterior da P6 usam expressões");
   assert.match(J.executar, /--data '\{"operacao":"validar_oidc"\}'/);
   assert.match(J.executar, /^      WORKER_URL: https:\/\/rac-icloud-auth-poc\.[a-z0-9-]+\.workers\.dev\s*$/m);
   assert.match(J.executar, /^      AUDIENCIA_PREFIXO: rac-inbox-icloud-poc\s*$/m);
-  assert.deepEqual(PE.map(nomeDe).map((n) => n.split(" (")[0].split(" —")[0]), ["Só na main", "Validar o JWT no Worker", "Prova sintética do uso único", "P1 IMAP", "P2 IMAP"]);
+  assert.deepEqual(PE.map(nomeDe).map((n) => n.split(" (")[0].split(" —")[0]), ["Só na main", "Validar o JWT no Worker", "Prova sintética do uso único", "P1 IMAP", "P2 IMAP", "P6 IMAP"]);
   for (const p of PE.slice(1)) {
     const s = script(p);
     assert.ok(!/echo[^\n]*\$\{?(JWT\b|ACTIONS_ID_TOKEN)/.test(s.replace(/echo "::add-mask::\$JWT"/g, "")), nomeDe(p) + ": o token nunca é impresso");
@@ -232,9 +235,9 @@ test("P2: uma única chamada, mesma credencial só dos secrets do Environment po
   assert.ok(!/(?:^|[\s"'=])poc\//.test(s) && !/\bSMTP\b|smtp\./i.test(s), "sem SMTP e sem pasta da POC");
 });
 
-test("a credencial Apple nunca é citada fora dos passos da P1 e da P2 (nem nos jobs verificar e provisionar, nem em cabeçalho do workflow)", () => {
-  const fora = WF.replace(PE[3], "").replace(PE[4], "").replace(/^      operacao:\n(?:        .+\n)+/m, ""); // a descrição da entrada "operacao" só informa o nome dos secrets
-  assert.ok(!/ICLOUD_(?:USER|APP_PASSWORD)\b/.test(fora.replace(/#.*$/gm, "")), "só os passos da P1 e da P2 usam os secrets");
+test("a credencial Apple nunca é citada fora dos passos da P1, da P2 e da P6 (nem nos jobs verificar e provisionar, nem em cabeçalho do workflow)", () => {
+  const fora = WF.replace(PE[3], "").replace(PE[4], "").replace(PE[5], "").replace(/^      operacao:\n(?:        .+\n)+/m, ""); // a descrição da entrada "operacao" só informa o nome dos secrets
+  assert.ok(!/ICLOUD_(?:USER|APP_PASSWORD)\b/.test(fora.replace(/#.*$/gm, "")), "só os passos da P1, da P2 e da P6 usam os secrets");
   assert.ok(!/senha|password/i.test(J.verificar) && !/senha|password/i.test(J.provisionar));
 });
 
@@ -551,10 +554,10 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
 // registro EXPLÍCITO dos pins: mudar um pin exige mudar estas constantes na mesma PR (segunda confirmação, revisável no diff)
 const PINS_CONHECIDOS = {
   p1: { manifesto: "e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82", commit: "68403f5221ed3d371e5786ed8cbca6a7b5492b6e" },
-  p2: { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" },
+  p2: { manifesto: "b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59", commit: "abc5251703928a1b796a7158c6d7c897dbf8c50d" },
 };
 // pins P2 SUBSTITUÍDOS (nunca mais aceitos para p2_imap): o original, de 7653915, que tratava a segunda resposta FETCH como erro
-const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }];
+const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }, { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" }];
 
 test("pins: o P1 está PRESERVADO (bytes idênticos aos aprovados originalmente), o P2 é o novo e os P2 substituídos não existem mais no arquivo", () => {
   const raw = ler(ARQ_PIN), pin = JSON.parse(raw);

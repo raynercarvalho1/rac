@@ -1201,3 +1201,54 @@ Família e da Casa.
 
 1. Com autorização: publicar pelo workflow (o `verificar` confere o pin e o dono revisa o resumo antes de aprovar os Environments), executar `p2_imap` **uma vez** e registrar o resultado; só então marcar a P2 como concluída.
 
+
+## 14/11/2026 (tarde, 7) · RAC Inbox — primeiras execuções reais da P2 e novo pin
+
+### 1. O que fizemos
+
+- **Run 43616823166 (`p2_imap`, commit `2e1055e`, pin `a3d8…c997`):** `verificar` e publicação do Worker P2 no Cloudflare comprovados; OIDC validado; login iCloud e logout ok; falhou em `pasta_localizar` (`pasta_inexistente`): a pasta `RAC-TESTE` ainda não existia no iCloud. Nada lido nem alterado.
+- **Run 43618431506 (mesmo commit e pin), com a pasta criada (1 mensagem de teste):** pasta achada; falhou em `mensagem_localizar` (`mensagem_erro`, `somente_leitura_confirmado: false`): o servidor da Apple recusou `FETCH * (UID)`. O motivo exato é **hipótese** (o Worker descartava o texto do servidor). Nada lido nem alterado.
+- **Correção (commit `abc5251703928a1b796a7158c6d7c897dbf8c50d`, branch de trabalho):** o UID da última mensagem passa a ser pedido por `FETCH N (UID)` (N = total do EXAMINE, sem curinga) e a falha de comando devolve só `motivo` (`NO`/`BAD`/`OUTRO`) e `detalhe` (código de lista fechada), sem texto livre. Testes da P2, do FETCH e do contrato: 65/65, incluindo teste novo (sem vazamento).
+- **Novo pin P2** (manifesto `b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59`); P1 preservado; pins P2 anteriores recusados para `p2_imap`.
+
+### 2. O que estamos fazendo
+
+- PR do pin na `main` e nova rodada de `p2_imap` com o commit `abc5251`. P2 **não** concluída; I0 não concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Publicar e executar **uma** `p2_imap` com o pin novo (aprovação dos dois Environments pelo dono); registrar o resultado (se falhar de novo, usar `motivo`/`detalhe` para a próxima correção) e só então marcar a P2 como concluída.
+
+## 14/11/2026 (noite, 8) · RAC Inbox — P2 concluída em runtime real
+
+### 1. O que fizemos
+
+- **PR #25 mesclada** (`881714387451b55d3b6b14f047be93343647fa99`, CI verde): novo pin P2 `b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59` (commit `abc5251703928a1b796a7158c6d7c897dbf8c50d`).
+- **Run 43620523689 (`p2_imap`): sucesso nos três jobs.** `verificar` conferiu o pin; o Worker foi publicado (SHA-256 do pacote `f948736adf18a7d3f85a9f9a8d4aa0bd8691775da1da945d8908bf78b06c8ea6`); OIDC validado; login iCloud, leitura da última mensagem da pasta `RAC-TESTE` e logout. Indicadores: `ok: true`, `estagio: concluido`, `mensagens_na_pasta: 1`, mensagem de 7.769 bytes, `multipart/mixed` com 1 parte, cabeçalhos lidos (7 campos, 0 linhas inválidas), HTML de 2.406 bytes lido (utf-8, sem script, imagem remota, formulário ou iframe), 0 anexos. Nada alterado, nada guardado, nenhum conteúdo pessoal no resumo.
+- **Histórico das tentativas:** 43616823166 (pasta inexistente, depois criada pelo dono) e 43618431506 (o iCloud recusou `FETCH * (UID)`; corrigido para `FETCH N (UID)`).
+- **Observação aberta:** `somente_leitura_confirmado: false` no EXAMINE real. Não bloqueou a execução; investigar antes de P3.
+- Não feito (de propósito): P3 a P5, busca global, outras pastas, PR #17, remoção do Worker.
+
+### 2. O que estamos fazendo
+
+- Fechamento do registro da P2. A fase I0 **não** está concluída (P3 a P5, sincronização e substituição do Spark não comprovados); I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Decidir com o dono o próximo passo da I0 (investigar o `[READ-ONLY]` ausente; planejar P3 marcação/flags com autorização específica) e o futuro do Worker de POC (remoção só com autorização).
+
+## 14/11/2026 (noite, 9) · RAC Inbox — investigação do `somente_leitura_confirmado: false`
+
+### 1. O que fizemos
+
+- Investigação documental e de código, **sem nenhuma execução nova** (P0, P1, OIDC, uso único e P2 não repetidos; Worker publicado, credenciais e secrets intactos; nenhum comando que altere mensagens; P3 a P5 não implementadas).
+- **Conclusão:** o campo só registra se a resposta etiquetada do `EXAMINE` trouxe `[READ-ONLY]`; o texto bruto do servidor é descartado, então a confirmação pelo servidor **não é obtenível** com o Worker atual. A garantia de somente leitura é **por construção** (verbos fechados e conferidos, só `BODY.PEEK`, inspeção do pacote a cada publicação). Risco baixo; não bloqueia P6; tratar antes de P3. Detalhes e recomendações em `07-decisoes-e-pendencias.md`.
+- Teste do módulo da P2 e do portão do workflow rodados (ver relatório). RFC 3501 não pôde ser conferido (proxy bloqueou `rfc-editor.org`): o que se diz do RFC é conhecimento, não verificação.
+
+### 2. O que estamos fazendo
+
+- Aguardando a decisão do dono sobre o encerramento da I0 e sobre o próximo passo. I0 **não** concluída (P3 a P7 pendentes); I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com a decisão do dono: P6 (sincronização e polling, somente leitura) junto com o indicador de EXAMINE; só depois, com autorização específica, P3 a P5; P7 (Vault, Edge Function, HMAC) é a base da I1. Se o dono quiser iniciar a I1 antes de P3 a P5, o critério de saída da I0 precisa ser revisado e registrado (decisão do dono).

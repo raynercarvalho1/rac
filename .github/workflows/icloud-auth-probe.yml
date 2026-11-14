@@ -31,7 +31,7 @@ on:
         required: true
         type: string
       operacao:
-        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial), p1_imap (IMAP somente leitura) ou p2_imap (leitura de uma mensagem da pasta RAC-TESTE, somente leitura); p1_imap e p2_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc."
+        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial), p1_imap (IMAP somente leitura) ou p2_imap (leitura de uma mensagem da pasta RAC-TESTE, somente leitura) ou p6_imap (sincronização somente leitura da pasta RAC-TESTE: UIDVALIDITY, UIDNEXT, EXISTS e capacidades, sem ler mensagens); p6_imap (sincronização somente leitura da pasta RAC-TESTE, sem ler mensagens); p1_imap, p2_imap e p6_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc."
         required: true
         default: validar_oidc
         type: choice
@@ -40,8 +40,19 @@ on:
           - validar_uso_unico
           - p1_imap
           - p2_imap
+          - p6_imap
       uid_mensagem:
         description: "Só para p2_imap: UID da mensagem na pasta RAC-TESTE (número inteiro, até 10 dígitos). Vazio = a última mensagem da pasta."
+        required: false
+        default: ""
+        type: string
+      uidvalidity_anterior:
+        description: "Só para p6_imap (opcional, sempre junto com uidnext_anterior): UIDVALIDITY de uma execução anterior (número inteiro, até 10 dígitos). Vazio = primeira leitura."
+        required: false
+        default: ""
+        type: string
+      uidnext_anterior:
+        description: "Só para p6_imap (opcional, sempre junto com uidvalidity_anterior): UIDNEXT de uma execução anterior (número inteiro, até 10 dígitos)."
         required: false
         default: ""
         type: string
@@ -258,9 +269,9 @@ jobs:
           if grep -qwE 'EXPUNGE|APPEND|STORE|SEARCH|RENAME|SUBSCRIBE|UNSUBSCRIBE|AUTHENTICATE|STARTTLS|SELECT|UNSELECT|COPY|MOVE|IDLE|NOOP|CLOSE|STATUS|ENABLE|NAMESPACE|FLAGS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
           # as listas de verbos dependem do pin conferido (o pacote P1 não pode ter nada da P2; o P2 tem as duas listas)
           PIN_NOME=$(cat "$RUNNER_TEMP/pin-nome" 2>/dev/null || true)
-          case "$PIN_NOME" in p1|p2) ;; *) echo "::error::O pin da operação não foi conferido antes do empacotamento."; exit 1 ;; esac
+          case "$PIN_NOME" in p1|p2|p6) ;; *) echo "::error::O pin da operação não foi conferido antes do empacotamento."; exit 1 ;; esac
           if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P1 não é a esperada."; exit 1; fi
-          if [ "$PIN_NOME" = "p2" ]; then
+          if [ "$PIN_NOME" = "p2" ] || [ "$PIN_NOME" = "p6" ]; then
             if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "EXAMINE", "FETCH", "UID", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P2 não é a esperada."; exit 1; fi
             # leitura sempre com PEEK (não mexe em flags): nenhum RFC822 além do tamanho
             if [ "$(grep -oE 'RFC822[A-Za-z.]*' "$BUNDLE" | sort -u)" != "RFC822.SIZE" ]; then echo "::error::O pacote cita RFC822 além do tamanho."; exit 1; fi
@@ -655,4 +666,67 @@ jobs:
             exit 0
           fi
           echo "::error::A P2 não foi concluída (HTTP $CODE); veja o estágio e o código de erro no resumo. Nenhuma nova tentativa é feita."
+          exit 1
+
+      # P6: sincronização incremental SOMENTE LEITURA da pasta RAC-TESTE (EXAMINE; nenhuma mensagem é lida e nada é alterado). UMA única chamada, SEM repetição.
+      # Mesma credencial das anteriores (só dos secrets do Environment, por entrada padrão). As únicas entradas do usuário são dois números opcionais (estado
+      # anterior), que entram só por variável de ambiente, são conferidos aqui e de novo no Worker. O resumo mostra só números, booleanos e códigos fechados.
+      - name: P6 IMAP — sincronização somente leitura da pasta RAC-TESTE (uma única chamada, sem repetição)
+        if: ${{ inputs.operacao == 'p6_imap' }}
+        env:
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+          UIDVALIDITY_ANTERIOR: ${{ inputs.uidvalidity_anterior }}
+          UIDNEXT_ANTERIOR: ${{ inputs.uidnext_anterior }}
+        run: |
+          if [ -z "$ICLOUD_USER" ] || [ -z "$ICLOUD_APP_PASSWORD" ]; then
+            echo "::error::Faltam os secrets ICLOUD_USER e/ou ICLOUD_APP_PASSWORD no Environment icloud-auth-poc. Cadastre-os direto no GitHub (nunca no chat) e rode de novo."
+            exit 1
+          fi
+          if { [ -n "$UIDVALIDITY_ANTERIOR" ] && [ -z "$UIDNEXT_ANTERIOR" ]; } || { [ -z "$UIDVALIDITY_ANTERIOR" ] && [ -n "$UIDNEXT_ANTERIOR" ]; }; then
+            echo "::error::uidvalidity_anterior e uidnext_anterior devem ser informados juntos (ou ficar ambos vazios)."
+            exit 1
+          fi
+          for V in "$UIDVALIDITY_ANTERIOR" "$UIDNEXT_ANTERIOR"; do
+            if [ -n "$V" ] && ! [[ "$V" =~ ^[1-9][0-9]{0,9}$ ]]; then
+              echo "::error::uidvalidity_anterior e uidnext_anterior devem ser números inteiros positivos de até 10 dígitos."
+              exit 1
+            fi
+          done
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+          PEDIDO=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=$AUDIENCIA_PREFIXO:p6_imap")
+          JWT=$(jq -r '.value // empty' <<< "$PEDIDO")
+          unset PEDIDO
+          if [ -z "$JWT" ]; then
+            echo "::error::O GitHub não devolveu o token OIDC."
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+          RESP="$RUNNER_TEMP/p6-imap.json"
+          : > "$RESP"
+          CODE=$(jq -n --arg v "$UIDVALIDITY_ANTERIOR" --arg n "$UIDNEXT_ANTERIOR" '{operacao: "p6_imap", usuario: env.ICLOUD_USER, senha: env.ICLOUD_APP_PASSWORD} + (if $v == "" then {} else {uidvalidity_anterior: ($v | tonumber), uidnext_anterior: ($n | tonumber)} end)' | curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                -K <(printf 'header = "Authorization: Bearer %s"\n' "$JWT") \
+                -H "Content-Type: application/json" --data-binary @- || true)
+          CODE=${CODE:-000}
+          unset JWT ICLOUD_USER ICLOUD_APP_PASSWORD
+          if [ -n "$UIDVALIDITY_ANTERIOR" ]; then ANT="UIDVALIDITY $UIDVALIDITY_ANTERIOR, UIDNEXT $UIDNEXT_ANTERIOR"; else ANT="nenhum (primeira leitura)"; fi
+          {
+            echo "### P6 · sincronização somente leitura da pasta RAC-TESTE (uma única chamada)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Resposta HTTP do Worker: $CODE"
+            echo "- Estado anterior informado: $ANT"
+            echo "- Resposta (só números, booleanos e códigos fechados; nenhuma mensagem foi lida):"
+            echo '```json'
+            head -c 4000 "$RESP" | jq '{ok, operacao, estagio, autenticado, logout, erro, pasta_teste_existe, mensagens_na_pasta, capacidades, exame, sincronizacao, duracao_ms}' 2>/dev/null || echo '(resposta não é JSON)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" = "200" ] && jq -e '.ok == true and .operacao == "p6_imap" and .autenticado == true' "$RESP" > /dev/null 2>&1; then
+            echo "P6 concluída: estado da pasta de teste lido em somente leitura (só números e indicadores no resumo; nenhuma mensagem lida, nada alterado, nada guardado)."
+            exit 0
+          fi
+          echo "::error::A P6 não foi concluída (HTTP $CODE); veja o estágio e o código de erro no resumo. Nenhuma nova tentativa é feita."
           exit 1

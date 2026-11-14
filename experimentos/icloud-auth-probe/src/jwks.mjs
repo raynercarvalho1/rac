@@ -2,22 +2,64 @@
 // Fixo e confiável no código: o documento de descoberta vem do emissor da política; o jwks_uri dele só é aceito se for HTTPS e do
 // MESMO host do emissor. Nunca se busca chave em URL indicada pelo JWT (jku, x5u e jwk são recusados antes).
 // Cache só em memória do isolate (a Cache API não é confiável em workers.dev). Falha fechada, com uma tolerância documentada:
-// durante uma indisponibilidade do endpoint reaproveita-se o conjunto antigo por até jwksReaproveitarVelhoS.
+// durante uma indisponibilidade do endpoint reaproveita-se o conjunto antigo por até jwksReaproveitarVelhoS (hoje 0: nunca).
 import { decodificarBase64Url } from "./jwt.mjs";
 
-async function lerLimitado(resposta, maxBytes) {
-  const texto = await resposta.text();
-  if (texto.length > maxBytes) throw new Error("resposta_grande_demais");
-  return texto;
+// erro com um código de lista fechada (DETALHES_JWKS): é só o que sai do módulo, nunca a mensagem original
+export class ErroJwks extends Error {
+  constructor(codigo) {
+    super(codigo);
+    this.codigo = codigo;
+  }
 }
 
-async function buscarJson(fetchFn, url, politica) {
+// lê o corpo em pedaços e para ao passar do limite (em BYTES), sem carregar tudo antes de conferir
+async function lerLimitado(resposta, maxBytes) {
+  const declarado = Number(resposta.headers.get("content-length"));
+  if (Number.isFinite(declarado) && declarado > maxBytes) throw new ErroJwks("grande_demais");
+  if (!resposta.body) return "";
+  const leitor = resposta.body.getReader();
+  const partes = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) { try { await leitor.cancel(); } catch (_) { /* já encerrado */ } throw new ErroJwks("grande_demais"); }
+    partes.push(value);
+  }
+  const todo = new Uint8Array(total);
+  let pos = 0;
+  for (const p of partes) { todo.set(p, pos); pos += p.byteLength; }
+  return new TextDecoder("utf-8").decode(todo);
+}
+
+// "redirect: error" NÃO existe no runtime do Cloudflare Workers (só "follow" e "manual"; "error" lança TypeError antes de qualquer rede).
+// Por isso usa-se "manual" e QUALQUER 3xx é recusado aqui: nenhum redirecionamento é seguido.
+async function buscarJson(fetchFn, url, politica, prefixo) {
   const controle = new AbortController();
   const cronometro = setTimeout(() => controle.abort(), politica.jwksTimeoutMs);
   try {
-    const resposta = await fetchFn(url, { signal: controle.signal, headers: { Accept: "application/json" }, redirect: "error" });
-    if (!resposta.ok) throw new Error("http_" + resposta.status);
-    return JSON.parse(await lerLimitado(resposta, politica.jwksMaxBytes));
+    let resposta;
+    try {
+      resposta = await fetchFn(url, { signal: controle.signal, headers: { Accept: "application/json" }, redirect: "manual" });
+    } catch (_) {
+      throw new ErroJwks(prefixo + (controle.signal.aborted ? "_timeout" : "_fetch_erro"));
+    }
+    if (resposta.type === "opaqueredirect" || (resposta.status >= 300 && resposta.status < 400)) throw new ErroJwks(prefixo + "_redirect");
+    if (!resposta.ok) throw new ErroJwks(prefixo + "_http_erro");
+    let texto;
+    try {
+      texto = await lerLimitado(resposta, politica.jwksMaxBytes);
+    } catch (erro) {
+      if (erro instanceof ErroJwks) throw new ErroJwks(prefixo + "_" + erro.codigo);
+      throw new ErroJwks(prefixo + (controle.signal.aborted ? "_timeout" : "_fetch_erro"));
+    }
+    try {
+      return JSON.parse(texto);
+    } catch (_) {
+      throw new ErroJwks(prefixo + "_json_invalido");
+    }
   } finally {
     clearTimeout(cronometro);
   }
@@ -49,19 +91,22 @@ export function criarProvedorChaves({ fetchFn, agora, politica }) {
   let emAndamento = null;
 
   async function recarregar() {
-    const descoberta = await buscarJson(fetchFn, politica.descobertaUrl, politica);
-    if (!descoberta || descoberta.issuer !== politica.issuer || typeof descoberta.jwks_uri !== "string") throw new Error("descoberta_invalida");
-    const alvo = new URL(descoberta.jwks_uri);
+    const descoberta = await buscarJson(fetchFn, politica.descobertaUrl, politica, "discovery");
+    if (descoberta === null || typeof descoberta !== "object" || Array.isArray(descoberta)) throw new ErroJwks("discovery_json_invalido");
+    if (descoberta.issuer !== politica.issuer) throw new ErroJwks("discovery_emissor_invalido");
+    if (typeof descoberta.jwks_uri !== "string") throw new ErroJwks("discovery_jwks_uri_invalido");
+    let alvo;
+    try { alvo = new URL(descoberta.jwks_uri); } catch (_) { throw new ErroJwks("discovery_jwks_uri_invalido"); }
     const emissor = new URL(politica.issuer);
-    if (alvo.protocol !== "https:" || alvo.host !== emissor.host || alvo.username || alvo.password) throw new Error("jwks_uri_fora_do_emissor");
-    const doc = await buscarJson(fetchFn, alvo.href, politica);
-    if (!doc || !Array.isArray(doc.keys)) throw new Error("jwks_invalido");
+    if (alvo.protocol !== "https:" || alvo.host !== emissor.host || alvo.username || alvo.password) throw new ErroJwks("discovery_jwks_uri_invalido");
+    const doc = await buscarJson(fetchFn, alvo.href, politica, "jwks");
+    if (doc === null || typeof doc !== "object" || !Array.isArray(doc.keys)) throw new ErroJwks("jwks_json_invalido");
     const novas = new Map();
     for (const jwk of doc.keys) {
       const par = await importarChave(jwk, politica);
       if (par) novas.set(par.kid, par.chave);
     }
-    if (novas.size === 0) throw new Error("jwks_sem_chave_valida");
+    if (novas.size === 0) throw new ErroJwks("jwks_sem_chave_valida");
     chaves = novas; // troca o conjunto inteiro: chave removida pelo emissor deixa de valer assim que houver recarga bem-sucedida
     carregadoEm = agora();
   }

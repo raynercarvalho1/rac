@@ -1,6 +1,6 @@
 // Validação do JWT OIDC do GitHub Actions. Falha fechada: qualquer dúvida é recusa.
 // Devolve só um MOTIVO de lista fechada (nunca o token, nem valor de claim) para não vazar nada em erro ou resposta.
-import { audienciasPermitidas, workflowRefEsperado } from "./politica.mjs";
+import { audienciasPermitidas, workflowRefEsperado, DETALHES_JWKS } from "./politica.mjs";
 
 const B64URL = /^[A-Za-z0-9_-]+$/;
 const CABECALHOS_PROIBIDOS = ["jku", "x5u", "x5c", "jwk", "crit"];
@@ -101,8 +101,10 @@ export async function verificarJwt(token, { obterChave, agora, politica }) {
     let chave;
     try {
       chave = await obterChave(kid);
-    } catch (_) {
-      return { ok: false, motivo: "jwks_indisponivel" };
+    } catch (erro) {
+      // o detalhe só sai se for um código da lista fechada; qualquer outra coisa vira "jwks_erro_inesperado" (nunca a mensagem do erro)
+      const codigo = erro && typeof erro.codigo === "string" && DETALHES_JWKS.includes(erro.codigo) ? erro.codigo : "jwks_erro_inesperado";
+      return { ok: false, motivo: "jwks_indisponivel", detalhe: codigo };
     }
     if (!chave) return { ok: false, motivo: "kid_desconhecido" };
 

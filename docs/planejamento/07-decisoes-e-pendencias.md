@@ -245,3 +245,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Regra permanente registrada no `CLAUDE.md`** (seção Segurança): credenciais de nuvem só em Environments, usados só por workflow privilegiado da `main`, com Environments restritos à `main`.
 - **Limite registrado (replay):** o token OIDC pode ser reutilizado dentro da validade; uso único exige persistência, **não implementada** e dependente de autorização específica, a decidir antes de qualquer operação que altere a caixa ou envie e-mail.
 - **Pendente, depende do dono (nada foi configurado):** mesclar esta PR; Environments com aprovador obrigatório e só a `main`; desativar o workflow antigo até o merge; token Cloudflare de permissão mínima com prazo; mesclar a PR #17 (Worker e política OIDC da `main`); só então autorizar o primeiro ensaio OIDC, sem credencial Apple. A fase I0 não está concluída.
+
+## Atualização de 14/11/2026 · RAC Inbox (1ª execução OIDC falhou; diagnóstico do JWKS)
+
+- **Resultado real:** a [execução 43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370) (`main` `f23d9d9`, commit da POC `2a7a439`) terminou em HTTP 401 `jwks_indisponivel`. A prova OIDC **não** está concluída.
+- **Causa mais provável:** `redirect: "error"` não existe no Cloudflare Workers (só `follow` e `manual`; o `fetch` lança `TypeError`). O erro era engolido e virava `jwks_indisponivel`. Comprovado no código-fonte do workerd e reproduzido localmente; **não comprovado** no Worker publicado.
+- **Correção na branch da POC (PR #17):** `redirect: "manual"` com recusa de 3xx, leitura limitada por bytes e campo `detalhe` de lista fechada na resposta 401; validação estrita inalterada. Documento 10, seção 13.17.
+- **Pendente, depende do dono:** autorizar um novo run a partir da `main` com o novo commit da POC (o `2a7a439` não tem a correção); o formato real do JWKS e das claims só será comprovado nesse run.

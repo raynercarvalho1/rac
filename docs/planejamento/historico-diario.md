@@ -1018,3 +1018,22 @@ Família e da Casa.
 
 1. Com a configuração confirmada e autorização expressa, o dono dispara o workflow na `main` com o commit da POC; conferimos o resumo do job `verificar` antes da aprovação e o resultado do job `executar`.
 2. Registrar o resultado real do ensaio; decidir o uso único do token e a política do JWKS antes de qualquer operação real. A fase I0 não está concluída.
+
+## 14/11/2026 · RAC Inbox — diagnóstico da 1ª execução OIDC (`jwks_indisponivel`)
+
+### 1. O que fizemos
+
+- A primeira execução real do ensaio OIDC ([43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370)) respondeu HTTP 401 `jwks_indisponivel`. Diagnóstico por leitura de `jwks.mjs`, `jwt.mjs`, `politica.mjs` e testes, e do código-fonte do workerd.
+- Causa mais provável: `redirect: "error"` é rejeitado pelo runtime Workers (`TypeError`), engolido e convertido em `jwks_indisponivel`. Reproduzido localmente com um fetch que aplica a regra do workerd; **não comprovado** no Worker publicado.
+- Correção na branch da POC: `redirect: "manual"` recusando 3xx, leitura do corpo limitada por bytes e `detalhe` seguro de lista fechada (15 categorias) na resposta 401. Validação estrita inalterada. Testes novos para cada categoria e para o sucesso.
+- Documento 10 (seção 13.17), decisões e README do Worker atualizados. **Nada foi publicado, executado de novo ou alterado em Environments, secrets ou permissões; PR #17 segue em Draft, sem merge.**
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão do CI do novo commit na PR #17 e a autorização do dono para um novo run.
+- **Não comprovado:** o texto real do erro no Worker publicado, o formato real do JWKS (o ambiente de nuvem não alcança o emissor) e das claims, o CPU, IMAP e SMTP autenticados. A prova OIDC só se conclui com HTTP 200, `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`.
+
+### 3. O que vamos fazer
+
+1. Com autorização expressa, o dono dispara o workflow na `main` com o SHA completo do novo commit da POC; conferimos o resumo do `verificar` antes de aprovar e o `detalhe` na resposta do `executar`.
+2. Se ainda falhar, o `detalhe` indicará a etapa; corrigir só o necessário. A fase I0 não está concluída.

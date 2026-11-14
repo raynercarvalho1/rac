@@ -3,9 +3,10 @@
 // nem sintética com valor operacional), nenhuma conta Apple: o ensaio OIDC não transmite credencial alguma. Prova a lógica local; NÃO prova o comportamento no runtime Cloudflare nem o formato real dos tokens do GitHub.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { POLITICA } from "../experimentos/icloud-auth-probe/src/politica.mjs";
+import { POLITICA, DETALHES_JWKS } from "../experimentos/icloud-auth-probe/src/politica.mjs";
 import { verificarJwt, conferirClaims } from "../experimentos/icloud-auth-probe/src/jwt.mjs";
 import { criarProvedorChaves } from "../experimentos/icloud-auth-probe/src/jwks.mjs";
+import { readFileSync } from "node:fs";
 import { tratar, lerCorpo } from "../experimentos/icloud-auth-probe/src/index.mjs";
 
 const AGORA = 1_800_000_000;
@@ -414,4 +415,139 @@ test("JWT, credencial recusada e dados pessoais não aparecem em logs, erros nem
 test("conferirClaims é uma função pura e fecha por padrão (objeto vazio nunca passa)", () => {
   assert.notEqual(conferirClaims({}, POLITICA, AGORA), null);
   assert.equal(conferirClaims(claimsValidos(), POLITICA, AGORA), null);
+});
+
+// ---------- Diagnóstico do JWKS (1ª execução real: HTTP 401 jwks_indisponivel) ----------
+// Causa: o runtime do Cloudflare Workers só aceita redirect "follow" ou "manual"; "error" lança TypeError antes de qualquer rede.
+// Estes testes imitam essa regra do runtime e provam: sucesso com "manual", cada falha com um detalhe específico e seguro, falha fechada.
+
+const json200 = (obj) => new Response(JSON.stringify(obj), { status: 200, headers: { "Content-Type": "application/json" } });
+// fetch com as regras do Workers: recusa redirect fora de follow/manual (TypeError, como o workerd), e registra as opções usadas
+function fetchComoWorkers(roteiro, registro = []) {
+  return async (url, opcoes = {}) => {
+    registro.push({ url, redirect: opcoes.redirect });
+    if (opcoes.redirect !== undefined && opcoes.redirect !== "follow" && opcoes.redirect !== "manual") {
+      throw new TypeError('Invalid redirect value, must be one of "follow" or "manual"');
+    }
+    return roteiro(url, opcoes);
+  };
+}
+const DESCOBERTA_OK = () => json200({ issuer: POLITICA.issuer, jwks_uri: URL_JWKS });
+// roteiro padrão (sucesso), com troca pontual da descoberta ou do JWKS
+function roteiroCom(par, { descoberta, jwks } = {}) {
+  return (url, opcoes) => {
+    if (url === URL_DESCOBERTA) return descoberta ? descoberta(opcoes) : DESCOBERTA_OK();
+    if (url === URL_JWKS) return jwks ? jwks(opcoes) : json200({ keys: [jwkPublica(par.jwk)] });
+    return new Response("nao", { status: 404 });
+  };
+}
+const pendurado = (opcoes) => new Promise((_, rejeita) => opcoes.signal.addEventListener("abort", () => rejeita(new DOMException("abortado", "AbortError"))));
+async function detalheDe(fetchFn, par, politica = POLITICA) {
+  const relogio = { t: AGORA };
+  const provedor = criarProvedorChaves({ fetchFn, agora: () => relogio.t, politica });
+  const tk = await assinar(cab(), claimsValidos(), par.privada);
+  const r = await verificarJwt(tk, { obterChave: provedor, agora: () => relogio.t, politica });
+  return { r, tk };
+}
+
+test("DIAGNÓSTICO: o código nunca usa redirect \"error\" (o runtime Workers o rejeita com TypeError)", () => {
+  const fonte = readFileSync(new URL("../experimentos/icloud-auth-probe/src/jwks.mjs", import.meta.url), "utf8");
+  assert.ok(!/redirect:\s*"error"/.test(fonte), 'redirect: "error" não pode voltar');
+  assert.ok(/redirect:\s*"manual"/.test(fonte));
+});
+
+test("DIAGNÓSTICO: com as regras do fetch do Workers, descoberta e JWKS válidos são aceitos, só com redirect manual", async () => {
+  const par = await novoPar();
+  const registro = [];
+  const { r } = await detalheDe(fetchComoWorkers(roteiroCom(par), registro), par);
+  assert.equal(r.ok, true);
+  assert.deepEqual(registro.map((x) => x.url), [URL_DESCOBERTA, URL_JWKS]);
+  assert.ok(registro.every((x) => x.redirect === "manual"), "nenhuma busca pede redirect fora de manual");
+  // reprodução da falha real: um fetch que exige follow/manual derruba um código que pedisse "error"
+  await assert.rejects(() => fetchComoWorkers(roteiroCom(par))(URL_JWKS, { redirect: "error" }), TypeError);
+});
+
+test("DIAGNÓSTICO: cada falha tem um detalhe específico, de lista fechada, e o motivo continua jwks_indisponivel (falha fechada)", async () => {
+  const par = await novoPar();
+  const curta = { ...POLITICA, jwksTimeoutMs: 25 };
+  const grande = "x".repeat(POLITICA.jwksMaxBytes + 1);
+  const redir = (status) => () => new Response(null, { status, headers: { Location: "https://atacante.exemplo/jwks" } });
+  const casos = [
+    ["discovery_timeout", { descoberta: pendurado }, curta],
+    ["discovery_fetch_erro", { descoberta: () => { throw new TypeError("rede"); } }],
+    ["discovery_redirect", { descoberta: redir(302) }],
+    ["discovery_redirect", { descoberta: redir(301) }],
+    ["discovery_http_erro", { descoberta: () => new Response("x", { status: 500 }) }],
+    ["discovery_grande_demais", { descoberta: () => new Response(grande, { status: 200 }) }],
+    ["discovery_grande_demais", { descoberta: () => new Response("{}", { status: 200, headers: { "Content-Length": String(POLITICA.jwksMaxBytes + 1) } }) }],
+    ["discovery_json_invalido", { descoberta: () => new Response("<html>", { status: 200 }) }],
+    ["discovery_json_invalido", { descoberta: () => new Response("null", { status: 200 }) }],
+    ["discovery_emissor_invalido", { descoberta: () => json200({ issuer: "https://atacante.exemplo", jwks_uri: URL_JWKS }) }],
+    ["discovery_jwks_uri_invalido", { descoberta: () => json200({ issuer: POLITICA.issuer }) }],
+    ["discovery_jwks_uri_invalido", { descoberta: () => json200({ issuer: POLITICA.issuer, jwks_uri: "::nao-e-url" }) }],
+    ["discovery_jwks_uri_invalido", { descoberta: () => json200({ issuer: POLITICA.issuer, jwks_uri: "https://atacante.exemplo/jwks" }) }],
+    ["discovery_jwks_uri_invalido", { descoberta: () => json200({ issuer: POLITICA.issuer, jwks_uri: "http://token.actions.githubusercontent.com/.well-known/jwks" }) }],
+    ["discovery_jwks_uri_invalido", { descoberta: () => json200({ issuer: POLITICA.issuer, jwks_uri: "https://u:p@token.actions.githubusercontent.com/jwks" }) }],
+    ["jwks_timeout", { jwks: pendurado }, curta],
+    ["jwks_fetch_erro", { jwks: () => { throw new TypeError("rede"); } }],
+    ["jwks_redirect", { jwks: redir(307) }],
+    ["jwks_http_erro", { jwks: () => new Response("x", { status: 503 }) }],
+    ["jwks_grande_demais", { jwks: () => new Response(grande, { status: 200 }) }],
+    ["jwks_json_invalido", { jwks: () => new Response("<html>", { status: 200 }) }],
+    ["jwks_json_invalido", { jwks: () => json200({ keys: "x" }) }],
+    ["jwks_json_invalido", { jwks: () => json200({}) }],
+    ["jwks_sem_chave_valida", { jwks: () => json200({ keys: [] }) }],
+    ["jwks_sem_chave_valida", { jwks: () => json200({ keys: [{ kty: "oct", kid: KID, k: "AAAA" }] }) }],
+  ];
+  const vistos = new Set();
+  for (const [esperado, roteiro, politica] of casos) {
+    const { r, tk } = await detalheDe(fetchComoWorkers(roteiroCom(par, roteiro)), par, politica || POLITICA);
+    assert.equal(r.ok, false, esperado);
+    assert.equal(r.motivo, "jwks_indisponivel", esperado);
+    assert.equal(r.detalhe, esperado);
+    assert.ok(DETALHES_JWKS.includes(r.detalhe), "detalhe é de lista fechada");
+    assert.ok(!JSON.stringify(r).includes(tk), "o JWT não aparece no resultado");
+    vistos.add(esperado);
+  }
+  assert.deepEqual([...vistos].sort(), [...DETALHES_JWKS].sort(), "toda categoria da lista fechada está coberta por um teste");
+});
+
+test("DIAGNÓSTICO: erro inesperado vira detalhe genérico (a mensagem original nunca sai) e a resposta do Worker leva o detalhe", async () => {
+  const claims = claimsValidos();
+  const par = await novoPar();
+  const tk = await assinar(cab(), claims, par.privada);
+  const segredo = "SENTINELA-MENSAGEM-INTERNA-" + tk.slice(0, 8);
+  const verificar = (t) => verificarJwt(t, { obterChave: async () => { throw new Error(segredo); }, agora: () => AGORA, politica: POLITICA });
+  const r = await verificar(tk);
+  assert.deepEqual(r, { ok: false, motivo: "jwks_indisponivel", detalhe: "jwks_erro_inesperado" });
+  const { req } = pedido(tk, corpoOk());
+  const resp = await resposta(await tratar(req, { verificar }));
+  assert.equal(resp.status, 401);
+  assert.deepEqual(JSON.parse(resp.texto), { ok: false, erro: "nao_autorizado", motivo: "jwks_indisponivel", detalhe: "jwks_erro_inesperado" });
+  assert.ok(!resp.texto.includes(segredo) && !resp.texto.includes(tk) && !resp.headers.includes(tk));
+  // motivo sem detalhe (ex.: token ausente) continua com o formato anterior
+  const { req: r2 } = pedido(null, corpoOk());
+  assert.deepEqual(JSON.parse((await resposta(await tratar(r2, { verificar }))).texto), { ok: false, erro: "nao_autorizado", motivo: "token_ausente" });
+});
+
+test("DIAGNÓSTICO: JWKS no formato documentado do GitHub (várias chaves RSA 2048, x5c, x5t, use/alg) cabe no limite e é importado", async () => {
+  const pares = [await novoPar(), await novoPar(), await novoPar(), await novoPar()];
+  const lote = pares.map((p, i) => jwkPublica(p.jwk, i === 0 ? KID : "kid-extra-" + i, { x5c: ["M".repeat(1900)], x5t: "x".repeat(27) }));
+  const corpo = JSON.stringify({ keys: lote });
+  assert.ok(corpo.length < POLITICA.jwksMaxBytes / 4, "com folga muito grande sob o limite de " + POLITICA.jwksMaxBytes + " bytes: " + corpo.length);
+  const registro = [];
+  const { r } = await detalheDe(fetchComoWorkers(roteiroCom(pares[0], { jwks: () => new Response(corpo, { status: 200 }) }), registro), pares[0]);
+  assert.equal(r.ok, true);
+  assert.equal(registro.length, 2);
+  // chave com n de 256 bytes (2048 bits) é aceita; a de 1024 bits segue recusada (critério inalterado)
+  assert.equal(POLITICA.rsaMinimoBytes, 256);
+});
+
+test("DIAGNÓSTICO: a política continua estrita (TTL, janela de chave velha, tamanho e timeout inalterados)", () => {
+  assert.equal(POLITICA.jwksReaproveitarVelhoS, 0);
+  assert.equal(POLITICA.jwksTtlS, 600);
+  assert.equal(POLITICA.jwksRecargaMinimaS, 60);
+  assert.equal(POLITICA.jwksTimeoutMs, 5000);
+  assert.equal(POLITICA.jwksMaxBytes, 65536);
+  assert.equal(POLITICA.issuer, "https://token.actions.githubusercontent.com");
 });

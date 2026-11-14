@@ -18,7 +18,7 @@ Arquivo `src/politica.mjs`. Exigidas e conferidas com valor exato: `iss`, `aud` 
 
 ## Chaves (JWKS)
 
-O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é aceito se for HTTPS e do mesmo host do emissor. Nunca se busca chave em URL indicada pelo token. Cache só em memória do isolate (10 min); kid desconhecido provoca no máximo uma recarga por minuto; se o cache venceu e o emissor não responde, a validação **falha fechada na hora** (a janela de reaproveitamento de 1 h foi retirada). Mesmo assim, uma chave revogada vale até o fim do cache fresco (10 min). Política a reavaliar antes de qualquer operação real sobre a caixa de e-mail.
+O documento de descoberta é lido do emissor fixo; o `jwks_uri` dele só é aceito se for HTTPS e do mesmo host do emissor. Nunca se busca chave em URL indicada pelo token. A busca usa `redirect: "manual"` e recusa qualquer 3xx (o runtime do Cloudflare Workers **não** aceita `redirect: "error"`: lança `TypeError`). Quando as chaves não podem ser obtidas, a resposta 401 traz `motivo: "jwks_indisponivel"` e um `detalhe` de lista fechada (`DETALHES_JWKS` em `src/politica.mjs`, por exemplo `discovery_timeout` ou `jwks_http_erro`), nunca texto de erro, URL, token ou claim. Cache só em memória do isolate (10 min); kid desconhecido provoca no máximo uma recarga por minuto; se o cache venceu e o emissor não responde, a validação **falha fechada na hora** (a janela de reaproveitamento de 1 h foi retirada). Mesmo assim, uma chave revogada vale até o fim do cache fresco (10 min). Política a reavaliar antes de qualquer operação real sobre a caixa de e-mail.
 
 ## Limites que continuam valendo
 

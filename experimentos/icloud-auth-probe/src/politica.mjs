@@ -62,3 +62,12 @@ export function audienciasPermitidas(politica = POLITICA) {
 export function workflowRefEsperado(ref, politica = POLITICA) {
   return politica.repository + "/" + politica.arquivoWorkflow + "@" + ref;
 }
+
+// Motivos específicos e SEGUROS das falhas na obtenção das chaves (lista fechada, só constantes: nunca texto de erro, URL, JWT, claim ou
+// corpo recebido). Aparecem na resposta como "detalhe" quando o motivo é jwks_indisponivel, para saber QUAL etapa falhou.
+export const DETALHES_JWKS = Object.freeze([
+  "discovery_timeout", "discovery_fetch_erro", "discovery_redirect", "discovery_http_erro", "discovery_grande_demais",
+  "discovery_json_invalido", "discovery_emissor_invalido", "discovery_jwks_uri_invalido",
+  "jwks_timeout", "jwks_fetch_erro", "jwks_redirect", "jwks_http_erro", "jwks_grande_demais",
+  "jwks_json_invalido", "jwks_sem_chave_valida",
+]);

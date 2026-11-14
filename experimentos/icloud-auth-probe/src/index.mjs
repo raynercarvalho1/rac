@@ -15,8 +15,8 @@ function json(status, corpo) {
   });
 }
 
-function recusa(status, erro, motivo) {
-  return json(status, { ok: false, erro, motivo });
+function recusa(status, erro, motivo, detalhe) {
+  return json(status, detalhe ? { ok: false, erro, motivo, detalhe } : { ok: false, erro, motivo });
 }
 
 async function lerCorpoLimitado(request, maxBytes) {
@@ -55,7 +55,7 @@ export async function tratar(request, { verificar, politica = POLITICA }) {
     const cabecalho = request.headers.get("Authorization");
     if (typeof cabecalho !== "string" || cabecalho.slice(0, 7) !== "Bearer ") return recusa(401, "nao_autorizado", "token_ausente");
     const validacao = await verificar(cabecalho.slice(7));
-    if (!validacao.ok) return recusa(401, "nao_autorizado", validacao.motivo);
+    if (!validacao.ok) return recusa(401, "nao_autorizado", validacao.motivo, validacao.detalhe);
 
     // a partir daqui o token é válido para esta política; só agora o corpo é lido
     const tipo = request.headers.get("Content-Type") || "";

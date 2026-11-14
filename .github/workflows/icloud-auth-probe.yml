@@ -6,8 +6,10 @@
 # Operações (entrada "operacao"): validar_oidc (ensaio sem efeito e sem credencial), validar_uso_unico (prova SINTÉTICA do registro de uso único,
 # sem credencial: concorrência e replay no runtime publicado) e p1_imap (autenticação IMAP somente leitura, com a credencial Apple vinda
 # SÓ dos secrets do Environment icloud-auth-poc, cadastrados pelo dono direto no GitHub) e p2_imap (leitura controlada de UMA mensagem da pasta
-# RAC-TESTE, somente leitura via EXAMINE, mesma credencial; a entrada opcional uid_mensagem escolhe o UID, sem ela lê a última). Todo token de
-# operação protegida só vale UMA vez por execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1 e da P2 é única e
+# RAC-TESTE, somente leitura via EXAMINE, mesma credencial; a entrada opcional uid_mensagem escolhe o UID, sem ela lê a última) e p6_imap
+# (sincronização somente leitura da pasta RAC-TESTE: UIDVALIDITY, UIDNEXT, EXISTS e capacidades, sem ler mensagens; as entradas opcionais
+# uidvalidity_anterior e uidnext_anterior, sempre em par e de 1 a 4294967295, trazem o estado de uma execução anterior). Todo token de
+# operação protegida só vale UMA vez por execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1, da P2 e da P6 é única e
 # SEM repetição automática.
 # Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
 #   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, CONFERE O CONTEÚDO DELE CONTRA OS PINS APROVADOS (arquivo
@@ -31,7 +33,7 @@ on:
         required: true
         type: string
       operacao:
-        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial), p1_imap (IMAP somente leitura) ou p2_imap (leitura de uma mensagem da pasta RAC-TESTE, somente leitura) ou p6_imap (sincronização somente leitura da pasta RAC-TESTE: UIDVALIDITY, UIDNEXT, EXISTS e capacidades, sem ler mensagens); p6_imap (sincronização somente leitura da pasta RAC-TESTE, sem ler mensagens); p1_imap, p2_imap e p6_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc."
+        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial), p1_imap (IMAP somente leitura), p2_imap (leitura de uma mensagem da pasta RAC-TESTE, somente leitura) ou p6_imap (sincronização somente leitura da pasta RAC-TESTE: UIDVALIDITY, UIDNEXT, EXISTS e capacidades, sem ler mensagens); p1_imap, p2_imap e p6_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc."
         required: true
         default: validar_oidc
         type: choice
@@ -47,12 +49,12 @@ on:
         default: ""
         type: string
       uidvalidity_anterior:
-        description: "Só para p6_imap (opcional, sempre junto com uidnext_anterior): UIDVALIDITY de uma execução anterior (número inteiro, até 10 dígitos). Vazio = primeira leitura."
+        description: "Só para p6_imap (opcional, sempre junto com uidnext_anterior): UIDVALIDITY de uma execução anterior (número inteiro de 1 a 4294967295). Vazio = primeira leitura."
         required: false
         default: ""
         type: string
       uidnext_anterior:
-        description: "Só para p6_imap (opcional, sempre junto com uidvalidity_anterior): UIDNEXT de uma execução anterior (número inteiro, até 10 dígitos)."
+        description: "Só para p6_imap (opcional, sempre junto com uidvalidity_anterior): UIDNEXT de uma execução anterior (número inteiro de 1 a 4294967295)."
         required: false
         default: ""
         type: string
@@ -126,7 +128,7 @@ jobs:
 
       # PORTÃO DO PIN (sem secrets, antes de empacotar e de qualquer job privilegiado). O conteúdo do commit da POC é lido dos OBJETOS do Git (não do
       # checkout) e comparado, por arquivo e por manifesto SHA-256, com o pin aprovado que a tabela "operacoes" associa a ESTA operação: p1_imap só
-      # publica o conteúdo P1 e p2_imap só o P2. Manifesto = linha "rac-pin-v1" + uma linha "<sha256>␠␠<caminho>" por arquivo, em ordem bytewise.
+      # publica o conteúdo P1, p2_imap só o P2 e p6_imap só o P6. Manifesto = linha "rac-pin-v1" + uma linha "<sha256>␠␠<caminho>" por arquivo, em ordem bytewise.
       # Recusa: arquivo ausente, extra, renomeado ou alterado; entrada que não seja arquivo regular 100644 (link, submódulo, executável); nome fora
       # do padrão; pin ausente, inconsistente ou fora do formato; operação sem pin. O pin vem só do checkout da main (nenhuma entrada o substitui).
       - name: Conferir o pin aprovado da operação (portão antes de empacotar)
@@ -263,7 +265,8 @@ jobs:
           if [ "$MODULOS" != "cloudflare:sockets" ]; then echo "::error::O pacote importa módulos cloudflare: além de sockets."; exit 1; fi
           APPLE=$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)
           if [ "$APPLE" != "imap.mail.me.com" ]; then echo "::error::O pacote cita endereço da Apple além do IMAP."; exit 1; fi
-          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT; a P2 acrescenta EXAMINE, FETCH e UID (somente leitura, sempre com BODY.PEEK). Nenhum verbo de
+          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT; a P2 acrescenta EXAMINE, FETCH e UID (somente leitura, sempre com BODY.PEEK); o pacote da P6 contém a mesma
+          # lista da P2 (o módulo da P6 só usa CAPABILITY, LOGIN, LIST, EXAMINE e LOGOUT, sem FETCH). Nenhum verbo de
           # alteração, de busca ou de outra pasta pode estar no pacote, e as duas listas de verbos têm de ser exatamente estas (DELETE e CREATE existem só como
           # SQL do registro de uso único do Durable Object, por isso a garantia deles é a lista exata de verbos e o teste do código, não esta busca)
           if grep -qwE 'EXPUNGE|APPEND|STORE|SEARCH|RENAME|SUBSCRIBE|UNSUBSCRIBE|AUTHENTICATE|STARTTLS|SELECT|UNSELECT|COPY|MOVE|IDLE|NOOP|CLOSE|STATUS|ENABLE|NAMESPACE|FLAGS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
@@ -687,9 +690,11 @@ jobs:
             echo "::error::uidvalidity_anterior e uidnext_anterior devem ser informados juntos (ou ficar ambos vazios)."
             exit 1
           fi
+          # mesmos limites do Worker (1 a 4294967295, inclusive): só dígitos, sem zero à esquerda, no máximo 10 dígitos e valor não maior que o teto.
+          # Tudo é conferido AQUI, antes de pedir o token OIDC (nada é convertido nem corrigido em silêncio; entrada inválida encerra o passo).
           for V in "$UIDVALIDITY_ANTERIOR" "$UIDNEXT_ANTERIOR"; do
-            if [ -n "$V" ] && ! [[ "$V" =~ ^[1-9][0-9]{0,9}$ ]]; then
-              echo "::error::uidvalidity_anterior e uidnext_anterior devem ser números inteiros positivos de até 10 dígitos."
+            if [ -n "$V" ] && { ! [[ "$V" =~ ^[1-9][0-9]{0,9}$ ]] || [ "$V" -gt 4294967295 ]; }; then
+              echo "::error::uidvalidity_anterior e uidnext_anterior devem ser números inteiros de 1 a 4294967295 (só dígitos, sem zero à esquerda)."
               exit 1
             fi
           done

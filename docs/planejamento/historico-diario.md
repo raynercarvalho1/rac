@@ -808,3 +808,21 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Publicar e executar **uma** `p2_imap` com o pin novo (aprovação dos dois Environments pelo dono); registrar o resultado (se falhar de novo, usar `motivo`/`detalhe` para a próxima correção) e só então marcar a P2 como concluída.
+
+## 14/11/2026 (noite, 8) · RAC Inbox — P2 concluída em runtime real
+
+### 1. O que fizemos
+
+- **PR #25 mesclada** (`881714387451b55d3b6b14f047be93343647fa99`, CI verde): novo pin P2 `b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59` (commit `abc5251703928a1b796a7158c6d7c897dbf8c50d`).
+- **Run 43620523689 (`p2_imap`): sucesso nos três jobs.** `verificar` conferiu o pin; o Worker foi publicado (SHA-256 do pacote `f948736adf18a7d3f85a9f9a8d4aa0bd8691775da1da945d8908bf78b06c8ea6`); OIDC validado; login iCloud, leitura da última mensagem da pasta `RAC-TESTE` e logout. Indicadores: `ok: true`, `estagio: concluido`, `mensagens_na_pasta: 1`, mensagem de 7.769 bytes, `multipart/mixed` com 1 parte, cabeçalhos lidos (7 campos, 0 linhas inválidas), HTML de 2.406 bytes lido (utf-8, sem script, imagem remota, formulário ou iframe), 0 anexos. Nada alterado, nada guardado, nenhum conteúdo pessoal no resumo.
+- **Histórico das tentativas:** 43616823166 (pasta inexistente, depois criada pelo dono) e 43618431506 (o iCloud recusou `FETCH * (UID)`; corrigido para `FETCH N (UID)`).
+- **Observação aberta:** `somente_leitura_confirmado: false` no EXAMINE real. Não bloqueou a execução; investigar antes de P3.
+- Não feito (de propósito): P3 a P5, busca global, outras pastas, PR #17, remoção do Worker.
+
+### 2. O que estamos fazendo
+
+- Fechamento do registro da P2. A fase I0 **não** está concluída (P3 a P5, sincronização e substituição do Spark não comprovados); I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Decidir com o dono o próximo passo da I0 (investigar o `[READ-ONLY]` ausente; planejar P3 marcação/flags com autorização específica) e o futuro do Worker de POC (remoção só com autorização).

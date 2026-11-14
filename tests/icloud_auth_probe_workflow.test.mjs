@@ -555,6 +555,7 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
 const PINS_CONHECIDOS = {
   p1: { manifesto: "e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82", commit: "68403f5221ed3d371e5786ed8cbca6a7b5492b6e" },
   p2: { manifesto: "b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59", commit: "abc5251703928a1b796a7158c6d7c897dbf8c50d" },
+  p6: { manifesto: "54800fce95f1dfe80659bdfae374fd65ea45b7a6d709d791110d0f1a2d903485", commit: "8bc17d710738d7b478f4dc6a8c8aacfeb7d01555" },
 };
 // pins P2 SUBSTITUÍDOS (nunca mais aceitos para p2_imap): o original, de 7653915, que tratava a segunda resposta FETCH como erro
 const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }, { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" }];
@@ -569,6 +570,7 @@ test("pins: o P1 está PRESERVADO (bytes idênticos aos aprovados originalmente)
     assert.notEqual(pin.pins.p1.manifesto_sha256, s.manifesto);
   }
   assert.deepEqual(pin.operacoes.p2_imap, ["p2"]); assert.deepEqual(pin.operacoes.p1_imap, ["p1"]);
+  assert.equal(pin.pins.p6.manifesto_sha256, PINS_CONHECIDOS.p6.manifesto); assert.equal(pin.pins.p6.commit_referencia, PINS_CONHECIDOS.p6.commit); assert.deepEqual(pin.operacoes.p6_imap, ["p6"]);
 });
 
 test("EXECUÇÃO — pin: p2_imap RECUSA o conteúdo do pin P2 anterior (mensagem.mjs e politica.mjs antigos) e o P1, e aceita só o P2 novo", { skip: semFerramentas }, () => {
@@ -585,10 +587,10 @@ test("aprovados.json: formato, associação operação→pin, manifesto recalcul
   const pin = JSON.parse(ler(ARQ_PIN));
   assert.deepEqual(Object.keys(pin).sort(), ["formato", "operacoes", "pins"]);
   assert.equal(pin.formato, "rac-pin-v1");
-  assert.deepEqual(pin.operacoes, OPERACOES_PIN, "p1_imap só o P1, p2_imap só o P2; as operações sem credencial aceitam os dois");
-  const ops = [...WF.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]).filter((o) => /^(validar_oidc|validar_uso_unico|p1_imap|p2_imap)$/.test(o));
+  assert.deepEqual(pin.operacoes, { ...OPERACOES_PIN, p6_imap: ["p6"] }, "p1_imap só o P1, p2_imap só o P2, p6_imap só o P6; as operações sem credencial aceitam P1 e P2");
+  const ops = [...WF.matchAll(/^          - (\w+)$/gm)].map((m) => m[1]).filter((o) => /^(validar_oidc|validar_uso_unico|p1_imap|p2_imap|p6_imap)$/.test(o));
   assert.deepEqual(Object.keys(pin.operacoes).sort(), [...new Set(ops)].sort(), "a tabela cobre exatamente as operações do workflow");
-  assert.deepEqual(Object.keys(pin.pins), ["p1", "p2"]);
+  assert.deepEqual(Object.keys(pin.pins), ["p1", "p2", "p6"]);
   for (const [n, p] of Object.entries(pin.pins)) {
     assert.deepEqual(Object.keys(p).sort(), ["arquivos", "commit_referencia", "manifesto_sha256"], n);
     assert.match(p.commit_referencia, /^[0-9a-f]{40}$/); assert.match(p.manifesto_sha256, /^[0-9a-f]{64}$/);
@@ -604,6 +606,11 @@ test("aprovados.json: formato, associação operação→pin, manifesto recalcul
   assert.deepEqual(k1.filter((x) => !k2.includes(x)), []);
   for (const k of k1.filter((x) => x !== "src/index.mjs" && x !== "src/politica.mjs" && x !== "src/rotas.mjs")) assert.equal(pin.pins.p1.arquivos[k], pin.pins.p2.arquivos[k], k + ": só índice, política e rotas mudam entre P1 e P2");
   assert.notEqual(pin.pins.p1.manifesto_sha256, pin.pins.p2.manifesto_sha256);
+  // P6 = P2 + o módulo da sincronização; os arquivos de P1 e P2 que o P6 não toca continuam idênticos
+  const k6 = Object.keys(pin.pins.p6.arquivos);
+  assert.deepEqual(k6.filter((x) => !k2.includes(x)), ["src/sincronizacao.mjs"]);
+  assert.deepEqual(k2.filter((x) => !k6.includes(x)), []);
+  for (const k of ["src/consumo.mjs", "src/imap.mjs", "src/jwks.mjs", "src/jwt.mjs", "src/mime.mjs", "wrangler.jsonc"]) assert.equal(pin.pins.p6.arquivos[k], pin.pins.p2.arquivos[k], k + ": o P6 não muda este arquivo");
 });
 
 test("EXECUÇÃO — reconstituição: publica só o arquivo cujo sha256 confere; adulteração, hash errado ou vazio são recusados", { skip: semFerramentas }, () => {

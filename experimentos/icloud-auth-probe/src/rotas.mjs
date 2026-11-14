@@ -49,24 +49,46 @@ async function lerCorpoLimitado(request, maxBytes) {
   return todo;
 }
 
-// esquema fechado por operação: hoje só "validar_oidc", com EXATAMENTE o campo "operacao" (nada de usuario, senha ou outro campo)
+// Esquema FECHADO do corpo, por operação (a operação é escolhida pela audiência do token e conferida contra o corpo):
+//   validar_oidc e validar_uso_unico: EXATAMENTE { operacao }.
+//   p1_imap: EXATAMENTE { operacao, usuario, senha } (nomes fixos do contrato com o workflow); usuario = endereço de e-mail; senha = senha
+//   específica de app da Apple (xxxx-xxxx-xxxx-xxxx, só letras minúsculas). Qualquer outro campo, tipo ou formato é recusado.
+// Falha de esquema: HTTP 400 com um `detalhe` de lista fechada que diz QUAL regra falhou (nunca o valor recebido).
 const FORMATO_USUARIO = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}$/;
-const FORMATO_SENHA_APP = /^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/; // senha específica de app da Apple: xxxx-xxxx-xxxx-xxxx
-export function lerCorpo(bytes, politica = POLITICA) {
+const FORMATO_SENHA_APP = /^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/;
+
+export const DETALHES_CORPO = Object.freeze([
+  "corpo_nao_json", "corpo_nao_objeto", "operacao_invalida", "campos_inesperados", "campo_ausente_usuario", "campo_ausente_senha",
+  "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida",
+]);
+
+// Examina o corpo: { corpo } se válido, ou { detalhe } com o código da regra que falhou. Só devolve constantes (nunca texto vindo do cliente).
+// Os segredos do GitHub costumam carregar espaço ou quebra de linha nas pontas: usuario e senha são aparados nas pontas ANTES da conferência
+// (o formato continua estrito; espaço no meio do valor é recusado). O valor aparado é o único usado depois.
+export function examinarCorpo(bytes, politica = POLITICA) {
   let dados;
-  try { dados = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch (_) { return null; }
-  if (dados === null || typeof dados !== "object" || Array.isArray(dados)) return null;
-  if (typeof dados.operacao !== "string" || !politica.operacoes.includes(dados.operacao)) return null;
-  const chaves = Object.keys(dados).sort().join(",");
-  if ((politica.operacoesComCredencial || []).includes(dados.operacao)) {
-    // operação com credencial: EXATAMENTE operacao, usuario e senha, com formato estrito (a senha é a senha específica de app)
-    if (chaves !== "operacao,senha,usuario") return null;
-    if (typeof dados.usuario !== "string" || dados.usuario.length > 254 || !FORMATO_USUARIO.test(dados.usuario)) return null;
-    if (typeof dados.senha !== "string" || !FORMATO_SENHA_APP.test(dados.senha)) return null;
-    return { operacao: dados.operacao, usuario: dados.usuario, senha: dados.senha };
-  }
-  if (chaves !== "operacao") return null;
-  return { operacao: dados.operacao };
+  try { dados = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch (_) { return { detalhe: "corpo_nao_json" }; }
+  if (dados === null || typeof dados !== "object" || Array.isArray(dados)) return { detalhe: "corpo_nao_objeto" };
+  if (typeof dados.operacao !== "string" || !politica.operacoes.includes(dados.operacao)) return { detalhe: "operacao_invalida" };
+  const chaves = Object.keys(dados);
+  const comCredencial = (politica.operacoesComCredencial || []).includes(dados.operacao);
+  const permitidas = comCredencial ? ["operacao", "usuario", "senha"] : ["operacao"];
+  if (chaves.some((k) => !permitidas.includes(k))) return { detalhe: "campos_inesperados" };
+  if (!comCredencial) return { corpo: { operacao: dados.operacao } };
+  if (!Object.prototype.hasOwnProperty.call(dados, "usuario")) return { detalhe: "campo_ausente_usuario" };
+  if (!Object.prototype.hasOwnProperty.call(dados, "senha")) return { detalhe: "campo_ausente_senha" };
+  if (typeof dados.usuario !== "string") return { detalhe: "usuario_tipo_invalido" };
+  if (typeof dados.senha !== "string") return { detalhe: "senha_tipo_invalida" };
+  const usuario = dados.usuario.trim();
+  const senha = dados.senha.trim();
+  if (usuario.length > 254 || !FORMATO_USUARIO.test(usuario)) return { detalhe: "usuario_formato_invalido" };
+  if (!FORMATO_SENHA_APP.test(senha)) return { detalhe: "senha_formato_invalida" };
+  return { corpo: { operacao: dados.operacao, usuario, senha } };
+}
+
+// compatível com o uso anterior: o corpo válido ou null
+export function lerCorpo(bytes, politica = POLITICA) {
+  return examinarCorpo(bytes, politica).corpo || null;
 }
 
 export async function tratar(request, { verificar, politica = POLITICA, consumir, executarP1 }) {
@@ -94,8 +116,9 @@ export async function tratar(request, { verificar, politica = POLITICA, consumir
     const bytes = await lerCorpoLimitado(request, politica.corpoMaxBytes);
     if (bytes === undefined) return recusa(413, "corpo_invalido", "corpo_grande_demais");
     if (bytes === null || bytes.length === 0) return recusa(400, "corpo_invalido", "corpo_ausente");
-    const corpo = lerCorpo(bytes, politica);
-    if (!corpo) return recusa(400, "corpo_invalido", "esquema_invalido");
+    const exame = examinarCorpo(bytes, politica);
+    if (!exame.corpo) return recusa(400, "corpo_invalido", "esquema_invalido", exame.detalhe);
+    const corpo = exame.corpo;
 
     // o token foi emitido para UMA operação (audiência) e o corpo tem de pedir exatamente essa
     if (validacao.claims.aud !== politica.audienciaPrefixo + corpo.operacao) return recusa(403, "operacao_nao_autorizada", "operacao_diferente_da_audiencia");

@@ -7,7 +7,7 @@ import { POLITICA, DETALHES_JWKS, DETALHES_CONSUMO } from "../experimentos/iclou
 import { verificarJwt, conferirClaims } from "../experimentos/icloud-auth-probe/src/jwt.mjs";
 import { criarProvedorChaves } from "../experimentos/icloud-auth-probe/src/jwks.mjs";
 import { readFileSync } from "node:fs";
-import { tratar, lerCorpo } from "../experimentos/icloud-auth-probe/src/rotas.mjs";
+import { tratar, lerCorpo, examinarCorpo, DETALHES_CORPO } from "../experimentos/icloud-auth-probe/src/rotas.mjs";
 import { ConsumoUnico, pedirConsumo, ErroConsumo } from "../experimentos/icloud-auth-probe/src/consumo.mjs";
 import { DatabaseSync } from "node:sqlite";
 
@@ -731,21 +731,30 @@ test("P1 · esquema da requisição: exatamente operacao, usuario e senha, com f
   let executou = 0;
   const executarP1 = async () => { executou += 1; return { ok: false, estagio: "conexao", erro: "conexao_falhou" }; };
   const ruins = [
-    ["sem usuário", { operacao: "p1_imap", senha: SENHA_APP }], ["sem senha", { operacao: "p1_imap", usuario: USUARIO_APPLE }],
-    ["campo extra", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP, pasta: "INBOX" }],
-    ["senha fora do formato de senha de app", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "SenhaPrincipal123" }],
-    ["senha com aspas", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: 'abcd-efgh-ijkl-mn"p' }],
-    ["usuário sem arroba", { operacao: "p1_imap", usuario: "sentinela", senha: SENHA_APP }],
-    ["usuário com aspas", { operacao: "p1_imap", usuario: 'a"b@example.com', senha: SENHA_APP }],
-    ["usuário com quebra de linha", { operacao: "p1_imap", usuario: "a\r\nb@example.com", senha: SENHA_APP }],
-    ["usuário não é texto", { operacao: "p1_imap", usuario: 1, senha: SENHA_APP }], ["senha não é texto", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: [SENHA_APP] }],
-    ["usuário enorme", { operacao: "p1_imap", usuario: "a".repeat(300) + "@example.com", senha: SENHA_APP }],
+    ["sem usuário", { operacao: "p1_imap", senha: SENHA_APP }, "campo_ausente_usuario"], ["sem senha", { operacao: "p1_imap", usuario: USUARIO_APPLE }, "campo_ausente_senha"],
+    ["campo extra", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP, pasta: "INBOX" }, "campos_inesperados"],
+    ["nomes de campo errados (user/password)", { operacao: "p1_imap", user: USUARIO_APPLE, password: SENHA_APP }, "campos_inesperados"],
+    ["senha fora do formato de senha de app", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "SenhaPrincipal123" }, "senha_formato_invalida"],
+    ["senha com maiúsculas", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "Abcd-efgh-ijkl-mnop" }, "senha_formato_invalida"],
+    ["senha com espaços no meio", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "abcd efgh ijkl mnop" }, "senha_formato_invalida"],
+    ["senha sem hífens", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "abcdefghijklmnop" }, "senha_formato_invalida"],
+    ["senha com aspas", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: 'abcd-efgh-ijkl-mn"p' }, "senha_formato_invalida"],
+    ["usuário sem arroba", { operacao: "p1_imap", usuario: "sentinela", senha: SENHA_APP }, "usuario_formato_invalido"],
+    ["usuário com aspas", { operacao: "p1_imap", usuario: 'a"b@example.com', senha: SENHA_APP }, "usuario_formato_invalido"],
+    ["usuário com quebra de linha no meio", { operacao: "p1_imap", usuario: "a\r\nb@example.com", senha: SENHA_APP }, "usuario_formato_invalido"],
+    ["usuário com espaço no meio", { operacao: "p1_imap", usuario: "a b@example.com", senha: SENHA_APP }, "usuario_formato_invalido"],
+    ["usuário vazio", { operacao: "p1_imap", usuario: "", senha: SENHA_APP }, "usuario_formato_invalido"],
+    ["senha vazia", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: "" }, "senha_formato_invalida"],
+    ["usuário não é texto", { operacao: "p1_imap", usuario: 1, senha: SENHA_APP }, "usuario_tipo_invalido"], ["usuário nulo", { operacao: "p1_imap", usuario: null, senha: SENHA_APP }, "usuario_tipo_invalido"],
+    ["senha não é texto", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: [SENHA_APP] }, "senha_tipo_invalida"], ["senha objeto", { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: { a: 1 } }, "senha_tipo_invalida"],
+    ["usuário enorme", { operacao: "p1_imap", usuario: "a".repeat(300) + "@example.com", senha: SENHA_APP }, "usuario_formato_invalido"],
   ];
-  for (const [nome, corpo] of ruins) {
+  for (const [nome, corpo, detalhe] of ruins) {
     const { ns } = namespaceFalso();
     const r = await chamar(c, { op: "p1_imap", corpo, consumir: (d) => pedirConsumo(ns, d), executarP1 });
     assert.equal(r.status, 400, nome);
-    assert.deepEqual(JSON.parse(r.texto), { ok: false, erro: "corpo_invalido", motivo: "esquema_invalido" }, nome);
+    assert.deepEqual(JSON.parse(r.texto), { ok: false, erro: "corpo_invalido", motivo: "esquema_invalido", detalhe }, nome);
+    assert.ok(DETALHES_CORPO.includes(detalhe), nome);
     assert.ok(!r.texto.includes(SENHA_APP) && !r.texto.includes("sentinela"), nome + ": nada da credencial volta");
   }
   assert.equal(executou, 0);
@@ -800,4 +809,33 @@ test("P1 · a credencial nunca vai a logs, respostas, cabeçalhos nem ao registr
   assert.deepEqual(Object.keys(tabela[0]).sort(), ["chave", "consumido_em", "expira_em", "jti"]);
   assert.ok(!JSON.stringify(tabela).includes(SENHA_APP) && !JSON.stringify(tabela).includes("sentinela") && !JSON.stringify(tabela).includes(tk));
   assert.deepEqual(tabela.map((l) => l.chave).sort(), ["26600000001:1:p1_imap", "26600000777:1:p1_imap"]);
+});
+
+test("P1 · contrato do corpo: os três campos exatos são aceitos; as pontas dos segredos são aparadas; os valores aparados são os usados; o resto continua estrito", () => {
+  const ex = (o) => examinarCorpo(o instanceof Uint8Array ? o : new TextEncoder().encode(typeof o === "string" ? o : JSON.stringify(o)));
+  const bom = { operacao: "p1_imap", usuario: USUARIO_APPLE, senha: SENHA_APP };
+  assert.deepEqual(ex(bom), { corpo: bom });
+  // segredo salvo com quebra de linha ou espaço nas pontas (acontece ao colar no GitHub): aceito, mas só o valor aparado segue adiante
+  for (const [u, s] of [[USUARIO_APPLE + "\n", SENHA_APP + "\r\n"], ["  " + USUARIO_APPLE, "\t" + SENHA_APP + " "], [USUARIO_APPLE + " ", SENHA_APP]]) assert.deepEqual(ex({ operacao: "p1_imap", usuario: u, senha: s }), { corpo: bom }, JSON.stringify([u, s]));
+  // a ordem dos campos não importa
+  assert.deepEqual(ex({ senha: SENHA_APP, operacao: "p1_imap", usuario: USUARIO_APPLE }), { corpo: bom });
+  // operações sem credencial continuam aceitando EXCLUSIVAMENTE operacao
+  for (const op of ["validar_oidc", "validar_uso_unico"]) {
+    assert.deepEqual(ex({ operacao: op }), { corpo: { operacao: op } });
+    for (const extra of [{ usuario: USUARIO_APPLE }, { senha: SENHA_APP }, { usuario: USUARIO_APPLE, senha: SENHA_APP }, { x: 1 }]) assert.deepEqual(ex({ operacao: op, ...extra }), { detalhe: "campos_inesperados" }, op);
+  }
+  // não é JSON, não é objeto, operação ausente, desconhecida ou não textual
+  assert.deepEqual(ex("{nao json"), { detalhe: "corpo_nao_json" });
+  assert.deepEqual(ex(new Uint8Array([0xff, 0xfe])), { detalhe: "corpo_nao_json" });
+  for (const naoObjeto of ["[]", "null", '"texto"', "123"]) assert.deepEqual(ex(naoObjeto), { detalhe: "corpo_nao_objeto" }, naoObjeto);
+  for (const op of [{}, { operacao: 1 }, { operacao: "outra" }, { operacao: "p1_imap\r\n" }, { operacao: ["p1_imap"] }]) assert.deepEqual(ex(op), { detalhe: "operacao_invalida" }, JSON.stringify(op));
+  // espaço no MEIO continua recusado (a tolerância é só nas pontas)
+  assert.deepEqual(ex({ ...bom, usuario: "sentinela .p1@example.com" }), { detalhe: "usuario_formato_invalido" });
+  assert.deepEqual(ex({ ...bom, senha: "zzzz-yyyy xxxx-wwww" }), { detalhe: "senha_formato_invalida" });
+  // todo detalhe devolvido é de lista fechada e nenhum carrega valor recebido
+  for (const detalhe of ["corpo_nao_json", "corpo_nao_objeto", "operacao_invalida", "campos_inesperados", "campo_ausente_usuario", "campo_ausente_senha", "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida"]) assert.ok(DETALHES_CORPO.includes(detalhe), detalhe);
+  assert.equal(DETALHES_CORPO.length, 10);
+  assert.ok(DETALHES_CORPO.every((d) => /^[a-z_]+$/.test(d)));
+  assert.equal(lerCorpo(new TextEncoder().encode(JSON.stringify(bom))).senha, SENHA_APP);
+  assert.equal(lerCorpo(new TextEncoder().encode("{}")), null);
 });

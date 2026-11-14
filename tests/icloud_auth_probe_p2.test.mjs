@@ -559,7 +559,7 @@ const pedido = (corpo, tipo = "application/json") => new Request("https://w.inva
 const CORPO = (extra = {}) => ({ operacao: "p2_imap", usuario: USUARIO, senha: SENHA, ...extra });
 
 test("P2 · rota: política (operação, consumo e credencial), audiência própria e esquema do corpo com uid opcional", () => {
-  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]);
+  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]);
   assert.ok(POLITICA.operacoesComConsumo.includes("p2_imap") && POLITICA.operacoesComCredencial.includes("p2_imap"));
   const ex = (o) => examinarCorpo(new TextEncoder().encode(JSON.stringify(o)));
   assert.deepEqual(ex(CORPO()), { corpo: CORPO() });

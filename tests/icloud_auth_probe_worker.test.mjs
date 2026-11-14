@@ -11,7 +11,7 @@ const raiz = new URL("../", import.meta.url);
 const ler = (a) => fs.readFileSync(new URL(a, raiz), "utf8");
 const existe = (a) => fs.existsSync(new URL(a, raiz));
 const semComentarios = (t) => t.replace(/^\s*#.*$/gm, "").replace(/\s+#\s.*$/gm, "");
-const ARQUIVOS = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "rotas", "index"];
+const ARQUIVOS = ["politica", "jwt", "jwks", "consumo", "imap", "mime", "mensagem", "sincronizacao", "rotas", "index"];
 const FONTES = ARQUIVOS.map((n) => [n, semComentarios(ler("experimentos/icloud-auth-probe/src/" + n + ".mjs").replace(/^\s*\/\/.*$/gm, ""))]);
 const FONTE = Object.fromEntries(FONTES);
 const CODIGO = FONTES.map(([, t]) => t).join("\n");
@@ -33,11 +33,11 @@ test("o Worker não guarda nada além do registro de uso único: sem secret, var
   assert.match(FONTE.index, /export \{ ConsumoUnico \} from "\.\/consumo\.mjs"/);
 });
 
-test("credencial: só imap.mjs, mensagem.mjs, rotas.mjs e index.mjs a tratam; política, JWT, JWKS, MIME e o registro de uso único nem conhecem o conceito", () => {
+test("credencial: só imap.mjs, mensagem.mjs, sincronizacao.mjs, rotas.mjs e index.mjs a tratam; política, JWT, JWKS, MIME e o registro de uso único nem conhecem o conceito", () => {
   for (const n of ["politica", "jwt", "jwks", "consumo", "mime"]) assert.ok(!/\bsenha\b|\busuario\b|\bcredencial\b|(?<!\.)\bpassword\b/i.test(FONTE[n]), n + ": não pode tratar credencial");
-  assert.ok(/\bsenha\b/.test(FONTE.imap) && /\bsenha\b/.test(FONTE.mensagem) && /\bsenha\b/.test(FONTE.rotas));
+  assert.ok(/\bsenha\b/.test(FONTE.imap) && /\bsenha\b/.test(FONTE.mensagem) && /\bsenha\b/.test(FONTE.sincronizacao) && /\bsenha\b/.test(FONTE.rotas));
   // a credencial nunca é gravada nem registrada: nada de armazenamento, console ou espera em segundo plano nos três arquivos que a tratam
-  for (const n of ["imap", "mensagem", "rotas", "index"]) for (const x of [/\bconsole\b/, /\bwaitUntil\b/, /\bstorage\b/, /\bsql\b/, /\blocalStorage\b/, /JSON\.stringify\([^)]*(?:senha|usuario)/]) assert.ok(!x.test(FONTE[n]), n + ": " + x);
+  for (const n of ["imap", "mensagem", "sincronizacao", "rotas", "index"]) for (const x of [/\bconsole\b/, /\bwaitUntil\b/, /\bstorage\b/, /\bsql\b/, /\blocalStorage\b/, /JSON\.stringify\([^)]*(?:senha|usuario)/]) assert.ok(!x.test(FONTE[n]), n + ": " + x);
 });
 
 test("só o index.mjs abre socket: cloudflare:sockets e connect() só lá; IMAP só em imap.mail.me.com:993; nenhum SMTP em lugar nenhum", () => {
@@ -57,7 +57,7 @@ test("só o index.mjs abre socket: cloudflare:sockets e connect() só lá; IMAP 
 test("o diretório do Worker tem só a lista fixa de arquivos (a mesma que o workflow da main exige) e nenhum arquivo oculto", () => {
   const real = [];
   (function varrer(dir, pref) { for (const e of fs.readdirSync(new URL(dir, raiz), { withFileTypes: true })) e.isDirectory() ? varrer(dir + e.name + "/", pref + e.name + "/") : real.push("./" + pref + e.name); })("experimentos/icloud-auth-probe/", "");
-  assert.deepEqual(real.sort(), ["./README.md", "./src/consumo.mjs", "./src/imap.mjs", "./src/index.mjs", "./src/jwks.mjs", "./src/jwt.mjs", "./src/mensagem.mjs", "./src/mime.mjs", "./src/politica.mjs", "./src/rotas.mjs", "./wrangler.jsonc"]);
+  assert.deepEqual(real.sort(), ["./README.md", "./src/consumo.mjs", "./src/imap.mjs", "./src/index.mjs", "./src/jwks.mjs", "./src/jwt.mjs", "./src/mensagem.mjs", "./src/mime.mjs", "./src/politica.mjs", "./src/rotas.mjs", "./src/sincronizacao.mjs", "./wrangler.jsonc"]);
   assert.ok(!real.some((f) => /(^|\/)\./.test(f.slice(2))));
 });
 
@@ -79,9 +79,9 @@ test("limites da política: tolerância pequena, idade máxima curta (60 s com c
   assert.ok(POLITICA.corpoMaxBytes <= 2048 && POLITICA.jwtMaxBytes <= 8192 && POLITICA.rsaMinimoBytes >= 256);
   assert.equal(POLITICA.issuer, "https://token.actions.githubusercontent.com");
   assert.equal(POLITICA.algoritmo, "RS256");
-  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]);
-  assert.deepEqual(POLITICA.operacoesComConsumo, ["validar_uso_unico", "p1_imap", "p2_imap"]);
-  assert.deepEqual(POLITICA.operacoesComCredencial, ["p1_imap", "p2_imap"]);
+  assert.deepEqual(POLITICA.operacoes, ["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]);
+  assert.deepEqual(POLITICA.operacoesComConsumo, ["validar_uso_unico", "p1_imap", "p2_imap", "p6_imap"]);
+  assert.deepEqual(POLITICA.operacoesComCredencial, ["p1_imap", "p2_imap", "p6_imap"]);
   assert.ok(POLITICA.operacoesComCredencial.every((o) => POLITICA.operacoesComConsumo.includes(o)), "toda operação com credencial exige uso único");
   assert.ok(POLITICA.consumo.retencaoChaveS >= 86400 && POLITICA.consumo.timeoutMs <= 5000);
   assert.deepEqual({ ...POLITICA.imap, pastaTeste: undefined }, { host: "imap.mail.me.com", porta: 993, timeoutMs: 20000, maxBytes: 262144, maxLinhas: 500, pastaTeste: undefined });
@@ -94,7 +94,7 @@ test("a política aceita só a origem do Desenho B: ref da main, workflow da mai
   assert.deepEqual(POLITICA.eventosPermitidos, ["workflow_dispatch"]);
   assert.equal(POLITICA.environment, "icloud-auth-poc");
   assert.ok(POLITICA.subsPermitidos.every((s) => s.endsWith(":environment:icloud-auth-poc")), "o sub exige o Environment");
-  assert.deepEqual(audienciasPermitidas(), ["rac-inbox-icloud-poc:validar_oidc", "rac-inbox-icloud-poc:validar_uso_unico", "rac-inbox-icloud-poc:p1_imap", "rac-inbox-icloud-poc:p2_imap"]);
+  assert.deepEqual(audienciasPermitidas(), ["rac-inbox-icloud-poc:validar_oidc", "rac-inbox-icloud-poc:validar_uso_unico", "rac-inbox-icloud-poc:p1_imap", "rac-inbox-icloud-poc:p2_imap", "rac-inbox-icloud-poc:p6_imap"]);
   assert.ok(!POLITICA.refsPermitidos.some((r) => /poc|claude|pull|tags/.test(r)), "nenhuma branch experimental, de agente, PR ou tag");
 });
 
@@ -112,16 +112,16 @@ test("coerência com o workflow privilegiado da main (quando a versão com repla
   const cfg = JSON.parse(ler("experimentos/icloud-auth-probe/wrangler.jsonc")); delete cfg.$schema;
   assert.deepEqual(heredoc, cfg);
   // a lista de arquivos NÃO é mais escrita no workflow: vem do pin P2 (aprovados.json), e o conteúdo atual do Worker tem de ser exatamente o pin
-  const pin = JSON.parse(ler("experimentos/icloud-auth-probe-ferramenta/aprovados.json")).pins.p2;
-  assert.deepEqual(Object.keys(pin.arquivos).sort(), [...ARQUIVOS.map((a) => "src/" + a + ".mjs"), "wrangler.jsonc"].sort(), "o pin P2 lista exatamente os arquivos do Worker");
+  const pin = JSON.parse(ler("experimentos/icloud-auth-probe-ferramenta/aprovados.json")).pins.p6; // o pin do Worker vigente (o P6 contém tudo da P2)
+  assert.deepEqual(Object.keys(pin.arquivos).sort(), [...ARQUIVOS.map((a) => "src/" + a + ".mjs"), "wrangler.jsonc"].sort(), "o pin P6 lista exatamente os arquivos do Worker");
   const h = Object.fromEntries(Object.keys(pin.arquivos).map((k) => [k, createHash("sha256").update(fs.readFileSync(new URL("experimentos/icloud-auth-probe/" + k, raiz))).digest("hex")]));
-  assert.deepEqual(h, pin.arquivos, "DESVIO: o Worker mudou sem o pin P2 ser atualizado (PR na main)");
+  assert.deepEqual(h, pin.arquivos, "DESVIO: o Worker mudou sem o pin P6 ser atualizado (PR na main)");
   const manifesto = createHash("sha256").update("rac-pin-v1\n" + Object.keys(h).sort().map((k) => h[k] + "  " + k + "\n").join("")).digest("hex");
   assert.equal(manifesto, pin.manifesto_sha256);
   // as operações do workflow estão na tabela do pin e só a P2 aceita o pin P2 para credencial
   const ops = JSON.parse(ler("experimentos/icloud-auth-probe-ferramenta/aprovados.json")).operacoes;
   assert.deepEqual(Object.keys(ops).sort(), [...POLITICA.operacoes].sort());
-  assert.deepEqual(ops.p2_imap, ["p2"]); assert.deepEqual(ops.p1_imap, ["p1"]);
+  assert.deepEqual(ops.p2_imap, ["p2"]); assert.deepEqual(ops.p1_imap, ["p1"]); assert.deepEqual(ops.p6_imap, ["p6"]);
 });
 
 test("documentação: README do Worker e Documento 10 registram o Desenho B e que o primeiro ensaio não exige secrets Apple, sem escrever credencial", () => {

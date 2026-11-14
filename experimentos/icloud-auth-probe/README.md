@@ -78,3 +78,11 @@ Pelo workflow manual `.github/workflows/icloud-auth-probe.yml` (três jobs: `ver
 - **Fora do escopo desta etapa:** SMTP, leitura fora da pasta `RAC-TESTE`, sincronização, envio e qualquer alteração da caixa (P3 a P7).
 
 Testes: `node --test tests/icloud_auth_probe.test.mjs tests/icloud_auth_probe_consumo.test.mjs tests/icloud_auth_probe_imap.test.mjs tests/icloud_auth_probe_p2.test.mjs tests/icloud_auth_probe_worker.test.mjs tests/icloud_auth_probe_contrato.test.mjs` (o `_p2` usa um servidor IMAP falso em memória; o `_contrato` executa os passos reais do workflow contra o Worker real, com o IMAP falso e valores sentinela, sem rede externa).
+
+## P6 · sincronização somente leitura (`p6_imap`)
+
+- **O que faz:** login, `LIST` e `EXAMINE` da pasta `RAC-TESTE`, e devolve só números e códigos: UIDVALIDITY, UIDNEXT, EXISTS, duração (ms), capacidades do servidor (CONDSTORE, QRESYNC, IDLE, UIDPLUS, MOVE, NAMESPACE) e indicadores do EXAMINE (código da resposta etiquetada `READ-ONLY`/`READ-WRITE`/`NENHUM`/`OUTRO`; `PERMANENTFLAGS` vazio, não vazio ou ausente; se HIGHESTMODSEQ foi anunciado). **Nenhuma mensagem é lida** (nenhum `FETCH`) e nada é alterado ou guardado.
+- **Comandos:** `CAPABILITY`, `LOGIN`, `LIST` (só a pasta de teste), `EXAMINE` (só a pasta de teste) e `LOGOUT`: um subconjunto dos verbos da P2, conferido a cada envio.
+- **Estado anterior (sem estado no Worker):** o cliente pode informar `uidvalidity_anterior` e `uidnext_anterior` (sempre em par, inteiros de 1 a 4294967295). A decisão devolvida é `primeira_leitura`, `sem_mudanca`, `novas_mensagens` (com `uids_novos_no_maximo` = diferença de UIDNEXT; UIDs podem ter lacunas), `uidvalidity_mudou` (recarga total) ou `uidnext_regrediu` (inconsistência). Informar um UIDVALIDITY diferente do real é a simulação de mudança de UIDVALIDITY.
+- **Medição:** `duracao_ms` é a latência total da sessão no Worker. A CPU por operação não é medida aqui (o Worker não a enxerga); vem do painel da Cloudflare.
+- **Polling de 24 a 48 h:** não faz parte desta operação (decisão do dono de 14/11/2026: só execuções manuais, sem agendamento).

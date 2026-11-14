@@ -290,7 +290,7 @@ test("CONTRATO · o corpo do workflow é construído sem campos extras: o progra
   assert.equal(programa, '{operacao: "p1_imap", usuario: env.ICLOUD_USER, senha: env.ICLOUD_APP_PASSWORD}');
   assert.deepEqual([...programa.matchAll(/(\w+):/g)].map((m) => m[1]), ["operacao", "usuario", "senha"]);
   assert.ok(!/--data-raw|--data-urlencode|--data '/.test(s), "o corpo vem só da entrada padrão");
-  assert.equal([...PASSOS.map(script).join("\n").matchAll(/jq -n /g)].length, 2, "só os passos da P1 e da P2 montam corpo com credencial");
+  assert.equal([...PASSOS.map(script).join("\n").matchAll(/jq -n /g)].length, 3, "só os passos da P1, da P2 e da P6 montam corpo com credencial");
 });
 
 // ---------- P2 ----------

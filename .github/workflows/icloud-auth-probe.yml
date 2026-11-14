@@ -115,7 +115,8 @@ jobs:
           UIDNEXT_ANTERIOR: ${{ inputs.uidnext_anterior }}
         run: |
           # estado anterior da P6: ou os dois campos ou nenhum; cada um é um inteiro decimal de 1 a 4294967295 (32 bits). Nada é convertido: o que não
-          # bate com o formato é recusado (zero, sinal, espaço, decimal, zero à esquerda, texto). LC_ALL=C garante que [0-9] seja só ASCII.
+          # bate com o formato é recusado (zero, sinal, espaço, decimal, zero à esquerda, texto). Mesmos limites do Worker: só dígitos, sem zero à esquerda, no máximo
+          # 10 dígitos e valor não maior que o teto. LC_ALL=C garante que [0-9] seja só ASCII.
           export LC_ALL=C
           if { [ -n "$UIDVALIDITY_ANTERIOR" ] && [ -z "$UIDNEXT_ANTERIOR" ]; } || { [ -z "$UIDVALIDITY_ANTERIOR" ] && [ -n "$UIDNEXT_ANTERIOR" ]; }; then
             echo "::error::uidvalidity_anterior e uidnext_anterior devem ser informados juntos (ou ficar ambos vazios)."
@@ -127,7 +128,7 @@ jobs:
                 echo "::error::uidvalidity_anterior e uidnext_anterior devem ser números inteiros decimais de 1 a 4294967295 (sem sinal, espaço, decimal, zero à esquerda ou texto)."
                 exit 1
               fi
-              if [ "$((10#$V))" -gt 4294967295 ]; then
+              if [ "$V" -gt 4294967295 ]; then
                 echo "::error::uidvalidity_anterior e uidnext_anterior não podem passar de 4294967295 (o limite de 32 bits aceito pelo Worker)."
                 exit 1
               fi
@@ -293,7 +294,8 @@ jobs:
           if [ "$MODULOS" != "cloudflare:sockets" ]; then echo "::error::O pacote importa módulos cloudflare: além de sockets."; exit 1; fi
           APPLE=$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)
           if [ "$APPLE" != "imap.mail.me.com" ]; then echo "::error::O pacote cita endereço da Apple além do IMAP."; exit 1; fi
-          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT; a P2 acrescenta EXAMINE, FETCH e UID (somente leitura, sempre com BODY.PEEK). Nenhum verbo de
+          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT; a P2 acrescenta EXAMINE, FETCH e UID (somente leitura, sempre com BODY.PEEK); o pacote da P6 contém a mesma
+          # lista da P2 (o módulo da P6 só usa CAPABILITY, LOGIN, LIST, EXAMINE e LOGOUT, sem FETCH). Nenhum verbo de
           # alteração, de busca ou de outra pasta pode estar no pacote, e as duas listas de verbos têm de ser exatamente estas (DELETE e CREATE existem só como
           # SQL do registro de uso único do Durable Object, por isso a garantia deles é a lista exata de verbos e o teste do código, não esta busca)
           if grep -qwE 'EXPUNGE|APPEND|STORE|SEARCH|RENAME|SUBSCRIBE|UNSUBSCRIBE|AUTHENTICATE|STARTTLS|SELECT|UNSELECT|COPY|MOVE|IDLE|NOOP|CLOSE|STATUS|ENABLE|NAMESPACE|FLAGS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
@@ -714,7 +716,8 @@ jobs:
             exit 1
           fi
           # estado anterior da P6: ou os dois campos ou nenhum; cada um é um inteiro decimal de 1 a 4294967295 (32 bits). Nada é convertido: o que não
-          # bate com o formato é recusado (zero, sinal, espaço, decimal, zero à esquerda, texto). LC_ALL=C garante que [0-9] seja só ASCII.
+          # bate com o formato é recusado (zero, sinal, espaço, decimal, zero à esquerda, texto). Mesmos limites do Worker: só dígitos, sem zero à esquerda, no máximo
+          # 10 dígitos e valor não maior que o teto. LC_ALL=C garante que [0-9] seja só ASCII.
           export LC_ALL=C
           if { [ -n "$UIDVALIDITY_ANTERIOR" ] && [ -z "$UIDNEXT_ANTERIOR" ]; } || { [ -z "$UIDVALIDITY_ANTERIOR" ] && [ -n "$UIDNEXT_ANTERIOR" ]; }; then
             echo "::error::uidvalidity_anterior e uidnext_anterior devem ser informados juntos (ou ficar ambos vazios)."
@@ -726,7 +729,7 @@ jobs:
                 echo "::error::uidvalidity_anterior e uidnext_anterior devem ser números inteiros decimais de 1 a 4294967295 (sem sinal, espaço, decimal, zero à esquerda ou texto)."
                 exit 1
               fi
-              if [ "$((10#$V))" -gt 4294967295 ]; then
+              if [ "$V" -gt 4294967295 ]; then
                 echo "::error::uidvalidity_anterior e uidnext_anterior não podem passar de 4294967295 (o limite de 32 bits aceito pelo Worker)."
                 exit 1
               fi

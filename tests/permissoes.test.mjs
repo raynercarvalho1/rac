@@ -24,7 +24,9 @@ test("as travas antigas continuam todas (nada foi afrouxado)", () => {
     "Bash(git reset --hard*)", "Bash(git clean *)", "Bash(psql *)", "Bash(supabase *)", "Bash(curl *api.supabase.com*)", "Bash(wget *api.supabase.com*)", "mcp__github__push_files", "mcp__github__create_or_update_file",
     "mcp__github__delete_file", "Read(./.env)", "Read(./.env.*)", "Read(./privado/**)", "Edit(./privado/**)"];
   for (const r of ANTIGAS) assert.ok(deny.includes(r), "trava antiga removida: " + r);
-  assert.ok(ask.includes("mcp__github__merge_pull_request"), "o merge de PR continua pedindo");
+  /* decisão do dono em 14/11/2026: o merge de PR deixou de pedir (as condições de segurança estão no CLAUDE.md); o merge automático continua pedindo */
+  assert.ok(allow.includes("mcp__github__merge_pull_request") && !ask.includes("mcp__github__merge_pull_request"), "merge de PR liberado pelo dono");
+  assert.ok(ask.includes("mcp__github__enable_pr_auto_merge"));
 });
 
 test("sem autorização irrestrita: nenhum Bash genérico, nenhum comando perigoso ou fora da lista fechada em allow", () => {
@@ -32,7 +34,7 @@ test("sem autorização irrestrita: nenhum Bash genérico, nenhum comando perigo
   const prefixos = [/^git (status|diff|log|show|blame|shortlog|describe|fetch|rev-parse|rev-list|merge-base|ls-files|ls-tree|cat-file|remote -v|branch (--show-current|--list|-a|-r|-vv)|worktree (list|add)|add|commit|switch|checkout -b|merge|push (origin|-u origin|--set-upstream origin) claude\/)/,
     /^node (--test|--check)/, /^bash scripts\/nuvem_(testes|preparar)\.sh/, /^gh (api -X GET|pr (view|list|checks|diff|create|edit)|run (list|view))/];
   for (const r of allow.filter((x) => interno(x) !== null)) assert.ok(prefixos.some((p) => p.test(interno(r))), "comando fora da lista fechada: " + r);
-  for (const r of allow) assert.ok(!/(merge_pull_request|auto_merge|push_files|delete_file|create_or_update_file|actions_run_trigger|reset|rebase|stash|--force|psql|supabase|\brm\b|sudo|npm|curl|wget|eval|\bsh -c)/.test(r.replace(/^Bash\(git merge \*\)$/, "")), "regra permissiva demais: " + r);
+  for (const r of allow) assert.ok(!/(auto_merge|push_files|delete_file|create_or_update_file|actions_run_trigger|reset|rebase|stash|--force|psql|supabase|\brm\b|sudo|npm|curl|wget|eval|\bsh -c)/.test(r.replace(/^Bash\(git merge \*\)$/, "")), "regra permissiva demais: " + r);
   assert.ok(!allow.includes("Bash(git push *)") && !allow.includes("Bash(git push*)") && !allow.includes("Bash(git *)"), "push e git genéricos");
 });
 
@@ -52,10 +54,11 @@ test("decisão por comando: o que é rotina passa sem pedir; o que o dono reserv
   for (const [esperado, cmds] of Object.entries(TAB)) for (const c of cmds) assert.equal(decide(c), esperado, `"${c}" deveria ${esperado}`);
 });
 
-test("ferramentas do GitHub: leitura, criação de branch e de PR e atualização de PR passam; merge, merge automático, disparo de workflow e escrita direta de arquivo não", () => {
+test("ferramentas do GitHub: leitura, criação de branch e de PR, atualização e merge de PR passam; merge automático, disparo de workflow e escrita direta de arquivo não", () => {
   for (const f of ["pull_request_read", "get_file_contents", "get_commit", "get_check_run", "get_job_logs", "list_pull_requests", "list_commits", "list_branches", "issue_read", "actions_get", "actions_list", "create_branch", "create_pull_request", "update_pull_request"])
     assert.ok(allow.includes("mcp__github__" + f), "deveria permitir " + f);
-  for (const f of ["merge_pull_request", "enable_pr_auto_merge", "actions_run_trigger"]) { assert.ok(ask.includes("mcp__github__" + f), f + " pede"); assert.ok(!allow.includes("mcp__github__" + f)); }
+  assert.ok(allow.includes("mcp__github__merge_pull_request"), "merge de PR: liberado pelo dono em 14/11/2026");
+  for (const f of ["enable_pr_auto_merge", "actions_run_trigger"]) { assert.ok(ask.includes("mcp__github__" + f), f + " pede"); assert.ok(!allow.includes("mcp__github__" + f)); }
   for (const f of ["push_files", "create_or_update_file", "delete_file"]) { assert.ok(deny.includes("mcp__github__" + f), f + " negado"); assert.ok(!allow.includes("mcp__github__" + f)); }
   assert.ok(!allow.some((r) => /mcp__github__(add_issue_comment|pull_request_review_write|issue_write|create_repository|fork_repository|resolve_review_thread|update_issue_comment|create_branch\b.*force)/.test(r) && !/create_branch$/.test(r)), "comentar, revisar e criar repositório continuam pedindo");
 });

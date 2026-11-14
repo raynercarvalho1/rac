@@ -895,7 +895,7 @@ A conferência **não** depende do agente de leitura anterior: foi refeita diret
 
 ### 13.17 Primeira execução OIDC real falhou em `jwks_indisponivel`: diagnóstico e correção (14/11/2026)
 
-**O que aconteceu.** O primeiro ensaio ([execução 43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370), `main` `f23d9d9`, commit da POC `2a7a439`) publicou o Worker e o `executar` obteve o token OIDC do GitHub, mas o Worker respondeu **HTTP 401, motivo `jwks_indisponivel`**. A prova OIDC **não** está concluída (exige HTTP 200 com `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`).
+**O que aconteceu.** O primeiro ensaio ([execução 43530755370](https://github.com/raynercarvalho1/rac/actions/runs/43530755370), `main` `f23d9d9`, commit da POC `2a7a439`) publicou o Worker e o `executar` obteve o token OIDC do GitHub, mas o Worker respondeu **HTTP 401, motivo `jwks_indisponivel`**. A prova OIDC **não** estava concluída nesse momento (exige HTTP 200 com `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`); **concluída na execução seguinte, seção 13.18**.
 
 **O que o resultado já prova.** O token chegou ao Worker, passou pelo formato (3 partes, JSON válido), por `alg` RS256, pela ausência de cabeçalhos proibidos e por um `kid` presente: a recusa veio só da etapa de obter a chave. Nenhuma claim chegou a ser conferida, então o formato real das claims **continua não comprovado**.
 
@@ -912,3 +912,22 @@ A conferência **não** depende do agente de leitura anterior: foi refeita diret
 **Testes.** Em `tests/icloud_auth_probe.test.mjs`: um fetch que imita a regra do workerd (rejeita `redirect` fora de follow/manual) com o caminho de sucesso; 26 casos de falha cobrindo as 15 categorias (um teste confere que toda categoria da lista está coberta); erro inesperado sem vazar mensagem; resposta do Worker com `detalhe`; JWKS no formato do GitHub; e uma guarda contra o retorno de `redirect: "error"`.
 
 **Próximo passo para validar no ambiente real (depende do dono).** Como o Worker é publicado a partir do commit de entrada, o commit `2a7a439` **não contém a correção**: é preciso um novo commit na branch da POC e um novo run do workflow na `main` com esse commit (aprovando o Environment depois de conferir o resumo do job `verificar`). Nada foi executado, publicado ou alterado em Environments e secrets nesta correção. A fase I0 **não** está concluída.
+
+### 13.18 Validação OIDC real concluída com sucesso (14/11/2026)
+
+**Resultado.** A segunda execução manual do workflow [execução 43535195165](https://github.com/raynercarvalho1/rac/actions/runs/43535195165) (`workflow_dispatch` na `main`, `f23d9d9`; início 00:35:20 UTC, fim 00:37:55 UTC) terminou com **sucesso**: os três jobs (`verificar`, `provisionar`, `executar`) concluíram com sucesso. **O GitHub Actions autenticou-se no Worker `rac-icloud-auth-poc` por OIDC e o Worker validou o token.**
+
+**Evidências conferidas no GitHub Actions (sem expor token nem dados sensíveis).**
+- **Commit da POC publicado (entrada de dados):** `d1f25d3d1b80ad6aa1712bb8563ce616cc5b7b58`, a correção da seção 13.17. O log do `provisionar` registra "Pacote conferido: sha256 `939d49a92a3a25fda8f24663074ba4b4bac25a22aef84c2751797017f5d46bbb` (commit da POC `d1f25d3d…`)". A `main` executada foi `f23d9d9`, que contém o workflow da PR #20.
+- **Publicação:** Wrangler 4.161.0 enviou 18,32 KiB (5,56 KiB com gzip); o log do Wrangler reporta "Worker Startup Time: 3 ms" (tempo de inicialização, **não** CPU por requisição). Token Cloudflare confirmado como ativo, sem exibir dados da conta.
+- **Validação:** o passo "Validar o JWT no Worker" do job `executar` terminou com a mensagem "JWT OIDC aceito pelo Worker e operação reconhecida (sem credencial e sem acesso à Apple)". Pelo código do workflow, essa mensagem só é emitida quando a resposta do Worker é **HTTP 200** e o JSON satisfaz `ok == true`, `oidc == "validado"` e `operacao_reconhecida == true`, o critério de conclusão exigido. O corpo da resposta fica no resumo do job e **não foi relido nesta consolidação**; nenhum campo além desses foi assumido.
+
+**O que ficou comprovado.**
+1. A validação OIDC real funciona de ponta a ponta: o token emitido pelo GitHub foi aceito pelo Worker com a política estrita (emissor, audiência, `sub`, repositório e IDs, Environment, `ref` e `workflow_ref` da `main`, evento, `job_workflow_ref`, runner e claims temporais).
+2. **O formato real das claims e do JWKS do GitHub é compatível** com a política e com a importação RSA (o Worker obteve a descoberta e o JWKS reais, importou uma chave e verificou a assinatura RS256).
+3. **A correção de compatibilidade do JWKS foi validada no Cloudflare Workers:** a execução 1 (commit `2a7a439`) falhou com `jwks_indisponivel`; a execução 2 (commit `d1f25d3`) passou. A diferença entre os dois commits é exatamente a correção da seção 13.17 (`redirect: "manual"` no lugar de `"error"`, limite de leitura em bytes e detalhe de falha), o que confirma `redirect: "error"` como causa; a mudança vale como conjunto, não isola uma linha.
+4. O fluxo de três jobs com Environments funcionou (a execução 2 mostra a espera entre `verificar` e `provisionar` compatível com a aprovação do Environment; a configuração dos Environments **não** foi consultada nesta consolidação).
+
+**O que este resultado NÃO prova.** A validação OIDC **não autentica nenhuma conta Apple** e não usou credencial Apple. **Continuam não comprovados:** autenticação IMAP, autenticação SMTP, leitura de mensagens, sincronização, envio de e-mails, CPU por requisição no Workers Free, uso único do token (replay) e a substituição do Spark. **A POC da fase I0 não está concluída:** as provas P1 a P7 (seção 13.11) seguem pendentes.
+
+**Estado das fases.** **I0:** em andamento. Feitos: P0 (conectividade TCP/TLS), a arquitetura de autenticação S3/Desenho B e a validação OIDC real. Pendentes: P1 a P7. **I1 (Fundação):** não iniciada; depende do resultado da I0 e de decisões do dono.

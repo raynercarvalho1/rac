@@ -252,3 +252,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Causa mais provável:** `redirect: "error"` não existe no Cloudflare Workers (só `follow` e `manual`; o `fetch` lança `TypeError`). O erro era engolido e virava `jwks_indisponivel`. Comprovado no código-fonte do workerd e reproduzido localmente; **não comprovado** no Worker publicado.
 - **Correção na branch da POC (PR #17):** `redirect: "manual"` com recusa de 3xx, leitura limitada por bytes e campo `detalhe` de lista fechada na resposta 401; validação estrita inalterada. Documento 10, seção 13.17.
 - **Pendente, depende do dono:** autorizar um novo run a partir da `main` com o novo commit da POC (o `2a7a439` não tem a correção); o formato real do JWKS e das claims só será comprovado nesse run.
+
+## Atualização de 14/11/2026 · RAC Inbox (validação OIDC real concluída)
+
+- **Resultado:** a [execução 43535195165](https://github.com/raynercarvalho1/rac/actions/runs/43535195165) (`main` `f23d9d9`, commit da POC `d1f25d3d1b80ad6aa1712bb8563ce616cc5b7b58`) terminou com sucesso nos três jobs; o `executar` registrou "JWT OIDC aceito pelo Worker e operação reconhecida", o que o workflow só emite com HTTP 200, `ok: true`, `oidc: "validado"` e `operacao_reconhecida: true`. Supera a pendência "autorizar o primeiro ensaio OIDC".
+- **Decisão registrada:** `redirect: "error"` fica proibido no Worker (não existe no runtime Workers); a falha de chaves devolve `detalhe` de lista fechada. A correção da seção 13.17 foi validada no Cloudflare Workers.
+- **Limite:** a validação OIDC não autentica conta Apple. **Continuam não comprovados:** IMAP e SMTP autenticados, leitura, sincronização, envio, CPU por requisição e uso único do token. A I0 **não** está concluída.
+- **Pendente, depende do dono:** autorização expressa para a P1 (autenticação IMAP), com a credencial cadastrada por você só num Environment, nunca pelo chat; decidir o uso único do token antes de qualquer operação que altere a caixa ou envie e-mail; decisão sobre a PR #17 (segue em Draft, sem merge).

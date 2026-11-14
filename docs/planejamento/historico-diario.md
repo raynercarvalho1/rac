@@ -1037,3 +1037,21 @@ Família e da Casa.
 
 1. Com autorização expressa, o dono dispara o workflow na `main` com o SHA completo do novo commit da POC; conferimos o resumo do `verificar` antes de aprovar e o `detalhe` na resposta do `executar`.
 2. Se ainda falhar, o `detalhe` indicará a etapa; corrigir só o necessário. A fase I0 não está concluída.
+
+## 14/11/2026 · RAC Inbox — validação OIDC real concluída
+
+### 1. O que fizemos
+
+- Segunda execução manual do workflow `icloud-auth-probe` ([43535195165](https://github.com/raynercarvalho1/rac/actions/runs/43535195165), `main` `f23d9d9`, 00:35 a 00:37 UTC): **sucesso nos três jobs**. Entrada de dados: commit da POC `d1f25d3d1b80ad6aa1712bb8563ce616cc5b7b58` (pacote sha256 `939d49a9…46bbb`). O `executar` confirmou o aceite do JWT e a operação reconhecida (HTTP 200, `ok`, `oidc: "validado"`, `operacao_reconhecida`, conforme o critério do workflow).
+- Comprovado: OIDC real GitHub → Worker; formato real das claims e do JWKS compatível; correção de compatibilidade do JWKS (13.17) validada no Cloudflare Workers (a 1ª execução, commit `2a7a439`, falhara com `jwks_indisponivel`).
+- Documentação consolidada (Documento 10 seção 13.18, roadmap, decisões, README do Worker). Sem commit nesta tarefa. **Nada novo foi executado, publicado ou alterado em Environments, secrets ou GitHub; sem acesso à Apple.**
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão da documentação e a decisão do dono sobre a próxima prova. PR #17 em Draft, CI aprovado em `d1f25d3`, sem merge.
+- **Não comprovado:** autenticação IMAP e SMTP, leitura, sincronização, envio, CPU por requisição, uso único do token. A validação OIDC não autentica conta Apple. A I0 **não** está concluída; a I1 não foi iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização expressa, implementar a P1 (login IMAP em `imap.mail.me.com:993`, somente leitura) conforme a proposta aprovada; credencial só em Environment, nunca pelo chat.
+2. Decidir o uso único do token antes de qualquer P3 a P5; registrar cada prova só com evidência.

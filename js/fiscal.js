@@ -335,15 +335,22 @@
     box.appendChild(h("h4",{text:"Entrada no Mercado"}));
     box.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi os itens com o documento. A compra entra agora nos itens e no balanço do Mercado, mesmo com a nota pendente fiscal (sem esperar protocolo). Não cria despesa e não muda a situação fiscal."})));
     box.appendChild(h("div",{class:"vfil"},btn));box.appendChild(st);
+    /* o resultado aparece no próprio bloco, com sinal claro: o botão muda de texto (✓ Entrada feita), a mensagem ganha cor (verde, aviso ou erro) e a tela rola até
+       ela; no cartão logo depois de salvar a foto, FX.recarregar só relê a lista de notas e não redesenha este bloco, então o aviso não pode depender disso */
+    var rot0=btn.textContent||"Dar entrada no Mercado";
+    function resultado(classe,sinal,texto){st.className=classe;st.textContent=sinal+texto;if(st.scrollIntoView)st.scrollIntoView({behavior:"smooth",block:"center"})}
     btn.onclick=function(){
       if(btn.disabled)return;
-      if(!chk.checked){st.textContent="Marque que conferiu os itens com o documento.";return}
-      btn.disabled=true;st.textContent="Dando entrada…";
+      if(!chk.checked){resultado("qrwarn","⚠ ","Marque que conferiu os itens com o documento.");return}
+      btn.disabled=true;btn.textContent="Dando entrada…";st.className="sub";st.textContent="Dando entrada…";
       fxMercadoParecido(n).then(function(par){
-        if(par.length&&!(typeof confirm==="function"&&confirm("Já existe uma compra no Mercado com a mesma data e o mesmo valor. Dar entrada mesmo assim?"))){btn.disabled=false;st.textContent="Entrada cancelada: nada foi criado.";return}
+        if(par.length&&!(typeof confirm==="function"&&confirm("Já existe uma compra no Mercado com a mesma data e o mesmo valor. Dar entrada mesmo assim?"))){btn.disabled=false;btn.textContent=rot0;resultado("qrwarn","⚠ ","Entrada cancelada: nada foi criado.");return}
         return fxEntradaMercado(n.id,true).then(function(x){
-          st.textContent=x.mensagem;
-          if(x.estado==="erro"||x.estado==="invalido"){btn.disabled=false;return}
+          var bom=x.estado==="entrou",ja=x.estado==="ja_existia"||x.estado==="duplicada";
+          if(x.estado==="erro"||x.estado==="invalido"){btn.disabled=false;btn.textContent=rot0;resultado("qrwarn","⚠ ",x.mensagem);return}
+          btn.textContent=bom?"✓ Entrada feita":"Já deu entrada";chk.disabled=true;
+          resultado(bom?"qrok":"qrwarn",bom?"✓ ":"ℹ ",x.mensagem);
+          if(bom||ja)box.appendChild(h("a",{href:"#mercado",class:"ghostbtn",style:"display:inline-block;margin-top:8px",text:"Abrir o Mercado"}));
           if(aoEntrar)aoEntrar(x)})})};
     return box}
   /* ---------- tela da gravação de foto ou PDF ---------- */

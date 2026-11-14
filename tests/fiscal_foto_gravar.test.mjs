@@ -379,6 +379,10 @@ test("entrada no Mercado na tela: a nota pendente sem chave oferece o botão; s�
   bt(det[0]).onclick(); assert.equal(a.ch.rpc.length, 0, "sem o Conferi não chama");
   ck(det[0]).checked = true; a.c.confirm = () => false; bt(det[0]).onclick(); for (let i = 0; i < 10; i++) await new Promise((q) => setImmediate(q)); assert.equal(a.ch.rpc.length, 0, "compra parecida (mesma data e valor): dono recusou, nada foi criado"); assert.match(texto(det[0]), /Entrada cancelada/);
   a.c.confirm = () => true; bt(det[0]).onclick(); for (let i = 0; i < 12; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_entrada_mercado"]); assert.match(texto(det[0]), /Entrada feita no Mercado/);
+  /* sinal claro de que deu certo, no próprio bloco: botão "✓ Entrada feita" (desligado), mensagem verde com ✓, caixa travada e atalho para o Mercado */
+  const feito = achar(det[0], (n) => n.tag === "button" && n.textContent === "✓ Entrada feita")[0]; assert.ok(feito, "o botão muda para ✓ Entrada feita"); assert.equal(feito.disabled, true);
+  const msg = achar(det[0], (n) => n.attrs && n.attrs.role === "status" && /Entrada feita no Mercado/.test(n.textContent || ""))[0]; assert.ok(msg); assert.equal(msg.className, "qrok"); assert.match(msg.textContent, /^✓ Entrada feita no Mercado/);
+  assert.equal(ck(det[0]).disabled, true, "o Conferi trava depois da entrada"); assert.ok(achar(det[0], (n) => n.tag === "a" && n.attrs.href === "#mercado" && n.attrs.text === "Abrir o Mercado")[0], "atalho para o Mercado");
   await abrir(det[1]); assert.equal(bt(det[1]), undefined, "cancelada não entra");
   await abrir(det[2]); assert.equal(bt(det[2]), undefined); assert.match(texto(det[2]), /✓ Esta nota já deu entrada no Mercado em/);
 });
@@ -391,4 +395,19 @@ test("entrada no Mercado logo depois de salvar: o aviso de gravada traz o botão
   a.c.confirm = () => true; achar(bloco, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; b.onclick(); for (let i = 0; i < 14; i++) await new Promise((q) => setImmediate(q));
   assert.equal(a.ch.rpc.at(-1).nome, "nota_fiscal_entrada_mercado"); assert.equal(a.ch.rpc.at(-1).args.p_nota_id, r.idNota); assert.ok(r.entrouMercado && /Entrada feita no Mercado/.test(r.entrouMercado));
   assert.match(texto(a.c.fxBlocoSalvarDoc(r)), /✓ Entrada feita no Mercado/);
+  /* o bloco que o dono clicou (sem redesenhar o cartão) já mostra o OK sozinho */
+  assert.ok(achar(bloco, (n) => n.tag === "button" && n.textContent === "✓ Entrada feita")[0], "o botão que foi clicado mostra ✓ Entrada feita");
+  assert.equal(achar(bloco, (n) => n.attrs && n.attrs.role === "status" && /Entrada feita no Mercado/.test(n.textContent || ""))[0].className, "qrok");
+});
+test("entrada no Mercado: erro devolve o botão ao normal e mostra o aviso; sem o Conferi avisa com ⚠; nunca mostra ✓ sem a entrada", async () => {
+  const a = ambiente({ rpc: () => ({ error: { message: "entrada no Mercado: nota cancelada não vale como compra", code: "22023" } }) }), r = await lerFoto(a);
+  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0];
+  achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
+  r.gravado = { gravada: true, texto: "Nota gravada.", id: "6a6a6a6a-0000-4000-8000-000000000001" };
+  const bloco = a.c.fxBlocoSalvarDoc(r), b = achar(bloco, (n) => n.tag === "button" && /Dar entrada no Mercado/.test(n.attrs.text || ""))[0], ck = achar(bloco, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0];
+  b.onclick(); assert.match(achar(bloco, (n) => n.attrs && n.attrs.role === "status").at(-1).textContent, /^⚠ Marque que conferiu/); assert.equal(b.disabled === true, false);
+  ck.checked = true; a.c.confirm = () => true; b.onclick(); for (let i = 0; i < 14; i++) await new Promise((q) => setImmediate(q));
+  assert.equal(b.disabled, false, "depois do erro o botão volta a funcionar"); assert.equal(b.textContent, "Dar entrada no Mercado");
+  const st = achar(bloco, (n) => n.attrs && n.attrs.role === "status").at(-1); assert.equal(st.className, "qrwarn"); assert.match(st.textContent, /^⚠ Não dei entrada/);
+  assert.ok(!achar(bloco, (n) => /✓ Entrada feita/.test(n.textContent || ""))[0], "nenhum ✓ sem a entrada");
 });

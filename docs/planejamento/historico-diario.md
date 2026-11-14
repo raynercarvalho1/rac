@@ -842,3 +842,20 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Com a decisão do dono: P6 (sincronização e polling, somente leitura) junto com o indicador de EXAMINE; só depois, com autorização específica, P3 a P5; P7 (Vault, Edge Function, HMAC) é a base da I1. Se o dono quiser iniciar a I1 antes de P3 a P5, o critério de saída da I0 precisa ser revisado e registrado (decisão do dono).
+
+## 14/11/2026 · Central Fiscal — "Dar entrada no Mercado" passa a mostrar um OK claro
+
+### 1. O que fizemos
+
+- **Problema relatado pelo dono** (print do iPhone): ao clicar em "Dar entrada no Mercado" a tela parecia não mudar e não dava um "ok". **Causa confirmada no código**: a entrada funcionava (a mensagem "Entrada feita no Mercado: 8 itens… lidos de volta" aparecia), mas só como um texto pequeno e cinza abaixo de um botão que apenas desbotava; no cartão logo depois de salvar a foto o `FX.recarregar` só relê a lista "Notas já gravadas" e não redesenha esse bloco, então nada reforçava o resultado.
+- **Correção só de apresentação** (`js/fiscal.js`, `fxBlocoEntradaMercado`): o botão mostra "Dando entrada…" durante a chamada e fica "✓ Entrada feita" no fim; a mensagem fica verde com ✓ e a tela rola até ela; atalho "Abrir o Mercado"; erro e falta do "Conferi" aparecem com ⚠ e o botão volta ao normal; "já existia" e "duplicada" com ℹ. A regra de negócio, a função do banco e o texto das mensagens não mudaram.
+- **Testes**: `tests/fiscal_foto_gravar.test.mjs` ganhou asserções do novo comportamento (botão, cor/classe da mensagem, atalho, caixa travada, erro devolve o botão ao normal, nunca ✓ sem a entrada); `fiscal_foto_gravar`, `fiscal_tela`, `fiscal` e `estrutura`: 100 de 100 ok. Chromium real (390 px, claro e escuro, banco de mentira): botão "✓ Entrada feita", mensagem verde, sem erro de console. Versão do site na branch: `2026-11-14.2`.
+- **Sem SQL, função, secret, cron ou workflow.**
+
+### 2. O que estamos fazendo
+
+- Alteração na branch `claude/fiscal-entrada-feedback`, com PR para a `main`; **sem merge nem publicação** (o merge fica com o dono). Não testado no iPhone nem com a nota real.
+
+### 3. O que vamos fazer
+
+1. Dono: revisar o PR, mesclar e, depois da publicação, recarregar o site e conferir o botão numa nota pendente (a entrada que já foi feita não se repete: o banco devolve "já deu entrada").

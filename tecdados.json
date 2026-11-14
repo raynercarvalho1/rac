@@ -1,5 +1,5 @@
 {
-"coletado": "2026-11-14T06:14:50.405518+00:00",
+"coletado": "2026-11-14T13:36:34.036254+00:00",
 "noticias": [
 {
 "t": "A União da Juventude de Da Nang colabora no desenvolvimento de recursos humanos digitais.",
@@ -28,6 +28,13 @@
 "f": "Exame",
 "d": "2026-11-13T19:02:41+00:00",
 "b": "inteligência artificial generativa"
+},
+{
+"t": "Ford abre inscrições para curso gratuito de capacitação tecnológica; confira como se inscrever",
+"u": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxQWHk5OTNMOWt1SGtoTjNIMGRENlRyNnl5UVIwdlNlOExaUVNaMXBKWkJETTFfbEUxSlZMZWM4TW5sV2JNdVZoT3RKOW40YWF6QzFlREl0X1FRSjlJS1NPY3J5U0pIcHIwRHgySklhUVJ4RUd4ZEIzV1kya3NialhUNnZ6d3lEbVhoNHBvYkNQay1oOS1STzBaS1NGRWh3YTFFN3ZPbmdKY3F1V2tfSFNFbTkxNV95LWUyV25vcHowNFp6MlhQSUM1YXpIb01VTmhzZXNNSUI3RdIB3AFBVV95cUxPcDdRanFIZDNxdlctOE9QZUxPeEJOYWlwdVY4NjJEbEc2MkdBdVc1dUxSNzBOUGkxcG9jNkJhVDNxTl96cW1RaFN5bjljb0RNQndlVFdFVVlKRTZGTEtXdEFyWEE2eF80c0RZUU45NnVObUsxazE3SXBjQ01LODhTUnlIbU5DMVhPQ3RSc1J3aWJlNXFXWkhTVERtazZIZjZWZUczaFhwcS1UbWlKZlA3d0hTMmZ0M05tWlBlNVpEakJmeWpldTFmTVh1cTlvVHdBeVR2YVFNQjNQV3lW?oc=5",
+"f": "Estadão",
+"d": "2026-11-13T18:05:00+00:00",
+"b": "Power BI"
 },
 {
 "t": "Curso gratuito de capacitação tecnológica da Ford abre 40 vagas em São Paulo",
@@ -237,7 +244,14 @@
 "u": "https://news.google.com/rss/articles/CBMinAFBVV95cUxPQTNoZGFxQS0zUDhzMDlpZVprY2V5THh4Vlc2VmVWRENUZWJFNmFpcUhFcHZLR2gyclljWjdoY1RNTkJyTVRYalk2S3VsYVp2aHR0REh2NzdrRGtiTGhTZWFnY2lBbEh4ZjhfYlBuUEx4dWxxeFFuUWlqaXhEdTN2MXVFZ3ZXeEZxUkdnYVdYLTVwNmFweGtocWF5Mjg?oc=5",
 "f": "iMasters",
 "d": "2026-11-11T20:33:00+00:00",
-"b": "Power BI"
+"b": "análise de dados"
+},
+{
+"t": "Discord escolhe Lisboa para abrir o seu primeiro polo de engenharia fora dos EUA",
+"u": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxORWQ0d1l5OXFfejEwVmswRnpURm00aTNtbTBRc3NxdjlicmlabF9hN3BudWlJaEhUbFFYWFg5U3FnY0FIdGYzRzNLTm1RazhYcjBzQ0FUWFNDZFUtazBtd21LaGtkOEtNRHdfclZOUmk2cXB2a1RHQktMWDYzT0V5Y09mQXdkSUliZVNFTXNadE9UOGduVUZSd3BKSHBPb3RJWVplS1BxYUliVU0?oc=5",
+"f": "Diário de Notícias",
+"d": "2026-11-11T19:41:28+00:00",
+"b": "engenharia de dados"
 },
 {
 "t": "FAB conquista Prêmio Brasil Digital 2025/2026 na categoria Diamante com projeto da SEFA",
@@ -252,13 +266,6 @@
 "f": "IT Forum",
 "d": "2026-11-11T14:07:29+00:00",
 "b": "engenharia de dados"
-},
-{
-"t": "Análise de dados no RH: como agilizar e focar em pessoas",
-"u": "https://news.google.com/rss/articles/CBMiY0FVX3lxTE9QQ2lCZVZURFl1d2FkbWRfeUgyRTJ2TDJrOGJVTHZUN0lWc29nWmlBMXZjdDNOWFN6QjlfcmJCTkNyTWQybHYxV0hNOWFhYWV2MmhITVFEdHBic3hlRkl0bWQ5bw?oc=5",
-"f": "RH Pra Você",
-"d": "2026-11-11T13:50:15+00:00",
-"b": "análise de dados"
 },
 {
 "t": "Porto de Santos tem 27 vagas de emprego nesta semana",
@@ -289,6 +296,13 @@
 "b": "metodologias ágeis"
 },
 {
+"t": "Fala AI: Anthropic diz que IA resolveu problemas sobre buracos negros",
+"u": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxQandWRXlmZFJfdlhueVRjdzY4b19vN0VnNzZqUGM2bFIxMFc3aGRINjRpQjlreG9YalRQZlVxSjlhek1PRE42YnZ3MW9WTnFxM0REQ2d1bGdVMXRfUmFBelF0azV0dlFvYkI5aDdScUY1a2lQNkxxOXBsY1I1MDdIUnZvNGIxR1Z6a2lDWGNURXBiektTZkpiX3RUdUNKRzcwWC16QVlKSWRPcWZ4Vk1FYy1qWDJwb0tDWFZZ?oc=5",
+"f": "Olhar Digital",
+"d": "2026-11-11T01:56:00+00:00",
+"b": "machine learning"
+},
+{
 "t": "Inovação em políticas públicas municipais: métodos práticos aplicados por Manoel David",
 "u": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxOa0ROZ3B5dk5pZk1KeTJ2MzVwTjgtc2JGM215VTdFZUMzYjRNbmhGV1p5WldSMnp3aklHSEFQcld0RUJ3LTFWSHA5R3VhRWJWVVV0bGJ5TlZ3RktMSU1MaEJRXzN1dU1BbWJMZlZaVVJzMXRRaUQxQkhabkN1c3lIUFV4NEVqTHdsYkYyOTBVelE2MzFNUnU5VHFlbE9SbjBKaGYwUDBIbWw0OWxVWmhUM1hlaUVHTFlTM2xB?oc=5",
 "f": "Fala! Universidades",
@@ -317,20 +331,6 @@
 "b": "machine learning"
 },
 {
-"t": "MEC homologa diretrizes curriculares para os cursos de Moda, Estatística e Ciência de Dados",
-"u": "https://news.google.com/rss/articles/CBMi0AFBVV95cUxNN0h4MjJIOHJwSWMzY0tnOXVOUWdzTnRIdk9HTE1Yd0FObmNYNURCY0tBbVU5d0R4R29KV3Y1Yl9lZ3FpYjNKd3lxNlYtZk5keVlpQUV1ckZNa3c4WkllVjRQU0pWQkV0Ui1iaFhUTFB3R2ZEQTI1NUJrVUxoNkVUenNrSDR1ZTFDSUlwdEZ0TWJHNDBidmdLTnJjRGJEb2lQbWJfYVRkMWVjV2hSdkhCanZrbGF5RnlvcVZHOFltRGZackZNcV9uWE9wU0RwaFk3?oc=5",
-"f": "LeiaJá",
-"d": "2026-11-10T20:22:00+00:00",
-"b": "ciência de dados"
-},
-{
-"t": "Leega abre inscrições para trainee em Engenharia de Dados",
-"u": "https://news.google.com/rss/articles/CBMivwFBVV95cUxQNUU1Z1R5V3dpUXQ1MnVWQV9JV2kxWXVzVWRtOGJkZFZhOTFxVnhKM19Ia2gtdkR3T0Z1cTNLek55WWtoRm1KV3U4SEdjenpETTR3cUQzOEVvSm5CaTVKbkNOVXVRRld6c1NhTmcxUG1rYmZtQmNzVEhNVW1rbEZHeDRSRHhiNDBTaGdmN2JtS09yMHRlRUJEOTlCeUdUQ1JKVU1JT3RpMWhfelNaTTh5QTM1X2tlajJEYWR5OVY0Zw?oc=5",
-"f": "LeiaJá",
-"d": "2026-11-10T19:57:00+00:00",
-"b": "engenharia de dados"
-},
-{
 "t": "Da origem à análise de crédito: a importância de conhecer o caminho dos dados",
 "u": "https://news.google.com/rss/articles/CBMid0FVX3lxTE1vVFB6V0hHY1RaWFpYMERZSm5wb2NxYXU0X0JUUGFaNjZDTUhQakZuZEhlaE81MWxJeVdjeXVkTTQ5TXhFOHdsRmNGMUM0ckxjdGhmVDdwX3pXNW9sTmJpZmN4ckFpZmtNNmE3Z1B3U1g0UUQ3X1NF0gF8QVVfeXFMUDB4My1zcGdXQjhmV3NLeXpLMjh2WXM2NERISmxDOE84N3pnMjdoalRHM0lhTnFMaEJoMlhwdG9jaERPQ04xYV9icW5xeWJyRm85Ym1ybGsyb0JoWmFLVkVDX05iLU42amhidmJpa3JFX3BUWDlJblp0b3lyVw?oc=5",
 "f": "IT Forum",
@@ -352,11 +352,11 @@
 "b": "análise de dados"
 },
 {
-"t": "Empresa testa tecnologia de IA que otimiza preços do transporte rodoviário",
-"u": "https://news.google.com/rss/articles/CBMitAFBVV95cUxPZVhGdjE5UEp4Ri16aXIzTFdOM3ZJZWp6bkNnSE9fTFZTa1djZ1hPeWltdzFXempUNzI1SnJmak80Wml5LURNbU51Wm5qNGNrblVpN3ZBaUlGVGlNVzZrTEl4S3V1UGg4dkhVMzYwdU5lLUppTFBqaVNpR1ROLWdPUjBqek5VUlR3VGFucTVxWVBvOUFsRTd0Rl9xX05WWjE0anZzTl9NLWJVRTVWTFA1MW9hS04?oc=5",
-"f": "Agora Litoral",
-"d": "2026-11-10T16:28:56+00:00",
-"b": "machine learning"
+"t": "Cursos de moda e estatística têm diretrizes curriculares homologadas — Ministério da Educação",
+"u": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxNSkVsWU00ODRzaC1feGxuV3B2aDFnT29YZnNXcGRWN0JpNnk0VXlQTHdEbVg2RjIwdVhJdjhlanVVcmVUbUh5b3h2YXZWQm9rVWFFNXVKMHpzOHNVdlNHU1FNMFduQmZjMzdzY0xwT202Uy1OMTFXc3BqcFhCbmdIQjhVckYzMlJyYjhoQm00WGRfdU9UR3JJVjF1dlkyaGdOXzRFY0gzRnQ0V1B3bmcxcDhjZDRfOGJnSGVyaERwa3JtUTFrVjN2Wg?oc=5",
+"f": "Governo Federal",
+"d": "2026-11-10T17:46:00+00:00",
+"b": "ciência de dados"
 },
 {
 "t": "Ceará é o 3° estado do Brasil com mais crimes eleitorais em apuração",
@@ -413,13 +413,6 @@
 "f": "Portal UAI",
 "d": "2026-11-09T16:21:00+00:00",
 "b": "engenharia de dados"
-},
-{
-"t": "Nubank usa clientes simulados para testar IA e eleva autoatendimento em 8,82 pontos",
-"u": "https://news.google.com/rss/articles/CBMitAFBVV95cUxQNUU2ZVNraWRvZS1HVEdGYkxEUWlZYUFFVGZQTVVpYVhnUjFSQkNNSndiUkRDSE5hbWFMYmJZcXNzWEFLQ2ludWsydUhVa2dQM3BQSWNmaF9wTmhlQTBnWTRHeGtYa1g3d3ZkWTYtN1hpeS1HeklzRHNWVDd4WkhpNGJuOFlYNXhnQk9qX1FtN0F5c2szTXRvdmtybHlGNHA1Vng5NVVUWUQ2MUFmak1LUm9ycFU?oc=5",
-"f": "Paraíba Business",
-"d": "2026-11-09T15:40:00+00:00",
-"b": "machine learning"
 },
 {
 "t": "Startup da Unicamp oferece 15 cursos online gratuitos com certificado em IA e Gestão",

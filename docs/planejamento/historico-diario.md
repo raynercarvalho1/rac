@@ -774,3 +774,20 @@ Família e da Casa.
 
 1. Com o pin novo na `main`: integrar a `main` à branch da P2 por merge e, com autorização, publicar pelo workflow e executar **uma** `p2_imap`; registrar o resultado e só então marcar a P2 como concluída.
 
+## 14/11/2026 (noite, 6) · RAC Inbox — PR #23 mesclada e branch da P2 integrada
+
+### 1. O que fizemos
+
+- **PR #23 mesclada** (`58054fe4b5c1f51e499323504520f76e60454969`) depois de revisão (pin P2 novo conferido contra os blobs de `2e1055e`; P1 byte a byte inalterado; só 5 arquivos, sem mudança no workflow nem no Worker) e CI verde.
+- **Branch da P2 integrada à `main` por merge**, sem rebase nem force push; conflitos documentais resolvidos preservando todas as entradas.
+- **Validação integrada:** suíte do Worker, do processamento FETCH e do portão 178/178; suíte completa do projeto com Grupo 1 de 1.756 testes (0 falhas, 0 ignorados, 2 `todo`) e Grupo 2 com 73/73; passos reais do workflow e bundle (Wrangler do lockfile) para P1 e P2; checkout parcial com `git cat-file`; negativos e rollback P1.
+- Não feito (de propósito): PR #17, publicação do Worker, execução da P2 real, mensagens reais, secrets, Environments, P3 a P5.
+
+### 2. O que estamos fazendo
+
+- Aguardando decisões do dono: ruleset, mensagem de teste em `RAC-TESTE` e autorização específica para publicar e executar **uma** `p2_imap`. P2 **não** concluída; I0 não concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com autorização: publicar pelo workflow (o `verificar` confere o pin e o dono revisa o resumo antes de aprovar os Environments), executar `p2_imap` **uma vez** e registrar o resultado; só então marcar a P2 como concluída.
+

@@ -231,6 +231,27 @@ test("Saúde · ajustes: metas editáveis (sono 7 h e 3 treinos por padrão) com
   await abrir(c); assert.match(texto(cartao(c.root, "Esta semana")), /4 treinos/); await abrir(c, "sono"); assert.match(kpi(c.root, "Média de 7 dias").apoio, /meta 8 h/); assert.equal(c.banco.escritas().length, 0, "nenhuma escrita nas tabelas do relógio");
 });
 
+test("Saúde · meta de treinos por semana: caminhada não conta (Visão geral e Atividades), mas continua na lista e no histórico", async () => {
+  assert.equal(N.sauContaTreino({ tipo: "walking" }), false); assert.equal(N.sauContaTreino({ tipo: "casual_walking" }), false); assert.equal(N.sauContaTreino({ tipo: "speed_walking" }), false);
+  for (const tp of ["running", "strength_training", "cycling", "treadmill_running", "hiking", "lap_swimming"]) assert.equal(N.sauContaTreino({ tipo: tp }), true, tp + " conta");
+  assert.equal(N.sauContaTreino(null), false);
+  /* hoje: 2 caminhadas e 1 corrida; a semana vai de segunda a hoje, então as três entram na semana */
+  const mista = [ativ(1, HOJE, "walking", { distancia: 3000 }), ativ(2, HOJE, "walking", { distancia: 2500 }), ativ(3, HOJE, "running", { distancia: 5000, emMovimento: 1500 })];
+  const c = tela({ ativs: mista }); await abrir(c);
+  const sem = texto(cartao(c.root, "Esta semana"));
+  assert.match(sem, /Treinos 1 Dias ativos 1/, "só a corrida conta para a meta (3 atividades na semana)"); assert.match(sem, /Caminhada não conta para a meta/); assert.match(sem, /2 caminhadas esta semana/);
+  await abrir(c, "atividades");
+  assert.match(kpi(c.root, "Por semana").apoio, /sem caminhada/);
+  assert.ok(todos(c.root, (x) => /Caminhada/.test(texto(x))).length > 0, "a caminhada continua aparecendo (filtro e lista)");
+  assert.equal(kpi(c.root, "Atividades").valor, "3", "o total de atividades inclui a caminhada");
+  /* só caminhadas: a meta não tem o que contar e não vira alerta falso */
+  const so = tela({ ativs: [ativ(1, HOJE, "walking"), ativ(2, HOJE, "walking")] }); await abrir(so);
+  assert.match(texto(cartao(so.root, "Esta semana")), /Treinos 0 Dias ativos 0/);
+  await abrir(so, "atividades"); const k = kpi(so.root, "Por semana"); assert.equal(k.valor, "—"); assert.match(k.apoio, /caminhada não conta/);
+  assert.ok(!porClasse(so.root, "rac-kpi").some((x) => /Por semana/.test(texto(x)) && classe(x, "rac-kpi-alerta")), "sem alerta de meta não cumprida só por caminhar");
+  assert.equal(c.gravados.length, 0, "nada é gravado"); assert.equal(c.banco.escritas().length, 0);
+});
+
 /* ---------- interação dos gráficos (racDica) ---------- */
 test("Saúde · todo gráfico usa racDica, com valor e rótulo fixos em cada barra", async () => {
   const c = tela(); let barras = 0;

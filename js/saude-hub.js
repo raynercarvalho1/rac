@@ -68,11 +68,11 @@
     if(a){var T=ativTipo(a.tipo),d=a.dados,l=[distTxt(a),d.duracao?durTxt(d.duracao):"",ritmo(a),d.fc?"batimentos "+Math.round(d.fc):""].filter(Boolean).join(" · ");
       esq.appendChild(rkCard("Último treino",rkLista([{titulo:T[1]+" "+(d.nome||T[0]),sub:dataBR(a.inicio.slice(0,10))+", "+a.inicio.slice(11,16)+(d.local&&!C.pr.esconderLocal&&(d.nome||"").indexOf(d.local)<0?" · "+d.local:"")+(l?" · "+shV(l):""),href:"#saude/treino/"+a.id,meta:d.efeitoAerobico?"efeito "+shV(fmtN(d.efeitoAerobico)):null}])))}
     else esq.appendChild(rkCard("Último treino",rkEstado("vazio","Nenhum treino registrado.")));
-    var sem=NUCLEO.pnSemana(C.hoje),ts=C.ativs.filter(function(x){return x.inicio.slice(0,10)>=sem}),dsem={};ts.forEach(function(x){dsem[x.inicio.slice(0,10)]=1});
+    var sem=NUCLEO.pnSemana(C.hoje),dela=C.ativs.filter(function(x){return x.inicio.slice(0,10)>=sem}),ts=dela.filter(NUCLEO.sauContaTreino),cam=dela.length-ts.length,dsem={};ts.forEach(function(x){dsem[x.inicio.slice(0,10)]=1});
     var meta=C.pr.treinos,pct=Math.min(100,Math.round(ts.length/meta*100)),cw=h("div",{class:"rac-pilha",style:"gap:12px"});
     cw.appendChild(rsKpis([["Treinos",shV(String(ts.length))],["Dias ativos",shV(String(Object.keys(dsem).length))],["Meta",meta+(meta===1?" treino":" treinos")]]));
     cw.appendChild(rkMedidor(pct,null,"Meta da semana",shV(ts.length+" de "+meta)));
-    dir.appendChild(rkCard("Esta semana",cw,{sub:"De segunda a hoje.",origem:"A meta é sua e editável em Inteligência → Ajustes."}));
+    dir.appendChild(rkCard("Esta semana",cw,{sub:"De segunda a hoje. Caminhada não conta para a meta"+(cam?" ("+cam+(cam===1?" caminhada":" caminhadas")+" esta semana)":"")+".",origem:"A meta é sua e editável em Inteligência → Ajustes."}));
     dir.appendChild(shDiario());
     return L}
   /* diário de humor (só o dono): uma linha por dia; com algumas semanas dá para cruzar com sono, treino e estresse */
@@ -168,7 +168,9 @@
     var cons=NUCLEO.pnConsistencia(fil.map(function(a){return a.inicio}),ini,C.hoje),r=NUCLEO.sauResumoAtiv(fil);
     var k=h("section",{class:"rh-kpis","aria-label":"Indicadores das atividades"});
     k.appendChild(rkKpi({rotulo:"Atividades",valor:shV(String(r.n)),apoio:cons.diasAtivos+" dias ativos no período"}));
-    k.appendChild(rkKpi({rotulo:"Por semana",valor:shV(shN(cons.porSemana,1)),apoio:"meta pessoal "+C.pr.treinos+(C.pr.treinos===1?" treino":" treinos")+" por semana",alerta:cons.porSemana<C.pr.treinos&&r.n>0}));
+    /* "Por semana" é a conta da meta de treinos: sem caminhada. Com o filtro em caminhada não há o que contar (ela não conta para a meta) */
+    var fm=fil.filter(NUCLEO.sauContaTreino),cm=NUCLEO.pnConsistencia(fm.map(function(a){return a.inicio}),ini,C.hoje),soCam=fil.length>0&&!fm.length;
+    k.appendChild(rkKpi({rotulo:"Por semana",valor:soCam?"—":shV(shN(cm.porSemana,1)),apoio:soCam?"caminhada não conta para a meta de treinos":"meta pessoal "+C.pr.treinos+(C.pr.treinos===1?" treino":" treinos")+" por semana (sem caminhada)",alerta:!soCam&&cm.porSemana<C.pr.treinos&&fm.length>0}));
     k.appendChild(rkKpi({rotulo:"Semanas ativas",valor:shV(cons.semanasAtivas+" de "+cons.semanas),apoio:"sequência atual: "+cons.sequenciaAtual+(cons.sequenciaAtual===1?" semana":" semanas")+" · recorde "+cons.maiorSequencia}));
     k.appendChild(rkKpi({rotulo:"Tempo e distância",valor:shV(durTxt(r.duracaoSeg)),apoio:shV(shN(r.distanciaKm,0)+" km")+(r.fcMedia?" · FC média "+shV(String(Math.round(r.fcMedia))):"")}));
     L.push(k);
@@ -285,7 +287,7 @@
     if(isOwner()){var L2=SAUDE.legado||{dias:0,ativs:0};corpo.appendChild(h("span",{class:"rac-t-legenda",text:"Preservados e fora das análises: "+L2.dias+" dias e "+L2.ativs+" treinos anteriores a "+dataBR(NUCLEO.SAU_MARCO.data)+"."}))}
     return rkCard("Saúde dos dados",corpo,{sub:"Cobertura nos últimos 14 dias. Abaixo de 70% numa medida, o sinal que depende dela não é calculado.",origem:"Origem: garmin_dia e garmin_ativ, lidos do banco (o relógio só envia ao Garmin Connect quando sincroniza)."})}
   /* ajustes do dono: metas, ocultar valores e esconder o local (preferências pessoais, PESSOAL.saudePrefs) */
-  function shAjustes(C,S){var P=C.pr,corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),fs=rkCampo("Meta de sono (horas por noite)","sh-meta-sono",{ajuda:"Entre 4 e 12. Padrão: 7."}),ft=rkCampo("Meta de treinos por semana","sh-meta-treino",{ajuda:"Inteiro de 1 a 14. Padrão: 3."}),
+  function shAjustes(C,S){var P=C.pr,corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),fs=rkCampo("Meta de sono (horas por noite)","sh-meta-sono",{ajuda:"Entre 4 e 12. Padrão: 7."}),ft=rkCampo("Meta de treinos por semana","sh-meta-treino",{ajuda:"Inteiro de 1 a 14. Padrão: 3. Caminhada não conta."}),
       is=fs.querySelector("input"),it=ft.querySelector("input"),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"});
     is.type="number";it.type="number";is.value=String(P.sonoH);it.value=String(P.treinos);is.step="0.5";
     function chk(id,rot,v){var c=h("input",{type:"checkbox",id:id}),l=h("label",{class:"sh-chk","for":id},c,h("span",{text:rot}));if(v)c.checked=true;return {l:l,c:c}}

@@ -1,0 +1,6 @@
+# Dono dos arquivos que decidem O QUE pode ser publicado e COM QUE FERRAMENTA (publicação privilegiada da POC iCloud).
+# Este arquivo só tem efeito quando um ruleset (ou proteção de branch) da main exige "Require review from Code Owners"
+# (docs/icloud-poc-deploy.md, seção "Portão do pin"); o próprio CODEOWNERS também é protegido.
+/.github/workflows/ @raynercarvalho1
+/experimentos/icloud-auth-probe-ferramenta/ @raynercarvalho1
+/.github/CODEOWNERS @raynercarvalho1

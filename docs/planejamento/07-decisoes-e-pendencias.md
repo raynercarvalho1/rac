@@ -171,3 +171,14 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Regra permanente registrada no `CLAUDE.md`** (seção Segurança): credenciais de nuvem só em Environments, usados só por workflow privilegiado da `main`, com Environments restritos à `main`.
 - **Limite registrado (replay):** o token OIDC pode ser reutilizado dentro da validade; uso único exige persistência, **não implementada** e dependente de autorização específica, a decidir antes de qualquer operação que altere a caixa ou envie e-mail.
 - **Pendente, depende do dono (nada foi configurado):** mesclar esta PR; Environments com aprovador obrigatório e só a `main`; desativar o workflow antigo até o merge; token Cloudflare de permissão mínima com prazo; mesclar a PR #17 (Worker e política OIDC da `main`); só então autorizar o primeiro ensaio OIDC, sem credencial Apple. A fase I0 não está concluída.
+
+## Decisão de 14/11/2026 (noite) · RAC Inbox (portão do pin e suporte do workflow à P2)
+
+- **Decisão do dono:** integrar à `main` **somente** o suporte necessário no workflow confiável (operação `p2_imap`, entrada `uid_mensagem`) e um **portão de pin por conteúdo SHA-256**, sem incorporar a PR #17 (que permanece em Draft, sem merge). O código do Worker da P2 fica na branch da P2.
+- **Pin:** `experimentos/icloud-auth-probe-ferramenta/aprovados.json`, com dois pins (`p1` e `p2`, preservando rollback) e a tabela operação → pin: `p1_imap` só aceita o conteúdo P1; `p2_imap` só o P2; `validar_oidc` e `validar_uso_unico` aceitam os dois. Hash determinístico (manifesto `rac-pin-v1` com caminhos e conteúdos, ordem bytewise), lista fixa validada (ausente, extra, renomeado, link, submódulo, executável), `wrangler.jsonc` incluída; hashes lidos dos objetos do Git. **O hash do bundle não entra no pin** (decisão do dono).
+- **Onde falha:** no job `verificar` (sem secrets e sem Environment), antes de montar e empacotar e antes de qualquer job privilegiado; a aprovação humana do Environment não substitui esse controle.
+- **Node do CI fixado:** `setup-node` com a versão exata `24.22.3` no workflow da POC. O `testes.yml` não foi alterado (o script da nuvem lê dele a versão principal do Node).
+- **Regra de revisão obrigatória** em `.github/workflows/**` e na pasta da ferramenta: **documentada** em `docs/icloud-poc-deploy.md`; a configuração no GitHub (ruleset e `CODEOWNERS`) fica para execução posterior do dono.
+- **Estado:** implementado e testado localmente em branch local; **sem push, sem PR, sem merge, sem publicação, sem execução da P2 real.** P2 não concluída; I0 não concluída; I1 não iniciada.
+- **Pendente, depende do dono:** autorizar push e PR para a `main`; configurar a regra de revisão; depois do merge, atualizar a branch da P2 com a `main` e autorizar publicação e **uma** execução de `p2_imap`.
+

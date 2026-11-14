@@ -720,3 +720,23 @@ Família e da Casa.
 1. Dono mescla a PR #18 depois do CI verde.
 2. Retomar a POC iCloud já sob o protocolo novo: commit, PR separada do workflow e configuração do Environment `cloudflare-poc` pelo dono.
 3. Atenção: PR #17 e PR #18 acrescentam texto ao fim deste histórico; o segundo merge pode pedir resolução trivial de ordem das seções.
+
+## 14/11/2026 (noite, 2) · RAC Inbox — PR-A local: suporte do workflow à P2 e portão do pin
+
+### 1. O que fizemos
+
+- Branch local `claude/inbox-p2-workflow`, criada a partir da `main` (`4ff3ed9`), **sem a PR #17** (que segue em Draft): o suporte `p2_imap` no workflow (operação, `uid_mensagem`, passo "P2 IMAP" sem retry, inspeção do pacote com listas exatas de verbos) e o **portão do pin**.
+- **Portão do pin:** `aprovados.json` com os pins P1 e P2 e a tabela operação → pin; conferência no job `verificar` (sem secrets) antes de montar e empacotar, com os hashes lidos dos objetos do Git, lista fixa validada, `wrangler.jsonc` incluída e reconferência após a cópia; inspeção do pacote dependente do pin. Node do workflow fixado em `24.22.3`. Hash do bundle **não** entra no pin.
+- **Validação:** testes do workflow executando os passos reais (aceitação e recusa por operação, byte alterado, ausente, extra, renomeado, link, submódulo, executável, `.gitattributes`, pin inválido ou inconsistente, variável tentando trocar o pin, configuração do Wrangler adulterada) e mutações no próprio portão detectadas; passos reais executados contra os **commits reais** da POC (P1 `68403f5` e P2 `7653915`) com o Wrangler do lockfile em `--dry-run`: combinações corretas aprovadas e as cruzadas, um byte alterado e um arquivo extra recusados no portão. A execução real encontrou um defeito (a inspeção exigia a lista de verbos da P2 também no pacote P1, o que quebraria o rollback), corrigido e coberto por teste.
+- Documentação: guia de publicação (seção "Portão do pin" e regra de revisão), decisões e este histórico.
+- **Não feito (de propósito):** push, PR, merge, publicação do Worker, execução da P2 real, configuração do GitHub.
+
+### 2. O que estamos fazendo
+
+- Aguardando a autorização do dono para push e PR-A para a `main`. PR #17 em Draft, sem merge. P2 **não** executada e **não** concluída.
+
+### 3. O que vamos fazer
+
+1. Com autorização: push da branch e PR-A para a `main`; o dono revisa o diff do workflow e do pin e o diff do Worker da P2 (`68403f5...7653915`).
+2. Depois do merge: atualizar a branch da P2 com a `main` (sem rebase) e acrescentar o teste de desvio do pin; o dono configura a regra de revisão; autorizar publicação e **uma** execução de `p2_imap`.
+

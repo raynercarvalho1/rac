@@ -495,6 +495,25 @@ test("EXECUÇÃO — pin aprovado, mas configuração do Wrangler adulterada: o 
   assert.equal(porta(fixture({ cfg: { $schema: "node_modules/wrangler/config-schema.json", ...CFG }, pin: { ...pinCompleto(), pins: { ...pinCompleto().pins, p2: pinDe("p2", { $schema: "node_modules/wrangler/config-schema.json", ...CFG }) } } }), "p2_imap").status, 0);
 });
 
+test("limite de tamanho do pacote: o passo de empacotar recusa, no job sem secrets, o que não caberia na variável de ambiente do job seguinte", () => {
+  const emp = script(achar(PV, "Empacotar"));
+  assert.match(emp, /PACOTE_B64=\$\(base64 -w0 "\$BUNDLE"\)/);
+  assert.match(emp, /\[ "\$\{#PACOTE_B64\}" -gt 120000 \]/);
+  assert.match(emp, /echo "pacote=\$PACOTE_B64"/);
+  assert.ok(emp.indexOf("-gt 120000") < emp.indexOf('echo "pacote='), "a conferência vem antes de gravar a saída");
+});
+
+test("CODEOWNERS: os caminhos sensíveis (workflows, ferramenta e o próprio CODEOWNERS) pertencem só ao dono; sem curingas que sobrescrevam", () => {
+  assert.ok(existe(".github/CODEOWNERS"));
+  assert.ok(!existe("CODEOWNERS") && !existe("docs/CODEOWNERS"), "um único arquivo, no lugar que o GitHub lê primeiro");
+  const linhas = ler(".github/CODEOWNERS").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+  assert.deepEqual(linhas, ["/.github/workflows/ @raynercarvalho1", "/experimentos/icloud-auth-probe-ferramenta/ @raynercarvalho1", "/.github/CODEOWNERS @raynercarvalho1"]);
+  for (const l of linhas) assert.match(l, /^\/[A-Za-z0-9._\/-]+ @raynercarvalho1$/, "caminho absoluto a partir da raiz e um único dono");
+  assert.ok(!linhas.some((l) => /^\*|\s\*|\*\*/.test(l)), "sem curinga global que enfraqueça ou substitua");
+  const guia = ler("docs/icloud-poc-deploy.md");
+  for (const x of [/CODEOWNERS/, /Require review from Code Owners/i, /bypass/i, /github-actions\[bot\]/]) assert.match(guia, x, "o guia explica a regra de revisão e seus limites: " + x);
+});
+
 test("o pin do portão: ordem dos passos, sem secrets nem Environment, só leitura da main, falha antes de qualquer job privilegiado", () => {
   const nomes = PV.map(nomeDe);
   const ip = nomes.findIndex((n) => n.startsWith("Conferir o pin")), im = nomes.findIndex((n) => n.startsWith("Montar o pacote")), ie = nomes.findIndex((n) => n.startsWith("Empacotar")), iw = nomes.findIndex((n) => n.startsWith("Instalar o Wrangler"));
@@ -524,6 +543,9 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
   assert.equal(versoes.length, 2);
   for (const v of versoes) assert.match(v, /^\d+\.\d+\.\d+$/, "versão exata do Node, sem intervalo nem apelido");
   assert.equal(new Set(versoes).size, 1, "a mesma versão nos jobs verificar e provisionar");
+  assert.equal(versoes[0], "24.22.2", "a versão que o runner usou nas execuções reais do workflow (24.22.2, no cache do runner)");
+  const guia = ler("docs/icloud-poc-deploy.md");
+  assert.ok(guia.includes("`" + versoes[0] + "`"), "o guia registra a mesma versão do Node");
 });
 
 test("aprovados.json: formato, associação operação→pin, manifesto recalculado, ordem, lista de arquivos e P2 = P1 + os dois módulos novos", () => {
@@ -639,6 +661,12 @@ test("EXECUÇÃO — inspeção do pacote: aceita o bundle esperado (sockets, ho
     ["P1 com UID", BUNDLE_P1 + 'var v = "UID";\n', "p1"], ["P1 com RFC822", BUNDLE_P1 + 'var v = "RFC822.SIZE";\n', "p1"], ["P1 com leitura sem PEEK", BUNDLE_P1 + 'var v = "BODY[1]";\n', "p1"],
     ["conteúdo P1 com o pin P2 (falta a lista da P2)", BUNDLE_P1, "p2"], ["pin desconhecido", BUNDLE_BOM, "p3"], ["sem o arquivo do pin", BUNDLE_BOM, null]])
     assert.notEqual(rodarEmpacotar(bundle, { pin }).status, 0, nome);
+  // tamanho do pacote: o limite de 120000 caracteres em base64 (variável de ambiente do job seguinte, máximo de 131072 bytes por variável) falha ANTES da aprovação
+  const preenchido = (n) => BUNDLE_BOM + "var enchimento = '" + "a".repeat(n) + "';\n";
+  assert.equal(rodarEmpacotar(preenchido(80000)).status, 0, "pacote de ~80 KB (≈107 mil caracteres em base64) cabe");
+  const grande = rodarEmpacotar(preenchido(95000));
+  assert.notEqual(grande.status, 0, "pacote de ~95 KB (≈127 mil caracteres em base64) é recusado no verificar");
+  assert.match(grande.stdout + grande.stderr, /passa do limite de 120000/);
   assert.notEqual(rodarEmpacotar(BUNDLE_BOM, { extraDist: "extra.txt" }).status, 0, "arquivo inesperado no pacote gerado");
   assert.equal(rodarEmpacotar(BUNDLE_BOM, { extraDist: "index.js.map" }).status, 0, "o mapa de fontes continua permitido");
 });

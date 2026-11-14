@@ -1,6 +1,6 @@
 # RAC Inbox · POC autenticada iCloud — DESENHO B: workflow privilegiado que existe SÓ na main (reunião de segurança de 13/11/2026).
 # Este arquivo só muda por merge na main (decisão do dono). Ele é disparado a partir da main com o commit da branch da POC como ENTRADA DE DADOS:
-# os arquivos do Worker daquele commit são copiados por uma lista fixa, empacotados e inspecionados, mas NADA da branch é executado,
+# os arquivos do Worker daquele commit são conferidos contra o pin aprovado, copiados dos objetos do Git, empacotados e inspecionados, mas NADA da branch é executado,
 # nem com secrets, nem sem. Os Environments cloudflare-poc e icloud-auth-poc devem aceitar SÓ a main (configuração do dono no GitHub): assim,
 # mesmo um workflow alterado numa branch, disparado de lá, não recebe nenhum secret nem o Environment.
 # Operações (entrada "operacao"): validar_oidc (ensaio sem efeito e sem credencial), validar_uso_unico (prova SINTÉTICA do registro de uso único,
@@ -111,7 +111,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "24.22.3"
+          node-version: "24.22.2"
 
       # PORTÃO DO PIN (sem secrets, antes de empacotar e de qualquer job privilegiado). O conteúdo do commit da POC é lido dos OBJETOS do Git (não do
       # checkout) e comparado, por arquivo e por manifesto SHA-256, com o pin aprovado que a tabela "operacoes" associa a ESTA operação: p1_imap só
@@ -275,10 +275,14 @@ jobs:
           HOSTS=$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)
           if [ "$HOSTS" != $'https://consumo.interno\nhttps://token.actions.githubusercontent.com' ]; then echo "::error::O pacote cita endereços fora do emissor do GitHub e do objeto interno."; exit 1; fi
           SHA=$(sha256sum "$BUNDLE" | cut -d' ' -f1)
+          # o pacote vai ao job seguinte numa variável de ambiente (base64): o Linux limita CADA variável a 131072 bytes; falhar aqui, sem secrets e antes
+          # de qualquer aprovação, é melhor do que falhar depois dela
+          PACOTE_B64=$(base64 -w0 "$BUNDLE")
+          if [ "${#PACOTE_B64}" -gt 120000 ]; then echo "::error::O pacote (${#PACOTE_B64} caracteres em base64) passa do limite de 120000 para ser entregue ao job seguinte."; exit 1; fi
           {
             echo "commit=$COMMIT"
             echo "sha256=$SHA"
-            echo "pacote=$(base64 -w0 "$BUNDLE")"
+            echo "pacote=$PACOTE_B64"
           } >> "$GITHUB_OUTPUT"
           {
             echo "### Pacote do Worker rac-icloud-auth-poc (antes da aprovação do ambiente)"
@@ -327,7 +331,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "24.22.3"
+          node-version: "24.22.2"
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |

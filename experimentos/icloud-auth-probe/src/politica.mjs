@@ -12,10 +12,11 @@ export const POLITICA = Object.freeze({
   audienciaPrefixo: "rac-inbox-icloud-poc:",
   // validar_oidc: ensaio sem efeito (já provado em 14/11/2026). validar_uso_unico: prova SINTÉTICA do registro de uso único, sem credencial.
   // p1_imap: autenticação IMAP somente leitura (P1), a única operação com credencial.
-  operacoes: Object.freeze(["validar_oidc", "validar_uso_unico", "p1_imap"]),
+  // p2_imap: leitura controlada de UMA mensagem da pasta RAC-TESTE (EXAMINE, somente leitura), também com credencial.
+  operacoes: Object.freeze(["validar_oidc", "validar_uso_unico", "p1_imap", "p2_imap"]),
   // operações cujo token só pode ser usado UMA vez por execução do workflow (Durable Object); o consumo acontece antes de ler o corpo
-  operacoesComConsumo: Object.freeze(["validar_uso_unico", "p1_imap"]),
-  operacoesComCredencial: Object.freeze(["p1_imap"]),
+  operacoesComConsumo: Object.freeze(["validar_uso_unico", "p1_imap", "p2_imap"]),
+  operacoesComCredencial: Object.freeze(["p1_imap", "p2_imap"]),
 
   // identidade do repositório (dados públicos)
   repository: "raynercarvalho1/rac",
@@ -67,6 +68,17 @@ export const POLITICA = Object.freeze({
 
   // P1 · IMAP. Host e porta fixos no código (TLS implícito). A pasta de teste só vira um booleano; nomes de outras pastas nunca saem.
   imap: Object.freeze({ host: "imap.mail.me.com", porta: 993, timeoutMs: 20000, maxBytes: 262144, maxLinhas: 500, pastaTeste: "RAC-TESTE" }),
+
+  // P2 · leitura de UMA mensagem, só na pasta de teste, só leitura (EXAMINE). Host e porta vêm de `imap`; a pasta é só esta constante (nunca do cliente).
+  // Limites pequenos de propósito (o plano Free do Workers tem CPU curta): nada é guardado e só indicadores saem na resposta.
+  //   maxBytes: total lido do servidor na sessão; maxLinhas: linhas soltas por comando; maxCabecalhoBytes/maxTextoBytes/maxHtmlBytes: o que se lê de cada parte
+  //   (leitura parcial pedida ao servidor); maxAnexoBytes: tamanho CODIFICADO máximo do anexo cujos bytes são lidos; maxEstruturaBytes: resposta da estrutura MIME;
+  //   maxPartes/maxProfundidade: limites da árvore MIME; maxItensSexp: itens na análise da estrutura.
+  p2: Object.freeze({
+    pasta: "RAC-TESTE", timeoutMs: 20000, maxBytes: 262144, maxLinhas: 200,
+    maxCabecalhoBytes: 8192, maxTextoBytes: 32768, maxHtmlBytes: 32768, maxAnexoBytes: 24576,
+    maxEstruturaBytes: 32768, maxPartes: 30, maxProfundidade: 6, maxItensSexp: 4000,
+  }),
 });
 
 export function audienciasPermitidas(politica = POLITICA) {

@@ -1,7 +1,8 @@
 // Ponto de entrada do Worker temporário da POC autenticada iCloud (arquitetura S3).
 // Valida o JWT OIDC do GitHub Actions, registra o USO ÚNICO da operação no Durable Object (proteção contra replay) e, só então, executa:
-// validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética, sem credencial) e p1_imap (autenticação IMAP somente leitura).
-// A credencial da P1 chega no corpo de cada chamada, vive só em memória durante ela e não é guardada, registrada nem devolvida.
+// validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética, sem credencial), p1_imap (autenticação IMAP somente leitura) e p2_imap
+// (leitura controlada de uma mensagem da pasta de teste, somente leitura).
+// A credencial da P1 e da P2 chega no corpo de cada chamada, vive só em memória durante ela e não é guardada, registrada nem devolvida.
 // É o ÚNICO arquivo que importa "cloudflare:sockets" (o socket TLS do IMAP). A lógica testável está em rotas.mjs, imap.mjs e consumo.mjs.
 import { connect } from "cloudflare:sockets";
 import { POLITICA } from "./politica.mjs";
@@ -10,6 +11,7 @@ import { criarProvedorChaves } from "./jwks.mjs";
 import { tratar } from "./rotas.mjs";
 import { pedirConsumo } from "./consumo.mjs";
 import { executarP1 } from "./imap.mjs";
+import { executarP2 } from "./mensagem.mjs";
 
 export { ConsumoUnico } from "./consumo.mjs";
 
@@ -31,6 +33,7 @@ export default {
       verificar,
       consumir: (dados) => pedirConsumo(ambiente && ambiente.CONSUMO, dados, POLITICA),
       executarP1: (credencial) => executarP1({ abrir: abrirSocket, usuario: credencial.usuario, senha: credencial.senha, politica: POLITICA }),
+      executarP2: (dados) => executarP2({ abrir: abrirSocket, usuario: dados.usuario, senha: dados.senha, uid: dados.uid, politica: POLITICA }),
     });
   },
 };

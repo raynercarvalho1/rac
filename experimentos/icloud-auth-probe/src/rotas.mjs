@@ -6,6 +6,7 @@
 import { POLITICA, DETALHES_CONSUMO, operacaoDaAudiencia } from "./politica.mjs";
 import { chaveDeConsumo } from "./consumo.mjs";
 import { montarRespostaP1 } from "./imap.mjs";
+import { montarRespostaP2 } from "./mensagem.mjs";
 
 function json(status, corpo) {
   return new Response(JSON.stringify(corpo), {
@@ -53,13 +54,14 @@ async function lerCorpoLimitado(request, maxBytes) {
 //   validar_oidc e validar_uso_unico: EXATAMENTE { operacao }.
 //   p1_imap: EXATAMENTE { operacao, usuario, senha } (nomes fixos do contrato com o workflow); usuario = endereço de e-mail; senha = senha
 //   específica de app da Apple (xxxx-xxxx-xxxx-xxxx, só letras minúsculas). Qualquer outro campo, tipo ou formato é recusado.
+//   p2_imap: os mesmos três campos e, OPCIONAL, `uid` (número inteiro de 1 a 4294967295: a mensagem da pasta de teste a ler; sem ele, a última).
 // Falha de esquema: HTTP 400 com um `detalhe` de lista fechada que diz QUAL regra falhou (nunca o valor recebido).
 const FORMATO_USUARIO = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}$/;
 const FORMATO_SENHA_APP = /^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/;
 
 export const DETALHES_CORPO = Object.freeze([
   "corpo_nao_json", "corpo_nao_objeto", "operacao_invalida", "campos_inesperados", "campo_ausente_usuario", "campo_ausente_senha",
-  "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida",
+  "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida", "uid_invalido",
 ]);
 
 // Examina o corpo: { corpo } se válido, ou { detalhe } com o código da regra que falhou. Só devolve constantes (nunca texto vindo do cliente).
@@ -72,7 +74,8 @@ export function examinarCorpo(bytes, politica = POLITICA) {
   if (typeof dados.operacao !== "string" || !politica.operacoes.includes(dados.operacao)) return { detalhe: "operacao_invalida" };
   const chaves = Object.keys(dados);
   const comCredencial = (politica.operacoesComCredencial || []).includes(dados.operacao);
-  const permitidas = comCredencial ? ["operacao", "usuario", "senha"] : ["operacao"];
+  const comUid = dados.operacao === "p2_imap";
+  const permitidas = comCredencial ? (comUid ? ["operacao", "usuario", "senha", "uid"] : ["operacao", "usuario", "senha"]) : ["operacao"];
   if (chaves.some((k) => !permitidas.includes(k))) return { detalhe: "campos_inesperados" };
   if (!comCredencial) return { corpo: { operacao: dados.operacao } };
   if (!Object.prototype.hasOwnProperty.call(dados, "usuario")) return { detalhe: "campo_ausente_usuario" };
@@ -83,7 +86,12 @@ export function examinarCorpo(bytes, politica = POLITICA) {
   const senha = dados.senha.trim();
   if (usuario.length > 254 || !FORMATO_USUARIO.test(usuario)) return { detalhe: "usuario_formato_invalido" };
   if (!FORMATO_SENHA_APP.test(senha)) return { detalhe: "senha_formato_invalida" };
-  return { corpo: { operacao: dados.operacao, usuario, senha } };
+  const corpo = { operacao: dados.operacao, usuario, senha };
+  if (comUid && Object.prototype.hasOwnProperty.call(dados, "uid")) {
+    if (!Number.isSafeInteger(dados.uid) || dados.uid < 1 || dados.uid > 4294967295) return { detalhe: "uid_invalido" };
+    corpo.uid = dados.uid;
+  }
+  return { corpo };
 }
 
 // compatível com o uso anterior: o corpo válido ou null
@@ -91,7 +99,7 @@ export function lerCorpo(bytes, politica = POLITICA) {
   return examinarCorpo(bytes, politica).corpo || null;
 }
 
-export async function tratar(request, { verificar, politica = POLITICA, consumir, executarP1 }) {
+export async function tratar(request, { verificar, politica = POLITICA, consumir, executarP1, executarP2 }) {
   try {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/auth-probe") return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
@@ -134,6 +142,11 @@ export async function tratar(request, { verificar, politica = POLITICA, consumir
     if (corpo.operacao === "p1_imap") {
       if (typeof executarP1 !== "function") return recusa(500, "falha_interna", "falha_interna");
       const saida = montarRespostaP1(await executarP1({ usuario: corpo.usuario, senha: corpo.senha }));
+      return json(saida.ok ? 200 : 502, saida);
+    }
+    if (corpo.operacao === "p2_imap") {
+      if (typeof executarP2 !== "function") return recusa(500, "falha_interna", "falha_interna");
+      const saida = montarRespostaP2(await executarP2({ usuario: corpo.usuario, senha: corpo.senha, uid: corpo.uid === undefined ? null : corpo.uid }));
       return json(saida.ok ? 200 : 502, saida);
     }
     return recusa(400, "operacao_invalida", "operacao_nao_implementada");

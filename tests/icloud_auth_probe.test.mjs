@@ -834,7 +834,8 @@ test("P1 · contrato do corpo: os três campos exatos são aceitos; as pontas do
   assert.deepEqual(ex({ ...bom, senha: "zzzz-yyyy xxxx-wwww" }), { detalhe: "senha_formato_invalida" });
   // todo detalhe devolvido é de lista fechada e nenhum carrega valor recebido
   for (const detalhe of ["corpo_nao_json", "corpo_nao_objeto", "operacao_invalida", "campos_inesperados", "campo_ausente_usuario", "campo_ausente_senha", "usuario_tipo_invalido", "usuario_formato_invalido", "senha_tipo_invalida", "senha_formato_invalida"]) assert.ok(DETALHES_CORPO.includes(detalhe), detalhe);
-  assert.equal(DETALHES_CORPO.length, 10);
+  assert.equal(DETALHES_CORPO.length, 11, "10 do contrato da P1 + uid_invalido (P2)");
+  assert.ok(DETALHES_CORPO.includes("uid_invalido"));
   assert.ok(DETALHES_CORPO.every((d) => /^[a-z_]+$/.test(d)));
   assert.equal(lerCorpo(new TextEncoder().encode(JSON.stringify(bom))).senha, SENHA_APP);
   assert.equal(lerCorpo(new TextEncoder().encode("{}")), null);

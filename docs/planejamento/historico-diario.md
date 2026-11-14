@@ -859,3 +859,22 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Dono: revisar o PR, mesclar e, depois da publicação, recarregar o site e conferir o botão numa nota pendente (a entrada que já foi feita não se repete: o banco devolve "já deu entrada").
+
+## 14/11/2026 · Política permanente de autonomia do Claude Code (permissões do projeto)
+
+### 1. O que fizemos
+
+- **Pedido do dono**: reduzir as aprovações manuais no desenvolvimento do RAC, sem autorização irrestrita e sem desligar as travas de segurança.
+- **`.claude/settings.json`** (escopo do projeto, versionado e compartilhado): 77 regras `allow` (Git não destrutivo, `git add`, `git commit` sem `--amend`, trocar e criar branches de trabalho, `git push` só de `claude/*`, testes e verificações, edição no escopo, leitura da API do GitHub, criar branch e criar ou atualizar PR), 30 `deny` (as 21 antigas, todas preservadas, mais `--force-with-lease`, `git add -A`/`.`, `git commit --amend` e `git switch` com descarte) e 19 `ask` (merge de PR e merge automático, `reset`, `rebase`, `stash`, apagar branch, disparar workflow e editar `.claude/`, `.github/workflows/` e `CODEOWNERS`).
+- As entradas antigas `Bash(git commit *)`, `Bash(git push *)` e `create_pull_request` saíram da lista de confirmação (a confirmação vence a permissão, então não dava para liberar sem tirá-las); o merge de PR continua pedindo.
+- **Teste de guarda** `tests/permissoes.test.mjs` (6 testes): simula a decisão permitir / pedir / negar para uma tabela de comandos reais e confere que as travas antigas continuam, que não há Bash irrestrito e que merge, reset, rebase, stash e push fora de `claude/*` pedem. Documentado em `CLAUDE.md`, `docs/mapa.md` e na decisão permanente do `07`.
+- **Sem merge e sem nenhuma operação de produção** (SQL, função, secret, workflow).
+
+### 2. O que estamos fazendo
+
+- Alteração na branch `claude/politica-autonomia`, com PR; **o merge fica com o dono**. A política só passa a valer em sessão nova depois de mesclada na `main` (a nuvem clona a `main`); o modo de permissão escolhido no app da sessão pode sobrepor parte das regras.
+
+### 3. O que vamos fazer
+
+1. Dono: revisar e mesclar o PR; abrir uma sessão nova e conferir que commit, push de `claude/*` e PR não pedem aprovação e que merge, `reset`, `rebase` e `stash` pedem.
+2. Ajustar a lista se alguma rotina ainda pedir aprovação sem necessidade (cada ajuste passa pelo teste de guarda).

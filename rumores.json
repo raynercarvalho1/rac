@@ -1,8 +1,77 @@
 {
- "coletado": "2026-11-13T23:30:24.030056+00:00",
+ "coletado": "2026-11-14T06:14:53.867420+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Red Sox To Sign Jake Bauers",
+   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-sign-jake-bauers.html",
+   "data": "2026-11-14T05:52:18+00:00",
+   "resumo": "The Red Sox and first baseman Jake Bauers are in agreement on a four-year, $58MM contract, reports ESPN’s Jeff Passan. The VC Sports Group client received a $23.15MM qualifying offer from the Brewers but will turn that down and head to Boston on a lucrative multi-year contract.…",
+   "tags": [
+    "Boston Red Sox",
+    "Milwaukee Brewers",
+    "Newsstand",
+    "Transactions",
+    "Jake Bauers"
+   ]
+  },
+  {
+   "t": "Giants Notes: Rotation, Bullpen, Catcher",
+   "link": "https://www.mlbtraderumors.com/2026/11/giants-notes-rotation-bullpen-catcher.html",
+   "data": "2026-11-14T05:41:25+00:00",
+   "resumo": "The Giants have made no secret of their desire to add at least one starter. They’re not planning to make a run at Tarik Skubal and seem to be out on Trevor Rogers, who’s attached to draft compensation via the qualifying offer. San Francisco has been loosely linked to Freddy…",
+   "tags": [
+    "San Francisco Giants",
+    "Adrian Houser",
+    "Logan Webb",
+    "Tim Hill"
+   ]
+  },
+  {
+   "t": "Rays Rumors: DeLuca, McClanahan, Pepiot, Rasmussen",
+   "link": "https://www.mlbtraderumors.com/2026/11/rays-rumors-deluca-mcclanahan-pepiot-rasmussen.html",
+   "data": "2026-11-14T03:50:59+00:00",
+   "resumo": "The Rays could make center fielder Jonny DeLuca available in trade this offseason, write Ken Rosenthal and Will Sammon of The Athletic. The idea would be to open center field for Victor Mesa Jr., who played mostly right field this year. DeLuca is coming off a career-best year…",
+   "tags": [
+    "Tampa Bay Rays",
+    "Drew Rasmussen",
+    "Jonny DeLuca",
+    "Ryan Pepiot",
+    "Shane McClanahan",
+    "Victor Mesa Jr."
+   ]
+  },
+  {
+   "t": "Nationals Release Kyle Nicolas",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-release-kyle-nicolas.html",
+   "data": "2026-11-14T02:33:57+00:00",
+   "resumo": "The Nationals released reliever Kyle Nicolas, according to the MLB.com transaction tracker. Washington designated him for assignment a week ago when they acquired Reiver Sanmartin from San Francisco. Nicolas never pitched in a major league game with the Nats. Washington…",
+   "tags": [
+    "Transactions",
+    "Washington Nationals",
+    "Kyle Nicolas"
+   ]
+  },
+  {
+   "t": "Royals In Market For Right-Handed Hitting Outfielder",
+   "link": "https://www.mlbtraderumors.com/2026/11/royals-in-market-for-right-handed-hitting-outfielder.html",
+   "data": "2026-11-14T01:36:24+00:00",
+   "resumo": "The Royals are looking for a right-handed hitting outfielder, general manager J.J. Picollo told reporters at the GM Meetings this week (link via ESPN’s Jesse Rogers). The GM added that an acquisition would ideally be capable of playing center field on at least a part-time…",
+   "tags": [
+    "Kansas City Royals"
+   ]
+  },
+  {
+   "t": "The Best Fits For Tarik Skubal",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-tarik-skubal.html",
+   "data": "2026-11-13T23:35:45+00:00",
+   "resumo": "The spotlight is on Tarik Skubal, who is the top free agent of the offseason. He is one of the best pitchers alive right now. He has a 2.64 earned run average over the past four seasons. His 30.1% strikeout rate and 4.8% walk rate in that time are both elite figures. His 44.6%…",
+   "tags": [
+    "Front Office Originals",
+    "Tarik Skubal"
+   ]
+  },
   {
    "t": "Angels, Tyler Heineman Avoid Arbitration",
    "link": "https://www.mlbtraderumors.com/2026/11/angels-tyler-heineman-avoid-arbitration.html",
@@ -87,19 +156,6 @@
    ]
   },
   {
-   "t": "Red Sox To Sign Jake Bauers",
-   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-sign-jake-bauers.html",
-   "data": "2026-11-13T17:52:18+00:00",
-   "resumo": "The Red Sox and first baseman Jake Bauers are in agreement on a four-year, $58MM contract, reports ESPN’s Jeff Passan. The VC Sports Group client received a $23.15MM qualifying offer from the Brewers but will turn that down and head to Boston on a lucrative multi-year contract.…",
-   "tags": [
-    "Boston Red Sox",
-    "Milwaukee Brewers",
-    "Newsstand",
-    "Transactions",
-    "Jake Bauers"
-   ]
-  },
-  {
    "t": "Marlins Interested In Patrick Sandoval",
    "link": "https://www.mlbtraderumors.com/2026/11/marlins-rumors-patrick-sandoval-free-agent.html",
    "data": "2026-11-13T16:30:54+00:00",
@@ -117,62 +173,6 @@
    "tags": [
     "Minnesota Twins",
     "Jonas Lovin"
-   ]
-  },
-  {
-   "t": "Mariners Notes: Infield Needs, Trade Candidates, Sloan",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-notes-infield-needs-trade-candidates-sloan.html",
-   "data": "2026-11-13T15:41:28+00:00",
-   "resumo": "The Mariners are in the market for a boost on the left side of the infield. The flexibility of infielder Colt Emerson means the addition could be a shortstop or a third baseman, relays Adam Jude of the Seattle Times. “We really appreciate the fact that Colt is versatile enough…",
-   "tags": [
-    "Athletics",
-    "Baltimore Orioles",
-    "Cincinnati Reds",
-    "Houston Astros",
-    "Los Angeles Angels",
-    "Miami Marlins"
-   ]
-  },
-  {
-   "t": "The Opener: MVPs, Phillips",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-mvps-phillips.html",
-   "data": "2026-11-13T14:32:30+00:00",
-   "resumo": "Awards season is officially over. Not many surprises this year, though the players receiving down-ballot MVP votes are always intriguing. 1. PCA wins NL MVP A massive 40/40 season earned Cubs outfielder Pete Crow-Armstrong the NL MVP award. It was a unanimous decision. Dodgers…",
-   "tags": [
-    "The Opener"
-   ]
-  },
-  {
-   "t": "Braves Sign Evan Phillips To Three-Year Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/braves-sign-evan-phillips-to-three-year-deal.html",
-   "data": "2026-11-13T05:59:48+00:00",
-   "resumo": "The Braves have made their first significant splash of the offseason, announcing Thursday that they’ve signed right-hander Evan Phillips to a three-year, $35MM contract. The Apex Baseball client will be paid $11MM in 2027 and 2028 before earning $13MM in 2029. Phillips, now 32…",
-   "tags": [
-    "Atlanta Braves",
-    "Newsstand",
-    "Transactions",
-    "Evan Phillips"
-   ]
-  },
-  {
-   "t": "Latest On Jazz Chisholm’s Market",
-   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-jazz-chisholms-market-2.html",
-   "data": "2026-11-13T05:58:36+00:00",
-   "resumo": "Jazz Chisholm Jr. is one of the bigger upside plays in the free agent position player class. He’s coming off a pedestrian .231/.312/.399 slash line but is a year removed from a 30-30 season. Chisholm is one of the top up-the-middle players available, relatively young at age 29,…",
-   "tags": [
-    "San Diego Padres",
-    "Toronto Blue Jays",
-    "Jazz Chisholm Jr."
-   ]
-  },
-  {
-   "t": "KBO’s Ja-Wook Koo Interested In Potential MLB Move",
-   "link": "https://www.mlbtraderumors.com/2026/11/kbos-ja-wook-koo-interested-in-potential-mlb-move.html",
-   "data": "2026-11-13T05:16:18+00:00",
-   "resumo": "Korean outfielder Ja-Wook Koo has hired Mako Sports to explore the possibility of making the jump to Major League Baseball, reports Mark Feinsand of MLB.com. Koo, who turns 34 in February, is coming off a Korean Series MVP win as a member of the Samsung Lions. The 6’2″ Koo is a…",
-   "tags": [
-    "Korea Baseball Organization",
-    "Ja-Wook Koo"
    ]
   }
  ],

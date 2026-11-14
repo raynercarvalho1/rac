@@ -214,3 +214,8 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Fato (Run 43616823166):** a primeira `p2_imap` real falhou por a pasta `RAC-TESTE` não existir; criada pelo dono (1 mensagem de teste, sem conteúdo pessoal).
 - **Fato (Run 43618431506):** o servidor da Apple recusou `FETCH * (UID)`. **Decisão:** o UID da última mensagem é pedido por número (`FETCH N (UID)`, N = EXISTS) e a recusa devolve só `motivo`/`detalhe` de vocabulário fechado. Novo pin P2 `b88240b1…28e9` (commit `abc5251`).
 - **Pendente:** nova execução real; `somente_leitura_confirmado` veio `false` no EXAMINE real e precisa ser investigado se persistir. A P2 **não** está concluída.
+
+## 14/11/2026 · RAC Inbox I0 — P2 comprovada
+
+- **Fato:** a P2 foi executada com sucesso no runtime real (Run 43620523689): uma mensagem de `RAC-TESTE` lida em somente leitura, só indicadores, nenhum conteúdo no resumo. A P2 está **concluída**; a I0 **não** (P3 a P5, sincronização e substituição do Spark não comprovados).
+- **Pendente:** `somente_leitura_confirmado` veio `false` (o `OK` etiquetado do EXAMINE do iCloud não traz `[READ-ONLY]`); decidir se a verificação muda (ex.: aceitar a ausência do código) antes de qualquer P3. P3 exige autorização específica. O Worker de POC continua publicado; remoção exige autorização futura.

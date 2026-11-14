@@ -13,7 +13,7 @@ Fase 1 · Confiabilidade (13/11/2026): voltar ao site (`js/app.js` bloco "Voltar
 notificação tocada (`sw.js` e `js/app.js` bloco "Notificação tocada", `NUCLEO.notif*`, `tests/notificacao.test.mjs`); busca lateral
 (`js/app.js` "Busca na barra lateral", `tests/busca_lateral.test.mjs`).
 Nuvem do Claude Code (ambiente, testes como o CI, proteção da `main`): `scripts/nuvem_preparar.sh`, `scripts/nuvem_testes.sh`,
-`docs/nuvem.md`, teste `tests/nuvem.test.mjs`.
+`docs/nuvem.md`, teste `tests/nuvem.test.mjs`. Permissões do Claude Code (política de autonomia, 14/11/2026): `.claude/settings.json` e `CLAUDE.md` (seção "Git pelo Claude Code Cloud"), teste `tests/permissoes.test.mjs`.
 Planejamento RAC Inbox (próxima grande frente após Saúde S1–S5): `docs/planejamento/10-rac-inbox.md`; prioridade e fases também em `docs/planejamento/06-roadmap.md` e `historico-diario.md`.
 Fase 2 · Fundação técnica (13/11/2026, A1 a A6; `docs/planejamento/02-auditoria-arquitetural.md`, seção 9): camada de dados `js/dados.js`
 (`tests/dados.test.mjs`); kit de gráficos `js/graficos.js` (`rs*`, `tests/graficos.test.mjs`, que também proíbe dependência escondida entre

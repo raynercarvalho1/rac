@@ -1252,3 +1252,59 @@ Família e da Casa.
 ### 3. O que vamos fazer
 
 1. Com a decisão do dono: P6 (sincronização e polling, somente leitura) junto com o indicador de EXAMINE; só depois, com autorização específica, P3 a P5; P7 (Vault, Edge Function, HMAC) é a base da I1. Se o dono quiser iniciar a I1 antes de P3 a P5, o critério de saída da I0 precisa ser revisado e registrado (decisão do dono).
+
+## 14/11/2026 · Saúde — a meta de treinos por semana não conta caminhada
+
+### 1. O que fizemos
+
+- **Pedido do dono** (a partir da tela "Ajustes de Saúde"): a meta de treinos por semana não pode considerar caminhada.
+- **Regra no núcleo** (`nucleo.js`): `NUCLEO.sauContaTreino` e `NUCLEO.SAU_NAO_TREINO` (`walking`, `casual_walking`, `speed_walking`). Trilha (`hiking`) **não** foi incluída, porque o dono falou de caminhada.
+- **Telas** (`js/saude-hub.js`): "Esta semana" (Visão geral) e "Por semana" (aba Atividades) contam só o que não é caminhada; a Visão geral diz "Caminhada não conta para a meta" e quantas caminhadas houve na semana; com o filtro só em caminhada, "Por semana" mostra "—" e não dispara alerta de meta; a ajuda do campo de ajustes avisa "Caminhada não conta". A caminhada **continua** na lista, no histórico e no total de atividades.
+- **Teste novo** em `tests/saude_tela.test.mjs` (22 testes no arquivo, todos ok) e conferência em Chromium real (390 px) com dados inventados. Versão do site: `2026-11-14.3` (a `main` estava em `2026-11-14.2`). Documentado em `docs/saude.md`. Suíte completa com a `main` incorporada: Grupo 1 com 1651 testes (1648 ok, 0 falhas, 1 ignorado, 2 `todo`) e Grupo 2 com 73 de 73.
+- **Fora do escopo, intocados**: RAC Hoje ("dias sem treino"), Painel (consistência), sinais de carga e a função `garmin` continuam contando caminhada como atividade; não há SQL, migration, função, cron ou secret.
+
+### 2. O que estamos fazendo
+
+- Entrega no **PR #30** (`claude/saude-meta-treinos`), atualizado com a `main` por merge (único conflito, neste arquivo, resolvido mantendo as três entradas de 14/11). O merge por squash segue a política permanente (CI verde no SHA atual, sem conflito, dentro do escopo); a publicação e a conferência no iPhone ficam registradas abaixo depois do merge.
+- O campo "Meta de treinos" apareceu **vazio** no print do dono; não reproduzi no código atual (mostra 3 em todos os cenários testados), o que sugere uma versão antiga em cache no aparelho.
+
+### 3. O que vamos fazer
+
+1. Dono: depois da publicação, recarregar o site e conferir em Saúde que "Esta semana" não conta caminhada e que o campo "Meta de treinos" mostra 3.
+2. Se quiser, decidir se a caminhada também deve sair do RAC Hoje ("dias sem treino") e do Painel, e se trilha conta.
+
+## 14/11/2026 · Central Fiscal — "Dar entrada no Mercado" passa a mostrar um OK claro
+
+### 1. O que fizemos
+
+- **Problema relatado pelo dono** (print do iPhone): ao clicar em "Dar entrada no Mercado" a tela parecia não mudar e não dava um "ok". **Causa confirmada no código**: a entrada funcionava (a mensagem "Entrada feita no Mercado: 8 itens… lidos de volta" aparecia), mas só como um texto pequeno e cinza abaixo de um botão que apenas desbotava; no cartão logo depois de salvar a foto o `FX.recarregar` só relê a lista "Notas já gravadas" e não redesenha esse bloco, então nada reforçava o resultado.
+- **Correção só de apresentação** (`js/fiscal.js`, `fxBlocoEntradaMercado`): o botão mostra "Dando entrada…" durante a chamada e fica "✓ Entrada feita" no fim; a mensagem fica verde com ✓ e a tela rola até ela; atalho "Abrir o Mercado"; erro e falta do "Conferi" aparecem com ⚠ e o botão volta ao normal; "já existia" e "duplicada" com ℹ. A regra de negócio, a função do banco e o texto das mensagens não mudaram.
+- **Testes**: `tests/fiscal_foto_gravar.test.mjs` ganhou asserções do novo comportamento (botão, cor/classe da mensagem, atalho, caixa travada, erro devolve o botão ao normal, nunca ✓ sem a entrada); `fiscal_foto_gravar`, `fiscal_tela`, `fiscal` e `estrutura`: 100 de 100 ok. Chromium real (390 px, claro e escuro, banco de mentira): botão "✓ Entrada feita", mensagem verde, sem erro de console. Versão do site na branch: `2026-11-14.2`.
+- **Sem SQL, função, secret, cron ou workflow.**
+
+### 2. O que estamos fazendo
+
+- Alteração na branch `claude/fiscal-entrada-feedback`, com PR para a `main`; **sem merge nem publicação** (o merge fica com o dono). Não testado no iPhone nem com a nota real.
+
+### 3. O que vamos fazer
+
+1. Dono: revisar o PR, mesclar e, depois da publicação, recarregar o site e conferir o botão numa nota pendente (a entrada que já foi feita não se repete: o banco devolve "já deu entrada").
+
+## 14/11/2026 · Política permanente de autonomia do Claude Code (permissões do projeto)
+
+### 1. O que fizemos
+
+- **Pedido do dono**: reduzir as aprovações manuais no desenvolvimento do RAC, sem autorização irrestrita e sem desligar as travas de segurança.
+- **`.claude/settings.json`** (escopo do projeto, versionado e compartilhado): 78 regras `allow` (Git não destrutivo, `git add`, `git commit` sem `--amend`, trocar e criar branches de trabalho, `git push` só de `claude/*`, testes e verificações, edição no escopo, leitura da API do GitHub, criar branch e criar ou atualizar PR), 30 `deny` (as 21 antigas, todas preservadas, mais `--force-with-lease`, `git add -A`/`.`, `git commit --amend` e `git switch` com descarte) e 18 `ask` (merge automático, `reset`, `rebase`, `stash`, apagar branch, disparar workflow e editar `.claude/`, `.github/workflows/` e `CODEOWNERS`).
+- As entradas antigas `Bash(git commit *)`, `Bash(git push *)` e `create_pull_request` saíram da lista de confirmação (a confirmação vence a permissão, então não dava para liberar sem tirá-las). **Decisão do dono no mesmo dia: o merge de PR deixou de pedir aprovação** (`merge_pull_request` foi para `allow`); o Claude só mescla com CI verde no commit atual, sem conflito, dentro do escopo pedido e sem tocar em `.claude/`, workflows, `CODEOWNERS`, secrets ou permissões; o merge automático continua pedindo.
+- **Teste de guarda** `tests/permissoes.test.mjs` (6 testes): simula a decisão permitir / pedir / negar para uma tabela de comandos reais e confere que as travas antigas continuam, que não há Bash irrestrito e que merge, reset, rebase, stash e push fora de `claude/*` pedem. Documentado em `CLAUDE.md`, `docs/mapa.md` e na decisão permanente do `07`.
+- **Sem merge e sem nenhuma operação de produção** (SQL, função, secret, workflow).
+
+### 2. O que estamos fazendo
+
+- Alteração na branch `claude/politica-autonomia`, com PR; **o merge fica com o dono**. A política só passa a valer em sessão nova depois de mesclada na `main` (a nuvem clona a `main`); o modo de permissão escolhido no app da sessão pode sobrepor parte das regras.
+
+### 3. O que vamos fazer
+
+1. Dono: revisar e mesclar o PR; abrir uma sessão nova e conferir que commit, push de `claude/*` e PR não pedem aprovação e que merge, `reset`, `rebase` e `stash` pedem.
+2. Ajustar a lista se alguma rotina ainda pedir aprovação sem necessidade (cada ajuste passa pelo teste de guarda).

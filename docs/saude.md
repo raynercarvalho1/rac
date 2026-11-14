@@ -47,7 +47,7 @@ Análises: **S5** sono × VFC (8 semanas, ≥8 pares, |r| ≥ 0,4; sempre associ
 
 ## Preferências e privacidade
 
-Guardadas em `PESSOAL.saudePrefs` (mecanismo `pessoalGravar` já existente; sem tabela, migration ou SQL): meta de sono (7 h), meta de treinos (3 por semana), **ocultar valores** (máscara de apresentação: valores, dicas dos gráficos e detalhes dos sinais; dados e contas não mudam) e **esconder o local** (telas e busca global). Local, coordenadas e rotas nunca entram em sinais, textos de análise, testes, logs ou notificações.
+Guardadas em `PESSOAL.saudePrefs` (mecanismo `pessoalGravar` já existente; sem tabela, migration ou SQL): meta de sono (7 h), meta de treinos (3 por semana; **caminhada não conta** para a meta, na Visão geral e na aba Atividades, e continua na lista e no histórico; `NUCLEO.sauContaTreino`), **ocultar valores** (máscara de apresentação: valores, dicas dos gráficos e detalhes dos sinais; dados e contas não mudam) e **esconder o local** (telas e busca global). Local, coordenadas e rotas nunca entram em sinais, textos de análise, testes, logs ou notificações.
 
 ## Fora do escopo desta entrega
 

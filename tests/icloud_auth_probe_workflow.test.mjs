@@ -551,10 +551,10 @@ test("o Node do CI está fixado numa versão exata (nos dois setup-node, com a a
 // registro EXPLÍCITO dos pins: mudar um pin exige mudar estas constantes na mesma PR (segunda confirmação, revisável no diff)
 const PINS_CONHECIDOS = {
   p1: { manifesto: "e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82", commit: "68403f5221ed3d371e5786ed8cbca6a7b5492b6e" },
-  p2: { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" },
+  p2: { manifesto: "b88240b13cbad54b28c29c0c4fc32fa4841d4aca9aa5c1dff138fa079d2ccf59", commit: "abc5251703928a1b796a7158c6d7c897dbf8c50d" },
 };
 // pins P2 SUBSTITUÍDOS (nunca mais aceitos para p2_imap): o original, de 7653915, que tratava a segunda resposta FETCH como erro
-const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }];
+const P2_SUBSTITUIDOS = [{ manifesto: "580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f", commit: "7653915635158455e45e8438c137f63928559969" }, { manifesto: "a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997", commit: "2e1055e34a253e896b27d2319f10cc90414338f9" }];
 
 test("pins: o P1 está PRESERVADO (bytes idênticos aos aprovados originalmente), o P2 é o novo e os P2 substituídos não existem mais no arquivo", () => {
   const raw = ler(ARQ_PIN), pin = JSON.parse(raw);

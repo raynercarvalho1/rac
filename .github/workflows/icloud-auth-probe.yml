@@ -5,8 +5,10 @@
 # mesmo um workflow alterado numa branch, disparado de lá, não recebe nenhum secret nem o Environment.
 # Operações (entrada "operacao"): validar_oidc (ensaio sem efeito e sem credencial), validar_uso_unico (prova SINTÉTICA do registro de uso único,
 # sem credencial: concorrência e replay no runtime publicado) e p1_imap (autenticação IMAP somente leitura, com a credencial Apple vinda
-# SÓ dos secrets do Environment icloud-auth-poc, cadastrados pelo dono direto no GitHub). Todo token de operação protegida só vale UMA vez por
-# execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1 é única e SEM repetição automática.
+# SÓ dos secrets do Environment icloud-auth-poc, cadastrados pelo dono direto no GitHub) e p2_imap (leitura controlada de UMA mensagem da pasta
+# RAC-TESTE, somente leitura via EXAMINE, mesma credencial; a entrada opcional uid_mensagem escolhe o UID, sem ela lê a última). Todo token de
+# operação protegida só vale UMA vez por execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1 e da P2 é única e
+# SEM repetição automática.
 # Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
 #   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, monta o pacote, empacota sem publicar, inspeciona e calcula o
 #     sha256. Só entrega adiante o pacote (público) e o hash. O Wrangler vem do lockfile da main, instalado sem scripts;
@@ -26,7 +28,7 @@ on:
         required: true
         type: string
       operacao:
-        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial) ou p1_imap (IMAP somente leitura; exige os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc)."
+        description: "validar_oidc (ensaio sem efeito), validar_uso_unico (prova sintética do uso único, sem credencial), p1_imap (IMAP somente leitura) ou p2_imap (leitura de uma mensagem da pasta RAC-TESTE, somente leitura); p1_imap e p2_imap exigem os secrets ICLOUD_USER e ICLOUD_APP_PASSWORD no Environment icloud-auth-poc."
         required: true
         default: validar_oidc
         type: choice
@@ -34,6 +36,12 @@ on:
           - validar_oidc
           - validar_uso_unico
           - p1_imap
+          - p2_imap
+      uid_mensagem:
+        description: "Só para p2_imap: UID da mensagem na pasta RAC-TESTE (número inteiro, até 10 dígitos). Vazio = a última mensagem da pasta."
+        required: false
+        default: ""
+        type: string
 
 # nenhuma permissão por padrão: cada job declara só o que precisa
 permissions: {}
@@ -111,7 +119,7 @@ jobs:
             exit 1
           fi
           BASE=poc/experimentos/icloud-auth-probe
-          ESPERADO=$'./README.md\n./src/consumo.mjs\n./src/imap.mjs\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/politica.mjs\n./src/rotas.mjs\n./wrangler.jsonc'
+          ESPERADO=$'./README.md\n./src/consumo.mjs\n./src/imap.mjs\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/mensagem.mjs\n./src/mime.mjs\n./src/politica.mjs\n./src/rotas.mjs\n./wrangler.jsonc'
           if [ ! -d "$BASE" ]; then
             echo "::error::A pasta do Worker não existe neste commit."
             exit 1
@@ -128,7 +136,7 @@ jobs:
           fi
           PACOTE="$RUNNER_TEMP/pacote"
           mkdir -p "$PACOTE/src"
-          for ARQ in politica jwt jwks consumo imap rotas index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
+          for ARQ in politica jwt jwks consumo imap mime mensagem rotas index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
           cat > "$PACOTE/wrangler.jsonc" <<'JSON'
           {
             "name": "rac-icloud-auth-poc",
@@ -145,7 +153,7 @@ jobs:
             echo "::error::A wrangler.jsonc do commit difere da configuração fixa do workflow."
             exit 1
           fi
-          (cd "$BASE" && sha256sum ./README.md ./src/consumo.mjs ./src/imap.mjs ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/politica.mjs ./src/rotas.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
+          (cd "$BASE" && sha256sum ./README.md ./src/consumo.mjs ./src/imap.mjs ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/mensagem.mjs ./src/mime.mjs ./src/politica.mjs ./src/rotas.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |
@@ -179,8 +187,15 @@ jobs:
           if [ "$MODULOS" != "cloudflare:sockets" ]; then echo "::error::O pacote importa módulos cloudflare: além de sockets."; exit 1; fi
           APPLE=$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)
           if [ "$APPLE" != "imap.mail.me.com" ]; then echo "::error::O pacote cita endereço da Apple além do IMAP."; exit 1; fi
-          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT: nenhum verbo IMAP de leitura de mensagem ou de alteração pode estar no pacote
-          if grep -qwE 'EXPUNGE|APPEND|FETCH|STORE|EXAMINE|SEARCH|RENAME|SUBSCRIBE|AUTHENTICATE|STARTTLS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
+          # a P1 só usa CAPABILITY, LOGIN, LIST e LOGOUT; a P2 acrescenta EXAMINE, FETCH e UID (somente leitura, sempre com BODY.PEEK). Nenhum verbo de
+          # alteração, de busca ou de outra pasta pode estar no pacote, e as duas listas de verbos têm de ser exatamente estas (DELETE e CREATE existem só como
+          # SQL do registro de uso único do Durable Object, por isso a garantia deles é a lista exata de verbos e o teste do código, não esta busca)
+          if grep -qwE 'EXPUNGE|APPEND|STORE|SEARCH|RENAME|SUBSCRIBE|UNSUBSCRIBE|AUTHENTICATE|STARTTLS|SELECT|UNSELECT|COPY|MOVE|IDLE|NOOP|CLOSE|STATUS|ENABLE|NAMESPACE|FLAGS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
+          if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P1 não é a esperada."; exit 1; fi
+          if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "EXAMINE", "FETCH", "UID", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P2 não é a esperada."; exit 1; fi
+          # leitura sempre com PEEK (não mexe em flags): nenhuma leitura de corpo sem PEEK e nenhum RFC822 além do tamanho
+          if grep -qF 'BODY[' "$BUNDLE"; then echo "::error::O pacote contém leitura sem PEEK."; exit 1; fi
+          if [ "$(grep -oE 'RFC822[A-Za-z.]*' "$BUNDLE" | sort -u)" != "RFC822.SIZE" ]; then echo "::error::O pacote cita RFC822 além do tamanho."; exit 1; fi
           # o Durable Object do registro de uso único precisa estar no pacote E exportado (a migração e o binding o referenciam)
           if ! grep -qE '^var ConsumoUnico = class' "$BUNDLE" || ! grep -qE '^  ConsumoUnico,?$' "$BUNDLE"; then echo "::error::A classe do Durable Object não está no pacote ou não é exportada."; exit 1; fi
           # endereços http(s): o emissor do GitHub e o nome interno e fixo do Durable Object (não resolve na rede)
@@ -198,7 +213,7 @@ jobs:
             echo "- commit da POC (dado de entrada): \`$COMMIT\`"
             echo "- sha256 do arquivo que será publicado: \`$SHA\`"
             echo "- tamanho: $(wc -c < "$BUNDLE") bytes; endereços no pacote: token.actions.githubusercontent.com e o nome interno consumo.interno (Durable Object)"
-            echo "- sem process.env, eval, console, SMTP, import dinâmico ou require; único módulo cloudflare: sockets; único host da Apple: imap.mail.me.com; sem verbos IMAP de leitura de mensagem ou alteração"
+            echo "- sem process.env, eval, console, SMTP, import dinâmico ou require; único módulo cloudflare: sockets; único host da Apple: imap.mail.me.com; verbos IMAP: P1 = CAPABILITY, LOGIN, LIST, LOGOUT; P2 acrescenta EXAMINE, FETCH e UID (somente leitura, BODY.PEEK); sem STORE, COPY, MOVE, EXPUNGE, DELETE, APPEND, SELECT, busca ou SMTP"
             echo "- configuração fixa: Durable Object CONSUMO (classe ConsumoUnico, SQLite) e migração v1 (nova classe)"
             echo "- **Antes de aprovar:** conferir o diff dos arquivos abaixo no commit e se o CI desse commit passou na PR da POC."
             echo
@@ -503,4 +518,61 @@ jobs:
             exit 0
           fi
           echo "::error::A P1 não foi concluída (HTTP $CODE); veja o estágio e o código de erro no resumo. Nenhuma nova tentativa é feita."
+          exit 1
+
+      # P2: leitura controlada de UMA mensagem da pasta RAC-TESTE (EXAMINE, somente leitura). UMA única chamada, SEM repetição (um 000 ou 404 aqui encerra a
+      # prova). Mesma credencial da P1 (só dos secrets do Environment, por entrada padrão). A única entrada do usuário é o UID (número), que entra só por
+      # variável de ambiente, é conferido aqui e de novo no Worker. O resumo mostra só os campos permitidos da resposta de esquema fechado: contagens,
+      # tamanhos, indicadores e códigos; nunca assunto, endereço, texto, nome de arquivo ou bytes de anexo.
+      - name: P2 IMAP — leitura controlada de uma mensagem da pasta RAC-TESTE (uma única chamada, sem repetição)
+        if: ${{ inputs.operacao == 'p2_imap' }}
+        env:
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+          UID_MENSAGEM: ${{ inputs.uid_mensagem }}
+        run: |
+          if [ -z "$ICLOUD_USER" ] || [ -z "$ICLOUD_APP_PASSWORD" ]; then
+            echo "::error::Faltam os secrets ICLOUD_USER e/ou ICLOUD_APP_PASSWORD no Environment icloud-auth-poc. Cadastre-os direto no GitHub (nunca no chat) e rode de novo."
+            exit 1
+          fi
+          if [ -n "$UID_MENSAGEM" ] && ! [[ "$UID_MENSAGEM" =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::uid_mensagem deve ser um número inteiro positivo de até 10 dígitos, ou ficar vazio (a última mensagem da pasta)."
+            exit 1
+          fi
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::O GitHub não forneceu o pedido de token OIDC (falta a permissão id-token neste job)."
+            exit 1
+          fi
+          PEDIDO=$(curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN") "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=$AUDIENCIA_PREFIXO:p2_imap")
+          JWT=$(jq -r '.value // empty' <<< "$PEDIDO")
+          unset PEDIDO
+          if [ -z "$JWT" ]; then
+            echo "::error::O GitHub não devolveu o token OIDC."
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+          RESP="$RUNNER_TEMP/p2-imap.json"
+          : > "$RESP"
+          CODE=$(jq -n --arg uid "$UID_MENSAGEM" '{operacao: "p2_imap", usuario: env.ICLOUD_USER, senha: env.ICLOUD_APP_PASSWORD} + (if $uid == "" then {} else {uid: ($uid | tonumber)} end)' | curl -sS -m 40 -o "$RESP" -w '%{http_code}' -X POST "$WORKER_URL/auth-probe" \
+                -K <(printf 'header = "Authorization: Bearer %s"\n' "$JWT") \
+                -H "Content-Type: application/json" --data-binary @- || true)
+          CODE=${CODE:-000}
+          unset JWT ICLOUD_USER ICLOUD_APP_PASSWORD
+          if [ -n "$UID_MENSAGEM" ]; then ESCOLHA="UID $UID_MENSAGEM"; else ESCOLHA="a última da pasta"; fi
+          {
+            echo "### P2 · leitura controlada de uma mensagem da pasta RAC-TESTE (uma única chamada)"
+            echo
+            echo "- Executado em: $(date -u '+%d/%m/%Y %H:%M:%S') UTC"
+            echo "- Resposta HTTP do Worker: $CODE"
+            echo "- Mensagem escolhida: $ESCOLHA"
+            echo "- Resposta (só os campos permitidos do esquema fechado: contagens, tamanhos, indicadores e códigos; nenhum conteúdo da mensagem):"
+            echo '```json'
+            head -c 8000 "$RESP" | jq '{ok, operacao, estagio, autenticado, logout, erro, motivo, detalhe, pasta_teste_existe, somente_leitura_confirmado, mensagens_na_pasta, mensagem}' 2>/dev/null || echo '(resposta não é JSON)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" = "200" ] && jq -e '.ok == true and .operacao == "p2_imap" and .autenticado == true' "$RESP" > /dev/null 2>&1; then
+            echo "P2 concluída: uma mensagem da pasta de teste lida em somente leitura (só indicadores no resumo; nada foi alterado e nada foi guardado)."
+            exit 0
+          fi
+          echo "::error::A P2 não foi concluída (HTTP $CODE); veja o estágio e o código de erro no resumo. Nenhuma nova tentativa é feita."
           exit 1

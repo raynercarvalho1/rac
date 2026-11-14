@@ -10,8 +10,11 @@
 # operação protegida só vale UMA vez por execução (Durable Object com SQLite no Worker); por isso a chamada protegida da P1 e da P2 é única e
 # SEM repetição automática.
 # Três jobs, nenhum segredo passando de um para outro (por output, artefato ou log):
-#   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, monta o pacote, empacota sem publicar, inspeciona e calcula o
-#     sha256. Só entrega adiante o pacote (público) e o hash. O Wrangler vem do lockfile da main, instalado sem scripts;
+#   verificar (sem Environment e sem secrets) obtém o commit da POC como dado, CONFERE O CONTEÚDO DELE CONTRA OS PINS APROVADOS (arquivo
+#     experimentos/icloud-auth-probe-ferramenta/aprovados.json, lido da main; cada operação só aceita o pin dela), monta o pacote a partir dos
+#     objetos do Git, empacota sem publicar, inspeciona e calcula o sha256. Só entrega adiante o pacote (público) e o hash. O Wrangler vem do
+#     lockfile da main, instalado sem scripts. A falha do pin acontece AQUI, antes de qualquer job com secrets ou Environment e antes de qualquer
+#     pedido de aprovação: a aprovação humana do Environment não substitui esse controle;
 #   provisionar (Environment cloudflare-poc, só secrets da Cloudflare) não baixa nem executa nada da branch: confere o hash do pacote
 #     aprovado e o publica com uma configuração escrita neste arquivo;
 #   executar (Environment icloud-auth-poc, sem nenhum secret) pede um token OIDC ao GitHub e o envia ao Worker por HTTPS. O Worker valida o
@@ -64,6 +67,8 @@ jobs:
       commit: ${{ steps.empacotar.outputs.commit }}
       sha256: ${{ steps.empacotar.outputs.sha256 }}
       pacote: ${{ steps.empacotar.outputs.pacote }}
+      pin: ${{ steps.pin.outputs.nome }}
+      manifesto: ${{ steps.pin.outputs.manifesto }}
     defaults:
       run:
         shell: bash
@@ -106,37 +111,96 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "24"
+          node-version: "24.22.3"
 
-      # só os arquivos desta lista entram no pacote; qualquer outro (inclusive .env, .dev.vars, package.json, wrangler.toml) ou um link
-      # simbólico derruba o job. Nada da pasta poc é executado: os arquivos só são copiados.
-      - name: Montar o pacote a partir de uma lista fixa de arquivos (dados)
+      # PORTÃO DO PIN (sem secrets, antes de empacotar e de qualquer job privilegiado). O conteúdo do commit da POC é lido dos OBJETOS do Git (não do
+      # checkout) e comparado, por arquivo e por manifesto SHA-256, com o pin aprovado que a tabela "operacoes" associa a ESTA operação: p1_imap só
+      # publica o conteúdo P1 e p2_imap só o P2. Manifesto = linha "rac-pin-v1" + uma linha "<sha256>␠␠<caminho>" por arquivo, em ordem bytewise.
+      # Recusa: arquivo ausente, extra, renomeado ou alterado; entrada que não seja arquivo regular 100644 (link, submódulo, executável); nome fora
+      # do padrão; pin ausente, inconsistente ou fora do formato; operação sem pin. O pin vem só do checkout da main (nenhuma entrada o substitui).
+      - name: Conferir o pin aprovado da operação (portão antes de empacotar)
+        id: pin
+        env:
+          COMMIT: ${{ inputs.commit }}
+          OPERACAO: ${{ inputs.operacao }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          PIN=experimentos/icloud-auth-probe-ferramenta/aprovados.json
+          RAIZ=experimentos/icloud-auth-probe
+          [ -f "$PIN" ] || fail "O arquivo de pins aprovados não existe na main."
+          jq -e '.formato == "rac-pin-v1" and (.operacoes | type == "object") and (.pins | type == "object")' "$PIN" > /dev/null || fail "O arquivo de pins aprovados está fora do formato esperado."
+          jq -e --arg op "$OPERACAO" '.operacoes | has($op)' "$PIN" > /dev/null || fail "A operação não tem pin aprovado."
+          [ "$(git -C poc rev-parse HEAD)" = "$COMMIT" ] || fail "O checkout da POC não está no commit pedido."
+          # árvore do commit, lida dos objetos do Git: só arquivos regulares (100644) com nome simples
+          ARV=$(git -C poc ls-tree -r -z --full-tree HEAD -- "$RAIZ/" | tr '\0' '\n')
+          [ -n "$ARV" ] || fail "A pasta do Worker não existe neste commit."
+          if printf '%s\n' "$ARV" | grep -qvE "^100644 blob [0-9a-f]{40}"$'\t'"$RAIZ/[A-Za-z0-9._/-]+$"; then
+            fail "A pasta do Worker tem entrada que não é arquivo regular (link, submódulo, executável) ou nome fora do padrão."
+          fi
+          LISTA=$(printf '%s\n' "$ARV" | cut -f2- | sed "s#^$RAIZ/##" | LC_ALL=C sort)
+          ACEITO=""
+          MOTIVOS=""
+          for NOME in $(jq -r --arg op "$OPERACAO" '.operacoes[$op][]' "$PIN"); do
+            jq -e --arg n "$NOME" '.pins | has($n)' "$PIN" > /dev/null || fail "A operação aponta para um pin que não existe: $NOME."
+            jq -e --arg n "$NOME" '.pins[$n] | (.manifesto_sha256 | test("^[0-9a-f]{64}$")) and (.commit_referencia | test("^[0-9a-f]{40}$")) and (.arquivos | type == "object" and has("wrangler.jsonc") and (to_entries | all((.key | test("^(src/[a-z]+\\.mjs|wrangler\\.jsonc)$")) and (.value | test("^[0-9a-f]{64}$")))))' "$PIN" > /dev/null || fail "O pin $NOME está fora do formato esperado."
+            ESPERADA=$( { jq -r --arg n "$NOME" '.pins[$n].arquivos | keys[]' "$PIN"; echo README.md; } | LC_ALL=C sort)
+            LISTAPIN=$(jq -r --arg n "$NOME" '.pins[$n].arquivos as $a | $a | keys[] | "\($a[.])  \(.)"' "$PIN")
+            MANPIN=$( { echo rac-pin-v1; printf '%s\n' "$LISTAPIN"; } | sha256sum | cut -d' ' -f1)
+            [ "$MANPIN" = "$(jq -r --arg n "$NOME" '.pins[$n].manifesto_sha256' "$PIN")" ] || fail "O pin $NOME é inconsistente: o manifesto não corresponde à lista de arquivos."
+            if [ "$LISTA" != "$ESPERADA" ]; then
+              MOTIVOS="$MOTIVOS $NOME:lista_de_arquivos"
+              echo "Pin $NOME: a lista de arquivos do commit difere da aprovada (esperada < > encontrada):"
+              diff <(printf '%s\n' "$ESPERADA") <(printf '%s\n' "$LISTA") || true
+              continue
+            fi
+            HASHES="$RUNNER_TEMP/hashes-$NOME"
+            : > "$HASHES"
+            for ARQ in $(jq -r --arg n "$NOME" '.pins[$n].arquivos | keys[]' "$PIN"); do
+              printf '%s  %s\n' "$(git -C poc cat-file blob "HEAD:$RAIZ/$ARQ" | sha256sum | cut -d' ' -f1)" "$ARQ" >> "$HASHES"
+            done
+            if [ "$(printf '%s\n' "$LISTAPIN")" != "$(cat "$HASHES")" ]; then
+              MOTIVOS="$MOTIVOS $NOME:conteudo"
+              echo "Pin $NOME: arquivos com conteúdo diferente do aprovado:"
+              diff <(printf '%s\n' "$LISTAPIN") "$HASHES" | grep '^>' | sed 's/^> [0-9a-f]*  /  /' || true
+              continue
+            fi
+            ACEITO="$NOME"
+            break
+          done
+          [ -n "$ACEITO" ] || fail "O conteúdo do commit não corresponde a nenhum pin aprovado para a operação $OPERACAO (motivos:$MOTIVOS)."
+          MANIFESTO=$( { echo rac-pin-v1; cat "$RUNNER_TEMP/hashes-$ACEITO"; } | sha256sum | cut -d' ' -f1)
+          cp "$RUNNER_TEMP/hashes-$ACEITO" "$RUNNER_TEMP/pin-hashes.sha256"
+          echo "$ACEITO" > "$RUNNER_TEMP/pin-nome"
+          {
+            echo "nome=$ACEITO"
+            echo "manifesto=$MANIFESTO"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pin aprovado conferido (antes de empacotar, sem secrets)"
+            echo
+            echo "- operação: \`$OPERACAO\`; pin: **$ACEITO**; manifesto sha256: \`$MANIFESTO\`"
+            echo "- commit informado: \`$COMMIT\`; commit de referência do pin: \`$(jq -r --arg n "$ACEITO" '.pins[$n].commit_referencia' "$PIN")\` (informativo: o que vale é o conteúdo)"
+            echo "- o pin vem do checkout da main; arquivos conferidos por conteúdo a partir dos objetos do Git (README fora do pin: não entra no pacote)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Pin $ACEITO conferido para a operação $OPERACAO (manifesto $MANIFESTO)."
+
+      # só os arquivos do pin entram no pacote, copiados dos OBJETOS do Git (o que foi conferido é exatamente o que é empacotado) e reconferidos
+      # depois da cópia; qualquer outro arquivo, link simbólico ou configuração diferente derrubou o job no passo anterior. Nada da pasta poc é executado.
+      - name: Montar o pacote a partir dos arquivos do pin (dados)
         env:
           COMMIT: ${{ inputs.commit }}
         run: |
-          if [ "$(git -C poc rev-parse HEAD)" != "$COMMIT" ]; then
-            echo "::error::O checkout da POC não está no commit pedido."
-            exit 1
-          fi
-          BASE=poc/experimentos/icloud-auth-probe
-          ESPERADO=$'./README.md\n./src/consumo.mjs\n./src/imap.mjs\n./src/index.mjs\n./src/jwks.mjs\n./src/jwt.mjs\n./src/mensagem.mjs\n./src/mime.mjs\n./src/politica.mjs\n./src/rotas.mjs\n./wrangler.jsonc'
-          if [ ! -d "$BASE" ]; then
-            echo "::error::A pasta do Worker não existe neste commit."
-            exit 1
-          fi
-          if [ -n "$(find "$BASE" -type l)" ]; then
-            echo "::error::Link simbólico na pasta do Worker; não é permitido."
-            exit 1
-          fi
-          ATUAL=$(cd "$BASE" && find . -type f | LC_ALL=C sort)
-          if [ "$ATUAL" != "$ESPERADO" ]; then
-            echo "::error::Arquivos inesperados em $BASE; só a lista fixa é permitida."
-            diff <(printf '%s\n' "$ESPERADO") <(printf '%s\n' "$ATUAL") || true
-            exit 1
-          fi
+          fail() { echo "::error::$1"; exit 1; }
+          [ -s "$RUNNER_TEMP/pin-hashes.sha256" ] || fail "O pin não foi conferido antes da montagem."
+          [ "$(git -C poc rev-parse HEAD)" = "$COMMIT" ] || fail "O checkout da POC não está no commit pedido."
+          RAIZ=experimentos/icloud-auth-probe
           PACOTE="$RUNNER_TEMP/pacote"
           mkdir -p "$PACOTE/src"
-          for ARQ in politica jwt jwks consumo imap mime mensagem rotas index; do cp "$BASE/src/$ARQ.mjs" "$PACOTE/src/$ARQ.mjs"; done
+          while read -r H ARQ; do
+            case "$ARQ" in
+              src/*.mjs) git -C poc cat-file blob "HEAD:$RAIZ/$ARQ" > "$PACOTE/$ARQ" ;;
+            esac
+          done < "$RUNNER_TEMP/pin-hashes.sha256"
           cat > "$PACOTE/wrangler.jsonc" <<'JSON'
           {
             "name": "rac-icloud-auth-poc",
@@ -149,11 +213,12 @@ jobs:
           }
           JSON
           # a wrangler.jsonc do commit tem de ser equivalente à escrita aqui (que é a única usada)
-          if [ "$(jq -S 'del(."$schema")' "$BASE/wrangler.jsonc")" != "$(jq -S . "$PACOTE/wrangler.jsonc")" ]; then
-            echo "::error::A wrangler.jsonc do commit difere da configuração fixa do workflow."
-            exit 1
+          if [ "$(git -C poc cat-file blob "HEAD:$RAIZ/wrangler.jsonc" | jq -S 'del(."$schema")')" != "$(jq -S . "$PACOTE/wrangler.jsonc")" ]; then
+            fail "A wrangler.jsonc do commit difere da configuração fixa do workflow."
           fi
-          (cd "$BASE" && sha256sum ./README.md ./src/consumo.mjs ./src/imap.mjs ./src/index.mjs ./src/jwks.mjs ./src/jwt.mjs ./src/mensagem.mjs ./src/mime.mjs ./src/politica.mjs ./src/rotas.mjs ./wrangler.jsonc) > "$RUNNER_TEMP/fontes.sha256"
+          # reconferência dos arquivos copiados contra o pin
+          (cd "$PACOTE" && grep -E '  src/' "$RUNNER_TEMP/pin-hashes.sha256" | sha256sum -c --quiet -) || fail "Um arquivo copiado difere do pin."
+          cp "$RUNNER_TEMP/pin-hashes.sha256" "$RUNNER_TEMP/fontes.sha256"
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |
@@ -191,11 +256,19 @@ jobs:
           # alteração, de busca ou de outra pasta pode estar no pacote, e as duas listas de verbos têm de ser exatamente estas (DELETE e CREATE existem só como
           # SQL do registro de uso único do Durable Object, por isso a garantia deles é a lista exata de verbos e o teste do código, não esta busca)
           if grep -qwE 'EXPUNGE|APPEND|STORE|SEARCH|RENAME|SUBSCRIBE|UNSUBSCRIBE|AUTHENTICATE|STARTTLS|SELECT|UNSELECT|COPY|MOVE|IDLE|NOOP|CLOSE|STATUS|ENABLE|NAMESPACE|FLAGS' "$BUNDLE"; then echo "::error::O pacote contém verbo IMAP não permitido."; exit 1; fi
+          # as listas de verbos dependem do pin conferido (o pacote P1 não pode ter nada da P2; o P2 tem as duas listas)
+          PIN_NOME=$(cat "$RUNNER_TEMP/pin-nome" 2>/dev/null || true)
+          case "$PIN_NOME" in p1|p2) ;; *) echo "::error::O pin da operação não foi conferido antes do empacotamento."; exit 1 ;; esac
           if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P1 não é a esperada."; exit 1; fi
-          if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "EXAMINE", "FETCH", "UID", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P2 não é a esperada."; exit 1; fi
-          # leitura sempre com PEEK (não mexe em flags): nenhuma leitura de corpo sem PEEK e nenhum RFC822 além do tamanho
+          if [ "$PIN_NOME" = "p2" ]; then
+            if ! grep -qF 'Object.freeze(["CAPABILITY", "LOGIN", "LIST", "EXAMINE", "FETCH", "UID", "LOGOUT"])' "$BUNDLE"; then echo "::error::A lista de verbos da P2 não é a esperada."; exit 1; fi
+            # leitura sempre com PEEK (não mexe em flags): nenhum RFC822 além do tamanho
+            if [ "$(grep -oE 'RFC822[A-Za-z.]*' "$BUNDLE" | sort -u)" != "RFC822.SIZE" ]; then echo "::error::O pacote cita RFC822 além do tamanho."; exit 1; fi
+          else
+            if grep -qwE 'EXAMINE|FETCH|UID|RFC822' "$BUNDLE" || grep -qF 'VERBOS_P2' "$BUNDLE"; then echo "::error::O pacote do pin P1 contém verbo ou lista da P2."; exit 1; fi
+          fi
+          # nenhuma leitura de corpo sem PEEK em nenhum dos dois
           if grep -qF 'BODY[' "$BUNDLE"; then echo "::error::O pacote contém leitura sem PEEK."; exit 1; fi
-          if [ "$(grep -oE 'RFC822[A-Za-z.]*' "$BUNDLE" | sort -u)" != "RFC822.SIZE" ]; then echo "::error::O pacote cita RFC822 além do tamanho."; exit 1; fi
           # o Durable Object do registro de uso único precisa estar no pacote E exportado (a migração e o binding o referenciam)
           if ! grep -qE '^var ConsumoUnico = class' "$BUNDLE" || ! grep -qE '^  ConsumoUnico,?$' "$BUNDLE"; then echo "::error::A classe do Durable Object não está no pacote ou não é exportada."; exit 1; fi
           # endereços http(s): o emissor do GitHub e o nome interno e fixo do Durable Object (não resolve na rede)
@@ -213,8 +286,9 @@ jobs:
             echo "- commit da POC (dado de entrada): \`$COMMIT\`"
             echo "- sha256 do arquivo que será publicado: \`$SHA\`"
             echo "- tamanho: $(wc -c < "$BUNDLE") bytes; endereços no pacote: token.actions.githubusercontent.com e o nome interno consumo.interno (Durable Object)"
-            echo "- sem process.env, eval, console, SMTP, import dinâmico ou require; único módulo cloudflare: sockets; único host da Apple: imap.mail.me.com; verbos IMAP: P1 = CAPABILITY, LOGIN, LIST, LOGOUT; P2 acrescenta EXAMINE, FETCH e UID (somente leitura, BODY.PEEK); sem STORE, COPY, MOVE, EXPUNGE, DELETE, APPEND, SELECT, busca ou SMTP"
+            echo "- sem process.env, eval, console, SMTP, import dinâmico ou require; único módulo cloudflare: sockets; único host da Apple: imap.mail.me.com; verbos IMAP: pin P1 = CAPABILITY, LOGIN, LIST, LOGOUT; pin P2 acrescenta EXAMINE, FETCH e UID (somente leitura, BODY.PEEK); sem STORE, COPY, MOVE, EXPUNGE, DELETE, APPEND, SELECT, busca ou SMTP"
             echo "- configuração fixa: Durable Object CONSUMO (classe ConsumoUnico, SQLite) e migração v1 (nova classe)"
+            echo "- pin aprovado conferido no passo anterior (o conteúdo bate com o pin da operação; sem isso este job já teria falhado)"
             echo "- **Antes de aprovar:** conferir o diff dos arquivos abaixo no commit e se o CI desse commit passou na PR da POC."
             echo
             echo '```'
@@ -253,7 +327,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "24"
+          node-version: "24.22.3"
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |
@@ -273,6 +347,8 @@ jobs:
           PACOTE_B64: ${{ needs.verificar.outputs.pacote }}
           SHA256_ESPERADO: ${{ needs.verificar.outputs.sha256 }}
           COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
+          PIN_APROVADO: ${{ needs.verificar.outputs.pin }}
+          MANIFESTO_APROVADO: ${{ needs.verificar.outputs.manifesto }}
         run: |
           DEST="$RUNNER_TEMP/publicar"
           mkdir -p "$DEST"
@@ -292,7 +368,7 @@ jobs:
           }
           JSON
           jq --arg main "$DEST/index.js" '. + {main: $main, no_bundle: true}' "$DEST/base.jsonc" > "$DEST/wrangler.publicar.jsonc"
-          echo "Pacote conferido: sha256 $SHA256_ESPERADO (commit da POC $COMMIT_APROVADO)"
+          echo "Pacote conferido: sha256 $SHA256_ESPERADO (commit da POC $COMMIT_APROVADO; pin aprovado $PIN_APROVADO, manifesto $MANIFESTO_APROVADO)"
 
       # só curl e jq; o token vai por substituição de processo, nunca como argumento visível na lista de processos
       - name: Conferir o token Cloudflare (sem mostrar dados da conta)

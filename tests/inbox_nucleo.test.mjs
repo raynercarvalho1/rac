@@ -169,7 +169,7 @@ test("cliente do serviço (js/inbox-servico.js): valida antes de qualquer rede, 
 test("formulário de credencial: login do ID Apple + SÓ senha específica de app (a senha principal é recusada com a explicação); os campos voltam já conferidos", () => {
   assert.deepEqual(N.inbCredencialValida({ usuario: " a@icloud.example ", senha: " abcd-efgh-ijkl-mnop " }), { ok: true, usuario: "a@icloud.example", senha: "abcd-efgh-ijkl-mnop" });
   const ruim = N.inbCredencialValida({ usuario: "x", senha: "MinhaSenhaPrincipal1!" });
-  assert.equal(ruim.ok, false); assert.ok(ruim.erros.usuario); assert.match(ruim.erros.senha, /senha principal da conta Apple não é aceita/);
+  assert.equal(ruim.ok, false); assert.ok(ruim.erros.usuario); assert.match(ruim.erros.senha_app, /senha principal da conta Apple não é aceita/);
   assert.ok(!JSON.stringify(ruim).includes("MinhaSenhaPrincipal1!"), "o erro nunca repete o que foi digitado");
   assert.deepEqual(Object.keys(N.INB_CRED_ROTULOS), ["ausente", "ativa", "invalida"]);
   for (const c of ["usuario_invalido", "senha_formato_invalido", "credencial_ausente", "credencial_invalida", "cofre_indisponivel", "mfa_requerido", "worker_nao_configurado"]) assert.ok(N.INB_ERROS[c], c);

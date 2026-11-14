@@ -94,7 +94,7 @@
     box.appendChild(acoes);return box}
   function inboxFormCredencial(c){
     var E=INBX.credErros,usu=h("input",{class:"rac-campo-entrada",id:"inb-cred-usuario",type:"email",autocomplete:"off",autocapitalize:"off",spellcheck:"false","aria-label":"E-mail do ID Apple","aria-invalid":E.usuario?"true":null}),
-      sen=h("input",{class:"rac-campo-entrada",id:"inb-cred-senha",type:"password",autocomplete:"off",autocapitalize:"off",spellcheck:"false",placeholder:"abcd-efgh-ijkl-mnop","aria-label":"Senha específica de app","aria-invalid":E.senha?"true":null});
+      sen=h("input",{class:"rac-campo-entrada",id:"inb-cred-senha",type:"password",autocomplete:"off",autocapitalize:"off",spellcheck:"false",placeholder:"abcd-efgh-ijkl-mnop","aria-label":"Senha específica de app","aria-invalid":E.senha_app?"true":null});
     usu.value=c.endereco;
     var enviar=rkBtn("pri","Guardar no cofre"),cancelar=rkBtn("ter","Cancelar");cancelar.onclick=function(){INBX.credForm=null;INBX.credErros={};inboxDesenhar()};
     enviar.onclick=function(){
@@ -109,8 +109,8 @@
         INBX.credErros={geral:NUCLEO.inbErroTexto(r.erro)}}).then(inboxDesenhar)};
     return h("div",{class:"inb-form"},
       h("div",{class:"rac-campo"+(E.usuario?" rac-campo--erro":"")},h("label",{class:"rac-campo-rotulo","for":"inb-cred-usuario",text:"E-mail do ID Apple"}),usu,E.usuario?h("span",{class:"rac-campo-ajuda",text:"✗ "+E.usuario}):null),
-      h("div",{class:"rac-campo"+(E.senha?" rac-campo--erro":"")},h("label",{class:"rac-campo-rotulo","for":"inb-cred-senha",text:"Senha específica de app"}),sen,
-        h("span",{class:"rac-campo-ajuda",text:E.senha?"✗ "+E.senha:"No site da sua conta Apple, em Segurança, gere uma \"senha específica de app\". Nunca use a senha principal da conta Apple."})),
+      h("div",{class:"rac-campo"+(E.senha_app?" rac-campo--erro":"")},h("label",{class:"rac-campo-rotulo","for":"inb-cred-senha",text:"Senha específica de app"}),sen,
+        h("span",{class:"rac-campo-ajuda",text:E.senha_app?"✗ "+E.senha_app:"No site da sua conta Apple, em Segurança, gere uma \"senha específica de app\". Nunca use a senha principal da conta Apple."})),
       E.geral?h("p",{class:"inb-erro",role:"alert",text:"✗ "+E.geral}):null,
       h("p",{class:"rac-t-legenda",text:"Enviada uma vez, por conexão segura, e guardada cifrada no cofre do servidor. Não fica neste aparelho nem volta para cá."}),
       h("div",{class:"inb-conexao-acoes"},enviar,cancelar))}

@@ -3752,7 +3752,7 @@
   /* formulário "conectar conta": o login (e-mail do ID Apple) e a senha específica de app; devolve os campos já conferidos, para enviar UMA vez e limpar o campo */
   function inbCredencialValida(f){f=f||{};var e={},u=String(f.usuario==null?"":f.usuario).trim(),s=String(f.senha==null?"":f.senha).trim();
     if(!INB_RE_EMAIL.test(u)||u.length>254)e.usuario="Informe o e-mail do seu ID Apple.";
-    if(!INB_RE_SENHA_APP.test(s))e.senha="Use uma senha específica de app (quatro grupos de quatro letras, como abcd-efgh-ijkl-mnop). A senha principal da conta Apple não é aceita.";
+    if(!INB_RE_SENHA_APP.test(s))e.senha_app="Use uma senha específica de app (quatro grupos de quatro letras, como abcd-efgh-ijkl-mnop). A senha principal da conta Apple não é aceita.";
     return Object.keys(e).length?{ok:false,erros:e}:{ok:true,usuario:u,senha:s}}
   var INB_CRED_ROTULOS={ausente:"Sem credencial",ativa:"Credencial guardada",invalida:"Credencial recusada pelo provedor"};
   /* cursor do IMAP (UIDVALIDITY/UIDNEXT): as mesmas regras do Worker da P6 (comprovadas em duas rodadas reais em 14/11/2026) */

@@ -1168,3 +1168,19 @@ Família e da Casa.
 1. Com autorização: publicar pelo workflow (o `verificar` confere o pin e o dono revisa o resumo antes de aprovar os Environments) e executar `p2_imap` **uma vez**; registrar o resultado (estágio, códigos, indicadores) e só então marcar a P2 como concluída.
 2. Opcional, a pedido: corrigir a segunda resposta FETCH não solicitada no Worker, o que exige novo commit e atualização do pin por PR na `main`.
 
+## 14/11/2026 (noite, 5) · RAC Inbox — correção das respostas FETCH da P2 e novo pin
+
+### 1. O que fizemos
+
+- **Defeito investigado e corrigido** no Worker da P2 (correlação explícita das respostas FETCH, descrita nas decisões): causa em `lerFetch` (sobrescrita silenciosa) e nos três pontos que exigiam uma única resposta; o dado sem UID e as seções não pedidas eram aceitos. Teste novo `icloud_auth_probe_p2_fetch` (caso real, respostas repartidas e ordem, duplicadas idênticas e conflitantes, outro UID, sem UID, itens não pedidos, malformadas, fragmentação, limites, timeout e desconexão, LOGOUT, sem comandos de escrita, sem console, sem vazamento); mutações no código corrigido foram detectadas.
+- **Novo pin P2** (commit `2e1055e34a253e896b27d2319f10cc90414338f9`, manifesto `a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997`); pin P1 preservado; pin P2 anterior recusado para `p2_imap` (testes e passos reais contra commits reais).
+- Não feito (de propósito): publicação do Worker, execução da P2 real, mensagens reais, secrets, P3 a P5, PR #17.
+
+### 2. O que estamos fazendo
+
+- Aguardando a revisão e o merge da PR do pin pelo dono; a P2 real depende de autorização específica. P2 **não** concluída; I0 não concluída; I1 não iniciada.
+
+### 3. O que vamos fazer
+
+1. Com o pin novo na `main`: integrar a `main` à branch da P2 por merge e, com autorização, publicar pelo workflow e executar **uma** `p2_imap`; registrar o resultado e só então marcar a P2 como concluída.
+

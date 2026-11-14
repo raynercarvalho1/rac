@@ -82,6 +82,16 @@ Assinatura, validade curta e audiência não impedem reutilizar um token dentro 
 
 **Atualizar o pin (nova versão do Worker).** PR para a `main` que altera `aprovados.json`: gerar os hashes dos arquivos do commit revisado, recalcular o `manifesto_sha256` (o teste `aprovados.json: formato, associação...` recalcula e recusa inconsistência), registrar o `commit_referencia` e revisar o diff do Worker antes de mesclar. O pin antigo permanece até ser removido, o que preserva o **rollback** (`p1_imap` ou `validar_oidc` com o commit P1 republica o Worker P1). Na branch que contém o Worker, o teste de coerência recalcula o manifesto da árvore atual e acusa o desvio se o Worker mudar sem o pin.
 
+**Histórico dos pins.**
+
+| Pin | Commit de referência | Manifesto SHA-256 | Estado |
+|---|---|---|---|
+| `p1` | `68403f5221ed3d371e5786ed8cbca6a7b5492b6e` | `e9c2acc74e0dd82074f96f03de523ac9fae0c9e57991bd0637e2d35794cb5f82` | **Vigente**, preservado (código provado na execução 43599209307; rollback) |
+| `p2` (v1) | `7653915635158455e45e8438c137f63928559969` | `580e1a3db612f49b3b263bd68172eee67ecc01320ba496e1b01e04de4975186f` | **Substituído** em 14/11/2026: o Worker tratava qualquer segunda resposta FETCH como erro |
+| `p2` (v2) | `2e1055e34a253e896b27d2319f10cc90414338f9` | `a3d8311861ca36a4c63db9c69589dad85bb567ff7943c875a250308d4715c997` | **Vigente.** Muda só `src/mensagem.mjs` e `src/politica.mjs` (correlação das respostas FETCH) |
+
+O pin P2 v1 não é mais aceito por nenhuma operação: `p2_imap` com o commit `7653915` falha no `verificar`. O teste `pins: o P1 está PRESERVADO...` registra os valores vigentes e os substituídos e quebra se um pin mudar sem a constante correspondente.
+
 **Regra de revisão obrigatória.** Quem consegue mesclar na `main` consegue alterar o pin, o workflow e o lockfile.
 - **`CODEOWNERS` (feito):** `.github/CODEOWNERS` atribui a `@raynercarvalho1` os caminhos `/.github/workflows/`, `/experimentos/icloud-auth-probe-ferramenta/` e o próprio `/.github/CODEOWNERS`. O arquivo **sozinho não bloqueia nada**: só vale quando um ruleset ou proteção de branch na `main` ligar *Require review from Code Owners*.
 - **Ruleset na `main` (NÃO configurado):** a sessão do Claude Code não tem ferramenta nem permissão administrativa para rulesets (a API exige administração do repositório e o conector GitHub disponível não a expõe); o estado atual dos rulesets não foi lido. O que falta, exatamente: *Settings → Rules → Rulesets → New branch ruleset*, alvo a branch padrão (`main`), *Enforcement status* **Active**, regra *Require a pull request before merging* com *Require review from Code Owners* ligado, **mantendo** as proteções que já existem (não substituir nem remover regras).

@@ -316,7 +316,7 @@ test("P2 · resposta IMAP malformada: parênteses desbalanceados, item ímpar, a
   await caso("linha fora de ordem", (t) => "xyz solto\r\n" + t + " OK ok\r\n", "resposta_inesperada");
   await caso("sem BODYSTRUCTURE", (t) => "* 1 FETCH (UID 7 RFC822.SIZE 10)\r\n" + t + " OK ok\r\n", "resposta_inesperada");
   await caso("UID diferente do pedido", (t) => "* 1 FETCH (UID 8 RFC822.SIZE 10 BODYSTRUCTURE (\"TEXT\" \"PLAIN\" NIL NIL NIL \"7BIT\" 1 1))\r\n" + t + " OK ok\r\n", "resposta_inesperada");
-  await caso("duas mensagens para um UID", (t) => "* 1 FETCH (UID 7 RFC822.SIZE 1 BODYSTRUCTURE (\"TEXT\" \"PLAIN\" NIL NIL NIL \"7BIT\" 1 1))\r\n* 2 FETCH (UID 7)\r\n" + t + " OK ok\r\n", "resposta_inesperada");
+  // "duas respostas FETCH para o mesmo UID" deixou de ser erro por si só: ver tests/icloud_auth_probe_p2_fetch.test.mjs (correlação explícita, duplicadas idênticas ou conflitantes)
   await caso("NO do servidor", (t) => t + " NO falhou com " + SENHA + "\r\n", "mensagem_erro");
 });
 

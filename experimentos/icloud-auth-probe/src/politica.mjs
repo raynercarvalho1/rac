@@ -73,11 +73,11 @@ export const POLITICA = Object.freeze({
   // Limites pequenos de propósito (o plano Free do Workers tem CPU curta): nada é guardado e só indicadores saem na resposta.
   //   maxBytes: total lido do servidor na sessão; maxLinhas: linhas soltas por comando; maxCabecalhoBytes/maxTextoBytes/maxHtmlBytes: o que se lê de cada parte
   //   (leitura parcial pedida ao servidor); maxAnexoBytes: tamanho CODIFICADO máximo do anexo cujos bytes são lidos; maxEstruturaBytes: resposta da estrutura MIME;
-  //   maxPartes/maxProfundidade: limites da árvore MIME; maxItensSexp: itens na análise da estrutura.
+  //   maxPartes/maxProfundidade: limites da árvore MIME; maxItensSexp: itens na análise da estrutura; maxRespostasFetch: respostas FETCH com dado da mensagem aceitas por comando.
   p2: Object.freeze({
     pasta: "RAC-TESTE", timeoutMs: 20000, maxBytes: 262144, maxLinhas: 200,
     maxCabecalhoBytes: 8192, maxTextoBytes: 32768, maxHtmlBytes: 32768, maxAnexoBytes: 24576,
-    maxEstruturaBytes: 32768, maxPartes: 30, maxProfundidade: 6, maxItensSexp: 4000,
+    maxEstruturaBytes: 32768, maxPartes: 30, maxProfundidade: 6, maxItensSexp: 4000, maxRespostasFetch: 8,
   }),
 });
 

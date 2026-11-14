@@ -24,7 +24,7 @@ export const ESTAGIOS_P2 = Object.freeze([
 export const ERROS_P2 = Object.freeze([
   "conexao_falhou", "timeout", "saudacao_invalida", "capability_falhou", "login_desabilitado", "autenticacao_recusada", "login_erro_protocolo",
   "pasta_inexistente", "pasta_erro", "examine_recusado", "pasta_vazia", "uid_invalido", "uid_inexistente", "mensagem_erro", "conteudo_falhou",
-  "mime_invalido", "mime_limite_excedido", "resposta_malformada", "resposta_inesperada", "resposta_grande_demais", "limite_excedido",
+  "mime_invalido", "mime_limite_excedido", "resposta_malformada", "resposta_inesperada", "resposta_conflitante", "resposta_grande_demais", "limite_excedido",
   "comando_nao_permitido", "falha_inesperada",
 ]);
 export const STATUS_PARTE = Object.freeze([
@@ -154,36 +154,104 @@ function pastaListada(soltas, pasta) {
   return { achou, abrivel };
 }
 
-// FETCH: devolve os itens de cada resposta "* n FETCH (...)" como { uid, tamanho, estrutura, secoes } (campos ausentes ficam undefined)
-function lerFetch(soltas, lim) {
+// FETCH · LEITURA e CORRELAÇÃO das respostas de UM comando. Duas etapas, ambas deterministas e com limites:
+//  1) lerRespostasFetch: cada "* n FETCH (...)" vira uma lista de itens { tipo, id, valor } NA ORDEM em que chegou (nada é sobrescrito aqui);
+//  2) consolidarFetch: junta as respostas da MESMA mensagem (o UID pedido) item a item.
+// Regras (RFC 3501, 7.4.2: o servidor PODE repartir os dados de uma mensagem em várias respostas FETCH e PODE enviar FETCH não solicitado, por
+// exemplo atualização de FLAGS por outro cliente):
+//  - Item de METADADO (FLAGS, MODSEQ e afins) nunca é guardado nem devolvido: uma resposta só com metadados não é dado da mensagem e é tolerada,
+//    seja de outra mensagem ou da mesma. Nada além disso é descartado em silêncio.
+//  - Toda resposta que traga dado (UID, tamanho, estrutura, cabeçalho ou parte) PRECISA trazer o próprio UID (o UID FETCH o inclui em cada resposta) e
+//    ele PRECISA ser o UID pedido: dado sem UID, ou de outro UID, é resposta_inesperada (não se associa por sequência nem por ordem).
+//  - Item repetido (na mesma resposta ou em respostas diferentes): valor IDÊNTICO é aceito como idempotente; valor DIFERENTE é resposta_conflitante.
+//    Nunca há sobrescrita.
+//  - Só os itens pedidos podem aparecer: seção não pedida, origem diferente de <0>, RFC822.*, ENVELOPE, BINARY etc. são resposta_inesperada.
+//  - No máximo `maxRespostasFetch` respostas com dado por comando (o total de linhas e de bytes já é limitado pelo leitor).
+// itens que CARREGAM conteúdo e que nunca pedimos (por prefixo: BODY..., RFC..., BINARY..., ENVELOPE, INTERNALDATE, PREVIEW); o que não começa assim é metadado
+const ITENS_DE_CONTEUDO = /^(?:BODY|RFC|BINARY|ENVELOPE|INTERNALDATE|PREVIEW)/i;
+function classificarItemFetch(chave) {
+  const k = chave.toUpperCase();
+  if (k === "UID") return { tipo: "uid" };
+  if (k === "RFC822.SIZE") return { tipo: "tamanho" };
+  if (k === "BODYSTRUCTURE") return { tipo: "estrutura" };
+  const sec = /^BODY\[(.*)\](?:<(\d+)>)?$/i.exec(chave);
+  if (sec) {
+    if (sec[2] !== undefined && Number(sec[2]) !== 0) return { tipo: "invalido" }; // só pedimos a partir do byte 0
+    const nome = sec[1].toUpperCase();
+    if (nome.startsWith("HEADER.FIELDS")) return { tipo: "cabecalho" };
+    if (/^\d+(?:\.\d+)*$/.test(nome)) return { tipo: "parte", id: nome };
+    return { tipo: "invalido" };
+  }
+  if (ITENS_DE_CONTEUDO.test(chave)) return { tipo: "invalido" }; // item que carrega conteúdo e que nunca pedimos
+  return { tipo: "metadado" };
+}
+
+function lerRespostasFetch(soltas, lim) {
   const saida = [];
   for (const s of soltas) {
     const m = /^\* \d{1,10} FETCH (.*)$/i.exec(s.texto);
     if (!m) continue;
     const arvore = lerSexp(m[1], s.literais, { maxItens: lim.maxItensSexp, maxProfundidade: lim.maxProfundidade + 4 });
     if (arvore.length !== 1 || !Array.isArray(arvore[0]) || arvore[0].length % 2 !== 0) throw new ErroMime("resposta_malformada");
-    const item = { uid: undefined, tamanho: undefined, estrutura: undefined, cabecalho: undefined, partes: {} };
     const lista = arvore[0];
+    const itens = [];
     for (let i = 0; i < lista.length; i += 2) {
-      const chave = lista[i];
-      const valor = lista[i + 1];
-      if (typeof chave !== "string") throw new ErroMime("resposta_malformada");
-      const k = chave.toUpperCase();
-      if (k === "UID") item.uid = valor;
-      else if (k === "RFC822.SIZE") item.tamanho = valor;
-      else if (k === "BODYSTRUCTURE") item.estrutura = valor;
-      else {
-        const sec = /^BODY\[(.*)\](?:<\d+>)?$/i.exec(chave);
-        if (!sec) continue; // FLAGS e afins: ignorados (nunca devolvidos)
-        const nomeSecao = sec[1].toUpperCase();
-        if (nomeSecao.startsWith("HEADER.FIELDS")) item.cabecalho = valor === null ? "" : valor;
-        else if (/^\d+(?:\.\d+)*$/.test(nomeSecao)) item.partes[nomeSecao] = valor === null ? "" : valor;
-      }
+      if (typeof lista[i] !== "string") throw new ErroMime("resposta_malformada");
+      itens.push({ ...classificarItemFetch(lista[i]), valor: lista[i + 1] });
     }
-    saida.push(item);
+    saida.push(itens);
   }
   return saida;
 }
+
+const iguais = (a, b) => (typeof a === "object" && a !== null ? JSON.stringify(a) === JSON.stringify(b) : a === b);
+function mesclar(destino, campo, valor) {
+  if (destino[campo] === undefined) destino[campo] = valor;
+  else if (!iguais(destino[campo], valor)) throw new ErroP2("resposta_conflitante");
+}
+
+// `alvo`: o UID pedido, ou null quando o próprio comando serve para DESCOBRIR o UID (FETCH * (UID)); nesse caso todas as respostas com dado têm de
+// concordar em UM único UID. `permitidos`: { estrutura, cabecalho, partes: Set } do que o comando pediu. Devolve { respostas, uid, tamanho, estrutura,
+// cabecalho, partes } (campos não recebidos ficam undefined; `respostas` = quantas respostas traziam dado da mensagem).
+function consolidarFetch(respostas, { alvo, permitidos, lim }) {
+  const r = { respostas: 0, uid: undefined, tamanho: undefined, estrutura: undefined, cabecalho: undefined, partes: {} };
+  for (const itens of respostas) {
+    const naoMeta = itens.filter((i) => i.tipo !== "metadado");
+    if (naoMeta.length === 0) continue; // só metadados (ex.: FLAGS de uma atualização não solicitada)
+    let uidDaResposta;
+    for (const i of naoMeta) {
+      if (i.tipo !== "uid") continue;
+      if (!Number.isSafeInteger(i.valor) || i.valor < 1 || i.valor > UID_MAX) throw new ErroP2("resposta_malformada");
+      if (uidDaResposta !== undefined && uidDaResposta !== i.valor) throw new ErroP2("resposta_conflitante");
+      uidDaResposta = i.valor;
+    }
+    const dados = naoMeta.filter((i) => i.tipo !== "uid"); // dado da mensagem: tamanho, estrutura, cabeçalho, parte (ou item inválido)
+    if (alvo !== null) {
+      // o UID sozinho (com ou sem metadados) só identifica a mensagem: de outra mensagem é tolerado, nunca associado
+      if (uidDaResposta !== alvo) {
+        if (dados.length > 0) throw new ErroP2("resposta_inesperada"); // dado sem UID ou de outro UID: não se associa por ordem nem por sequência
+        continue;
+      }
+    } else {
+      // descoberta do UID: toda resposta com UID conta, e todas precisam concordar em UM único UID
+      if (dados.length > 0 || uidDaResposta === undefined) throw new ErroP2("resposta_inesperada");
+      if (r.uid !== undefined && r.uid !== uidDaResposta) throw new ErroP2("resposta_inesperada");
+    }
+    r.respostas += 1;
+    if (r.respostas > lim.maxRespostasFetch) throw new ErroP2("limite_excedido");
+    mesclar(r, "uid", uidDaResposta);
+    for (const i of dados) {
+      if (i.tipo === "invalido") throw new ErroP2("resposta_inesperada");
+      if (i.tipo === "tamanho") { if (!permitidos.estrutura) throw new ErroP2("resposta_inesperada"); mesclar(r, "tamanho", i.valor); }
+      else if (i.tipo === "estrutura") { if (!permitidos.estrutura) throw new ErroP2("resposta_inesperada"); mesclar(r, "estrutura", i.valor); }
+      else if (i.tipo === "cabecalho") { if (!permitidos.cabecalho) throw new ErroP2("resposta_inesperada"); mesclar(r, "cabecalho", i.valor === null ? "" : i.valor); }
+      else if (i.tipo === "parte") { if (!permitidos.partes.has(i.id)) throw new ErroP2("resposta_inesperada"); mesclar(r.partes, i.id, i.valor === null ? "" : i.valor); }
+    }
+  }
+  return r;
+}
+
+const SEM_PERMISSAO = Object.freeze({ estrutura: false, cabecalho: false, partes: new Set() });
 
 const inteiroAte = (v, max) => (Number.isSafeInteger(v) && v >= 0 ? Math.min(v, max) : 0);
 
@@ -275,21 +343,21 @@ export async function executarP2({ abrir, usuario, senha, uid = null, politica =
     if (alvo === null) {
       const ultima = await executarComando(ctx, "FETCH", " * (UID)", 1024);
       if (ultima.status !== "OK") throw new ErroP2("mensagem_erro");
-      const itens = lerFetch(ultima.soltas, cfg);
-      if (itens.length !== 1 || !Number.isSafeInteger(itens[0].uid) || itens[0].uid < 1 || itens[0].uid > UID_MAX) throw new ErroP2("resposta_inesperada");
-      alvo = itens[0].uid;
+      const achada = consolidarFetch(lerRespostasFetch(ultima.soltas, cfg), { alvo: null, permitidos: SEM_PERMISSAO, lim: cfg });
+      if (achada.respostas === 0 || !Number.isSafeInteger(achada.uid)) throw new ErroP2("resposta_inesperada");
+      alvo = achada.uid;
     }
 
     r.estagio = "mensagem_estrutura";
     const est = await executarComando(ctx, "UID", " FETCH " + alvo + " (" + ITENS_ESTRUTURA + ")", 4096);
     if (est.status !== "OK") throw new ErroP2("mensagem_erro");
-    const itensEst = lerFetch(est.soltas, cfg);
-    if (itensEst.length === 0) throw new ErroP2("uid_inexistente");
-    if (itensEst.length !== 1 || itensEst[0].uid !== alvo || !Number.isSafeInteger(itensEst[0].tamanho) || !Array.isArray(itensEst[0].estrutura)) throw new ErroP2("resposta_inesperada");
-    const estrutura = analisarEstrutura(itensEst[0].estrutura, cfg);
+    const dEst = consolidarFetch(lerRespostasFetch(est.soltas, cfg), { alvo, permitidos: { estrutura: true, cabecalho: false, partes: new Set() }, lim: cfg });
+    if (dEst.respostas === 0) throw new ErroP2("uid_inexistente");
+    if (dEst.uid !== alvo || !Number.isSafeInteger(dEst.tamanho) || !Array.isArray(dEst.estrutura)) throw new ErroP2("resposta_inesperada");
+    const estrutura = analisarEstrutura(dEst.estrutura, cfg);
     const cls = classificarPartes(estrutura.partes);
     const m = {
-      tamanho_bytes: inteiroAte(itensEst[0].tamanho, UID_MAX), multipart: estrutura.multipart, multipart_subtipo: estrutura.multipart ? (SUBTIPOS_MULTIPART.includes(estrutura.subtipoRaiz) ? estrutura.subtipoRaiz : "outro") : null,
+      tamanho_bytes: inteiroAte(dEst.tamanho, UID_MAX), multipart: estrutura.multipart, multipart_subtipo: estrutura.multipart ? (SUBTIPOS_MULTIPART.includes(estrutura.subtipoRaiz) ? estrutura.subtipoRaiz : "outro") : null,
       partes: estrutura.partes.length, profundidade: estrutura.profundidade,
       cabecalhos: { lidos: false }, texto_puro: parteVazia(), html: parteVazia(),
       anexos: { total: cls.anexos.length, inline: 0, bytes_total: 0, maior_bytes: 0, categorias: {} },
@@ -318,10 +386,8 @@ export async function executarP2({ abrir, usuario, senha, uid = null, politica =
     const maiorLimite = Math.max(...pedidos.map((p) => p[1]));
     const cont = await executarComando(ctx, "UID", " FETCH " + alvo + " (" + pedidos.map((p) => p[0]).join(" ") + ")", maiorLimite);
     if (cont.status !== "OK") throw new ErroP2("conteudo_falhou");
-    const itensCont = lerFetch(cont.soltas, cfg);
-    if (itensCont.length !== 1) throw new ErroP2("resposta_inesperada");
-    const dados = itensCont[0];
-    if (dados.uid !== undefined && dados.uid !== alvo) throw new ErroP2("resposta_inesperada");
+    const dados = consolidarFetch(lerRespostasFetch(cont.soltas, cfg), { alvo, permitidos: { estrutura: false, cabecalho: true, partes: new Set(pedidos.slice(1).map((p) => /^BODY\.PEEK\[([\d.]+)\]/.exec(p[0])[1])) }, lim: cfg });
+    if (dados.respostas === 0) throw new ErroP2("resposta_inesperada");
 
     if (typeof dados.cabecalho !== "string") throw new ErroP2("mime_invalido");
     if (dados.cabecalho.length > cfg.maxCabecalhoBytes) throw new ErroP2("resposta_grande_demais");

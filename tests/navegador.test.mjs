@@ -826,3 +826,41 @@ test("Veículos: 375 px, DEMO não lê nem preenche, lançamento manual sem foto
     servidor.close();
   }
 });
+
+// Aviso de e-mail novo (Web Push) com o app JÁ ABERTO na página inicial, no site de verdade (Chromium, banco e serviço simulados dentro da página):
+// a mensagem "rac-abrir" do service worker leva ao Inbox e abre DIRETO a leitura da mensagem do ID, a página responde "rac-ack" e o endereço volta ao da lista.
+test("Inbox: o aviso de e-mail novo abre direto a leitura da mensagem (app aberto na página inicial) e confirma ao service worker", { skip: pular, timeout: 90000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname); if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    const pag = await nav.newPage({ viewport: { width: 390, height: 844 } }), erros = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    const C = "aaaaaaaa-0000-4000-8000-000000000001", P = "bbbbbbbb-0000-4000-8000-000000000001", M = "dddddddd-0000-4000-8000-000000000002";
+    await pag.evaluate(([C, P]) => {
+      const msg = (n) => ({ id: "dddddddd-0000-4000-8000-00000000000" + n, conta_id: C, pasta_id: P, uid: n, uidvalidity: 7, recebida_em: new Date().toISOString(), assunto: "Assunto " + n, remetente_nome: "Ana " + n, remetente_endereco: "a" + n + "@x.co", destinatarios: [], lida: false, sinalizada: false, respondida: false, tamanho: 1, anexo_provavel: false });
+      const dados = { inbox_contas: [{ id: C, apelido: "Pessoal", endereco: "p@icloud.example", estado: "conectada", provedor: "icloud" }], inbox_pastas: [{ id: P, conta_id: C, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 3, nao_lidas: 3 }], inbox_credenciais: [{ conta_id: C, estado: "ativa" }], inbox_sincronizacao: [], inbox_mensagens_ref: [msg(1), msg(2), msg(3)] };
+      const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+      window.__chamadas = []; window.__acks = [];
+      SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) },
+        functions: { invoke: (n, o) => { __chamadas.push(o.body); return Promise.resolve({ data: { ok: true, mensagem: { texto: "Corpo do e-mail", formato: "texto", truncado: false, anexos: [] } }, error: null }); } } };
+      PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+      document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inicio"; route();
+    }, [C, P]);
+    await pag.waitForTimeout(400);
+    /* o service worker avisa a página; o "source" falso registra a confirmação */
+    await pag.evaluate(([base, C, P, M]) => { const canal = new MessageChannel(); canal.port2.onmessage = (m) => __acks.push(m.data.tipo); const ev = new MessageEvent("message", { data: { tipo: "rac-abrir", url: base + "/#inbox/" + C + "/" + P + "/" + M }, source: canal.port1 }); navigator.serviceWorker.dispatchEvent(ev); }, [base, C, P, M]);
+    await pag.waitForFunction(() => typeof INBX !== "undefined" && INBX.painel === "leitura" && INBX.leit && INBX.leit.estado === "ok", null, { timeout: 15000 });
+    await pag.waitForFunction(() => __acks.length === 1, null, { timeout: 5000 });
+    const r = await pag.evaluate(() => ({ secao: document.documentElement.getAttribute("data-sec"), msg: INBX.msg, chamadas: __chamadas, acks: __acks, hash: location.hash, texto: document.querySelector(".inb-leitura").textContent }));
+    assert.equal(r.secao, "inbox"); assert.equal(r.msg, M); assert.deepEqual(r.chamadas, [{ operacao: "ler_mensagem", conta_id: C, pasta_id: P, uid: 2 }]); assert.deepEqual(r.acks, ["rac-ack"]);
+    assert.equal(r.hash, "#inbox/" + C + "/" + P, "o endereço volta ao da lista"); assert.ok(r.texto.includes("Assunto 2") && r.texto.includes("Corpo do e-mail"));
+    assert.deepEqual(erros, [], "nenhum erro no navegador");
+  } finally { await nav.close(); servidor.close(); }
+});

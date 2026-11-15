@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-15.9",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-15.10",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -590,7 +590,7 @@
     processarFila();setTimeout(capturaCompartilhada,400);
     if(isOwner()){items=SEM_TABELA?lsRead():(PESSOAL.aniversarios||[]);render();montarSideX()}
     else $("#bdalert").hidden=true;
-    route();notifPendente(true)}
+    route();notifPendente(true);notifDiag()}
   $("#gate-form").addEventListener("submit",function(e){
     e.preventDefault();
     var b=$("#gate-enter"),m=$("#gate-msg");b.disabled=true;m.textContent="Entrando…";
@@ -1403,7 +1403,11 @@
       return r.json().catch(function(){return null}).then(function(d){c.delete(k).catch(function(){});return aplicar&&NUCLEO.notifFresco(d,Date.now())?notifIr(d.url):false})})})
     .catch(function(){return false})}
   if(navigator.serviceWorker&&navigator.serviceWorker.addEventListener)navigator.serviceWorker.addEventListener("message",function(ev){var d=ev.data||{};
-    if(d.tipo!=="rac-abrir")return;notifIr(d.url);notifPendente(false)});
+    if(d.tipo!=="rac-abrir")return;notifIr(d.url);notifPendente(false);try{if(ev.source&&ev.source.postMessage)ev.source.postMessage({tipo:"rac-ack"})}catch(e){}});   /* confirma ao service worker: sem isso ele navega a janela por conta própria */
+  /* O que o service worker fez no último toque (sw.js, __rac-diag): lido uma vez, apagado; só quando precisou de reserva ou houve erro vai para Sistema → erros (diagnóstico do iPhone). */
+  function notifDiag(){if(!window.caches)return;var k=new URL("__rac-diag",location.href).href;
+    caches.open("rac-dados").then(function(c){return c.match(k).then(function(r){if(!r)return;return r.json().catch(function(){return null}).then(function(d){c.delete(k).catch(function(){});
+      if(d&&(d.ack===false||(d.erros&&d.erros.length)))logErro("notificação",new Error("toque sem confirmação da página: "+JSON.stringify(d)))})})}).catch(function(){})}
 
   /* ===== Voltar ao site (P-16): depois de 5 min fora, a página atual se atualiza sozinha pelo mesmo ↻ (atuAtualizar em modo
      silencioso). A decisão é do NUCLEO.atuVoltar: só o dono, sem campo com foco, sem captura aberta e não logo depois de outra
@@ -1416,7 +1420,7 @@
   function voltaOlhar(ev){
     if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
     if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
-    var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);if(!saiu)return;
+    var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);notifDiag();if(!saiu)return;
     var sec=document.documentElement.getAttribute("data-sec")||"inicio";
     if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}
   document.addEventListener("visibilitychange",voltaOlhar);

@@ -1093,6 +1093,18 @@ Família e da Casa.
 ## 15/11/2026 (noite) · RAC Inbox — barra inferior subindo ao rolar no iPhone (branch `claude/inbox-barra-fixa-ios`)
 
 - **Sintoma (dono, iPhone/PWA):** ao rolar a lista do Inbox, a barra inferior e os botões flutuantes (←, ↑, +) sobem até o meio da tela; ao rolar para cima, voltam.
-- **Causa:** **não comprovada** (não há WebKit/iPhone neste ambiente). Hipótese: o WebKit arrasta os elementos `position:fixed` com a camada da página numa lista longa recortada por `overflow:hidden` + `border-radius`. Correção defensiva (`css/rac.css`, versão `2026-11-15.7`): camada própria (`translate3d`) para `#barra`, `.voltarbtn`, `.topobtn`, `.capbtn` e `overflow:clip` na lista. Teste de texto em `tests/inbox_notificacao_abrir.test.mjs`.
+- **Causa:** **não comprovada** (não há WebKit/iPhone neste ambiente). Hipótese: o WebKit arrasta os elementos `position:fixed` com a camada da página numa lista longa recortada por `overflow:hidden` + `border-radius`. Correção defensiva (`css/rac.css`, versão `2026-11-15.9`): camada própria (`translate3d`) para `#barra`, `.voltarbtn`, `.topobtn`, `.capbtn` e `overflow:clip` na lista. Teste de texto em `tests/inbox_notificacao_abrir.test.mjs`.
 - **Próximo:** o dono confirma no iPhone; se persistir, medir (lista com poucas mensagens? outra página também?) e considerar limitar as linhas desenhadas (paginar a lista).
+## 15/11/2026 (noite) · RAC Inbox — notificação com assunto/remetente e abertura direta (branch `claude/inbox-push-mensagem-direta`)
+
+### 1. O que fizemos
+- Auditoria: o aviso era montado em `rotina.ts` (`montarAviso`, só contagem) a partir de ids de `pendentes()`; a mensagem tem id estável (`inbox_mensagens_ref.id`); o `sw.js` já abre qualquer destino do aviso; faltava o Inbox aceitar a mensagem na rota.
+- `pendentes()` passou a devolver id, pasta, assunto e remetente (da linha já gravada); uma notificação por mensagem (até 4; acima, 3 + resumo); título = assunto, corpo = remetente, destino `#inbox/conta/pasta/mensagem`; limpeza e corte de texto; falha de push só mantém pendente a mensagem afetada. `js/rotas.js` e `js/inbox.js` abrem direto a leitura. Versão `2026-11-15.8`.
+- Testes: `tests/inbox_automatico.test.mjs` (conteúdo, agrupamento, integração com deduplicação), `tests/inbox_notificacao_abrir.test.mjs` (toque fechado/segundo plano/aberto, destinos distintos), `tests/inbox_tela.test.mjs` (abertura direta).
+
+### 2. O que estamos fazendo
+- PR aberto. **Exige republicar a função `rac-inbox`** (o aviso novo é montado no servidor) e o site; sem migration.
+
+### 3. O que vamos fazer
+- Validar no iPhone: assunto/remetente corretos e toque abrindo a mensagem, sem passar pela lista.
 

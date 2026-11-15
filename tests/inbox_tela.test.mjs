@@ -33,9 +33,9 @@ function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], men
   const raiz = new No("div"), titulo = new No("h1"), gravacoes = [], lidas = [], chamadas = [];
   const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : null) };
   const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, limit() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
-    update(l) { gravacoes.push([t, "update", l]); return q; }, eq() { return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
+    update(l) { gravacoes.push([t, "update", l]); return q; }, eq(c, v) { q._eq = [c, v]; return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
     then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
-      const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
+      const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: q._eq ? dados.filter((x) => x[q._eq[0]] === q._eq[1]) : dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
   const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
     sbOk: (r) => { if (r.error) throw r.error; return r.data; }, SB: { from: tabela, functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(invoke ? invoke(nome, o) : { data: { ok: true, credencial: "guardada" }, error: null }); } } }, racDica: { ligar() {}, em() {} },
     precisa: (l) => Promise.all(l.map((m) => { vm.runInContext(fs.readFileSync(new URL(`../js/${m}.js`, import.meta.url), "utf8"), ctx, { filename: `js/${m}.js` }); })) };
@@ -363,10 +363,30 @@ test("rotina automática (054): preferências 'sincronizar sozinho' e 'avisar' s
   const caixas = todos(a.raiz).filter((n) => n.tag === "input" && n.attrs.type === "checkbox");
   assert.deepEqual(caixas.map((c) => [c.attrs.id, c.checked]), [["inb-pref-sync_auto", true], ["inb-pref-notificar", true]]);
   assert.match(texto(a.raiz), /Sincronizar automaticamente a cada 10 minutos/); assert.match(texto(a.raiz), /Avisar por notificação quando chegar e-mail novo/); assert.match(texto(a.raiz), /feita pela rotina do servidor/);
-  assert.match(texto(a.raiz), /só a quantidade, nunca o conteúdo/, "a tela promete só a contagem");
+  assert.match(texto(a.raiz), /assunto e o remetente \(nunca o texto do e-mail\)/, "a tela diz o que o aviso mostra");
   caixas[1].checked = false; caixas[1].onchange(); await assentar();
   assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [["inbox_contas", "update", { notificar: false }]], "só a coluna pedida; nenhuma senha, nenhum outro dado");
   assert.ok(selos.length >= 1 && selos.every((n) => Number.isInteger(n) && n >= 0), "o selo recebe um número de não lidas (ou limpa)");
   const rot = ambiente(REAL({ contas: [{ ...CONTA_OK, sync_auto: true, notificar: true }] })); await rot.abrir(UUID); await assentar(); opcoes(rot.raiz); assert.match(texto(rot.raiz), /ainda não sincronizou esta conta/, "sem origem 'agenda', não afirma que a rotina rodou");
+});
+
+test("aviso de e-mail (Web Push): #inbox/<conta>/<pasta>/<mensagem> abre DIRETO a leitura dessa mensagem (sem parar na lista), por ID; mensagens diferentes, destinos diferentes; id inválido ou ausente cai na lista", async () => {
+  const LEIT = ok({ mensagem: { texto: "corpo", formato: "texto", truncado: false, anexos: [] } });
+  const a = ambiente(REAL({ invoke: () => LEIT })), trocas = []; a.ctx.history = { state: null, replaceState: (s, t, u) => trocas.push(u) };
+  await a.abrir(UUID, P_IN, MSG(2).id); await assentar();
+  assert.deepEqual(a.chamadas[0], ["rac-inbox", { body: { operacao: "ler_mensagem", conta_id: UUID, pasta_id: P_IN, uid: 2 } }], "leu a mensagem do ID, não a primeira da lista");
+  let L = texto(comClasse(a.raiz, "inb-leitura")[0]); assert.ok(L.includes("Assunto 2") && L.includes("ana2@exemplo.com") && !L.includes("Assunto 3"), "cabeçalho da mensagem certa");
+  assert.equal(a.ctx.INBX.painel, "leitura"); assert.equal(a.ctx.INBX.msg, MSG(2).id); assert.deepEqual([...trocas], ["#inbox/" + UUID + "/" + P_IN], "o endereço volta ao da lista (recarregar não reabre a mensagem)");
+  await a.abrir(UUID, P_IN, MSG(3).id); await assentar();   // outro aviso: outro destino
+  assert.equal(a.chamadas.at(-1)[1].body.uid, 3); L = texto(comClasse(a.raiz, "inb-leitura")[0]); assert.ok(L.includes("Assunto 3") && !L.includes("Assunto 2"));
+  // fora do cache da lista: busca a linha pelo ID (só leitura) e abre
+  a.ctx.INBX.msgs = []; a.chamadas.length = 0; await a.ctx.inboxAbrirDoAviso(MSG(1).id); await assentar();
+  assert.equal(a.chamadas[0][1].body.uid, 1); assert.equal(a.ctx.INBX.msg, MSG(1).id);
+  // mensagem que não existe mais: aviso claro e a lista continua
+  const b = ambiente(REAL({ invoke: () => LEIT })); b.ctx.history = { state: null, replaceState() {} }; await b.abrir(UUID, P_IN, "dddddddd-0000-4000-8000-0000000000ff"); await assentar();
+  assert.equal(b.chamadas.length, 0); assert.match(texto(b.raiz), /não está mais no cache/); assert.equal(b.ctx.INBX.painel, "lista");
+  // id inválido / sem id: lista normal
+  for (const ruim of ["x", "1; drop", undefined]) { const c = ambiente(REAL({ invoke: () => LEIT })); await c.abrir(UUID, P_IN, ruim); await assentar(); assert.equal(c.chamadas.length, 0, String(ruim)); assert.equal(c.ctx.INBX.painel, "lista"); }
+  assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [], "abrir pelo aviso não grava nada");
 });
 

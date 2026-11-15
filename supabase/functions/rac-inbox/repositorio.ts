@@ -120,11 +120,11 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
       return r.map((x) => ({ conta: String(x.conta), dono: String(x.dono), apelido: String(x.apelido), notificar: x.notificar === true, pasta_id: String(x.pasta_id), falhas: Number(x.falhas),
         ultima_tentativa_em: x.ultima_tentativa_em ? new Date(x.ultima_tentativa_em as string).toISOString() : null }));
     },
-    // o que ainda não foi tratado pelo aviso: não lidas, dos últimos 24 h. As lidas e as antigas são marcadas como tratadas (nunca viram aviso tardio).
+    // o que ainda não foi tratado pelo aviso: não lidas, dos últimos 24 h, com assunto e remetente (já gravados pela sincronização: nenhuma consulta extra ao provedor). As lidas e as antigas são marcadas como tratadas (nunca viram aviso tardio).
     async pendentes(dono, conta) {
       await sessao.exec("update public.inbox_mensagens_ref set notificada_em = now() where conta_id = $1 and dono = $2 and notificada_em is null and (lida or criado_em <= now() - interval '24 hours')", [conta, dono]);
-      const r = await sessao.exec("select id from public.inbox_mensagens_ref where conta_id = $1 and dono = $2 and notificada_em is null and not lida order by recebida_em desc nulls last limit 200", [conta, dono]);
-      return r.map((x) => String(x.id));
+      const r = await sessao.exec("select id, pasta_id, assunto, remetente_nome, remetente_endereco from public.inbox_mensagens_ref where conta_id = $1 and dono = $2 and notificada_em is null and not lida and pasta_id is not null order by recebida_em desc nulls last, uid desc limit 200", [conta, dono]);
+      return r.map((x) => ({ id: String(x.id), pasta_id: String(x.pasta_id), assunto: (x.assunto as string | null) ?? null, nome: (x.remetente_nome as string | null) ?? null, endereco: (x.remetente_endereco as string | null) ?? null }));
     },
     async marcarNotificadas(dono, conta, ids) {
       if (!ids.length) return;

@@ -67,8 +67,8 @@ test("roteador: sem papel/sessão não navega (o #inbox continua no endereço); 
   assert.match(app, /function route\(\)\{\s*if\(!PAPEL\)return;/); assert.match(app, /window\.addEventListener\("hashchange",route\)/);
   assert.match(app, /route\(\);notifPendente\(true\)\}/, "route() antes de notifPendente(true)");
   assert.match(app, /parts=\(location\.hash\|\|""\)\.replace\("#",""\)\.split\("\/"\)/, "o destino vem do endereço");
-  const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\]\)\}/);
-  assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\],p\[3\]\)\}/);
+  assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta,msg\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
 });
 
 /* ---------- o carregador de módulos (trecho REAL de js/app.js) ---------- */
@@ -127,14 +127,47 @@ test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do ar
   const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
 });
 
-test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.7", () => {
-  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.7"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.7"/); assert.ok(ler("index.html").includes("2026-11-15.7"));
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.9", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.9"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.9"/); assert.ok(ler("index.html").includes("2026-11-15.9"));
 });
 
-test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.7", () => {
+/* ---------- aviso de e-mail: título = assunto, corpo = remetente, toque abre a MENSAGEM ---------- */
+const CONTA_ID = "aaaaaaaa-0000-4000-8000-000000000001", PASTA_ID = "bbbbbbbb-0000-4000-8000-000000000001", M1 = "dddddddd-0000-4000-8000-000000000001", M2 = "dddddddd-0000-4000-8000-000000000002";
+const alvoMsg = (id) => "#inbox/" + CONTA_ID + "/" + PASTA_ID + "/" + id;
+const avisoMsg = (id, assunto, corpo) => ({ titulo: assunto, corpo, url: "./" + alvoMsg(id), tag: "inbox-msg-" + id, badge: 2, renotificar: true });
+
+test("a notificação mostra o assunto (título) e o remetente (corpo) enviados pelo servidor, com tag por mensagem; o destino #inbox/conta/pasta/mensagem passa pelo notifHash intacto", async () => {
+  const a = sw(), n = await a.push(avisoMsg(M1, "Nota fiscal da compra", "João Silva — exemplo@email.com"));
+  assert.deepEqual([n.titulo, n.body, n.tag, n.renotify, n.data.url], ["Nota fiscal da compra", "João Silva — exemplo@email.com", "inbox-msg-" + M1, true, "./" + alvoMsg(M1)]);
+  assert.equal(N.notifHash(n.data.url, SITE), alvoMsg(M1), "o hash com o ID da mensagem é preservado"); assert.equal(N.notifHash("https://outro.example/" + alvoMsg(M1), SITE), "", "outro site nunca");
+});
+
+test("RAC FECHADO: cada notificação abre uma janela já na mensagem dela (destino guardado também); duas notificações = dois destinos diferentes", async () => {
+  const a = sw(), n1 = await a.push(avisoMsg(M1, "Assunto 1", "A — a@x.co")), n2 = await a.push(avisoMsg(M2, "Assunto 2", "B — b@x.co"));
+  await a.tocar(n1.data); assert.deepEqual([...a.abertas], [SITE + alvoMsg(M1)]); assert.equal((await guardado(a.caches)).url, SITE + alvoMsg(M1));
+  await a.tocar(n2.data); assert.deepEqual([...a.abertas], [SITE + alvoMsg(M1), SITE + alvoMsg(M2)]); assert.equal((await guardado(a.caches)).url, SITE + alvoMsg(M2), "o destino guardado é o da última notificação tocada, não o da primeira");
+});
+
+test("RAC EM SEGUNDO PLANO e JÁ ABERTO: a janela é reutilizada e recebe o destino da mensagem tocada (mensagem certa em cada toque); nunca abre outra janela", async () => {
+  const log = [], j = janela({ url: SITE + "#inbox/" + CONTA_ID + "/" + PASTA_ID, visivel: false, log }), a = sw({ janelas: [j] });
+  const n1 = await a.push(avisoMsg(M1, "Assunto 1", "A — a@x.co")), n2 = await a.push(avisoMsg(M2, "Assunto 2", "B — b@x.co"));
+  await a.tocar(n2.data); await a.tocar(n1.data);
+  assert.deepEqual(JSON.parse(JSON.stringify(j.recebidas)), [{ tipo: "rac-abrir", url: SITE + alvoMsg(M2) }, { tipo: "rac-abrir", url: SITE + alvoMsg(M1) }], "cada toque leva à sua mensagem, na ordem em que foi tocado"); assert.deepEqual([...a.abertas], []);
+  const log2 = [], aberta = janela({ url: SITE + alvoMsg(M1), focused: true, log: log2 }), b = sw({ janelas: [aberta] }); await b.tocar((await b.push(avisoMsg(M1, "Assunto 1", "A"))).data);
+  assert.deepEqual([...aberta.navegou], [], "já está nesse endereço: não navega de novo"); assert.equal(aberta.recebidas.length, 1);
+});
+
+test("página: o aviso recebido leva ao hash da mensagem (notifIr) e o roteador entrega conta, pasta e mensagem ao Inbox (rotas.js → renderInbox)", () => {
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /renderInbox\(p\[1\],p\[2\],p\[3\]\)/);
+  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
+  const inbox = ler("js/inbox.js"); assert.match(inbox, /function renderInbox\(conta,pasta,msg\)/); assert.match(inbox, /INB_RE_ID\.test\(msg\|\|""\)/); assert.match(inbox, /inboxAbrirMsg\(m\.id\)/);
+});
+
+
+test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.9", () => {
   const css = ler("css/rac.css");
   assert.match(css, /html\.logado:not\(\.casa\) #barra,\.voltarbtn,\.topobtn,\.capbtn\{-webkit-transform:translate3d\(0,0,0\);transform:translate3d\(0,0,0\)/);
   assert.match(css, /\.inb-linhas\{[^}]*overflow:hidden;overflow:clip/);
   assert.match(css, /html\.logado:not\(\.casa\) #barra\{display:flex;position:fixed;left:0;right:0;bottom:0/, "a barra continua fixa embaixo");
-  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.7"), f);
+  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.9"), f);
 });

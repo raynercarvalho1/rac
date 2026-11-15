@@ -4,7 +4,7 @@
 //   - só fala com as inscrições do dono da conta; apaga apenas as inscrições desse dono que o serviço de push diz que morreram (404/410): quem reativa em Sistema → Notificações volta a receber;
 //   - NÃO mexe no aviso diário das 6h (rotina da Garmin): é outra mensagem, com outra "tag".
 // Lógica pura e testada (tests/inbox_automatico.test.mjs, com decifragem do lado do aparelho); o fetch é injetado.
-// O conteúdo do aviso nunca leva remetente, assunto, corpo nem endereço: só a contagem (rotina.ts monta a mensagem).
+// O conteúdo do aviso é montado em rotina.ts: assunto e remetente da mensagem (decisão do dono, 15/11/2026); NUNCA o corpo do e-mail.
 
 export type Vapid = { publica: string; jwk: JsonWebKey };
 export type Inscricao = { id?: number; endpoint: string; p256dh: string; auth: string };

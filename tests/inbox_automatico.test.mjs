@@ -8,7 +8,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { rodarRotina, esperaMin, montarAviso, codigoDoErro } from "../supabase/functions/rac-inbox/rotina.ts";
+import { rodarRotina, esperaMin, montarAviso, montarResumo, planejarAvisos, tituloDoAviso, corpoDoAviso, destinoDaMensagem, codigoDoErro } from "../supabase/functions/rac-inbox/rotina.ts";
 import { entregar, cifrar, cabecalhoVapid, endpointValido } from "../supabase/functions/rac-inbox/push.ts";
 import { empacotar } from "../supabase/functions/rac-inbox/contrato.ts";
 import { criarRepositorio, criarBancoPush } from "../supabase/functions/rac-inbox/repositorio.ts";
@@ -19,6 +19,7 @@ const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").
 const semComent = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1").replace(/--.*$/gm, "");
 const U1 = "11111111-1111-4111-8111-111111111111", C1 = "aaaaaaaa-0000-4000-8000-000000000001", C2 = "aaaaaaaa-0000-4000-8000-000000000002", P1 = "bbbbbbbb-0000-4000-8000-000000000001", P2 = "bbbbbbbb-0000-4000-8000-000000000002";
 const USUARIO = "a@icloud.example", SENHA = "aaaa-bbbb-cccc-dddd";
+const PEND = (n = 1, extra = {}) => ({ id: "m" + n, pasta_id: P1, assunto: "Nota fiscal da compra", nome: "João Silva", endereco: "joao@exemplo.com", ...extra });
 const AGORA = Date.parse("2026-11-15T12:00:00Z"), iso = (ms) => new Date(ms).toISOString();
 
 const msg = (uid, extra = {}) => ({ uid, recebida: "2026-11-15T11:50:00.000Z", tamanho: 900, lida: false, sinalizada: false, respondida: false, de: { nome: "Ana Segredo", endereco: "ana@exemplo.com" }, para: [], assunto: "ASSUNTO-CONFIDENCIAL " + uid, message_id: null, anexo_provavel: false, ...extra });
@@ -35,13 +36,13 @@ function mundo({ contas = [{ conta: C1, dono: U1, apelido: "Pessoal", notificar:
     async travar(c) { if (travadas.has(c)) return false; travadas.add(c); log.push("travar"); return true; }, async destravar(c) { travadas.delete(c); log.push("destravar"); },
     async aplicarSync(d, c, id, a) {
       aplicados.push(a);
-      for (const m of a.mensagens) if (!a.silenciosa) pend.push("m" + m.uid); else tratadas.add("m" + m.uid);
+      for (const m of a.mensagens) if (!a.silenciosa) pend.push({ id: "m" + m.uid, pasta_id: id, assunto: m.assunto, nome: m.de?.nome ?? null, endereco: m.de?.endereco ?? null }); else tratadas.add("m" + m.uid);
       cursores.set(id, { uidvalidity: a.uidvalidity, uidnext: a.cursor, reconciliada_em: a.reconciliada ? iso(AGORA) : cursores.get(id)?.reconciliada_em ?? null });
       return { novas: a.mensagens.length, atualizadas: 0, removidas: 0 };
     },
     async semMudanca(d, c, id, a) { semMud.push(a); },
     async falhaSync(d, c, id, e) { falhas.push(e); }, async estadoConta(d, c, e, er) { estados.push([e, er]); },
-    async pendentes() { return pend.filter((x) => !tratadas.has(x)); },
+    async pendentes() { return pend.filter((x) => !tratadas.has(x.id)); },
     async marcarNotificadas(d, c, ids) { for (const i of ids) tratadas.add(i); },
     async naoLidasEntrada() { return naoLidas; },
   };
@@ -65,16 +66,20 @@ test("rotina sem sessão de navegador, RAC fechado: sem mudança no cursor = só
   assert.ok(logs.every((l) => l.operacao === "rotina_sync")); semSegredo(r, logs);
 });
 
-test("e-mail novo: lê SÓ depois do cursor (nunca as últimas 50), não apaga nada do cache, cursor avança, um aviso só com a contagem", async () => {
+test("e-mail novo: lê SÓ depois do cursor (nunca as últimas 50), não apaga nada do cache, cursor avança, UMA notificação por mensagem com o assunto e o remetente DA MESMA mensagem, destino = id da mensagem", async () => {
   const m = mundo(), w = worker((op) => (op === "estado_pasta" ? estado(13, 12) : janela(13, faixa(10, 12))));
   const { r } = await rodar(m, w);
   assert.deepEqual(w.chamadas.map((c) => [c[0], c[1].desde_uid, c[1].ultimas, c[1].limite, c[1].uidvalidity_esperado]), [["estado_pasta", undefined, undefined, undefined, undefined], ["listar_mensagens", 10, undefined, 100, 700]]);
   const a = m.aplicados[0]; assert.deepEqual([a.tipo, a.cursor, a.purgar, a.semRemocao, a.silenciosa, a.reconciliada, a.origem, a.total, a.mensagens.map((x) => x.uid)], ["novas_mensagens", 13, false, true, false, false, "agenda", 12, [12, 11, 10]]);
-  assert.deepEqual([r.sincronizadas, r.novas, r.avisos, r.falhas], [1, 3, 1, 0]);
-  assert.equal(m.avisos.length, 1); const av = m.avisos[0].m;
-  assert.deepEqual(av, { titulo: "RAC Inbox", corpo: "3 novas mensagens", url: "./#inbox", tag: "inbox-" + C1, badge: 4, renotificar: true });
-  const txt = JSON.stringify(av); for (const proibido of ["Ana", "ana@", "ASSUNTO", "CONFIDENCIAL", "Pessoal", USUARIO, SENHA]) assert.ok(!txt.includes(proibido), "o aviso não pode levar: " + proibido);
-  assert.deepEqual(av, montarAviso(C1, 3, 4)); assert.equal(montarAviso(C1, 1, -2).corpo, "1 nova mensagem"); assert.equal(montarAviso(C1, 1, -2).badge, 0);
+  assert.deepEqual([r.sincronizadas, r.novas, r.avisos, r.falhas], [1, 3, 3, 0]);
+  assert.equal(m.avisos.length, 3, "uma notificação por mensagem"); const av = m.avisos.map((x) => x.m);
+  assert.deepEqual(av.map((x) => x.titulo), ["ASSUNTO-CONFIDENCIAL 10", "ASSUNTO-CONFIDENCIAL 11", "ASSUNTO-CONFIDENCIAL 12"], "do mais antigo ao mais novo (o mais novo fica por cima); cada título é o assunto da própria mensagem");
+  for (const x of av) assert.equal(x.corpo, "Ana Segredo — ana@exemplo.com");
+  assert.deepEqual(av.map((x) => x.url), ["10", "11", "12"].map((u) => "./#inbox/" + C1 + "/" + P1 + "/m" + u), "o destino é a conta, a pasta e o ID da mensagem (nunca assunto/remetente)");
+  assert.deepEqual(av.map((x) => x.tag), ["inbox-msg-m10", "inbox-msg-m11", "inbox-msg-m12"], "tag por mensagem: uma não substitui a outra");
+  assert.ok(av.every((x) => x.badge === 4 && x.renotificar === true));
+  const txt = JSON.stringify(av); for (const proibido of ["Pessoal", USUARIO, SENHA]) assert.ok(!txt.includes(proibido), "o aviso não pode levar: " + proibido);
+  assert.deepEqual(av[2], montarAviso(C1, { id: "m12", pasta_id: P1, assunto: "ASSUNTO-CONFIDENCIAL 12", nome: "Ana Segredo", endereco: "ana@exemplo.com" }, 4));
 });
 
 test("sem duplicação: a mesma mensagem nunca é avisada duas vezes, e a rodada seguinte (sem mudança) não avisa nada", async () => {
@@ -194,9 +199,9 @@ test("Web Push com o app fechado: o aviso chega cifrado a cada aparelho do dono,
   const a1 = await aparelho(1), a2 = await aparelho(2), { par, vapid } = await vapidNovo(), enviados = [];
   const banco = { async vapid() { return vapid; }, async inscricoes(uid) { assert.equal(uid, U1); return [a1.insc, a2.insc]; }, async apagarInscricao() { assert.fail("ninguém expirou"); } };
   const fetchFalso = async (url, init) => { enviados.push({ url, init }); return { status: 201 }; };
-  const e = await entregar(banco, U1, montarAviso(C1, 2, 7), fetchFalso);
+  const e = await entregar(banco, U1, montarAviso(C1, PEND(), 7), fetchFalso);
   assert.deepEqual(e, { aparelhos: 2, enviados: 2, removidas: 0, semChaves: false }); assert.deepEqual(enviados.map((x) => x.url), [a1.insc.endpoint, a2.insc.endpoint]);
-  const claro = JSON.parse(await decifrar(enviados[0].init.body, a1)); assert.deepEqual(claro, { titulo: "RAC Inbox", corpo: "2 novas mensagens", url: "./#inbox", tag: "inbox-" + C1, badge: 7, renotificar: true });
+  const claro = JSON.parse(await decifrar(enviados[0].init.body, a1)); assert.deepEqual(claro, { titulo: "Nota fiscal da compra", corpo: "João Silva — joao@exemplo.com", url: "./#inbox/" + C1 + "/" + P1 + "/m1", tag: "inbox-msg-m1", badge: 7, renotificar: true });
   await assert.rejects(decifrar(enviados[0].init.body, a2), "outro aparelho não decifra");
   const [t, k] = /vapid t=([^,]+), k=(.+)/.exec(enviados[0].init.headers.Authorization).slice(1), [cab, pay, ass] = t.split("."); assert.equal(k, vapid.publica);
   assert.ok(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, par.publicKey, Buffer.from(ass, "base64url"), tt(cab + "." + pay)), "assinatura VAPID válida"); assert.equal(JSON.parse(Buffer.from(pay, "base64url")).aud, "https://push.exemplo.net");
@@ -208,15 +213,15 @@ test("inscrição expirada (404/410) é apagada só do dono e a renovação (nov
   let lista = [velho.insc, vivo.insc];
   const banco = { async vapid() { return vapid; }, async inscricoes() { return lista; }, async apagarInscricao(uid, id) { apagadas.push([uid, id]); lista = lista.filter((x) => x.id !== id); } };
   const st = { 1: 410, 2: 201 }; const f = async (url) => ({ status: url.endsWith("/1") ? st[1] : st[2] });
-  assert.deepEqual(await entregar(banco, U1, montarAviso(C1, 1, 1), f), { aparelhos: 2, enviados: 1, removidas: 1, semChaves: false }); assert.deepEqual(apagadas, [[U1, 1]]);
+  assert.deepEqual(await entregar(banco, U1, montarAviso(C1, PEND(), 1), f), { aparelhos: 2, enviados: 1, removidas: 1, semChaves: false }); assert.deepEqual(apagadas, [[U1, 1]]);
   const renovado = await aparelho(3, "https://push.exemplo.net/send/1");   // o usuário reativou em Sistema → Notificações: nova inscrição
-  lista = [renovado.insc]; st[1] = 201; assert.equal((await entregar(banco, U1, montarAviso(C1, 1, 1), f)).enviados, 1, "a renovação recebe");
-  lista = [vivo.insc]; assert.deepEqual(await entregar(banco, U1, montarAviso(C1, 1, 1), async () => ({ status: 503 })), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: false }); assert.equal(apagadas.length, 1, "503 é temporário: não apaga");
-  assert.deepEqual(await entregar({ ...banco, async inscricoes() { return []; } }, U1, montarAviso(C1, 1, 1), f), { aparelhos: 0, enviados: 0, removidas: 0, semChaves: false });
-  assert.deepEqual(await entregar({ ...banco, async vapid() { return null; } }, U1, montarAviso(C1, 1, 1), f), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: true });
-  assert.deepEqual(await entregar(banco, U1, montarAviso(C1, 1, 1), async () => { throw new Error("rede"); }), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: false }, "falha de rede não derruba");
+  lista = [renovado.insc]; st[1] = 201; assert.equal((await entregar(banco, U1, montarAviso(C1, PEND(), 1), f)).enviados, 1, "a renovação recebe");
+  lista = [vivo.insc]; assert.deepEqual(await entregar(banco, U1, montarAviso(C1, PEND(), 1), async () => ({ status: 503 })), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: false }); assert.equal(apagadas.length, 1, "503 é temporário: não apaga");
+  assert.deepEqual(await entregar({ ...banco, async inscricoes() { return []; } }, U1, montarAviso(C1, PEND(), 1), f), { aparelhos: 0, enviados: 0, removidas: 0, semChaves: false });
+  assert.deepEqual(await entregar({ ...banco, async vapid() { return null; } }, U1, montarAviso(C1, PEND(), 1), f), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: true });
+  assert.deepEqual(await entregar(banco, U1, montarAviso(C1, PEND(), 1), async () => { throw new Error("rede"); }), { aparelhos: 1, enviados: 0, removidas: 0, semChaves: false }, "falha de rede não derruba");
   assert.equal(endpointValido("http://x.com/a"), false); assert.equal(endpointValido("https://localhost/a"), false); assert.equal(endpointValido("https://10.0.0.1/a"), false); assert.equal(endpointValido("https://fcm.googleapis.com/send/x"), true);
-  await assert.rejects(entregar(banco, "", montarAviso(C1, 1, 1), f), /sem destinatário/);
+  await assert.rejects(entregar(banco, "", montarAviso(C1, PEND(), 1), f), /sem destinatário/);
   assert.ok((await cifrar("x", renovado.insc.p256dh, renovado.insc.auth)).length > 80); assert.match(await cabecalhoVapid("https://push.exemplo.net/x", vapid), /^vapid t=/);
 });
 
@@ -297,7 +302,7 @@ test("PGlite · repositório da rotina: aviso só para mensagem nova não lida (
   await repo.aplicarSync(R, c, p, apl({ mensagens: [L(4), { ...L(5), lida: true }], cursor: 6, total: 5, semRemocao: true, silenciosa: false, reconciliada: false, origem: "agenda", removerDe: 1, removerAte: 0 }));
   assert.equal((await db.query("select count(*)::int as n from public.inbox_mensagens_ref")).rows[0].n, 5, "semRemocao: nada foi apagado do cache");
   const rec = (await db.query("select reconciliada_em from public.inbox_sincronizacao")).rows[0].reconciliada_em; assert.ok(rec, "reconciliada_em guardada de rodada anterior continua");
-  const ids = await repo.pendentes(R, c); assert.equal(ids.length, 1, "só a não lida; a lida já saiu tratada");
+  const pend = await repo.pendentes(R, c), ids = pend.map((x) => x.id); assert.equal(ids.length, 1, "só a não lida; a lida já saiu tratada"); assert.deepEqual([pend[0].pasta_id, pend[0].assunto, pend[0].nome, pend[0].endereco], [p, "s4", "n", "n@exemplo.com"], "o aviso nasce da linha gravada pela sincronização (nenhuma consulta extra)");
   assert.deepEqual(await repo.pendentes(X, c), [], "outro dono nunca enxerga nem trata a mensagem");
   await repo.marcarNotificadas(X, c, ids); assert.equal((await repo.pendentes(R, c)).length, 1, "marcar com o dono errado não faz nada");
   await repo.marcarNotificadas(R, c, ids); assert.deepEqual(await repo.pendentes(R, c), [], "tratada: nunca avisa de novo"); await repo.marcarNotificadas(R, c, []);
@@ -471,3 +476,49 @@ test("prazo duro: sem pelo menos 5 s restantes a chamada ao Worker nem é feita;
   assert.equal(n, 1, "a 2ª chamada (restavam 3 s) foi recusada antes de sair"); assert.deepEqual([r.ignoradas, r.falhas], [1, 0]); assert.ok(logs.some((l) => l.codigo === "prazo_esgotado"));
   assert.deepEqual([m.falhas.length, m.marcas.length, m.estados.length, m.aplicados.length, m.travadas.size], [0, 0, 0, 0, 0]);
 });
+
+/* ---------- conteúdo da notificação (assunto e remetente; nunca o corpo) ---------- */
+test("conteúdo: título = assunto; corpo = nome — endereço; assunto vazio = (Sem assunto); sem nome = endereço; nome igual ao endereço não repete; só nome ou nada tem texto de reserva", () => {
+  assert.deepEqual([tituloDoAviso("Nota fiscal da compra"), corpoDoAviso("João Silva", "exemplo@email.com")], ["Nota fiscal da compra", "João Silva — exemplo@email.com"]);
+  for (const v of [null, "", "   ", "\n\t "]) assert.equal(tituloDoAviso(v), "(Sem assunto)");
+  assert.equal(corpoDoAviso(null, "a@b.co"), "a@b.co"); assert.equal(corpoDoAviso("", "a@b.co"), "a@b.co"); assert.equal(corpoDoAviso("A@B.CO", "a@b.co"), "a@b.co", "nome igual ao endereço: sem repetir");
+  assert.equal(corpoDoAviso("Só Nome", null), "Só Nome"); assert.equal(corpoDoAviso(null, null), "Remetente desconhecido");
+  const p = montarAviso(C1, PEND(1, { assunto: null, nome: null }), 2); assert.deepEqual([p.titulo, p.corpo], ["(Sem assunto)", "joao@exemplo.com"]);
+});
+
+test("conteúdo: caracteres especiais e textos longos não quebram a notificação (controles e direção removidos, corte por caractere, emoji inteiro, JSON válido e pequeno)", async () => {
+  const sujo = "Olá\u0000\u0007\n\r\t mundo \u202Eevil\u202C \u200B<b>\"aspas\"</b> 'x' & \\ \u2028fim";
+  const t = tituloDoAviso(sujo); assert.ok(!/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e]/.test(t), "sem controle nem direção"); assert.equal(t, 'Olá mundo evil <b>"aspas"</b> \'x\' & \\ fim', "texto preservado como TEXTO (a notificação não interpreta HTML)");
+  const longo = "x".repeat(500), tl = tituloDoAviso(longo); assert.equal([...tl].length, 100); assert.ok(tl.endsWith("…"));
+  const emojis = "😀".repeat(150), te = tituloDoAviso(emojis); assert.equal([...te].length, 100); assert.ok(!/[\ud800-\udbff]$/.test(te) && ![...te].some((c) => c.length === 1 && /[\ud800-\udfff]/.test(c)), "não corta um emoji ao meio");
+  const c = corpoDoAviso("N".repeat(300), "e".repeat(300) + "@x.co"); assert.ok([...c].length <= 140);
+  const msg = montarAviso(C1, PEND(1, { assunto: longo + sujo, nome: "N".repeat(400), endereco: "e".repeat(400) + "@x.co" }), 9);
+  const json = JSON.stringify(msg); assert.deepEqual(JSON.parse(json), msg); assert.ok(new TextEncoder().encode(json).length < 1500, "bem abaixo do limite do Web Push (≈4 KB)");
+  const a = await aparelho(1), { vapid } = await vapidNovo(), env = [];
+  await entregar({ async vapid() { return vapid; }, async inscricoes() { return [a.insc]; }, async apagarInscricao() {} }, U1, msg, async (u, i) => { env.push(i); return { status: 201 }; });
+  assert.deepEqual(JSON.parse(await decifrar(env[0].body, a)), msg, "chega inteiro e decifrável");
+});
+
+test("várias mensagens no mesmo ciclo: até 4 = uma notificação cada; acima disso, as 3 mais novas individuais + UM resumo; cada aviso com o assunto e o remetente da própria mensagem; nenhuma mistura; destinos distintos", () => {
+  const lista = (n) => Array.from({ length: n }, (_, i) => PEND(n - i, { assunto: "S" + (n - i), nome: "N" + (n - i), endereco: "e" + (n - i) + "@x.co" }));   // da mais nova para a mais antiga
+  for (const n of [1, 2, 3, 4]) { const pl = planejarAvisos(C1, lista(n), 5); assert.equal(pl.length, n); for (const { msg, ids } of pl) { const k = ids[0].slice(1); assert.deepEqual([msg.titulo, msg.corpo], ["S" + k, "N" + k + " — e" + k + "@x.co"], "assunto e remetente da MESMA mensagem"); assert.equal(msg.url, destinoDaMensagem(C1, { id: ids[0], pasta_id: P1 })); assert.equal(ids.length, 1); } assert.equal(new Set(pl.map((x) => x.msg.url)).size, n, "destinos distintos"); assert.equal(new Set(pl.map((x) => x.msg.tag)).size, n); }
+  const pl = planejarAvisos(C1, lista(7), 7); assert.equal(pl.length, 4);
+  const res = pl.find((x) => x.msg.tag === "inbox-" + C1); assert.deepEqual([res.msg.titulo, res.msg.corpo, res.msg.url, res.ids.length], ["RAC Inbox", "Mais 4 novas mensagens", "./#inbox", 4]); assert.deepEqual([...res.ids].sort(), ["m1", "m2", "m3", "m4"]);
+  const ind = pl.filter((x) => x !== res); assert.deepEqual(ind.map((x) => x.ids[0]).sort(), ["m5", "m6", "m7"], "as 3 mais novas individuais"); assert.equal(pl.at(-1).ids[0], "m7", "o mais novo é o último enviado (fica por cima)");
+  assert.equal(montarResumo(C1, 1, 3).corpo, "Mais 1 nova mensagem"); assert.deepEqual(new Set(pl.flatMap((x) => x.ids)).size, 7, "toda mensagem coberta uma vez só");
+});
+
+test("rotina com várias mensagens: 6 novas = 3 individuais + resumo, todas tratadas (nada repete); push que falha mantém SÓ as mensagens daquele aviso pendentes e as outras seguem; a rodada seguinte reenvia só o que faltou", async () => {
+  const m = mundo(), w = worker((op) => (op === "estado_pasta" ? estado(16, 15) : janela(16, faixa(10, 15))));
+  const { r } = await rodar(m, w);
+  assert.equal(m.avisos.length, 4); assert.equal(r.avisos, 4); assert.deepEqual(m.avisos.map((x) => x.m.titulo).slice(-1), ["ASSUNTO-CONFIDENCIAL 15"]); assert.ok(m.avisos.some((x) => x.m.corpo === "Mais 3 novas mensagens"));
+  assert.deepEqual(await m.banco.pendentes(), [], "todas tratadas");
+  const w2 = worker(estado(16, 15)); await rodar(m, w2); assert.equal(m.avisos.length, 4, "sem repetição na rodada seguinte");
+  // falha só do aviso da mensagem 12
+  const m2 = mundo(), w3 = worker((op) => (op === "estado_pasta" ? estado(13, 12) : janela(13, faixa(10, 12))));
+  m2.aviso.enviar = async (d, msg) => { if (msg.tag === "inbox-msg-m12") return { aparelhos: 1, enviados: 0, removidas: 0, semChaves: false }; m2.avisos.push({ d, msg }); return { aparelhos: 1, enviados: 1, removidas: 0, semChaves: false }; };
+  const { r: r2 } = await rodar(m2, w3); assert.equal(r2.avisos, 2); assert.deepEqual((await m2.banco.pendentes()).map((x) => x.id), ["m12"], "só a mensagem cujo aviso falhou continua pendente");
+  m2.aviso.enviar = async (d, msg) => { m2.avisos.push({ d, msg }); return { aparelhos: 1, enviados: 1, removidas: 0, semChaves: false }; };
+  const { r: r3 } = await rodar(m2, worker(estado(13, 12))); assert.deepEqual([r3.avisos, m2.avisos.at(-1).msg.titulo, (await m2.banco.pendentes()).length], [1, "ASSUNTO-CONFIDENCIAL 12", 0]);
+});
+

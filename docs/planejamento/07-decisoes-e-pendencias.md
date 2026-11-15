@@ -305,3 +305,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Pendências do dono:** aplicar a 054; republicar a função v3 **com `verify_jwt=true`** (decidido em 15/11/2026: o agendamento manda a chave anon do Vault em `Authorization` além de `x-rac-rotina`; `--no-verify-jwt` não é o padrão); rodar a 055; avaliar o plano Paid do Cloudflare (US$ 5/mês) **só** se o teste real acusar estouro de CPU.
 - Gmail (Gmail API + Pub/Sub, `users.watch` renovado todo dia) e Outlook (Graph change notifications, assinatura renovada todo dia) ficam documentados em `docs/inbox.md`, sem implementação até a fase I3.
 
+## 15/11/2026 · RAC Inbox — notificação com assunto e remetente, abertura direta da mensagem (decisão do dono)
+
+- **Conteúdo:** título = assunto, corpo = nome — endereço do remetente (nunca o corpo do e-mail). Isto **substitui** a regra de 15/11/2026 "só a contagem": o dono aceita assunto e remetente na tela de bloqueio; desligável por conta ("Avisar por notificação").
+- **Destino:** `#inbox/<conta>/<pasta>/<id da mensagem>`; o id é o da linha em `inbox_mensagens_ref` (nunca assunto/remetente). Abre direto a leitura.
+- **Agrupamento:** uma notificação por mensagem (tag própria); mais de 4 no ciclo = 3 individuais + 1 resumo. Reversível (constantes `MAX_INDIVIDUAIS`, `INDIVIDUAIS_NO_LOTE` em `rotina.ts`).
+

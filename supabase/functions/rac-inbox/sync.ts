@@ -102,9 +102,9 @@ export function filtrarAnexo(dados: Record<string, unknown>): Record<string, unk
 type Resultado = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 
 /* A sincronização de UMA pasta. Devolve { ok:false, erro } com o código do Worker (quem chama o traduz); nunca lança por dado do Worker. */
-export async function sincronizarPasta(p: { dono: string; conta: string; pastaId: string; worker: Worker; banco: Banco; credencial: { usuario: string; senha: string }; modo?: "manual" | "agenda"; agora?: () => number }): Promise<Resultado> {
+export async function sincronizarPasta(p: { dono: string; conta: string; pastaId: string; worker: Worker; banco: Banco; credencial: { usuario: string; senha: string }; modo?: "manual" | "agenda"; agora?: () => number; prazo?: number }): Promise<Resultado> {
   const { dono, conta, pastaId, worker, banco, credencial } = p;
-  const agenda = p.modo === "agenda", origem = agenda ? "agenda" : "manual", agoraMs = p.agora ?? Date.now;
+  const prazo = p.prazo ?? Infinity, agenda = p.modo === "agenda", origem = agenda ? "agenda" : "manual", agoraMs = p.agora ?? Date.now;
   const pasta = await banco.pasta(dono, conta, pastaId);
   if (!pasta) return { ok: false, erro: "pasta_inexistente" };
   const estado = await banco.estadoSync(dono, conta, pastaId);
@@ -125,7 +125,7 @@ export async function sincronizarPasta(p: { dono: string; conta: string; pastaId
     if (tipo0 === "novas_mensagens" && !vencida) {
       const mapa0 = new Map<number, Resumo>();
       let desde0: number | null = estado.uidnext, cursor0 = ex0.uidnext;
-      for (let pagina = 0; pagina < MAX_PAGINAS && desde0 !== null; pagina++) {
+      for (let pagina = 0; pagina < MAX_PAGINAS && desde0 !== null && (pagina === 0 || agoraMs() < prazo); pagina++) {   // passou do prazo da rodada: para; o cursor só avança até aqui
         const rp = await chamar({ desde_uid: desde0, limite: PAGINA, uidvalidity_esperado: ex0.uidvalidity });
         if (!rp.ok) return rp;
         const ms = filtrarResumos(rp.dados.mensagens);
@@ -156,7 +156,7 @@ export async function sincronizarPasta(p: { dono: string; conta: string; pastaId
   // mais mensagens novas do que cabem na janela: busca desde o cursor, em páginas (o cursor só avança até onde chegou)
   if (tipo === "novas_mensagens" && r1.dados.mais === true && estado && estado.uidnext !== null && estado.uidnext < janelaMin) {
     let desde: number | null = estado.uidnext;
-    for (let pagina = 0; pagina < MAX_PAGINAS && desde !== null; pagina++) {
+    for (let pagina = 0; pagina < MAX_PAGINAS && desde !== null && (pagina === 0 || agoraMs() < prazo); pagina++) {
       const rp = await chamar({ desde_uid: desde, limite: PAGINA, uidvalidity_esperado: ex.uidvalidity });
       if (!rp.ok) return rp;
       const ms = filtrarResumos(rp.dados.mensagens);

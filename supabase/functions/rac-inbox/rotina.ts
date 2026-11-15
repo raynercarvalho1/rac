@@ -17,7 +17,7 @@ export interface BancoRotina {
 }
 export interface Aviso { enviar(dono: string, msg: Msg): Promise<Entrega> }
 export interface Resumo { contas: number; sincronizadas: number; sem_mudanca: number; novas: number; avisos: number; falhas: number; ignoradas: number; em_andamento: number }
-export const ORCAMENTO_MS = 90_000, INTERVALO_MIN = 10;
+export const ORCAMENTO_MS = 45_000, INTERVALO_MIN = 10;
 
 /* depois de falhas seguidas a conta espera mais (10 min por rodada vira 20, 40, 80 e no máximo 120); uma rodada que dá certo zera a contagem. Autenticação recusada não entra: a conta sai da rotina. */
 export const esperaMin = (falhas: number): number => (falhas < 3 ? 0 : Math.min(INTERVALO_MIN * 2 ** (falhas - 2), 120));
@@ -60,7 +60,7 @@ export async function rodarRotina(d: {
       bruto = null;
       if (!cred) { res.falhas++; reg(ausente ? "credencial_ausente" : "credencial_corrompida"); continue; }
       let r;
-      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker: d.worker, banco: d.banco, credencial: cred, modo: "agenda", agora }); }
+      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker: d.worker, banco: d.banco, credencial: cred, modo: "agenda", agora, prazo: inicio + limite }); }
       catch (e) { cred = null; res.falhas++; reg("servico_indisponivel", detalheDe(e)); try { await d.banco.falhaSync(c.dono, c.conta, c.pasta_id, "servico_indisponivel"); } catch (_) { /* a próxima rodada tenta de novo */ } continue; }
       cred = null;
       if (!r.ok) {

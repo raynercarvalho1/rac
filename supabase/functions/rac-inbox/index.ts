@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     if (texto.length > CORPO_MAX_BYTES) return erro("muito_grande");
     let corpo: unknown = null;
     try { corpo = JSON.parse(texto); } catch (_) { return erro("corpo_invalido"); }
-    /* ROTINA (pg_cron a cada 10 min): não há usuário nem JWT; a senha da rotina (Vault: rac_rotina, a mesma das outras rotinas) é conferida no banco. Só a operação "rotina_sync", sem nenhum outro campo. */
+    /* ROTINA (pg_cron a cada 10 min): o gateway já conferiu o JWT (verify_jwt=true; o agendamento manda a chave anon em Authorization), mas ISSO NÃO AUTORIZA a rotina: não há usuário e a senha da rotina (Vault: rac_rotina, a mesma das outras rotinas) é conferida no banco. Só a operação "rotina_sync", sem nenhum outro campo. */
     const senhaRotina = req.headers.get("x-rac-rotina");
     if (senhaRotina) {
       if (corpo === null || typeof corpo !== "object" || Array.isArray(corpo) || (corpo as Record<string, unknown>).operacao !== "rotina_sync" || Object.keys(corpo as object).length !== 1) return erro("operacao_invalida");

@@ -1071,3 +1071,4 @@ Família e da Casa.
 2. Medir no primeiro dia o CPU do Worker Free (erro 1102) antes de decidir pelo plano Paid (US$ 5/mês).
 3. Depois: teste real com e-mail novo; Gmail (Pub/Sub) e Outlook (Graph) na fase I3, conforme a arquitetura documentada.
 
+**Atualização (15/11/2026, auditoria final):** a proposta 055 passou a autenticar a chamada agendada com `Authorization: Bearer` (chave anon lida do Vault, com guarda que recusa service_role/chaves sb_*) mais `x-rac-rotina`, mantendo `verify_jwt=true`; orçamento da rotina reduzido a 45 s com prazo na leitura por páginas; testes novos dos cabeçalhos e da guarda. Nada aplicado nem publicado.

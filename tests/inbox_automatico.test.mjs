@@ -266,6 +266,7 @@ test("054 (texto): pendente, uma transação, só ALTERA (nada destrutivo fora d
   const prop = ler("supabase/propostas/055_inbox_agendamento.sql"), p = semComent(prop);
   assert.ok(!/^-- status/.test(prop) && !fs.existsSync(new URL("../supabase/055_inbox_agendamento.sql", import.meta.url)), "é proposta: não entra em supabase/ até o dono autorizar");
   assert.match(p, /cron\.schedule\('inbox-sync', '\*\/10 \* \* \* \*'/); assert.match(p, /functions\/v1\/rac-inbox/); assert.match(p, /'x-rac-rotina', \(select decrypted_secret from vault\.decrypted_secrets where name = 'rac_rotina'\)/);
+  assert.match(p, /'Authorization', 'Bearer ' \|\| \(select decrypted_secret from vault\.decrypted_secrets where name = 'rac_chave_publica'\)/, "o gateway recebe o JWT público do Vault");
   assert.match(p, /"operacao":"rotina_sync"/); assert.match(p, /cron\.unschedule\('inbox-sync'\)/); assert.ok(!/rac-rotina'|garmin|rac_rotina_ok|service_role|insert|update|delete/i.test(p.replace(/'x-rac-rotina'/, "")), "não mexe no agendamento diário nem na Garmin");
 });
 
@@ -369,3 +370,56 @@ test("Service Worker: o aviso do Inbox usa o mesmo caminho do aviso diário (nã
   assert.match(sw, /tag: d\.tag \|\| undefined/, "o aviso diário continua sem tag"); assert.match(sw, /data: \{ url: d\.url \|\| "\.\/#agenda" \}/, "o destino padrão do diário continua #agenda");
   assert.equal(globalThis.RACnucleo.notifHash("./#inbox", "https://raynercarvalho.com.br/"), "#inbox");
 });
+
+/* ---------- autenticação do agendamento (055): JWT para o gateway (verify_jwt=true) + senha da rotina para a função ---------- */
+const S55 = semComent(ler("supabase/propostas/055_inbox_agendamento.sql"));
+const jobSql = S55.slice(S55.indexOf("cron.schedule("), S55.indexOf("$$);", S55.indexOf("cron.schedule(")));
+test("055: a chamada agendada leva Authorization Bearer (chave pública do Vault) E x-rac-rotina (senha do Vault); nenhuma chave literal, nunca service_role/secret; o job é o único mexido; rollback só desfaz o inbox-sync", () => {
+  const cab = jobSql.slice(jobSql.indexOf("headers :="), jobSql.indexOf("body :="));
+  assert.deepEqual([...cab.matchAll(/'([A-Za-z-]+)',(?: 'Bearer ' \|\|)? ?\(?(?:select decrypted_secret from vault\.decrypted_secrets where name = '([a-z_]+)'\)|'application\/json')/g)].filter((m) => m[2]).map((m) => m[1] + "=" + m[2]).sort(), ["Authorization=rac_chave_publica", "x-rac-rotina=rac_rotina"]);
+  assert.match(cab, /'Content-Type', 'application\/json'/);
+  const bruto = ler("supabase/propostas/055_inbox_agendamento.sql");
+  assert.ok(!/eyJ[A-Za-z0-9_-]{10,}|sb_(publishable|secret)_[A-Za-z0-9_-]{10,}/.test(bruto), "nenhuma chave literal no arquivo");
+  assert.ok(!/service_role|SERVICE_ROLE|sb_secret/i.test(S55) && !/service_role|sb_secret/i.test(jobSql), "nunca service_role ou secret key na chamada");
+  assert.match(jobSql, /functions\/v1\/rac-inbox/); assert.match(jobSql, /\*\/10 \* \* \* \*/);
+  assert.ok(!/no-verify-jwt/.test(S55 + jobSql), "verify_jwt continua ligado: a solução não é --no-verify-jwt");
+  assert.match(bruto, /verify_jwt=true/); assert.deepEqual([...S55.matchAll(/cron\.(?:un)?schedule\('([a-z-]+)'/g)].map((m) => m[1]), ["inbox-sync", "inbox-sync"], "só o job inbox-sync (idempotente: desagenda e agenda o mesmo nome)");
+  assert.match(S55, /select cron\.unschedule\('inbox-sync'\) where exists \(select 1 from cron\.job where jobname = 'inbox-sync'\)/);
+  assert.match(bruto, /Para DESLIGAR \(rollback\): select cron\.unschedule\('inbox-sync'\);/); assert.ok(!/unschedule\('rac-rotina'\)/.test(bruto), "o aviso diário das 6h não é tocado");
+});
+
+test("055 · guarda do Vault (Postgres de verdade): só passa com rac_rotina e uma chave JWT de papel anon; service_role, chave sb_* e ausência abortam", { skip: pular }, async () => {
+  const guarda = "do $$" + S55.slice(S55.indexOf("do $$") + 5, S55.indexOf("end $$;") + 7);
+  const jwt = (role) => "h." + Buffer.from(JSON.stringify({ iss: "supabase", role })).toString("base64url") + ".s";
+  const roda = async (segredos) => {
+    const db = await PGlite.create();
+    await db.exec("create schema vault; create table vault.secrets (name text); create table vault.decrypted_secrets (name text, decrypted_secret text);");
+    for (const [n, v] of Object.entries(segredos)) await db.exec(`insert into vault.secrets values ('${n}'); insert into vault.decrypted_secrets values ('${n}', '${v}')`);
+    return codigoErro(db.exec(guarda));
+  };
+  assert.equal(await roda({ rac_rotina: "x", rac_chave_publica: jwt("anon") }), null, "anon: passa");
+  assert.ok(await roda({ rac_rotina: "x", rac_chave_publica: jwt("service_role") }), "service_role: aborta");
+  assert.ok(await roda({ rac_rotina: "x", rac_chave_publica: "sb_publishable_abc" }), "chave nova (não é JWT): aborta");
+  assert.ok(await roda({ rac_rotina: "x", rac_chave_publica: "lixo.%%%.x" }), "lixo: aborta");
+  assert.ok(await roda({ rac_rotina: "x" }), "sem a chave pública: aborta");
+  assert.ok(await roda({ rac_chave_publica: jwt("anon") }), "sem a senha da rotina: aborta");
+});
+
+test("index.ts: o Authorization (gateway) NÃO autoriza a rotina: sem x-rac-rotina cai no caminho do usuário (JWT + MFA); com ele, só a senha do banco vale; Bearer anon não vira usuário", () => {
+  const t = semComent(ler("supabase/functions/rac-inbox/index.ts")), r = t.slice(t.indexOf('const senhaRotina'), t.indexOf("resumo }), { status: 200"));
+  assert.ok(!/Authorization/.test(r), "o ramo da rotina não lê o Authorization");
+  assert.match(t, /if \(!autorizada\) \{[\s\S]*?return erro\("sem_login"\)/);
+  assert.match(t, /usuario = \{ id: data\.user\.id, mfaOk: aalOk\(/, "o caminho do navegador continua exigindo getUser e MFA");
+  const sv = semComent(ler("supabase/functions/rac-inbox/servico.ts")); assert.match(sv, /if \(!ctx\.usuario\) return falha\("sem_login"\)/); assert.match(sv, /if \(!ctx\.usuario\.mfaOk\) return falha\("mfa_requerido"\)/);
+});
+
+test("prazo da rodada: passado o orçamento a leitura por páginas para (cursor avança só até onde leu) e o orçamento é compatível com o timeout do pg_net", async () => {
+  const m = mundo({ cursor: { uidvalidity: 700, uidnext: 10, reconciliada_em: iso(AGORA) } }); let t = AGORA;
+  const w = worker((op, ped) => { t += 20_000; return op === "estado_pasta" ? estado(1000, 999) : janela(1000, faixa(ped.desde_uid, ped.desde_uid + 99), true); });
+  await rodar(m, w, { agora: () => t, orcamentoMs: 45_000 });
+  assert.ok(w.chamadas.filter((c) => c[0] === "listar_mensagens").length < 5, "parou antes das 5 páginas"); assert.ok(m.aplicados[0].cursor < 1000 && m.aplicados[0].cursor > 10, "cursor parcial, sem pular");
+  const { ORCAMENTO_MS } = await import("../supabase/functions/rac-inbox/rotina.ts"); const worker40 = 40_000;
+  assert.ok(ORCAMENTO_MS + 2 * worker40 <= 130_000 && ORCAMENTO_MS <= 60_000, "pior caso (orçamento + 2 chamadas no limite de 40 s) cabe nos 150 s da função");
+  assert.match(ler("supabase/propostas/055_inbox_agendamento.sql"), /timeout_milliseconds := 120000/);
+});
+

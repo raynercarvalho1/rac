@@ -198,7 +198,7 @@
       if("sync_auto" in c){   /* só com a 054 aplicada */
         box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
         box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
-        box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra só a quantidade, nunca o conteúdo, e chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
+        box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra o assunto e o remetente (nunca o texto do e-mail) e abre a mensagem; chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
       box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}))}
     if(INBX.credForm===c.id)box.appendChild(inboxFormCredencial(c));
     return box}
@@ -299,7 +299,19 @@
     pg.appendChild(inboxMatriz())}
   function inboxCarregar(){if(!isOwner()){INBX.carregando=false;inboxDesenhar();return Promise.resolve()}   /* a casa (Fernanda) não vê o Inbox: nem consulta as tabelas */
     INBX.carregando=true;inboxDesenhar();return inboxLer().then(inboxDesenhar)}
-  function renderInbox(conta,pasta){
+  /* #inbox/<conta>/<pasta>/<mensagem>: o aviso de e-mail novo (Web Push) abre direto a leitura da mensagem. O id é o da linha de inbox_mensagens_ref (estável); assunto e remetente nunca identificam.
+     Depois de abrir, o endereço volta a #inbox/<conta>/<pasta> (sem disparar a rota), para uma nova rota ou um recarregamento não reabrirem a mensagem. */
+  var INB_RE_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var INB_CAMPOS_MSG="id,conta_id,pasta_id,uid,uidvalidity,recebida_em,assunto,remetente_nome,remetente_endereco,destinatarios,lida,sinalizada,respondida,tamanho,anexo_provavel";
+  function inboxAbrirDoAviso(id){
+    var r=INBX.msgs.filter(function(x){return x.id===id})[0],busca=r?Promise.resolve(r):Promise.resolve(SB.from("inbox_mensagens_ref").select(INB_CAMPOS_MSG).eq("id",id).limit(1)).then(sbOk).then(function(l){return l&&l[0]||null},function(){return null});
+    return busca.then(function(m){
+      if(!m||!m.pasta_id){INBX.aviso={tipo:"erro",t:"Essa mensagem do aviso não está mais no cache. Toque em Sincronizar para atualizar a lista."};inboxDesenhar();return false}
+      if(!r)INBX.msgs.push(m);
+      INBX.conta=m.conta_id;INBX.pasta=m.pasta_id;try{history.replaceState(history.state,"","#inbox/"+m.conta_id+"/"+m.pasta_id)}catch(e){}
+      inboxAbrirMsg(m.id);return true})}
+  function renderInbox(conta,pasta,msg){
     INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
-    return inboxCarregar()}
+    var abrir=INB_RE_ID.test(msg||"")?msg:null;
+    return inboxCarregar().then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}

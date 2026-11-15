@@ -27,13 +27,13 @@ const esperar = () => new Promise((r) => setTimeout(r, 0));
 const UUID = "11111111-1111-4111-8111-111111111111", SENHA_APP = "abcd-efgh-ijkl-mnop";
 
 /* o ambiente: h() como o da base, o kit real, o núcleo real, um banco de mentira que REGISTRA toda gravação, e "precisa" que carrega módulos de verdade */
-function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], erroLeitura = null, erroGravar = null, publicado = true, invoke = null } = {}) {
+function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], mensagens = [], sincs = [], erroMsgs = false, erroLeitura = null, erroGravar = null, publicado = true, invoke = null } = {}) {
   const raiz = new No("div"), titulo = new No("h1"), gravacoes = [], lidas = [], chamadas = [];
   const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : null) };
-  const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
+  const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, limit() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
     update(l) { gravacoes.push([t, "update", l]); return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
-    then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : pastas;
-      const r = q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
+    then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
+      const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
   const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
     sbOk: (r) => { if (r.error) throw r.error; return r.data; }, SB: { from: tabela, functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(invoke ? invoke(nome, o) : { data: { ok: true, credencial: "guardada" }, error: null }); } } }, racDica: { ligar() {}, em() {} },
     precisa: (l) => Promise.all(l.map((m) => { vm.runInContext(fs.readFileSync(new URL(`../js/${m}.js`, import.meta.url), "utf8"), ctx, { filename: `js/${m}.js` }); })) };
@@ -61,7 +61,7 @@ test("sem contas: estado vazio com o formulário de cadastro; com contas sem con
   assert.match(texto(v.raiz), /Nenhuma conta cadastrada/); assert.ok(botao(v.raiz, "Cadastrar conta")); assert.match(texto(v.raiz), /Sem senha neste formulário/);
   const d = ambiente({ contas: [CONTA, { ...CONTA, id: "22222222-2222-4222-8222-222222222222", apelido: "Trabalho", endereco: "t@icloud.example", estado: "desconectada" }] }); await d.abrir();
   let t = texto(d.raiz);
-  assert.match(t, /Nenhuma mensagem carregada\s+A leitura de e-mails chega na etapa I2; nada aqui é exemplo nem simulação/);
+  assert.match(t, /Nenhuma mensagem sincronizada ainda\s+Escolha uma conta conectada e sincronize\. Nada aqui é exemplo nem simulação/);
   assert.equal(comClasse(d.raiz, "inb-linha").length, 0, "nenhuma linha de mensagem sem o exemplo"); assert.ok(!/DEMONSTRAÇÃO/.test(t), "e nada rotulado como exemplo sem o pedido");
   assert.match(t, /Caixa unificada/); assert.match(t, /Pessoal/); assert.match(t, /Trabalho/); assert.match(t, /Categorias/); assert.match(t, /Pessoal[\s\S]*Trabalho[\s\S]*Financeiro[\s\S]*Compras[\s\S]*Entregas[\s\S]*Newsletters[\s\S]*Notificações[\s\S]*Promoções/);
   assert.match(t, /Contagem parcial/, "a unificada avisa que a conta sem conexão não entra na soma");
@@ -161,7 +161,7 @@ test("cadastrar conta: valida antes (sem senha em lugar nenhum), só 'inbox_cont
   const sel2 = todos(a.raiz).find((n) => n.tag === "select"); sel2.value = "gmail"; botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /fase futura/); assert.deepEqual(a.gravacoes, []);
   todos(a.raiz).find((n) => n.tag === "select").value = "icloud"; botao(a.raiz, "Cadastrar conta").onclick(); await esperar();
   assert.deepEqual(a.gravacoes, [["inbox_contas", "insert", { provedor: "icloud", apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova" }]], "só o cadastro, sem dono (o banco preenche com auth.uid()) e sem credencial");
-  assert.match(texto(a.raiz), /Conta cadastrada\. Ela fica "Nova" até a conexão existir/);
+  assert.match(texto(a.raiz), /Conta cadastrada\. Conecte-a com a senha específica de app para poder sincronizar/);
   const dup = ambiente({ erroGravar: { code: "23505", message: "duplicate key" } }); await dup.abrir();
   dup.ctx.document.getElementById = ((o) => (id) => (vals[id] !== undefined ? { value: vals[id] } : o(id)))(dup.ctx.document.getElementById);
   todos(dup.raiz).find((n) => n.tag === "select").value = "icloud";
@@ -194,4 +194,115 @@ test("desenho: três áreas no desktop (lista agrupada, leitura com cabeçalho e
   assert.ok(!/--rac-[a-z0-9-]+\s*:/.test(bloco.replace(/\/\*[\s\S]*?\*\//g, "")), "o Inbox não define token novo: nenhum Design System paralelo");
   const usados = new Set([...bloco.matchAll(/var\((--rac-[a-z0-9-]+)\)/g)].map((m) => m[1])), definidos = new Set([...css.matchAll(/(--rac-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
   for (const t of usados) assert.ok(definidos.has(t), "token inexistente: " + t);
+});
+
+/* ---------- I2: a caixa REAL (lista do cache, sincronizar, ler sob demanda, anexo) ---------- */
+const assentar = async () => { for (let i = 0; i < 14; i++) await esperar(); };
+const P_IN = "aaaaaaaa-0000-4000-8000-0000000000a1", P_ENV = "aaaaaaaa-0000-4000-8000-0000000000a2";
+const CONTA_OK = { ...CONTA, estado: "conectada" };
+const PASTAS = () => [{ id: P_IN, conta_id: UUID, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 3, nao_lidas: 1 }, { id: P_ENV, conta_id: UUID, nome_externo: "Sent Messages", nome_exibicao: "Enviados", uso: "enviados", total: 1, nao_lidas: 0 }];
+const AGORA = Date.now();
+const MSG = (n, extra = {}) => ({ id: "dddddddd-0000-4000-8000-00000000000" + n, conta_id: UUID, pasta_id: P_IN, uid: n, uidvalidity: 700, recebida_em: new Date(AGORA - n * 3600000).toISOString(), assunto: "Assunto " + n, remetente_nome: "Ana " + n, remetente_endereco: "ana" + n + "@exemplo.com", destinatarios: [{ nome: "Eu", endereco: "eu@icloud.com" }], lida: n !== 1, sinalizada: false, respondida: false, tamanho: 1000, anexo_provavel: n === 2, ...extra });
+const REAL = (extra = {}) => ({ contas: [CONTA_OK], credenciais: [{ conta_id: UUID, estado: "ativa" }], pastas: PASTAS(), mensagens: [MSG(1), MSG(2), MSG(3), MSG(4, { pasta_id: P_ENV, assunto: "Enviada" })], sincs: [{ pasta_id: P_IN, ultima_ok_em: "2026-11-14T10:20:00.000Z", erro: null, falhas_seguidas: 0 }], ...extra });
+const ok = (dados) => ({ data: { ok: true, ...dados }, error: null });
+const erroHttp = (status, cod) => ({ data: null, error: { name: "FunctionsHttpError", message: "texto cru do servidor", context: { status, json: () => Promise.resolve({ ok: false, erro: cod }) } } });
+
+test("lista REAL: as mensagens do cache da pasta de entrada, sem prévia (o corpo não é guardado), sem misturar com o exemplo; filtros, pastas, caixa unificada e última sincronização; só lê", async () => {
+  const a = ambiente(REAL()); await a.abrir(UUID); await assentar();
+  const linhas = () => comClasse(a.raiz, "inb-linha"), t0 = texto(a.raiz);
+  assert.equal(linhas().length, 3, "só a caixa de entrada da conta"); for (const s of ["Assunto 1", "Assunto 2", "Assunto 3", "Ana 1"]) assert.ok(t0.includes(s), s);
+  assert.ok(!t0.includes("Enviada") && !t0.includes("DEMONSTRAÇÃO"), "nada de outra pasta nem do exemplo");
+  assert.equal(comClasse(a.raiz, "inb-previa").length, 0, "não há prévia: o corpo não é guardado");
+  assert.equal(linhas().filter((l) => (" " + l.className + " ").includes(" inb-linha--nova ")).length, 1, "uma não lida, destacada");
+  assert.match(t0, /3 mensagens · 1 não lidas/); assert.match(t0, /Última sincronização: \d{1,2} de novembro de 2026/); assert.ok(botao(a.raiz, "Sincronizar agora"));
+  assert.ok(linhas().every((l) => /^(Não lida\. )?Ana \d\. Assunto \d$/.test(l.attrs["aria-label"])), "rótulo de acessibilidade em cada linha");
+  botao(a.raiz, "Não lidas").onclick(); assert.equal(linhas().length, 1); botao(a.raiz, "Com anexo").onclick(); assert.equal(linhas().length, 1, "o anexo provável da mensagem 2"); assert.ok(texto(linhas()[0]).includes("Assunto 2"));
+  botao(a.raiz, "Todas").onclick();
+  comClasse(a.raiz, "inb-pasta").find((b) => texto(b).includes("Enviados")).onclick();
+  assert.deepEqual(linhas().map((l) => texto(l).includes("Enviada")), [true], "a pasta Enviados mostra só as dela");
+  const u = ambiente(REAL()); await u.abrir(); await assentar(); assert.equal(comClasse(u.raiz, "inb-linha").length, 3, "a caixa unificada reúne as caixas de ENTRADA");
+  assert.deepEqual(a.gravacoes, [], "ler a lista não grava nada"); assert.equal(a.chamadas.length, 0, "e não chama o serviço (a lista vem do cache)");
+});
+
+test("sincronizar: a primeira vez lista as pastas e depois sincroniza a de entrada; o botão fica ocupado e não duplica; o resultado vira frase; erro vira texto fixo", async () => {
+  const pastas = [], a = ambiente(REAL({ pastas, mensagens: [], sincs: [], invoke: (nome, o) => {
+    const op = o.body.operacao;
+    if (op === "listar_pastas") { PASTAS().forEach((p) => pastas.push(p)); return ok({ pastas: PASTAS().map((p) => ({ id: p.id, nome: p.nome_exibicao, uso: p.uso })) }); }
+    return ok({ sincronizacao: { tipo: "primeira_leitura", novas: 3, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: 3, mais: false });
+  } })); await a.abrir(UUID); await assentar();
+  assert.match(texto(a.raiz), /Nenhuma mensagem sincronizada ainda\s+Toque em Sincronizar/); assert.equal(a.chamadas.length, 0);
+  botao(a.raiz, "Sincronizar agora").onclick(); await assentar();
+  assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.pasta_id ?? null]), [["listar_pastas", null], ["sincronizar_pasta", P_IN]], "primeiro as pastas, depois a de ENTRADA");
+  assert.ok(a.chamadas.every((c) => c[0] === "rac-inbox" && c[1].body.conta_id === UUID && !JSON.stringify(c[1]).match(/senha|usuario|nome_externo|INBOX/)), "só IDs: o nome da pasta nunca vai do navegador");
+  assert.match(texto(a.raiz), /Caixa lida pela primeira vez: 3 mensagens carregadas\./); assert.ok(a.gravacoes.length === 0, "o navegador não grava o cache");
+
+  // ocupado: o botão fica desligado e um segundo toque não envia outro pedido
+  let liberar; const pendente = new Promise((r) => { liberar = r; });
+  const b = ambiente(REAL({ invoke: () => pendente })); await b.abrir(UUID); await assentar();
+  botao(b.raiz, "Sincronizar agora").onclick(); await esperar();
+  const ocupado = botao(b.raiz, "Sincronizando…"); assert.ok(ocupado && ocupado.attrs.disabled === "disabled" && ocupado.attrs["aria-busy"] === "true"); assert.ok(comClasse(b.raiz, "inb-topo-sinc")[0].attrs["aria-busy"] === "true");
+  ocupado.onclick(); await esperar(); assert.equal(b.chamadas.length, 1, "um segundo toque não dispara outra sincronização");
+  liberar(ok({ sincronizacao: { tipo: "novas_mensagens", novas: 2, atualizadas: 1, removidas: 1, }, mensagens_na_pasta: 5, mais: true })); await assentar();
+  assert.match(texto(b.raiz), /2 mensagens novas\. 1 removida no provedor\. Há mais mensagens: sincronize de novo\./); assert.ok(botao(b.raiz, "Sincronizar agora"), "volta ao normal");
+
+  for (const [st, cod, frase] of [[422, "credencial_invalida", /O provedor recusou a credencial/], [409, "sincronizacao_em_andamento", /Já há uma sincronização desta conta em andamento/], [502, "canal_recusado", /recusou o pedido/], [503, "banco_indisponivel", /banco do Inbox está indisponível/]]) {
+    const c = ambiente(REAL({ invoke: () => erroHttp(st, cod) })); await c.abrir(UUID); await assentar(); botao(c.raiz, "Sincronizar agora").onclick(); await assentar();
+    assert.match(texto(c.raiz), frase, cod); assert.ok(!texto(c.raiz).includes("texto cru do servidor"), "nunca o texto do servidor");
+  }
+  const d = ambiente(REAL({ invoke: () => ok({ sincronizacao: { tipo: "inventado", novas: 1 } }) })); await d.abrir(UUID); await assentar(); botao(d.raiz, "Sincronizar agora").onclick(); await assentar();
+  assert.match(texto(d.raiz), /O serviço respondeu algo que o RAC não reconhece/, "resposta fora do esquema é recusada");
+});
+
+test("ler mensagem REAL: texto pedido na hora (só IDs e UID), parágrafos como TEXTO (nada vira HTML), anexos só baixam ao tocar; erro tem 'tentar de novo'; resposta atrasada de outra mensagem é ignorada", async () => {
+  const LEIT = (texto, extra = {}) => ok({ mensagem: { texto, formato: "texto", truncado: false, anexos: [], ...extra } });
+  const a = ambiente(REAL({ invoke: (nome, o) => o.body.operacao === "ler_mensagem" ? LEIT("Olá!\nlinha dois\n\nSegundo parágrafo <script>alert(1)</script> & <b>negrito</b>", { anexos: [{ parte: "2", nome: "relatório.pdf", tipo: "application/pdf", tamanho: 3, inline: false }, { parte: "3", nome: null, tipo: "image/png", tamanho: 2048, inline: true }] })
+    : ok({ anexo: { nome: "../relatório.pdf", tipo: "application/pdf", tamanho_bytes: 3, base64: "QUJD" } }) })); await a.abrir(UUID); await assentar();
+  comClasse(a.raiz, "inb-linha")[0].onclick();
+  assert.match(texto(comClasse(a.raiz, "inb-leitura")[0]), /Lendo a mensagem…/, "carrega na hora"); await assentar();
+  assert.deepEqual(a.chamadas[0], ["rac-inbox", { body: { operacao: "ler_mensagem", conta_id: UUID, pasta_id: P_IN, uid: 1 } }]);
+  const L = texto(comClasse(a.raiz, "inb-leitura")[0]);
+  assert.ok(L.includes("Assunto 1") && L.includes("Ana 1") && L.includes("ana1@exemplo.com") && L.includes("Para: Eu"), "cabeçalho vem do cache");
+  assert.ok(L.includes("Segundo parágrafo <script>alert(1)</script> & <b>negrito</b>"), "o texto aparece LITERAL: nada é interpretado como HTML");
+  assert.equal(todos(a.raiz).filter((n) => ["script", "img", "iframe", "a"].includes(n.tag)).length, 0, "nenhuma marcação perigosa na tela");
+  assert.equal(comClasse(a.raiz, "inb-texto")[0].filhos.length, 2, "dois parágrafos (a quebra simples fica dentro do parágrafo)");
+  assert.ok(L.includes("2 anexos") && L.includes("relatório.pdf") && L.includes("PDF") && L.includes("(sem nome)") && L.includes("2 KB"), "anexos listados, sem baixar nada ainda"); assert.equal(a.chamadas.length, 1, "só leu a mensagem");
+
+  // baixar: vira arquivo no aparelho (Blob), com nome saneado; nada guardado
+  const blobs = [], link = { click() { this.clicou = true; } };
+  Object.assign(a.ctx, { atob: (s) => Buffer.from(s, "base64").toString("latin1"), Uint8Array, Blob, setTimeout: () => 0, URL: { createObjectURL: (b) => { blobs.push(b); return "blob:x"; }, revokeObjectURL() {} } });
+  const origem = a.ctx.document.createElement; a.ctx.document.createElement = (tag) => (tag === "a" ? link : origem(tag)); a.ctx.document.body = { appendChild() {}, removeChild() {} };
+  botao(a.raiz, "Baixar").onclick(); await assentar();
+  assert.deepEqual(a.chamadas[1], ["rac-inbox", { body: { operacao: "baixar_anexo", conta_id: UUID, pasta_id: P_IN, uid: 1, parte: "2" } }]);
+  assert.deepEqual([link.clicou, link.download, blobs[0].size, blobs[0].type], [true, "_relatório.pdf", 3, "application/pdf"], "nome sem caminho; conteúdo decodificado");
+  assert.match(texto(a.raiz), /Anexo pronto: _relatório\.pdf\. Ele não fica guardado no RAC\./); assert.deepEqual(a.gravacoes, [], "nada gravado no banco");
+
+  // erro de leitura: texto fixo e "tentar de novo"
+  let falha = true; const b = ambiente(REAL({ invoke: () => (falha ? erroHttp(404, "mensagem_inexistente") : LEIT("Agora foi.")) })); await b.abrir(UUID); await assentar();
+  comClasse(b.raiz, "inb-linha")[0].onclick(); await assentar();
+  assert.match(texto(comClasse(b.raiz, "inb-leitura")[0]), /Esta mensagem não está mais na caixa\./); assert.ok(!texto(b.raiz).includes("texto cru do servidor"));
+  falha = false; botao(b.raiz, "Tentar de novo").onclick(); await assentar(); assert.match(texto(comClasse(b.raiz, "inb-leitura")[0]), /Agora foi\./); assert.equal(b.chamadas.length, 2);
+
+  // a resposta atrasada da mensagem 1 não pisa na mensagem 2 que a pessoa abriu depois
+  let soltar; const lenta = new Promise((r) => { soltar = r; });
+  const c = ambiente(REAL({ invoke: (nome, o) => (o.body.uid === 1 ? lenta : LEIT("Texto da dois")) })); await c.abrir(UUID); await assentar();
+  comClasse(c.raiz, "inb-linha")[0].onclick(); await esperar(); comClasse(c.raiz, "inb-linha")[1].onclick(); await assentar();
+  assert.match(texto(comClasse(c.raiz, "inb-leitura")[0]), /Texto da dois/); soltar(LEIT("Texto ATRASADO da um")); await assentar();
+  assert.ok(!texto(c.raiz).includes("ATRASADO") && texto(comClasse(c.raiz, "inb-leitura")[0]).includes("Texto da dois"), "resposta antiga ignorada");
+  // HTML convertido e mensagem longa avisam; sem corpo também
+  const d = ambiente(REAL({ invoke: () => LEIT("Só o começo", { formato: "html_convertido", truncado: true }) })); await d.abrir(UUID); await assentar(); comClasse(d.raiz, "inb-linha")[0].onclick(); await assentar();
+  assert.match(texto(d.raiz), /Mensagem em HTML mostrada como texto simples/); assert.match(texto(d.raiz), /Mensagem longa: mostrando só o começo\./);
+  const e = ambiente(REAL({ invoke: () => LEIT("", { formato: "sem_corpo" }) })); await e.abrir(UUID); await assentar(); comClasse(e.raiz, "inb-linha")[0].onclick(); await assentar(); assert.match(texto(e.raiz), /Esta mensagem não tem texto para mostrar\./);
+});
+
+test("sem a 053, sem credencial ou sem o serviço publicado: a tela degrada com texto claro (nunca inventa mensagem, nunca erro cru) e só lê", async () => {
+  const a = ambiente(REAL({ erroMsgs: true })); await a.abrir(UUID); await assentar();
+  assert.ok(!/Não consegui carregar o Inbox/.test(texto(a.raiz)), "sem a 053 a lista fica vazia, sem erro"); assert.match(texto(a.raiz), /Nenhuma mensagem sincronizada ainda/); assert.equal(comClasse(a.raiz, "inb-linha").length, 0);
+  const b = ambiente(REAL({ credenciais: [], mensagens: [] })); await b.abrir(UUID); await assentar();
+  assert.match(texto(b.raiz), /Esta caixa ainda não foi lida\s+Conecte a conta com a senha específica de app/); assert.ok(!botao(b.raiz, "Sincronizar agora") && comClasse(b.raiz, "inb-topo-sinc").length === 0, "sem credencial não há sincronizar");
+  const c = ambiente(REAL({ publicado: false })); await c.abrir(UUID); await assentar();
+  assert.ok(!botao(c.raiz, "Sincronizar agora") && comClasse(c.raiz, "inb-topo-sinc").length === 0, "com o serviço desligado não há sincronizar"); assert.match(texto(c.raiz), /A conexão será liberada quando o serviço de e-mail for publicado/);
+  const d = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await d.abrir(UUID); await assentar(); assert.match(texto(d.raiz), /O provedor recusou a credencial/);
+  const e = ambiente(REAL({ sincs: [{ pasta_id: P_IN, ultima_ok_em: null, erro: "servico_indisponivel", falhas_seguidas: 2 }] })); await e.abrir(UUID); await assentar(); assert.match(texto(e.raiz), /Ainda não sincronizada\. Última tentativa falhou: O serviço de e-mail está indisponível agora\./);
+  for (const x of [a, b, c, d, e]) { assert.deepEqual(x.gravacoes, []); assert.equal(x.chamadas.length, 0); }
+  const f = ambiente({ dono: false, ...REAL() }); await f.abrir(UUID); assert.equal(comClasse(f.raiz, "inb-linha").length, 0, "a casa (Fernanda) não vê nada do Inbox"); assert.equal(f.lidas.length, 0, "nem consulta as tabelas");
 });

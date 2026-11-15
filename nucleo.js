@@ -3714,6 +3714,7 @@
   var INB_USOS=[["entrada","Caixa de entrada"],["rascunhos","Rascunhos"],["enviados","Enviados"],["arquivo","Arquivo"],["spam","Spam"],["lixo","Lixeira"],["outra","Outras pastas"]];
   function inbUsoRotulo(u){for(var i=0;i<INB_USOS.length;i++)if(INB_USOS[i][0]===u)return INB_USOS[i][1];return "Outras pastas"}
   var INB_TIPOS_SINC=["primeira_leitura","sem_mudanca","novas_mensagens","uidvalidity_mudou","uidnext_regrediu"];
+  var INB_RE_PARTE=/^[1-9]\d{0,2}(\.[1-9]\d{0,2}){0,5}$/;
   var INB_UID_MAX=4294967295,INB_RE_EMAIL=/^[^@\s]+@[^@\s]+\.[^@\s]+$/,INB_RE_CODIGO=/^[a-z][a-z0-9_]{1,40}$/,INB_RE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   /* o par usuário/senha (e qualquer parente) é credencial: o navegador nunca o envia nem o grava no Inbox */
   var INB_CREDENCIAL=/senha|password|passwd|token|secret|segredo|api_?key|apikey|credencial|authorization|usuario|username|bearer|cookie/i;
@@ -3729,6 +3730,10 @@
      escreve:false em todas, sempre; o verbo de escrita (enviar, mover, excluir…) é recusado com um código próprio, para nunca passar por engano. */
   var INB_OPERACOES={testar_conta:{escreve:false,campos:["conta_id"],requer:["conta_id"]},listar_pastas:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
     estado_pasta:{escreve:false,campos:["conta_id","pasta_id"],requer:["conta_id","pasta_id"]},
+    /* I2: sincronizar uma pasta (grava só o cache de cabeçalhos, no servidor), ler UMA mensagem e baixar UM anexo (sob demanda, nada guardado). Só IDs, UID e o caminho da parte: o NOME da pasta nunca vai do navegador. */
+    sincronizar_pasta:{escreve:false,campos:["conta_id","pasta_id"],requer:["conta_id","pasta_id"]},
+    ler_mensagem:{escreve:false,campos:["conta_id","pasta_id","uid"],requer:["conta_id","pasta_id","uid"]},
+    baixar_anexo:{escreve:false,campos:["conta_id","pasta_id","uid","parte"],requer:["conta_id","pasta_id","uid","parte"]},
     /* custódia da credencial (Vault; docs/inbox.md): a ÚNICA operação que aceita credencial é guardar (que também substitui); remover e estado levam só o ID da conta */
     credencial_guardar:{escreve:false,credencial:true,campos:["conta_id","usuario","senha_app"],requer:["conta_id","usuario","senha_app"]},
     credencial_remover:{escreve:false,campos:["conta_id"],requer:["conta_id"]},credencial_estado:{escreve:false,campos:["conta_id"],requer:["conta_id"]}};
@@ -3746,6 +3751,8 @@
     for(i=0;i<d.requer.length;i++){var k=d.requer[i],v=entrada[k];if(v===undefined)return {ok:false,erro:"campo_ausente"};
       if(k==="usuario"){if(typeof v!=="string"||v.length>254||!INB_RE_EMAIL.test(v))return {ok:false,erro:"usuario_invalido"}}
       else if(k==="senha_app"){if(typeof v!=="string"||!INB_RE_SENHA_APP.test(v))return {ok:false,erro:"senha_formato_invalido"}}
+      else if(k==="uid"){if(!inbUidOk(v))return {ok:false,erro:"id_invalido"}}
+      else if(k==="parte"){if(typeof v!=="string"||!INB_RE_PARTE.test(v))return {ok:false,erro:"id_invalido"}}
       else if(typeof v!=="string"||!INB_RE_UUID.test(v))return {ok:false,erro:"id_invalido"};
       pedido[k]=v}
     return {ok:true,pedido:pedido}}
@@ -3771,9 +3778,9 @@
     if(r.ok!==true)return {ok:false,erro:typeof r.erro==="string"&&INB_RE_CODIGO.test(r.erro)?r.erro:"resposta_invalida"};
     var ex=r.exame,sy=r.sincronizacao;
     if(!ex||!inbUidOk(ex.uidvalidity)||!inbUidOk(ex.uidnext))return {ok:false,erro:"resposta_invalida"};
-    if(!sy||INB_TIPOS_SINC.indexOf(sy.tipo)<0)return {ok:false,erro:"resposta_invalida"};
+    if(sy!==undefined&&(!sy||INB_TIPOS_SINC.indexOf(sy.tipo)<0))return {ok:false,erro:"resposta_invalida"};   /* a decisão de sincronização é da função (com o cursor guardado); o campo só vem se o serviço mandar */
     var tot=r.mensagens_na_pasta,dur=r.duracao_ms;
-    return {ok:true,linha:{uidvalidity:ex.uidvalidity,uidnext:ex.uidnext,tipo_ultima:sy.tipo,total:typeof tot==="number"&&tot>=0&&Math.floor(tot)===tot?tot:null,duracao_ms:typeof dur==="number"&&dur>=0&&Math.floor(dur)===dur?dur:null}}}
+    return {ok:true,linha:{uidvalidity:ex.uidvalidity,uidnext:ex.uidnext,tipo_ultima:sy?sy.tipo:null,total:typeof tot==="number"&&tot>=0&&Math.floor(tot)===tot?tot:null,duracao_ms:typeof dur==="number"&&dur>=0&&Math.floor(dur)===dur?dur:null}}}
   /* árvore da navegação: contas por apelido, pastas na ordem de uso (entrada primeiro) e por nome */
   function inbArvore(contas,pastas){
     var ordem={};INB_USOS.forEach(function(u,i){ordem[u[0]]=i});
@@ -3816,14 +3823,67 @@
   function inbDataCompleta(quando){var d=new Date(quando);if(isNaN(d.getTime()))return "";return d.getDate()+" de "+INB_MESES[d.getMonth()]+" de "+d.getFullYear()+", "+inbDois(d.getHours())+":"+inbDois(d.getMinutes())}
   function inbNaoLidas(msgs){return (msgs||[]).filter(function(m){return !m.lida}).length}
   /* código de falha do serviço → frase para o dono (nunca o texto do servidor) */
-  var INB_ERROS={servico_nao_publicado:"O serviço de e-mail ainda não foi publicado (etapa I2).",sem_login:"Entre de novo para usar o Inbox.",rede:"Sem conexão com o serviço.",servico_indisponivel:"O serviço de e-mail está indisponível agora.",
+  var INB_ERROS={servico_nao_publicado:"O serviço de e-mail não está publicado.",sem_login:"Entre de novo para usar o Inbox.",rede:"Sem conexão com o serviço.",servico_indisponivel:"O serviço de e-mail está indisponível agora.",
     limite:"Muitos pedidos seguidos; tente daqui a pouco.",resposta_invalida:"O serviço respondeu algo que o RAC não reconhece.",credencial_proibida:"O Inbox não aceita credencial no navegador.",escrita_fora_do_escopo:"Esta etapa só lê; nenhuma ação altera a caixa.",
     operacao_invalida:"Operação desconhecida.",entrada_invalida:"Pedido inválido.",campos_inesperados:"Pedido inválido.",campo_ausente:"Pedido incompleto.",id_invalido:"Pedido inválido.",
     usuario_invalido:"O e-mail do ID Apple não parece válido.",senha_formato_invalido:"Use uma senha específica de app (abcd-efgh-ijkl-mnop); a senha principal não é aceita.",mfa_requerido:"Confirme o código da 2ª etapa e tente de novo.",
     sem_permissao:"Sem permissão para esta conta.",conta_inexistente:"Conta não encontrada.",credencial_ausente:"Esta conta ainda não tem credencial guardada.",credencial_invalida:"O provedor recusou a credencial. Gere outra senha de app e substitua.",
-    credencial_corrompida:"A credencial guardada está ilegível; substitua-a.",cofre_indisponivel:"O cofre de credenciais está indisponível; nada foi guardado.",worker_nao_configurado:"A conexão com o provedor ainda não está ligada (etapa I2).",muito_grande:"Pedido grande demais.",corpo_invalido:"Pedido inválido.",metodo:"Pedido inválido.",interno:"Erro interno; nada foi guardado."};
+    credencial_corrompida:"A credencial guardada está ilegível; substitua-a.",cofre_indisponivel:"O cofre de credenciais está indisponível; nada foi guardado.",worker_nao_configurado:"A conexão com o provedor ainda não está configurada no servidor.",pasta_inexistente:"Esta pasta não existe mais no provedor. Atualize as pastas.",mensagem_inexistente:"Esta mensagem não está mais na caixa.",parte_inexistente:"Este anexo não foi encontrado na mensagem.",anexo_grande_demais:"Este anexo é grande demais para baixar aqui (limite de 3 MB).",uidvalidity_mudou:"A caixa foi reorganizada no provedor. Sincronize de novo.",sincronizacao_em_andamento:"Já há uma sincronização desta conta em andamento. Aguarde terminar.",canal_recusado:"O servidor de e-mail recusou o pedido (falha de configuração do canal seguro). Avise o desenvolvedor.",banco_indisponivel:"O banco do Inbox está indisponível agora; nada foi alterado.",muito_grande:"Pedido grande demais.",corpo_invalido:"Pedido inválido.",metodo:"Pedido inválido.",interno:"Erro interno; nada foi guardado."};
+  /* ---- I2: mensagens reais. A lista vem do cache de cabeçalhos (migration 053); a leitura e o anexo vêm do serviço, sob demanda, e NÃO ficam guardados. Esquema fechado: copia só o que conhece. ---- */
+  function inbTexto(v,max){return typeof v==="string"&&v.length<=max?v:null}
+  function inbInteiro(v){return typeof v==="number"&&isFinite(v)&&Math.floor(v)===v&&v>=0?v:null}
+  function inbEnd(v){if(!v||typeof v!=="object")return null;var e=inbTexto(v.endereco,254),n=inbTexto(v.nome==null?"":v.nome,200);return e&&n!==null&&/^[^\s<>"]+@[^\s<>"]+$/.test(e)?{nome:n,endereco:e}:null}
+  /* uma linha de inbox_mensagens_ref → a linha da lista (a MESMA forma do exemplo: id, remetente, endereco, assunto, previa, recebida, lida, anexo). Não há prévia: o corpo não é guardado. */
+  function inbLinhaMensagem(r){
+    if(!r||typeof r!=="object"||typeof r.id!=="string")return null;
+    var nome=inbTexto(r.remetente_nome,200),end=inbTexto(r.remetente_endereco,254),para=[];
+    if(Array.isArray(r.destinatarios))r.destinatarios.slice(0,20).forEach(function(x){var e=inbEnd(x);if(e)para.push(e.nome||e.endereco)});
+    return {id:r.id,conta_id:r.conta_id,pasta_id:r.pasta_id,uid:Number(r.uid),remetente:(nome&&nome.trim())||end||"(sem remetente)",endereco:end||"",assunto:(inbTexto(r.assunto,500)||"").trim()||"(sem assunto)",previa:"",
+      recebida:r.recebida_em||null,lida:r.lida===true,sinalizada:r.sinalizada===true,anexo:r.anexo_provavel===true,para:para}}
+  function inbRespostaPastas(r){
+    if(!r||typeof r!=="object"||r.ok!==true||!Array.isArray(r.pastas)||r.pastas.length>300)return {ok:false,erro:"resposta_invalida"};
+    var usos=INB_USOS.map(function(u){return u[0]}),out=[],i,p;
+    for(i=0;i<r.pastas.length;i++){p=r.pastas[i];
+      if(!p||typeof p.id!=="string"||!INB_RE_UUID.test(p.id)||!inbTexto(p.nome,200)||usos.indexOf(p.uso)<0)return {ok:false,erro:"resposta_invalida"};
+      out.push({id:p.id,nome:p.nome,uso:p.uso})}
+    return {ok:true,pastas:out}}
+  function inbRespostaSincronizacao(r){
+    var s=r&&r.sincronizacao;
+    if(!r||r.ok!==true||!s||INB_TIPOS_SINC.indexOf(s.tipo)<0||inbInteiro(s.novas)===null||inbInteiro(s.atualizadas)===null||inbInteiro(s.removidas)===null||typeof r.mais!=="boolean")return {ok:false,erro:"resposta_invalida"};
+    return {ok:true,tipo:s.tipo,novas:s.novas,atualizadas:s.atualizadas,removidas:s.removidas,total:inbInteiro(r.mensagens_na_pasta),mais:r.mais}}
+  function inbRespostaLeitura(r){
+    var m=r&&r.mensagem,i,a,anexos=[];
+    if(!r||r.ok!==true||!m||typeof m.texto!=="string"||m.texto.length>65536||["texto","html_convertido","sem_corpo"].indexOf(m.formato)<0||!Array.isArray(m.anexos)||m.anexos.length>30)return {ok:false,erro:"resposta_invalida"};
+    for(i=0;i<m.anexos.length;i++){a=m.anexos[i];
+      if(!a||typeof a.parte!=="string"||!INB_RE_PARTE.test(a.parte)||inbTexto(a.tipo,100)===null||inbInteiro(a.tamanho)===null||(a.nome!==null&&inbTexto(a.nome,200)===null))return {ok:false,erro:"resposta_invalida"};
+      anexos.push({parte:a.parte,nome:a.nome,tipo:a.tipo,tamanho:a.tamanho,inline:a.inline===true})}
+    return {ok:true,texto:m.texto,formato:m.formato,truncado:m.truncado===true,anexos:anexos}}
+  /* o que um anexo baixado pode ser no aparelho: nome sem caminho nem caractere de controle; tipo perigoso (HTML, XML, SVG, script) vira binário genérico, para nunca ser executado ao abrir */
+  function inbNomeArquivoSeguro(n){return String(n==null?"":n).replace(/[\u0000-\u001f\u007f\/\\:*?"<>|]+/g,"_").replace(/^[.\s]+/,"").slice(0,120).trim()||"anexo"}
+  function inbTipoDownload(t){var s=String(t==null?"":t).toLowerCase();
+    if(!/^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(s))return "application/octet-stream";
+    return /html|xml|svg|javascript|ecmascript|x-shockwave|x-msdownload|x-sh$|x-httpd|x-php/.test(s)?"application/octet-stream":s}
+  function inbRespostaAnexo(r){
+    var a=r&&r.anexo;
+    if(!r||r.ok!==true||!a||typeof a.base64!=="string"||a.base64.length>4400000||!/^[A-Za-z0-9+\/]*={0,2}$/.test(a.base64)||inbTexto(a.tipo,100)===null||inbInteiro(a.tamanho_bytes)===null||(a.nome!==null&&inbTexto(a.nome,200)===null))return {ok:false,erro:"resposta_invalida"};
+    return {ok:true,nome:inbNomeArquivoSeguro(a.nome),tipo:inbTipoDownload(a.tipo),tamanho:a.tamanho_bytes,base64:a.base64}}
+  /* o texto do corpo em parágrafos (as quebras simples ficam, a tela as respeita); sem caractere de controle; no máximo 500 parágrafos */
+  function inbParagrafos(texto){
+    var t=String(texto==null?"":texto).replace(/\r\n?/g,"\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,"");
+    return t.split(/\n{2,}/).map(function(p){return p.replace(/^\n+|\n+$/g,"")}).filter(function(p){return p.trim()!==""}).slice(0,500)}
+  function inbPlural(n,um,varios){return n+" "+(n===1?um:varios)}
+  /* a frase do resultado de uma sincronização (para o aviso na tela) */
+  function inbFraseSincronizacao(s){
+    if(!s)return "";
+    var f=s.tipo==="primeira_leitura"?"Caixa lida pela primeira vez: "+inbPlural(s.novas,"mensagem carregada.","mensagens carregadas.")
+      :s.tipo==="sem_mudanca"?"Tudo em dia."+(s.novas?" "+inbPlural(s.novas,"mensagem nova.","mensagens novas."):"")
+      :s.tipo==="novas_mensagens"?inbPlural(s.novas,"mensagem nova.","mensagens novas.")
+      :"A caixa foi reorganizada no provedor e o RAC releu tudo ("+inbPlural(s.novas,"mensagem","mensagens")+").";
+    if(s.removidas)f+=" "+inbPlural(s.removidas,"removida no provedor.","removidas no provedor.");
+    if(s.mais)f+=" Há mais mensagens: sincronize de novo.";
+    return f}
   function inbErroTexto(c){return INB_ERROS[c]||"Não foi possível concluir (código "+String(c||"desconhecido").replace(/[^a-z0-9_]/g,"").slice(0,41)+")."}
-  raiz.RACnucleo={INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
+  raiz.RACnucleo={inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
     fonteContrato:fonteContrato,SAU_LIMITE:SAU_LIMITE,sauVals:sauVals,SAU_METAS:SAU_METAS,SAU_METRICAS:SAU_METRICAS,SAU_CAMPOS:SAU_CAMPOS,sauNum:sauNum,sauMedia:sauMedia,sauArred:sauArred,sauPor:sauPor,sauJanela:sauJanela,sauBase:sauBase,sauMinNoite:sauMinNoite,sauHora:sauHora,sauRegularidade:sauRegularidade,sauQualidade:sauQualidade,sauAvaliar:sauAvaliar,sauTextoSinal:sauTextoSinal,sauHistoricoSinais:sauHistoricoSinais,sauSinais:sauSinais,sauIndicadores:sauIndicadores,sauFrase:sauFrase,sauAssociacao:sauAssociacao,sauSonoVfc:sauSonoVfc,sauCargaSemanal:sauCargaSemanal,sauCargaVariacao:sauCargaVariacao,sauMusculacao:sauMusculacao,sauResumoAtiv:sauResumoAtiv,sauVo2:sauVo2,sauMinutosSemana:sauMinutosSemana,sauEficiencia:sauEficiencia,sauCargaDia:sauCargaDia,sauRecuperacaoTreino:sauRecuperacaoTreino,sauMudancas:sauMudancas,sauAgrupar:sauAgrupar,sauPrefs:sauPrefs,SAU_NAO_TREINO:SAU_NAO_TREINO,sauContaTreino:sauContaTreino,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,

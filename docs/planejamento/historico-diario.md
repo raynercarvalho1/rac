@@ -1090,3 +1090,9 @@ Família e da Casa.
 1. Mesclar e esperar o Pages; no iPhone, fechar o RAC, mandar um e-mail, esperar o push e tocar.
 2. Se ainda falhar, o erro agora traz módulo, tentativas e estado online (registrado em `erros`) para o diagnóstico.
 
+## 15/11/2026 (noite) · RAC Inbox — barra inferior subindo ao rolar no iPhone (branch `claude/inbox-barra-fixa-ios`)
+
+- **Sintoma (dono, iPhone/PWA):** ao rolar a lista do Inbox, a barra inferior e os botões flutuantes (←, ↑, +) sobem até o meio da tela; ao rolar para cima, voltam.
+- **Causa:** **não comprovada** (não há WebKit/iPhone neste ambiente). Hipótese: o WebKit arrasta os elementos `position:fixed` com a camada da página numa lista longa recortada por `overflow:hidden` + `border-radius`. Correção defensiva (`css/rac.css`, versão `2026-11-15.7`): camada própria (`translate3d`) para `#barra`, `.voltarbtn`, `.topobtn`, `.capbtn` e `overflow:clip` na lista. Teste de texto em `tests/inbox_notificacao_abrir.test.mjs`.
+- **Próximo:** o dono confirma no iPhone; se persistir, medir (lista com poucas mensagens? outra página também?) e considerar limitar as linhas desenhadas (paginar a lista).
+

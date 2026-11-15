@@ -495,7 +495,7 @@ a.ag-dest-titulo:hover{text-decoration:underline}
   .inb-titulo{font-size:calc(34px + var(--fz))}
   .inb-busca,.inb-filtros,.inb-conexao{margin-left:0;margin-right:0}
   .inb-filtros{padding-left:0;padding-right:0}
-  .inb-linhas{background:var(--rac-papel);border-radius:var(--rac-raio-3);overflow:hidden;padding-bottom:0}
+  .inb-linhas{background:var(--rac-papel);border-radius:var(--rac-raio-3);overflow:hidden;overflow:clip;padding-bottom:0}   /* clip: recorta o canto sem virar uma camada rolável gigante (iOS: lista longa + barra fixa) */
   .inb-linha{min-height:76px;padding:var(--rac-esp-3) var(--rac-esp-4)}
   .inb-linha::after{left:calc(var(--rac-esp-4) + 52px);right:0}
   .inb-linha:last-child::after{display:none}
@@ -516,3 +516,7 @@ a.ag-dest-titulo:hover{text-decoration:underline}
   .inb-texto{font-size:17px}
   .inb-arquivo{background:var(--rac-papel)}
 }
+
+/* iPhone (PWA): a barra inferior e os botões flutuantes (voltar, subir, +) subiam até o meio da tela ao rolar uma lista longa (Inbox) e voltavam ao rolar para cima.
+   Cada um ganha a sua própria camada de composição, o que impede o WebKit de arrastá-los junto com a camada da página. Só posição/camada: nada muda no desenho. */
+html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden}

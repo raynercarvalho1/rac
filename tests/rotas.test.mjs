@@ -64,7 +64,7 @@ const RENDER = ["renderX", "renderInicio", "renderEstudos", "renderMba", "render
 const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "saude-hub", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
 function rodar(codigo, { papel, hash, carregados, cru }) {
   const log = [], el = (nome) => new Proxy({}, { set(_, k, v) { log.push(["set", nome, k, v]); return true; }, get(_, k) { if (k === "insertAdjacentHTML") return () => {}; if (k === "insertBefore") return () => log.push(["erro na tela", nome]); return undefined; } });
-  const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
+  const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, ROTA_REFRESH: false, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
     location: { hash }, history: { state: null, replaceState: (s, t, u) => log.push(["replaceState", u]) }, isOwner: () => papel === "dono",
     setTimeout: (f, ms) => log.push(["setTimeout", ms]), scrollTo: (x, y) => log.push(["scrollTo", x, y]), xCats: () => [{ k: "jornalistas" }, { k: "tech" }],
     MOD_OK: Object.fromEntries((carregados ? TODOS_MODS : []).map((m) => [m, 1])), precisa: (l) => { log.push(["precisa", l.join(",")]); return { then: () => {} }; },

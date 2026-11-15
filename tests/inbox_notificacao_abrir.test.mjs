@@ -69,8 +69,8 @@ test("roteador: sem papel/sessão não navega (o #inbox continua no endereço); 
   assert.match(app, /function route\(\)\{\s*if\(!PAPEL\)return;/); assert.match(app, /window\.addEventListener\("hashchange",route\)/);
   assert.match(app, /route\(\);notifPendente\(true\);notifDiag\(\)\}/, "route() antes de notifPendente(true)");
   assert.match(app, /parts=\(location\.hash\|\|""\)\.replace\("#",""\)\.split\("\/"\)/, "o destino vem do endereço");
-  const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\],p\[3\]\)\}/);
-  assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta,msg\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\],p\[3\],p\.refresh\)\}/);
+  assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta,msg,refresh\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
 });
 
 /* ---------- o carregador de módulos (trecho REAL de js/app.js) ---------- */
@@ -129,8 +129,8 @@ test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do ar
   const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
 });
 
-test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.11", () => {
-  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.11"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.11"/); assert.ok(ler("index.html").includes("2026-11-15.11"));
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.12", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.12"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.12"/); assert.ok(ler("index.html").includes("2026-11-15.12"));
 });
 
 /* ---------- aviso de e-mail: título = assunto, corpo = remetente, toque abre a MENSAGEM ---------- */
@@ -160,18 +160,18 @@ test("RAC EM SEGUNDO PLANO e JÁ ABERTO: a janela é reutilizada e recebe o dest
 });
 
 test("página: o aviso recebido leva ao hash da mensagem (notifIr) e o roteador entrega conta, pasta e mensagem ao Inbox (rotas.js → renderInbox)", () => {
-  const rotas = ler("js/rotas.js"); assert.match(rotas, /renderInbox\(p\[1\],p\[2\],p\[3\]\)/);
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /renderInbox\(p\[1\],p\[2\],p\[3\],p\.refresh\)/);
   const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
-  const inbox = ler("js/inbox.js"); assert.match(inbox, /function renderInbox\(conta,pasta,msg\)/); assert.match(inbox, /INB_RE_ID\.test\(msg\|\|""\)/); assert.match(inbox, /inboxAbrirMsg\(m\.id\)/);
+  const inbox = ler("js/inbox.js"); assert.match(inbox, /function renderInbox\(conta,pasta,msg,refresh\)/); assert.match(inbox, /INB_RE_ID\.test\(msg\|\|""\)/); assert.match(inbox, /inboxAbrirMsg\(m\.id\)/);
 });
 
 
-test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.11", () => {
+test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.12", () => {
   const css = ler("css/rac.css");
   assert.match(css, /html\.logado:not\(\.casa\) #barra,\.voltarbtn,\.topobtn,\.capbtn\{-webkit-transform:translate3d\(0,0,0\);transform:translate3d\(0,0,0\)/);
   assert.match(css, /\.inb-linhas\{[^}]*overflow:hidden;overflow:clip/);
   assert.match(css, /html\.logado:not\(\.casa\) #barra\{display:flex;position:fixed;left:0;right:0;bottom:0/, "a barra continua fixa embaixo");
-  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.11"), f);
+  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.12"), f);
 });
 
 /* ---------- confirmação da página (rac-ack) e reserva do service worker ---------- */
@@ -195,9 +195,11 @@ test("página NÃO confirma (congelada ou sem o ouvinte): em 1,5 s o service wor
   await c.tocar((await c.push(avisoMsg(M2, "x", "y"))).data); assert.deepEqual([...c.abertas], [SITE + alvoMsg(M2)], "navigate falhou: janela nova"); assert.ok((await diagDe(c.caches)).erros.length >= 1);
 });
 
-test("página: responde rac-ack ao aviso e registra o diagnóstico do toque só quando houve reserva ou erro", () => {
+test("página: responde rac-ack ao aviso, registra o RESULTADO da abertura (notifAbriu) e só loga o diagnóstico do toque quando a mensagem não chegou a abrir", () => {
   const app = ler("js/app.js");
   assert.match(app, /notifIr\(d\.url\);notifPendente\(false\);try\{if\(ev\.source&&ev\.source\.postMessage\)ev\.source\.postMessage\(\{tipo:"rac-ack"\}\)\}catch\(e\)\{\}/);
-  assert.match(app, /function notifDiag\(\)/); assert.match(app, /d\.ack===false\|\|\(d\.erros&&d\.erros\.length\)/); assert.match(app, /voltaFoco[\s\S]*?notifPendente\(true\);notifDiag\(\);/);
+  assert.match(app, /function notifAbriu\(ok,motivo\)/); assert.match(app, /function notifDiag\(\)/); assert.match(app, /falhou=\(a&&a\.ok===false\)\|\|\(d\.erros&&d\.erros\.length\)\|\|\(d\.ack===false&&!\(a&&a\.ok\)\)/);
+  assert.match(app, /voltaFoco[\s\S]*?notifPendente\(true\);notifDiag\(\);/);
+  assert.match(ler("js/inbox.js"), /inboxAvisoResultado\(false,"mensagem_ausente"\)/); assert.match(ler("js/inbox.js"), /inboxAvisoResultado\(INBX\.msg===m\.id/);
 });
 

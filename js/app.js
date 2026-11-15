@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-15.11",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-15.12",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -95,6 +95,7 @@
     var v=document.querySelector("#"+top+" .stack, #"+top);tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});if(!v)return;
     var bt=h("button",{type:"button",class:"ghostbtn",text:"Tentar de novo"}),p=h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui abrir esta seção agora ("+e.message+"). Tente de novo."}),bt);
     bt.onclick=function(){if(p.parentNode)p.parentNode.removeChild(p);route()};v.insertBefore(p,v.firstChild)}
+  var ROTA_REFRESH=false;   /* true só enquanto a atualização automática (atuPadrao) redesenha a página: a página não deve ser REINICIADA (fechar a leitura aberta, perder o rascunho) */
   function route(){
     if(!PAPEL)return;   /* roteador ainda sem sessão/papel: não navega; o destino (#hash) fica no endereço e iniciar() chama route() quando o papel existe */
     var parts=(location.hash||"").replace("#","").split("/");
@@ -116,7 +117,7 @@
     setSide(false);
     window.scrollTo(0,0);
     /* a página: o registro (js/rotas.js) diz como desenhar; sem marcaPropria, o item do menu é o da própria página */
-    var R=ROTAS[top];if(!R.marcaPropria)sideMark(top,top);if(R.abrir)R.abrir(parts)
+    var R=ROTAS[top];if(!R.marcaPropria)sideMark(top,top);parts.refresh=ROTA_REFRESH;if(R.abrir)R.abrir(parts)
   }
   window.addEventListener("hashchange",route);
   /* profundidade da navegação dentro do site, guardada no próprio histórico: o Voltar só usa o histórico se for daqui */
@@ -1314,7 +1315,7 @@
     b.querySelector(".atuh").textContent=hr;b.setAttribute("aria-label","Atualizar esta página"+(hr?" (última atualização às "+hr+")":""));b.title=b.getAttribute("aria-label")}
   function atuPrazo(p,ms){return Promise.race([p,new Promise(function(_,n){setTimeout(function(){n(new Error("o banco não respondeu a tempo"))},ms)})])}
   /* caminho padrão: redesenha a página e espera ela terminar de carregar (até 15 s); devolve quantos blocos não carregaram */
-  function atuPadrao(raiz){route();var ini=Date.now();
+  function atuPadrao(raiz){ROTA_REFRESH=true;try{route()}finally{ROTA_REFRESH=false}var ini=Date.now();
     return new Promise(function(ok){(function espera(){
       var carregando=raiz&&[].some.call(raiz.querySelectorAll("p.empty"),function(p){return p.textContent==="Carregando…"});
       if(carregando&&Date.now()-ini<15000){setTimeout(espera,150);return}
@@ -1405,9 +1406,18 @@
   if(navigator.serviceWorker&&navigator.serviceWorker.addEventListener)navigator.serviceWorker.addEventListener("message",function(ev){var d=ev.data||{};
     if(d.tipo!=="rac-abrir")return;notifIr(d.url);notifPendente(false);try{if(ev.source&&ev.source.postMessage)ev.source.postMessage({tipo:"rac-ack"})}catch(e){}});   /* confirma ao service worker: sem isso ele navega a janela por conta própria */
   /* O que o service worker fez no último toque (sw.js, __rac-diag): lido uma vez, apagado; só quando precisou de reserva ou houve erro vai para Sistema → erros (diagnóstico do iPhone). */
-  function notifDiag(){if(!window.caches)return;var k=new URL("__rac-diag",location.href).href;
-    caches.open("rac-dados").then(function(c){return c.match(k).then(function(r){if(!r)return;return r.json().catch(function(){return null}).then(function(d){c.delete(k).catch(function(){});
-      if(d&&(d.ack===false||(d.erros&&d.erros.length)))logErro("notificação",new Error("toque sem confirmação da página: "+JSON.stringify(d)))})})}).catch(function(){})}
+  /* O RESULTADO de abrir a mensagem (não só "a página recebeu o aviso"): o Inbox chama notifAbriu(ok, motivo) quando o roteador terminou de abrir a mensagem do aviso (ou não conseguiu).
+     Fica em __rac-aberto e é lido junto com o diagnóstico do service worker (__rac-diag). */
+  function notifAbriu(ok,motivo){if(!window.caches)return;var k=new URL("__rac-aberto",location.href).href;
+    caches.open("rac-dados").then(function(c){return c.put(k,new Response(JSON.stringify({quando:Date.now(),ok:!!ok,motivo:motivo||null,hash:location.hash.slice(0,12)}),{headers:{"Content-Type":"application/json"}}))}).catch(function(){})}
+  function notifDiag(){if(!window.caches)return;var k1=new URL("__rac-diag",location.href).href,k2=new URL("__rac-aberto",location.href).href;
+    caches.open("rac-dados").then(function(c){return Promise.all([c.match(k1),c.match(k2)]).then(function(rs){
+      return Promise.all(rs.map(function(r){return r?r.json().catch(function(){return null}):null})).then(function(v){var d=v[0],a=v[1];
+        if(!d)return;   /* o service worker ainda não terminou: fica para a próxima olhada */
+        var recente=Date.now()-(d.quando||0)<20000;if(!a&&recente)return;   /* a mensagem ainda pode estar abrindo */
+        c.delete(k1).catch(function(){});c.delete(k2).catch(function(){});
+        var falhou=(a&&a.ok===false)||(d.erros&&d.erros.length)||(d.ack===false&&!(a&&a.ok));
+        if(falhou)logErro("notificação",new Error("toque que não chegou à mensagem: "+JSON.stringify({sw:d,pagina:a})))})})}).catch(function(){})}
 
   /* ===== Voltar ao site (P-16): depois de 5 min fora, a página atual se atualiza sozinha pelo mesmo ↻ (atuAtualizar em modo
      silencioso). A decisão é do NUCLEO.atuVoltar: só o dono, sem campo com foco, sem captura aberta e não logo depois de outra

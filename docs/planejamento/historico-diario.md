@@ -1145,3 +1145,16 @@ Família e da Casa.
 ### Auditoria do PR #42 (15/11/2026, antes da mesclagem)
 - Verificado no código do Wrangler `4.161.0`: `deploy` herda secrets (`keepSecrets` fixo), mas apagaria variáveis de texto não declaradas (corrigido com `--keep-vars`); a migração `v1` só é tratada como aplicada com `migration_tag == v1` no Worker publicado (agora conferido antes do deploy). Permissões da API (secrets, deployments, subdomínio) aceitam Workers Scripts Write segundo a documentação, **sem teste real**. Erro de API deixou de virar "secret ausente"; falhas parciais passam a ser sinalizadas ("PUBLICADO, MAS NÃO CONFIRMADO"). Limite conhecido: bindings não declarados de outros tipos (KV, D1…) não são preservados.
 
+## 15/11/2026 (noite) · RAC Inbox — aviso definitivo: auditoria ponta a ponta e causa do toque (branch `claude/inbox-aviso-definitivo`)
+
+### 1. O que fizemos
+- **Auditoria ponta a ponta** (teste `inbox_aviso_ponta_a_ponta`): sincronização → pendentes → push cifrado → `sw.js` → destino; tudo correto no código. O aviso genérico visto no iPhone vinha de função publicada antiga.
+- **Causa provada do toque:** a atualização automática ao voltar ao site re-rodava a rota do Inbox e fechava a leitura recém-aberta (reproduzido no Chromium). Corrigido com `parts.refresh` / `renderInbox(..., refresh)`; resultado da abertura registrado (`notifAbriu`) e separado do recebimento (`rac-ack`). Versão `2026-11-15.12`.
+- **Não feito:** publicar a função `rac-inbox` (sem conector do Supabase; CLI/API bloqueadas pelo ambiente).
+
+### 2. O que estamos fazendo
+- PR aberto/mesclado conforme CI; falta confirmar a função publicada (carimbo `rac-inbox@i3.1`) e o teste físico.
+
+### 3. O que vamos fazer
+- iPhone: conferir título/corpo e a abertura direta; se falhar, ler "toque que não chegou à mensagem" em Sistema → erros.
+

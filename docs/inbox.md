@@ -386,6 +386,12 @@ Os provedores vão **convergir para o mesmo funil** da rotina iCloud: *adaptador
 
 **Limitação:** validar no iPhone (procedimento no relatório do PR).
 
+## Toque na notificação: confirmação da página e reserva (15/11/2026, versão `2026-11-15.10`)
+
+**Sintoma (teste real no iPhone com as versões `.8`/`.9`):** o toque trouxe o app para a frente na página que já estava aberta (Início), sem ir ao Inbox nem à mensagem.
+**O que foi provado:** a parte da página funciona no site de verdade: um teste em Chromium (`tests/navegador.test.mjs`) simula o aviso do service worker com o app no Início e o RAC abre direto a leitura da mensagem do ID. Portanto a falha estava entre o toque e a página (service worker → janela do iPhone). **A causa exata no iPhone não foi comprovada** (não há como observar o aparelho daqui): o aviso `rac-abrir` não chegou à página, ou chegou e a navegação foi ignorada; o iPhone não aceitava `navigate`/`openWindow` sobre uma janela já existente.
+**Correção:** (1) a página agora **confirma** o aviso (`rac-ack`); (2) o service worker espera a confirmação por 1,5 s e, **sem ela**, navega a janela ao destino (`navigate`) e, se isso falhar ou não existir, **abre uma janela nova** no destino; (3) o que aconteceu em cada toque (janelas encontradas, caminho usado, confirmação, nomes de erros) fica em `__rac-diag`; a página lê, apaga e, **só quando houve reserva ou erro**, registra em Sistema → erros ("toque sem confirmação da página: …"), para diagnóstico se ainda falhar. O destino guardado de reserva (`__rac-destino`) continua. Testes: `tests/inbox_notificacao_abrir.test.mjs` (confirmação, reserva, sem navigate, navigate recusado, diagnóstico) e o teste em Chromium.
+
 ## Testes
 
 Cinco arquivos (I1; os da I2 estão na seção acima e em "Evidências"): `tests/inbox_nucleo.test.mjs` (14: regras, contrato, cursor, credencial), `tests/inbox_tela.test.mjs` (7: estados, exemplo, fluxo da credencial, desenho), `tests/inbox_sql.test.mjs` (11, PGlite: modelo da 051 e isolamento), `tests/inbox_cofre_sql.test.mjs` (12, PGlite com Vault de mentira: ciclo da credencial, isolamento, privilégios, substituição sem órfão, exclusão, falha do Vault sem alternativa, trava MFA, catálogo) e `tests/inbox_cofre_servico.test.mjs` (12: serviço da função com cofre e Worker de mentira: nada vaza em resposta, erro ou registro; conta sem credencial não chega ao Worker; credencial inválida vira erro controlado; falha do cofre não tem alternativa; MFA; sem estado global).

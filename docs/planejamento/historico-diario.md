@@ -1108,3 +1108,10 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Validar no iPhone: assunto/remetente corretos e toque abrindo a mensagem, sem passar pela lista.
 
+## 15/11/2026 (noite) · RAC Inbox — toque na notificação não levava à mensagem (branch `claude/inbox-toque-confirmacao`)
+
+- **Sintoma (iPhone, versões .8/.9):** o toque só trazia o app para a frente, na página que estava aberta (Início).
+- **Auditoria:** a rota e a leitura direta funcionam no site de verdade (teste novo em Chromium); a falha está entre o service worker e a janela do iPhone. Causa exata **não comprovada**.
+- **Correção (versão `2026-11-15.10`):** a página confirma o aviso (`rac-ack`); sem confirmação em 1,5 s o service worker navega a janela ao destino e, se falhar, abre janela nova; diagnóstico do toque (`__rac-diag`) vai para Sistema → erros quando houve reserva ou erro. Testes atualizados (`notificacao`, `inbox_notificacao_abrir`, `navegador`).
+- **Próximo:** novo teste no iPhone; se ainda falhar, ler o erro "toque sem confirmação da página" em Sistema.
+

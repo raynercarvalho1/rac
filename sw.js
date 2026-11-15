@@ -5,7 +5,7 @@
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-15.9";
+const VERSAO = "2026-11-15.10";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./css/rac.css", "./nucleo.js", "./js/dados.js", "./mercado.js", "./js/rotas.js", "./js/app.js", "./js/graficos.js", "./js/fontes.js", "./js/fonte-familia.js", "./js/fonte-mba.js", "./js/fonte-newsletter.js", "./js/fonte-agenda.js", "./js/fonte-saude.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/saude-hub.js", "./js/conexoes.js", "./js/sistema.js", "./js/agenda.js", "./js/inbox.js", "./js/inbox-servico.js", "./js/inbox-demo.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./js/componentes.js", "./js/kit.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
@@ -83,22 +83,39 @@ function destinoDe(dados) {
   try { const u = new URL((dados && dados.url) || "./", self.location.href); if (u.origin === self.location.origin) return u.href; } catch (_) { /* endereço inválido */ }
   return new URL("./", self.location.href).href;
 }
+/* Confirmação (ack): a página que recebe o aviso "rac-abrir" responde "rac-ack". Sem resposta em 1,5 s (página congelada, versão sem o ouvinte, iPhone que ignora o aviso), o service worker
+   NAVEGA a janela até o destino e, se isso falhar, abre uma janela nova. O que aconteceu fica em __rac-diag (a página lê, apaga e, quando algo precisou de reserva, registra em Sistema → erros). */
+const DIAG = new URL("./__rac-diag", self.location.href).href;
+let ESPERA_ACK = [];
+self.addEventListener("message", e => { if (e.data && e.data.tipo === "rac-ack") ESPERA_ACK.splice(0).forEach(f => f(true)); });
+function esperarAck(ms) { return new Promise(ok => { const t = setTimeout(() => ok(false), ms); ESPERA_ACK.push(v => { clearTimeout(t); ok(v); }); }); }
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const alvo = destinoDe(e.notification.data);
+  const alvo = destinoDe(e.notification.data), diag = { quando: Date.now(), alvo, clientes: 0, caminho: "", ack: null, erros: [] };
+  const falha = (nome) => (er) => { diag.erros.push(nome + ":" + String((er && er.name) || er).slice(0, 40)); return false; };
   const guardar = caches.open(DADOS)
     .then(c => c.put(DESTINO, new Response(JSON.stringify({ url: alvo, quando: Date.now() }), { headers: { "Content-Type": "application/json" } })))
-    .catch(() => {});
+    .catch(falha("guardar"));
+  const gravarDiag = () => caches.open(DADOS).then(c => c.put(DIAG, new Response(JSON.stringify(diag), { headers: { "Content-Type": "application/json" } }))).catch(() => {});
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(l => {
     const daqui = l.filter(c => c.url.startsWith(self.location.origin));
+    diag.clientes = daqui.length;
     const c = daqui.filter(x => x.focused)[0] || daqui.filter(x => x.visibilityState === "visible")[0] || daqui[0];
-    if (!c) return Promise.all([guardar, self.clients.openWindow(alvo)]);
+    if (!c) { diag.caminho = "openWindow"; return Promise.all([guardar, self.clients.openWindow(alvo).catch(falha("openWindow"))]).then(gravarDiag); }
+    diag.caminho = "janela";
     /* o foco primeiro: o toque só libera trazer a janela para a frente por pouco tempo */
-    const foco = Promise.resolve().then(() => c.focus()).catch(() => {});
-    const avisar = guardar.then(() => c.postMessage({ tipo: "rac-abrir", url: alvo })).catch(() => {});
+    const foco = Promise.resolve().then(() => c.focus()).catch(falha("focus"));
+    const ack = esperarAck(1500);   // registrado ANTES de avisar: a resposta não se perde
+    const avisar = guardar.then(() => c.postMessage({ tipo: "rac-abrir", url: alvo })).catch(falha("postMessage"));
     /* navigate só para trocar o "#…" do mesmo endereço: nunca recarrega a página (o que apagaria um texto não salvo) */
     const mesma = c.url.split("#")[0] === alvo.split("#")[0];
-    const ir = mesma && c.url !== alvo && typeof c.navigate === "function" ? Promise.resolve().then(() => c.navigate(alvo)).catch(() => {}) : null;
-    return Promise.all([foco, avisar, ir]);
+    const ir = mesma && c.url !== alvo && typeof c.navigate === "function" ? Promise.resolve().then(() => c.navigate(alvo)).catch(falha("navigate")) : null;
+    return Promise.all([foco, avisar, ir]).then(() => ack).then(ok => {
+      diag.ack = ok; if (ok) return gravarDiag();
+      /* a página não confirmou: reserva — navega a janela até o destino (recarrega, mas leva ao lugar certo); sem navigate ou se falhar, abre uma janela nova */
+      diag.caminho = "janela+reserva";
+      const nav = typeof c.navigate === "function" && !(mesma && c.url === alvo) ? Promise.resolve().then(() => c.navigate(alvo)).then(r => r || Promise.reject(new Error("sem janela"))).catch(falha("navigate2")) : Promise.resolve(false);
+      return nav.then(feito => feito ? null : (diag.caminho = "janela+openWindow", self.clients.openWindow(alvo).catch(falha("openWindow2")))).then(gravarDiag);
+    });
   }));
 });

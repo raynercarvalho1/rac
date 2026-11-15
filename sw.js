@@ -5,7 +5,7 @@
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-15.5";
+const VERSAO = "2026-11-15.6";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./css/rac.css", "./nucleo.js", "./js/dados.js", "./mercado.js", "./js/rotas.js", "./js/app.js", "./js/graficos.js", "./js/fontes.js", "./js/fonte-familia.js", "./js/fonte-mba.js", "./js/fonte-newsletter.js", "./js/fonte-agenda.js", "./js/fonte-saude.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/saude-hub.js", "./js/conexoes.js", "./js/sistema.js", "./js/agenda.js", "./js/inbox.js", "./js/inbox-servico.js", "./js/inbox-demo.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./js/componentes.js", "./js/kit.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
@@ -22,10 +22,14 @@ self.addEventListener("activate", e => {
 
 /* "no-cache": sempre pergunta ao servidor se o arquivo mudou (o GitHub deixa guardar por 10 minutos e a correção demorava a chegar) */
 function redePrimeiro(req) {
+  const guardado = () => caches.match(req, { ignoreSearch: true });
   return fetch(req, { cache: "no-cache" }).then(res => {
-    if (res.ok) { const copia = res.clone(); caches.open(APP).then(c => c.put(req, copia)); }
+    if (res.ok) { const copia = res.clone(); caches.open(APP).then(c => c.put(req, copia)); return res; }
+    /* resposta de ERRO (5xx, 429, 404 passageiro da hospedagem) não é "sem internet", mas o efeito era o mesmo: um módulo (<script>) com erro some da tela.
+       Havendo a cópia guardada do mesmo arquivo, ela vale mais que a página de erro; sem cópia, o erro segue como veio. Redirecionamentos (status 0) passam como estão. */
+    if (res.status >= 400) return guardado().then(r => r || res);
     return res;
-  }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || (req.mode === "navigate" ? caches.match("./index.html") : undefined)));
+  }).catch(() => guardado().then(r => r || (req.mode === "navigate" ? caches.match("./index.html") : undefined)));
 }
 function guardadoEAtualiza(req, chave) {
   return caches.open(DADOS).then(c => c.match(chave).then(guardado => {

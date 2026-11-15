@@ -1,0 +1,132 @@
+// RAC · tocar na notificação do Inbox abre o Inbox (correção de 15/11/2026). Teste real no iPhone: o push chegou, o toque abriu o RAC, mas a tela dizia
+// "não consegui carregar a seção inbox (sem internet?)". Aqui, sem rede: (1) o sw.js de verdade com janela fechada, em segundo plano e aberta, destino #inbox;
+// (2) o destino #inbox preservado e o roteador só navegando com papel/sessão; (3) o carregador de módulos de js/app.js (trecho real) com falha, nova tentativa e erro identificável;
+// (4) o sw.js devolvendo a cópia guardada quando a rede responde ERRO (a causa provada); (5) as demais rotas intactas.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+import { createRequire } from "node:module";
+
+createRequire(import.meta.url)("../nucleo.js");
+const N = globalThis.RACnucleo;
+const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+const SITE = "https://raynercarvalho.com.br/", DESTINO = SITE + "__rac-destino", espera = () => new Promise((r) => setTimeout(r, 0));
+
+/* ---------- o sw.js de verdade num ambiente falso ---------- */
+function cachesFalsos(pre = {}) {
+  const caixas = { "rac-app-x": new Map(Object.entries(pre)) };
+  const de = (n) => (caixas[n] = caixas[n] || new Map());
+  return { caixas, open: async (n) => ({ match: async (k) => de(n).get(String(k)), put: async (k, r) => { de(n).set(String(k), r); }, delete: async (k) => de(n).delete(String(k)) }),
+    match: async (req) => { const u = typeof req === "string" ? req : req.url; for (const m of Object.values(caixas)) for (const [k, v] of m) if (k.split("?")[0] === u.split("?")[0]) return v; return undefined; }, keys: async () => Object.keys(caixas), delete: async () => true };
+}
+function janela({ url, focused = false, visivel = true, log }) {
+  const j = { url, focused, visibilityState: visivel ? "visible" : "hidden", recebidas: [], navegou: [] };
+  j.focus = () => { log.push("foco"); return Promise.resolve(j); }; j.postMessage = (m) => { j.recebidas.push(m); log.push("mensagem"); };
+  j.navigate = (u) => { log.push("navigate"); j.navegou.push(u); return Promise.resolve(j); }; return j;
+}
+function sw({ janelas = [], caches = cachesFalsos(), fetchFn = async () => { throw new Error("sem rede"); } } = {}) {
+  const ouvintes = {}, log = [], abertas = [], mostradas = [];
+  const ctx = { self: { location: { origin: SITE.slice(0, -1), href: SITE + "sw.js" }, addEventListener: (t, f) => (ouvintes[t] = f),
+      clients: { matchAll: async () => janelas, openWindow: async (u) => { abertas.push(u); log.push("openWindow"); return null; }, claim: async () => {} },
+      registration: { showNotification: async (t, o) => { mostradas.push({ titulo: t, ...o }); } }, skipWaiting: () => {}, navigator: {} },
+    caches, URL, Response, Date, JSON, Promise, console, fetch: fetchFn };
+  vm.runInNewContext(ler("sw.js"), ctx, { filename: "sw.js" });
+  const push = async (payload) => { let p; ouvintes.push({ data: { json: () => payload }, waitUntil: (x) => (p = x) }); await p; return mostradas.at(-1); };
+  const tocar = async (data) => { let p = null; ouvintes.notificationclick({ notification: { data, close() {} }, waitUntil: (x) => (p = x) }); await p; await espera(); };
+  const pedir = async (url, mode = "no-cors") => { let r; ouvintes.fetch({ request: { url, method: "GET", mode }, respondWith: (x) => (r = x) }); return await r; };
+  return { push, tocar, pedir, log, abertas, mostradas, caches };
+}
+const AVISO_INBOX = { titulo: "RAC Inbox", corpo: "1 nova mensagem", url: "./#inbox", tag: "inbox-c1", badge: 1, renotificar: true };
+const guardado = async (c) => { const r = await (await c.open("rac-dados")).match(DESTINO); return r ? JSON.parse(await r.text()) : null; };
+
+test("RAC FECHADO: o toque no aviso do Inbox abre uma janela já em #inbox e guarda o destino (reserva para o iPhone que abre o início)", async () => {
+  const a = sw(), n = await a.push(AVISO_INBOX);
+  assert.equal(n.data.url, "./#inbox"); await a.tocar(n.data);
+  assert.deepEqual([...a.abertas], [SITE + "#inbox"], "abre a janela no endereço do Inbox"); const g = await guardado(a.caches); assert.equal(g.url, SITE + "#inbox"); assert.ok(g.quando > 0);
+});
+
+test("RAC EM SEGUNDO PLANO e ABERTO: reutiliza a janela (foco + aviso à página + navegação só de hash); nunca abre outra", async () => {
+  const log = [], bg = janela({ url: SITE + "#agenda", visivel: false, log }), a = sw({ janelas: [bg] }); a.log = log;
+  const n = await a.push(AVISO_INBOX); await a.tocar(n.data);
+  assert.deepEqual([...a.abertas], []); assert.deepEqual(JSON.parse(JSON.stringify(bg.recebidas)), [{ tipo: "rac-abrir", url: SITE + "#inbox" }]); assert.ok(log.includes("foco")); assert.deepEqual([...bg.navegou], [SITE + "#inbox"], "mesmo documento: só troca o #");
+  assert.ok((await guardado(a.caches)).url.endsWith("#inbox"));
+  const log2 = [], aberta = janela({ url: SITE + "#inbox", focused: true, log: log2 }), b = sw({ janelas: [aberta] }); await b.tocar((await b.push(AVISO_INBOX)).data);
+  assert.deepEqual([...aberta.navegou], [], "já está no Inbox: não navega de novo"); assert.equal(aberta.recebidas.length, 1); assert.deepEqual([...b.abertas], []);
+});
+
+test("destino #inbox preservado e só do site: aviso com URL relativa, absoluta ou de outro site", () => {
+  for (const u of ["./#inbox", SITE + "#inbox", SITE + "index.html#inbox"]) assert.equal(N.notifHash(u, SITE), "#inbox", u);
+  assert.equal(N.notifHash("https://outro.example/#inbox", SITE), "", "outro site nunca");
+  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
+});
+
+/* ---------- o roteador: o destino fica no endereço até haver papel; só então navega ---------- */
+test("roteador: sem papel/sessão não navega (o #inbox continua no endereço); iniciar() chama route() com papel e só depois aplica o destino guardado; hashchange também chama route()", () => {
+  const app = ler("js/app.js");
+  assert.match(app, /function route\(\)\{\s*if\(!PAPEL\)return;/); assert.match(app, /window\.addEventListener\("hashchange",route\)/);
+  assert.match(app, /route\(\);notifPendente\(true\)\}/, "route() antes de notifPendente(true)");
+  assert.match(app, /parts=\(location\.hash\|\|""\)\.replace\("#",""\)\.split\("\/"\)/, "o destino vem do endereço");
+  const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\]\)\}/);
+  assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
+});
+
+/* ---------- o carregador de módulos (trecho REAL de js/app.js) ---------- */
+function carregador({ falhas = {}, online = true } = {}) {
+  const app = ler("js/app.js"), trecho = app.slice(app.indexOf("  var MOD_TENTATIVAS=3;"), app.indexOf("  function precisa(l)"));
+  const pedidos = [], temporizadores = [], tentativasPorModulo = {};
+  const document = { createElement: () => ({}), head: { appendChild(s) { pedidos.push(s.src); const m = /js\/([a-z-]+)\.js/.exec(s.src)[1]; tentativasPorModulo[m] = (tentativasPorModulo[m] || 0) + 1; Promise.resolve().then(() => (tentativasPorModulo[m] <= (falhas[m] ?? 0) ? s.onerror() : s.onload())); } } };
+  const ctx = { MOD_VERSAO: "V", MODULOS: {}, MOD_OK: {}, MOD_DEPS: { inbox: ["kit", "inbox-servico"], agenda: ["sistema", "kit", "graficos"] }, document, navigator: { onLine: online }, setTimeout: (f) => { temporizadores.push(1); f(); }, Promise, Error };
+  vm.runInNewContext(trecho + "\nthis.modulo=modulo;", ctx); return { ctx, pedidos, temporizadores, tentativasPorModulo };
+}
+
+test("módulo que falha UMA vez: tenta de novo (com &t=) e abre; as dependências carregam antes; o módulo fica carregado", async () => {
+  const c = carregador({ falhas: { inbox: 1 } }); await c.ctx.modulo("inbox");
+  assert.ok(c.pedidos.indexOf("js/inbox.js?v=V") > c.pedidos.indexOf("js/kit.js?v=V") && c.pedidos.at(-1) === "js/inbox.js?v=V&t=1"); assert.equal(c.ctx.MOD_OK.inbox, 1); assert.equal(c.temporizadores.length, 1);
+});
+
+test("módulo que falha sempre: erro IDENTIFICÁVEL (codigo, modulo, online, tentativas), 3 tentativas, e a próxima chamada tenta de novo (nada fica preso); online=false diz 'sem internet'", async () => {
+  const c = carregador({ falhas: { inbox: 99 } });
+  const e = await c.ctx.modulo("inbox").then(() => null, (x) => x);
+  assert.deepEqual([e.codigo, e.modulo, e.online, e.tentativas], ["modulo_indisponivel", "inbox", true, 3]); assert.equal(c.tentativasPorModulo.inbox, 3);
+  assert.match(e.message, /^não consegui carregar a seção inbox \(o arquivo não chegou, mesmo com a conexão ativa/); assert.ok(!/sem internet/.test(e.message), "com a conexão ativa NÃO diz 'sem internet'");
+  c.ctx.MODULOS = c.ctx.MODULOS; assert.equal(c.ctx.MODULOS.inbox, undefined, "o módulo falho sai do registro: o botão 'Tentar de novo' pede outra vez");
+  const off = carregador({ falhas: { inbox: 99 }, online: false }); const eo = await off.ctx.modulo("inbox").then(() => null, (x) => x); assert.equal(eo.online, false); assert.match(eo.message, /\(sem internet\)$/);
+  const dep = carregador({ falhas: { kit: 99 } }); const ed = await dep.ctx.modulo("inbox").then(() => null, (x) => x); assert.equal(ed.modulo, "kit", "o erro nomeia a dependência que falhou, não o módulo que a pediu");
+});
+
+test("outras rotas continuam: o mesmo carregador abre Agenda (3 dependências em ordem) e módulos simples; falha de um não afeta outro; botão 'Tentar de novo' refaz a rota", async () => {
+  const c = carregador(); await Promise.all([c.ctx.modulo("agenda"), c.ctx.modulo("inbox")]);
+  for (const m of ["sistema", "kit", "graficos", "agenda", "inbox-servico", "inbox"]) assert.equal(c.ctx.MOD_OK[m], 1, m); assert.equal(c.pedidos.filter((p) => p.startsWith("js/kit.js")).length, 1, "dependência compartilhada carrega uma vez");
+  const app = ler("js/app.js"), f = app.slice(app.indexOf("  function rotaFalhou(top,e){"), app.indexOf("  function route(){"));
+  const filhos = []; let refez = 0; const botoes = [];
+  const h = (tag, at, ...fi) => { const e = { tag, at, fi, parentNode: null, removeu: false }; fi.forEach((x) => x && typeof x === "object" && (x.parentNode = e)); if (tag === "button") botoes.push(e); return e; };
+  const v = { insertBefore(p) { filhos.push(p); p.parentNode = { removeChild(x) { x.removeu = true; } }; }, firstChild: null };
+  const ctx = { h, tabs: ["inicio", "inbox"], document: { querySelector: () => v, getElementById: () => ({}) }, route: () => { refez++; } };
+  vm.runInNewContext(f + "\nthis.rotaFalhou=rotaFalhou;", ctx); ctx.rotaFalhou("inbox", { message: "não consegui carregar a seção inbox (x)" });
+  assert.equal(filhos.length, 1); assert.match(filhos[0].fi[0].at.text, /Não consegui abrir esta seção agora \(não consegui carregar a seção inbox/); botoes[0].onclick(); assert.equal(refez, 1); assert.ok(filhos[0].removeu);
+});
+
+test("todas as rotas: cada módulo declarado existe como arquivo, está no SHELL do sw.js e as dependências também (nenhuma rota perdeu o carregamento)", () => {
+  const rotas = ler("js/rotas.js"), sw = ler("sw.js"), app = ler("js/app.js"), deps = JSON.parse("{" + /var MOD_DEPS=\{([\s\S]*?)\};/.exec(app)[1].replace(/([{,]\s*)([A-Za-z-]+):/g, '$1"$2":').replace(/\s+/g, " ") + "}");
+  const mods = new Set([...rotas.matchAll(/mods:\[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([a-z-]+)"/g)].map((x) => x[1])));
+  for (const m of [...mods, ...Object.values(deps).flat()]) { assert.ok(fs.existsSync(new URL("../js/" + m + ".js", import.meta.url)) || fs.existsSync(new URL("../" + m + ".js", import.meta.url)), m + " existe"); assert.ok(sw.includes(`"./js/${m}.js"`) || sw.includes(`"./${m}.js"`), m + " no SHELL"); }
+  assert.ok(mods.has("inbox"));
+});
+
+/* ---------- a causa provada: erro da rede não pode esconder a cópia guardada ---------- */
+test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do arquivo; sem cópia o erro segue; 200 guarda; redirecionamento e queda de rede como antes", async () => {
+  const URL_JS = SITE + "js/inbox.js?v=2026-11-15.6";
+  for (const st of [503, 429, 404, 500]) {
+    const a = sw({ caches: cachesFalsos({ [SITE + "js/inbox.js"]: new Response("// inbox v-guardada", { status: 200 }) }), fetchFn: async () => new Response("erro", { status: st }) }), r = await a.pedir(URL_JS);
+    assert.equal(r.status, 200, "status " + st + ": a cópia guardada vence a página de erro"); assert.match(await r.text(), /v-guardada/);
+  }
+  const sem = sw({ fetchFn: async () => new Response("erro", { status: 503 }) }); assert.equal((await sem.pedir(URL_JS)).status, 503, "sem cópia o erro segue como veio");
+  const ok = sw({ fetchFn: async () => new Response("novo", { status: 200 }) }); assert.equal(await (await ok.pedir(URL_JS)).text(), "novo"); await espera();
+  const caiu = sw({ caches: cachesFalsos({ [SITE + "js/inbox.js"]: new Response("// guardada") }), fetchFn: async () => { throw new TypeError("net"); } }); assert.match(await (await caiu.pedir(URL_JS)).text(), /guardada/, "queda de rede: cópia (como antes)");
+  const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
+});
+
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.6", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.6"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.6"/); assert.ok(ler("index.html").includes("2026-11-15.6"));
+});

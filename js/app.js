@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-15.5",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-15.6",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -33,12 +33,20 @@
      (régua da Próxima melhor ação e ações rápidas), o kit e os gráficos. */
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],saude:["fonte-saude"],"saude-hub":["saude","kit","graficos"],"fonte-saude":["fontes"],agenda:["sistema","kit","graficos"],inbox:["kit","inbox-servico"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
     familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
+  /* Um <script> que não chega NÃO é sempre "sem internet": a hospedagem pode responder erro, a rede pode estar acordando (app aberto por uma notificação com o aparelho parado). Por isso:
+     tenta de novo até 2 vezes (com "&t=", que o service worker ignora ao procurar a cópia guardada) e o erro sai identificável: codigo, modulo, tentativas e se o aparelho se diz online. */
+  var MOD_TENTATIVAS=3;
+  function moduloScript(n,tent,ok,erro){
+    var s=document.createElement("script");s.src="js/"+n+".js?v="+MOD_VERSAO+(tent?"&t="+tent:"");
+    s.onload=function(){MOD_OK[n]=1;ok()};
+    s.onerror=function(){if(s.parentNode)s.parentNode.removeChild(s);
+      if(tent+1<MOD_TENTATIVAS){setTimeout(function(){moduloScript(n,tent+1,ok,erro)},400*(tent+1));return}
+      delete MODULOS[n];var on=!(typeof navigator!=="undefined"&&navigator.onLine===false),e=new Error("não consegui carregar a seção "+n+(on?" (o arquivo não chegou, mesmo com a conexão ativa; tentativas: "+MOD_TENTATIVAS+")":" (sem internet)"));
+      e.codigo="modulo_indisponivel";e.modulo=n;e.online=on;e.tentativas=MOD_TENTATIVAS;erro(e)};
+    document.head.appendChild(s)}
   function modulo(n){
     if(MODULOS[n])return MODULOS[n];
-    MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){
-      var s=document.createElement("script");s.src="js/"+n+".js?v="+MOD_VERSAO;
-      s.onload=function(){MOD_OK[n]=1;ok()};s.onerror=function(){delete MODULOS[n];erro(new Error("não consegui carregar a seção "+n+" (sem internet?)"))};
-      document.head.appendChild(s)})});
+    MODULOS[n]=Promise.all((MOD_DEPS[n]||[]).map(modulo)).then(function(){return new Promise(function(ok,erro){moduloScript(n,0,ok,erro)})});
     return MODULOS[n]}
   function precisa(l){return Promise.all(l.map(modulo))}
   /* cartão da tela inicial que depende de um módulo: aparece "carregando" e é trocado quando o módulo chega */
@@ -82,16 +90,20 @@
     precisa(mods).then(function(){var el=window[nome]();if(ph.parentNode)ph.replaceWith(el)})
       .catch(function(e){ph.innerHTML="";ph.appendChild(h("p",{class:"sub",text:"Não consegui carregar agora ("+e.message+")."}));logErro("módulo",e)});
     return ph}
+  /* a seção não abriu: mostra o motivo e um botão que tenta de novo (o módulo que falhou é pedido outra vez) */
+  function rotaFalhou(top,e){
+    var v=document.querySelector("#"+top+" .stack, #"+top);tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});if(!v)return;
+    var bt=h("button",{type:"button",class:"ghostbtn",text:"Tentar de novo"}),p=h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui abrir esta seção agora ("+e.message+"). Tente de novo."}),bt);
+    bt.onclick=function(){if(p.parentNode)p.parentNode.removeChild(p);route()};v.insertBefore(p,v.firstChild)}
   function route(){
-    if(!PAPEL)return;
+    if(!PAPEL)return;   /* roteador ainda sem sessão/papel: não navega; o destino (#hash) fica no endereço e iniciar() chama route() quando o papel existe */
     var parts=(location.hash||"").replace("#","").split("/");
     if(parts[0]==="captura"){history.replaceState(history.state,"","#"+(isOwner()?"inicio":"lista"));setTimeout(function(){abrirCaptura()},300);parts=[isOwner()?"inicio":"lista"]}
     var top=tabs.indexOf(parts[0])<0?"inicio":parts[0];
     /* a esposa vê o Mercado, o Eddie, a Olivia e os Veículos; o resto leva ao Mercado */
     if(PAPEL==="casa"&&DA_CASA.indexOf(top)<0){top="mercado";parts=["mercado"]}
     var faltam=(ROTA_MODS[top]||[]).filter(function(n){return !MOD_OK[n]});
-    if(faltam.length){precisa(faltam).then(route,function(e){logErro("módulo",e);var v=document.querySelector("#"+top+" .stack, #"+top);
-      tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});if(v)v.insertBefore(h("div",{class:"panel"},h("p",{class:"empty",text:"Não consegui abrir esta seção agora ("+e.message+"). Tente de novo."})),v.firstChild)});return}
+    if(faltam.length){precisa(faltam).then(route,function(e){logErro("módulo",e);rotaFalhou(top,e)});return}
     tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});
     document.documentElement.setAttribute("data-sec",top);atuBotao();if(!ATU.rodando)atuAviso("");
     if(top!=="eddie"&&top!=="olivia"&&top!=="veiculos")fundoPagina(null);

@@ -38,3 +38,5 @@ A credencial iCloud **não** é secret, variável, KV, D1 nem log do Worker: che
 
 Operações `smtp_prova` (diagnóstico: etapas, códigos e tempos; com `enviar_teste`, uma mensagem ao próprio endereço) e `enviar` (corpo de até 256 KiB só nelas). Conecta em `smtp.mail.me.com:587` com `secureTransport: "starttls"`; a senha só vai após o `startTls()`. Resultado de `enviar`: sucesso, erro fechado (falha confirmada) ou `envio_incerto`. Não há secret novo. **Nunca rodou contra o iCloud real**; ver `docs/inbox.md`, seção I3.
 
+## Publicação
+Pelo workflow `.github/workflows/rac-inbox-worker-publicar.yml` (manual, só `main`, Environment `cloudflare-production`). Guia: `docs/inbox-worker-deploy.md`. A lista de arquivos desta pasta é fechada no workflow: ao criar ou remover arquivo aqui, atualize a lista dele no mesmo PR.

@@ -319,3 +319,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Escopo:** só texto, 20 destinatários, sem anexos de saída, sem encaminhar anexos, sem APPEND em Enviados (Worker continua somente leitura no IMAP).
 - **Pendências (do dono):** aplicar 056; publicar Worker `p8.0` e função `i3.1`; rodar a prova SMTP real e o teste de ponta a ponta; confirmar se o iCloud grava a cópia em Enviados. O Worker de produto ainda está só na branch `claude/inbox-p7-worker`.
 
+## 15/11/2026 (noite) · RAC Inbox — publicação do Worker de produto (decisão técnica)
+- **Publicação só pelo GitHub Actions**, manual, na `main`, com Environment `cloudflare-production` (secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` cadastrados pelo dono). Workflow próprio; o Worker de prova iCloud não é reaproveitado.
+- **Sem pin por hash** (diferente da prova iCloud): vale o commit da `main` com CI aprovado + lista fechada de arquivos + configuração fixa + inspeção do pacote + testes. A lista fixa do workflow precisa ser atualizada se o Worker ganhar ou perder arquivos.
+- A saúde do deploy **não assina** pedido: 401 `cabecalhos_invalidos` sem assinatura prova Worker no ar e chave do canal configurada. A prova assinada de ponta a ponta é o botão "Testar conexão" do RAC.
+- **Pendências do dono:** token Cloudflare (Workers Scripts: Edit), Environment `cloudflare-production` (só `main`, aprovação do dono), secrets, mesclar o PR e executar o workflow.
+

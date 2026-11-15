@@ -9,7 +9,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.4";
 import { aalOk, ERROS } from "./contrato.ts";
 import { atender, type Cofre, type EstadoCredencial } from "./servico.ts";
-import { criarRepositorio } from "./repositorio.ts";
+import { criarBancoPush, criarRepositorio } from "./repositorio.ts";
+import { rodarRotina } from "./rotina.ts";
+import { entregar } from "./push.ts";
 import { sessaoPostgres } from "./sessao.ts";
 import { criarWorkerHttp } from "./canal.ts";
 
@@ -60,6 +62,21 @@ Deno.serve(async (req) => {
     if (texto.length > CORPO_MAX_BYTES) return erro("muito_grande");
     let corpo: unknown = null;
     try { corpo = JSON.parse(texto); } catch (_) { return erro("corpo_invalido"); }
+    /* ROTINA (pg_cron a cada 10 min): o gateway já conferiu o JWT (verify_jwt=true; o agendamento manda a chave anon em Authorization), mas ISSO NÃO AUTORIZA a rotina: não há usuário e a senha da rotina (Vault: rac_rotina, a mesma das outras rotinas) é conferida no banco. Só a operação "rotina_sync", sem nenhum outro campo. */
+    const senhaRotina = req.headers.get("x-rac-rotina");
+    if (senhaRotina) {
+      if (corpo === null || typeof corpo !== "object" || Array.isArray(corpo) || (corpo as Record<string, unknown>).operacao !== "rotina_sync" || Object.keys(corpo as object).length !== 1) return erro("operacao_invalida");
+      const bdr = Deno.env.get("SUPABASE_DB_URL"), wr = workerDoAmbiente();
+      if (!bdr) return erro("cofre_indisponivel");
+      if (!wr) return erro("worker_nao_configurado");
+      sql = postgres(bdr, { max: 1, prepare: false, idle_timeout: 5, connect_timeout: 10, onnotice: () => {}, debug: false });
+      const sessao = sessaoPostgres(sql as never), banco = criarRepositorio(sessao);
+      let autorizada = false;
+      try { autorizada = await banco.rotinaAutorizada(senhaRotina); } catch (_) { return erro("banco_indisponivel"); }
+      if (!autorizada) { registrar({ operacao: "rotina_sync", codigo: "sem_login", status: 401 }); return erro("sem_login"); }
+      const resumo = await rodarRotina({ banco, cofre: cofrePostgres(sql), worker: wr, aviso: { enviar: (dono, msg) => entregar(criarBancoPush(sessao), dono, msg) }, registrar });
+      return new Response(JSON.stringify({ ok: true, resumo }), { status: 200, headers: h });   // só contagens
+    }
     /* quem é: o JWT é conferido no Supabase; sem sessão válida nada acontece */
     const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     const url = Deno.env.get("SUPABASE_URL") ?? "", publica = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";

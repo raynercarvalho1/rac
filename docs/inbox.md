@@ -1,7 +1,8 @@
-# RAC Inbox · I1 e I2 — Fundação, custódia, canal assinado e sincronização (documento técnico)
+# RAC Inbox · I1 e I2 — Fundação, custódia, canal assinado, sincronização e rotina automática (documento técnico)
 
 Registro do que foi **efetivamente implementado** na fase I1 do [Documento 10](planejamento/10-rac-inbox.md). Atualizado em 15/11/2026.
 Estado (15/11/2026): **em produção (confirmado pelo dono):** migrations 051, 052 e **053** aplicadas (a 053 em 15/11/2026, diretamente no banco pelo ChatGPT; colunas e o índice `inbox_ref_lista` conferidos); função `rac-inbox` **versão 1** publicada (`verify_jwt=true`); credencial iCloud **cadastrada no Vault** (`inbox_cofre.conferir()`: credenciais 1, ponteiro_sem_segredo 0, segredo_sem_ponteiro 0); site `2026-11-15.1` com o cliente habilitado (deploy do Pages verificado pelo GitHub; a versão efetivamente servida foi vista pelo dono no navegador). **Pronto em código e testado só com simulações, NÃO publicado, NÃO testado contra a Apple:** Worker de produto (branch isolada `claude/inbox-p7-worker`), função `rac-inbox` v2 (canal assinado, sincronização, leitura) e a interface real (branch `claude/inbox-i2-sync`). **A autenticação real com a Apple ainda não foi testada.** Ver "I2" e "O que falta".
+**Rotina automática e notificações (15/11/2026, branch `claude/rac-inbox-sync-notifications-7qwi6v`):** implementadas em código e testadas só com simulações e PGlite; **NÃO publicadas, NÃO aplicadas** (migration 054, proposta 055, função v3 `rac-inbox@i3.0`). Ver a seção "Automático".
 
 > **Sobre o documento:** as seções "Arquitetura de integração" e "Custódia" descrevem a I1 e continuam válidas; a seção **"I2"** (abaixo) descreve o que foi acrescentado em 15/11/2026 e **prevalece** onde houver diferença.
 
@@ -179,7 +180,7 @@ O iCloud **não tem IDLE, CONDSTORE nem QRESYNC**: nada depende deles; é *polli
 ### Limitações conhecidas
 - Ler no RAC **não marca como lida** no provedor (só leitura); a tela mostra o estado que o provedor informou na última sincronização. Marcar/arquivar/excluir são etapas posteriores.
 - A contagem de **não lidas** de uma pasta é das mensagens carregadas (a janela), não do total no provedor. Melhoria possível: `STATUS (UNSEEN)`, também de leitura (ainda não implementada).
-- **Sem sincronização automática**: só ao tocar em Sincronizar (agendamento e *polling* são etapa posterior).
+- **Sincronização automática**: implementada em código na seção "Automático" (a cada 10 min, no servidor); enquanto a 054, a função v3 e o agendamento 055 não forem publicados pelo dono, só há a sincronização manual.
 - O Cloudflare Workers **Free** limita a CPU a ~10 ms por requisição; ler e converter mensagens pode estourar. Se acontecer, o plano Paid (US$ 5/mês) é **decisão de custo do dono**. Não confirmado até haver teste real.
 - `PermanentFlags`/`READ-WRITE` do `EXAMINE` do iCloud: a garantia de somente leitura é do Worker (lista fechada de comandos, `EXAMINE` e `BODY.PEEK`), não do servidor.
 
@@ -276,13 +277,105 @@ Logado com o MFA: Sincronizar → a primeira leitura traz as mensagens → abrir
 | TLS com o iCloud, **autenticação real**, leitura de pastas e mensagens reais, persistência no Supabase real, tela no iPhone com mensagens reais | — | **NÃO provado** (depende dos passos do dono) |
 | Nenhuma credencial em resposta, erro, log, tela ou teste | varreduras de texto e provas de vazamento nos testes | simulado |
 
+## Automático — sincronização a cada 10 minutos e notificações (implementado em código em 15/11/2026; NÃO publicado)
+
+Pedido do dono (15/11/2026): iCloud sincronizado sozinho, notificação de e-mail novo com o RAC aberto ou fechado, Gmail e Outlook preparados (não implementados). Esta entrega **não mexe** na entrega `claude/inbox-conexao-discreta` (já mesclada na `main` pelo PR #35; esta branch parte da `main` com ela dentro) e **não toca** no Worker (continua só leitura, na branch `claude/inbox-p7-worker`), na função `garmin` nem no aviso diário das 6h.
+
+### Diagnóstico (fatos, hipóteses e recomendações)
+
+**Fatos confirmados no repositório:**
+- Cadeia atual: navegador → função `rac-inbox` (Supabase Edge, JWT + MFA) → Worker Cloudflare (canal HMAC, só leitura) → iCloud IMAP. O Worker **não guarda nada** e não tem acesso ao Supabase; a credencial vive no Vault e só a função a lê (conexão direta ao Postgres, sem `service_role`).
+- Cursor por pasta já existe (`inbox_sincronizacao`: UIDVALIDITY/UIDNEXT). A sincronização manual relia **sempre as últimas 50** mensagens; isso é o que a rotina **não** repete.
+- Web Push já existe e é usado pelo aviso diário: tabelas `push_inscricoes` e `rac_segredos` (chaves VAPID, criadas por Sistema → Notificações), `sw.js` (evento `push` e `notificationclick`) e a página de ativação em `js/sistema.js`. O Radar já reutiliza o mecanismo com cópia própria (`radar/push.ts`); o Inbox faz o mesmo (`rac-inbox/push.ts`), sem importar de outra função.
+- Já havia agendamento por **pg_cron + pg_net** com a senha da rotina no Vault (`rac_rotina`, migration 008) para Garmin, Newsletter e Radar. A conferência `rac_rotina_ok` existe.
+
+**IDLE no iCloud (evidência real, não reconsultada hoje):** a prova P6 (14/11/2026, comando CAPABILITY contra o servidor real) registrou que o iCloud **não oferece IDLE, CONDSTORE, QRESYNC, UIDPLUS nem MOVE** (seção "Fatos que moldam o desenho"). Hoje não foi possível repetir a consulta: o ambiente desta sessão não alcança `imap.mail.me.com` (falha de DNS) e a regra do projeto proíbe usar credencial fora do fluxo do dono. **Viabilidade:** sem IDLE o servidor não avisa; mesmo que aparecesse no futuro, IDLE exige uma conexão TCP permanente e renovada a cada <29 min, o que não cabe num Worker (atende por requisição, com limite de CPU) nem numa Edge Function (limite de tempo por chamada). **Decisão:** polling a cada 10 min; só revisitar IDLE com comprovação de estabilidade e de um hospedeiro adequado.
+
+**Solução escolhida para o agendamento: Supabase `pg_cron` a cada 10 min → função `rac-inbox` (modo rotina) → Worker (uma chamada por conta).** Motivos: (1) já é o padrão do RAC e o cofre/cursor/push estão do lado do Supabase; (2) o Worker continua sem estado nem segredo do banco; (3) evita o limite de CPU do **Cron do Cloudflare**, onde um único handler percorreria todas as contas (Free: 10 ms de CPU; Paid: até 30 s para agendas com frequência menor que 1 h, conforme o Documento 10 §12.7), enquanto aqui cada conta é uma requisição HTTP comum, com orçamento próprio. Alternativa descartada por ora: Cloudflare Cron (exigiria dar ao Worker a senha da rotina e acesso ao Supabase, ampliando sua superfície).
+
+**Custo estimado (hipótese a medir; preços de terceiros conforme o planejamento, não reconfirmados hoje):** por conta, 144 rodadas/dia ≈ 4.300/mês; a maioria só faz `EXAMINE`; a releitura da janela ocorre 24 vezes/dia. Isso dá **~5 mil requisições/mês ao Worker e ~4,3 mil invocações/mês da função por conta**.
+| Cenário | Custo | Observação |
+|---|---|---|
+| **Free** (Cloudflare Free + Supabase Free) | **US$ 0** | 5 mil requisições/mês é ~0,2% da franquia diária do Worker Free (100 mil/dia) e ~1% da franquia mensal de invocações do Supabase Free. pg_cron e pg_net já estão ativos. **Único risco:** o limite de **10 ms de CPU por requisição** do Worker Free pode ser estourado ao ler e converter cabeçalhos/corpos (erro 1102, visto como `http_503`/`servico_indisponivel` no log). O `EXAMINE` (a rodada comum) é leve; a releitura horária e a leitura de mensagens são as candidatas a estourar. **Não confirmado até haver teste real.** |
+| **Paid** (Workers Paid) | **US$ 5/mês** (mínimo da conta; franquias maiores) | Só se o teste real acusar 1102. **Recomendação: não contratar agora**; decidir com a medição do primeiro dia de rotina. Contratar é decisão do dono. |
+
+### Arquitetura da rotina
+
+```
+pg_cron (*/10) ──net.http_post: Authorization Bearer <anon, Vault> + x-rac-rotina <senha, Vault>──▶ gateway (verify_jwt=true) ──▶ função rac-inbox (modo rotina)   [sem navegador e sem usuário; a senha da rotina é quem autoriza]
+                                                   │ para cada conta iCloud elegível (máx. 20), uma por vez:
+                                                   │  trava de conta (pg_try_advisory_lock) → lê credencial no Vault
+                                                   │  → Worker: estado_pasta (EXAMINE)  ──────────────▶ iCloud (só leitura)
+                                                   │     sem mudança → só registra a tentativa
+                                                   │     UIDNEXT subiu → listar_mensagens desde o cursor (≤ 5 páginas de 100)
+                                                   │     hora da releitura (1 h), UIDVALIDITY mudou ou regrediu → caminho completo
+                                                   │  grava cache + cursor numa transação (idempotente)
+                                                   │  mensagens novas não lidas → 1 Web Push com a contagem → marca "notificada"
+                                                   ▼
+                                       Postgres (cache de cabeçalhos, cursor, push_inscricoes, rac_segredos)
+```
+- **Elegibilidade** (SQL em `repositorio.ts`, `contasAutomaticas`): provedor `icloud`, credencial **ativa**, `sync_auto` ligado, pasta de entrada conhecida (a conta já foi sincronizada uma vez pelo botão), estado fora de `erro_autenticacao`/`desconectada`, dono fora da casa. A Fernanda nunca entra.
+- **Só leitura:** a rotina usa apenas as operações que já existiam no Worker (`estado_pasta`, `listar_mensagens`); nenhum verbo de escrita foi adicionado; **nada foi alterado no Worker**. Ler pelo RAC não marca como lida no provedor.
+- **Cursor e idempotência:** o cursor só avança até onde a leitura chegou (páginas); o *upsert* é por `uidvalidity:uid`; nova rodada repete o mesmo ponto sem duplicar. UIDVALIDITY mudou/UIDNEXT regrediu: apaga o cache da pasta e relê (como na manual), **sem avisar**.
+- **Flags e remoções feitas em outro app** só aparecem na releitura da janela, de hora em hora (`reconciliada_em`), ou no botão Sincronizar. Sem CONDSTORE o iCloud não permite detectar flags só pelo cursor. **Limitação conhecida.**
+- **Concorrência:** trava de sessão por conta (a mesma da sincronização manual): rodada em andamento, clique manual e rodada seguinte nunca sincronizam a mesma conta ao mesmo tempo (`em_andamento` no resumo).
+- **Falhas e recuperação:** cada conta é isolada (uma falha não derruba as outras). Código fechado em `inbox_sincronizacao.erro`; `falhas_seguidas` cresce; a partir de 3 falhas a conta espera 20, 40, 80 e no máximo 120 min entre tentativas; **uma rodada que dá certo zera tudo**. Login recusado: a credencial vira `invalida`, a conta vai a `erro_autenticacao` e **sai da rotina** até o dono substituir a senha (não insiste na Apple). Quando o tempo da rodada acaba, o que não coube fica para a rodada seguinte (ver "Tempo").
+- **Tempo (valores finais; o teste confere com `rotina.ts` e a 055):** (1) **45 s**: depois disso a rodada não começa conta nova e a leitura por páginas para (o cursor só avança até onde leu); (2) **40 s** é o limite de uma chamada ao Worker (o Worker faz no máximo 25 s por sessão IMAP) e cada chamada recebe `min(40 s, o que resta até o prazo duro)`; (3) **prazo duro de 90 s**: nenhuma chamada ao Worker termina depois disso (sem pelo menos 5 s restantes, a chamada nem é feita: `prazo_esgotado`, que **não** conta como falha da conta); (4) **+10 s** de margem para gravar no banco e responder ⇒ a função responde em **≤ 100 s**; (5) **`pg_net`: `timeout_milliseconds := 120000` (120 s)**; (6) limite da função Edge: 150 s. Ordem: 100 s < 120 s < 150 s. *Correção (15/11/2026, revisão do PR #36):* a estimativa anterior de "pior caso ≈ 125 s" estava errada: com 45 s de orçamento e até 3 chamadas de 40 s em uma conta (EXAMINE + janela + página) o pior caso era ~165 s, acima do timeout do `pg_net`; o prazo duro e o limite por chamada removem isso. 20 contas no máximo.
+- **Preferências já cadastradas:** `sync_auto` e `notificar` nascem **ligadas** para a conta existente (a rotina só passa a rodar quando o dono criar a 055, que é o interruptor real; a 054 sozinha não agenda nada e não gera aviso retroativo). Desligar por conta: Opções da conexão.
+- **Perda do aviso:** falha do serviço de push (aparelho recusou, 5xx, rede, sem chaves) **não** marca a mensagem como tratada e a rodada seguinte tenta de novo; passadas **24 h** sem sucesso (ou se a mensagem foi lida antes) o aviso é descartado, de propósito, para não chegar tardio. Sem nenhum aparelho inscrito, as mensagens são tratadas sem aviso.
+- **Registro:** `inbox_sincronizacao` guarda `ultima_tentativa_em`, `ultima_ok_em`, `duracao_ms`, `erro` (código fechado), `falhas_seguidas`, `tipo_ultima`, `origem` (`manual`/`agenda`) e `reconciliada_em`. O log da função só traz operação, código e status. A resposta da rotina é só contagem (`contas`, `sincronizadas`, `sem_mudanca`, `novas`, `avisos`, `falhas`, `ignoradas`, `em_andamento`).
+- **Autorização da rotina (duas camadas):** o gateway confere o **JWT público** (`Authorization: Bearer <chave anon>`, `verify_jwt=true`); a função exige ainda o `x-rac-rotina`, conferido por `public.rac_rotina_ok` (a senha do Vault `rac_rotina`); só aceita o corpo exato `{"operacao":"rotina_sync"}`; não é uma operação do navegador (`validarPedido` a recusa); sem `service_role`.
+
+### Notificações (Web Push)
+
+- **Reutiliza** `push_inscricoes`, as chaves VAPID de `rac_segredos` e o `sw.js`; **não cria chave nem inscrição**. Quem já ativou as notificações em Sistema recebe os avisos do Inbox no mesmo aparelho. O aviso diário (rotina das 6h da Garmin) **não foi alterado**: o `sw.js` só acrescentou campos opcionais (`badge`, `renotificar`) que o aviso diário não envia.
+- **Conteúdo:** só `RAC Inbox` e "N novas mensagens" (ou "1 nova mensagem"). Nunca remetente, assunto, trecho, endereço, nome da conta ou credencial. Destino `./#inbox` (o toque abre o Inbox, com o app aberto ou fechado, pelo caminho já existente do `notificationclick`). `tag` por conta com `renotify`: um aviso novo substitui o anterior e volta a chamar a atenção.
+- **Sem duplicação:** coluna `inbox_mensagens_ref.notificada_em`. Mensagem nasce "tratada" na primeira leitura, na reconstrução e na sincronização manual (o dono está olhando); só o que a **rotina** insere depois fica pendente. A rotina avisa as pendentes **não lidas dos últimos 24 h** e as marca; lidas e antigas saem tratadas sem aviso. O *upsert* nunca zera a marca. Falha de entrega (aparelho recusou) mantém pendente e tenta de novo na rodada seguinte; sem aparelho inscrito não fica pendência eterna.
+- **Primeira sincronização sem aviso retroativo:** vale por construção (linha de base). A opção "avisar também o histórico" **não foi implementada** (o pedido a tratava como exceção explícita); fica como possível melhoria.
+- **Preferências** (por conta, em Opções da conexão ⋯; migration 054): "Sincronizar automaticamente a cada 10 minutos" (`sync_auto`) e "Avisar por notificação" (`notificar`, padrão ligado). Com `notificar` desligado a rotina sincroniza e trata as mensagens sem enviar push (ao religar não vem enxurrada). A preferência por **aparelho** continua em Sistema → Notificações (desativar lá remove a inscrição).
+- **Selo (badge):** o push leva o total de não lidas da caixa de entrada e o `sw.js` chama `setAppBadge`/`clearAppBadge` quando o navegador suporta (iPhone com o site instalado, Chrome); a tela do Inbox também atualiza o selo ao carregar. Onde não há suporte, nada acontece.
+- **Inscrição expirada:** o serviço de push respondendo 404/410 apaga **só aquela** inscrição do dono (como o Radar e a Garmin); 5xx/rede não apaga. **Renovação:** reativar em Sistema → Notificações cria nova inscrição (upsert por endpoint) e ela volta a receber; não há renovação silenciosa em segundo plano (`pushsubscriptionchange` não foi implementado; limitação).
+- **Não se misturam:** o aviso do Inbox sai pela função `rac-inbox` e pela tag `inbox-<conta>`; o aviso diário sai pela `garmin` e não tem tag.
+
+### Arquivos desta entrega
+
+| Arquivo | Papel |
+|---|---|
+| `supabase/functions/rac-inbox/rotina.ts` (novo) | Lógica pura da rodada (elegibilidade já vem do banco; trava, cofre, sincronização, falhas, backoff, aviso) |
+| `supabase/functions/rac-inbox/push.ts` (novo) | Web Push (VAPID + aes128gcm) e `entregar` (apaga 404/410) |
+| `supabase/functions/rac-inbox/sync.ts` | `sincronizarPasta` ganhou `modo: "agenda"` (EXAMINE → nada / só o novo / completo); o modo manual é o mesmo de antes |
+| `supabase/functions/rac-inbox/repositorio.ts` | `contasAutomaticas`, `pendentes`, `marcarNotificadas`, `naoLidasEntrada`, `semMudanca`, `rotinaAutorizada`; `criarBancoPush` |
+| `supabase/functions/rac-inbox/index.ts`, `servico.ts`, `contrato.ts` | Rota da rotina (`x-rac-rotina`), exportação de códigos, carimbo `rac-inbox@i3.0` |
+| `supabase/054_inbox_automatico.sql` (**pendente**) | Colunas `sync_auto`, `notificar`, `reconciliada_em`, `origem`, `notificada_em` (+ índice parcial); o que já está no cache nasce tratado |
+| `supabase/propostas/055_inbox_agendamento.sql` (**proposta**) | `cron.schedule('inbox-sync', '*/10 * * * *')`; só depois da 054 e da função v3 |
+| `sw.js`, `js/inbox.js`, `css/rac.css`, `js/app.js`, `index.html` | Selo e `renotify` no push; preferências e selo na tela; versão `2026-11-15.5` |
+| `tests/inbox_automatico.test.mjs` (novo), `tests/inbox_sync_sql.test.mjs` | Testes da entrega |
+
+### Ordem para colocar em produção (cada passo é do dono; o Claude não executa SQL, secrets, função nem deploy)
+1. Aplicar a **054** no SQL Editor (pode rodar de novo; conferências no rodapé). **Sem ela a função v3 não sobe a rotina** (as colunas novas são usadas em todas as sincronizações).
+2. Republicar a função **`rac-inbox`** (v3, carimbo `rac-inbox@i3.0`) **mantendo `verify_jwt=true`** (decisão de 15/11/2026; `--no-verify-jwt` não é a solução padrão). O agendamento passa pelo gateway com `Authorization: Bearer <chave anon>` (lida do Vault, segredo `rac_chave_publica`, criado uma vez pelo dono; a chave é a *anon* JWT do projeto, **nunca** service_role/secret key; as chaves novas `sb_publishable_…` não são JWT e o gateway com `verify_jwt=true` as recusa) **e** com `x-rac-rotina`, que a função confere no banco: o Bearer sozinho não executa a rotina (401 `sem_login`). Sem o `x-rac-rotina`, a chamada segue o caminho do navegador (JWT do usuário + MFA). **A aceitação pelo gateway não foi comprovada** (sem acesso à produção): o cabeçalho da 055 traz um disparo manual de prova (`net.http_post` + `net._http_response`; esperado 200) a fazer **antes** de agendar; a guarda da 055 aborta se faltar `rac_rotina`/`rac_chave_publica` ou se a chave não for JWT de papel `anon`.
+3. Mesclar o PR do site (versão `2026-11-15.5`) e esperar o Pages.
+4. Conferir no Inbox → Opções da conexão: as duas preferências aparecem (só com a 054).
+5. Criar o segredo `rac_chave_publica` (comando no cabeçalho da 055), fazer o disparo manual de prova e só então rodar a **proposta 055** (agenda; reexecutável sem duplicar: desagenda e agenda o mesmo nome `inbox-sync`). Conferir `cron.job` e `net._http_response` (200 a cada 10 min) e `inbox_sincronizacao` (`origem = 'agenda'`).
+6. Primeiro teste real: mandar um e-mail para a conta, esperar até 10 min, o aparelho com as notificações ativadas recebe "1 nova mensagem" e o toque abre o Inbox; esperar mais uma rodada: nenhum aviso repetido.
+**Desligar:** `select cron.unschedule('inbox-sync');` (ou desmarcar a preferência na conta, ou remover a credencial).
+
+### Gmail e Outlook — arquitetura preparada (NÃO implementada; Entrega 4)
+
+Os provedores vão **convergir para o mesmo funil** da rotina iCloud: *adaptador do provedor* → `Resumo[]` (cabeçalhos de esquema fechado) → `aplicarSync` (cache, idempotência por ID externo, `notificada_em`) → `pendentes` → `entregar` (Web Push). Mudanças de modelo previstas quando forem feitas: um cursor genérico por pasta (texto) em vez de só UIDVALIDITY/UIDNEXT (Gmail: `historyId`; Graph: `deltaLink`), e uma tabela de inscrições do provedor (id, expiração, segredo de validação). A trava por conta, o backoff, a autorização `x-rac-rotina` e a tela são reaproveitados.
+- **Gmail:** OAuth 2.0 (refresh token no Vault, como a senha de app) → `users.watch` (tópico do **Cloud Pub/Sub**, rótulo INBOX) → Pub/Sub entrega por *push* a uma operação da função (`gmail_push`, validando o token OIDC do Pub/Sub) com **só** `emailAddress` e `historyId` → a função chama `users.history.list(startHistoryId)` e `users.messages.get(format=metadata)` e entra no funil. **A inscrição do `watch` expira em 7 dias; renovar todo dia** (pg_cron) e, como rede de segurança, uma rodada de `history.list` a cada 10 min (mesmo adaptador). Custo: a Gmail API não é cobrada; o Pub/Sub tem franquia gratuita mensal bem acima do uso pessoal; exige um projeto do Google Cloud (sem assinatura paga do Gmail/Google Workspace). Cuidado já registrado no Documento 10 §12.2: o escopo de leitura é "restrito"; app em modo de teste tem refresh token com validade curta; a verificação define a viabilidade.
+- **Outlook/Hotmail/Live:** OAuth 2.0 (Microsoft identity platform, `Mail.Read` + `offline_access`, refresh token no Vault) → **Microsoft Graph change notifications**: assinatura (`/subscriptions`) em `me/mailFolders('inbox')/messages` (`created`) com `notificationUrl` apontando para uma operação da função (`graph_webhook`), `clientState` secreto, resposta ao *handshake* de validação (eco do `validationToken` em até 10 s) e `lifecycleNotificationUrl` (reautorização/perda). **A assinatura de e-mail tem validade curta (poucos dias; ~4.230 min no máximo): renovar todo dia** (pg_cron, `PATCH` da expiração). A notificação só diz "mudou"; o adaptador busca a mensagem (ou usa `messages/delta` como cursor) e entra no funil. Contas pessoais Microsoft têm webhooks de e-mail na API padrão, sem Microsoft 365 pago.
+- **Regra comum:** nenhum recurso de notificação que exija assinatura paga do provedor; os limites e prazos acima são os conhecidos hoje e **devem ser reconfirmados na documentação oficial no início da implementação**. Gmail/Outlook continuam **desligados** (matriz de paridade) até a fase I3.
+
 ## Testes
 
 Cinco arquivos (I1; os da I2 estão na seção acima e em "Evidências"): `tests/inbox_nucleo.test.mjs` (14: regras, contrato, cursor, credencial), `tests/inbox_tela.test.mjs` (7: estados, exemplo, fluxo da credencial, desenho), `tests/inbox_sql.test.mjs` (11, PGlite: modelo da 051 e isolamento), `tests/inbox_cofre_sql.test.mjs` (12, PGlite com Vault de mentira: ciclo da credencial, isolamento, privilégios, substituição sem órfão, exclusão, falha do Vault sem alternativa, trava MFA, catálogo) e `tests/inbox_cofre_servico.test.mjs` (12: serviço da função com cofre e Worker de mentira: nada vaza em resposta, erro ou registro; conta sem credencial não chega ao Worker; credencial inválida vira erro controlado; falha do cofre não tem alternativa; MFA; sem estado global).
 Limites: PGlite prova o PostgreSQL, **não** o Supabase real nem o Vault real; o serviço é provado com dependências de mentira, **não** com o Deno nem com a conexão real ao banco (`index.ts` só tem teste de texto). A aplicação em produção, a publicação da função e a verificação do Vault real são do dono.
 
+A rotina automática e as notificações têm os testes de `tests/inbox_automatico.test.mjs` (22 de 22 no PGlite/simulações; ver a seção "Automático"). Limites: nada disso prova o iCloud real, o `pg_cron`/`pg_net` do Supabase, o Deno nem a entrega real do serviço de push ao aparelho.
+
 ## O que falta (a partir de 15/11/2026)
 
 **Depende do dono (nesta ordem):** ~~aplicar a 053~~ (feito); publicar o Worker; cadastrar os secrets (`RAC_CANAL_K1` nos dois lados e `RAC_INBOX_WORKER_URL`); republicar a função (v2); mesclar o PR do site; fazer o **primeiro teste real** e conferir os critérios acima. Só depois disso a autenticação real com a Apple e a leitura real estarão validadas.
 
-**Ainda não implementado (fora desta entrega):** envio (SMTP), responder, encaminhar, arquivar, excluir, marcar como lida (escritas na caixa); sincronização automática; `STATUS (UNSEEN)` para contar não lidas no provedor; busca; categorias (I4); Gmail e Outlook (I3); decisão sobre **retenção de corpos e anexos** (Documento 10, seção 5.1); remoção do Worker de prova e dos Environments antigos (autorização futura).
+**Ainda não implementado (fora desta entrega):** envio (SMTP), responder, encaminhar, arquivar, excluir, marcar como lida (escritas na caixa); ~~sincronização automática~~ (feita em código, seção "Automático"; falta publicar); `STATUS (UNSEEN)` para contar não lidas no provedor; busca; categorias (I4); Gmail e Outlook (I3); decisão sobre **retenção de corpos e anexos** (Documento 10, seção 5.1); remoção do Worker de prova e dos Environments antigos (autorização futura).

@@ -5,11 +5,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+/* o cursor sem a data da releitura completa (054), que tem teste próprio em inbox_automatico.test.mjs */
+const cursorSemData = async (repo, ...a) => { const e = await repo.estadoSync(...a); return e && { uidvalidity: e.uidvalidity, uidnext: e.uidnext }; };
 export const R = "11111111-1111-4111-8111-111111111111", F = "22222222-2222-4222-8222-222222222222", X = "33333333-3333-4333-8333-333333333333";
 const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const trecho = (arq, ini, fim) => { const t = ler(arq), i = t.indexOf(ini); assert.ok(i >= 0, ini); return t.slice(i, t.indexOf(fim, i) + fim.length); };
 
-// Esquema mínimo do Supabase + as migrations reais (002 e 022 em trechos, 051 e 053 inteiras). `ddl(texto)` executa texto com vários comandos (sem parâmetros).
+// Esquema mínimo do Supabase + as migrations reais (002 e 022 em trechos, 051, 053 e 054 inteiras). `ddl(texto)` executa texto com vários comandos (sem parâmetros).
 export async function prepararEsquema(ddl) {
   await ddl(`
     do $$ begin
@@ -29,7 +31,7 @@ export async function prepararEsquema(ddl) {
   await ddl(trecho("supabase/002_casa_compartilhada.sql", "create table if not exists public.membros", "grant execute on function public.dono_da_casa() to authenticated;"));
   await ddl(trecho("supabase/022_seguranca.sql", "create or replace function public.rac_aal_ok()", "grant execute on function public.rac_aal_ok() to authenticated;"));
   await ddl(`insert into public.membros (membro, dono) values ('${F}', '${R}');`);
-  await ddl(ler("supabase/051_inbox_fundacao.sql")); await ddl(ler("supabase/053_inbox_cabecalhos.sql"));
+  await ddl(ler("supabase/051_inbox_fundacao.sql")); await ddl(ler("supabase/053_inbox_cabecalhos.sql")); await ddl(ler("supabase/054_inbox_automatico.sql"));
 }
 
 const ASSUNTOS_DIFICEIS = ["Olá, \"aspas\" e \\ barra", "Linha 1\nlinha 2\ttab", "Emoji 😀 e acentuação çãõ", "{\"json\":\"dentro do assunto\"}", "$1 ' ; -- /* */ drop table x", "  espaços  "];
@@ -46,7 +48,7 @@ export async function rodarCenarios({ repo, consulta, ddl }) {
   const c = (await consulta("insert into public.inbox_contas (dono, provedor, apelido, endereco) values ($1, 'icloud', 'Pessoal', 'pessoa@icloud.example') returning id", [R]))[0].id;
   const [{ id: inbox }] = await repo.salvarPastas(R, c, [{ nome: "INBOX", nome_exibicao: "INBOX", uso: "entrada", selecionavel: true }]);
   const cache = async () => (await consulta("select uid, lida, sinalizada, assunto, id_externo, remetente_nome, remetente_endereco, destinatarios, recebida_em, anexo_provavel, message_id from public.inbox_mensagens_ref where pasta_id = $1 order by uid", [inbox]));
-  const resumo = async () => ({ linhas: (await cache()).length, cursor: await repo.estadoSync(R, c, inbox) });
+  const resumo = async () => ({ linhas: (await cache()).length, cursor: await cursorSemData(repo, R, c, inbox) });
 
   // 1) PRIMEIRA SINCRONIZAÇÃO com volume real (a INBOX de produção tem 174 mensagens) e assuntos difíceis: o lote chega ao PostgreSQL como ARRAY jsonb, com o texto intacto
   const lote174 = Array.from({ length: 174 }, (_, i) => msg(i + 1, i % 5 === 0 ? { de: null } : {}));
@@ -55,7 +57,7 @@ export async function rodarCenarios({ repo, consulta, ddl }) {
   const linhas = await cache(); assert.equal(linhas.length, 174);
   for (const m of lote174) { const l = linhas.find((x) => n(x.uid) === m.uid); assert.equal(l.assunto, m.assunto, "assunto intacto (aspas, barra, quebra de linha, emoji, JSON e SQL dentro do texto): uid " + m.uid); assert.equal(l.id_externo, "700:" + m.uid); assert.equal(l.message_id, m.message_id); assert.equal(l.remetente_endereco, m.de ? m.de.endereco : null); assert.deepEqual(l.destinatarios, m.para, "destinatários: jsonb aninhado"); assert.equal(l.anexo_provavel, m.anexo_provavel); }
   assert.equal(new Date(linhas[0].recebida_em).toISOString(), lote174[0].recebida, "data preservada");
-  assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 700, uidnext: 175 }, "o cursor avança");
+  assert.deepEqual(await cursorSemData(repo, R, c, inbox), { uidvalidity: 700, uidnext: 175 }, "o cursor avança");
   let p = (await consulta("select total, nao_lidas from public.inbox_pastas where id = $1", [inbox]))[0]; assert.deepEqual([n(p.total), n(p.nao_lidas)], [174, 174], "total e não lidas da pasta");
 
   // 2) SINCRONIZAÇÃO REPETIDA, sem duplicar
@@ -72,7 +74,7 @@ export async function rodarCenarios({ repo, consulta, ddl }) {
   const lote3 = [...lote2.filter((m) => m.uid !== 3 && m.uid !== 4), msg(175)];
   r = await repo.aplicarSync(R, c, inbox, sync(700, lote3, { tipo: "novas_mensagens" }));
   assert.deepEqual(r, { novas: 1, atualizadas: 172, removidas: 2 }); const ids = (await cache()).map((x) => n(x.uid)); assert.ok(!ids.includes(3) && !ids.includes(4) && ids.includes(175) && ids.length === 173);
-  assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 700, uidnext: 176 }, "cursor atualizado");
+  assert.deepEqual(await cursorSemData(repo, R, c, inbox), { uidvalidity: 700, uidnext: 176 }, "cursor atualizado");
 
   // 5) janela parcial: o que é mais antigo que a faixa lida NÃO é apagado
   r = await repo.aplicarSync(R, c, inbox, sync(700, [msg(174), msg(175)], { removerDe: 174, tipo: "sem_mudanca" })); assert.deepEqual([r.novas, r.removidas], [0, 0]); assert.equal((await cache()).length, 173);
@@ -85,7 +87,7 @@ export async function rodarCenarios({ repo, consulta, ddl }) {
 
   // 7) UIDVALIDITY mudou: apaga a pasta e relê
   r = await repo.aplicarSync(R, c, inbox, sync(800, [msg(1), msg(2), msg(3)], { purgar: true, tipo: "uidvalidity_mudou" }));
-  assert.deepEqual(r, { novas: 3, atualizadas: 0, removidas: 0 }); assert.deepEqual((await cache()).map((x) => x.id_externo), ["800:1", "800:2", "800:3"]); assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 800, uidnext: 4 });
+  assert.deepEqual(r, { novas: 3, atualizadas: 0, removidas: 0 }); assert.deepEqual((await cache()).map((x) => x.id_externo), ["800:1", "800:2", "800:3"]); assert.deepEqual(await cursorSemData(repo, R, c, inbox), { uidvalidity: 800, uidnext: 4 });
 
   // 8) pasta vazia e lote vazio não passam pelo jsonb
   r = await repo.aplicarSync(R, c, inbox, { uidvalidity: 800, cursor: 4, tipo: "novas_mensagens", total: 0, duracao_ms: null, mensagens: [], purgar: false, removerDe: 1, removerAte: 3 });

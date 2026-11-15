@@ -33,7 +33,7 @@ function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], men
   const raiz = new No("div"), titulo = new No("h1"), gravacoes = [], lidas = [], chamadas = [];
   const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : null) };
   const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, limit() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
-    update(l) { gravacoes.push([t, "update", l]); return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
+    update(l) { gravacoes.push([t, "update", l]); return q; }, eq() { return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
     then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
       const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
   const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
@@ -352,5 +352,21 @@ test("conexão em ordem: UMA linha discreta com a última sincronização e o bo
   const sem = ambiente(REAL({ credenciais: [], mensagens: [] })); await sem.abrir(UUID); await assentar(); assert.ok(botao(sem.raiz, "Conectar"), "sem credencial: botão grande Conectar"); assert.equal(comClasse(sem.raiz, "inb-conexao--compacta").length, 0);
   const inv = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await inv.abrir(UUID); await assentar(); assert.ok(botao(inv.raiz, "Substituir senha") && botao(inv.raiz, "Desconectar e remover a credencial"), "recusada: as ações ficam à vista (precisa agir)"); assert.equal(comClasse(inv.raiz, "inb-conexao--compacta").length, 0);
   assert.deepEqual(a.gravacoes, []);
+});
+
+test("rotina automática (054): preferências 'sincronizar sozinho' e 'avisar' só aparecem com a 054 aplicada, gravam só a coluna pedida na própria conta, e o selo do ícone acompanha as não lidas", async () => {
+  const sem = ambiente(REAL()); await sem.abrir(UUID); await assentar(); opcoes(sem.raiz);
+  assert.equal(todos(sem.raiz).filter((n) => n.tag === "input" && n.attrs.type === "checkbox").length, 0, "sem a 054 (colunas ausentes) as opções não aparecem");
+  const a = ambiente(REAL({ contas: [{ ...CONTA_OK, sync_auto: true, notificar: true }], sincs: [{ pasta_id: P_IN, ultima_ok_em: "2026-11-14T10:20:00.000Z", erro: null, falhas_seguidas: 0, origem: "agenda" }] }));
+  const selos = []; a.ctx.navigator = { setAppBadge: (n) => { selos.push(n); return Promise.resolve(); }, clearAppBadge: () => { selos.push(0); return Promise.resolve(); } };
+  await a.abrir(UUID); await assentar(); opcoes(a.raiz);
+  const caixas = todos(a.raiz).filter((n) => n.tag === "input" && n.attrs.type === "checkbox");
+  assert.deepEqual(caixas.map((c) => [c.attrs.id, c.checked]), [["inb-pref-sync_auto", true], ["inb-pref-notificar", true]]);
+  assert.match(texto(a.raiz), /Sincronizar automaticamente a cada 10 minutos/); assert.match(texto(a.raiz), /Avisar por notificação quando chegar e-mail novo/); assert.match(texto(a.raiz), /feita pela rotina do servidor/);
+  assert.match(texto(a.raiz), /só a quantidade, nunca o conteúdo/, "a tela promete só a contagem");
+  caixas[1].checked = false; caixas[1].onchange(); await assentar();
+  assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [["inbox_contas", "update", { notificar: false }]], "só a coluna pedida; nenhuma senha, nenhum outro dado");
+  assert.ok(selos.length >= 1 && selos.every((n) => Number.isInteger(n) && n >= 0), "o selo recebe um número de não lidas (ou limpa)");
+  const rot = ambiente(REAL({ contas: [{ ...CONTA_OK, sync_auto: true, notificar: true }] })); await rot.abrir(UUID); await assentar(); opcoes(rot.raiz); assert.match(texto(rot.raiz), /ainda não sincronizou esta conta/, "sem origem 'agenda', não afirma que a rotina rodou");
 });
 

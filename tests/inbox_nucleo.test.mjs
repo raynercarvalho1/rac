@@ -194,7 +194,7 @@ test("arquivos do Inbox: ES5 puro, sem segredo no código, sem acesso direto a e
   const srv = ler("js/inbox-servico.js").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.ok(!/\.(insert|update|delete|upsert)\(/.test(srv), "o cliente do serviço não grava no banco"); assert.ok(!/senha|password/i.test(srv), "o cliente do serviço só repassa o pedido: não olha dentro dele");
   const ui = ler("js/inbox.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.deepEqual([...ui.matchAll(/SB\.from\("([a-z_]+)"\)\.(insert|update|delete|upsert)/g)].map((m) => m[1] + "." + m[2]), ["inbox_contas.insert"], "a tela só cadastra conta; credencial só pelo serviço; nada de e-mail");
+  assert.deepEqual([...ui.matchAll(/SB\.from\("([a-z_]+)"\)\.(insert|update|delete|upsert)/g)].map((m) => m[1] + "." + m[2]), ["inbox_contas.update", "inbox_contas.insert"], "a tela só cadastra conta e muda as duas preferências da conta (sync_auto, notificar; tests/inbox_tela.test.mjs); credencial só pelo serviço; nada de e-mail");
   assert.ok(!/INBX\.[a-zA-Z]*(senha|Senha|segredo|password)|senha:[^,}]*INBX|valores\.senha/.test(ui), "a senha nunca é guardada no estado da tela");
   assert.match(ui, /campo\.value="";/, "o campo da senha é limpo na hora, antes do envio");
   assert.ok(!/credencial|senha/i.test(ler("js/inbox-demo.js")), "o exemplo não tem nada de credencial");

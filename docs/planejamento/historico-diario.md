@@ -1051,3 +1051,26 @@ Família e da Casa.
 1. Sincronização automática no navegador (ao abrir o Inbox, ao voltar para o app e a cada poucos minutos com o Inbox aberto), se autorizada.
 2. Carregar mensagens mais antigas (o Worker já tem o modo `antes_de_uid`; falta a função e a tela).
 
+## 15/11/2026 (noite) · RAC Inbox — sincronização automática do iCloud e notificações (branch `claude/rac-inbox-sync-notifications-7qwi6v`)
+
+### 1. O que fizemos
+
+- **Diagnóstico:** arquitetura (navegador → função `rac-inbox` → Worker → iCloud), Web Push/VAPID existentes (`push_inscricoes`, `rac_segredos`, `sw.js`) e agendamentos pg_cron já usados pelo RAC. IDLE: a prova P6 (14/11) registrou que o iCloud não tem IDLE/CONDSTORE/QRESYNC; a consulta não pôde ser repetida hoje (sem rota de rede para a Apple neste ambiente). A entrega `claude/inbox-conexao-discreta` já está na `main` (PR #35); nada foi misturado.
+- **Decisão técnica:** agendar por **Supabase pg_cron a cada 10 min** → função `rac-inbox` (modo rotina, senha da rotina) → Worker, em vez de Cron do Cloudflare (limite de CPU do Free e mais superfície no Worker).
+- **Implementado em código (não publicado):** `rotina.ts` (rodada por conta com trava, backoff, isolamento de falhas e aviso), `push.ts` (Web Push), modo `agenda` em `sync.ts` (EXAMINE; só o que é novo desde o cursor; janela completa de hora em hora), SQL do repositório, rota `x-rac-rotina` em `index.ts` (carimbo `rac-inbox@i3.0`), migration 054, proposta 055, `sw.js` (selo e `renotify`), preferências e selo na tela do Inbox (versão `2026-11-15.5`).
+- **Testes:** `tests/inbox_automatico.test.mjs` (22 casos: rotina sem navegador, e-mail novo, sem duplicação, primeira leitura sem aviso, concorrência, recuperação, login recusado, push cifrado e decifrado, 404/410 e renovação, SQL no PGlite) e ajustes em `inbox_sync_sql.test.mjs`. Resultado da suíte completa: ver o relatório da entrega.
+- **Documentação:** `docs/inbox.md` (seção "Automático": diagnóstico, custo Free x Paid, arquitetura, notificações, ordem de publicação, Gmail/Outlook), `docs/mapa.md`.
+
+### 2. O que estamos fazendo
+
+- Entrega pronta para revisão. **Nada foi publicado:** migration 054, função v3, agendamento 055, Worker e site continuam passos do dono.
+
+### 3. O que vamos fazer
+
+1. Dono: aplicar a 054 → republicar `rac-inbox` v3 (decidir `--no-verify-jwt`) → mesclar o site → disparar uma rodada à mão → rodar a 055.
+2. Medir no primeiro dia o CPU do Worker Free (erro 1102) antes de decidir pelo plano Paid (US$ 5/mês).
+3. Depois: teste real com e-mail novo; Gmail (Pub/Sub) e Outlook (Graph) na fase I3, conforme a arquitetura documentada.
+
+**Atualização (15/11/2026, auditoria final):** a proposta 055 passou a autenticar a chamada agendada com `Authorization: Bearer` (chave anon lida do Vault, com guarda que recusa service_role/chaves sb_*) mais `x-rac-rotina`, mantendo `verify_jwt=true`; orçamento da rotina reduzido a 45 s com prazo na leitura por páginas; testes novos dos cabeçalhos e da guarda. Nada aplicado nem publicado.
+
+**Atualização (15/11/2026, revisão do PR #36 — tempo):** a estimativa de pior caso de 125 s estava errada (45 s de orçamento + até 3 chamadas de 40 s ≈ 165 s, acima do timeout de 120 s do `pg_net`). Valores finais: orçamento para iniciar conta 45 s; chamada ao Worker ≤ 40 s (recebe `min(40 s, resto)`); prazo duro 90 s (`prazo_esgotado` não conta como falha); margem de gravação 10 s ⇒ resposta ≤ 100 s; `pg_net` 120 s; função 150 s. Autenticação: JWT público (Bearer anon do Vault) no gateway + `x-rac-rotina` na função. Teste de consistência entre `rotina.ts`, 055 e documentação. Nada aplicado nem publicado.

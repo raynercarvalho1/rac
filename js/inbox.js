@@ -9,7 +9,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -27,9 +27,9 @@
     var cred=Promise.resolve(SB.from("inbox_credenciais").select("conta_id,estado")).then(sbOk).then(function(l){var m={};(l||[]).forEach(function(x){m[x.conta_id]=x.estado});return m},function(){return {}});   /* sem a 052 aplicada: sem credencial, sem erro */
     /* o cache de cabeçalhos (053) e o estado da sincronização: sem a 053 aplicada a lista fica vazia, sem erro */
     var msgs=Promise.resolve(SB.from("inbox_mensagens_ref").select("id,conta_id,pasta_id,uid,uidvalidity,recebida_em,assunto,remetente_nome,remetente_endereco,destinatarios,lida,sinalizada,respondida,tamanho,anexo_provavel").order("recebida_em",{ascending:false}).limit(1000)).then(sbOk).then(function(l){return l||[]},function(){return []});
-    var sincs=Promise.resolve(SB.from("inbox_sincronizacao").select("pasta_id,ultima_ok_em,erro,falhas_seguidas")).then(sbOk).then(function(l){var m={};(l||[]).forEach(function(x){m[x.pasta_id]=x});return m},function(){return {}});
+    var sincs=Promise.resolve(SB.from("inbox_sincronizacao").select("*")).then(sbOk).then(function(l){var m={};(l||[]).forEach(function(x){m[x.pasta_id]=x});return m},function(){return {}});
     return Promise.all([SB.from("inbox_contas").select("*").order("apelido"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,msgs,sincs]).then(function(r){
-      INBX.contas=sbOk(r[0])||[];INBX.pastas=sbOk(r[1])||[];INBX.cred=r[2]||{};INBX.msgs=r[3]||[];INBX.sincs=r[4]||{};INBX.carregando=false}).then(null,function(e){INBX.carregando=false;INBX.erro=e;INBX.contas=[];INBX.pastas=[];INBX.cred={};INBX.msgs=[];INBX.sincs={}})}
+      INBX.contas=sbOk(r[0])||[];INBX.pastas=sbOk(r[1])||[];INBX.cred=r[2]||{};INBX.msgs=r[3]||[];INBX.sincs=r[4]||{};INBX.carregando=false;inboxMarca()}).then(null,function(e){INBX.carregando=false;INBX.erro=e;INBX.contas=[];INBX.pastas=[];INBX.cred={};INBX.msgs=[];INBX.sincs={}})}
   function inboxSelo(estado){var e=NUCLEO.inbEstado(estado);return h("span",{class:"inb-estado inb-estado--"+e.tipo,title:e.rotulo},h("i",{"aria-hidden":"true"}),e.rotulo)}
   /* a pasta mostrada: a escolhida na lateral ou, numa conta, a caixa de entrada */
   function inboxPastaAtual(){
@@ -58,6 +58,13 @@
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
   /* sincronizar: as contas conectadas (a atual, ou todas na caixa unificada); cada uma lista as pastas se ainda não tem e sincroniza a pasta mostrada (ou a de entrada) */
   function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){return INBX.cred[c.id]==="ativa"})}
+  /* selo do ícone do app com o total de não lidas da caixa de entrada (onde o navegador suporta; o servidor também o atualiza a cada aviso) */
+  function inboxMarca(){try{var n=0;INBX.pastas.forEach(function(p){if(p.uso==="entrada"&&p.nao_lidas>0)n+=p.nao_lidas});var f=n>0?navigator.setAppBadge:navigator.clearAppBadge;if(f)Promise.resolve(f.call(navigator,n)).catch(function(){})}catch(e){}}
+  /* preferências por conta (migration 054): sincronizar sozinho a cada 10 min e avisar por notificação; o dono edita só as dele (RLS) */
+  function inboxPreferencia(c,campo,valor){
+    if(INBX.salvandoPref)return;INBX.salvandoPref=true;var corpo={};corpo[campo]=valor;
+    Promise.resolve(SB.from("inbox_contas").update(corpo).eq("id",c.id)).then(sbOk).then(function(){return inboxLer()}).then(function(){INBX.salvandoPref=false;inboxDesenhar()},function(){INBX.salvandoPref=false;INBX.aviso={tipo:"erro",t:"Não consegui salvar a preferência. Confira se a migration 054 foi aplicada."};inboxDesenhar()})}
+  function inboxOpcao(c,campo,rotulo){var id="inb-pref-"+campo,inp=h("input",{type:"checkbox",id:id});inp.checked=c[campo]!==false;inp.onchange=function(){inboxPreferencia(c,campo,inp.checked)};return h("label",{class:"inb-opcao","for":id},inp,h("span",{text:rotulo}))}
   function inboxSincronizarConta(c){
     var tinha=INBX.pastas.some(function(p){return p.conta_id===c.id}),prep=tinha?Promise.resolve({ok:true}):inboxChamar("listar_pastas",{conta_id:c.id});
     return prep.then(function(r){
@@ -188,6 +195,10 @@
       teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
       subst.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};rem.onclick=function(){inboxRemoverCredencial(c)};
       op.appendChild(teste);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
+      if("sync_auto" in c){   /* só com a 054 aplicada */
+        box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
+        box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
+        box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra só a quantidade, nunca o conteúdo, e chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
       box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}))}
     if(INBX.credForm===c.id)box.appendChild(inboxFormCredencial(c));
     return box}

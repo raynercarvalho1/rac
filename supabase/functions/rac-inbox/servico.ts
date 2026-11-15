@@ -14,14 +14,15 @@ export interface Cofre {
 }
 export type ResultadoWorker = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 export interface Worker {
-  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string } | null): Promise<ResultadoWorker>;
+  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string } | null, opcoes?: { timeoutMs?: number }): Promise<ResultadoWorker>;   // opcoes.timeoutMs só ENCURTA o limite do canal (a rotina usa para respeitar o prazo)
 }
 /* o cache de cabeçalhos e o cursor (tabelas da 051/053); a implementação SQL é de repositorio.ts */
 export interface PastaSalva { id: string; nome_externo: string; nome_exibicao: string; uso: string }
 export interface Banco {
   pasta(dono: string, conta: string, pastaId: string): Promise<{ id: string; nome_externo: string } | null>;
   salvarPastas(dono: string, conta: string, pastas: Array<{ nome: string; nome_exibicao: string; uso: string; selecionavel: boolean }>): Promise<PastaSalva[]>;
-  estadoSync(dono: string, conta: string, pastaId: string): Promise<{ uidvalidity: number | null; uidnext: number | null } | null>;
+  estadoSync(dono: string, conta: string, pastaId: string): Promise<{ uidvalidity: number | null; uidnext: number | null; reconciliada_em?: string | null } | null>;
+  semMudanca?(dono: string, conta: string, pastaId: string, a: { uidvalidity: number; uidnext: number; total: number; duracao_ms: number | null }): Promise<void>;   // só a rotina (modo agenda)
   travar(conta: string): Promise<boolean>;
   destravar(conta: string): Promise<void>;
   aplicarSync(dono: string, conta: string, pastaId: string, a: AplicacaoSync): Promise<{ novas: number; atualizadas: number; removidas: number }>;
@@ -38,9 +39,9 @@ export interface Contexto {
 export type Resposta = { status: number; corpo: Record<string, unknown> };
 
 /* códigos do Worker (lista fechada) e o que a função faz com cada um */
-const AUTENTICACAO_RECUSADA = ["autenticacao_recusada", "autenticacao_falhou", "login_recusado", "credencial_recusada"];
-const REPASSA = ["pasta_inexistente", "mensagem_inexistente", "parte_inexistente", "anexo_grande_demais", "uidvalidity_mudou"];   // informativos e seguros: o navegador sabe lidar
-const CANAL_RECUSADO = ["assinatura_invalida", "chave_desconhecida", "timestamp_fora_da_janela", "cabecalhos_invalidos", "replay", "canal_nao_configurado", "operacao_divergente"];
+export const AUTENTICACAO_RECUSADA = ["autenticacao_recusada", "autenticacao_falhou", "login_recusado", "credencial_recusada"];
+export const REPASSA = ["pasta_inexistente", "mensagem_inexistente", "parte_inexistente", "anexo_grande_demais", "uidvalidity_mudou"];   // informativos e seguros: o navegador sabe lidar
+export const CANAL_RECUSADO = ["assinatura_invalida", "chave_desconhecida", "timestamp_fora_da_janela", "cabecalhos_invalidos", "replay", "canal_nao_configurado", "operacao_divergente"];
 const UID_MAX = 4294967295, RE_COD = /^[a-z][a-z0-9_]{1,40}$/, RE_DETALHE = /^(?:[a-z][a-z0-9_]{1,40}|http_\d{3})$/, RE_VERSAO = /^[a-z0-9@._-]{1,60}$/;   // detalhe = código fechado do Worker ou "http_NNN"
 const uidOk = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= UID_MAX;
 const inteiroOuNulo = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
@@ -197,7 +198,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
 }
 
 /* a falha de rede do canal (canal.ts) tem mensagem FIXA: "canal_falhou", "resposta_invalida", "resposta_grande_demais" ou "http_NNN". Só isso vai para o registro; qualquer outra coisa vira "servico_indisponivel". */
-function detalheDe(e: unknown): string {
+export function detalheDe(e: unknown): string {
   const m = e instanceof Error ? e.message : "";
   return /^(canal_falhou|resposta_invalida|resposta_grande_demais|http_\d{3})$/.test(m) ? m : "servico_indisponivel";
 }

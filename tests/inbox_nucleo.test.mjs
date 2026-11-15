@@ -272,3 +272,11 @@ test("I2 · testar_canal: pedido sem campos nenhum (sem conta, sem credencial) e
   assert.deepEqual(chamadas[0], ["rac-inbox", { body: { operacao: "testar_canal" } }], "o corpo é só a operação");
 });
 
+test("I2 · inbFraseSync: a última sincronização em frase curta (hoje, ontem, outra data) e sem data", () => {
+  const agora = new Date(2026, 10, 15, 14, 30).getTime();
+  assert.equal(N.inbFraseSync(new Date(2026, 10, 15, 12, 22).toISOString(), agora), "Sincronizada hoje às 12:22.");
+  assert.equal(N.inbFraseSync(new Date(2026, 10, 14, 9, 5).toISOString(), agora), "Sincronizada ontem às 09:05.");
+  assert.equal(N.inbFraseSync(new Date(2026, 10, 3, 18, 0).toISOString(), agora), "Sincronizada em 03/11 às 18:00.");
+  for (const nada of [null, undefined, "", "lixo"]) assert.equal(N.inbFraseSync(nada, agora), "Ainda não sincronizada.");
+});
+

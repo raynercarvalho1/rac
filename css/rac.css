@@ -428,6 +428,17 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .inb-estado--ok i{background:var(--rac-ok-fill)}.inb-estado--aviso i{background:var(--rac-aviso-fill)}.inb-estado--erro i{background:var(--rac-erro-fill)}.inb-estado--info i{background:var(--rac-info-fill)}
 .inb-conexao-txt span{color:var(--rac-texto-2);font-size:var(--rac-fs-sec);line-height:1.45}
 .inb-conexao-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);margin-top:var(--rac-esp-3)}
+/* conexão em ordem: uma linha pequena; as ações raras só aparecem em "Opções" */
+.inb-conexao--compacta{padding:var(--rac-esp-1) var(--rac-esp-2) var(--rac-esp-1) var(--rac-esp-4);background:transparent}
+.inb-conexao-linha{display:flex;align-items:center;gap:var(--rac-esp-2);min-height:32px;color:var(--rac-texto-2);font-size:var(--rac-fs-legenda)}
+.inb-conexao-linha .inb-conexao-ico{margin-top:0;width:16px;height:16px;flex-shrink:0}.inb-conexao-linha .inb-conexao-ico svg{width:16px;height:16px}
+.inb-conexao-info{flex:1;min-width:0;line-height:1.35}
+.inb-conexao-mais{display:inline-grid;place-items:center;width:32px;height:32px;flex-shrink:0;border:0;border-radius:50%;background:transparent;color:var(--rac-texto-2);cursor:pointer}
+.inb-conexao-mais:hover,.inb-conexao-mais[aria-expanded="true"]{background:var(--rac-papel-2);color:var(--rac-info)}.inb-conexao-mais:focus-visible{outline:2px solid var(--rac-info);outline-offset:1px}
+.inb-conexao-mais .inb-ico svg{width:18px;height:18px}
+.inb-conexao-opcoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-1) var(--rac-esp-4);padding:var(--rac-esp-1) 0 var(--rac-esp-2)}
+.inb-conexao-opcoes .inb-link{font-size:var(--rac-fs-legenda)}.inb-link--perigo{color:var(--rac-erro,var(--rac-info))}
+.inb-conexao--compacta>.inb-nota{margin:0 0 var(--rac-esp-2)}
 .inb-conexao>.inb-nota{margin:var(--rac-esp-2) 0 0}
 .inb-form{display:flex;flex-direction:column;gap:var(--rac-esp-3);margin-top:var(--rac-esp-3)}
 .inb-erro{margin:0;color:var(--rac-erro);font-size:var(--rac-fs-sec);font-weight:600}

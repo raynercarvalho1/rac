@@ -9,7 +9,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -54,7 +54,7 @@
     return inboxChamar("ler_mensagem",{conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid}).then(function(r){
       if(!INBX.leit||INBX.leit.id!==m.id)return;
       INBX.leit=r.ok?{id:m.id,estado:"ok",dados:r}:{id:m.id,estado:"erro",erro:r.erro};inboxDesenhar()})}
-  function inboxIr(conta,pasta){INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
+  function inboxIr(conta,pasta){INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
   /* sincronizar: as contas conectadas (a atual, ou todas na caixa unificada); cada uma lista as pastas se ainda não tem e sincroniza a pasta mostrada (ou a de entrada) */
   function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){return INBX.cred[c.id]==="ativa"})}
@@ -166,19 +166,31 @@
   function inboxConexao(c){
     var est=INBX.cred[c.id]||"ausente",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),txt={ausente:"Conecte a conta para o RAC poder ler esta caixa. A senha fica cifrada no cofre do servidor e não volta ao navegador.",
       ativa:"Guardada no cofre do servidor. O navegador não a recebe de volta.",invalida:"O provedor recusou a credencial. Gere uma nova senha de app e substitua."}[est];
+    if(est==="ativa"&&INBS.publicado&&!INBX.demo)return inboxConexaoCompacta(c);   /* conectada: só uma linha discreta; as ações raras ficam em "Opções" */
     box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:NUCLEO.INB_CRED_ROTULOS[est]||NUCLEO.INB_CRED_ROTULOS.ausente}),h("span",{text:txt})),inboxSelo(c.estado)));
     if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado. Nada foi pedido nem guardado."}));return box}
     if(INBX.credForm===c.id){box.appendChild(inboxFormCredencial(c));return box}
-    var acoes=h("div",{class:"inb-conexao-acoes"}),conectar=rkBtn(est==="ativa"?"sec":est==="ausente"?"pri":"sec",est==="ausente"?"Conectar":"Substituir senha");conectar.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};
-    if(est==="ativa"&&!INBX.demo){var agora=rkBtn("pri",INBX.sinc?"Sincronizando…":"Sincronizar agora");agora.onclick=inboxSincronizar;if(INBX.sinc){agora.setAttribute("disabled","disabled");agora.setAttribute("aria-busy","true")}acoes.appendChild(agora);
-      var teste=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}acoes.appendChild(teste)}
+    var acoes=h("div",{class:"inb-conexao-acoes"}),conectar=rkBtn(est==="ausente"?"pri":"sec",est==="ausente"?"Conectar":"Substituir senha");conectar.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};
     acoes.appendChild(conectar);
     if(est!=="ausente"){var rem=rkBtn("ter","Desconectar e remover a credencial");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
-    if(est==="ativa"){var ent=INBX.pastas.filter(function(p){return p.conta_id===c.id&&p.uso==="entrada"})[0],sy=ent&&INBX.sincs[ent.id],
-        info=sy&&sy.ultima_ok_em?"Última sincronização: "+NUCLEO.inbDataCompleta(sy.ultima_ok_em)+".":"Ainda não sincronizada.";
-      if(sy&&sy.erro)info+=" Última tentativa falhou: "+NUCLEO.inbErroTexto(sy.erro);
-      box.appendChild(h("p",{class:"inb-nota",text:info}))}
     box.appendChild(acoes);return box}
+  /* conexão em ordem (credencial guardada): UMA linha pequena com a última sincronização e um botão "Opções" que mostra, só quando pedido, testar a conexão, substituir a senha e desconectar. Sincronizar fica no ícone do topo da lista. */
+  function inboxConexaoCompacta(c){
+    var ent=INBX.pastas.filter(function(p){return p.conta_id===c.id&&p.uso==="entrada"})[0],sy=ent&&INBX.sincs[ent.id],aberto=INBX.opcoes===c.id,box=h("div",{class:"inb-conexao inb-conexao--compacta"}),
+      info=NUCLEO.inbFraseSync(sy&&sy.ultima_ok_em);
+    if(sy&&sy.erro)info+=" Última tentativa falhou: "+NUCLEO.inbErroTexto(sy.erro);
+    var mais=h("button",{type:"button",class:"inb-conexao-mais","aria-label":"Opções da conexão","aria-expanded":aberto?"true":"false",title:"Opções da conexão"},inboxIco("mais"));
+    mais.onclick=function(){INBX.opcoes=aberto?null:c.id;inboxDesenhar()};
+    box.appendChild(h("div",{class:"inb-conexao-linha"},inboxIco("cadeado","inb-conexao-ico"),h("span",{class:"inb-conexao-info",text:info}),mais));
+    if(aberto){
+      var op=h("div",{class:"inb-conexao-opcoes",role:"group","aria-label":"Opções da conexão"}),teste=h("button",{type:"button",class:"inb-link",text:INBX.testando===c.id?"Testando…":"Testar conexão"}),
+        subst=h("button",{type:"button",class:"inb-link",text:"Substituir senha"}),rem=h("button",{type:"button",class:"inb-link inb-link--perigo",text:"Desconectar e remover a credencial"});
+      teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
+      subst.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};rem.onclick=function(){inboxRemoverCredencial(c)};
+      op.appendChild(teste);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
+      box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}))}
+    if(INBX.credForm===c.id)box.appendChild(inboxFormCredencial(c));
+    return box}
   function inboxFormCredencial(c){
     var E=INBX.credErros,usu=h("input",{class:"rac-campo-entrada",id:"inb-cred-usuario",type:"email",autocomplete:"off",autocapitalize:"off",spellcheck:"false","aria-label":"E-mail do ID Apple","aria-invalid":E.usuario?"true":null}),
       sen=h("input",{class:"rac-campo-entrada",id:"inb-cred-senha",type:"password",autocomplete:"off",autocapitalize:"off",spellcheck:"false",placeholder:"abcd-efgh-ijkl-mnop","aria-label":"Senha específica de app","aria-invalid":E.senha_app?"true":null});

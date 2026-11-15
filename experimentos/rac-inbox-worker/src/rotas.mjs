@@ -16,7 +16,7 @@ const RE_USUARIO = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}
 const uid32 = (v) => Number.isSafeInteger(v) && v >= 1 && v <= 4294967295;
 // parâmetros permitidos por operação (além de operacao, conta_id, usuario e senha, que TODAS exigem)
 const PARAMS = Object.freeze({
-  testar_conta: [], listar_pastas: [], estado_pasta: ["pasta", "uidvalidity_esperado?"],
+  ping: [], testar_conta: [], listar_pastas: [], estado_pasta: ["pasta", "uidvalidity_esperado?"],
   listar_mensagens: ["pasta", "ultimas?", "desde_uid?", "antes_de_uid?", "limite?", "uidvalidity_esperado?"],
   ler_mensagem: ["pasta", "uid", "uidvalidity_esperado?"], baixar_anexo: ["pasta", "uid", "parte", "uidvalidity_esperado?"],
 });
@@ -26,8 +26,10 @@ export function examinarCorpo(bytes, operacaoAssinada, politica = POLITICA) {
   let d; try { d = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch (_) { return { erro: "corpo_invalido" }; }
   if (d === null || typeof d !== "object" || Array.isArray(d)) return { erro: "corpo_invalido" };
   if (d.operacao !== operacaoAssinada || !politica.operacoes.includes(d.operacao)) return { erro: "operacao_divergente" };
-  const regras = PARAMS[d.operacao], permitidos = ["operacao", "conta_id", "usuario", "senha", ...regras.map((r) => r.replace("?", ""))];
+  const regras = PARAMS[d.operacao], semCredencial = d.operacao === "ping";   // o ping não leva conta nem credencial: só { operacao }
+  const permitidos = semCredencial ? ["operacao"] : ["operacao", "conta_id", "usuario", "senha", ...regras.map((r) => r.replace("?", ""))];
   if (Object.keys(d).some((k) => !permitidos.includes(k))) return { erro: "campos_inesperados" };
+  if (semCredencial) return { corpo: { operacao: "ping" } };
   if (typeof d.conta_id !== "string" || !RE_UUID.test(d.conta_id)) return { erro: "campo_invalido" };
   if (typeof d.usuario !== "string" || d.usuario.length > 254 || !RE_USUARIO.test(d.usuario) || typeof d.senha !== "string" || !RE_SENHA_APP.test(d.senha)) return { erro: "credencial_formato_invalido" };
   for (const r of regras) {
@@ -90,5 +92,5 @@ export async function tratar(request, deps, politica = POLITICA) {
 
 // liga uma operação ao IMAP (usado por index.mjs e pelos testes com servidor falso)
 export function executarOperacao({ abrir, politica = POLITICA, relogio }) {
-  return (corpo) => comSessao({ abrir, usuario: corpo.usuario, senha: corpo.senha, politica, relogio }, (ctx) => OPERACOES[corpo.operacao](ctx, corpo));
+  return (corpo) => corpo.operacao === "ping" ? Promise.resolve({ ok: true, dados: { canal: "ok", worker: politica.versao } }) : comSessao({ abrir, usuario: corpo.usuario, senha: corpo.senha, politica, relogio }, (ctx) => OPERACOES[corpo.operacao](ctx, corpo));
 }

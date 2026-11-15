@@ -22,7 +22,7 @@ Ordem de defesa: corpo lido com limite → assinatura verificada (nada é interp
 
 ## Operações (todas só leem)
 
-`testar_conta`, `listar_pastas`, `estado_pasta`, `listar_mensagens` (`ultimas`, `desde_uid` ou `antes_de_uid`), `ler_mensagem` (texto puro; **nunca HTML**) e `baixar_anexo` (até 3 MiB codificados). Comandos IMAP permitidos: `CAPABILITY`, `LOGIN`, `LIST`, `EXAMINE`, `FETCH`, `UID FETCH`, `UID SEARCH`, `LOGOUT` (com `BODY.PEEK`, que não altera a flag `\Seen`). Nada de `SELECT`, `STORE`, `COPY`, `MOVE`, `APPEND`, `EXPUNGE`, `IDLE`.
+`ping` (prova o canal: só assinatura e nonce, **sem credencial e sem IMAP**; responde `{canal:"ok", worker:"<versão>"}`), `testar_conta`, `listar_pastas`, `estado_pasta`, `listar_mensagens` (`ultimas`, `desde_uid` ou `antes_de_uid`), `ler_mensagem` (texto puro; **nunca HTML**) e `baixar_anexo` (até 3 MiB codificados). Comandos IMAP permitidos: `CAPABILITY`, `LOGIN`, `LIST`, `EXAMINE`, `FETCH`, `UID FETCH`, `UID SEARCH`, `LOGOUT` (com `BODY.PEEK`, que não altera a flag `\Seen`). Nada de `SELECT`, `STORE`, `COPY`, `MOVE`, `APPEND`, `EXPUNGE`, `IDLE`.
 
 ## Secrets e configuração (valores nunca no repositório)
 

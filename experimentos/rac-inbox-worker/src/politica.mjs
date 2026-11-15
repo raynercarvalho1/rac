@@ -6,7 +6,10 @@ export const POLITICA = Object.freeze({
   // canal assinado: versão do protocolo, janela de tempo e retenção do registro de nonces (≥ 2 janelas: um nonce nunca volta dentro da validade)
   canal: Object.freeze({ versao: "rac-canal-v1", caminho: "/v1/op", janelaS: 60, nonceRetencaoS: 600, corpoMaxBytes: 4096, chavesAceitas: Object.freeze(["k1", "k2"]) }),
   // operações aceitas (lista fechada); todas só LEEM
-  operacoes: Object.freeze(["testar_conta", "listar_pastas", "estado_pasta", "listar_mensagens", "ler_mensagem", "baixar_anexo"]),
+  // "ping" prova o CANAL (assinatura + nonce) sem credencial e sem IMAP: o corpo é só { operacao }, e a resposta nunca toca na Apple
+  operacoes: Object.freeze(["ping", "testar_conta", "listar_pastas", "estado_pasta", "listar_mensagens", "ler_mensagem", "baixar_anexo"]),
+  // carimbo do código publicado: aparece na resposta do ping, para provar QUAL versão está no ar (mudar a cada alteração publicável)
+  versao: "rac-inbox-worker@p7.2",
   // IMAP: host e porta fixos no código (TLS implícito). Nunca vêm do cliente.
   imap: Object.freeze({
     host: "imap.mail.me.com", porta: 993, timeoutMs: 25000,

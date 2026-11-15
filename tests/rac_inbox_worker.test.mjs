@@ -317,3 +317,24 @@ test("código do Worker de produto: sem console, sem env, sem eval, sem armazena
   assert.equal(w.observability.enabled, false, "sem observabilidade: nada de log do Cloudflare com dados de e-mail");
   assert.deepEqual(w.durable_objects.bindings, [{ name: "NONCES", class_name: "NonceUnico" }]);
 });
+
+test("ping: prova o CANAL (assinatura + nonce) sem credencial e sem abrir o IMAP; credencial ou campo extra são recusados; replay e assinatura inválida barrados; carimbo de versão na resposta", async () => {
+  let aberturas = 0; const vistos = new Set();
+  const deps = { segredos: { k1: SEGREDO }, agora: () => AGORA, consumir: async (n) => (vistos.has(n) ? false : (vistos.add(n), true)), executar: executarOperacao({ abrir: async () => { aberturas++; throw new Error("o ping não pode abrir o IMAP"); } }) };
+  const req = await pedido({ operacao: "ping" }, { nonce: NONCE(60) });
+  const r = await corpoDe(await tratar(req.clone(), deps));
+  assert.deepEqual([r.status, r.json], [200, { ok: true, operacao: "ping", dados: { canal: "ok", worker: POLITICA.versao } }]);
+  assert.match(POLITICA.versao, /^rac-inbox-worker@p\d+\.\d+$/, "o carimbo tem formato fixo (a função o valida)"); assert.equal(aberturas, 0, "nenhuma conexão com a Apple");
+  assert.equal((await tratar(req.clone(), deps)).status, 409, "replay do ping");
+  for (const [i, [extra, nome]] of [[{ usuario: USUARIO, senha: SENHA }, "credencial"], [{ conta_id: CONTA }, "conta"], [{ x: 1 }, "campo qualquer"]].entries()) {
+    const x = await corpoDe(await tratar(await pedido({ operacao: "ping", ...extra }, { nonce: NONCE(61 + i) }), deps));
+    assert.deepEqual([x.status, x.json.erro], [400, "campos_inesperados"], "ping com " + nome + " é recusado");
+  }
+  const ruim = await corpoDe(await tratar(await pedido({ operacao: "ping" }, { nonce: NONCE(70), segredo: "outro-segredo-de-teste-com-mais-de-32-caracteres" }), deps)); assert.deepEqual([ruim.status, ruim.json.erro], [401, "assinatura_invalida"]);
+  const sem = await tratar(new Request("https://w/v1/op", { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"operacao":"ping"}' }), deps); assert.equal(sem.status, 401, "sem assinatura");
+  const troca = await corpoDe(await tratar(await pedido({ operacao: "ping" }, { operacao: "testar_conta", nonce: NONCE(71) }), deps)); assert.deepEqual([troca.status, troca.json.erro], [400, "operacao_divergente"], "ping assinado como outra operação");
+  assert.equal(aberturas, 0, "em nenhum caso o IMAP foi aberto");
+  const fechada = ambienteRota({ registro: "cai" }); const f = await corpoDe(await tratar(await pedido({ operacao: "ping" }, { nonce: NONCE(72) }), fechada.deps)); assert.deepEqual([f.status, f.json.erro, fechada.chamadas.executar], [503, "registro_indisponivel", 0], "sem o registro de nonces o ping também falha fechado");
+  assert.deepEqual(examinarCorpo(enc.encode('{"operacao":"testar_conta"}'), "testar_conta").erro, "campo_invalido", "as demais operações continuam exigindo conta e credencial");
+});
+

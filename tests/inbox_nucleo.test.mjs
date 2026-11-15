@@ -42,7 +42,7 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "listar_pastas", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_canal", "testar_conta"]);
   /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
   const SENHA_APP = "abcd-efgh-ijkl-mnop";
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });
@@ -137,7 +137,7 @@ test("mensagens (apresentação): horário como no Mail, iniciais, ordem, filtro
 
 test("textos de erro: sempre frase fixa; um código desconhecido é mostrado só depois de limpo e cortado (nunca texto do servidor)", () => {
   for (const c of Object.keys(N.INB_ERROS)) assert.ok(N.inbErroTexto(c).length > 5, c);
-  assert.match(N.inbErroTexto("servico_nao_publicado"), /não foi publicado/);
+  assert.match(N.inbErroTexto("servico_nao_publicado"), /não está publicado/);
   assert.equal(N.inbErroTexto("<script>alert(1)</script>").includes("<"), false); assert.ok(N.inbErroTexto("a".repeat(500)).length < 120);
 });
 
@@ -199,3 +199,76 @@ test("arquivos do Inbox: ES5 puro, sem segredo no código, sem acesso direto a e
   assert.match(ui, /campo\.value="";/, "o campo da senha é limpo na hora, antes do envio");
   assert.ok(!/credencial|senha/i.test(ler("js/inbox-demo.js")), "o exemplo não tem nada de credencial");
 });
+
+/* ---------- I2: pedidos novos, normalizadores e apresentação ---------- */
+test("I2 · pedidos novos: sincronizar_pasta, ler_mensagem e baixar_anexo levam só IDs, UID e o caminho da parte; o NOME da pasta e qualquer credencial nunca vão", () => {
+  assert.deepEqual(N.inbPedido("sincronizar_pasta", { conta_id: UUID_A, pasta_id: UUID_B }), { ok: true, pedido: { operacao: "sincronizar_pasta", conta_id: UUID_A, pasta_id: UUID_B } });
+  assert.deepEqual(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7 }), { ok: true, pedido: { operacao: "ler_mensagem", conta_id: UUID_A, pasta_id: UUID_B, uid: 7 } });
+  assert.deepEqual(N.inbPedido("baixar_anexo", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7, parte: "1.2" }), { ok: true, pedido: { operacao: "baixar_anexo", conta_id: UUID_A, pasta_id: UUID_B, uid: 7, parte: "1.2" } });
+  for (const uid of [0, -1, 1.5, "7", 4294967296, null, NaN]) assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B, uid }).erro, "id_invalido", String(uid));
+  for (const parte of ["", "0", "../1", "1/2", "1.", ".1", "a", "1.2.3.4.5.6.7", 1]) assert.equal(N.inbPedido("baixar_anexo", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7, parte }).erro, "id_invalido", String(parte));
+  assert.equal(N.inbPedido("sincronizar_pasta", { conta_id: UUID_A, pasta_id: UUID_B, nome: "INBOX" }).erro, "campos_inesperados", "o nome da pasta nunca vai do navegador");
+  assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7, senha: "x" }).erro, "credencial_proibida");
+  assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B }).erro, "campo_ausente");
+  assert.ok(Object.values(N.INB_OPERACOES).every((o) => o.escreve === false), "nenhuma operação escreve");
+});
+
+test("I2 · a linha da lista vem do cache (sem prévia) e os normalizadores de resposta são de esquema fechado", () => {
+  const r = { id: UUID_A, conta_id: UUID_B, pasta_id: UUID_B, uid: "12", recebida_em: "2026-11-14T10:00:00Z", assunto: " Olá ", remetente_nome: "  ", remetente_endereco: "ana@x.com", destinatarios: [{ nome: "Eu", endereco: "eu@x.com" }, { nome: "", endereco: "b@x.com" }, { endereco: "ruim" }], lida: true, anexo_provavel: true, corpo: "NUNCA", senha: "x" };
+  assert.deepEqual(N.inbLinhaMensagem(r), { id: UUID_A, conta_id: UUID_B, pasta_id: UUID_B, uid: 12, remetente: "ana@x.com", endereco: "ana@x.com", assunto: "Olá", previa: "", recebida: "2026-11-14T10:00:00Z", lida: true, sinalizada: false, anexo: true, para: ["Eu", "b@x.com"] });
+  assert.equal(N.inbLinhaMensagem(null), null); assert.equal(N.inbLinhaMensagem({ id: 5 }), null); assert.equal(N.inbLinhaMensagem({ id: UUID_A, assunto: "" }).assunto, "(sem assunto)");
+  assert.deepEqual(N.inbRespostaPastas({ ok: true, pastas: [{ id: UUID_A, nome: "INBOX", uso: "entrada", senha: "x" }] }), { ok: true, pastas: [{ id: UUID_A, nome: "INBOX", uso: "entrada" }] });
+  for (const ruim of [null, { ok: false }, { ok: true, pastas: "x" }, { ok: true, pastas: [{ id: "x", nome: "a", uso: "entrada" }] }, { ok: true, pastas: [{ id: UUID_A, nome: "a", uso: "inventado" }] }]) assert.equal(N.inbRespostaPastas(ruim).erro, "resposta_invalida");
+  assert.deepEqual(N.inbRespostaSincronizacao({ ok: true, sincronizacao: { tipo: "novas_mensagens", novas: 2, atualizadas: 1, removidas: 0, x: 1 }, mensagens_na_pasta: 9, mais: false }), { ok: true, tipo: "novas_mensagens", novas: 2, atualizadas: 1, removidas: 0, total: 9, mais: false });
+  for (const ruim of [{ ok: true }, { ok: true, sincronizacao: { tipo: "x", novas: 1, atualizadas: 0, removidas: 0 }, mais: false }, { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: -1, atualizadas: 0, removidas: 0 }, mais: false }, { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 0, removidas: 0 } }]) assert.equal(N.inbRespostaSincronizacao(ruim).erro, "resposta_invalida");
+  const msg = { texto: "oi", formato: "texto", truncado: 1, anexos: [{ parte: "2", nome: "a.pdf", tipo: "application/pdf", tamanho: 5, inline: false, extra: 1 }], senha: "x" };
+  assert.deepEqual(N.inbRespostaLeitura({ ok: true, mensagem: msg }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [{ parte: "2", nome: "a.pdf", tipo: "application/pdf", tamanho: 5, inline: false }] }, "truncado só é verdadeiro se for true; campos extras caem");
+  for (const ruim of [{ ok: true }, { ok: true, mensagem: { ...msg, formato: "html" } }, { ok: true, mensagem: { ...msg, texto: "x".repeat(65537) } }, { ok: true, mensagem: { ...msg, anexos: [{ parte: "../1", nome: null, tipo: "a/b", tamanho: 1 }] } }, { ok: true, mensagem: { ...msg, anexos: new Array(31).fill({ parte: "1", nome: null, tipo: "a/b", tamanho: 1 }) } }]) assert.equal(N.inbRespostaLeitura(ruim).erro, "resposta_invalida");
+  assert.deepEqual(N.inbRespostaAnexo({ ok: true, anexo: { nome: "../a:b.pdf", tipo: "Application/PDF", tamanho_bytes: 3, base64: "QUJD", x: 1 } }), { ok: true, nome: "_a_b.pdf", tipo: "application/pdf", tamanho: 3, base64: "QUJD" });
+  for (const ruim of [{ ok: true }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: 3, base64: "<script>" } }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: -1, base64: "QUJD" } }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: 3, base64: "A".repeat(4400001) } }]) assert.equal(N.inbRespostaAnexo(ruim).erro, "resposta_invalida");
+});
+
+test("I2 · arquivo baixado: nome sem caminho nem controle, tipo perigoso vira binário genérico; texto em parágrafos sem controle; frases do resultado da sincronização", () => {
+  assert.equal(N.inbNomeArquivoSeguro("../../etc/passwd"), "_.._etc_passwd"); assert.equal(N.inbNomeArquivoSeguro("a\u0000b\nc.pdf"), "a_b_c.pdf"); assert.equal(N.inbNomeArquivoSeguro("..."), "anexo"); assert.equal(N.inbNomeArquivoSeguro(null), "anexo"); assert.equal(N.inbNomeArquivoSeguro("x".repeat(300)).length, 120);
+  assert.equal(N.inbNomeArquivoSeguro("C:\\temp\\a<b>.exe"), "C_temp_a_b_.exe"); assert.equal(N.inbNomeArquivoSeguro(" .oculto"), "oculto");
+  for (const perigoso of ["text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/javascript", "text/javascript", "application/x-msdownload", "application/x-sh", "lixo", "", null]) assert.equal(N.inbTipoDownload(perigoso), "application/octet-stream", String(perigoso));
+  for (const bom of ["application/pdf", "image/png", "text/plain", "application/zip"]) assert.equal(N.inbTipoDownload(bom), bom);
+  assert.deepEqual(N.inbParagrafos("a\r\nb\n\n\nc\u0001d\u0000\n\n  \n\ne\n"), ["a\nb", "cd", "e"]); assert.deepEqual(N.inbParagrafos(""), []); assert.equal(N.inbParagrafos("x\n\n".repeat(600)).length, 500);
+  const f = (o) => N.inbFraseSincronizacao({ novas: 0, atualizadas: 0, removidas: 0, mais: false, ...o });
+  assert.equal(f({ tipo: "primeira_leitura", novas: 3 }), "Caixa lida pela primeira vez: 3 mensagens carregadas."); assert.equal(f({ tipo: "primeira_leitura", novas: 1 }), "Caixa lida pela primeira vez: 1 mensagem carregada.");
+  assert.equal(f({ tipo: "sem_mudanca" }), "Tudo em dia."); assert.equal(f({ tipo: "novas_mensagens", novas: 1, removidas: 2, mais: true }), "1 mensagem nova. 2 removidas no provedor. Há mais mensagens: sincronize de novo.");
+  assert.match(f({ tipo: "uidvalidity_mudou", novas: 4 }), /reorganizada no provedor e o RAC releu tudo \(4 mensagens\)/); assert.equal(N.inbFraseSincronizacao(null), "");
+  for (const c of ["pasta_inexistente", "mensagem_inexistente", "parte_inexistente", "anexo_grande_demais", "uidvalidity_mudou", "sincronizacao_em_andamento", "canal_recusado", "banco_indisponivel"]) assert.ok(N.INB_ERROS[c] && !/etapa I2/.test(N.INB_ERROS[c]), c);
+  assert.ok(!Object.values(N.INB_ERROS).some((x) => /etapa I2/.test(x)), "nenhum texto de erro manda esperar pela I2");
+});
+
+test("I2 · cliente do serviço: as respostas novas passam pelos normalizadores e o corpo do pedido leva só o que o contrato permite", async () => {
+  const chamadas = []; let resposta;
+  const ctx = { console, Promise, Object, Array, JSON, String, Number, NUCLEO: N, SB: { functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(resposta); } } } };
+  ctx.window = ctx; vm.createContext(ctx); vm.runInContext(ler("js/inbox-servico.js"), ctx);
+  const chamar = async (...a) => JSON.parse(JSON.stringify(await ctx.inboxChamar(...a)));
+  const ped = { conta_id: UUID_A, pasta_id: UUID_B };
+  resposta = { data: { ok: true, pastas: [{ id: UUID_B, nome: "INBOX", uso: "entrada", x: 1 }] }, error: null }; assert.deepEqual(await chamar("listar_pastas", { conta_id: UUID_A }), { ok: true, pastas: [{ id: UUID_B, nome: "INBOX", uso: "entrada" }] });
+  resposta = { data: { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 2, removidas: 0 }, mensagens_na_pasta: 4, mais: false }, error: null }; assert.deepEqual(await chamar("sincronizar_pasta", ped), { ok: true, tipo: "sem_mudanca", novas: 0, atualizadas: 2, removidas: 0, total: 4, mais: false });
+  resposta = { data: { ok: true, mensagem: { texto: "oi", formato: "texto", anexos: [] } }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [] });
+  assert.deepEqual(chamadas.at(-1), ["rac-inbox", { body: { operacao: "ler_mensagem", conta_id: UUID_A, pasta_id: UUID_B, uid: 3 } }], "só IDs e UID");
+  resposta = { data: { ok: true, anexo: { nome: "a.pdf", tipo: "application/pdf", tamanho_bytes: 3, base64: "QUJD" } }, error: null }; assert.deepEqual(await chamar("baixar_anexo", { ...ped, uid: 3, parte: "2" }), { ok: true, nome: "a.pdf", tipo: "application/pdf", tamanho: 3, base64: "QUJD" });
+  resposta = { data: { ok: true, mensagem: { texto: 5 } }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: false, erro: "resposta_invalida" });
+  resposta = { data: { ok: false, erro: "mensagem_inexistente" }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: false, erro: "mensagem_inexistente" });
+  const antes = chamadas.length; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 0 }), { ok: false, erro: "id_invalido" }); assert.equal(chamadas.length, antes, "pedido inválido nem sai do navegador");
+  for (const [st, cod] of [[404, "mensagem_inexistente"], [409, "uidvalidity_mudou"], [413, "anexo_grande_demais"]]) { resposta = { data: null, error: { name: "FunctionsHttpError", message: "texto do servidor", context: { status: st, json: () => Promise.resolve({ ok: false, erro: cod }) } } }; assert.deepEqual(await chamar("baixar_anexo", { ...ped, uid: 3, parte: "2" }), { ok: false, erro: cod }, cod + ": o código do corpo (de lista fechada) é o que vale"); }
+});
+
+test("I2 · testar_canal: pedido sem campos nenhum (sem conta, sem credencial) e resposta só com os carimbos de versão", async () => {
+  assert.deepEqual(N.inbPedido("testar_canal", {}), { ok: true, pedido: { operacao: "testar_canal" } });
+  assert.equal(N.inbPedido("testar_canal", { conta_id: UUID_A }).erro, "campos_inesperados"); assert.equal(N.inbPedido("testar_canal", { senha: "x" }).erro, "credencial_proibida"); assert.equal(N.INB_OPERACOES.testar_canal.escreve, false);
+  assert.deepEqual(N.inbRespostaCanal({ ok: true, canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2", x: 1 }), { ok: true, funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
+  for (const ruim of [null, { ok: true }, { ok: true, canal: "nao", funcao: "a", worker: "b" }, { ok: true, canal: "ok", funcao: "<script>", worker: "b" }, { ok: true, canal: "ok", funcao: "a", worker: "x".repeat(61) }, { ok: false, erro: "x" }, { ok: true, canal: "ok", funcao: 5, worker: "b" }]) assert.equal(N.inbRespostaCanal(ruim).erro, "resposta_invalida", JSON.stringify(ruim));
+  const chamadas = []; let resposta;
+  const ctx = { console, Promise, Object, Array, JSON, String, Number, NUCLEO: N, SB: { functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(resposta); } } } };
+  ctx.window = ctx; vm.createContext(ctx); vm.runInContext(ler("js/inbox-servico.js"), ctx);
+  resposta = { data: { ok: true, canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" }, error: null };
+  assert.deepEqual(JSON.parse(JSON.stringify(await ctx.inboxChamar("testar_canal", {}))), { ok: true, funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
+  assert.deepEqual(chamadas[0], ["rac-inbox", { body: { operacao: "testar_canal" } }], "o corpo é só a operação");
+});
+

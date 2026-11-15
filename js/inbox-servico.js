@@ -3,6 +3,7 @@
    A credencial (login do ID Apple + senha ESPECÍFICA DE APP) é enviada UMA vez, por HTTPS e com a sessão do dono, só na operação "credencial_guardar" (que também substitui), e
    NUNCA mais volta ao navegador: nenhuma resposta a traz, e este arquivo não a guarda, não a registra e não a repassa a nenhum outro lugar. As demais operações levam só IDs.
    Só existem operações de LEITURA e de custódia da credencial; verbo de escrita na caixa (enviar, mover, excluir…) é recusado antes de qualquer rede (NUCLEO.inbPedido).
+   I2: também sincroniza uma pasta (o servidor grava o cache de cabeçalhos), lê UMA mensagem e baixa UM anexo, sob demanda; o corpo e o anexo chegam em memória e NÃO ficam guardados em lugar nenhum.
    INBS.publicado é true desde 15/11/2026 (função rac-inbox publicada em produção, versão 1, verify_jwt=true). Se a função faltar (404) ou a flag voltar a false, nada é simulado: o pedido volta com "servico_nao_publicado".
    Toda falha volta como código fechado (INB_ERROS), nunca como texto do servidor. */
   var INBS={publicado:true,funcao:"rac-inbox"};
@@ -15,6 +16,11 @@
   function inboxResposta(operacao,d){
     if(!d||d.ok!==true)return {ok:false,erro:d&&typeof d.erro==="string"&&NUCLEO.INB_ERROS[d.erro]?d.erro:"resposta_invalida"};
     if(operacao==="estado_pasta")return NUCLEO.inbRespostaEstado(d);
+    if(operacao==="testar_canal")return NUCLEO.inbRespostaCanal(d);
+    if(operacao==="listar_pastas")return NUCLEO.inbRespostaPastas(d);
+    if(operacao==="sincronizar_pasta")return NUCLEO.inbRespostaSincronizacao(d);
+    if(operacao==="ler_mensagem")return NUCLEO.inbRespostaLeitura(d);
+    if(operacao==="baixar_anexo")return NUCLEO.inbRespostaAnexo(d);
     if(operacao==="credencial_estado")return {ok:true,credencial:d.credencial==="ativa"||d.credencial==="invalida"?d.credencial:"ausente"};
     if(operacao==="credencial_guardar")return {ok:true,credencial:"guardada"};
     if(operacao==="credencial_remover")return {ok:true,removida:d.removida===true};

@@ -956,3 +956,82 @@ Família e da Casa.
 
 1. Dono: confirmar as migrations 051/052 em produção; depois o primeiro cadastro real (senha de app) e `inbox_cofre.conferir()`.
 2. P7 e I2, com autorização própria.
+
+## 15/11/2026 · RAC Inbox — P7, Worker de produto e I2
+
+### 1. O que fizemos
+
+- **Estado recuperado antes de agir:** PR #33 mesclado, `main` em `d984b1a` com CI verde (Grupos 1 e 2) e Pages com sucesso; o dono confirmou 051 e 052 aplicadas e a credencial no Vault (`inbox_cofre.conferir()` coerente).
+- **Lote 1 · Worker de produto** (`experimentos/rac-inbox-worker`, branch isolada `claude/inbox-p7-worker`, commit `9818ea1`): canal HMAC com anti-replay (Durable Object), IMAP somente leitura e seis operações; 12 testes com servidor IMAP falso; suíte completa verde naquela branch (1.825 e 73).
+- **Lote 2 · função `rac-inbox` v2 e migration 053** (branch `claude/inbox-i2-sync`): `canal.ts` (vetor de assinatura fixo igual ao do Worker), `sync.ts`, `repositorio.ts`, `servico.ts`; `supabase/053_inbox_cabecalhos.sql` (preparada); 24 testes novos (canal, serviço, SQL no PGlite) e testes antigos ajustados.
+- **Lote 3 · interface real:** lista do cache, Sincronizar, leitura sob demanda, anexos, estados; correção do estado vazio ilegível no iPhone; site `2026-11-15.2`; 8 testes novos. Suíte completa verde (1.741 e 73).
+- Documentação integrada: `docs/inbox.md` (seção I2), Documento 10 (seção 16), Documento 07, roadmap e mapa.
+- **Não foi feito, por não ser autorizado ou possível aqui:** publicar o Worker ou a função, cadastrar secrets, qualquer teste contra o iCloud real (a 053 foi aplicada depois pelo ChatGPT). **Tudo acima foi provado só com simulações.**
+
+### 2. O que estamos fazendo
+
+- PR do site e da função (branch `claude/inbox-i2-sync`) para a `main`; o Worker fica na branch isolada, sem PR e sem merge. Aguardando o CI do PR e as ações do dono.
+
+### 3. O que vamos fazer
+
+1. **Dono (nesta ordem):** publicar o Worker; cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; autorizar o merge do PR do site.
+2. **Primeiro teste real** (login real na Apple, primeira leitura, abrir mensagem, baixar anexo, sincronizar de novo sem duplicar) e só então dar a I2 como concluída.
+3. Depois: envio (SMTP), sincronização automática e `STATUS (UNSEEN)`, com autorização própria.
+
+## 15/11/2026 (tarde) · RAC Inbox — publicação do Worker (parou por falta de login)
+
+### 1. O que fizemos
+
+- Recuperado o estado: branch `claude/inbox-p7-worker` em `9818ea1` (Worker de produto, intacto; o Worker de prova não foi tocado); PR #34 aberto, HEAD `87d729b`, **sem merge**; o ChatGPT aplicou a **053** em produção (colunas e índice conferidos).
+- Tentativa de publicar o Worker: `wrangler whoami` = **não autenticado** (sem login nem token). Pelo combinado, **a publicação foi interrompida** e nenhum token foi pedido.
+- Testes do Worker: 12 de 12 (simulados). **Validação do canal em runtime real (workerd, local, chave descartável): 17 de 17**, inclusive replay, 10 simultâneos (1 aceito, 9 replays) e falha fechada sem o Durable Object; logs sem credencial nem chave.
+- **Não feito:** deploy na Cloudflare, secrets (`RAC_CANAL_K1` nos dois lados, `RAC_INBOX_WORKER_URL`; sem acesso do Claude ao Supabase e nenhuma chave gerada), publicação da função, qualquer teste com a Apple.
+
+### 2. O que estamos fazendo
+
+- Atualizando a documentação na branch do PR #34 (sem merge) e aguardando o dono fazer o login Cloudflare e os passos de publicação.
+
+### 3. O que vamos fazer
+
+1. Dono: `wrangler login` e `wrangler deploy`; chave do canal gerada e colocada nos dois lados sem aparecer na tela (procedimento em `docs/inbox.md`); informar a URL real e a confirmação dos secrets ao ChatGPT.
+2. ChatGPT: publicar `rac-inbox` v2 pelo conector Supabase, com o SHA do código da função.
+3. Primeiro teste real com a Apple; só então a I2 é dada como concluída.
+
+## 15/11/2026 (noite) · RAC Inbox — preparação da validação real
+
+### 1. O que fizemos
+
+- Auditoria do fluxo da função (`index.ts`, `servico.ts`, `canal.ts`) e do Worker (`rotas.mjs`). **Achados:** nenhum código do site chamava `testar_conta`; não havia teste do canal sem a Apple; o log da função descartava o motivo da falha do Worker.
+- **Worker (branch `claude/inbox-p7-worker`):** operação `ping` (só assinatura e nonce; sem credencial; sem IMAP) e carimbo `rac-inbox-worker@p7.2`; 13 testes simulados.
+- **Função e site (branch `claude/inbox-i2-sync`, PR #34):** `testar_canal` (carimbo `rac-inbox@i2.2`), `detalhe` fechado no registro, `http_NNN` para respostas que não são JSON, botão **Testar conexão**; site `2026-11-15.3`.
+- **Runtime real local (workerd):** `ping` e a lógica real da função contra o Worker: 11 de 11; regressão do canal: 17 de 17; logs sem credencial nem chave.
+- Roteiro de validação (PowerShell e console) em `docs/inbox.md`.
+- **Não foi possível ao Claude:** publicar o Worker ou a função, ler logs do Supabase/Cloudflare ou falar com a Apple (sem credencial Cloudflare, sem acesso ao Supabase, sem rede para `workers.dev`).
+
+### 2. O que estamos fazendo
+
+- PR #34 pronto para revisão (sem merge). Aguardando a publicação do Worker p7.2 e da função v5 e os testes A, B e C do roteiro.
+
+### 3. O que vamos fazer
+
+1. Dono: publicar o Worker (`npx wrangler deploy`); ChatGPT: publicar a função v5; rodar os testes A, B e C e informar os resultados (status e `detalhe`, nunca credencial).
+2. Com A, B e C aprovados: sincronização controlada e leitura de uma mensagem; só então decidir o merge do PR #34.
+
+## 15/11/2026 (noite) · RAC Inbox — correção da persistência da sincronização
+
+### 1. O que fizemos
+
+- **Reproduzido o defeito** do log de produção (22023 `cannot call jsonb_to_recordset on a non-array`) com o driver real `postgres@3.4.4`, as mesmas opções da função e `sql.unsafe(texto, params)`, num PostgreSQL 16 real e descartável (local). **Causa:** o driver descreve o statement e serializa o parâmetro `jsonb` com `JSON.stringify`; a string JSON do repositório foi codificada duas vezes (jsonb escalar). Os demais tipos de parâmetro (text[], bigint[], bigint, boolean, nulo, uuid, inteiro) foram verificados e não são afetados.
+- **Correção:** `jsonb_to_recordset($5::text::jsonb)` em `repositorio.ts`; adaptador do driver extraído para `sessao.ts` (testável). Sem migration; RLS, MFA, isolamento, transação e idempotência intactos.
+- **Teste de regressão** `tests/inbox_sync_driver.test.mjs`: no CI, adaptador que emula o driver sobre o PGlite; opt-in, o driver real contra um PostgreSQL real (5 de 5). Reintroduzir o defeito faz três testes falharem, com o erro de produção. Cenários: 174 mensagens com assuntos difíceis, repetição sem duplicar, flags, remoção, cursor, UIDVALIDITY, lote vazio e rollback.
+- **Não feito (por restrição):** publicar a função, deploy do Worker, sincronização contra a conta real, alterar secrets ou aplicar migration.
+
+### 2. O que estamos fazendo
+
+- PR #34 com a correção (sem merge). Aguardando a republicação da função.
+
+### 3. O que vamos fazer
+
+1. ChatGPT/dono: republicar `rac-inbox` com o commit da correção.
+2. Repetir a sincronização real (INBOX, 174 mensagens): esperado `primeira_leitura` com 174 novas; repetir deve dar `sem_mudanca` sem duplicar; conferir `inbox_mensagens_ref` e `inbox_sincronizacao`.
+

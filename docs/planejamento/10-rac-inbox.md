@@ -416,3 +416,19 @@ Evidência usada: P6 real (UIDVALIDITY 1752612613, UIDNEXT 4; segunda rodada `se
 
 **Evolução visual:** desktop em três áreas com lista agrupada por data e leitura com cabeçalho, destinatários, data por extenso e anexos; iPhone com lista em tela cheia, leitura e caixas em telas próprias, barra de ações inferior e áreas seguras; tablet com gaveta; só tokens do Design System.
 **Pendências do dono:** autorizar a aplicação das migrations 051 e 052, conferir o cofre e os logs do banco, publicar a função, e decidir o canal com o Worker (P7).
+
+## 16. Fase I2 — Canal assinado (P7), Worker de produto e sincronização (15/11/2026)
+
+**Autorização do dono (15/11/2026):** implementar o P7 (canal assinado entre a função do Supabase e o Cloudflare Worker), o Worker de produto e a I2 (leitura e sincronização reais da conta iCloud), **sem** envio, resposta, exclusão ou qualquer escrita na caixa. Estado de partida confirmado pelo dono: migrations 051 e 052 aplicadas, função `rac-inbox` v1 publicada, credencial iCloud no Vault (`inbox_cofre.conferir()` coerente) e cliente habilitado; a autenticação real com a Apple ainda não testada.
+
+**Implementado (código e testes simulados; nada publicado, nada executado contra a Apple):**
+- **Worker de produto** `experimentos/rac-inbox-worker` (branch isolada `claude/inbox-p7-worker`, fora da `main`; o Worker de prova e os pins ficam intactos): autenticação por **HMAC-SHA256** com instante, nonce, operação e hash do corpo presos à assinatura; **anti-replay** por nonce de uso único em Durable Object; IMAP somente leitura (`EXAMINE`, `BODY.PEEK`, lista fechada de comandos conferida antes do socket); operações `testar_conta`, `listar_pastas`, `estado_pasta`, `listar_mensagens`, `ler_mensagem` (só texto, nunca HTML) e `baixar_anexo`.
+- **Função `rac-inbox` v2** (`canal.ts`, `sync.ts`, `repositorio.ts`, `servico.ts`): assina e chama o Worker; sincronização por pasta com cursor UIDVALIDITY/UIDNEXT, janela de 50, páginas para buracos, remoção do que sumiu no provedor, reconstrução quando o UIDVALIDITY muda, idempotência e **travamento por conta**; leitura e anexo sob demanda; resposta sempre filtrada por esquema fechado.
+- **Migration 053** (**aplicada em produção em 15/11/2026**, conferida pelo ChatGPT): cache de cabeçalhos em `inbox_mensagens_ref` (assunto, remetente, destinatários, flags, data, tamanho, Message-ID) e nome legível da pasta. **Corpo, HTML, prévia e anexos não têm onde ser guardados.**
+- **Interface real:** lista do cache, Sincronizar, leitura sob demanda com texto literal, download de anexo, estados de carregando, erro e vazio; o exemplo continua à parte e rotulado.
+
+**Decisões técnicas (reversíveis):** estender `inbox_mensagens_ref` em vez de criar tabela (a RLS, a trava MFA, o backup e o catálogo já valem); corpo e anexo **sob demanda** (evita decidir retenção agora); o nome IMAP da pasta é resolvido no servidor, nunca vem do navegador; o HTML é convertido em texto no Worker; limite de 3 MiB por anexo; ler no RAC não marca como lida no provedor.
+
+**Limites reconhecidos:** tudo provado com servidor IMAP falso, Worker e banco de mentira e PGlite; **nenhuma** prova contra o iCloud real, o Supabase real, o Deno ou o runtime da Cloudflare. O plano Workers Free (CPU ~10 ms) pode não bastar; o plano Paid é decisão de custo do dono.
+
+**Pendências do dono (ordem):** publicar o Worker (a tentativa de 15/11/2026 parou por falta de login Cloudflare no ambiente do Claude); cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; mesclar o PR do site; primeiro teste real. Detalhe e critérios em [docs/inbox.md](../inbox.md). A I2 só será dada como concluída depois desse teste real.

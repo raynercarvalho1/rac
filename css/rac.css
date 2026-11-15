@@ -386,6 +386,10 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .inb-titulo{margin:0;font:700 calc(24px + var(--fz))/1.15 var(--f-ui);letter-spacing:-.01em}
 .inb-sub{color:var(--rac-texto-2);font-size:var(--rac-fs-sec);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .inb-topo-btn,.inb-so-movel{display:none}
+.inb-topo-sinc{display:inline-grid;place-items:center;width:36px;height:36px;border:0;border-radius:50%;background:var(--rac-papel-2);color:var(--rac-info);cursor:pointer}
+.inb-topo-sinc[disabled]{opacity:.6;cursor:default}.inb-topo-sinc[aria-busy="true"] .inb-ico{animation:inb-gira 1s linear infinite}
+@keyframes inb-gira{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.inb-topo-sinc[aria-busy="true"] .inb-ico{animation:none}}
 .inb-busca{display:flex;align-items:center;gap:var(--rac-esp-2);min-height:40px;margin:var(--rac-esp-2) var(--rac-esp-5);padding:0 var(--rac-esp-3);border-radius:var(--rac-raio-1);background:var(--rac-papel-2);color:var(--rac-texto-2);font-size:var(--rac-fs-texto)}
 .inb-filtros{display:flex;gap:var(--rac-esp-2);padding:var(--rac-esp-1) var(--rac-esp-5) var(--rac-esp-3);overflow-x:auto}
 .inb-pilula{flex:none;min-height:34px;padding:0 var(--rac-esp-4);border:0;border-radius:var(--rac-raio-pilula);background:var(--rac-papel-2);color:var(--rac-texto-2);font:inherit;font-size:var(--rac-fs-sec);font-weight:600;cursor:pointer}
@@ -441,12 +445,13 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .inb-de-end,.inb-de-para,.inb-de-data{color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
 .inb-de-data{flex:none;text-align:right;max-width:9.5em}
 .inb-texto{display:flex;flex-direction:column;gap:var(--rac-esp-3);max-width:66ch;font-size:16px;line-height:1.7}
-.inb-texto p{margin:0}
+.inb-texto p{margin:0;white-space:pre-line;overflow-wrap:anywhere}
 .inb-anexos{display:flex;flex-wrap:wrap;align-items:stretch;gap:var(--rac-esp-3)}
 .inb-anexos>.inb-grupo{flex-basis:100%;margin:0}
 .inb-arquivo{display:flex;align-items:center;gap:var(--rac-esp-3);padding:var(--rac-esp-2) var(--rac-esp-4) var(--rac-esp-2) var(--rac-esp-2);border-radius:var(--rac-raio-2);background:var(--rac-papel-2)}
 .inb-arquivo-tipo{display:grid;place-items:center;width:40px;height:40px;border-radius:var(--rac-raio-1);background:var(--rac-azul-suave);color:var(--rac-info);font-size:11px;font-weight:700}
-.inb-arquivo-txt{display:flex;flex-direction:column;min-width:0}
+.inb-arquivo-txt{display:flex;flex-direction:column;min-width:0;flex:1}
+.inb-arquivo>button{flex-shrink:0;margin-left:auto}
 .inb-arquivo-txt span{color:var(--rac-texto-2);font-size:var(--rac-fs-legenda)}
 .inb-voltar{display:none;align-items:center;min-height:var(--rac-alvo);padding:0 var(--rac-esp-2) 0 0;border:0;background:transparent;color:var(--rac-info);font:inherit;font-weight:600;cursor:pointer}
 .inb-voltar::before{content:"‹";font-size:30px;line-height:1;margin-right:var(--rac-esp-1)}
@@ -467,8 +472,11 @@ a.ag-dest-titulo:hover{text-decoration:underline}
   .inb-janela{display:block;height:auto;min-height:0;max-height:none;background:transparent;box-shadow:none;border-radius:0;overflow:visible}
   .inb-janela>.inb-lateral,.inb-janela>.inb-leitura{display:none}
   .inb-mensagens{overflow:visible}
-  .inb-lista-topo{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"menu . nova" "tit tit tit";align-items:center;gap:var(--rac-esp-1) var(--rac-esp-2);padding:0 0 var(--rac-esp-2)}
+  .inb-lista-topo{display:grid;grid-template-columns:auto 1fr auto auto;grid-template-areas:"menu . sinc nova" "tit tit tit tit";align-items:center;gap:var(--rac-esp-1) var(--rac-esp-2);padding:0 0 var(--rac-esp-2)}
   .inb-lista-topo>:nth-child(1){grid-area:menu}.inb-lista-topo>:nth-child(2){grid-area:tit}.inb-lista-topo>:nth-child(3){grid-area:nova}
+  .inb-lista-topo>.inb-topo-sinc{grid-area:sinc;width:var(--rac-alvo);height:var(--rac-alvo)}.inb-lista-topo>.inb-topo-nova{grid-area:nova}
+  /* o estado vazio e a nota do Inbox ficam sobre um painel: sem ele o texto cai direto na foto de fundo e some */
+  .inb-mensagens>.inb-vazio{background:var(--rac-papel);border-radius:var(--rac-raio-3);margin:var(--rac-esp-2) 0 0;width:100%}
   .inb-topo-btn,.inb-so-movel{display:inline-grid;place-items:center;width:var(--rac-alvo);height:var(--rac-alvo);border:0;border-radius:50%;background:var(--rac-papel-2);color:var(--rac-info);cursor:pointer}
   .inb-topo-btn[aria-disabled="true"]{opacity:.6;cursor:default}
   .inb-titulo{font-size:calc(34px + var(--fz))}

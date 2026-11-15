@@ -236,3 +236,49 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 2. Verificação de efeito, sem custo: o dono compara no Mail do iCloud o estado lida/não lida da mensagem de `RAC-TESTE` antes (captura de tela anterior à P2) e agora; igual = a leitura não marcou `\Seen`. Esta prova é auxiliar, não substitui a construção.
 
 **Encerramento da I0 (decisão do dono pendente):** pelo critério vigente (P1 a P7 do iCloud, fluxo de credencial e revogação, decisão de runtime por medição e custos; "até lá não iniciar a I1"), a I0 **não pode ser encerrada**: P3 a P7 não foram executadas. Provado: P0, P1, OIDC, uso único e P2.
+
+## 14/11/2026 · RAC Inbox I1 — fundação (decisões técnicas e pendências)
+
+**Direção visual (pedido do dono):** desktop com três áreas (lateral com contas, pastas e categorias; lista com remetente, assunto, prévia e horário; leitura à direita); iPhone com lista em tela cheia, leitura em tela própria, ações por toque e áreas seguras; acabamento limpo, temas claro e escuro do RAC, poucas bordas e cores; referência "organização do Spark com a clareza do Apple Mail", mantendo a identidade do RAC. Implementado com os tokens do Design System (sem cor nova).
+
+**Decisões técnicas tomadas (reversíveis; ver [docs/inbox.md](../inbox.md)):**
+- Inbox **só do dono** (a casa não vê; Documento 10, seção 6, item 7); a política do banco exclui membros da casa.
+- Provedor validado **por formato** (precedente da 048): provedor novo não exige migration; só o iCloud é cadastrável nesta fase.
+- Banco **sem coluna** de credencial ou de conteúdo de e-mail; erro e uso de pasta são **códigos fechados** (nunca texto do provedor).
+- **Dados de exemplo** só no módulo isolado do exemplo da interface, rotulados "DEMONSTRAÇÃO" e nunca gravados.
+- Backup do site: as tabelas do Inbox são **só-exportar** (o estado de sincronização é reconstruível; restaurar um cursor antigo perderia mensagens). **A confirmar pelo dono.**
+- Catálogo da auditoria: a 051 se inclui nele **se a 050 existir** (senão avisa e segue).
+- Serviço de e-mail: contrato só de leitura e só com IDs; nada é simulado. **Atualização 15/11/2026:** função publicada (v1) e `INBS.publicado = true` no código (ver o registro de 15/11/2026 abaixo).
+- O iCloud respondeu `[READ-WRITE]` ao `EXAMINE`: a garantia de somente leitura é do Worker, não do servidor; nenhum comando de escrita foi adicionado.
+
+**Pendente, depende do dono:**
+1. **Custódia da credencial do iCloud** (bloqueia a I2): "credencial por operação, nunca persistida" e "nenhum segredo no navegador" não se cumprem juntas se a senha for digitada a cada uso; opções A (cofre do servidor, P7) e B (digitada por operação) em docs/inbox.md. Nenhuma foi escolhida.
+2. Autorizar a **aplicação da migration 051** (e, se quiser, da 050) no SQL Editor.
+3. Confirmar o backup só-exportar das tabelas do Inbox.
+4. Autorizações próprias para a P7, a Edge Function `rac-inbox` e o segredo do canal com o Worker (nada disso foi criado).
+5. Remoção do Worker de POC e dos Environments segue como atividade futura autorizada.
+
+## 14/11/2026 · RAC Inbox — custódia persistente de credenciais no Vault (decisão do dono)
+
+**Decisão do dono (14/11/2026):** as credenciais de provedores de e-mail **podem ser guardadas de forma persistente no Supabase Vault**, para manter as contas conectadas sem pedir a senha a cada uso. **Substitui** a regra de 14/11/2026 ("credencial por operação, nunca persistida") e resolve a pendência "custódia da credencial do iCloud (bloqueia a I2)" do registro "RAC Inbox I1 — fundação" acima, **que fica preservado**: a opção A daquele registro (cofre do servidor) foi a escolhida, com ressalvas.
+**Mantido:** só a senha **específica de app** da Apple (nunca a principal); nenhuma credencial em tabela comum, no navegador depois do envio, em resposta, erro, log, telemetria, teste, fixture, captura de tela ou documentação; credencial só descriptografada em operação autorizada e nunca em variável global ou cache; falha do Vault interrompe a operação, sem alternativa insegura; sem envio, exclusão, movimentação, arquivamento ou marcação de mensagens; Worker experimental e pins P1/P2/P6 intocados; sem migration em produção, secret ou publicação sem autorização.
+
+**Decisões técnicas tomadas (reversíveis; ver [docs/inbox.md](../inbox.md)):**
+- Segredo no Vault com nome `inbox_conta_<conta>`; tabela comum só com o **ponteiro** e metadados (migration `supabase/052_inbox_cofre.sql`), sem coluna de senha, chave composta com dono e conta, fora do backup do site.
+- **Schema privado `inbox_cofre`**, sem RPC e sem privilégio para `anon`, `authenticated` nem `service_role`; a função `rac-inbox` conecta direto ao Postgres (`SUPABASE_DB_URL`) e **não usa a chave de serviço**. Alternativa descartada: RPC em `public` restrita ao `service_role` (mais simples, mas deixa uma função de descriptografia na Data API).
+- Login do ID Apple guardado **dentro** do segredo (JSON), não em coluna.
+- Substituir = `vault.update_secret` no mesmo registro (sem órfão); remover/apagar conta/apagar usuário apagam o segredo por gatilho.
+- O formulário de conexão só aparece com o serviço publicado (`INBS.publicado`).
+
+**Pendente, depende do dono:**
+1. Aplicar as migrations **051 e 052** (002 e 022 antes; 050 opcional) e conferir: `select inbox_cofre.conferir();` (zeros), os privilégios do rodapé da 052 e `show log_parameter_max_length_on_error;` / `show log_statement;` (parâmetros de erro não devem ser registrados).
+2. Autorizar a **publicação da função `rac-inbox`** e, depois, a troca de `INBS.publicado` no site.
+3. Canal assinado com o Worker (**P7**): um Worker de produto e a assinatura da tarefa; sem ele a credencial guardada não é usada.
+4. Aceitar ou não o risco residual: a função conecta como `postgres`, e o administrador do Supabase pode ler o Vault.
+5. Ao desconectar uma conta, **revogar também a senha de app na Apple** (o RAC não consegue).
+
+## 15/11/2026 · RAC Inbox — função `rac-inbox` publicada e cliente habilitado
+
+- **Informado pelo dono:** a Edge Function `rac-inbox` está publicada no Supabase de produção, versão 1, `verify_jwt=true`. Código conferido: a branch está no SHA de referência `4587f7e`.
+- **Decisão técnica (reversível):** `INBS.publicado` passa de `false` para `true` em `js/inbox-servico.js`. Nada mais no código do produto muda; função, secrets, migrations, Worker e sincronização não foram tocados. A chamada `SB.functions.invoke("rac-inbox", …)` usa a sessão autenticada; sem sessão a resposta é `sem_login`; erros viram códigos fechados; nenhuma credencial fica no navegador (testes).
+- **Pendente, depende do dono:** (1) confirmar que as migrations 051 e 052 estão aplicadas em produção (sem elas, guardar credencial devolve erro controlado); (2) primeiro cadastro real pela tela, só com senha **específica de app**, e conferir `inbox_cofre.conferir()`; (3) P7 (canal assinado com o Worker) e I2 (leitura de e-mail), cada um com autorização própria.

@@ -898,3 +898,61 @@ Família e da Casa.
 
 1. Dono: revisar e mesclar o PR; abrir uma sessão nova e conferir que commit, push de `claude/*` e PR não pedem aprovação e que merge, `reset`, `rebase` e `stash` pedem.
 2. Ajustar a lista se alguma rotina ainda pedir aprovação sem necessidade (cada ajuste passa pelo teste de guarda).
+
+## 14/11/2026 · RAC Inbox — I1 (fundação)
+
+### 1. O que fizemos
+
+- **P6 comprovada em duas rodadas reais** (runs 43642891880 e 43647140993): primeira leitura UIDVALIDITY 1752612613 e UIDNEXT 4; segunda `sem_mudanca`, sem mudança de UIDVALIDITY e sem UIDs novos. O iCloud respondeu `[READ-WRITE]` ao `EXAMINE` (a garantia de somente leitura é do Worker).
+- **I1 implementada em código e testes** (detalhes em docs/inbox.md): página Inbox só do dono (três áreas no desktop; lista, leitura e caixas em telas próprias no iPhone, áreas seguras, tokens do Design System, temas claro e escuro); cadastro de conta (única gravação da tela); estados carregando, vazio, erro, estrutura pendente e desconectado; "exemplo da interface" fictício, rotulado e isolado; matriz de paridade honesta.
+- **Banco:** `supabase/051_inbox_fundacao.sql` (preparada, **não aplicada**): contas, pastas, sincronização por pasta e identidade externa de mensagens; RLS só do dono (a casa fora), trava "mfa", chaves compostas com o dono, sem credencial e sem conteúdo; nada para `anon` nem `service_role`. Testes em PGlite provam o isolamento entre usuários.
+- **Integração:** contrato só de leitura e só com IDs, cliente do serviço (não publicado, nada simulado) e normalizador no formato real da P6.
+- Testes novos: `inbox_nucleo` (12), `inbox_sql` (11) e `inbox_tela` (6); testes de rotas, segurança e backup ajustados à rota e às tabelas novas. Versão do site `2026-11-14.4`.
+- Registrado em branch de trabalho da sessão; **sem PR, sem merge, sem SQL em produção, sem publicação, sem deploy de função, sem alteração do Worker nem dos pins.**
+
+### 2. O que estamos fazendo
+
+- Aguardando as decisões do dono: custódia da credencial do iCloud (bloqueia a I2), autorização para aplicar a 051 e confirmação do backup só-exportar.
+
+### 3. O que vamos fazer
+
+1. Com a custódia decidida: P7 (cofre, função `rac-inbox` e canal assinado com o Worker), cada passo com autorização própria.
+2. I2: sincronizar pastas e estado (`inbox_pastas` e `inbox_sincronizacao`) e a lista real de mensagens no lugar do exemplo; decidir a retenção antes de guardar qualquer conteúdo.
+
+## 14/11/2026 · RAC Inbox — custódia de credenciais no Vault e evolução visual
+
+### 1. O que fizemos
+
+- **Decisão do dono:** credenciais de provedores podem ser guardadas de forma persistente no Supabase Vault (substitui a regra anterior; registro em 07 e 10). Só a senha **específica de app** da Apple; nunca a principal.
+- **Banco (preparado, não aplicado):** `supabase/052_inbox_cofre.sql`: ponteiro `inbox_credenciais` sem coluna de senha, schema **privado** `inbox_cofre` (sem RPC; só o dono das funções executa), funções `guardar`, `ler`, `remover`, `estado`, `marcar` e `conferir`, gatilho que apaga o segredo junto com o ponteiro, RLS só do dono e trava "mfa". Provado em PGlite com um **Vault de mentira**: isolamento entre usuários, substituição sem órfão, exclusão (inclusive em cascata), falha do Vault sem alternativa, privilégios.
+- **Função de servidor (escrita e testada, não publicada):** `supabase/functions/rac-inbox`: JWT e MFA, conexão direta ao Postgres sem chave de serviço, códigos fechados; testes provam que nenhuma resposta, erro ou registro contém a credencial, que conta sem credencial não chega ao Worker e que a falha do cofre não tem alternativa.
+- **Site:** contrato e cliente com as operações de credencial; formulário de conexão, substituição e desconexão (só com o serviço publicado; senha enviada uma vez, campo limpo na hora, nunca no estado); revisão visual completa do Inbox (lista agrupada por data, leitura com cabeçalho e anexos, gaveta no tablet, iPhone com lista em tela cheia, leitura e caixas em telas próprias, barra de ações inferior, áreas seguras); sem token ou cor nova. Versão do site `2026-11-14.5`.
+- Testes novos: `inbox_cofre_sql` (12) e `inbox_cofre_servico` (12); `inbox_nucleo` (14), `inbox_tela` (7) e `inbox_sql` (11) atualizados.
+- **Sem migration em produção, sem publicação de função, sem secret, sem alteração do Worker nem dos pins, sem operação IMAP/SMTP, sem PR.**
+
+### 2. O que estamos fazendo
+
+- Aguardando as autorizações do dono: aplicar 051 e 052, conferir o cofre e os logs, publicar a função e decidir o canal com o Worker (P7).
+
+### 3. O que vamos fazer
+
+1. Com as autorizações: aplicar e conferir as migrations; publicar a função; ligar `INBS.publicado`; conectar a conta do iCloud pela tela e conferir `inbox_cofre.conferir()`.
+2. P7 (Worker de produto e canal assinado) e, então, a I2: sincronizar pastas e estado e a lista real de mensagens no lugar do exemplo.
+
+## 15/11/2026 · RAC Inbox — habilitar o serviço publicado
+
+### 1. O que fizemos
+
+- Conferido que a branch `claude/rac-inbox-audit-ejpbe9` está em `4587f7e0231ea26b862cd5703c0421a681cc2d89`, a referência da função publicada (v1, `verify_jwt=true`, informado pelo dono).
+- `INBS.publicado = true` em `js/inbox-servico.js` (única mudança no código do produto); versão do site `2026-11-15.1` (sw.js, js/app.js e index.html).
+- Testes do Inbox ajustados ao novo padrão (o ramo "flag desligada" continua coberto) e uma asserção do exemplo tornada independente da hora do dia (falha preexistente após 00:00 UTC). Documentação atualizada (docs/inbox.md, 07, mapa).
+- **Sem** alteração da função, secrets, migrations, Worker, credencial real ou sincronização de mensagens.
+
+### 2. O que estamos fazendo
+
+- PR para a `main`; aguardando o CI do SHA atual. Merge só com CI verde, sem conflito e sem arquivo protegido.
+
+### 3. O que vamos fazer
+
+1. Dono: confirmar as migrations 051/052 em produção; depois o primeiro cadastro real (senha de app) e `inbox_cofre.conferir()`.
+2. P7 e I2, com autorização própria.

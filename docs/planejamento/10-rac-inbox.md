@@ -1,7 +1,7 @@
 # RAC · 10 · RAC Inbox — Caixa de E-mail Inteligente
 
 Data da decisão: 13/11/2026  
-Estado: **proposta aprovada pelo dono; não implementada**.  
+Estado: **proposta aprovada pelo dono; I1 (fundação) implementada em código e testes em 14/11/2026, sem migration aplicada e sem leitura de e-mail** (ver [docs/inbox.md](../inbox.md)).  
 Prioridade: **próxima grande frente após a conclusão da modernização da Saúde (S1–S5)**.  
 Objetivo de produto: tornar o RAC o cliente principal de e-mail do dono e permitir que o Spark seja desinstalado somente depois de uma substituição comprovada no uso real.
 
@@ -399,3 +399,20 @@ A revisão das fontes oficiais refinou alguns itens da análise inicial:
 - Railway: Pro é US$ 20/mês de assinatura com crédito de uso correspondente; SMTP é habilitado a partir do Pro. O valor final depende do consumo acima do crédito.
 
 A decisão não muda: Cloudflare é a primeira candidata de teste, Railway é alternativa, nenhum serviço foi contratado nem implantado.
+
+## 14. Fase I1 — Fundação implementada (14/11/2026)
+
+Entrega da I1 (detalhes e fatos em [docs/inbox.md](../inbox.md)): página Inbox (só do dono) com três áreas no desktop e telas próprias no iPhone; modelo de dados mínimo em `supabase/051_inbox_fundacao.sql` (**preparada, não aplicada**), com RLS só do dono, trava "mfa", isolamento por chaves compostas e **sem coluna para credencial ou conteúdo de e-mail**; contrato e cliente do serviço de e-mail (só leitura, só IDs, credencial recusada, **não publicado**); exemplo da interface fictício, rotulado e isolado.
+Evidência usada: P6 real (UIDVALIDITY 1752612613, UIDNEXT 4; segunda rodada `sem_mudanca`) e o fato de o iCloud responder `[READ-WRITE]` ao `EXAMINE` (a garantia de somente leitura é do Worker, não do servidor).
+**Critério de saída da I1 atendido no código e nos testes; a aplicação da 051 em produção é do dono.** A I2 depende da decisão de custódia da credencial e da P7.
+
+## 15. Fase I1 — Custódia persistente de credenciais e evolução visual (14/11/2026)
+
+**Decisão do dono (14/11/2026):** credenciais de provedores podem ser guardadas de forma **persistente no Supabase Vault**. Isto **substitui** o princípio de "credencial por operação, nunca persistida" das seções 5.2 (primeira frase do item de credenciais iCloud), 12.8 e 12.9 e da seção 14 deste documento, que **ficam no texto como histórico**: a leitura vigente é a desta seção e de [docs/inbox.md](../inbox.md). Permanecem: nenhuma credencial em tabela comum, no navegador depois do envio, em resposta, erro, log, teste, captura de tela ou documentação; o Worker continua isolado da `main`, com OIDC, pins e uso único; nada de escrita na caixa.
+
+**Implementado (código e testes; nada aplicado nem publicado):** migration `supabase/052_inbox_cofre.sql` (ponteiro `inbox_credenciais` sem coluna de senha, schema **privado** `inbox_cofre` com as funções `guardar`, `ler`, `remover`, `estado`, `marcar` e `conferir`, gatilho que apaga o segredo do Vault junto com o ponteiro, RLS só do dono, trava "mfa", nenhum privilégio para `anon`, `authenticated` (além de ler estado e datas) nem `service_role`); função de servidor `supabase/functions/rac-inbox` (JWT e MFA, conexão direta ao Postgres sem chave de serviço, códigos fechados, nada de credencial em resposta, erro ou registro); formulário de conexão, substituição e desconexão (só com o serviço publicado); só a senha **específica de app** é aceita.
+**Decisão de arquitetura:** o cofre fica num schema fora da Data API, executável só pelo dono das funções, com a função de servidor conectando direto ao banco; **não há RPC de descriptografia**. A propriedade da conta é conferida no banco (conta do dono, e dono fora da casa) e a credencial só é lida quando o Worker estiver configurado e a conta tiver credencial.
+**Limites reconhecidos:** os testes usam um Vault de mentira (provam a lógica, não a criptografia); a função conecta como `postgres`; o canal assinado com o Worker (P7) não existe, então a credencial guardada ainda não é usada; apagar no RAC não revoga a senha de app na Apple.
+
+**Evolução visual:** desktop em três áreas com lista agrupada por data e leitura com cabeçalho, destinatários, data por extenso e anexos; iPhone com lista em tela cheia, leitura e caixas em telas próprias, barra de ações inferior e áreas seguras; tablet com gaveta; só tokens do Design System.
+**Pendências do dono:** autorizar a aplicação das migrations 051 e 052, conferir o cofre e os logs do banco, publicar a função, e decidir o canal com o Worker (P7).

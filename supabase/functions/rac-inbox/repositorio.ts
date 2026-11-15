@@ -53,6 +53,8 @@ export function criarRepositorio(sessao: Sessao): Banco {
     async aplicarSync(dono, conta, pastaId, a: AplicacaoSync) {
       return await sessao.transacao(async (s) => {
         if (a.purgar) await s.exec("delete from public.inbox_mensagens_ref where conta_id = $1 and pasta_id = $2 and dono = $3", [conta, pastaId, dono]);
+        // O LOTE vai como TEXTO e só vira jsonb no servidor (`$5::text::jsonb`). Com `$5::jsonb`, o postgres.js 3.4.4 descobre que o parâmetro é jsonb e aplica de novo o JSON.stringify:
+        // o texto chega duplamente codificado, o PostgreSQL vê um jsonb ESCALAR (string) e `jsonb_to_recordset` falha com 22023 "cannot call jsonb_to_recordset on a non-array" (tests/inbox_sync_driver.test.mjs).
         const lote = JSON.stringify(a.mensagens.map((m) => ({
           uid: m.uid, recebida: m.recebida, assunto: m.assunto, remetente_nome: m.de?.nome ?? null, remetente_endereco: m.de?.endereco ?? null, destinatarios: m.para,
           lida: m.lida, sinalizada: m.sinalizada, respondida: m.respondida, tamanho: m.tamanho, anexo_provavel: m.anexo_provavel, message_id: m.message_id,
@@ -60,7 +62,7 @@ export function criarRepositorio(sessao: Sessao): Banco {
         const gravadas = a.mensagens.length === 0 ? [] : await s.exec(
           `insert into public.inbox_mensagens_ref (dono, conta_id, pasta_id, id_externo, uidvalidity, uid, recebida_em, assunto, remetente_nome, remetente_endereco, destinatarios, lida, sinalizada, respondida, tamanho, anexo_provavel, message_id, sincronizada_em)
            select $1::uuid, $2::uuid, $3::uuid, ($4::bigint)::text || ':' || m.uid::text, $4::bigint, m.uid, m.recebida, m.assunto, m.remetente_nome, m.remetente_endereco, m.destinatarios, m.lida, m.sinalizada, m.respondida, m.tamanho, m.anexo_provavel, m.message_id, now()
-           from jsonb_to_recordset($5::jsonb) as m(uid bigint, recebida timestamptz, assunto text, remetente_nome text, remetente_endereco text, destinatarios jsonb, lida boolean, sinalizada boolean, respondida boolean, tamanho integer, anexo_provavel boolean, message_id text)
+           from jsonb_to_recordset($5::text::jsonb) as m(uid bigint, recebida timestamptz, assunto text, remetente_nome text, remetente_endereco text, destinatarios jsonb, lida boolean, sinalizada boolean, respondida boolean, tamanho integer, anexo_provavel boolean, message_id text)
            on conflict (conta_id, coalesce(pasta_id, '${SEM_PASTA}'::uuid), id_externo) do update set recebida_em = excluded.recebida_em, assunto = excluded.assunto, remetente_nome = excluded.remetente_nome,
              remetente_endereco = excluded.remetente_endereco, destinatarios = excluded.destinatarios, lida = excluded.lida, sinalizada = excluded.sinalizada, respondida = excluded.respondida,
              tamanho = excluded.tamanho, anexo_provavel = excluded.anexo_provavel, message_id = excluded.message_id, sincronizada_em = now()

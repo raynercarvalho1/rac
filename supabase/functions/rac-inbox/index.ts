@@ -9,7 +9,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.4";
 import { aalOk, ERROS } from "./contrato.ts";
 import { atender, type Cofre, type EstadoCredencial } from "./servico.ts";
-import { criarRepositorio, type Linha, type Sessao } from "./repositorio.ts";
+import { criarRepositorio } from "./repositorio.ts";
+import { sessaoPostgres } from "./sessao.ts";
 import { criarWorkerHttp } from "./canal.ts";
 
 const ORIGENS = ["https://raynercarvalho.com.br", "https://www.raynercarvalho.com.br", "https://raynercarvalho1.github.io"];
@@ -38,15 +39,6 @@ function cofrePostgres(sql: ReturnType<typeof postgres>): Cofre {
     async estado(dono, conta) { try { const r = await sql`select inbox_cofre.estado(${dono}::uuid, ${conta}::uuid) as e`; return r[0]?.e as EstadoCredencial; } catch (e) { throw codigoPg(e); } },
     async marcar(dono, conta, estado) { try { await sql`select inbox_cofre.marcar(${dono}::uuid, ${conta}::uuid, ${estado}::text)`; } catch (e) { throw codigoPg(e); } },
   };
-}
-
-/* o executor de SQL do repositório (I2) sobre a conexão desta chamada; transacao = sql.begin (dentro de uma transação, "transacao" apenas continua nela) */
-function sessaoPostgres(sql: ReturnType<typeof postgres>): Sessao {
-  const montar = (q: { unsafe: (t: string, p?: never[]) => PromiseLike<unknown> }, dentro: boolean): Sessao => ({
-    exec: async (texto, params = []) => (await q.unsafe(texto, params as never[])) as unknown as Linha[],
-    transacao: async (f) => (dentro ? await f(montar(q, true)) : await sql.begin(async (tx) => await f(montar(tx as unknown as typeof q, true)))) as never,
-  });
-  return montar(sql as unknown as { unsafe: (t: string, p?: never[]) => PromiseLike<unknown> }, false);
 }
 
 /* o canal com o Worker: só existe com a URL (HTTPS) e a chave nos Secrets; do contrário, null e nada é enviado */
@@ -79,7 +71,7 @@ Deno.serve(async (req) => {
     const bd = Deno.env.get("SUPABASE_DB_URL");
     if (usuario && !bd) return erro("cofre_indisponivel");   // sem conexão com o banco não há alternativa: nada é guardado em outro lugar
     if (usuario && bd) sql = postgres(bd, { max: 1, prepare: false, idle_timeout: 5, connect_timeout: 10, onnotice: () => {}, debug: false });
-    const r = await atender(corpo, { usuario, cofre: sql ? cofrePostgres(sql) : (null as unknown as Cofre), banco: sql ? criarRepositorio(sessaoPostgres(sql)) : null, worker: workerDoAmbiente(), registrar });
+    const r = await atender(corpo, { usuario, cofre: sql ? cofrePostgres(sql) : (null as unknown as Cofre), banco: sql ? criarRepositorio(sessaoPostgres(sql as never)) : null, worker: workerDoAmbiente(), registrar });
     return new Response(JSON.stringify(r.corpo), { status: r.status, headers: h });
   } catch (_) {
     return erro("interno");   // código fixo; a exceção (que poderia conter dados) é descartada

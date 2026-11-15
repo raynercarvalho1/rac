@@ -1017,3 +1017,21 @@ Família e da Casa.
 1. Dono: publicar o Worker (`npx wrangler deploy`); ChatGPT: publicar a função v5; rodar os testes A, B e C e informar os resultados (status e `detalhe`, nunca credencial).
 2. Com A, B e C aprovados: sincronização controlada e leitura de uma mensagem; só então decidir o merge do PR #34.
 
+## 15/11/2026 (noite) · RAC Inbox — correção da persistência da sincronização
+
+### 1. O que fizemos
+
+- **Reproduzido o defeito** do log de produção (22023 `cannot call jsonb_to_recordset on a non-array`) com o driver real `postgres@3.4.4`, as mesmas opções da função e `sql.unsafe(texto, params)`, num PostgreSQL 16 real e descartável (local). **Causa:** o driver descreve o statement e serializa o parâmetro `jsonb` com `JSON.stringify`; a string JSON do repositório foi codificada duas vezes (jsonb escalar). Os demais tipos de parâmetro (text[], bigint[], bigint, boolean, nulo, uuid, inteiro) foram verificados e não são afetados.
+- **Correção:** `jsonb_to_recordset($5::text::jsonb)` em `repositorio.ts`; adaptador do driver extraído para `sessao.ts` (testável). Sem migration; RLS, MFA, isolamento, transação e idempotência intactos.
+- **Teste de regressão** `tests/inbox_sync_driver.test.mjs`: no CI, adaptador que emula o driver sobre o PGlite; opt-in, o driver real contra um PostgreSQL real (5 de 5). Reintroduzir o defeito faz três testes falharem, com o erro de produção. Cenários: 174 mensagens com assuntos difíceis, repetição sem duplicar, flags, remoção, cursor, UIDVALIDITY, lote vazio e rollback.
+- **Não feito (por restrição):** publicar a função, deploy do Worker, sincronização contra a conta real, alterar secrets ou aplicar migration.
+
+### 2. O que estamos fazendo
+
+- PR #34 com a correção (sem merge). Aguardando a republicação da função.
+
+### 3. O que vamos fazer
+
+1. ChatGPT/dono: republicar `rac-inbox` com o commit da correção.
+2. Repetir a sincronização real (INBOX, 174 mensagens): esperado `primeira_leitura` com 174 novas; repetir deve dar `sem_mudanca` sem duplicar; conferir `inbox_mensagens_ref` e `inbox_sincronizacao`.
+

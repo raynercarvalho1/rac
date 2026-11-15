@@ -1112,7 +1112,7 @@ Família e da Casa.
 
 ### 1. O que fizemos
 - Auditoria: o Worker de produto só existe na branch `claude/inbox-p7-worker` (não mesclada); seus arquivos foram trazidos para esta branch. O Worker era IMAP-leitura (TLS implícito 993); não havia SMTP.
-- Worker `p8.0`: `smtp.mjs` (STARTTLS, AUTH só após TLS, três classes de resultado), `saida.mjs` (MIME ASCII/UTF-8, validação fechada), operações `smtp_prova` e `enviar`, `References` na leitura. Função `i3.1`: `envio.ts`, operações `smtp_prova` e `enviar_mensagem`, migration `056_inbox_envios.sql` (pendente). Tela: Nova mensagem, Responder, Responder a todos, Encaminhar, revisão antes de enviar, resultados enviado/falha/incerto/confirmar, prova SMTP nas Opções. Site `2026-11-15.10`.
+- Worker `p8.0`: `smtp.mjs` (STARTTLS, AUTH só após TLS, três classes de resultado), `saida.mjs` (MIME ASCII/UTF-8, validação fechada), operações `smtp_prova` e `enviar`, `References` na leitura. Função `i3.1`: `envio.ts`, operações `smtp_prova` e `enviar_mensagem`, migration `056_inbox_envios.sql` (pendente). Tela: Nova mensagem, Responder, Responder a todos, Encaminhar, revisão antes de enviar, resultados enviado/falha/incerto/confirmar, prova SMTP nas Opções. Site `2026-11-15.11`.
 - Testes novos: `rac_inbox_worker_smtp`, `inbox_envio_servico`, `inbox_envio_sql` (PGlite), `inbox_envio_nucleo`, ampliações em `inbox_tela`.
 - **Prova SMTP real: NÃO executada** (sem DNS externo, credencial e Worker publicado no ambiente de desenvolvimento).
 
@@ -1121,4 +1121,11 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Rodar `smtp_prova` real; depois o envio de teste; validar no iPhone até a mensagem chegar ao destino. Se o iCloud não salvar cópia em Enviados, lote próprio para `APPEND`. Anexos de saída e encaminhamento de anexos ficam para lote posterior.
+
+## 15/11/2026 (noite) · RAC Inbox — toque na notificação não levava à mensagem (branch `claude/inbox-toque-confirmacao`)
+
+- **Sintoma (iPhone, versões .8/.9):** o toque só trazia o app para a frente, na página que estava aberta (Início).
+- **Auditoria:** a rota e a leitura direta funcionam no site de verdade (teste novo em Chromium); a falha está entre o service worker e a janela do iPhone. Causa exata **não comprovada**.
+- **Correção (versão `2026-11-15.10`):** a página confirma o aviso (`rac-ack`); sem confirmação em 1,5 s o service worker navega a janela ao destino e, se falhar, abre janela nova; diagnóstico do toque (`__rac-diag`) vai para Sistema → erros quando houve reserva ou erro. Testes atualizados (`notificacao`, `inbox_notificacao_abrir`, `navegador`).
+- **Próximo:** novo teste no iPhone; se ainda falhar, ler o erro "toque sem confirmação da página" em Sistema.
 

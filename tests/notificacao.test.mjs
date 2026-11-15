@@ -34,7 +34,7 @@ function janela({ url = SITE + "#inicio", focused = false, visivel = true, navig
   return j;
 }
 
-function sw({ janelas = [], caches = cachesFalsos() } = {}) {
+function sw({ janelas = [], caches = cachesFalsos(), responde = true } = {}) {
   const ouvintes = {}, log = [], abertas = [], mostradas = [];
   const ctx = {
     self: {
@@ -42,9 +42,11 @@ function sw({ janelas = [], caches = cachesFalsos() } = {}) {
       clients: { matchAll: async (o) => { log.push("matchAll:" + JSON.stringify(o)); return janelas; }, openWindow: async (u) => { abertas.push(u); log.push("openWindow"); return null; }, claim: async () => {} },
       registration: { showNotification: async (t, o) => { mostradas.push({ titulo: t, ...o }); } }, skipWaiting: () => {},
     },
-    caches, URL, Response, Date, JSON, Promise, console, fetch: async () => { throw new Error("sem rede no teste"); },
+    caches, URL, Response, Date, JSON, Promise, console, setTimeout, clearTimeout, fetch: async () => { throw new Error("sem rede no teste"); },
   };
   vm.runInNewContext(ler("sw.js"), ctx, { filename: "sw.js" });
+  /* a página de verdade confirma o aviso (rac-ack); com responde=false ela está congelada ou não tem o ouvinte */
+  for (const j of janelas) { const original = j.postMessage; j.postMessage = (m) => { original(m); if (responde && m && m.tipo === "rac-abrir") setTimeout(() => ouvintes.message({ data: { tipo: "rac-ack" } }), 0); }; }
   const tocar = async (data) => {
     let p = null;
     const notification = { data, close() { log.push("fechou"); } };
@@ -77,7 +79,7 @@ test("navegador sem navigate (ou janela não controlada pelo service worker): o 
     const log = [], j = janela({ ...op, log });
     const s = sw({ janelas: [j] });
     const p = await s.tocar({ url: "./#resumo" });
-    assert.equal(p.length, 3, "o waitUntil termina sem rejeitar");
+    assert.equal(p, undefined, "o waitUntil termina sem rejeitar");
     assert.equal(j.focos, 1);
     assert.equal(j.recebidas[0].url, SITE + "#resumo");
     assert.deepEqual(s.abertas, []);
@@ -202,7 +204,7 @@ test("ponta a ponta: o service worker guarda, o app abre no início (iPhone que 
 });
 
 test("ligações: o login chama o destino guardado depois de desenhar a página; o ouvinte é do service worker; ES5", () => {
-  assert.match(APP, /route\(\);notifPendente\(true\)\}/);
+  assert.match(APP, /route\(\);notifPendente\(true\);notifDiag\(\)\}/);
   assert.match(BLOCO, /navigator\.serviceWorker\.addEventListener\("message"/);
   assert.ok(!/\bconst |\blet |=>/.test(BLOCO), "ES5 puro");
   const sw = ler("sw.js");

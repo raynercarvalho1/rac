@@ -25,13 +25,15 @@ function janela({ url, focused = false, visivel = true, log }) {
   j.focus = () => { log.push("foco"); return Promise.resolve(j); }; j.postMessage = (m) => { j.recebidas.push(m); log.push("mensagem"); };
   j.navigate = (u) => { log.push("navigate"); j.navegou.push(u); return Promise.resolve(j); }; return j;
 }
-function sw({ janelas = [], caches = cachesFalsos(), fetchFn = async () => { throw new Error("sem rede"); } } = {}) {
+function sw({ janelas = [], caches = cachesFalsos(), fetchFn = async () => { throw new Error("sem rede"); }, responde = true } = {}) {
   const ouvintes = {}, log = [], abertas = [], mostradas = [];
   const ctx = { self: { location: { origin: SITE.slice(0, -1), href: SITE + "sw.js" }, addEventListener: (t, f) => (ouvintes[t] = f),
       clients: { matchAll: async () => janelas, openWindow: async (u) => { abertas.push(u); log.push("openWindow"); return null; }, claim: async () => {} },
       registration: { showNotification: async (t, o) => { mostradas.push({ titulo: t, ...o }); } }, skipWaiting: () => {}, navigator: {} },
-    caches, URL, Response, Date, JSON, Promise, console, fetch: fetchFn };
+    caches, URL, Response, Date, JSON, Promise, console, setTimeout, clearTimeout, fetch: fetchFn };
   vm.runInNewContext(ler("sw.js"), ctx, { filename: "sw.js" });
+  /* a página de verdade confirma o aviso (rac-ack); com responde=false ela está congelada ou não tem o ouvinte */
+  for (const j of janelas) { const original = j.postMessage; j.postMessage = (m) => { original(m); if (responde && m && m.tipo === "rac-abrir") setTimeout(() => ouvintes.message({ data: { tipo: "rac-ack" } }), 0); }; }
   const push = async (payload) => { let p; ouvintes.push({ data: { json: () => payload }, waitUntil: (x) => (p = x) }); await p; return mostradas.at(-1); };
   const tocar = async (data) => { let p = null; ouvintes.notificationclick({ notification: { data, close() {} }, waitUntil: (x) => (p = x) }); await p; await espera(); };
   const pedir = async (url, mode = "no-cors") => { let r; ouvintes.fetch({ request: { url, method: "GET", mode }, respondWith: (x) => (r = x) }); return await r; };
@@ -65,7 +67,7 @@ test("destino #inbox preservado e só do site: aviso com URL relativa, absoluta 
 test("roteador: sem papel/sessão não navega (o #inbox continua no endereço); iniciar() chama route() com papel e só depois aplica o destino guardado; hashchange também chama route()", () => {
   const app = ler("js/app.js");
   assert.match(app, /function route\(\)\{\s*if\(!PAPEL\)return;/); assert.match(app, /window\.addEventListener\("hashchange",route\)/);
-  assert.match(app, /route\(\);notifPendente\(true\)\}/, "route() antes de notifPendente(true)");
+  assert.match(app, /route\(\);notifPendente\(true\);notifDiag\(\)\}/, "route() antes de notifPendente(true)");
   assert.match(app, /parts=\(location\.hash\|\|""\)\.replace\("#",""\)\.split\("\/"\)/, "o destino vem do endereço");
   const rotas = ler("js/rotas.js"); assert.match(rotas, /id:"inbox"[^\n]*mods:\["inbox"\][^\n]*abrir:function\(p\)\{renderInbox\(p\[1\],p\[2\],p\[3\]\)\}/);
   assert.match(ler("js/inbox.js"), /function renderInbox\(conta,pasta,msg\)/); assert.match(app, /inbox:\["kit","inbox-servico"\]/);
@@ -127,8 +129,8 @@ test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do ar
   const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
 });
 
-test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.10", () => {
-  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.10"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.10"/); assert.ok(ler("index.html").includes("2026-11-15.10"));
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-15.11", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-15\.11"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-15\.11"/); assert.ok(ler("index.html").includes("2026-11-15.11"));
 });
 
 /* ---------- aviso de e-mail: título = assunto, corpo = remetente, toque abre a MENSAGEM ---------- */
@@ -164,10 +166,38 @@ test("página: o aviso recebido leva ao hash da mensagem (notifIr) e o roteador 
 });
 
 
-test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.10", () => {
+test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-15.11", () => {
   const css = ler("css/rac.css");
   assert.match(css, /html\.logado:not\(\.casa\) #barra,\.voltarbtn,\.topobtn,\.capbtn\{-webkit-transform:translate3d\(0,0,0\);transform:translate3d\(0,0,0\)/);
   assert.match(css, /\.inb-linhas\{[^}]*overflow:hidden;overflow:clip/);
   assert.match(css, /html\.logado:not\(\.casa\) #barra\{display:flex;position:fixed;left:0;right:0;bottom:0/, "a barra continua fixa embaixo");
-  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.10"), f);
+  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-15.11"), f);
 });
+
+/* ---------- confirmação da página (rac-ack) e reserva do service worker ---------- */
+const diagDe = async (c) => { const r = await (await c.open("rac-dados")).match(SITE + "__rac-diag"); return r ? JSON.parse(await r.text()) : null; };
+
+test("página confirma (rac-ack): nenhuma reserva, nenhuma janela nova, diagnóstico com ack=true e sem erros", async () => {
+  const log = [], j = janela({ url: SITE + "#inicio", focused: true, log }), a = sw({ janelas: [j] });
+  await a.tocar((await a.push(avisoMsg(M1, "Assunto", "A — a@x.co"))).data);
+  assert.deepEqual([...a.abertas], []); const d = await diagDe(a.caches); assert.deepEqual([d.ack, d.caminho, d.clientes, d.erros.length], [true, "janela", 1, 0]);
+});
+
+test("página NÃO confirma (congelada ou sem o ouvinte): em 1,5 s o service worker navega a janela até o destino; sem navigate, abre janela nova; o diagnóstico registra", { timeout: 15000 }, async () => {
+  const log = [], j = janela({ url: SITE + "#inicio", focused: true, log }), a = sw({ janelas: [j], responde: false });
+  const t0 = Date.now(); await a.tocar((await a.push(avisoMsg(M1, "Assunto", "A"))).data);
+  assert.ok(Date.now() - t0 >= 1400, "esperou a confirmação"); assert.ok(j.navegou.includes(SITE + alvoMsg(M1)), "navegou a janela ao destino da mensagem");
+  const d = await diagDe(a.caches); assert.deepEqual([d.ack, d.caminho], [false, "janela+reserva"]);
+  const j2 = janela({ url: SITE + "#inicio", focused: true, log: [] }); delete j2.navigate; const b = sw({ janelas: [j2], responde: false });
+  await b.tocar((await b.push(avisoMsg(M2, "Assunto 2", "B"))).data);
+  assert.deepEqual([...b.abertas], [SITE + alvoMsg(M2)], "sem navigate: janela nova no destino"); assert.equal((await diagDe(b.caches)).caminho, "janela+openWindow");
+  const j3 = janela({ url: SITE + "#inicio", focused: true, log: [] }); j3.navigate = () => Promise.reject(new TypeError("nao controlada")); const c = sw({ janelas: [j3], responde: false });
+  await c.tocar((await c.push(avisoMsg(M2, "x", "y"))).data); assert.deepEqual([...c.abertas], [SITE + alvoMsg(M2)], "navigate falhou: janela nova"); assert.ok((await diagDe(c.caches)).erros.length >= 1);
+});
+
+test("página: responde rac-ack ao aviso e registra o diagnóstico do toque só quando houve reserva ou erro", () => {
+  const app = ler("js/app.js");
+  assert.match(app, /notifIr\(d\.url\);notifPendente\(false\);try\{if\(ev\.source&&ev\.source\.postMessage\)ev\.source\.postMessage\(\{tipo:"rac-ack"\}\)\}catch\(e\)\{\}/);
+  assert.match(app, /function notifDiag\(\)/); assert.match(app, /d\.ack===false\|\|\(d\.erros&&d\.erros\.length\)/); assert.match(app, /voltaFoco[\s\S]*?notifPendente\(true\);notifDiag\(\);/);
+});
+

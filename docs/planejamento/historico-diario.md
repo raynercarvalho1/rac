@@ -956,3 +956,24 @@ Família e da Casa.
 
 1. Dono: confirmar as migrations 051/052 em produção; depois o primeiro cadastro real (senha de app) e `inbox_cofre.conferir()`.
 2. P7 e I2, com autorização própria.
+
+## 15/11/2026 · RAC Inbox — P7, Worker de produto e I2
+
+### 1. O que fizemos
+
+- **Estado recuperado antes de agir:** PR #33 mesclado, `main` em `d984b1a` com CI verde (Grupos 1 e 2) e Pages com sucesso; o dono confirmou 051 e 052 aplicadas e a credencial no Vault (`inbox_cofre.conferir()` coerente).
+- **Lote 1 · Worker de produto** (`experimentos/rac-inbox-worker`, branch isolada `claude/inbox-p7-worker`, commit `9818ea1`): canal HMAC com anti-replay (Durable Object), IMAP somente leitura e seis operações; 12 testes com servidor IMAP falso; suíte completa verde naquela branch (1.825 e 73).
+- **Lote 2 · função `rac-inbox` v2 e migration 053** (branch `claude/inbox-i2-sync`): `canal.ts` (vetor de assinatura fixo igual ao do Worker), `sync.ts`, `repositorio.ts`, `servico.ts`; `supabase/053_inbox_cabecalhos.sql` (preparada); 24 testes novos (canal, serviço, SQL no PGlite) e testes antigos ajustados.
+- **Lote 3 · interface real:** lista do cache, Sincronizar, leitura sob demanda, anexos, estados; correção do estado vazio ilegível no iPhone; site `2026-11-15.2`; 8 testes novos. Suíte completa verde (1.741 e 73).
+- Documentação integrada: `docs/inbox.md` (seção I2), Documento 10 (seção 16), Documento 07, roadmap e mapa.
+- **Não foi feito, por não ser autorizado ou possível aqui:** publicar o Worker ou a função, cadastrar secrets, aplicar a 053, qualquer teste contra o iCloud real. **Tudo acima foi provado só com simulações.**
+
+### 2. O que estamos fazendo
+
+- PR do site e da função (branch `claude/inbox-i2-sync`) para a `main`; o Worker fica na branch isolada, sem PR e sem merge. Aguardando o CI do PR e as ações do dono.
+
+### 3. O que vamos fazer
+
+1. **Dono (nesta ordem):** aplicar a 053; publicar o Worker; cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; autorizar o merge do PR do site.
+2. **Primeiro teste real** (login real na Apple, primeira leitura, abrir mensagem, baixar anexo, sincronizar de novo sem duplicar) e só então dar a I2 como concluída.
+3. Depois: envio (SMTP), sincronização automática e `STATUS (UNSEEN)`, com autorização própria.

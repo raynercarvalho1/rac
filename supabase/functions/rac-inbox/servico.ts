@@ -1,7 +1,8 @@
-// RAC Inbox · I1: o serviço da função "rac-inbox" (docs/inbox.md). Puro e testado (tests/inbox_cofre_servico.test.mjs): o cofre (Vault), o Worker e o registro entram como
+// RAC Inbox: o serviço da função "rac-inbox" (docs/inbox.md). Puro e testado (tests/inbox_cofre_servico.test.mjs e tests/inbox_sync_servico.test.mjs): o cofre (Vault), o banco, o Worker e o registro entram como
 // dependências, então os testes usam versões de mentira e provam: a credencial nunca sai em resposta, erro ou registro; conta sem credencial nunca chega ao Worker; falha do cofre
-// interrompe a operação sem alternativa. SEM estado global: nada é guardado entre chamadas, e o segredo descriptografado vive só em variáveis locais de uma chamada.
+// interrompe a operação sem alternativa; só uma sincronização por conta ao mesmo tempo. SEM estado global: nada é guardado entre chamadas, e o segredo descriptografado vive só em variáveis locais de uma chamada.
 import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido } from "./contrato.ts";
+import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
 export interface Cofre {
@@ -13,18 +14,33 @@ export interface Cofre {
 }
 export type ResultadoWorker = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 export interface Worker {
-  executar(operacao: string, pedido: { conta_id: string; pasta_id?: string }, credencial: { usuario: string; senha: string }): Promise<ResultadoWorker>;
+  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string }): Promise<ResultadoWorker>;
+}
+/* o cache de cabeçalhos e o cursor (tabelas da 051/053); a implementação SQL é de repositorio.ts */
+export interface PastaSalva { id: string; nome_externo: string; nome_exibicao: string; uso: string }
+export interface Banco {
+  pasta(dono: string, conta: string, pastaId: string): Promise<{ id: string; nome_externo: string } | null>;
+  salvarPastas(dono: string, conta: string, pastas: Array<{ nome: string; nome_exibicao: string; uso: string; selecionavel: boolean }>): Promise<PastaSalva[]>;
+  estadoSync(dono: string, conta: string, pastaId: string): Promise<{ uidvalidity: number | null; uidnext: number | null } | null>;
+  travar(conta: string): Promise<boolean>;
+  destravar(conta: string): Promise<void>;
+  aplicarSync(dono: string, conta: string, pastaId: string, a: AplicacaoSync): Promise<{ novas: number; atualizadas: number; removidas: number }>;
+  falhaSync(dono: string, conta: string, pastaId: string, erro: string): Promise<void>;
+  estadoConta(dono: string, conta: string, estado: "conectada" | "erro_autenticacao" | "atrasada", erro: string | null): Promise<void>;
 }
 export interface Contexto {
   usuario: { id: string; mfaOk: boolean } | null;   // já autenticado pelo index.ts (JWT validado)
   cofre: Cofre;
-  worker: Worker | null;                            // null enquanto o canal assinado com o Worker (P7) não existir
+  banco?: Banco | null;                             // cache e cursor; ausente = operações que dependem dele respondem "banco_indisponivel"
+  worker: Worker | null;                            // null se o canal assinado não está configurado (sem URL ou sem chave)
   registrar: (e: { operacao: string; codigo: string; status: number }) => void;   // SÓ operação, código fechado e status
 }
 export type Resposta = { status: number; corpo: Record<string, unknown> };
 
-/* códigos de recusa de autenticação que o Worker usa (lista fechada) */
-const AUTENTICACAO_RECUSADA = ["autenticacao_falhou", "autenticacao_recusada", "login_recusado", "credencial_recusada"];
+/* códigos do Worker (lista fechada) e o que a função faz com cada um */
+const AUTENTICACAO_RECUSADA = ["autenticacao_recusada", "autenticacao_falhou", "login_recusado", "credencial_recusada"];
+const REPASSA = ["pasta_inexistente", "mensagem_inexistente", "parte_inexistente", "anexo_grande_demais", "uidvalidity_mudou"];   // informativos e seguros: o navegador sabe lidar
+const CANAL_RECUSADO = ["assinatura_invalida", "chave_desconhecida", "timestamp_fora_da_janela", "cabecalhos_invalidos", "replay", "canal_nao_configurado", "operacao_divergente"];
 const UID_MAX = 4294967295, RE_COD = /^[a-z][a-z0-9_]{1,40}$/;
 const uidOk = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= UID_MAX;
 const inteiroOuNulo = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
@@ -32,16 +48,12 @@ const inteiroOuNulo = (v: unknown): number | null => (typeof v === "number" && N
 /* só copia o que conhece (esquema fechado): o que o Worker responder além disso nunca chega ao navegador */
 export function filtrarResposta(operacao: string, dados: Record<string, unknown>): Record<string, unknown> | null {
   if (operacao === "estado_pasta") {
-    const ex = dados.exame as Record<string, unknown> | undefined, sy = dados.sincronizacao as Record<string, unknown> | undefined;
-    if (!ex || !uidOk(ex.uidvalidity) || !uidOk(ex.uidnext) || !sy || typeof sy.tipo !== "string" || !RE_COD.test(sy.tipo)) return null;
-    return { exame: { uidvalidity: ex.uidvalidity, uidnext: ex.uidnext }, sincronizacao: { tipo: sy.tipo }, mensagens_na_pasta: inteiroOuNulo(dados.mensagens_na_pasta), duracao_ms: inteiroOuNulo(dados.duracao_ms) };
+    const ex = dados.exame as Record<string, unknown> | undefined;
+    if (!ex || !uidOk(ex.uidvalidity) || !uidOk(ex.uidnext)) return null;
+    return { exame: { uidvalidity: ex.uidvalidity, uidnext: ex.uidnext }, mensagens_na_pasta: inteiroOuNulo(dados.mensagens_na_pasta), duracao_ms: inteiroOuNulo(dados.duracao_ms) };
   }
-  if (operacao === "listar_pastas") {
-    const l = dados.pastas;
-    if (!Array.isArray(l) || l.length > 500) return null;
-    const pastas = l.map((p) => (p && typeof (p as Record<string, unknown>).nome === "string" && ((p as Record<string, unknown>).nome as string).length <= 200 ? { nome: (p as Record<string, unknown>).nome, uso: typeof (p as Record<string, unknown>).uso === "string" && RE_COD.test((p as Record<string, unknown>).uso as string) ? (p as Record<string, unknown>).uso : "outra" } : null));
-    return pastas.some((p) => p === null) ? null : { pastas };
-  }
+  if (operacao === "ler_mensagem") return filtrarLeitura(dados);
+  if (operacao === "baixar_anexo") return filtrarAnexo(dados);
   return {};   // testar_conta: só o "ok"
 }
 
@@ -56,6 +68,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     try { ctx.registrar({ operacao, codigo: "ok", status: 200 }); } catch (_) { /* idem */ }
     return { status: 200, corpo: { ok: true, ...extra } };
   };
+  let travada: string | null = null;
   try {
     if (!ctx.usuario) return falha("sem_login");
     const v = validarPedido(corpo);
@@ -76,35 +89,99 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       try { return sucesso({ credencial: await ctx.cofre.estado(dono, p.conta_id) }); } catch (e) { return falha(codigoDe(e)); }
     }
 
-    /* ---- operações de LEITURA no provedor: precisam do Worker e da credencial guardada ---- */
+    /* ---- operações no provedor (SÓ LEITURA): precisam do Worker, da credencial guardada e (as de pasta) do banco ---- */
     if (!ctx.worker) return falha("worker_nao_configurado");   // antes de abrir o cofre: sem canal para o Worker, o segredo nem é lido
+    const worker = ctx.worker, banco = ctx.banco ?? null, conta = p.conta_id;
+    const precisaBanco = p.operacao !== "testar_conta";
+    if (precisaBanco && !banco) return falha("banco_indisponivel");
+    if (p.operacao === "sincronizar_pasta") {
+      // só uma sincronização por conta ao mesmo tempo (as duas esperam o mesmo cursor)
+      try { if (!(await banco!.travar(conta))) return falha("sincronizacao_em_andamento"); travada = conta; } catch (_) { return falha("banco_indisponivel"); }
+    }
     let bruto: string | null;
-    try { bruto = await ctx.cofre.ler(dono, p.conta_id); } catch (e) { return falha(codigoDe(e)); }
+    try { bruto = await ctx.cofre.ler(dono, conta); } catch (e) { return falha(codigoDe(e)); }
     if (bruto === null) return falha("credencial_ausente");    // conta sem credencial não inicia operação IMAP
     let cred = desempacotar(bruto);
     bruto = null;
     if (!cred) return falha("credencial_corrompida");
-    let r: ResultadoWorker;
-    try {
-      r = await ctx.worker.executar(p.operacao, p.operacao === "estado_pasta" ? { conta_id: p.conta_id, pasta_id: p.pasta_id } : { conta_id: p.conta_id }, cred);
-    } catch (_) {
-      cred = null;
-      return falha("servico_indisponivel");   // a mensagem do erro (que poderia conter o segredo) é descartada
-    }
-    cred = null;
-    if (!r.ok) {
+    const credencial = cred;
+
+    /* traduz o resultado do Worker: recusa de login marca a credencial; o resto vira código fechado */
+    const traduzir = async (r: Extract<ResultadoWorker, { ok: false }>): Promise<Resposta> => {
       if (AUTENTICACAO_RECUSADA.includes(r.erro)) {
-        try { await ctx.cofre.marcar(dono, p.conta_id, "invalida"); } catch (_) { /* o estado fica como está; a resposta continua controlada */ }
+        try { await ctx.cofre.marcar(dono, conta, "invalida"); } catch (_) { /* o estado fica como está */ }
+        try { await banco?.estadoConta(dono, conta, "erro_autenticacao", "credencial_invalida"); } catch (_) { /* idem */ }
         return falha("credencial_invalida");
       }
+      if (REPASSA.includes(r.erro)) return falha(r.erro);
+      if (CANAL_RECUSADO.includes(r.erro)) return falha("canal_recusado");
       return falha("servico_indisponivel");
+    };
+    const marcarAtiva = async () => { try { await ctx.cofre.marcar(dono, conta, "ativa"); } catch (_) { /* a resposta continua controlada */ } };
+    const chamar = async (op: string, ped: Record<string, unknown>): Promise<ResultadoWorker> => {
+      try { return await worker.executar(op, { conta_id: conta, ...ped }, credencial); } catch (_) { return { ok: false, erro: "servico_indisponivel" }; }   // a mensagem do erro (que poderia conter o segredo) é descartada
+    };
+    const pastaDe = async (pastaId: string) => { try { return await banco!.pasta(dono, conta, pastaId); } catch (_) { return undefined; } };
+
+    if (p.operacao === "testar_conta") {
+      const r = await chamar("testar_conta", {});
+      cred = null;
+      if (!r.ok) return await traduzir(r);
+      await marcarAtiva();
+      return sucesso({});
     }
+
+    if (p.operacao === "listar_pastas") {
+      const r = await chamar("listar_pastas", {});
+      if (!r.ok) { cred = null; return await traduzir(r); }
+      const lista = filtrarPastas(r.dados.pastas);
+      cred = null;
+      if (!lista) return falha("servico_indisponivel");
+      let salvas;
+      try { salvas = await banco!.salvarPastas(dono, conta, lista); } catch (_) { return falha("banco_indisponivel"); }
+      await marcarAtiva();
+      return sucesso({ pastas: salvas.map((s) => ({ id: s.id, nome: s.nome_exibicao, uso: s.uso })) });
+    }
+
+    // as demais operações são de UMA pasta (já validada como UUID); o nome da pasta no provedor vem do banco, nunca do navegador
+    const pastaId = (p as { pasta_id: string }).pasta_id, pasta = await pastaDe(pastaId);
+    if (pasta === undefined) return falha("banco_indisponivel");
+    if (pasta === null) return falha("pasta_inexistente");
+
+    if (p.operacao === "sincronizar_pasta") {
+      let r;
+      try { r = await sincronizarPasta({ dono, conta, pastaId, worker: { executar: (op, ped, c) => worker.executar(op, ped, c) }, banco: banco!, credencial }); }
+      catch (_) { cred = null; try { await banco!.falhaSync(dono, conta, pastaId, "servico_indisponivel"); } catch (_e) { /* idem */ } return falha("servico_indisponivel"); }
+      cred = null;
+      if (!r.ok) {
+        const resp = await traduzir(r);
+        const cod = (resp.corpo as { erro?: string }).erro;
+        if (cod && RE_COD.test(cod) && cod !== "credencial_invalida") { try { await banco!.falhaSync(dono, conta, pastaId, cod); await banco!.estadoConta(dono, conta, "atrasada", cod); } catch (_) { /* idem */ } }
+        return resp;
+      }
+      await marcarAtiva();
+      try { await banco!.estadoConta(dono, conta, "conectada", null); } catch (_) { /* idem */ }
+      return sucesso(r.dados);
+    }
+
+    // estado_pasta, ler_mensagem e baixar_anexo: uma chamada ao Worker; o UIDVALIDITY esperado é o do cursor (mensagem de outra "geração" da pasta não é lida)
+    let est;
+    try { est = await banco!.estadoSync(dono, conta, pastaId); } catch (_) { return falha("banco_indisponivel"); }
+    const extra: Record<string, unknown> = { pasta: pasta.nome_externo };
+    if (est && est.uidvalidity !== null && p.operacao !== "estado_pasta") extra.uidvalidity_esperado = est.uidvalidity;
+    if (p.operacao === "ler_mensagem" || p.operacao === "baixar_anexo") extra.uid = p.uid;
+    if (p.operacao === "baixar_anexo") extra.parte = p.parte;
+    const r = await chamar(p.operacao, extra);
+    cred = null;
+    if (!r.ok) return await traduzir(r);
     const dados = filtrarResposta(p.operacao, r.dados ?? {});
     if (!dados) return falha("servico_indisponivel");
-    try { await ctx.cofre.marcar(dono, p.conta_id, "ativa"); } catch (_) { /* idem */ }
+    await marcarAtiva();
     return sucesso(dados);
   } catch (_) {
     return falha("interno");   // qualquer imprevisto: código fixo, sem mensagem
+  } finally {
+    if (travada) { try { await ctx.banco?.destravar(travada); } catch (_) { /* a conexão se fecha no fim da chamada e o travamento some com ela */ } }
   }
 }
 

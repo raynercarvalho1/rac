@@ -26,8 +26,14 @@ function cofreFalso({ falhaEm = {}, estado = {} } = {}) {
     async marcar(d, c, e) { chamadas.push(["marcar", d, c, e]); falha("marcar"); est.set(k(d, c), e); } };
 }
 function workerFalso(resp) { const chamadas = []; return { chamadas, async executar(op, ped, cred) { chamadas.push([op, ped, { ...cred }]); if (resp instanceof Error) throw resp; return typeof resp === "function" ? resp(op, ped, cred) : resp; } }; }
-const OK_ESTADO = { ok: true, dados: { exame: { uidvalidity: 1752612613, uidnext: 4, codigo_etiquetado: "READ-WRITE" }, sincronizacao: { tipo: "sem_mudanca" }, mensagens_na_pasta: 1, duracao_ms: 985, senha: SENHA, usuario: USUARIO } };
-function ctx({ usuario = { id: U1, mfaOk: true }, cofre = cofreFalso(), worker = null } = {}) { const logs = []; return { c: { usuario, cofre, worker, registrar: (e) => logs.push(e) }, logs, cofre, worker }; }
+const OK_ESTADO = { ok: true, dados: { exame: { uidvalidity: 1752612613, uidnext: 4, codigo_etiquetado: "READ-WRITE" }, mensagens_na_pasta: 1, duracao_ms: 985, senha: SENHA, usuario: USUARIO } };
+/* banco de mentira (I2): só o que estas provas usam; a sincronização é provada em tests/inbox_sync_servico.test.mjs */
+function bancoFalso({ pastas = { [P1]: "INBOX" }, est = null } = {}) {
+  const ch = [];
+  return { ch, async pasta(d, c, id) { ch.push(["pasta", d, c, id]); return pastas[id] ? { id, nome_externo: pastas[id] } : null; }, async estadoSync() { return est; }, async travar() { return true; }, async destravar() {},
+    async salvarPastas() { return []; }, async aplicarSync() { return { novas: 0, atualizadas: 0, removidas: 0 }; }, async falhaSync() {}, async estadoConta() {} };
+}
+function ctx({ usuario = { id: U1, mfaOk: true }, cofre = cofreFalso(), worker = null, banco = bancoFalso() } = {}) { const logs = []; return { c: { usuario, cofre, banco, worker, registrar: (e) => logs.push(e) }, logs, cofre, worker, banco }; }
 /* tudo o que sairia para fora: resposta + registros + (se houver) texto de erros */
 const visivel = (r, logs) => JSON.stringify([r, logs]);
 const semSegredo = (r, logs, extra = []) => { const t = visivel(r, logs); for (const s of [SENHA, SENHA2, "aaaa-bbbb", "cccc-dddd", ...extra]) assert.ok(!t.includes(s), "vazou: " + s); };
@@ -45,7 +51,7 @@ test("contrato: só senha ESPECÍFICA de app (xxxx-xxxx-xxxx-xxxx); senha princi
   assert.equal(validarPedido({ operacao: "estado_pasta", conta_id: C1 }).erro, "campo_ausente");
   for (const op of ["enviar", "mover", "excluir", "marcar", "arquivar", "responder", "criar_pasta", "store", "append", "expunge"]) assert.equal(validarPedido({ operacao: op, conta_id: C1 }).erro, "operacao_invalida", op + " não existe");
   for (const nao of [null, [], "texto", 5, undefined]) assert.equal(validarPedido(nao).erro, "corpo_invalido");
-  assert.deepEqual([...OPERACOES_LEITURA, ...OPERACOES_CREDENCIAL].sort(), ["credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "listar_pastas", "testar_conta"]);
+  assert.deepEqual([...OPERACOES_LEITURA, ...OPERACOES_CREDENCIAL].sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_conta"]);
   for (const c of Object.keys(ERROS)) assert.ok(Number.isInteger(ERROS[c]) && ERROS[c] >= 400, c);
 });
 
@@ -96,12 +102,11 @@ test("conta SEM credencial não inicia operação IMAP: o Worker nunca é chamad
 test("com credencial: a credencial vai SÓ ao Worker (em memória), a resposta é filtrada (esquema fechado) e nada dela sai; o estado vira 'ativa'", async () => {
   const w = workerFalso(OK_ESTADO), x = ctx({ worker: w }); await atender(CORPO(), x.c);
   const r = await atender({ operacao: "estado_pasta", conta_id: C1, pasta_id: P1 }, x.c);
-  assert.equal(r.status, 200); assert.deepEqual(r.corpo, { ok: true, exame: { uidvalidity: 1752612613, uidnext: 4 }, sincronizacao: { tipo: "sem_mudanca" }, mensagens_na_pasta: 1, duracao_ms: 985 });
-  assert.deepEqual(w.chamadas, [["estado_pasta", { conta_id: C1, pasta_id: P1 }, { usuario: USUARIO, senha: SENHA }]], "o Worker recebe a credencial, só para esta operação");
+  assert.equal(r.status, 200); assert.deepEqual(r.corpo, { ok: true, exame: { uidvalidity: 1752612613, uidnext: 4 }, mensagens_na_pasta: 1, duracao_ms: 985 });
+  assert.deepEqual(w.chamadas, [["estado_pasta", { conta_id: C1, pasta: "INBOX" }, { usuario: USUARIO, senha: SENHA }]], "o Worker recebe a credencial, só para esta operação, e o NOME da pasta vem do banco (nunca do navegador)");
   assert.ok(x.cofre.chamadas.some((c) => c[0] === "marcar" && c[3] === "ativa"));
   semSegredo(r, x.logs, [USUARIO]); assert.ok(!JSON.stringify(r).includes("READ-WRITE") || true);
   assert.deepEqual(filtrarResposta("estado_pasta", { exame: { uidvalidity: 0, uidnext: 4 }, sincronizacao: { tipo: "x" } }), null, "resposta fora do esquema é descartada");
-  assert.deepEqual(filtrarResposta("listar_pastas", { pastas: [{ nome: "INBOX", uso: "entrada", senha: SENHA }] }), { pastas: [{ nome: "INBOX", uso: "entrada" }] });
   assert.deepEqual(filtrarResposta("testar_conta", { qualquer: SENHA }), {});
 });
 
@@ -171,12 +176,12 @@ test("sem estado compartilhado: duas chamadas seguidas de usuários diferentes n
 test("index.ts (texto): conexão direta ao Postgres por chamada e fechada no fim, parâmetros por ligação, JWT conferido, só código nos registros, Worker ainda não ligado, sem fetch", () => {
   const t = semComent(ler("supabase/functions/rac-inbox/index.ts"));
   assert.match(t, /Deno\.env\.get\("SUPABASE_DB_URL"\)/); assert.match(t, /postgres\(bd, \{ max: 1, prepare: false,/); assert.match(t, /await sql\.end\(/);
-  assert.ok(!/sql\.unsafe\(|sql\(`|\$\{[^}]*\}['"]\s*\+|"select [^"]*"\s*\+/.test(t), "SQL só por modelo etiquetado (parâmetros ligados), nunca por texto montado");
+  assert.ok(!/sql\.unsafe\(|sql\(`|\$\{[^}]*\}['"]\s*\+|"select [^"]*"\s*\+/.test(t), "SQL só por modelo etiquetado (parâmetros ligados), nunca por texto montado"); assert.equal((t.match(/\.unsafe\(/g) || []).length, 1, "o único `unsafe` é o executor do repositório, que SÓ recebe texto fixo e parâmetros ($1…): ver tests/inbox_sync_sql.test.mjs");
   for (const f of ["guardar", "ler", "remover", "estado", "marcar"]) assert.match(t, new RegExp("inbox_cofre\\." + f + "\\("));
-  assert.match(t, /auth\.getUser\(jwt\)/); assert.match(t, /worker: null/); assert.ok(!/\bfetch\(/.test(t), "nenhuma chamada de rede: o canal com o Worker (P7) não existe");
+  assert.match(t, /auth\.getUser\(jwt\)/); assert.match(t, /worker: workerDoAmbiente\(\)/); assert.match(t, /Deno\.env\.get\("RAC_CANAL_K1"\)/); assert.ok(!/\bfetch\(/.test(t), "a rede do canal está em canal.ts (assinada e testada), não neste arquivo");
   const consoles = t.split("\n").filter((l) => /console\./.test(l)); assert.equal(consoles.length, 1, "um único ponto de registro"); assert.match(consoles[0], /console\.log\(JSON\.stringify\(\{ rac_inbox: e \}\)\)/, "e ele registra só o objeto de código fechado (operação, código, status)");
   assert.match(t, /Cache-Control": "no-store"/); assert.match(t, /CORPO_MAX_BYTES = 2048/); assert.ok(!/ctx\.usuario\.id|body\.dono|corpo\.dono/.test(t));
-  assert.match(ler("supabase/functions/rac-inbox/index.ts"), /NÃO PUBLICADA/);
+  assert.match(ler("supabase/functions/rac-inbox/index.ts"), /Publicar \(ou republicar\) é passo do dono/);
   const cors = t.match(/ORIGENS = \[[^\]]+\]/)[0]; assert.ok(!cors.includes("*"), "CORS sem curinga");
   assert.ok(!/null as unknown as Cofre/.test(t) || /usuario && !bd/.test(t), "sem banco não há cofre alternativo");
 });

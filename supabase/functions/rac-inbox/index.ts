@@ -1,13 +1,16 @@
-// RAC Inbox: a função de servidor do e-mail (docs/inbox.md). NÃO PUBLICADA: publicar é passo do dono, com autorização própria (depois das migrations 051 e 052).
+// RAC Inbox: a função de servidor do e-mail (docs/inbox.md). Publicar (ou republicar) é passo do dono, com autorização própria: a versão com o canal assinado e a sincronização (P7/I2) exige as migrations 051, 052 e 053
+// e os secrets RAC_CANAL_K1 e RAC_INBOX_WORKER_URL (Edge Functions → Secrets; valores nunca no repositório).
 // Este é o único arquivo da pasta que usa Deno, o Supabase e o Postgres; o resto é lógica pura e testada (tests/inbox_cofre_servico.test.mjs).
 // Autenticação: o JWT do dono é validado no próprio Supabase (auth.getUser); a 2ª etapa (MFA) é exigida como no banco. Cofre: conexão DIRETA ao Postgres (SUPABASE_DB_URL, só
 // em Edge Functions → Secrets automáticos) chamando as funções do schema PRIVADO inbox_cofre (052); a chave de serviço NÃO é usada e não há RPC na Data API. A credencial
-// nunca é logada nem devolvida; os parâmetros vão por ligação (nunca dentro do texto do SQL). O canal assinado com o Worker (P7) ainda não existe: worker = null.
+// nunca é logada nem devolvida; os parâmetros vão por ligação (nunca dentro do texto do SQL). O canal assinado com o Worker (P7) é canal.ts: sem a URL e a chave nos Secrets, worker = null e as operações de leitura respondem "worker_nao_configurado".
 // Publicar pela CLI (sem --no-verify-jwt): npx supabase@<versão> functions deploy rac-inbox --use-api --project-ref <projeto>
 import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.4";
 import { aalOk, ERROS } from "./contrato.ts";
 import { atender, type Cofre, type EstadoCredencial } from "./servico.ts";
+import { criarRepositorio, type Linha, type Sessao } from "./repositorio.ts";
+import { criarWorkerHttp } from "./canal.ts";
 
 const ORIGENS = ["https://raynercarvalho.com.br", "https://www.raynercarvalho.com.br", "https://raynercarvalho1.github.io"];
 const origemPermitida = (o: string | null) => (o && (ORIGENS.includes(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) ? o : ORIGENS[0]);
@@ -37,6 +40,18 @@ function cofrePostgres(sql: ReturnType<typeof postgres>): Cofre {
   };
 }
 
+/* o executor de SQL do repositório (I2) sobre a conexão desta chamada; transacao = sql.begin (dentro de uma transação, "transacao" apenas continua nela) */
+function sessaoPostgres(sql: ReturnType<typeof postgres>): Sessao {
+  const montar = (q: { unsafe: (t: string, p?: never[]) => PromiseLike<unknown> }, dentro: boolean): Sessao => ({
+    exec: async (texto, params = []) => (await q.unsafe(texto, params as never[])) as unknown as Linha[],
+    transacao: async (f) => (dentro ? await f(montar(q, true)) : await sql.begin(async (tx) => await f(montar(tx as unknown as typeof q, true)))) as never,
+  });
+  return montar(sql as unknown as { unsafe: (t: string, p?: never[]) => PromiseLike<unknown> }, false);
+}
+
+/* o canal com o Worker: só existe com a URL (HTTPS) e a chave nos Secrets; do contrário, null e nada é enviado */
+const workerDoAmbiente = () => criarWorkerHttp(Deno.env.get("RAC_INBOX_WORKER_URL") && Deno.env.get("RAC_CANAL_K1") ? { url: Deno.env.get("RAC_INBOX_WORKER_URL")!, segredo: Deno.env.get("RAC_CANAL_K1")!, chave: "k1" } : null);
+
 const payloadAal = (jwt: string): string | null => {
   try { return JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).aal ?? null; } catch (_) { return null; }
 };
@@ -64,7 +79,7 @@ Deno.serve(async (req) => {
     const bd = Deno.env.get("SUPABASE_DB_URL");
     if (usuario && !bd) return erro("cofre_indisponivel");   // sem conexão com o banco não há alternativa: nada é guardado em outro lugar
     if (usuario && bd) sql = postgres(bd, { max: 1, prepare: false, idle_timeout: 5, connect_timeout: 10, onnotice: () => {}, debug: false });
-    const r = await atender(corpo, { usuario, cofre: sql ? cofrePostgres(sql) : (null as unknown as Cofre), worker: null, registrar });
+    const r = await atender(corpo, { usuario, cofre: sql ? cofrePostgres(sql) : (null as unknown as Cofre), banco: sql ? criarRepositorio(sessaoPostgres(sql)) : null, worker: workerDoAmbiente(), registrar });
     return new Response(JSON.stringify(r.corpo), { status: r.status, headers: h });
   } catch (_) {
     return erro("interno");   // código fixo; a exceção (que poderia conter dados) é descartada

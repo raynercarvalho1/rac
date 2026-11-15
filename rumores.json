@@ -1,8 +1,53 @@
 {
- "coletado": "2026-11-14T19:55:23.653713+00:00",
+ "coletado": "2026-11-15T01:00:36.862597+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Pirates Want To Limit Ryan O’Hearn’s Outfield Reps",
+   "link": "https://www.mlbtraderumors.com/2026/11/pirates-want-to-limit-ryan-ohearns-outfield-reps.html",
+   "data": "2026-11-14T23:58:13+00:00",
+   "resumo": "The Pirates have Oneil Cruz and Bryan Reynolds as everyday options in center and left field, respectively. Right field is more of a question mark, as general manager Ben Cherington outlined this week at the GM Meetings. Cherington told reporters, including Colin Beazley of the…",
+   "tags": [
+    "Pittsburgh Pirates",
+    "Esmerlyn Valdez",
+    "Ryan O'Hearn"
+   ]
+  },
+  {
+   "t": "KBO’s LG Twins Extend Austin Dean",
+   "link": "https://www.mlbtraderumors.com/2026/11/kbos-lg-twins-extend-austin-dean.html",
+   "data": "2026-11-14T22:30:13+00:00",
+   "resumo": "The LG Twins of the KBO announced a contract extension for first baseman Austin Dean this week. The two sides agreed to a one-year deal worth $2MM. Dean has been one of the top hitters in Korea since making the move in 2023. He’s hit .320 with 127 homers in four seasons with…",
+   "tags": [
+    "Korea Baseball Organization",
+    "Austin Dean"
+   ]
+  },
+  {
+   "t": "A’s Receiving Trade Interest In Jacob Wilson",
+   "link": "https://www.mlbtraderumors.com/2026/11/as-receiving-trade-interest-in-jacob-wilson.html",
+   "data": "2026-11-14T21:19:23+00:00",
+   "resumo": "Jacob Wilson’s All-Star rookie season was followed up by an injury-plagued 2026 campaign, as the Athletics’ shortstop hit only .266/.298/.388 over 337 plate appearances. Wilson sprained his left shoulder in May while diving for a Gunnar Henderson grounder, and while he missed…",
+   "tags": [
+    "Athletics",
+    "Jacob Wilson (b. 2002)"
+   ]
+  },
+  {
+   "t": "NL East Notes: Braves, Iglesias, Nationals, Thompson, Marlins",
+   "link": "https://www.mlbtraderumors.com/2026/11/nl-east-notes-braves-iglesias-nationals-thompson-marlins.html",
+   "data": "2026-11-14T20:33:38+00:00",
+   "resumo": "The Braves made a big new bullpen addition by signing Evan Phillips on Thursday, and the Tigers just added a prominent high-leverage reliever in Emilio Pagan. Even after these moves, reporter Francys Romero writes that Atlanta and Detroit are still interested in veteran closer…",
+   "tags": [
+    "Atlanta Braves",
+    "Detroit Tigers",
+    "Los Angeles Dodgers",
+    "Miami Marlins",
+    "New York Yankees",
+    "Notes"
+   ]
+  },
   {
    "t": "Dodgers Interested In Jonathan Loaisiga, Tim Hill",
    "link": "https://www.mlbtraderumors.com/2026/11/dodgers-interested-in-jonathan-loaisiga-tim-hill.html",
@@ -130,54 +175,23 @@
     "Washington Nationals",
     "Kyle Nicolas"
    ]
-  },
-  {
-   "t": "Royals In Market For Right-Handed Hitting Outfielder",
-   "link": "https://www.mlbtraderumors.com/2026/11/royals-in-market-for-right-handed-hitting-outfielder.html",
-   "data": "2026-11-14T01:36:24+00:00",
-   "resumo": "The Royals are looking for a right-handed hitting outfielder, general manager J.J. Picollo told reporters at the GM Meetings this week (link via ESPN’s Jesse Rogers). The GM added that an acquisition would ideally be capable of playing center field on at least a part-time…",
-   "tags": [
-    "Kansas City Royals"
-   ]
-  },
-  {
-   "t": "The Best Fits For Tarik Skubal",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-tarik-skubal.html",
-   "data": "2026-11-13T23:35:45+00:00",
-   "resumo": "The spotlight is on Tarik Skubal, who is the top free agent of the offseason. He is one of the best pitchers alive right now. He has a 2.64 earned run average over the past four seasons. His 30.1% strikeout rate and 4.8% walk rate in that time are both elite figures. His 44.6%…",
-   "tags": [
-    "Front Office Originals",
-    "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Angels, Tyler Heineman Avoid Arbitration",
-   "link": "https://www.mlbtraderumors.com/2026/11/angels-tyler-heineman-avoid-arbitration.html",
-   "data": "2026-11-13T22:50:21+00:00",
-   "resumo": "The Angels announced that they have signed catcher Tyler Heineman to a one-year deal for the 2027 season worth $1.2375MM. They also re-signed left-hander Sammy Peralta via a minor league contract with an invitation to spring training. Heineman, 36 in June, is a journeyman…",
-   "tags": [
-    "Los Angeles Angels",
-    "Transactions",
-    "Sammy Peralta",
-    "Tyler Heineman"
-   ]
-  },
-  {
-   "t": "Cardinals Reportedly Turned Away Trade Interest In Burleson, Winn",
-   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-reportedly-turned-away-trade-interest-in-burleson-winn.html",
-   "data": "2026-11-13T22:02:42+00:00",
-   "resumo": "The Cardinals are fielding calls on a lot of players on their roster. Derrick Goold of the St. Louis Post-Dispatch reports that the Cards have received interested in catchers Jimmy Crooks and Pedro Pagés, shortstop Masyn Winn and first baseman Alec Burleson, though Goold notes…",
-   "tags": [
-    "St. Louis Cardinals",
-    "Alec Burleson",
-    "Andrew Kittredge",
-    "Dustin May",
-    "Jimmy Crooks",
-    "Masyn Winn"
-   ]
   }
  ],
  "dodgers": [
+  {
+   "t": "NL East Notes: Braves, Iglesias, Nationals, Thompson, Marlins",
+   "link": "https://www.mlbtraderumors.com/2026/11/nl-east-notes-braves-iglesias-nationals-thompson-marlins.html",
+   "data": "2026-11-14T20:33:38+00:00",
+   "resumo": "The Braves made a big new bullpen addition by signing Evan Phillips on Thursday, and the Tigers just added a prominent high-leverage reliever in Emilio Pagan. Even after these moves, reporter Francys Romero writes that Atlanta and Detroit are still interested in veteran closer…",
+   "tags": [
+    "Atlanta Braves",
+    "Detroit Tigers",
+    "Los Angeles Dodgers",
+    "Miami Marlins",
+    "New York Yankees",
+    "Notes"
+   ]
+  },
   {
    "t": "Dodgers Interested In Jonathan Loaisiga, Tim Hill",
    "link": "https://www.mlbtraderumors.com/2026/11/dodgers-interested-in-jonathan-loaisiga-tim-hill.html",

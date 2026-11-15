@@ -52,7 +52,7 @@ test("contrato: só senha ESPECÍFICA de app (xxxx-xxxx-xxxx-xxxx); senha princi
   for (const op of ["enviar", "mover", "excluir", "marcar", "arquivar", "responder", "criar_pasta", "store", "append", "expunge"]) assert.equal(validarPedido({ operacao: op, conta_id: C1 }).erro, "operacao_invalida", op + " não existe");
   for (const nao of [null, [], "texto", 5, undefined]) assert.equal(validarPedido(nao).erro, "corpo_invalido");
   assert.deepEqual([...OPERACOES_LEITURA, ...OPERACOES_CREDENCIAL].sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_canal", "testar_conta"]);
-  for (const c of Object.keys(ERROS)) assert.ok(Number.isInteger(ERROS[c]) && ERROS[c] >= 400, c);
+  for (const c of Object.keys(ERROS)) assert.ok(Number.isInteger(ERROS[c]) && ERROS[c] >= (c === "envio_incerto" ? 202 : 400), c);   // (envio_incerto é 202 de propósito: não é erro HTTP, o navegador lê o código)
 });
 
 test("contrato: MFA como no banco; empacotar/desempacotar; erros do Postgres viram só código fechado", () => {

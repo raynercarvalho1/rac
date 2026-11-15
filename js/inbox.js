@@ -9,7 +9,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -46,6 +46,7 @@
   function inboxLinhaPorId(id){var r=INBX.msgs.filter(function(x){return x.id===id})[0];return r?NUCLEO.inbLinhaMensagem(r):null}
   /* abrir uma mensagem real: o texto vem do serviço na hora (sob demanda); se a pessoa abrir outra enquanto esta carrega, a resposta antiga é ignorada */
   function inboxAbrirMsg(id){
+    if(INBX.compor&&!inboxDescartarCompor()){INBX.painel="leitura";inboxDesenhar();return}   /* envio em curso ou rascunho que a pessoa quis manter */
     INBX.msg=id;INBX.painel="leitura";INBX.leit=null;
     var m=INBX.demo?null:inboxLinhaPorId(id);
     if(m)INBX.leit={id:id,estado:"carregando"};
@@ -112,11 +113,14 @@
   function inboxTamanho(n){return n>=1048576?(n/1048576).toFixed(1).replace(".",",")+" MB":n>=1024?Math.round(n/1024)+" KB":n+" B"}
   function inboxExt(a){var m=/\.([A-Za-z0-9]{1,4})$/.exec(a.nome||"");return m?m[1].toUpperCase():"ARQ"}
   function inboxBtnIco(nome,rotulo,classe){return h("button",{type:"button",class:"inb-btn-ico"+(classe?" "+classe:""),"aria-disabled":"true","aria-label":rotulo,title:rotulo+" · "+INBX_FUTURO},inboxIco(nome),h("span",{class:"inb-btn-rot",text:rotulo}))}
+  /* ação já implementada (I3): ativa com `fn`; sem `fn` (mensagem ainda carregando, exemplo, conta sem credencial) fica desligada e diz por quê */
+  function inboxBtnAcao(nome,rotulo,fn){var b=h("button",{type:"button",class:"inb-btn-ico","aria-label":rotulo,title:fn?rotulo:rotulo+" · disponível com a mensagem carregada, numa conta conectada"},inboxIco(nome),h("span",{class:"inb-btn-rot",text:rotulo}));
+    if(fn)b.onclick=fn;else b.setAttribute("aria-disabled","true");return b}
   /* ---- lateral: nova mensagem (desligada), caixas com contas e pastas, categorias ---- */
   function inboxLateral(){
     var u=NUCLEO.inbUnificada(INBX.contas,INBX.pastas),arv=NUCLEO.inbArvore(INBX.contas,INBX.pastas),box=h("aside",{class:"inb-lateral","aria-label":"Caixas de e-mail"});
     var fechar=h("button",{type:"button",class:"inb-voltar",text:"Mensagens"});fechar.onclick=function(){INBX.painel="lista";inboxDesenhar()};box.appendChild(fechar);
-    box.appendChild(h("button",{type:"button",class:"inb-novo","aria-disabled":"true",title:INBX_FUTURO},inboxIco("nova"),"Nova mensagem"));
+    var nova=h("button",{type:"button",class:"inb-novo",title:inboxPodeEnviar()?"Escrever uma nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"),"Nova mensagem");nova.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())nova.setAttribute("aria-disabled","true");box.appendChild(nova);
     box.appendChild(h("p",{class:"inb-grupo",text:"Caixas"}));
     var un=h("button",{type:"button",class:"inb-item"+(INBX.conta==="todas"?" inb-item--ativo":"")},inboxIco("caixa"),h("span",{class:"inb-item-nome",text:"Caixa unificada"}),
       h("span",{class:"inb-item-n",text:u.contas&&u.naoLidas!=null?String(u.naoLidas):""}));
@@ -154,7 +158,7 @@
     topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:tit}),h("span",{class:"inb-sub",text:INBX.demo||ms.length?ms.length+(ms.length===1?" mensagem":" mensagens")+" · "+NUCLEO.inbNaoLidas(ms)+" não lidas":(cont?cont.endereco:"Todas as contas")})));
     if(!INBX.demo&&INBS.publicado&&inboxContasSincronizaveis().length){var sinc=h("button",{type:"button",class:"inb-topo-btn inb-topo-sinc","aria-label":INBX.sinc?"Sincronizando":"Sincronizar",title:"Sincronizar agora"},inboxIco("atualizar"));
       if(INBX.sinc){sinc.setAttribute("disabled","disabled");sinc.setAttribute("aria-busy","true")}sinc.onclick=inboxSincronizar;topo.appendChild(sinc)}
-    topo.appendChild(h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-disabled":"true","aria-label":"Nova mensagem",title:INBX_FUTURO},inboxIco("nova")));cab.appendChild(topo);
+    var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");topo.appendChild(novaTopo);cab.appendChild(topo);
     cab.appendChild(h("div",{class:"inb-busca","aria-disabled":"true",title:INBX_FUTURO},inboxIco("buscar"),h("span",{text:"Buscar mensagens"})));
     cab.appendChild(inboxFiltros());col.appendChild(cab);
     if(cont&&!INBX.demo)col.appendChild(inboxConexao(cont));
@@ -194,7 +198,9 @@
         subst=h("button",{type:"button",class:"inb-link",text:"Substituir senha"}),rem=h("button",{type:"button",class:"inb-link inb-link--perigo",text:"Desconectar e remover a credencial"});
       teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
       subst.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};rem.onclick=function(){inboxRemoverCredencial(c)};
-      op.appendChild(teste);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
+      var bProva=h("button",{type:"button",class:"inb-link",text:INBX.testandoSmtp===c.id?"Testando envio…":"Testar envio (SMTP)"}),bProvaMail=h("button",{type:"button",class:"inb-link",text:"Testar envio com e-mail de teste"});
+      bProva.onclick=function(){inboxProvaSmtp(c,false)};bProvaMail.onclick=function(){inboxProvaSmtp(c,true)};if(INBX.testandoSmtp){bProva.setAttribute("disabled","disabled");bProvaMail.setAttribute("disabled","disabled")}
+      op.appendChild(teste);op.appendChild(bProva);op.appendChild(bProvaMail);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
       if("sync_auto" in c){   /* só com a 054 aplicada */
         box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
         box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
@@ -230,10 +236,13 @@
       INBX.aviso=r.ok?{tipo:"ok",t:"Credencial removida do cofre. A conta ficou desconectada."}:{tipo:"erro",t:NUCLEO.inbErroTexto(r.erro)};return r.ok?inboxLer():null}).then(inboxDesenhar)}
   /* ---- leitura: cabeçalho, corpo e anexos; no iPhone é uma tela própria com barra de ações embaixo ---- */
   function inboxLeitura(){
+    if(INBX.compor)return inboxComposicao();
     var art=h("article",{class:"inb-leitura","aria-label":"Leitura"}),m=INBX.demo?(window.INBOX_DEMO?window.INBOX_DEMO.filter(function(x){return x.id===INBX.msg})[0]:null):(INBX.msg?inboxLinhaPorId(INBX.msg):null);
     var topo=h("div",{class:"inb-leitura-topo"}),v=h("button",{type:"button",class:"inb-voltar"},"Mensagens");v.onclick=function(){INBX.painel="lista";INBX.msg=null;inboxDesenhar()};topo.appendChild(v);
     var acoes=h("div",{class:"inb-acoes",role:"toolbar","aria-label":"Ações da mensagem"});
-    [["responder","Responder"],["todos","Responder a todos"],["encaminhar","Encaminhar"],["arquivo","Arquivar"],["lixo","Excluir"],["mais","Mais"]].forEach(function(a){acoes.appendChild(inboxBtnIco(a[0],a[1]))});topo.appendChild(acoes);art.appendChild(topo);
+    var pronta=!INBX.demo&&m&&INBX.leit&&INBX.leit.id===m.id&&INBX.leit.estado==="ok"&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado;
+    [["responder","Responder","responder"],["todos","Responder a todos","responder_todos"],["encaminhar","Encaminhar","encaminhar"]].forEach(function(a){acoes.appendChild(inboxBtnAcao(a[0],a[1],pronta?function(){inboxCompor(a[2],m)}:null))});
+    [["arquivo","Arquivar"],["lixo","Excluir"],["mais","Mais"]].forEach(function(a){acoes.appendChild(inboxBtnIco(a[0],a[1]))});topo.appendChild(acoes);art.appendChild(topo);
     if(!m){art.appendChild(inboxVazio("caixa","Nenhuma mensagem selecionada","Escolha uma mensagem na lista para ler."));return art}
     var corpo=h("div",{class:"inb-leitura-corpo"});
     corpo.appendChild(h("h2",{class:"inb-leitura-assunto",text:m.assunto}));
@@ -262,6 +271,115 @@
         box.appendChild(h("span",{class:"inb-arquivo"},h("span",{class:"inb-arquivo-tipo",text:inboxExt(a)}),h("span",{class:"inb-arquivo-txt"},h("b",{text:a.nome||"(sem nome)"}),h("span",{text:inboxTamanho(a.tamanho)+" · "+a.tipo})),b))});
       saida.appendChild(box)}
     return saida}
+  /* ---- I3: escrever, responder, responder a todos e encaminhar (docs/inbox.md, "Envio"). O rascunho vive SÓ na memória desta tela: nada é guardado no navegador nem no servidor até o envio.
+     O e-mail só sai com um toque explícito em "Enviar", na revisão (destinatários e assunto à vista). O resultado tem três faces, nunca misturadas: enviado e confirmado, falha confirmada e incerto. ---- */
+  function inboxNovoId(){
+    var c=window.crypto;if(c&&typeof c.randomUUID==="function")return c.randomUUID();
+    var b=[],i;for(i=0;i<16;i++)b.push(c&&c.getRandomValues?c.getRandomValues(new Uint8Array(1))[0]:Math.floor(Math.random()*256));
+    b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var s=b.map(function(x){return (x+256).toString(16).slice(1)});
+    return s.slice(0,4).join("")+"-"+s.slice(4,6).join("")+"-"+s.slice(6,8).join("")+"-"+s.slice(8,10).join("")+"-"+s.slice(10).join("")}
+  function inboxContaDeEnvio(){var a=inboxContaAtual();if(a&&INBX.cred[a.id]==="ativa")return a;return INBX.contas.filter(function(c){return INBX.cred[c.id]==="ativa"})[0]||null}
+  function inboxPodeEnviar(){return !INBX.demo&&INBS.publicado&&!!inboxContaDeEnvio()}
+  /* quem escreve: "novo" (conta atual) ou uma resposta/encaminhamento da mensagem aberta (já lida, para citar o texto) */
+  function inboxCompor(modo,m){
+    var C=INBX.compor;if(C&&(C.etapa==="enviando"||C.etapa==="resultado")){INBX.painel="leitura";inboxDesenhar();return}
+    if(INBX.demo){INBX.aviso={tipo:"aviso",t:"No exemplo não há envio. Conecte uma conta real para escrever."};inboxDesenhar();return}
+    var conta=modo==="novo"?inboxContaDeEnvio():INBX.contas.filter(function(c){return m&&c.id===m.conta_id&&INBX.cred[c.id]==="ativa"})[0];
+    if(!conta){INBX.aviso={tipo:"aviso",t:"Conecte uma conta (senha específica de app) para escrever e enviar e-mails."};inboxDesenhar();return}
+    var r={modo:"novo",para:[],cc:[],cco:[],assunto:"",texto:"",avisos:[]},origem=null;
+    if(modo!=="novo"){
+      var L=INBX.leit;if(!m||!L||L.id!==m.id||L.estado!=="ok")return;
+      var d=L.dados,orig={de:d.de||(m.endereco?{nome:m.remetente,endereco:m.endereco}:null),para:d.para,cc:d.cc,assunto:m.assunto,recebida:d.recebida||m.recebida,texto:d.texto,truncado:d.truncado,anexos:d.anexos};
+      r=NUCLEO.inbMontarRascunho(modo,orig,conta.endereco);origem={pasta_id:m.pasta_id,uid:m.uid}}
+    INBX.compor={modo:modo,conta_id:conta.id,origem:origem,de:conta.endereco,para:r.para.join(", "),cc:r.cc.join(", "),cco:"",assunto:r.assunto,texto:r.texto,avisos:r.avisos,inicial:r.texto,mostrarCc:r.cc.length>0,
+      etapa:"editar",envioId:inboxNovoId(),erros:{},entrada:null,resultado:null,classe:null};
+    INBX.painel="leitura";INBX.aviso=null;inboxDesenhar();
+    setTimeout(function(){var el=document.getElementById(modo==="novo"||modo==="encaminhar"?"inb-c-para":"inb-c-texto");if(el){el.focus();if(el.setSelectionRange&&el.id==="inb-c-texto")el.setSelectionRange(0,0)}},30)}
+  function inboxDescartarCompor(){
+    var C=INBX.compor;if(!C)return true;
+    if(C.etapa==="enviando")return false;
+    if(C.etapa!=="resultado"&&(C.para.trim()||C.assunto.trim()||C.texto!==C.inicial)&&!window.confirm("Descartar esta mensagem? O que foi escrito será perdido."))return false;
+    INBX.compor=null;return true}
+  function inboxRevisar(){
+    var C=INBX.compor;if(!C)return;
+    var v=NUCLEO.inbValidarRascunho({modo:C.modo,para:C.para,cc:C.cc,cco:C.cco,assunto:C.assunto,texto:C.texto,origem:C.origem});
+    if(!v.ok){C.erros=v.erros;C.etapa="editar";inboxDesenhar();return}
+    C.erros={};C.entrada=v.entrada;C.etapa="revisar";inboxDesenhar()}
+  function inboxEnviar(){
+    var C=INBX.compor;if(!C||C.etapa!=="revisar"&&C.etapa!=="resultado"||!C.entrada)return;
+    var ped={conta_id:C.conta_id,envio_id:C.envioId},k;for(k in C.entrada)if(Object.prototype.hasOwnProperty.call(C.entrada,k))ped[k]=C.entrada[k];
+    C.etapa="enviando";C.resultado=null;C.classe=null;inboxDesenhar();
+    inboxChamar("enviar_mensagem",ped).then(function(r){
+      C.resultado=r;C.classe=NUCLEO.inbClasseEnvio(r);C.etapa="resultado";
+      if(INBX.compor===C)inboxDesenhar();
+      if(r.ok)inboxLer().then(function(){if(INBX.compor===C||!INBX.compor)inboxDesenhar()})})}   /* o servidor já atualizou o cache da pasta Enviados; recarrega para a lista refletir (depois de mostrar o resultado) */
+  /* "incerto": o dono confere Enviados; só um NOVO envio_id (decisão explícita) permite enviar de novo */
+  function inboxEnviarDeNovo(){var C=INBX.compor;if(!C)return;C.envioId=inboxNovoId();C.etapa="revisar";C.resultado=null;C.classe=null;inboxDesenhar()}
+  function inboxConferirEnviados(){
+    var C=INBX.compor,conta=C&&INBX.contas.filter(function(c){return c.id===C.conta_id})[0];if(!conta)return;
+    INBX.sinc=conta.id;inboxDesenhar();
+    var env=INBX.pastas.filter(function(p){return p.conta_id===conta.id&&p.uso==="enviados"})[0];
+    (env?inboxChamar("sincronizar_pasta",{conta_id:conta.id,pasta_id:env.id}):Promise.resolve({ok:false,erro:"pasta_inexistente"})).then(function(r){
+      INBX.sinc=null;INBX.aviso=r.ok?{tipo:"ok",t:"Pasta Enviados atualizada. Abra Enviados e confira se a mensagem está lá antes de decidir enviar de novo."}:{tipo:"aviso",t:"Não consegui atualizar Enviados agora ("+NUCLEO.inbErroTexto(r.erro)+")."};
+      return inboxLer()}).then(function(){INBX.compor=null;INBX.painel="lista";inboxDesenhar()})}
+  function inboxCampoCompor(rotulo,id,campo,opc){
+    opc=opc||{};var C=INBX.compor,erro=C.erros[campo],ajId=id+"-aj",el=opc.area?h("textarea",{class:"rac-campo-entrada inb-c-area",id:id,rows:opc.linhas||12,"aria-describedby":erro?ajId:null,"aria-invalid":erro?"true":null,enterkeyhint:"enter"}):
+      h("input",{class:"rac-campo-entrada",id:id,type:"text",inputmode:opc.email?"email":"text",autocapitalize:opc.email?"none":"sentences",autocomplete:"off",autocorrect:opc.email?"off":"on",spellcheck:opc.email?"false":"true",enterkeyhint:"next","aria-describedby":erro?ajId:null,"aria-invalid":erro?"true":null});
+    el.value=C[campo];el.oninput=function(){C[campo]=el.value};
+    return h("div",{class:"rac-campo"+(erro?" rac-campo--erro":"")},h("label",{class:"rac-campo-rotulo","for":id,text:rotulo}),el,erro||opc.ajuda?h("span",{class:"rac-campo-ajuda",id:ajId,text:(erro?"✗ ":"")+(erro||opc.ajuda)}):null)}
+  var INBC_TITULO={novo:"Nova mensagem",responder:"Responder",responder_todos:"Responder a todos",encaminhar:"Encaminhar"};
+  function inboxComposicao(){
+    var C=INBX.compor,art=h("article",{class:"inb-leitura inb-compor","aria-label":INBC_TITULO[C.modo]}),topo=h("div",{class:"inb-leitura-topo"}),v=h("button",{type:"button",class:"inb-voltar",text:C.etapa==="resultado"?"Mensagens":"Cancelar"});
+    v.onclick=function(){if(C.etapa==="resultado"&&C.classe!=="falha"&&C.classe!=="confirmar"){INBX.compor=null;INBX.painel="lista";inboxDesenhar();return}if(inboxDescartarCompor()){INBX.painel="lista";inboxDesenhar()}};
+    if(C.etapa==="enviando")v.setAttribute("disabled","disabled");
+    topo.appendChild(v);topo.appendChild(h("b",{class:"inb-compor-tit",text:INBC_TITULO[C.modo]}));art.appendChild(topo);
+    var corpo=h("div",{class:"inb-leitura-corpo inb-compor-corpo"});art.appendChild(corpo);
+    if(C.etapa==="enviando"){corpo.appendChild(rkEstado("carregando","Enviando… Não feche esta tela. O RAC só dirá “enviado” depois que o servidor do iCloud confirmar."));return art}
+    if(C.etapa==="resultado"){inboxResultadoEnvio(C,corpo);return art}
+    if(C.etapa==="revisar"){
+      var e=C.entrada,linhas=h("dl",{class:"inb-rev"});
+      [["De",C.de],["Para",e.para.join(", ")],e.cc.length?["Cc",e.cc.join(", ")]:null,e.cco.length?["Cco",e.cco.join(", ")+" (oculto para os demais)"]:null,["Assunto",e.assunto||"(sem assunto)"]].forEach(function(p){if(p){linhas.appendChild(h("dt",{text:p[0]}));linhas.appendChild(h("dd",{text:p[1]}))}});
+      corpo.appendChild(rkCard("Confira antes de enviar",h("div",{class:"rac-pilha"},linhas,h("pre",{class:"inb-rev-texto",text:e.texto.length>800?e.texto.slice(0,800)+"\n[… "+(e.texto.length-800)+" caracteres a mais]":e.texto||"(sem texto)"}),
+        h("p",{class:"inb-nota",text:"Esta mensagem sai para "+(NUCLEO.inbValidarRascunho({modo:C.modo,para:e.para.join(","),cc:e.cc.join(","),cco:e.cco.join(","),assunto:e.assunto||"x",texto:e.texto||"x",origem:C.origem}).total||0)+" destinatário(s) e não pode ser desfeita. Só sai quando você tocar em Enviar."}))));
+      var env=rkBtn("pri","Enviar"),volta=rkBtn("sec","Voltar e editar");env.onclick=inboxEnviar;volta.onclick=function(){C.etapa="editar";inboxDesenhar()};
+      corpo.appendChild(h("div",{class:"inb-compor-acoes"},volta,env));return art}
+    /* editar */
+    C.avisos.forEach(function(a){corpo.appendChild(rkAlerta("aviso","Atenção",a))});
+    if(C.erros.geral)corpo.appendChild(rkAlerta("erro","Confira a mensagem",C.erros.geral));
+    corpo.appendChild(h("p",{class:"inb-compor-de"},h("span",{text:"De"}),h("b",{text:C.de})));
+    corpo.appendChild(inboxCampoCompor("Para","inb-c-para","para",{email:true,ajuda:"Separe vários endereços por vírgula."}));
+    if(C.mostrarCc||C.erros.cc||C.erros.cco){corpo.appendChild(inboxCampoCompor("Cc","inb-c-cc","cc",{email:true}));corpo.appendChild(inboxCampoCompor("Cco (cópia oculta)","inb-c-cco","cco",{email:true,ajuda:"Os endereços em Cco não aparecem para os outros destinatários."}))}
+    else{var cc=h("button",{type:"button",class:"inb-link",text:"Adicionar Cc/Cco"});cc.onclick=function(){C.mostrarCc=true;inboxDesenhar()};corpo.appendChild(cc)}
+    corpo.appendChild(inboxCampoCompor("Assunto","inb-c-assunto","assunto"));
+    corpo.appendChild(inboxCampoCompor("Mensagem","inb-c-texto","texto",{area:true,linhas:12,ajuda:"Texto simples (sem formatação). Anexos ainda não são enviados nesta etapa."}));
+    var rev=rkBtn("pri","Revisar e enviar"),des=rkBtn("ter","Descartar");rev.onclick=inboxRevisar;des.onclick=function(){if(inboxDescartarCompor()){INBX.painel="lista";inboxDesenhar()}};
+    corpo.appendChild(h("div",{class:"inb-compor-acoes"},des,rev));return art}
+  function inboxResultadoEnvio(C,corpo){
+    var r=C.resultado||{},c=C.classe,bt=function(t,tipo,fn){var b=rkBtn(tipo,t);b.onclick=fn;return b};
+    if(c==="enviado"){
+      corpo.appendChild(rkAlerta("ok",r.repetido?"Este envio já tinha sido concluído":"Enviado e confirmado pelo servidor",
+        (r.repetido?"O servidor reconheceu este envio e não enviou de novo. ":"O servidor de envio do iCloud aceitou a mensagem. ")+(r.enviados==="atualizada"?"A pasta Enviados foi atualizada.":"A pasta Enviados ainda não foi atualizada; use Sincronizar. ")+" A entrega na caixa de quem recebe depende do provedor dele."));
+      corpo.appendChild(h("div",{class:"inb-compor-acoes"},bt("Concluir","pri",function(){INBX.compor=null;INBX.painel="lista";inboxDesenhar()})));return}
+    if(c==="incerto"){
+      corpo.appendChild(rkAlerta("aviso","Resultado incerto",NUCLEO.inbErroTexto("envio_incerto")));
+      corpo.appendChild(h("div",{class:"inb-compor-acoes inb-compor-acoes--col"},bt("Atualizar Enviados e conferir","pri",inboxConferirEnviados),bt("Não chegou: enviar de novo","sec",inboxEnviarDeNovo),bt("Concluir sem enviar de novo","ter",function(){INBX.compor=null;INBX.painel="lista";inboxDesenhar()})));return}
+    if(c==="confirmar"){
+      corpo.appendChild(rkAlerta("aviso","Não consegui confirmar o resultado","A resposta do servidor não chegou ("+NUCLEO.inbErroTexto(r.erro)+") e o e-mail pode ou não ter sido enviado. Toque em Confirmar: o RAC pergunta ao servidor o que aconteceu com ESTE envio e nunca envia duas vezes."));
+      corpo.appendChild(h("div",{class:"inb-compor-acoes inb-compor-acoes--col"},bt("Confirmar resultado","pri",inboxEnviar),bt("Voltar e editar","sec",function(){C.etapa="editar";C.resultado=null;C.classe=null;inboxDesenhar()})));return}
+    corpo.appendChild(rkAlerta("erro","Não foi enviado",NUCLEO.inbErroTexto(r.erro)+" Seu texto foi mantido."));
+    corpo.appendChild(h("div",{class:"inb-compor-acoes"},bt("Descartar","ter",function(){INBX.compor=null;INBX.painel="lista";inboxDesenhar()}),bt("Voltar e editar","pri",function(){C.etapa="editar";C.resultado=null;C.classe=null;inboxDesenhar()})))}
+  /* prova de viabilidade do SMTP (opções da conexão): relata etapa por etapa. "Com e-mail de teste" manda UMA mensagem curta ao próprio endereço, só depois de confirmar. */
+  function inboxProvaSmtp(c,comEmail){
+    if(INBX.testandoSmtp||!INBS.publicado)return;
+    if(comEmail&&!window.confirm("Enviar UM e-mail de teste de "+c.endereco+" para ele mesmo? É o único jeito de provar o envio de ponta a ponta."))return;
+    INBX.testandoSmtp=c.id;INBX.aviso=null;inboxDesenhar();
+    inboxChamar("smtp_prova",comEmail?{conta_id:c.id,enviar_teste:true}:{conta_id:c.id}).then(function(r){
+      INBX.testandoSmtp=null;
+      if(!r.ok)INBX.aviso={tipo:"erro",t:"A prova de envio não rodou: "+NUCLEO.inbErroTexto(r.erro)};
+      else{var seq=r.etapas.map(function(e){return e.rotulo+(e.codigo?" ("+e.codigo+")":"")+" "+(e.ok?"✓":"✗")+" "+e.ms+" ms"}).join(" · ");
+        INBX.aviso=r.aprovada?{tipo:"ok",t:"Prova de envio aprovada em "+r.total_ms+" ms. "+seq+(r.teste==="enviado"?" · E-mail de teste aceito pelo servidor: confira se ele chegou à caixa.":" · Nenhum e-mail foi enviado.")}:
+          {tipo:"erro",t:"Prova de envio reprovada na etapa “"+(NUCLEO.INB_ETAPAS_PROVA[r.etapa_falha]||r.etapa_falha)+"” ("+r.erro+")"+(r.teste==="incerto"?"; o e-mail de teste ficou incerto, confira a caixa. ":". ")+seq}}
+      inboxDesenhar()})}
   /* ---- adicionar conta: só provedor, apelido e endereço (a credencial é um passo à parte, na conta) ---- */
   function inboxForm(){
     var V=INBX.valores,E=INBX.erros,sel=h("select",{class:"rac-campo-entrada",id:"inb-prov","aria-label":"Provedor"});

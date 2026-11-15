@@ -36,7 +36,7 @@ function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], men
     update(l) { gravacoes.push([t, "update", l]); return q; }, eq(c, v) { q._eq = [c, v]; return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
     then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
       const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: q._eq ? dados.filter((x) => x[q._eq[0]] === q._eq[1]) : dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
-  const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
+  const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, setTimeout, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
     sbOk: (r) => { if (r.error) throw r.error; return r.data; }, SB: { from: tabela, functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(invoke ? invoke(nome, o) : { data: { ok: true, credencial: "guardada" }, error: null }); } } }, racDica: { ligar() {}, em() {} },
     precisa: (l) => Promise.all(l.map((m) => { vm.runInContext(fs.readFileSync(new URL(`../js/${m}.js`, import.meta.url), "utf8"), ctx, { filename: `js/${m}.js` }); })) };
   ctx.window = ctx; vm.createContext(ctx);
@@ -104,8 +104,9 @@ test("o 'exemplo da interface': isolado no módulo próprio, rotulado, com lista
   assert.match(lt, /Bem-vindo ao exemplo do RAC Inbox/); assert.match(lt, /equipe@example\.com/); assert.match(lt, /Para: você/); assert.match(lt, /\d{1,2} de [a-zç]+ de \d{4}, \d{2}:\d{2}/, "data por extenso");
   assert.equal(comClasse(a.raiz, "inb-janela")[0].attrs["data-painel"], "leitura", "no iPhone a leitura passa a ser a tela própria");
   const acoes = comClasse(leitura, "inb-btn-ico"); assert.deepEqual(acoes.map((b) => b.attrs["aria-label"]), ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Excluir", "Mais"]);
-  for (const b of acoes) { assert.equal(b.attrs["aria-disabled"], "true", b.attrs["aria-label"] + " desligada"); assert.equal(b.onclick, null, b.attrs["aria-label"] + " não faz nada"); assert.match(b.attrs.title, /próximas etapas/); }
-  assert.equal(todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick, null, "nova mensagem desligada");
+  for (const b of acoes) { assert.equal(b.attrs["aria-disabled"], "true", b.attrs["aria-label"] + " desligada"); assert.equal(b.onclick, null, b.attrs["aria-label"] + " não faz nada"); assert.match(b.attrs.title, /próximas etapas|mensagem carregada, numa conta conectada/, "diz por que está desligada"); }
+  for (const b of acoes.slice(3)) assert.match(b.attrs.title, /próximas etapas/, b.attrs["aria-label"] + " ainda é de outra etapa");
+  const novaDemo = todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))); assert.equal(novaDemo.attrs["aria-disabled"], "true", "no exemplo não há envio: nova mensagem fica desligada (clicar só explica)");
   comClasse(a.raiz, "inb-linha")[1].onclick(); leitura = comClasse(a.raiz, "inb-leitura")[0]; lt = texto(leitura);
   assert.match(lt, /1 anexo/); assert.match(lt, /comprovante-exemplo\.pdf/); assert.match(lt, /PDF/); assert.match(lt, /184 KB/);
   comClasse(comClasse(a.raiz, "inb-leitura")[0], "inb-voltar")[0].onclick(); assert.equal(comClasse(a.raiz, "inb-janela")[0].attrs["data-painel"], "lista", "voltar leva à lista");
@@ -344,7 +345,7 @@ test("conexão em ordem: UMA linha discreta com a última sincronização e o bo
   assert.equal(todos(caixa).filter((n) => n.tag === "button").length, 1, "só o botão Opções está visível");
   const mais = comClasse(a.raiz, "inb-conexao-mais")[0]; assert.deepEqual([mais.attrs["aria-label"], mais.attrs["aria-expanded"]], ["Opções da conexão", "false"]);
   mais.onclick(); const aberto = comClasse(a.raiz, "inb-conexao")[0]; assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "true");
-  assert.deepEqual(todos(aberto).filter((n) => n.tag === "button" && !(" " + n.className + " ").includes(" inb-conexao-mais ")).map((n) => texto(n).trim()), ["Testar conexão", "Substituir senha", "Desconectar e remover a credencial"], "as três ações raras, como texto discreto");
+  assert.deepEqual(todos(aberto).filter((n) => n.tag === "button" && !(" " + n.className + " ").includes(" inb-conexao-mais ")).map((n) => texto(n).trim()), ["Testar conexão", "Testar envio (SMTP)", "Testar envio com e-mail de teste", "Substituir senha", "Desconectar e remover a credencial"], "as ações raras (conexão, prova do envio, senha, desconectar), como texto discreto");
   assert.match(texto(aberto), /cifrada no cofre do servidor e não volta ao navegador/);
   comClasse(a.raiz, "inb-conexao-mais")[0].onclick(); assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "false", "toca de novo e recolhe");
   // substituir senha abre o formulário dentro da conexão; a senha segue as regras de sempre
@@ -390,3 +391,94 @@ test("aviso de e-mail (Web Push): #inbox/<conta>/<pasta>/<mensagem> abre DIRETO 
   assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [], "abrir pelo aviso não grava nada");
 });
 
+
+/* ---------- I3: escrever, responder, responder a todos e encaminhar ---------- */
+const campo = (raiz, id) => todos(raiz).find((n) => n.attrs && n.attrs.id === id);
+const preencher = (raiz, id, v) => { const c = campo(raiz, id); assert.ok(c, "campo " + id); c.value = v; c.oninput(); };
+const enviosDe = (a) => a.chamadas.filter((c) => c[1].body && c[1].body.operacao === "enviar_mensagem");
+const LEITOK = (extra = {}) => ok({ mensagem: { texto: "Olá!\nVamos?", formato: "texto", truncado: false, anexos: [], de: { nome: "Ana 1", endereco: "ana1@exemplo.com" }, para: [{ nome: "Eu", endereco: "pessoa@icloud.example" }, { nome: "", endereco: "caio@exemplo.com" }], cc: [{ nome: "", endereco: "duda@exemplo.com" }], recebida: "2026-11-14T10:20:30.000Z", ...extra } });
+const OKENVIO = ok({ resultado: "enviado", message_id: "<x@icloud.example>", enviados: "atualizada" });
+async function abrirMsg(a) { await a.abrir(UUID); await assentar(); comClasse(a.raiz, "inb-linha")[0].onclick(); await assentar(); }
+
+test("I3 · nova mensagem: só envia com o toque em Enviar, depois de revisar destinatários e assunto; confirma só com a resposta 'enviado'; toque duplo não envia duas vezes", async () => {
+  const a = ambiente(REAL({ invoke: (nome, o) => o.body.operacao === "enviar_mensagem" ? OKENVIO : ok({ pastas: [] }) })); await a.abrir(UUID); await assentar();
+  const nova = todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))); assert.equal(nova.attrs["aria-disabled"], undefined, "com conta conectada, Nova mensagem está ativa"); nova.onclick();
+  assert.equal(comClasse(a.raiz, "inb-janela")[0].attrs["data-painel"], "leitura", "no iPhone o editor é tela própria"); assert.match(texto(a.raiz), /De\s+pessoa@icloud\.example/);
+  assert.ok(campo(a.raiz, "inb-c-para") && campo(a.raiz, "inb-c-assunto") && campo(a.raiz, "inb-c-texto") && !campo(a.raiz, "inb-c-cc"), "Para, Assunto e Mensagem; Cc/Cco sob demanda");
+  botao(a.raiz, "Adicionar Cc/Cco").onclick(); assert.ok(campo(a.raiz, "inb-c-cc") && campo(a.raiz, "inb-c-cco"));
+  assert.equal(campo(a.raiz, "inb-c-para").attrs.autocapitalize, "none"); assert.equal(campo(a.raiz, "inb-c-para").attrs.inputmode, "email");
+  /* revisar com erro: nada vai ao servidor */
+  botao(a.raiz, "Revisar e enviar").onclick(); assert.match(texto(a.raiz), /Informe ao menos um destinatário/); assert.equal(enviosDe(a).length, 0);
+  preencher(a.raiz, "inb-c-para", "Bia@x.com, ruim"); preencher(a.raiz, "inb-c-assunto", "Oi"); preencher(a.raiz, "inb-c-texto", "Texto <b>bonito</b>");
+  botao(a.raiz, "Revisar e enviar").onclick(); assert.match(texto(a.raiz), /Endereço inválido: ruim/); assert.equal(enviosDe(a).length, 0);
+  preencher(a.raiz, "inb-c-para", "Bia@x.com"); preencher(a.raiz, "inb-c-cco", "oculto@x.com"); botao(a.raiz, "Revisar e enviar").onclick();
+  const rev = texto(a.raiz); assert.match(rev, /Confira antes de enviar/); assert.match(rev, /Para\s+bia@x\.com/); assert.match(rev, /Cco\s+oculto@x\.com \(oculto para os demais\)/); assert.match(rev, /Assunto\s+Oi/); assert.match(rev, /Texto <b>bonito<\/b>/, "o texto é mostrado como TEXTO");
+  assert.equal(enviosDe(a).length, 0, "revisar não envia");
+  const enviar = botao(a.raiz, "Enviar"); enviar.onclick(); enviar.onclick();   // toque duplo
+  assert.match(texto(a.raiz), /Enviando…/); assert.equal(todos(a.raiz).filter((n) => n.tag === "button" && /^Enviar$/.test(texto(n).trim())).length, 0, "durante o envio não há botão de enviar");
+  await assentar(); await assentar();
+  assert.equal(enviosDe(a).length, 1, "um único envio, mesmo com dois toques");
+  const corpo = enviosDe(a)[0][1].body; assert.deepEqual(Object.keys(corpo).sort(), ["assunto", "cc", "cco", "conta_id", "envio_id", "modo", "operacao", "para", "texto"]);
+  assert.deepEqual([corpo.modo, corpo.para, corpo.cc, corpo.cco, corpo.assunto, corpo.texto, corpo.conta_id], ["novo", ["bia@x.com"], [], ["oculto@x.com"], "Oi", "Texto <b>bonito</b>", UUID]); assert.match(corpo.envio_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.match(texto(a.raiz), /Enviado e confirmado pelo servidor/); assert.match(texto(a.raiz), /Enviados foi atualizada/); assert.ok(!/SENHA|abcd-efgh/.test(JSON.stringify(a.chamadas)));
+  botao(a.raiz, "Concluir").onclick(); assert.equal(comClasse(a.raiz, "inb-compor").length, 0, "concluir fecha o editor"); assert.deepEqual(a.gravacoes, [], "nada é gravado no banco pelo navegador");
+});
+
+test("I3 · responder, responder a todos e encaminhar: destinatários, assunto e citação preenchidos; origem (pasta e UID) vai no pedido; a mensagem original não é alterada", async () => {
+  const a = ambiente(REAL({ invoke: (nome, o) => o.body.operacao === "ler_mensagem" ? LEITOK({ anexos: [{ parte: "2", nome: "plano.pdf", tipo: "application/pdf", tamanho: 9, inline: false }] }) : o.body.operacao === "enviar_mensagem" ? OKENVIO : ok({}) })); await abrirMsg(a);
+  const acao = (r) => comClasse(a.raiz, "inb-btn-ico").find((b) => b.attrs["aria-label"] === r);
+  assert.equal(acao("Responder").attrs["aria-disabled"], undefined, "com a mensagem lida e a conta conectada, responder está ativo");
+  acao("Responder").onclick(); assert.equal(campo(a.raiz, "inb-c-para").value, "ana1@exemplo.com"); assert.equal(campo(a.raiz, "inb-c-assunto").value, "Re: Assunto 1"); assert.match(campo(a.raiz, "inb-c-texto").value, /escreveu:\n> Olá!\n> Vamos\?/);
+  botao(a.raiz, "Cancelar").onclick();
+  comClasse(a.raiz, "inb-linha")[0].onclick(); await assentar();
+  acao("Responder a todos").onclick(); assert.equal(campo(a.raiz, "inb-c-para").value, "ana1@exemplo.com, caio@exemplo.com", "o próprio endereço da conta fica de fora"); assert.equal(campo(a.raiz, "inb-c-cc").value, "duda@exemplo.com");
+  botao(a.raiz, "Revisar e enviar").onclick(); botao(a.raiz, "Enviar").onclick(); await assentar(); await assentar();
+  const ped = enviosDe(a).at(-1)[1].body; assert.deepEqual([ped.modo, ped.pasta_id, ped.uid, ped.para, ped.cc], ["responder_todos", P_IN, 1, ["ana1@exemplo.com", "caio@exemplo.com"], ["duda@exemplo.com"]]);
+  botao(a.raiz, "Concluir").onclick(); comClasse(a.raiz, "inb-linha")[0].onclick(); await assentar();
+  acao("Encaminhar").onclick(); assert.equal(campo(a.raiz, "inb-c-para").value, ""); assert.equal(campo(a.raiz, "inb-c-assunto").value, "Enc: Assunto 1"); assert.match(campo(a.raiz, "inb-c-texto").value, /Mensagem encaminhada[\s\S]*De: Ana 1 <ana1@exemplo\.com>[\s\S]*Olá!\nVamos\?/);
+  assert.match(texto(a.raiz), /1 anexo da mensagem original não é encaminhado nesta etapa: plano\.pdf/, "avisa que o anexo não vai");
+  assert.ok(!a.chamadas.some((c) => /store|append|marcar|arquivar|mover/.test(JSON.stringify(c[1]))), "nenhuma escrita na caixa: nem marcar como lida, nem mover");
+});
+
+test("I3 · falha confirmada mantém o texto e permite corrigir; INCERTO nunca reenvia sozinho e só um novo envio_id (decisão do dono) envia de novo; sem resposta (rede) confirma com o MESMO envio_id", async () => {
+  /* falha confirmada */
+  let resposta = erroHttp(422, "destinatario_recusado");
+  const a = ambiente(REAL({ invoke: (nome, o) => o.body.operacao === "enviar_mensagem" ? resposta : ok({ pastas: [] }) })); await a.abrir(UUID); await assentar();
+  const escrever = () => { preencher(a.raiz, "inb-c-para", "bia@x.com"); preencher(a.raiz, "inb-c-texto", "Meu texto importante"); botao(a.raiz, "Revisar e enviar").onclick(); botao(a.raiz, "Enviar").onclick(); };
+  todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick(); escrever(); await assentar(); await assentar();
+  assert.match(texto(a.raiz), /Não foi enviado/); assert.match(texto(a.raiz), /recusou um dos destinatários\. Nada foi enviado/); assert.match(texto(a.raiz), /Seu texto foi mantido/);
+  botao(a.raiz, "Voltar e editar").onclick(); assert.equal(campo(a.raiz, "inb-c-texto").value, "Meu texto importante", "nada se perde");
+  const id1 = enviosDe(a)[0][1].body.envio_id;
+  /* incerto: 202 */
+  resposta = { data: { ok: false, erro: "envio_incerto" }, error: null }; botao(a.raiz, "Revisar e enviar").onclick(); botao(a.raiz, "Enviar").onclick(); await assentar(); await assentar();
+  assert.equal(enviosDe(a)[1][1].body.envio_id, id1, "a tentativa depois de falha CONFIRMADA usa o mesmo envio_id (o servidor sabe que nada saiu)");
+  let t = texto(a.raiz); assert.match(t, /Resultado incerto/); assert.match(t, /PODE ter sido enviado/); assert.ok(!/Enviado e confirmado/.test(t));
+  await assentar(); await assentar(); assert.equal(enviosDe(a).length, 2, "incerto não dispara nenhuma repetição automática");
+  assert.ok(botao(a.raiz, "Atualizar Enviados e conferir")); assert.ok(botao(a.raiz, "Concluir sem enviar de novo"));
+  botao(a.raiz, "Não chegou: enviar de novo").onclick(); assert.match(texto(a.raiz), /Confira antes de enviar/, "enviar de novo passa pela revisão");
+  resposta = OKENVIO; botao(a.raiz, "Enviar").onclick(); await assentar(); await assentar();
+  const id2 = enviosDe(a)[2][1].body.envio_id; assert.notEqual(id2, id1, "novo envio_id: decisão explícita"); assert.match(texto(a.raiz), /Enviado e confirmado/);
+  /* sem resposta (queda de rede): confirmar com o MESMO envio_id */
+  botao(a.raiz, "Concluir").onclick(); resposta = { data: null, error: { name: "FunctionsFetchError", message: "Failed to fetch" } };
+  todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick(); escrever(); await assentar(); await assentar();
+  assert.match(texto(a.raiz), /Não consegui confirmar o resultado/); const id3 = enviosDe(a)[3][1].body.envio_id;
+  resposta = ok({ resultado: "enviado", message_id: "<x@icloud.example>", enviados: "nao_atualizada", repetido: true }); botao(a.raiz, "Confirmar resultado").onclick(); await assentar(); await assentar();
+  assert.equal(enviosDe(a)[4][1].body.envio_id, id3, "confirmar repete o MESMO envio_id: o servidor responde o que já aconteceu"); assert.match(texto(a.raiz), /já tinha sido concluído/);
+});
+
+test("I3 · sem conta conectada ou no exemplo: Nova mensagem e Responder ficam desligados, nada é pedido ao servidor; descartar rascunho pede confirmação", async () => {
+  const sem = ambiente({ contas: [CONTA], credenciais: [], pastas: PASTAS(), mensagens: [] }); await sem.abrir(UUID); await assentar();
+  const nova = todos(sem.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))); assert.equal(nova.attrs["aria-disabled"], "true"); nova.onclick(); assert.match(texto(sem.raiz), /Conecte uma conta/); assert.equal(comClasse(sem.raiz, "inb-compor").length, 0); assert.equal(sem.chamadas.length, 0);
+  let pergunta = 0; const a = ambiente(REAL({ invoke: () => ok({}) })); a.ctx.confirm = () => { pergunta++; return false; }; a.ctx.window = a.ctx; await a.abrir(UUID); await assentar();
+  todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick(); botao(a.raiz, "Cancelar").onclick(); assert.equal(pergunta, 0, "sem nada escrito, cancelar não pergunta");
+  todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick(); preencher(a.raiz, "inb-c-texto", "rascunho"); botao(a.raiz, "Cancelar").onclick();
+  assert.equal(pergunta, 1, "com texto escrito, pergunta antes de descartar"); assert.equal(comClasse(a.raiz, "inb-compor").length, 1, "respondeu não: o rascunho continua");
+  assert.deepEqual(a.chamadas.filter((c) => c[1].body && c[1].body.operacao === "enviar_mensagem"), []);
+});
+
+test("I3 · prova de envio (SMTP) nas Opções: relata etapa por etapa, o e-mail de teste exige confirmação e a falha mostra a causa", async () => {
+  const a = ambiente(REAL({ invoke: (nome, o) => o.body.operacao === "smtp_prova" ? ok({ aprovada: false, etapas: [{ etapa: "conexao_tcp", ok: true, ms: 41 }, { etapa: "starttls", ok: true, codigo: 220, ms: 80 }, { etapa: "autenticacao", ok: false, codigo: 535, ms: 99 }], total_ms: 300, teste: "nao_enviado", erro: "smtp_autenticacao_recusada", etapa_falha: "autenticacao" }) : ok({}) }));
+  await a.abrir(UUID); await assentar(); opcoes(a.raiz); botao(a.raiz, "Testar envio (SMTP)").onclick(); await assentar(); await assentar();
+  const t = texto(a.raiz); assert.match(t, /reprovada na etapa “Login \(AUTH\)” \(smtp_autenticacao_recusada\)/); assert.match(t, /Pedido de STARTTLS \(220\) ✓ 80 ms/); assert.deepEqual(a.chamadas.at(-1), ["rac-inbox", { body: { operacao: "smtp_prova", conta_id: UUID } }]);
+  let confirmou = 0; a.ctx.confirm = () => { confirmou++; return false; }; opcoes(a.raiz); botao(a.raiz, "Testar envio com e-mail de teste").onclick(); await assentar(); assert.equal(confirmou, 1); assert.equal(a.chamadas.filter((c) => c[1].body.enviar_teste).length, 0, "sem confirmar, o e-mail de teste não é pedido");
+});

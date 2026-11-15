@@ -39,10 +39,11 @@ test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, com
   assert.deepEqual(cobertas48, ["radar_consultas", "radar_candidatos", "radar_historico"]);
   /* a 051 (RAC Inbox I1) aplica a trava "mfa" no próprio laço; a auditoria dela é o catálogo da 050 (a 051 se inclui nele), não a lista fixa */
   const cobertas52 = listaMfa(ler("supabase/052_inbox_cofre.sql")); assert.deepEqual(cobertas52, ["inbox_credenciais"]);   // a 052 (custódia no Vault) aplica a trava na própria tabela de ponteiros
+  const cobertas56 = listaMfa(ler("supabase/056_inbox_envios.sql")); assert.deepEqual(cobertas56, ["inbox_envios"]);   // a 056 (controle de envio, I3) aplica a trava na própria tabela
   const cobertas51 = listaMfa(ler("supabase/051_inbox_fundacao.sql"));
   assert.deepEqual(cobertas51, ["inbox_contas", "inbox_pastas", "inbox_sincronizacao", "inbox_mensagens_ref"]);
   /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 e as da 037 por ela mesma */
-  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t) || cobertas48.includes(t) || cobertas51.includes(t) || cobertas52.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037, na 043, na 048, na 051 nem na 052`);
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t) || cobertas48.includes(t) || cobertas51.includes(t) || cobertas52.includes(t) || cobertas56.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037, na 043, na 048, na 051, na 052 nem na 056`);
   assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
   assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);

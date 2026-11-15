@@ -139,6 +139,35 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
       return r[0]?.ok === true;
     },
 
+    /* ---- I3 · envio (migration 056) ---- */
+    async contaEndereco(dono, conta) {
+      const r = await sessao.exec("select endereco from public.inbox_contas where id = $1 and dono = $2", [conta, dono]);
+      return r[0] ? String(r[0].endereco) : null;
+    },
+    async pastaPorUso(dono, conta, uso) {
+      const r = await sessao.exec("select id, nome_externo from public.inbox_pastas where conta_id = $1 and dono = $2 and uso = $3 and ativa order by nome_externo limit 1", [conta, dono, uso]);
+      return r[0] ? { id: String(r[0].id), nome_externo: String(r[0].nome_externo) } : null;
+    },
+    // Reserva o envio_id. `novo: true` = primeira vez (pode transmitir). Se já existia: devolve o estado registrado; "falha" CONFIRMADA volta a "pendente" (nada foi entregue: tentar de novo é seguro);
+    // "pendente" velho (mais de 2 min: a chamada anterior morreu sem registrar o fim) vira "incerto"; "enviado" e "incerto" nunca voltam a transmitir.
+    async envioIniciar(dono, conta, envioId, a) {
+      return await sessao.transacao(async (s) => {
+        const ins = await s.exec(
+          `insert into public.inbox_envios (id, dono, conta_id, estado, message_id, modo, destinatarios) values ($1, $2, $3, 'pendente', $4, $5, $6)
+           on conflict (id) do nothing returning id`, [envioId, dono, conta, a.message_id, a.modo, a.destinatarios]);
+        if (ins[0]) return { novo: true, estado: "pendente" as const, message_id: a.message_id };
+        const r = await s.exec("select estado, message_id, (now() - atualizado_em) > interval '2 minutes' as velho from public.inbox_envios where id = $1 and dono = $2 and conta_id = $3 for update", [envioId, dono, conta]);
+        if (!r[0]) return null;   // o id pertence a outro dono ou conta: nada é revelado
+        const estado = String(r[0].estado) as "pendente" | "enviado" | "falha" | "incerto", mid = String(r[0].message_id);
+        if (estado === "falha") { await s.exec("update public.inbox_envios set estado = 'pendente', codigo = null, message_id = $4 where id = $1 and dono = $2 and conta_id = $3", [envioId, dono, conta, a.message_id]); return { novo: true, estado: "pendente" as const, message_id: a.message_id }; }
+        if (estado === "pendente" && r[0].velho === true) { await s.exec("update public.inbox_envios set estado = 'incerto', codigo = 'envio_incerto' where id = $1 and dono = $2 and conta_id = $3", [envioId, dono, conta]); return { novo: false, estado: "incerto" as const, message_id: mid }; }
+        return { novo: false, estado, message_id: mid };
+      });
+    },
+    async envioFinalizar(dono, conta, envioId, estado, codigo) {
+      await sessao.exec("update public.inbox_envios set estado = $4, codigo = $5 where id = $1 and dono = $2 and conta_id = $3 and estado = 'pendente'", [envioId, dono, conta, estado, codigo]);
+    },
+
     async estadoConta(dono, conta, estado, erro) {
       await sessao.exec("update public.inbox_contas set estado = $3, ultimo_erro = $4 where id = $2 and dono = $1", [dono, conta, estado, erro]);
     },

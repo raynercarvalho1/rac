@@ -1108,3 +1108,17 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Validar no iPhone: assunto/remetente corretos e toque abrindo a mensagem, sem passar pela lista.
 
+## 15/11/2026 · RAC Inbox I3 — envio, resposta, resposta a todos e encaminhamento (branch `claude/rac-inbox-smtp-send-xpg9gm`)
+
+### 1. O que fizemos
+- Auditoria: o Worker de produto só existe na branch `claude/inbox-p7-worker` (não mesclada); seus arquivos foram trazidos para esta branch. O Worker era IMAP-leitura (TLS implícito 993); não havia SMTP.
+- Worker `p8.0`: `smtp.mjs` (STARTTLS, AUTH só após TLS, três classes de resultado), `saida.mjs` (MIME ASCII/UTF-8, validação fechada), operações `smtp_prova` e `enviar`, `References` na leitura. Função `i3.1`: `envio.ts`, operações `smtp_prova` e `enviar_mensagem`, migration `056_inbox_envios.sql` (pendente). Tela: Nova mensagem, Responder, Responder a todos, Encaminhar, revisão antes de enviar, resultados enviado/falha/incerto/confirmar, prova SMTP nas Opções. Site `2026-11-15.10`.
+- Testes novos: `rac_inbox_worker_smtp`, `inbox_envio_servico`, `inbox_envio_sql` (PGlite), `inbox_envio_nucleo`, ampliações em `inbox_tela`.
+- **Prova SMTP real: NÃO executada** (sem DNS externo, credencial e Worker publicado no ambiente de desenvolvimento).
+
+### 2. O que estamos fazendo
+- PR para a `main`. Depende do dono: SQL 056, publicação do Worker e da função, e a prova real.
+
+### 3. O que vamos fazer
+- Rodar `smtp_prova` real; depois o envio de teste; validar no iPhone até a mensagem chegar ao destino. Se o iCloud não salvar cópia em Enviados, lote próprio para `APPEND`. Anexos de saída e encaminhamento de anexos ficam para lote posterior.
+

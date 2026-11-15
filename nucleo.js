@@ -3728,6 +3728,7 @@
     return Object.keys(e).length?{ok:false,erros:e}:{ok:true,linha:{provedor:prov.id,apelido:ap,endereco:en,estado:"nova"}}}
   /* o contrato com o serviço de e-mail (Edge Function "rac-inbox" → Worker; docs/inbox.md). Só operações de LEITURA, só IDs: nada de credencial, nada de escrita.
      escreve:false em todas, sempre; o verbo de escrita (enviar, mover, excluir…) é recusado com um código próprio, para nunca passar por engano. */
+  var INB_MODOS_ENVIO=["novo","responder","responder_todos","encaminhar"],INB_LIM_ENVIO={destinatarios:20,assunto:300,texto:100000};
   var INB_OPERACOES={testar_canal:{escreve:false,campos:[],requer:[]},testar_conta:{escreve:false,campos:["conta_id"],requer:["conta_id"]},listar_pastas:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
     estado_pasta:{escreve:false,campos:["conta_id","pasta_id"],requer:["conta_id","pasta_id"]},
     /* I2: sincronizar uma pasta (grava só o cache de cabeçalhos, no servidor), ler UMA mensagem e baixar UM anexo (sob demanda, nada guardado). Só IDs, UID e o caminho da parte: o NOME da pasta nunca vai do navegador. */
@@ -3736,7 +3737,10 @@
     baixar_anexo:{escreve:false,campos:["conta_id","pasta_id","uid","parte"],requer:["conta_id","pasta_id","uid","parte"]},
     /* custódia da credencial (Vault; docs/inbox.md): a ÚNICA operação que aceita credencial é guardar (que também substitui); remover e estado levam só o ID da conta */
     credencial_guardar:{escreve:false,credencial:true,campos:["conta_id","usuario","senha_app"],requer:["conta_id","usuario","senha_app"]},
-    credencial_remover:{escreve:false,campos:["conta_id"],requer:["conta_id"]},credencial_estado:{escreve:false,campos:["conta_id"],requer:["conta_id"]}};
+    credencial_remover:{escreve:false,campos:["conta_id"],requer:["conta_id"]},credencial_estado:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
+    /* I3 (envio): "smtp_prova" só diagnostica (com enviar_teste manda UMA mensagem curta ao próprio endereço); "enviar_mensagem" é a ÚNICA operação que escreve no mundo e só sai de um clique explícito em Enviar */
+    smtp_prova:{escreve:false,campos:["conta_id","enviar_teste"],requer:["conta_id"]},
+    enviar_mensagem:{escreve:true,campos:["conta_id","envio_id","modo","pasta_id","uid","para","cc","cco","assunto","texto"],requer:["conta_id","envio_id","modo","para","assunto","texto"]}};
   /* SÓ a senha específica de app da Apple (xxxx-xxxx-xxxx-xxxx, minúsculas): a senha principal da conta nunca é aceita nem pedida */
   var INB_RE_SENHA_APP=/^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$/;
   var INB_ESCRITA=["enviar","responder","responder_a_todos","encaminhar","mover","arquivar","excluir","apagar","marcar","marcar_lida","anexar","criar_pasta","renomear_pasta","criar_filtro","spam","expunge","store","append"];
@@ -3748,13 +3752,21 @@
     var d=INB_OPERACOES[op],ks=Object.keys(entrada),i,pedido={operacao:op};
     if(!d.credencial&&inbCredenciais(entrada).length)return {ok:false,erro:"credencial_proibida"};
     for(i=0;i<ks.length;i++)if(d.campos.indexOf(ks[i])<0)return {ok:false,erro:"campos_inesperados"};
-    for(i=0;i<d.requer.length;i++){var k=d.requer[i],v=entrada[k];if(v===undefined)return {ok:false,erro:"campo_ausente"};
+    for(i=0;i<d.campos.length;i++){var k=d.campos[i],v=entrada[k];
+      if(v===undefined){if(d.requer.indexOf(k)>=0)return {ok:false,erro:"campo_ausente"};continue}
       if(k==="usuario"){if(typeof v!=="string"||v.length>254||!INB_RE_EMAIL.test(v))return {ok:false,erro:"usuario_invalido"}}
       else if(k==="senha_app"){if(typeof v!=="string"||!INB_RE_SENHA_APP.test(v))return {ok:false,erro:"senha_formato_invalido"}}
       else if(k==="uid"){if(!inbUidOk(v))return {ok:false,erro:"id_invalido"}}
       else if(k==="parte"){if(typeof v!=="string"||!INB_RE_PARTE.test(v))return {ok:false,erro:"id_invalido"}}
+      else if(k==="enviar_teste"){if(typeof v!=="boolean")return {ok:false,erro:"campo_ausente"}}
+      else if(k==="modo"){if(INB_MODOS_ENVIO.indexOf(v)<0)return {ok:false,erro:"modo_invalido"}}
+      else if(k==="para"||k==="cc"||k==="cco"){if(!Array.isArray(v)||v.length>INB_LIM_ENVIO.destinatarios||(k==="para"&&!v.length))return {ok:false,erro:"destinatario_invalido"};
+        for(var j=0;j<v.length;j++)if(typeof v[j]!=="string"||v[j].length>254||!INB_RE_EMAIL.test(v[j]))return {ok:false,erro:"destinatario_invalido"}}
+      else if(k==="assunto"){if(typeof v!=="string"||v.length>INB_LIM_ENVIO.assunto||/[\u0000-\u001f\u007f]/.test(v))return {ok:false,erro:"assunto_invalido"}}
+      else if(k==="texto"){if(typeof v!=="string"||v.length>INB_LIM_ENVIO.texto)return {ok:false,erro:"texto_grande_demais"}}
       else if(typeof v!=="string"||!INB_RE_UUID.test(v))return {ok:false,erro:"id_invalido"};
       pedido[k]=v}
+    if(op==="enviar_mensagem"){var resp=pedido.modo!=="novo";if(resp!==(pedido.pasta_id!==undefined&&pedido.uid!==undefined)||(!resp&&(pedido.pasta_id!==undefined||pedido.uid!==undefined)))return {ok:false,erro:"origem_invalida"}}
     return {ok:true,pedido:pedido}}
   /* formulário "conectar conta": o login (e-mail do ID Apple) e a senha específica de app; devolve os campos já conferidos, para enviar UMA vez e limpar o campo */
   function inbCredencialValida(f){f=f||{};var e={},u=String(f.usuario==null?"":f.usuario).trim(),s=String(f.senha==null?"":f.senha).trim();
@@ -3828,7 +3840,13 @@
     operacao_invalida:"Operação desconhecida.",entrada_invalida:"Pedido inválido.",campos_inesperados:"Pedido inválido.",campo_ausente:"Pedido incompleto.",id_invalido:"Pedido inválido.",
     usuario_invalido:"O e-mail do ID Apple não parece válido.",senha_formato_invalido:"Use uma senha específica de app (abcd-efgh-ijkl-mnop); a senha principal não é aceita.",mfa_requerido:"Confirme o código da 2ª etapa e tente de novo.",
     sem_permissao:"Sem permissão para esta conta.",conta_inexistente:"Conta não encontrada.",credencial_ausente:"Esta conta ainda não tem credencial guardada.",credencial_invalida:"O provedor recusou a credencial. Gere outra senha de app e substitua.",
-    credencial_corrompida:"A credencial guardada está ilegível; substitua-a.",cofre_indisponivel:"O cofre de credenciais está indisponível; nada foi guardado.",worker_nao_configurado:"A conexão com o provedor ainda não está configurada no servidor.",pasta_inexistente:"Esta pasta não existe mais no provedor. Atualize as pastas.",mensagem_inexistente:"Esta mensagem não está mais na caixa.",parte_inexistente:"Este anexo não foi encontrado na mensagem.",anexo_grande_demais:"Este anexo é grande demais para baixar aqui (limite de 3 MB).",uidvalidity_mudou:"A caixa foi reorganizada no provedor. Sincronize de novo.",sincronizacao_em_andamento:"Já há uma sincronização desta conta em andamento. Aguarde terminar.",canal_recusado:"O servidor de e-mail recusou o pedido (falha de configuração do canal seguro). Avise o desenvolvedor.",banco_indisponivel:"O banco do Inbox está indisponível agora; nada foi alterado.",muito_grande:"Pedido grande demais.",corpo_invalido:"Pedido inválido.",metodo:"Pedido inválido.",interno:"Erro interno; nada foi guardado."};
+    credencial_corrompida:"A credencial guardada está ilegível; substitua-a.",cofre_indisponivel:"O cofre de credenciais está indisponível; nada foi guardado.",worker_nao_configurado:"A conexão com o provedor ainda não está configurada no servidor.",pasta_inexistente:"Esta pasta não existe mais no provedor. Atualize as pastas.",mensagem_inexistente:"Esta mensagem não está mais na caixa.",parte_inexistente:"Este anexo não foi encontrado na mensagem.",anexo_grande_demais:"Este anexo é grande demais para baixar aqui (limite de 3 MB).",uidvalidity_mudou:"A caixa foi reorganizada no provedor. Sincronize de novo.",sincronizacao_em_andamento:"Já há uma sincronização desta conta em andamento. Aguarde terminar.",canal_recusado:"O servidor de e-mail recusou o pedido (falha de configuração do canal seguro). Avise o desenvolvedor.",banco_indisponivel:"O banco do Inbox está indisponível agora; nada foi alterado.",muito_grande:"Pedido grande demais.",corpo_invalido:"Pedido inválido.",metodo:"Pedido inválido.",interno:"Erro interno; nada foi guardado.",
+    /* I3 (envio): falha confirmada ≠ resultado incerto */
+    envio_incerto:"Não foi possível confirmar o envio: o e-mail PODE ter sido enviado. Confira a pasta Enviados antes de tentar de novo.",envio_recusado:"O servidor recusou a mensagem. Nada foi enviado.",
+    destinatario_recusado:"O servidor recusou um dos destinatários. Nada foi enviado.",remetente_recusado:"O iCloud recusou o remetente desta conta. Nada foi enviado.",smtp_autenticacao_recusada:"O iCloud recusou o login de envio (SMTP). Nada foi enviado.",
+    smtp_indisponivel:"O servidor de envio do iCloud está indisponível agora. Nada foi enviado.",envio_em_andamento:"Este envio já está em andamento. Aguarde alguns segundos.",registro_envio_indisponivel:"O controle de envios ainda não está disponível no servidor (migration 056 pendente). Nada foi enviado.",
+    origem_invalida:"A mensagem de origem é inválida.",destinatario_invalido:"Confira os destinatários: algum endereço é inválido ou não sobrou nenhum.",destinatarios_demais:"Destinatários demais (máximo 20 por mensagem).",assunto_invalido:"O assunto é inválido ou longo demais (máximo 300 caracteres).",
+    texto_grande_demais:"A mensagem é longa demais (máximo 100.000 caracteres).",mensagem_grande_demais:"A mensagem ficou grande demais para enviar.",modo_invalido:"Tipo de envio desconhecido."};
   /* ---- I2: mensagens reais. A lista vem do cache de cabeçalhos (migration 053); a leitura e o anexo vêm do serviço, sob demanda, e NÃO ficam guardados. Esquema fechado: copia só o que conhece. ---- */
   function inbTexto(v,max){return typeof v==="string"&&v.length<=max?v:null}
   function inbInteiro(v){return typeof v==="number"&&isFinite(v)&&Math.floor(v)===v&&v>=0?v:null}
@@ -3862,7 +3880,8 @@
     for(i=0;i<m.anexos.length;i++){a=m.anexos[i];
       if(!a||typeof a.parte!=="string"||!INB_RE_PARTE.test(a.parte)||inbTexto(a.tipo,100)===null||inbInteiro(a.tamanho)===null||(a.nome!==null&&inbTexto(a.nome,200)===null))return {ok:false,erro:"resposta_invalida"};
       anexos.push({parte:a.parte,nome:a.nome,tipo:a.tipo,tamanho:a.tamanho,inline:a.inline===true})}
-    return {ok:true,texto:m.texto,formato:m.formato,truncado:m.truncado===true,anexos:anexos}}
+    var enderecos=function(l){var o=[];if(Array.isArray(l))l.slice(0,20).forEach(function(x){var e=inbEnd(x);if(e)o.push(e)});return o};
+    return {ok:true,texto:m.texto,formato:m.formato,truncado:m.truncado===true,anexos:anexos,de:inbEnd(m.de),para:enderecos(m.para),cc:enderecos(m.cc),recebida:typeof m.recebida==="string"?m.recebida:null}}
   /* o que um anexo baixado pode ser no aparelho: nome sem caminho nem caractere de controle; tipo perigoso (HTML, XML, SVG, script) vira binário genérico, para nunca ser executado ao abrir */
   function inbNomeArquivoSeguro(n){return String(n==null?"":n).replace(/[\u0000-\u001f\u007f\/\\:*?"<>|]+/g,"_").replace(/^[.\s]+/,"").slice(0,120).trim()||"anexo"}
   function inbTipoDownload(t){var s=String(t==null?"":t).toLowerCase();
@@ -3893,8 +3912,79 @@
     if(s.removidas)f+=" "+inbPlural(s.removidas,"removida no provedor.","removidas no provedor.");
     if(s.mais)f+=" Há mais mensagens: sincronize de novo.";
     return f}
+  /* ---- I3: composição e envio. Tudo puro: nenhuma rede, nenhuma tela. O envio de verdade é só na função rac-inbox; aqui se prepara o rascunho, se confere o que o dono vai ver antes de enviar e se classifica a resposta. ---- */
+  /* "a@b.com, Ana <c@d.com>; e@f.com" → endereços em minúsculas, sem duplicidade; o que não for endereço volta em `invalidos` */
+  function inbEnderecosDe(txt){
+    var partes=String(txt==null?"":txt).split(/[,;\n]+/),lista=[],inv=[],vistos={};
+    partes.forEach(function(p){p=p.trim();if(!p)return;var m=/<([^<>\s]+)>\s*$/.exec(p),e=(m?m[1]:p).trim().toLowerCase();
+      if(e.length>254||!INB_RE_EMAIL.test(e)||/[<>",;]/.test(e)){inv.push(p.slice(0,60));return}
+      if(!vistos[e]){vistos[e]=true;lista.push(e)}});
+    return {lista:lista,invalidos:inv}}
+  /* "Re: " e "Enc: " sem repetir (não vira "Re: Re: x"); "(sem assunto)" é só o texto de exibição da lista */
+  function inbPrefixoAssunto(assunto,modo){
+    var a=String(assunto==null?"":assunto).replace(/[\u0000-\u001f\u007f]+/g," ").trim();if(a==="(sem assunto)")a="";
+    var re=modo==="encaminhar"?/^(enc|fwd|fw)\s*:/i:/^(re|res)\s*:/i;
+    return re.test(a)?a:(modo==="encaminhar"?"Enc: ":"Re: ")+a}
+  function inbRotuloEnd(x){return x&&x.nome&&x.nome.trim()?x.nome.trim()+" <"+x.endereco+">":(x?x.endereco:"")}
+  function inbCitar(texto){return String(texto==null?"":texto).replace(/\r\n|\r/g,"\n").split("\n").map(function(l){return l?"> "+l:">"}).join("\n")}
+  /* orig: { de:{nome,endereco}|null, para:[{nome,endereco}], cc:[…], assunto, recebida, texto, truncado, anexos:[{nome}] }; meu: o endereço da conta (o dono nunca vai nos destinatários de uma resposta).
+     Devolve o rascunho: { modo, para:[], cc:[], cco:[], assunto, texto, avisos:[] }. Não altera `orig`. */
+  function inbMontarRascunho(modo,orig,meu){
+    orig=orig||{};var eu=String(meu||"").toLowerCase(),de=orig.de&&orig.de.endereco?String(orig.de.endereco).toLowerCase():"",vistos={},avisos=[];
+    var lim=function(l){var o=[];(l||[]).forEach(function(x){var e=String(x&&x.endereco||"").toLowerCase();if(!e||e===eu||vistos[e])return;vistos[e]=true;o.push(e)});return o};
+    var r={modo:modo,para:[],cc:[],cco:[],assunto:"",texto:"",avisos:avisos},assunto=orig.assunto,cab,corpo,max=INB_LIM_ENVIO.texto-3000;
+    var corte=function(t){t=String(t==null?"":t);if(t.length>max){avisos.push("O texto original foi cortado para caber no limite da mensagem.");return t.slice(0,max)+"\n[…]"}return t};
+    if(modo==="responder"||modo==="responder_todos"){
+      var remetenteSouEu=de===eu;
+      if(!remetenteSouEu&&de){vistos[de]=true;r.para.push(de)}
+      if(modo==="responder"){if(remetenteSouEu)r.para=lim(orig.para).slice(0,1)}
+      else{if(remetenteSouEu)r.para=lim(orig.para);else r.para=r.para.concat(lim(orig.para));r.cc=lim(orig.cc)}
+      r.assunto=inbPrefixoAssunto(assunto,"responder");
+      cab="Em "+(inbDataCompleta(orig.recebida)||"data desconhecida")+", "+(inbRotuloEnd(orig.de)||"o remetente")+" escreveu:";
+      r.texto="\n\n"+cab+"\n"+corte(inbCitar(orig.texto))}
+    else if(modo==="encaminhar"){
+      r.assunto=inbPrefixoAssunto(assunto,"encaminhar");
+      cab="---------- Mensagem encaminhada ----------\nDe: "+(inbRotuloEnd(orig.de)||"(desconhecido)")+"\nData: "+(inbDataCompleta(orig.recebida)||"(desconhecida)")+"\nAssunto: "+String(assunto==null?"":assunto).replace(/[\u0000-\u001f\u007f]+/g," ").trim()+
+        "\nPara: "+((orig.para||[]).map(inbRotuloEnd).join(", ")||"(desconhecido)")+((orig.cc||[]).length?"\nCc: "+orig.cc.map(inbRotuloEnd).join(", "):"");
+      corpo=corte(orig.texto);r.texto="\n\n"+cab+"\n\n"+corpo;
+      if(orig.anexos&&orig.anexos.length)avisos.push((orig.anexos.length===1?"1 anexo da mensagem original não é encaminhado":orig.anexos.length+" anexos da mensagem original não são encaminhados")+" nesta etapa: "+orig.anexos.slice(0,5).map(function(a){return a.nome||"(sem nome)"}).join(", ")+(orig.anexos.length>5?"…":"")+".")}
+    if(orig.truncado)avisos.push("A mensagem original era longa e só o começo foi lido; o texto citado está incompleto.");
+    return r}
+  /* confere o que a pessoa digitou ANTES de mostrar a revisão; devolve a entrada pronta para inboxChamar("enviar_mensagem") */
+  function inbValidarRascunho(r){
+    r=r||{};var e={},para=inbEnderecosDe(r.para),cc=inbEnderecosDe(r.cc),cco=inbEnderecosDe(r.cco),assunto=String(r.assunto==null?"":r.assunto).trim(),texto=String(r.texto==null?"":r.texto);
+    if(INB_MODOS_ENVIO.indexOf(r.modo)<0)e.geral="Tipo de envio desconhecido.";
+    [["para",para],["cc",cc],["cco",cco]].forEach(function(x){if(x[1].invalidos.length)e[x[0]]="Endereço inválido: "+x[1].invalidos.slice(0,3).join(", ")+"."});
+    var vistos={},unico=function(l){return l.filter(function(a){if(vistos[a])return false;vistos[a]=true;return true})},p=unico(para.lista),c=unico(cc.lista),o=unico(cco.lista);
+    if(!e.para&&!p.length)e.para="Informe ao menos um destinatário em Para.";
+    if(p.length+c.length+o.length>INB_LIM_ENVIO.destinatarios)e.geral="Destinatários demais (máximo "+INB_LIM_ENVIO.destinatarios+" por mensagem).";
+    if(assunto.length>INB_LIM_ENVIO.assunto)e.assunto="Assunto longo demais (máximo "+INB_LIM_ENVIO.assunto+" caracteres).";
+    if(/[\u0000-\u001f\u007f]/.test(assunto))e.assunto="O assunto não pode ter quebra de linha.";
+    if(texto.length>INB_LIM_ENVIO.texto)e.texto="Mensagem longa demais (máximo "+INB_LIM_ENVIO.texto+" caracteres).";
+    if(!assunto&&!texto.trim())e.texto="Escreva um assunto ou uma mensagem.";
+    if(Object.keys(e).length)return {ok:false,erros:e};
+    var entrada={modo:r.modo,para:p,cc:c,cco:o,assunto:assunto,texto:texto};
+    if(r.modo!=="novo"){if(!r.origem||!r.origem.pasta_id||!inbUidOk(r.origem.uid))return {ok:false,erros:{geral:"A mensagem de origem é inválida."}};entrada.pasta_id=r.origem.pasta_id;entrada.uid=r.origem.uid}
+    return {ok:true,entrada:entrada,total:p.length+c.length+o.length}}
+  /* de onde a pessoa vê o resultado: "enviado" (o servidor confirmou), "incerto" (pode ter saído: conferir Enviados), "confirmar" (a resposta não chegou; repetir o MESMO envio é seguro porque o servidor
+     reconhece o envio_id e nunca transmite duas vezes) e "falha" (confirmado que nada saiu) */
+  function inbClasseEnvio(r){
+    if(r&&r.ok===true)return "enviado";
+    var c=r&&r.erro;
+    if(c==="envio_incerto")return "incerto";
+    return ["rede","servico_indisponivel","resposta_invalida","limite"].indexOf(c)>=0?"confirmar":"falha"}
+  function inbRespostaEnvio(d){
+    if(!d||d.ok!==true||d.resultado!=="enviado"||typeof d.message_id!=="string"||d.message_id.length>255||(d.enviados!=="atualizada"&&d.enviados!=="nao_atualizada"))return {ok:false,erro:"resposta_invalida"};
+    return {ok:true,resultado:"enviado",repetido:d.repetido===true,enviados:d.enviados}}
+  var INB_ETAPAS_PROVA={conexao_tcp:"Conexão com o servidor",saudacao:"Saudação do servidor",ehlo:"Capacidades (EHLO)",starttls:"Pedido de STARTTLS",tls:"Camada TLS e certificado",ehlo_tls:"Capacidades sob TLS",autenticacao:"Login (AUTH)",remetente:"Remetente",destinatario:"Destinatário",dados:"Início dos dados",envio:"Aceite da mensagem"};
+  function inbRespostaProva(d){
+    if(!d||d.ok!==true||typeof d.aprovada!=="boolean"||!Array.isArray(d.etapas)||d.etapas.length>20||inbInteiro(d.total_ms)===null||["nao_enviado","enviado","incerto"].indexOf(d.teste)<0)return {ok:false,erro:"resposta_invalida"};
+    var et=[],i,x;for(i=0;i<d.etapas.length;i++){x=d.etapas[i];if(!x||!INB_ETAPAS_PROVA[x.etapa]||typeof x.ok!=="boolean"||inbInteiro(x.ms)===null)return {ok:false,erro:"resposta_invalida"};et.push({etapa:x.etapa,rotulo:INB_ETAPAS_PROVA[x.etapa],ok:x.ok,ms:x.ms,codigo:inbInteiro(x.codigo)})}
+    var o={ok:true,aprovada:d.aprovada,etapas:et,total_ms:d.total_ms,teste:d.teste};
+    if(!d.aprovada){if(!INB_RE_CODIGO.test(String(d.erro))||!INB_RE_CODIGO.test(String(d.etapa_falha)))return {ok:false,erro:"resposta_invalida"};o.erro=d.erro;o.etapa_falha=d.etapa_falha}
+    return o}
   function inbErroTexto(c){return INB_ERROS[c]||"Não foi possível concluir (código "+String(c||"desconhecido").replace(/[^a-z0-9_]/g,"").slice(0,41)+")."}
-  raiz.RACnucleo={inbFraseSync:inbFraseSync,inbRespostaCanal:inbRespostaCanal,inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
+  raiz.RACnucleo={inbEnderecosDe:inbEnderecosDe,inbPrefixoAssunto:inbPrefixoAssunto,inbRotuloEnd:inbRotuloEnd,inbCitar:inbCitar,inbMontarRascunho:inbMontarRascunho,inbValidarRascunho:inbValidarRascunho,inbClasseEnvio:inbClasseEnvio,inbRespostaEnvio:inbRespostaEnvio,inbRespostaProva:inbRespostaProva,INB_MODOS_ENVIO:INB_MODOS_ENVIO,INB_LIM_ENVIO:INB_LIM_ENVIO,INB_ETAPAS_PROVA:INB_ETAPAS_PROVA,inbFraseSync:inbFraseSync,inbRespostaCanal:inbRespostaCanal,inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
     fonteContrato:fonteContrato,SAU_LIMITE:SAU_LIMITE,sauVals:sauVals,SAU_METAS:SAU_METAS,SAU_METRICAS:SAU_METRICAS,SAU_CAMPOS:SAU_CAMPOS,sauNum:sauNum,sauMedia:sauMedia,sauArred:sauArred,sauPor:sauPor,sauJanela:sauJanela,sauBase:sauBase,sauMinNoite:sauMinNoite,sauHora:sauHora,sauRegularidade:sauRegularidade,sauQualidade:sauQualidade,sauAvaliar:sauAvaliar,sauTextoSinal:sauTextoSinal,sauHistoricoSinais:sauHistoricoSinais,sauSinais:sauSinais,sauIndicadores:sauIndicadores,sauFrase:sauFrase,sauAssociacao:sauAssociacao,sauSonoVfc:sauSonoVfc,sauCargaSemanal:sauCargaSemanal,sauCargaVariacao:sauCargaVariacao,sauMusculacao:sauMusculacao,sauResumoAtiv:sauResumoAtiv,sauVo2:sauVo2,sauMinutosSemana:sauMinutosSemana,sauEficiencia:sauEficiencia,sauCargaDia:sauCargaDia,sauRecuperacaoTreino:sauRecuperacaoTreino,sauMudancas:sauMudancas,sauAgrupar:sauAgrupar,sauPrefs:sauPrefs,SAU_NAO_TREINO:SAU_NAO_TREINO,sauContaTreino:sauContaTreino,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,

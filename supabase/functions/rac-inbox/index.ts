@@ -7,7 +7,7 @@
 // Publicar pela CLI (sem --no-verify-jwt): npx supabase@<versão> functions deploy rac-inbox --use-api --project-ref <projeto>
 import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.4";
-import { aalOk, ERROS } from "./contrato.ts";
+import { aalOk, ENVIO_CORPO_MAX_CARACTERES, ERROS } from "./contrato.ts";
 import { atender, type Cofre, type EstadoCredencial } from "./servico.ts";
 import { criarBancoPush, criarRepositorio } from "./repositorio.ts";
 import { rodarRotina } from "./rotina.ts";
@@ -21,7 +21,7 @@ const cabecalhos = (req: Request) => ({
   "Access-Control-Allow-Origin": origemPermitida(req.headers.get("Origin")), "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS", "Vary": "Origin", "Content-Type": "application/json", "Cache-Control": "no-store",
 });
-const CORPO_MAX_BYTES = 2048;
+const CORPO_MAX_BYTES = 2048, ENVIO_CORPO_MAX_BYTES = ENVIO_CORPO_MAX_CARACTERES * 4;   // (o texto pode ter acentos de vários bytes; o limite em caracteres é conferido depois da leitura)
 
 /* só código fechado: operação, código e status (nunca corpo, credencial, usuário, IP ou mensagem de erro) */
 const registrar = (e: { operacao: string; codigo: string; status: number }) => console.log(JSON.stringify({ rac_inbox: e }));
@@ -57,11 +57,14 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return erro("metodo");
   let sql: ReturnType<typeof postgres> | null = null;
   try {
-    if (Number(req.headers.get("content-length") ?? 0) > CORPO_MAX_BYTES) return erro("muito_grande");
+    // as operações de ENVIO carregam o texto da mensagem (limite próprio); todas as outras continuam em 2 KiB
+    const teto = Number(req.headers.get("content-length") ?? 0);
+    if (teto > ENVIO_CORPO_MAX_BYTES) return erro("muito_grande");
     const texto = await req.text();
-    if (texto.length > CORPO_MAX_BYTES) return erro("muito_grande");
+    if (texto.length > ENVIO_CORPO_MAX_CARACTERES) return erro("muito_grande");
     let corpo: unknown = null;
     try { corpo = JSON.parse(texto); } catch (_) { return erro("corpo_invalido"); }
+    if (texto.length > CORPO_MAX_BYTES && (corpo === null || typeof corpo !== "object" || (corpo as Record<string, unknown>).operacao !== "enviar_mensagem")) return erro("muito_grande");
     /* ROTINA (pg_cron a cada 10 min): o gateway já conferiu o JWT (verify_jwt=true; o agendamento manda a chave anon em Authorization), mas ISSO NÃO AUTORIZA a rotina: não há usuário e a senha da rotina (Vault: rac_rotina, a mesma das outras rotinas) é conferida no banco. Só a operação "rotina_sync", sem nenhum outro campo. */
     const senhaRotina = req.headers.get("x-rac-rotina");
     if (senhaRotina) {

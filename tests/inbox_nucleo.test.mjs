@@ -42,7 +42,7 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_canal", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "enviar_mensagem", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "smtp_prova", "testar_canal", "testar_conta"]);
   /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
   const SENHA_APP = "abcd-efgh-ijkl-mnop";
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });
@@ -52,7 +52,7 @@ test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP, dono: UUID_B }), { ok: false, erro: "campos_inesperados" }, "o dono nunca vai no pedido");
   for (const op of ["credencial_remover", "credencial_estado", "testar_conta", "estado_pasta"]) assert.deepEqual(N.inbPedido(op, { conta_id: UUID_A, pasta_id: UUID_B, senha_app: SENHA_APP }), { ok: false, erro: "credencial_proibida" }, op + " não aceita credencial");
   assert.deepEqual(N.inbPedido("credencial_remover", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "credencial_remover", conta_id: UUID_A } });
-  assert.ok(Object.values(N.INB_OPERACOES).every((o) => o.escreve === false), "nenhuma operação escreve");
+  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem"], "só o envio escreve (I3), e só a partir de um clique explícito");
   assert.deepEqual(N.inbPedido("testar_conta", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "testar_conta", conta_id: UUID_A } });
   assert.deepEqual(N.inbPedido("estado_pasta", { conta_id: UUID_A, pasta_id: UUID_B }), { ok: true, pedido: { operacao: "estado_pasta", conta_id: UUID_A, pasta_id: UUID_B } });
   for (const verbo of N.INB_ESCRITA) assert.deepEqual(N.inbPedido(verbo, { conta_id: UUID_A }), { ok: false, erro: "escrita_fora_do_escopo" }, verbo);
@@ -210,7 +210,7 @@ test("I2 · pedidos novos: sincronizar_pasta, ler_mensagem e baixar_anexo levam 
   assert.equal(N.inbPedido("sincronizar_pasta", { conta_id: UUID_A, pasta_id: UUID_B, nome: "INBOX" }).erro, "campos_inesperados", "o nome da pasta nunca vai do navegador");
   assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7, senha: "x" }).erro, "credencial_proibida");
   assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B }).erro, "campo_ausente");
-  assert.ok(Object.values(N.INB_OPERACOES).every((o) => o.escreve === false), "nenhuma operação escreve");
+  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem"], "só o envio escreve (I3), e só a partir de um clique explícito");
 });
 
 test("I2 · a linha da lista vem do cache (sem prévia) e os normalizadores de resposta são de esquema fechado", () => {
@@ -222,7 +222,7 @@ test("I2 · a linha da lista vem do cache (sem prévia) e os normalizadores de r
   assert.deepEqual(N.inbRespostaSincronizacao({ ok: true, sincronizacao: { tipo: "novas_mensagens", novas: 2, atualizadas: 1, removidas: 0, x: 1 }, mensagens_na_pasta: 9, mais: false }), { ok: true, tipo: "novas_mensagens", novas: 2, atualizadas: 1, removidas: 0, total: 9, mais: false });
   for (const ruim of [{ ok: true }, { ok: true, sincronizacao: { tipo: "x", novas: 1, atualizadas: 0, removidas: 0 }, mais: false }, { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: -1, atualizadas: 0, removidas: 0 }, mais: false }, { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 0, removidas: 0 } }]) assert.equal(N.inbRespostaSincronizacao(ruim).erro, "resposta_invalida");
   const msg = { texto: "oi", formato: "texto", truncado: 1, anexos: [{ parte: "2", nome: "a.pdf", tipo: "application/pdf", tamanho: 5, inline: false, extra: 1 }], senha: "x" };
-  assert.deepEqual(N.inbRespostaLeitura({ ok: true, mensagem: msg }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [{ parte: "2", nome: "a.pdf", tipo: "application/pdf", tamanho: 5, inline: false }] }, "truncado só é verdadeiro se for true; campos extras caem");
+  assert.deepEqual(N.inbRespostaLeitura({ ok: true, mensagem: msg }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [{ parte: "2", nome: "a.pdf", tipo: "application/pdf", tamanho: 5, inline: false }], de: null, para: [], cc: [], recebida: null }, "truncado só é verdadeiro se for true; campos extras caem");
   for (const ruim of [{ ok: true }, { ok: true, mensagem: { ...msg, formato: "html" } }, { ok: true, mensagem: { ...msg, texto: "x".repeat(65537) } }, { ok: true, mensagem: { ...msg, anexos: [{ parte: "../1", nome: null, tipo: "a/b", tamanho: 1 }] } }, { ok: true, mensagem: { ...msg, anexos: new Array(31).fill({ parte: "1", nome: null, tipo: "a/b", tamanho: 1 }) } }]) assert.equal(N.inbRespostaLeitura(ruim).erro, "resposta_invalida");
   assert.deepEqual(N.inbRespostaAnexo({ ok: true, anexo: { nome: "../a:b.pdf", tipo: "Application/PDF", tamanho_bytes: 3, base64: "QUJD", x: 1 } }), { ok: true, nome: "_a_b.pdf", tipo: "application/pdf", tamanho: 3, base64: "QUJD" });
   for (const ruim of [{ ok: true }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: 3, base64: "<script>" } }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: -1, base64: "QUJD" } }, { ok: true, anexo: { nome: "a", tipo: "a/b", tamanho_bytes: 3, base64: "A".repeat(4400001) } }]) assert.equal(N.inbRespostaAnexo(ruim).erro, "resposta_invalida");
@@ -250,7 +250,7 @@ test("I2 · cliente do serviço: as respostas novas passam pelos normalizadores 
   const ped = { conta_id: UUID_A, pasta_id: UUID_B };
   resposta = { data: { ok: true, pastas: [{ id: UUID_B, nome: "INBOX", uso: "entrada", x: 1 }] }, error: null }; assert.deepEqual(await chamar("listar_pastas", { conta_id: UUID_A }), { ok: true, pastas: [{ id: UUID_B, nome: "INBOX", uso: "entrada" }] });
   resposta = { data: { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 2, removidas: 0 }, mensagens_na_pasta: 4, mais: false }, error: null }; assert.deepEqual(await chamar("sincronizar_pasta", ped), { ok: true, tipo: "sem_mudanca", novas: 0, atualizadas: 2, removidas: 0, total: 4, mais: false });
-  resposta = { data: { ok: true, mensagem: { texto: "oi", formato: "texto", anexos: [] } }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [] });
+  resposta = { data: { ok: true, mensagem: { texto: "oi", formato: "texto", anexos: [] } }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: true, texto: "oi", formato: "texto", truncado: false, anexos: [], de: null, para: [], cc: [], recebida: null });
   assert.deepEqual(chamadas.at(-1), ["rac-inbox", { body: { operacao: "ler_mensagem", conta_id: UUID_A, pasta_id: UUID_B, uid: 3 } }], "só IDs e UID");
   resposta = { data: { ok: true, anexo: { nome: "a.pdf", tipo: "application/pdf", tamanho_bytes: 3, base64: "QUJD" } }, error: null }; assert.deepEqual(await chamar("baixar_anexo", { ...ped, uid: 3, parte: "2" }), { ok: true, nome: "a.pdf", tipo: "application/pdf", tamanho: 3, base64: "QUJD" });
   resposta = { data: { ok: true, mensagem: { texto: 5 } }, error: null }; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 3 }), { ok: false, erro: "resposta_invalida" });

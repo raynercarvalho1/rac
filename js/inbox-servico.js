@@ -21,6 +21,8 @@
     if(operacao==="sincronizar_pasta")return NUCLEO.inbRespostaSincronizacao(d);
     if(operacao==="ler_mensagem")return NUCLEO.inbRespostaLeitura(d);
     if(operacao==="baixar_anexo")return NUCLEO.inbRespostaAnexo(d);
+    if(operacao==="enviar_mensagem")return NUCLEO.inbRespostaEnvio(d);
+    if(operacao==="smtp_prova")return NUCLEO.inbRespostaProva(d);
     if(operacao==="credencial_estado")return {ok:true,credencial:d.credencial==="ativa"||d.credencial==="invalida"?d.credencial:"ausente"};
     if(operacao==="credencial_guardar")return {ok:true,credencial:"guardada"};
     if(operacao==="credencial_remover")return {ok:true,removida:d.removida===true};

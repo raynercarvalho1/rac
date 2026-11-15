@@ -216,7 +216,7 @@ Sem `RAC_INBOX_WORKER_URL` e `RAC_CANAL_K1` a função responde `worker_nao_conf
 - **Ainda não provado:** o Worker publicado na Cloudflare, a chave de produção igual nos dois serviços, a chamada real função → Worker, TLS e login reais com o iCloud.
 
 ### Roteiro de validação real (a partir de 15/11/2026, tarde)
-> **Atenção:** o site publicado serve a `main`. Os botões **Sincronizar**, **Sincronizar agora** e **Testar conexão** só existem no código do PR #34 e **só aparecem depois que ele for mesclado** e o Pages publicar a versão `2026-11-15.3`. Antes disso, a tela mostra a conta, a credencial e as pastas (código da `main`), mas não tem como disparar a sincronização: use o console (testes A a D abaixo). Depois do merge, basta recarregar o RAC (o Service Worker busca os arquivos na rede e troca o cache sozinho; se o app estiver aberto, feche e abra de novo).
+> **Histórico:** o site publicado serve a `main`; os controles de sincronização só apareceram depois do merge do PR #34 (versão `2026-11-15.3`, em 15/11/2026). Desde a `2026-11-15.4`, com a credencial guardada a conexão é **uma linha discreta** ("Sincronizada hoje às 12:22." e o botão ⋯ **Opções da conexão**, que mostra Testar conexão, Substituir senha e Desconectar); sincronizar é o ícone do topo da lista. Credencial ausente ou recusada mantém os botões grandes (é preciso agir). Antes disso, a tela mostra a conta, a credencial e as pastas (código da `main`), mas não tem como disparar a sincronização: use o console (testes A a D abaixo). Depois do merge, basta recarregar o RAC (o Service Worker busca os arquivos na rede e troca o cache sozinho; se o app estiver aberto, feche e abra de novo).
 
 **Carimbos de versão** (aparecem na resposta de `testar_canal` e no botão **Testar conexão**): função `rac-inbox@i2.2` e Worker `rac-inbox-worker@p7.2`. Se o carimbo que voltar for outro, **o código no ar não é o desta branch**. Para a função, vale também `supabase functions download rac-inbox` e comparar `sha256sum` com o código do commit publicado.
 
@@ -246,7 +246,7 @@ racTeste({ operacao: "listar_pastas", conta_id: CONTA }).then(console.log)   // 
 ```js
 RACdados.cliente().then(async (sb) => { const p = (await sb.from("inbox_pastas").select("id,nome_externo")).data; console.table(p); window.PASTA = p.find((x) => x.nome_externo === "RAC-TESTE").id; racTeste({ operacao: "sincronizar_pasta", conta_id: CONTA, pasta_id: PASTA }).then(console.log); })   // D) sincronização controlada da pasta de teste (grava só o cache de cabeçalhos; nada muda na caixa da Apple)
 ```
-Depois do merge do PR #34, o mesmo A e B fica no botão **Testar conexão**, e C e a sincronização no botão **Sincronizar**.
+O mesmo A e B está no site em **Opções da conexão (⋯) → Testar conexão**, e C e a sincronização no ícone **Sincronizar** do topo da lista.
 
 | Teste | Resposta que aprova | Se falhar |
 |---|---|---|

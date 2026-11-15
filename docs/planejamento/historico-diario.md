@@ -1035,3 +1035,19 @@ Família e da Casa.
 1. ChatGPT/dono: republicar `rac-inbox` com o commit da correção.
 2. Repetir a sincronização real (INBOX, 174 mensagens): esperado `primeira_leitura` com 174 novas; repetir deve dar `sem_mudanca` sem duplicar; conferir `inbox_mensagens_ref` e `inbox_sincronizacao`.
 
+## 15/11/2026 (tarde) · RAC Inbox — PR #34 mesclado e conexão discreta
+
+### 1. O que fizemos
+
+- **PR #34 mesclado** (`86b12b4`); CI da `main` e Pages com sucesso; versão `2026-11-15.3`. O dono validou na tela: **Testar conexão** ok (função `rac-inbox@i2.2`, Worker `rac-inbox-worker@p7.2`) e a primeira sincronização trouxe as mensagens (50 mais recentes da INBOX).
+- **Interface:** a conexão com a credencial guardada virou uma linha discreta com a última sincronização e o botão ⋯ **Opções da conexão** (Testar conexão, Substituir senha, Desconectar); sincronizar é o ícone do topo. Credencial ausente ou recusada mantém os botões grandes. Versão `2026-11-15.4`; testes novos (tela e núcleo).
+
+### 2. O que estamos fazendo
+
+- Decidir com o dono a **sincronização automática** (hoje só manual, sem novidade em tempo real) e a **paginação** (a lista mostra as 50 mais recentes).
+
+### 3. O que vamos fazer
+
+1. Sincronização automática no navegador (ao abrir o Inbox, ao voltar para o app e a cada poucos minutos com o Inbox aberto), se autorizada.
+2. Carregar mensagens mais antigas (o Worker já tem o modo `antes_de_uid`; falta a função e a tela).
+

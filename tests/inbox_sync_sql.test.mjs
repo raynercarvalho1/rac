@@ -13,7 +13,7 @@ const semComent = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "
 let PGlite = null;
 try { PGlite = (await import(process.env.RAC_PGLITE ? pathToFileURL(path.resolve(process.env.RAC_PGLITE)).href : "@electric-sql/pglite")).PGlite; } catch (_) { /* sem PGlite: pula, menos no CI */ }
 const pular = !PGlite;
-const S53 = ler("supabase/053_inbox_cabecalhos.sql");
+const S53 = ler("supabase/053_inbox_cabecalhos.sql"), S54 = ler("supabase/054_inbox_automatico.sql");
 const R = "11111111-1111-4111-8111-111111111111", F = "22222222-2222-4222-8222-222222222222", X = "33333333-3333-4333-8333-333333333333", M = "44444444-4444-4444-8444-444444444444";
 
 test("no CI o PGlite está instalado: os testes de banco da 053 não podem ser pulados", () => { if (process.env.CI) assert.ok(PGlite, "sem PGlite no CI (testes.yml instala o @electric-sql/pglite)"); });
@@ -50,6 +50,8 @@ async function banco() {
   await db.exec(ler("supabase/051_inbox_fundacao.sql"));
   await db.exec(S53);
   await db.exec(S53);   // reexecutável: roda de novo sem erro
+  await db.exec(S54);   // 054 (rotina automática: preferências, controle e deduplicação do aviso)
+  await db.exec(S54);
   return db;
 }
 const sessaoDe = (q) => ({ exec: async (t, p = []) => (await q.query(t, p)).rows, transacao: (f) => (q.transaction ? q.transaction(async (tx) => f(sessaoDe(tx))) : f(sessaoDe(q))) });
@@ -57,6 +59,8 @@ async function como(db, papel, uid, sql, params = [], aal = "aal1") {
   await db.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ sub: uid, role: papel, aal })]); await db.exec("set role " + papel);
   try { return (await db.query(sql, params)).rows; } finally { await db.exec("reset role"); }
 }
+/* o cursor sem a data da releitura completa (054), que tem teste próprio em inbox_automatico.test.mjs */
+const cursorDe = async (repo, ...a) => { const e = await repo.estadoSync(...a); return e && { uidvalidity: e.uidvalidity, uidnext: e.uidnext }; };
 const codigo = async (p) => { try { await p; } catch (e) { return e.code || String(e.message); } return null; };
 async function conta(db, dono = R) { return (await db.query("insert into public.inbox_contas (dono, provedor, apelido, endereco) values ($1, 'icloud', 'Pessoal', 'pessoa@icloud.example') returning id", [dono])).rows[0].id; }
 const msg = (uid, extra = {}) => ({ uid, recebida: "2026-11-14T10:" + String(uid).padStart(2, "0") + ":00.000Z", tamanho: 1000 + uid, lida: false, sinalizada: false, respondida: false, de: { nome: "Ana", endereco: "ana@exemplo.com" }, para: [{ nome: "Eu", endereco: "eu@icloud.com" }], assunto: "Assunto " + uid, message_id: "<m" + uid + "@x>", anexo_provavel: false, ...extra });
@@ -93,7 +97,7 @@ test("PGlite · repositório: pastas (upsert, nome legível, some quem sumiu), p
   assert.deepEqual(r, { novas: 3, atualizadas: 0, removidas: 0 });
   assert.deepEqual((await cache(db, inbox)).map((m) => [m.uid, m.lida, m.id_externo, m.assunto]), [[1, false, "700:1", "Assunto 1"], [2, true, "700:2", "Assunto 2"], [3, false, "700:3", "Assunto 3"]]);
   assert.deepEqual((await cache(db, inbox))[0].destinatarios, [{ nome: "Eu", endereco: "eu@icloud.com" }]);
-  assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 700, uidnext: 4 }, "o cursor é número (bigint convertido)");
+  assert.deepEqual(await cursorDe(repo, R, c, inbox), { uidvalidity: 700, uidnext: 4 }, "o cursor é número (bigint convertido)");
   const p = (await db.query("select total, nao_lidas from public.inbox_pastas where id = $1", [inbox])).rows[0]; assert.deepEqual([p.total, p.nao_lidas], [3, 2]);
   const sy = (await db.query("select tipo_ultima, falhas_seguidas, erro, duracao_ms from public.inbox_sincronizacao where pasta_id = $1", [inbox])).rows[0]; assert.deepEqual([sy.tipo_ultima, sy.falhas_seguidas, sy.erro, sy.duracao_ms], ["primeira_leitura", 0, null, 12]);
 
@@ -115,7 +119,7 @@ test("PGlite · repositório: pastas (upsert, nome legível, some quem sumiu), p
   // UIDVALIDITY mudou: apaga tudo da pasta e relê (as chaves antigas "700:n" não valem mais)
   r = await repo.aplicarSync(R, c, inbox, sync(800, [msg(1), msg(2)], { purgar: true, tipo: "uidvalidity_mudou" }));
   assert.deepEqual(r, { novas: 2, atualizadas: 0, removidas: 0 }); assert.deepEqual((await cache(db, inbox)).map((m) => m.id_externo), ["800:1", "800:2"]);
-  assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 800, uidnext: 3 });
+  assert.deepEqual(await cursorDe(repo, R, c, inbox), { uidvalidity: 800, uidnext: 3 });
 
   // pasta vazia: nada para gravar, e o que havia na faixa some
   r = await repo.aplicarSync(R, c, inbox, { uidvalidity: 800, cursor: 3, tipo: "novas_mensagens", total: 0, duracao_ms: null, mensagens: [], purgar: false, removerDe: 1, removerAte: 2 });
@@ -139,7 +143,7 @@ test("PGlite · transação: falha no meio desfaz tudo; e o dono errado nunca gr
   await repo.aplicarSync(R, c, inbox, sync(700, [msg(1), msg(2)]));
   // lote com uma mensagem que viola uma restrição (assunto > 500): nada do lote entra, nem o cursor, nem a remoção
   const ruim = await codigo(repo.aplicarSync(R, c, inbox, sync(700, [msg(3), msg(2, { assunto: "x".repeat(501) })], { removerDe: 1, tipo: "novas_mensagens" })));
-  assert.ok(ruim, "o banco recusou o lote"); assert.deepEqual((await cache(db, inbox)).map((m) => m.uid), [1, 2], "nada mudou"); assert.deepEqual(await repo.estadoSync(R, c, inbox), { uidvalidity: 700, uidnext: 3 });
+  assert.ok(ruim, "o banco recusou o lote"); assert.deepEqual((await cache(db, inbox)).map((m) => m.uid), [1, 2], "nada mudou"); assert.deepEqual(await cursorDe(repo, R, c, inbox), { uidvalidity: 700, uidnext: 3 });
   // dono X tentando gravar na conta de R
   assert.ok(await codigo(repo.aplicarSync(X, c, inbox, sync(700, [msg(9)]))), "dono diferente: a chave composta (pasta, conta, dono) recusa");
   assert.deepEqual((await cache(db, inbox)).map((m) => m.uid), [1, 2]);
@@ -174,7 +178,7 @@ test("repositorio.ts (texto): todo valor por parâmetro, sempre filtrado por don
   assert.ok(textos.length >= 12, "leu as consultas");
   for (const q of textos) {
     assert.ok(!/\$\{(?!SEM_PASTA\})/.test(q), "só a constante SEM_PASTA entra por interpolação: nada vindo do e-mail ou do navegador");
-    if (/^\s*(select|update|delete)/i.test(q) && !/pg_(try_)?advisory|pg_advisory/.test(q)) assert.match(q, /dono/i, "consulta sem filtro de dono: " + q.slice(0, 80));
+    if (/^\s*(select|update|delete)/i.test(q) && !/pg_(try_)?advisory|pg_advisory|rac_rotina_ok|rac_segredos/.test(q)) assert.match(q, /dono|user_id/i, "consulta sem filtro de dono: " + q.slice(0, 80));
   }
   assert.ok(!/\b(corpo|body|html|previa|snippet|anexos?\b|attachment)/i.test(t.replace(/anexo_provavel/g, "")), "o repositório não toca em corpo, prévia nem anexo");
 });

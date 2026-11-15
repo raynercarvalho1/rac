@@ -5,7 +5,7 @@
    - Bibliotecas de CDN (mapa, gráficos de PDF, Supabase): guardadas na primeira vez, porque o endereço já tem a versão.
    - Notificações push: mostra o aviso e, ao tocar, abre a página certa.
    A cada publicação, VERSAO muda: os caches velhos do site são apagados na ativação. */
-const VERSAO = "2026-11-15.4";
+const VERSAO = "2026-11-15.5";
 const APP = "rac-app-" + VERSAO, DADOS = "rac-dados", LIBS = "rac-libs";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./css/rac.css", "./nucleo.js", "./js/dados.js", "./mercado.js", "./js/rotas.js", "./js/app.js", "./js/graficos.js", "./js/fontes.js", "./js/fonte-familia.js", "./js/fonte-mba.js", "./js/fonte-newsletter.js", "./js/fonte-agenda.js", "./js/fonte-saude.js", "./js/esportes.js", "./js/radar.js", "./js/esportes-central.js", "./js/familia.js", "./js/mba.js", "./js/saude.js", "./js/saude-hub.js", "./js/conexoes.js", "./js/sistema.js", "./js/agenda.js", "./js/inbox.js", "./js/inbox-servico.js", "./js/inbox-demo.js", "./js/lista.js", "./js/carreira.js", "./js/bebe.js", "./js/oms.js", "./js/resumo.js", "./js/rede.js", "./js/newsletter.js", "./js/seguranca.js", "./js/painel.js", "./js/alimentacao.js", "./js/compras.js", "./js/fiscal.js", "./js/hoje.js", "./js/iacustos.js", "./js/componentes.js", "./js/kit.js", "./icons/icon-192.png", "./icons/icon-512.png"];
 const LIB_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com"];
@@ -61,9 +61,12 @@ self.addEventListener("fetch", e => {
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { corpo: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.titulo || "Dia a Dia RAC", {
-    body: d.corpo || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", tag: d.tag || undefined, data: { url: d.url || "./#agenda" },
-  }));
+  /* Selo do ícone (só o aviso do RAC Inbox traz "badge": o número de não lidas; o aviso diário não traz e nada muda para ele). Onde o navegador não suporta, simplesmente não faz nada. */
+  const n = Number(d.badge), nav = self.navigator;
+  const selo = Number.isInteger(n) && n >= 0 && nav ? Promise.resolve().then(() => (n > 0 ? nav.setAppBadge && nav.setAppBadge(n) : nav.clearAppBadge && nav.clearAppBadge())).catch(() => {}) : null;
+  e.waitUntil(Promise.all([self.registration.showNotification(d.titulo || "Dia a Dia RAC", {
+    body: d.corpo || "", icon: "./icons/icon-192.png", badge: "./icons/icon-192.png", tag: d.tag || undefined, renotify: !!(d.tag && d.renotificar), data: { url: d.url || "./#agenda" },
+  }), selo]));
 });
 /* Ao tocar: abre o destino que o aviso traz (o servidor escolhe; aqui ele não muda). Só endereço deste site; outro vira o início.
    - App aberto: traz a janela para a frente e avisa a página ("rac-abrir"), que troca de página sozinha (js/app.js, notifIr).

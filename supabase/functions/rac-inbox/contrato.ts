@@ -3,7 +3,7 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const VERSAO_FUNCAO = "rac-inbox@i2.2";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const VERSAO_FUNCAO = "rac-inbox@i3.0";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
 export const OPERACOES_LEITURA = ["testar_canal", "testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"] as const;   // só LEITURA no provedor (nenhuma escrita na caixa existe aqui); "sincronizar_pasta" grava só o CACHE de cabeçalhos no banco
 
 /* código → HTTP */

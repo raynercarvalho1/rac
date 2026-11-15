@@ -9,7 +9,7 @@
 import { UID_MAX } from "./contrato.ts";
 import type { Banco, Worker } from "./servico.ts";
 
-export const JANELA = 50, PAGINA = 100, MAX_PAGINAS = 5;
+export const JANELA = 50, PAGINA = 100, MAX_PAGINAS = 5, RECONCILIAR_MS = 60 * 60 * 1000;   // a rotina só relê a janela inteira de hora em hora
 export type TipoSinc = "primeira_leitura" | "sem_mudanca" | "novas_mensagens" | "uidvalidity_mudou" | "uidnext_regrediu";
 export interface Cursor { uidvalidity: number; uidnext: number }
 export interface Endereco { nome: string; endereco: string }
@@ -20,6 +20,8 @@ export interface Resumo {
 export interface AplicacaoSync {
   uidvalidity: number; cursor: number; tipo: TipoSinc; total: number; duracao_ms: number | null;
   mensagens: Resumo[]; purgar: boolean; removerDe: number; removerAte: number;
+  // rotina automática (054): leitura só do que é novo não pode apagar nada do cache; "silenciosa" = as mensagens novas nascem já tratadas pelo aviso
+  semRemocao?: boolean; silenciosa?: boolean; reconciliada?: boolean; origem?: "manual" | "agenda";
 }
 
 const uidOk = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= UID_MAX;
@@ -100,12 +102,44 @@ export function filtrarAnexo(dados: Record<string, unknown>): Record<string, unk
 type Resultado = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 
 /* A sincronização de UMA pasta. Devolve { ok:false, erro } com o código do Worker (quem chama o traduz); nunca lança por dado do Worker. */
-export async function sincronizarPasta(p: { dono: string; conta: string; pastaId: string; worker: Worker; banco: Banco; credencial: { usuario: string; senha: string } }): Promise<Resultado> {
+export async function sincronizarPasta(p: { dono: string; conta: string; pastaId: string; worker: Worker; banco: Banco; credencial: { usuario: string; senha: string }; modo?: "manual" | "agenda"; agora?: () => number }): Promise<Resultado> {
   const { dono, conta, pastaId, worker, banco, credencial } = p;
+  const agenda = p.modo === "agenda", origem = agenda ? "agenda" : "manual", agoraMs = p.agora ?? Date.now;
   const pasta = await banco.pasta(dono, conta, pastaId);
   if (!pasta) return { ok: false, erro: "pasta_inexistente" };
   const estado = await banco.estadoSync(dono, conta, pastaId);
   const chamar = (extra: Record<string, unknown>) => worker.executar("listar_mensagens", { conta_id: conta, pasta: pasta.nome_externo, ...extra }, credencial);
+
+  /* ---- rotina (modo agenda): primeiro só o cursor (EXAMINE). Sem mudança = nada é lido; mensagens novas = só o que está depois do cursor; a janela inteira (flags e remoções) só de hora em hora ---- */
+  if (agenda && estado && estado.uidvalidity !== null && estado.uidnext !== null) {
+    const re = await worker.executar("estado_pasta", { conta_id: conta, pasta: pasta.nome_externo }, credencial);
+    if (!re.ok) return re;
+    const ex0 = exame(re.dados.exame), total0 = inteiroOuNulo(re.dados.mensagens_na_pasta);
+    if (!ex0 || total0 === null) return { ok: false, erro: "resposta_invalida" };
+    const dur0 = inteiroOuNulo(re.dados.duracao_ms), tipo0 = compararSincronizacao(ex0, estado);
+    const rec = estado.reconciliada_em ? Date.parse(estado.reconciliada_em) : NaN, dif = agoraMs() - rec, vencida = !(dif >= 0 && dif < RECONCILIAR_MS);   // sem data, data inválida ou no futuro = vencida
+    if (tipo0 === "sem_mudanca" && !vencida && banco.semMudanca) {
+      await banco.semMudanca(dono, conta, pastaId, { uidvalidity: ex0.uidvalidity, uidnext: ex0.uidnext, total: total0, duracao_ms: dur0 });
+      return { ok: true, dados: { sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: total0, mais: false } };
+    }
+    if (tipo0 === "novas_mensagens" && !vencida) {
+      const mapa0 = new Map<number, Resumo>();
+      let desde0: number | null = estado.uidnext, cursor0 = ex0.uidnext;
+      for (let pagina = 0; pagina < MAX_PAGINAS && desde0 !== null; pagina++) {
+        const rp = await chamar({ desde_uid: desde0, limite: PAGINA, uidvalidity_esperado: ex0.uidvalidity });
+        if (!rp.ok) return rp;
+        const ms = filtrarResumos(rp.dados.mensagens);
+        if (!ms) return { ok: false, erro: "resposta_invalida" };
+        for (const m of ms) mapa0.set(m.uid, m);
+        desde0 = rp.dados.mais === true && ms.length > 0 ? Math.max(...ms.map((m) => m.uid)) + 1 : null;
+      }
+      if (desde0 !== null) cursor0 = Math.min(desde0, ex0.uidnext);   // não terminou: a próxima rodada continua daqui
+      const novas0 = [...mapa0.values()].sort((a, b) => b.uid - a.uid);
+      const r0 = await banco.aplicarSync(dono, conta, pastaId, { uidvalidity: ex0.uidvalidity, cursor: cursor0, tipo: "novas_mensagens", total: total0, duracao_ms: dur0, mensagens: novas0, purgar: false, removerDe: 1, removerAte: 0, semRemocao: true, silenciosa: false, reconciliada: false, origem });
+      return { ok: true, dados: { sincronizacao: { tipo: "novas_mensagens", novas: r0.novas, atualizadas: r0.atualizadas, removidas: 0 }, mensagens_na_pasta: total0, mais: cursor0 < ex0.uidnext } };
+    }
+    // UIDVALIDITY mudou, UIDNEXT regrediu, ou a hora da releitura completa chegou: segue o caminho completo abaixo
+  }
 
   const r1 = await chamar({ ultimas: JANELA });
   if (!r1.ok) return r1;
@@ -134,6 +168,8 @@ export async function sincronizarPasta(p: { dono: string; conta: string; pastaId
   }
 
   const mensagens = [...mapa.values()].sort((a, b) => b.uid - a.uid);
-  const r = await banco.aplicarSync(dono, conta, pastaId, { uidvalidity: ex.uidvalidity, cursor, tipo, total, duracao_ms: duracao, mensagens, purgar: reconstruir, removerDe: janelaMin, removerAte: ex.uidnext - 1 });
+  // primeira leitura e reconstrução são "linha de base" (nunca viram aviso); a sincronização manual também (o dono está olhando)
+  const silenciosa = !agenda || tipo === "primeira_leitura" || reconstruir;
+  const r = await banco.aplicarSync(dono, conta, pastaId, { uidvalidity: ex.uidvalidity, cursor, tipo, total, duracao_ms: duracao, mensagens, purgar: reconstruir, removerDe: janelaMin, removerAte: ex.uidnext - 1, silenciosa, reconciliada: true, origem });
   return { ok: true, dados: { sincronizacao: { tipo, novas: r.novas, atualizadas: r.atualizadas, removidas: r.removidas }, mensagens_na_pasta: total, mais: cursor < ex.uidnext } };
 }

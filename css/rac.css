@@ -438,6 +438,8 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .inb-conexao-mais .inb-ico svg{width:18px;height:18px}
 .inb-conexao-opcoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-1) var(--rac-esp-4);padding:var(--rac-esp-1) 0 var(--rac-esp-2)}
 .inb-conexao-opcoes .inb-link{font-size:var(--rac-fs-legenda)}.inb-link--perigo{color:var(--rac-erro,var(--rac-info))}
+.inb-opcao{display:flex;align-items:center;gap:var(--rac-esp-2);min-height:44px;font-size:var(--rac-fs-sec);color:var(--rac-texto-2)}
+.inb-opcao input{width:20px;height:20px;flex:none}
 .inb-conexao--compacta>.inb-nota{margin:0 0 var(--rac-esp-2)}
 .inb-conexao>.inb-nota{margin:var(--rac-esp-2) 0 0}
 .inb-form{display:flex;flex-direction:column;gap:var(--rac-esp-3);margin-top:var(--rac-esp-3)}

@@ -1090,3 +1090,16 @@ Família e da Casa.
 1. Mesclar e esperar o Pages; no iPhone, fechar o RAC, mandar um e-mail, esperar o push e tocar.
 2. Se ainda falhar, o erro agora traz módulo, tentativas e estado online (registrado em `erros`) para o diagnóstico.
 
+## 15/11/2026 (noite) · RAC Inbox — notificação com assunto/remetente e abertura direta (branch `claude/inbox-push-mensagem-direta`)
+
+### 1. O que fizemos
+- Auditoria: o aviso era montado em `rotina.ts` (`montarAviso`, só contagem) a partir de ids de `pendentes()`; a mensagem tem id estável (`inbox_mensagens_ref.id`); o `sw.js` já abre qualquer destino do aviso; faltava o Inbox aceitar a mensagem na rota.
+- `pendentes()` passou a devolver id, pasta, assunto e remetente (da linha já gravada); uma notificação por mensagem (até 4; acima, 3 + resumo); título = assunto, corpo = remetente, destino `#inbox/conta/pasta/mensagem`; limpeza e corte de texto; falha de push só mantém pendente a mensagem afetada. `js/rotas.js` e `js/inbox.js` abrem direto a leitura. Versão `2026-11-15.8`.
+- Testes: `tests/inbox_automatico.test.mjs` (conteúdo, agrupamento, integração com deduplicação), `tests/inbox_notificacao_abrir.test.mjs` (toque fechado/segundo plano/aberto, destinos distintos), `tests/inbox_tela.test.mjs` (abertura direta).
+
+### 2. O que estamos fazendo
+- PR aberto. **Exige republicar a função `rac-inbox`** (o aviso novo é montado no servidor) e o site; sem migration.
+
+### 3. O que vamos fazer
+- Validar no iPhone: assunto/remetente corretos e toque abrindo a mensagem, sem passar pela lista.
+

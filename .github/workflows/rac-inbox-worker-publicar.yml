@@ -1,0 +1,424 @@
+# RAC Inbox · publicação do Worker de PRODUTO (rac-inbox-worker). Manual (workflow_dispatch), privilegiado e existente SÓ na main. Guia completo: docs/inbox-worker-deploy.md.
+# Mesmos princípios do workflow de prova iCloud (icloud-auth-probe.yml), com Worker, nome, bindings e Environment PRÓPRIOS (nada da prova iCloud é reaproveitado como produto):
+#   - só roda a partir da main; o Environment cloudflare-production deve aceitar SÓ a main (configuração do dono no GitHub);
+#   - o commit informado (40 caracteres) é tratado como DADO: precisa existir, pertencer à história da main e ter o CI ("testes") aprovado;
+#   - nenhum arquivo do commit é executado com secrets: o job "verificar" (sem Environment e sem secrets) confere a lista de arquivos, a configuração, roda os testes, empacota
+#     sem publicar e inspeciona o pacote; o job "publicar" (Environment com os secrets da Cloudflare) só recebe o pacote já conferido (hash), a ferramenta vem do lockfile da main;
+#   - o Wrangler vem do lockfile da main, instalado sem scripts, com versão e integridade conferidas;
+#   - NÃO cria, troca nem apaga secret (RAC_CANAL_K1 permanece como está), NÃO recria o Durable Object nem os bindings: o deploy usa a configuração escrita AQUI e a migração v1 já aplicada é ignorada;
+#   - nenhum valor secreto vai a log, artefato ou output; o resumo traz só commit, hash, versão e deployment ID;
+#   - a verificação de saúde NÃO usa credencial iCloud, NÃO envia e-mail e NÃO assina pedido: uma chamada SEM assinatura deve ser recusada pelo Worker (prova que está no ar e que a chave do canal existe).
+name: Publicar o Worker rac-inbox-worker (manual, só main)
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit COMPLETO (40 caracteres hexadecimais) que já está na main e com o CI aprovado. É tratado só como dado."
+        required: true
+        type: string
+      versao_esperada:
+        description: "Carimbo de versão que o Worker deve ter (política.mjs), ex.: rac-inbox-worker@p8.0. Se o pacote tiver outro, nada é publicado."
+        required: true
+        default: "rac-inbox-worker@p8.0"
+        type: string
+      exigir_secret_k1:
+        description: "sim = só publica se o secret RAC_CANAL_K1 já existir no Worker (padrão). nao = para a primeira publicação de um Worker novo."
+        required: true
+        default: "sim"
+        type: choice
+        options:
+          - "sim"
+          - "nao"
+
+# nenhuma permissão por padrão: cada job declara só o que precisa
+permissions: {}
+
+concurrency:
+  group: rac-inbox-worker-publicar
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+    # o pacote (comprimido), o hash e o commit são públicos: não há secret neste job
+    outputs:
+      commit: ${{ steps.empacotar.outputs.commit }}
+      sha256: ${{ steps.empacotar.outputs.sha256 }}
+      pacote: ${{ steps.empacotar.outputs.pacote }}
+      versao: ${{ steps.empacotar.outputs.versao }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # entradas só por variável de ambiente (nunca coladas no script)
+      - name: Só na main e com entradas válidas
+        env:
+          COMMIT: ${{ inputs.commit }}
+          VERSAO_ESPERADA: ${{ inputs.versao_esperada }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Este workflow só roda a partir da main (ref atual: $GITHUB_REF)."
+            exit 1
+          fi
+          case "$COMMIT" in
+            ""|*[!0-9a-f]*) echo "::error::O commit deve ter só caracteres hexadecimais minúsculos."; exit 1 ;;
+          esac
+          if [ "${#COMMIT}" != "40" ]; then
+            echo "::error::O commit deve ter exatamente 40 caracteres."
+            exit 1
+          fi
+          if ! [[ "$VERSAO_ESPERADA" =~ ^rac-inbox-worker@p[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "::error::versao_esperada deve ter o formato rac-inbox-worker@pN.N."
+            exit 1
+          fi
+
+      # 1) a parte CONFIÁVEL: a main (histórico completo) com só a ferramenta (package.json e lockfile do Wrangler)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/rac-inbox-worker-ferramenta/
+          sparse-checkout-cone-mode: false
+
+      - name: O commit existe, pertence à história da main e o CI dele passou
+        env:
+          COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          git cat-file -e "$COMMIT^{commit}" 2>/dev/null || fail "Esse commit não existe neste repositório."
+          # o checkout acima está na ponta da main no momento do disparo; o commit tem de ser dessa história (a própria ponta vale)
+          git merge-base --is-ancestor "$COMMIT" "$GITHUB_SHA" || fail "Esse commit não pertence à história da main."
+          # o CI (job "testes") desse mesmo commit precisa ter terminado com sucesso
+          RESP=$(curl -sS -m 30 -K <(printf 'header = "Authorization: Bearer %s"\n' "$GH_TOKEN") -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$COMMIT/check-runs?per_page=100") || fail "Não consegui consultar o CI do commit."
+          jq -e '[.check_runs[]? | select(.name == "testes" and .status == "completed" and .conclusion == "success")] | length >= 1' <<< "$RESP" > /dev/null || fail "O CI (testes) deste commit não está aprovado. Use o commit de um merge cujo CI passou."
+          jq -e '[.check_runs[]? | select(.status == "completed" and (.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out"))] | length == 0' <<< "$RESP" > /dev/null || fail "Há verificação reprovada neste commit."
+          echo "Commit $COMMIT: na história da main e com o CI aprovado."
+
+      # 2) a parte NÃO CONFIÁVEL: o commit como DADOS, numa pasta à parte (só o Worker e os testes dele)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.commit }}
+          path: codigo
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/rac-inbox-worker/
+            /tests/rac_inbox_worker.test.mjs
+            /tests/rac_inbox_worker_servidor.mjs
+            /tests/rac_inbox_worker_smtp.test.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.22.2"
+
+      # a lista de arquivos do Worker é FECHADA e vem dos objetos do Git (só arquivos regulares, nomes simples); a configuração do commit tem de ser equivalente à fixa abaixo
+      - name: Conferir a lista de arquivos e a configuração (nome, binding, Durable Object e migração)
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$(git -C codigo rev-parse HEAD)" = "$COMMIT" ] || fail "O checkout do código não está no commit pedido."
+          RAIZ=experimentos/rac-inbox-worker
+          ARV=$(git -C codigo ls-tree -r -z --full-tree HEAD -- "$RAIZ/" | tr '\0' '\n')
+          [ -n "$ARV" ] || fail "A pasta do Worker não existe neste commit."
+          if printf '%s\n' "$ARV" | grep -qvE "^100644 blob [0-9a-f]{40}"$'\t'"$RAIZ/[A-Za-z0-9._/-]+$"; then
+            fail "A pasta do Worker tem entrada que não é arquivo regular (link, submódulo, executável) ou nome fora do padrão."
+          fi
+          LISTA=$(printf '%s\n' "$ARV" | cut -f2- | sed "s#^$RAIZ/##" | LC_ALL=C sort)
+          ESPERADA=$(printf '%s\n' README.md src/canal.mjs src/imap.mjs src/index.mjs src/mime.mjs src/politica.mjs src/replay.mjs src/rotas.mjs src/saida.mjs src/smtp.mjs wrangler.jsonc | LC_ALL=C sort)
+          if [ "$LISTA" != "$ESPERADA" ]; then
+            echo "A lista de arquivos do Worker difere da aprovada (esperada < > encontrada):"
+            diff <(printf '%s\n' "$ESPERADA") <(printf '%s\n' "$LISTA") || true
+            fail "A lista de arquivos do Worker não é a esperada."
+          fi
+          # configuração fixa (a única usada na publicação); a do commit tem de dizer o mesmo
+          cat > "$RUNNER_TEMP/config-fixa.jsonc" <<'JSON'
+          {
+            "name": "rac-inbox-worker",
+            "main": "src/index.mjs",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false },
+            "durable_objects": { "bindings": [{ "name": "NONCES", "class_name": "NonceUnico" }] },
+            "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NonceUnico"] }]
+          }
+          JSON
+          if [ "$(git -C codigo cat-file blob "HEAD:$RAIZ/wrangler.jsonc" | jq -S 'del(."$schema")')" != "$(jq -S . "$RUNNER_TEMP/config-fixa.jsonc")" ]; then
+            fail "A wrangler.jsonc do commit difere da configuração fixa do workflow (nome rac-inbox-worker, binding NONCES, classe NonceUnico, migração v1)."
+          fi
+          # monta o pacote a partir dos OBJETOS do Git (o que foi conferido é o que é empacotado); nada da pasta codigo é executado aqui
+          PACOTE="$RUNNER_TEMP/pacote"
+          mkdir -p "$PACOTE/src"
+          for ARQ in $(printf '%s\n' "$ESPERADA" | grep '^src/'); do
+            git -C codigo cat-file blob "HEAD:$RAIZ/$ARQ" > "$PACOTE/$ARQ"
+          done
+          cp "$RUNNER_TEMP/config-fixa.jsonc" "$PACOTE/wrangler.jsonc"
+          ( cd "$PACOTE" && sha256sum src/*.mjs > "$RUNNER_TEMP/fontes.sha256" )
+          echo "Configuração conferida: rac-inbox-worker, binding NONCES, classe NonceUnico, migração v1."
+
+      # os testes do Worker rodam aqui, SEM secrets e sem Environment (o código já está na main)
+      - name: Testes do Worker (leitura IMAP, canal assinado e saída SMTP)
+        run: |
+          cd codigo
+          node --test tests/rac_inbox_worker.test.mjs tests/rac_inbox_worker_smtp.test.mjs
+
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/rac-inbox-worker-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
+
+      # empacota SEM publicar (dry-run, sem credencial), inspeciona e calcula o hash do arquivo que será publicado
+      - name: Empacotar sem publicar (dry-run) e inspecionar o resultado
+        id: empacotar
+        env:
+          COMMIT: ${{ inputs.commit }}
+          VERSAO_ESPERADA: ${{ inputs.versao_esperada }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          PACOTE="$RUNNER_TEMP/pacote"
+          DIST="$RUNNER_TEMP/dist"
+          (cd "$PACOTE" && node "$GITHUB_WORKSPACE/experimentos/rac-inbox-worker-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --dry-run --outdir "$DIST")
+          OUTROS=$(ls "$DIST" | grep -v -E '^(index\.js|index\.js\.map|README\.md)$' || true)
+          [ -z "$OUTROS" ] || fail "Arquivos inesperados no pacote gerado."
+          BUNDLE="$DIST/index.js"
+          for PADRAO in 'process\.env' 'eval\(' 'new Function' 'import\(' 'require\(' 'console\.' 'localStorage' 'service_role' 'SUPABASE'; do
+            if grep -qE "$PADRAO" "$BUNDLE"; then fail "O pacote contém uma construção proibida: $PADRAO"; fi
+          done
+          # único módulo cloudflare: sockets (IMAP e SMTP); únicos hosts da Apple: imap e smtp; nenhum outro endereço http(s) além do nome interno do Durable Object
+          [ "$(grep -oE 'cloudflare:[a-z]+' "$BUNDLE" | sort -u)" = "cloudflare:sockets" ] || fail "O pacote importa módulos cloudflare: além de sockets."
+          [ "$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)" = $'imap.mail.me.com\nsmtp.mail.me.com' ] || fail "O pacote cita endereço da Apple além do IMAP e do SMTP."
+          [ "$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)" = "https://registro.interno" ] || fail "O pacote cita endereços http(s) além do nome interno do Durable Object."
+          # o IMAP continua SOMENTE LEITURA: nenhum verbo de escrita entre aspas no pacote
+          if grep -qE '"(SELECT|STORE|COPY|MOVE|APPEND|EXPUNGE|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE)"' "$BUNDLE"; then fail "O pacote contém verbo IMAP de escrita."; fi
+          # a classe do Durable Object precisa estar no pacote E exportada (o binding NONCES e a migração v1 a referenciam)
+          if ! grep -qE '^var NonceUnico = class' "$BUNDLE" || ! grep -qE '^  NonceUnico,?$' "$BUNDLE"; then fail "A classe NonceUnico não está no pacote ou não é exportada."; fi
+          # o carimbo de versão pedido está no pacote (e só ele)
+          grep -qF "\"$VERSAO_ESPERADA\"" "$BUNDLE" || fail "O pacote não tem o carimbo de versão $VERSAO_ESPERADA."
+          [ "$(grep -oE 'rac-inbox-worker@p[0-9]+\.[0-9]+' "$BUNDLE" | sort -u)" = "$VERSAO_ESPERADA" ] || fail "O pacote tem mais de um carimbo de versão."
+          SHA=$(sha256sum "$BUNDLE" | cut -d' ' -f1)
+          # entregue ao job seguinte comprimido, em base64 (o Linux limita cada variável a 131072 bytes); falhar aqui, sem secrets e antes da aprovação, é melhor do que depois
+          PACOTE_B64=$(gzip -9n < "$BUNDLE" | base64 -w0)
+          [ "${#PACOTE_B64}" -le 120000 ] || fail "O pacote (${#PACOTE_B64} caracteres comprimido em base64) passa do limite de 120000 para ser entregue ao job seguinte."
+          {
+            echo "commit=$COMMIT"
+            echo "sha256=$SHA"
+            echo "versao=$VERSAO_ESPERADA"
+            echo "pacote=$PACOTE_B64"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pacote do Worker rac-inbox-worker (antes da aprovação do ambiente)"
+            echo
+            echo "- commit (dado de entrada, na história da main, CI aprovado): \`$COMMIT\`"
+            echo "- carimbo de versão: **$VERSAO_ESPERADA**"
+            echo "- sha256 do arquivo que será publicado: \`$SHA\`; tamanho: $(wc -c < "$BUNDLE") bytes"
+            echo "- configuração fixa: Worker rac-inbox-worker; binding NONCES (classe NonceUnico, SQLite); migração v1"
+            echo "- sem process.env, eval, console, import dinâmico ou require; único módulo cloudflare: sockets; hosts da Apple: imap e smtp; IMAP sem verbo de escrita"
+            echo "- testes do Worker aprovados neste job (sem secrets)"
+            echo "- **Antes de aprovar o Environment:** conferir o commit e o hash acima. Nenhum secret existe neste job."
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/fontes.sha256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publicar:
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Environment protegido: só aqui existem CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID (cadastrados direto no GitHub); deve aceitar SÓ a main e pedir aprovação do dono
+    environment: cloudflare-production
+    permissions:
+      contents: read
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      NPM_CONFIG_IGNORE_SCRIPTS: "true"
+      NOME_WORKER: rac-inbox-worker
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Só na main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Este workflow só roda a partir da main (ref atual: $GITHUB_REF)."
+            exit 1
+          fi
+
+      # só os dados da ferramenta (package.json e lockfile) vêm do repositório, da main; o commit do Worker NÃO é baixado aqui
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /experimentos/rac-inbox-worker-ferramenta/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24.22.2"
+
+      - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
+        run: |
+          FERR=experimentos/rac-inbox-worker-ferramenta
+          npm ci --prefix "$FERR" --ignore-scripts --no-audit --no-fund
+          INTEGRIDADE=$(jq -r '.packages["node_modules/wrangler"].integrity' "$FERR/package-lock.json")
+          if [ "$INTEGRIDADE" != "sha512-yOHZUYEq9AP7vutWmkCADzCKAH9ynfvZdoKJRIGTzkiailf9/L+jhT7WRb+9p6jRDtuBXVFtCzLo7kGAcGw+pA==" ]; then
+            echo "::error::A integridade do Wrangler no lockfile não é a esperada."
+            exit 1
+          fi
+          VERSAO=$(node "$FERR/node_modules/wrangler/bin/wrangler.js" --version | tail -1)
+          [ "$VERSAO" = "4.161.0" ] || { echo "::error::Versão do Wrangler inesperada: $VERSAO"; exit 1; }
+
+      # recebe só o pacote, o hash e o commit públicos do job verificar; confere o hash e escreve a configuração de publicação aqui mesmo
+      - name: Reconstituir o pacote aprovado e preparar a publicação (sem secrets)
+        env:
+          PACOTE_B64: ${{ needs.verificar.outputs.pacote }}
+          SHA256_ESPERADO: ${{ needs.verificar.outputs.sha256 }}
+          COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
+          VERSAO_APROVADA: ${{ needs.verificar.outputs.versao }}
+        run: |
+          DEST="$RUNNER_TEMP/publicar"
+          mkdir -p "$DEST"
+          printf '%s' "$PACOTE_B64" | base64 -d | gunzip > "$DEST/index.js"
+          if ! printf '%s  %s\n' "$SHA256_ESPERADO" "$DEST/index.js" | sha256sum -c - > /dev/null; then
+            echo "::error::O hash do pacote recebido não confere com o do job verificar."
+            exit 1
+          fi
+          cat > "$DEST/base.jsonc" <<'JSON'
+          {
+            "name": "rac-inbox-worker",
+            "compatibility_date": "2026-11-13",
+            "workers_dev": true,
+            "observability": { "enabled": false },
+            "durable_objects": { "bindings": [{ "name": "NONCES", "class_name": "NonceUnico" }] },
+            "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NonceUnico"] }]
+          }
+          JSON
+          jq --arg main "$DEST/index.js" '. + {main: $main, no_bundle: true}' "$DEST/base.jsonc" > "$DEST/wrangler.publicar.jsonc"
+          echo "Pacote conferido: sha256 $SHA256_ESPERADO (commit $COMMIT_APROVADO; versão $VERSAO_APROVADA)"
+
+      # só curl e jq; o token vai por substituição de processo, nunca como argumento visível na lista de processos
+      - name: Conferir o token Cloudflare (sem mostrar dados da conta)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Faltam os secrets CLOUDFLARE_API_TOKEN e/ou CLOUDFLARE_ACCOUNT_ID no ambiente cloudflare-production."
+            exit 1
+          fi
+          verificar() {
+            curl -sS -m 20 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "$1" | jq -r 'select(.success == true) | .result.status' || true
+          }
+          STATUS=$(verificar "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          [ "$STATUS" = "active" ] || STATUS=$(verificar "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          if [ "$STATUS" != "active" ]; then
+            echo "::error::A Cloudflare não confirmou o token como ativo."
+            exit 1
+          fi
+          echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
+
+      # estado ANTES: nomes (nunca valores) dos secrets do Worker e o deployment atual (para o rollback)
+      - name: Estado anterior do Worker (nomes de secrets e deployment atual, sem valores)
+        id: antes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EXIGIR_K1: ${{ inputs.exigir_secret_k1 }}
+        run: |
+          api() { curl -sS -m 30 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$NOME_WORKER/$1"; }
+          NOMES=$(api secrets | jq -r 'select(.success == true) | [.result[]?.name] | join(",")' || true)
+          DEP=$(api deployments | jq -r 'select(.success == true) | (.result.deployments // []) | sort_by(.created_on) | reverse | .[0].id // empty' || true)
+          if [ -z "$NOMES" ] && [ -z "$DEP" ]; then
+            echo "Worker $NOME_WORKER ainda sem secrets nem deployment (ou a leitura da API não foi permitida pelo token)."
+          fi
+          TEM_K1=nao
+          case ",$NOMES," in *,RAC_CANAL_K1,*) TEM_K1=sim ;; esac
+          if [ "$EXIGIR_K1" = "sim" ] && [ "$TEM_K1" != "sim" ]; then
+            echo "::error::O secret RAC_CANAL_K1 não foi encontrado no Worker (ou o token não pode listar secrets). Nada foi publicado. Para uma primeira publicação use exigir_secret_k1 = nao e depois cadastre o secret (docs/inbox-worker-deploy.md)."
+            exit 1
+          fi
+          {
+            echo "k1_antes=$TEM_K1"
+            echo "deployment_anterior=$DEP"
+          } >> "$GITHUB_OUTPUT"
+          echo "RAC_CANAL_K1 presente antes: $TEM_K1; deployment anterior: ${DEP:-nenhum}"
+
+      # PUBLICAÇÃO: o Wrangler fixado, num diretório vazio, com a configuração escrita neste arquivo e o pacote aprovado. Nenhum "secret put": os secrets existentes ficam como estão.
+      - name: Publicar o pacote aprovado
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
+        run: |
+          cd "$RUNNER_TEMP/publicar"
+          node "$GITHUB_WORKSPACE/experimentos/rac-inbox-worker-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --config "$RUNNER_TEMP/publicar/wrangler.publicar.jsonc" --message "commit ${COMMIT_APROVADO:0:12}" 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      # confirma o que foi publicado: deployment atual e versão, nomes dos secrets depois (K1 tem de continuar) e saúde SEM assinatura, sem credencial iCloud e sem e-mail
+      - name: Confirmar versão, deployment e saúde (sem credencial iCloud e sem enviar e-mail)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
+          SHA256_APROVADO: ${{ needs.verificar.outputs.sha256 }}
+          VERSAO_APROVADA: ${{ needs.verificar.outputs.versao }}
+          DEP_ANTERIOR: ${{ steps.antes.outputs.deployment_anterior }}
+          K1_ANTES: ${{ steps.antes.outputs.k1_antes }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          api() { curl -sS -m 30 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/$1"; }
+          DEPS=$(api "workers/scripts/$NOME_WORKER/deployments") || fail "Não consegui ler os deployments."
+          DEP=$(jq -r 'select(.success == true) | (.result.deployments // []) | sort_by(.created_on) | reverse | .[0]' <<< "$DEPS")
+          DEP_ID=$(jq -r '.id // empty' <<< "$DEP")
+          VER_ID=$(jq -r '[.versions[]? | select(.percentage == 100)][0].version_id // .versions[0].version_id // empty' <<< "$DEP")
+          [ -n "$DEP_ID" ] || fail "A Cloudflare não devolveu o deployment atual (o token precisa ler Workers Scripts)."
+          [ -n "$VER_ID" ] || VER_ID=$(grep -oE 'Current Version ID: [0-9a-f-]{36}' "$RUNNER_TEMP/deploy.log" | tail -1 | cut -d' ' -f4)
+          [ "$DEP_ID" != "$DEP_ANTERIOR" ] || echo "::warning::O deployment atual é igual ao anterior (a Cloudflare pode ter reaproveitado a versão idêntica)."
+          NOMES=$(api "workers/scripts/$NOME_WORKER/secrets" | jq -r 'select(.success == true) | [.result[]?.name] | join(",")' || true)
+          K1_DEPOIS=nao; case ",$NOMES," in *,RAC_CANAL_K1,*) K1_DEPOIS=sim ;; esac
+          if [ "$K1_ANTES" = "sim" ] && [ "$K1_DEPOIS" != "sim" ]; then fail "O secret RAC_CANAL_K1 não está mais no Worker depois da publicação. Pare e avise o desenvolvedor."; fi
+          SUB=$(api "workers/subdomain" | jq -r 'select(.success == true) | .result.subdomain // empty' || true)
+          [[ "$SUB" =~ ^[a-z0-9-]{1,63}$ ]] || fail "Não consegui obter o subdomínio workers.dev da conta."
+          URL="https://$NOME_WORKER.$SUB.workers.dev"
+          # saúde: SEM assinatura. O Worker responde 401 "cabecalhos_invalidos" quando está no ar com a chave do canal configurada;
+          # 503 "canal_nao_configurado" = no ar, mas SEM o secret RAC_CANAL_K1; GET = 404. Nada disto lê Vault, abre IMAP/SMTP ou envia e-mail.
+          POST_STATUS=""; POST_ERRO=""
+          for T in 1 2 3 4 5 6; do
+            R=$(curl -sS -m 15 -o "$RUNNER_TEMP/saude.json" -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"operacao":"ping"}' "$URL/v1/op" || true)
+            POST_STATUS="$R"; POST_ERRO=$(jq -r '.erro // empty' "$RUNNER_TEMP/saude.json" 2>/dev/null || true)
+            [ "$R" = "401" ] && break
+            sleep 5
+          done
+          GET_STATUS=$(curl -sS -m 15 -o /dev/null -w '%{http_code}' "$URL/v1/op" || true)
+          SAUDE=ok
+          if [ "$POST_STATUS" != "401" ] || [ "$POST_ERRO" != "cabecalhos_invalidos" ] || [ "$GET_STATUS" != "404" ]; then SAUDE="falhou (POST $POST_STATUS $POST_ERRO; GET $GET_STATUS)"; fi
+          {
+            echo "### Worker rac-inbox-worker publicado"
+            echo
+            echo "- commit: \`$COMMIT_APROVADO\`; carimbo de versão esperado: **$VERSAO_APROVADA**"
+            echo "- sha256 do pacote: \`$SHA256_APROVADO\`"
+            echo "- **deployment ID:** \`$DEP_ID\`; **version ID:** \`${VER_ID:-desconhecido}\`"
+            echo "- deployment anterior (para rollback): \`${DEP_ANTERIOR:-nenhum}\`"
+            echo "- secret RAC_CANAL_K1 (só o nome, nunca o valor): antes **$K1_ANTES**, depois **$K1_DEPOIS**; nenhum secret foi criado, trocado ou apagado"
+            echo "- saúde sem assinatura, sem credencial iCloud e sem e-mail: POST /v1/op → $POST_STATUS \`$POST_ERRO\` (esperado 401 cabecalhos_invalidos); GET → $GET_STATUS (esperado 404): **$SAUDE**"
+            echo "- URL do Worker (para o secret RAC_INBOX_WORKER_URL da função): \`$URL\`"
+            echo "- próximo passo: no RAC, Inbox → Opções da conta → Testar conexão (confere o canal assinado e mostra o carimbo \`$VERSAO_APROVADA\`) e depois Testar envio (SMTP)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$SAUDE" = "ok" ] || fail "A verificação de saúde falhou: POST $POST_STATUS $POST_ERRO; GET $GET_STATUS."
+          echo "Publicado: deployment $DEP_ID, versão ${VER_ID:-desconhecida}; saúde ok."

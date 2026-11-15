@@ -1129,3 +1129,16 @@ Família e da Casa.
 - **Correção (versão `2026-11-15.10`):** a página confirma o aviso (`rac-ack`); sem confirmação em 1,5 s o service worker navega a janela ao destino e, se falhar, abre janela nova; diagnóstico do toque (`__rac-diag`) vai para Sistema → erros quando houve reserva ou erro. Testes atualizados (`notificacao`, `inbox_notificacao_abrir`, `navegador`).
 - **Próximo:** novo teste no iPhone; se ainda falhar, ler o erro "toque sem confirmação da página" em Sistema.
 
+## 15/11/2026 (noite) · RAC Inbox — publicação protegida do Worker de produto pelo GitHub Actions (branch `claude/rac-inbox-smtp-send-xpg9gm`)
+
+### 1. O que fizemos
+- Implantação do dono/ChatGPT confirmada por ele: migration 056 aplicada, função `rac-inbox` v9 (`verify_jwt=true`), GitHub Pages publicado, CI da `main` (run #255) aprovado.
+- Tentativa de publicar o Worker `p8.0` daqui: **impossível** (sem credencial Cloudflare e sem acesso à API da Cloudflare neste ambiente). Nada foi publicado; a `smtp_prova` real não rodou.
+- Criado o workflow manual `.github/workflows/rac-inbox-worker-publicar.yml` (só `main`, Environment `cloudflare-production`, commit de 40 caracteres da história da `main` com CI aprovado, Wrangler `4.161.0` fixado em `experimentos/rac-inbox-worker-ferramenta/`, testes e `--dry-run` antes de qualquer secret, sem `secret put`, confirmação de deployment ID e saúde sem assinatura). Guia: `docs/inbox-worker-deploy.md`. Teste: `tests/rac_inbox_worker_publicar_workflow.test.mjs`. Os passos do job `verificar` e a reconstituição do pacote foram simulados localmente (ok); o deploy real não foi executado.
+
+### 2. O que estamos fazendo
+- PR para revisão do dono (não mesclado por mim: altera `.github/workflows/`). Dono precisa: criar o token e o Environment `cloudflare-production` com os secrets, e mesclar o PR.
+
+### 3. O que vamos fazer
+- Dono executa o workflow pelo iPhone, depois **Testar conexão**, **Testar envio (SMTP)** (sem e-mail) e o envio de teste. Só então o resultado real do SMTP é registrado aqui.
+

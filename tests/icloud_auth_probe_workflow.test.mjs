@@ -387,12 +387,13 @@ test("integridade do pacote: lista fixa, config única escrita no workflow (com 
   assert.match(rec, /SHA256_ESPERADO: \$\{\{ needs\.verificar\.outputs\.sha256 \}\}/);
 });
 
-test("um único caminho de publicação privilegiada: nenhum outro workflow usa os Environments com secrets ou o Wrangler com secrets", () => {
+test("só dois caminhos de publicação privilegiada, ambos conhecidos (prova iCloud e Worker de produto): nenhum outro workflow usa os Environments com secrets ou o Wrangler com secrets", () => {
   const dir = ".github/workflows/";
   const arquivos = fs.readdirSync(new URL(dir, raiz)).filter((f) => /\.ya?ml$/.test(f));
   assert.ok(!arquivos.includes("icloud-probe-deploy.yml"), "o workflow antigo (npx sem lockfile, configuração da ref) foi retirado");
-  const privilegiados = arquivos.filter((f) => /environment:\s*(cloudflare-poc|icloud-auth-poc)|CLOUDFLARE_API_TOKEN/.test(ler(dir + f)));
-  assert.deepEqual(privilegiados, ["icloud-auth-probe.yml"]);
+  const privilegiados = arquivos.filter((f) => /environment:\s*(cloudflare-poc|icloud-auth-poc|cloudflare-production)|CLOUDFLARE_API_TOKEN/.test(ler(dir + f)));
+  assert.deepEqual(privilegiados, ["icloud-auth-probe.yml", "rac-inbox-worker-publicar.yml"]);   // o segundo tem teste próprio: tests/rac_inbox_worker_publicar_workflow.test.mjs
+  assert.ok(!/cloudflare-production/.test(ler(dir + "icloud-auth-probe.yml")) && !/cloudflare-poc|icloud-auth-poc/.test(ler(dir + "rac-inbox-worker-publicar.yml")), "cada workflow usa só o próprio Environment");
 });
 
 // ---------- execução real dos passos que não precisam de rede ----------

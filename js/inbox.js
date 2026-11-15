@@ -421,15 +421,19 @@
      Depois de abrir, o endereço volta a #inbox/<conta>/<pasta> (sem disparar a rota), para uma nova rota ou um recarregamento não reabrirem a mensagem. */
   var INB_RE_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var INB_CAMPOS_MSG="id,conta_id,pasta_id,uid,uidvalidity,recebida_em,assunto,remetente_nome,remetente_endereco,destinatarios,lida,sinalizada,respondida,tamanho,anexo_provavel";
+  function inboxAvisoResultado(ok,motivo){try{if(typeof notifAbriu==="function")notifAbriu(ok,motivo)}catch(e){}}
   function inboxAbrirDoAviso(id){
     var r=INBX.msgs.filter(function(x){return x.id===id})[0],busca=r?Promise.resolve(r):Promise.resolve(SB.from("inbox_mensagens_ref").select(INB_CAMPOS_MSG).eq("id",id).limit(1)).then(sbOk).then(function(l){return l&&l[0]||null},function(){return null});
     return busca.then(function(m){
-      if(!m||!m.pasta_id){INBX.aviso={tipo:"erro",t:"Essa mensagem do aviso não está mais no cache. Toque em Sincronizar para atualizar a lista."};inboxDesenhar();return false}
+      if(!m||!m.pasta_id){INBX.aviso={tipo:"erro",t:"Essa mensagem do aviso não está mais no cache. Toque em Sincronizar para atualizar a lista."};inboxDesenhar();inboxAvisoResultado(false,"mensagem_ausente");return false}
       if(!r)INBX.msgs.push(m);
       INBX.conta=m.conta_id;INBX.pasta=m.pasta_id;try{history.replaceState(history.state,"","#inbox/"+m.conta_id+"/"+m.pasta_id)}catch(e){}
-      inboxAbrirMsg(m.id);return true})}
-  function renderInbox(conta,pasta,msg){
+      inboxAbrirMsg(m.id);inboxAvisoResultado(INBX.msg===m.id,INBX.msg===m.id?null:"rascunho_aberto");return true})}
+  /* refresh = a atualização automática (ao voltar ao site) redesenha a MESMA rota: só relê os dados; nunca fecha a leitura aberta nem o rascunho. Sem isso, a atualização da página que estava aberta
+     (o Início) rodava a rota do aviso por cima e a leitura recém-aberta voltava para a lista. */
+  function renderInbox(conta,pasta,msg,refresh){
+    var abrir=INB_RE_ID.test(msg||"")?msg:null;
+    if(refresh){if(conta&&!INBX.msg){INBX.conta=conta;INBX.pasta=pasta||null}return inboxCarregar().then(function(){if(abrir&&INBX.msg!==abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
     INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
-    var abrir=INB_RE_ID.test(msg||"")?msg:null;
     return inboxCarregar().then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}

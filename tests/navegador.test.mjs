@@ -861,6 +861,13 @@ test("Inbox: o aviso de e-mail novo abre direto a leitura da mensagem (app abert
     const r = await pag.evaluate(() => ({ secao: document.documentElement.getAttribute("data-sec"), msg: INBX.msg, chamadas: __chamadas, acks: __acks, hash: location.hash, texto: document.querySelector(".inb-leitura").textContent }));
     assert.equal(r.secao, "inbox"); assert.equal(r.msg, M); assert.deepEqual(r.chamadas, [{ operacao: "ler_mensagem", conta_id: C, pasta_id: P, uid: 2 }]); assert.deepEqual(r.acks, ["rac-ack"]);
     assert.equal(r.hash, "#inbox/" + C + "/" + P, "o endereço volta ao da lista"); assert.ok(r.texto.includes("Assunto 2") && r.texto.includes("Corpo do e-mail"));
+    /* a atualização automática ao voltar ao site redesenha a rota (atuPadrao → route): NÃO pode fechar a leitura recém-aberta nem refazer a abertura */
+    await pag.evaluate(() => { __chamadas.length = 0; return atuPadrao(null); }); await pag.waitForTimeout(600);
+    const dep = await pag.evaluate(() => ({ painel: INBX.painel, msg: INBX.msg, chamadas: __chamadas.length, hash: location.hash }));
+    assert.deepEqual([dep.painel, dep.msg], ["leitura", M], "a atualização automática não fecha a mensagem aberta"); assert.equal(dep.hash, "#inbox/" + C + "/" + P);
+    /* o roteador registrou o RESULTADO (não só o recebimento do aviso) */
+    const ab = await pag.evaluate(async () => { const c = await caches.open("rac-dados"), r = await c.match(new URL("__rac-aberto", location.href).href); return r ? await r.json() : null; });
+    assert.equal(ab && ab.ok, true, "notifAbriu(true): a mensagem foi aberta pelo roteador");
     assert.deepEqual(erros, [], "nenhum erro no navegador");
   } finally { await nav.close(); servidor.close(); }
 });

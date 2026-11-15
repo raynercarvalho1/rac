@@ -14,7 +14,7 @@ export interface Cofre {
 }
 export type ResultadoWorker = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 export interface Worker {
-  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string } | null): Promise<ResultadoWorker>;
+  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string } | null, opcoes?: { timeoutMs?: number }): Promise<ResultadoWorker>;   // opcoes.timeoutMs só ENCURTA o limite do canal (a rotina usa para respeitar o prazo)
 }
 /* o cache de cabeçalhos e o cursor (tabelas da 051/053); a implementação SQL é de repositorio.ts */
 export interface PastaSalva { id: string; nome_externo: string; nome_exibicao: string; uso: string }

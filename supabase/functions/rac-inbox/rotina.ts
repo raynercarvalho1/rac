@@ -17,7 +17,12 @@ export interface BancoRotina {
 }
 export interface Aviso { enviar(dono: string, msg: Msg): Promise<Entrega> }
 export interface Resumo { contas: number; sincronizadas: number; sem_mudanca: number; novas: number; avisos: number; falhas: number; ignoradas: number; em_andamento: number }
-export const ORCAMENTO_MS = 45_000, INTERVALO_MIN = 10;
+/* TEMPO (tests/inbox_automatico.test.mjs confere estes números com a 055 e a documentação):
+   ORCAMENTO_MS  = 45 s: depois disso não começa conta nova e a leitura por páginas para (o cursor só avança até onde leu);
+   CHAMADA_MAX_MS = 40 s: limite de UMA chamada ao Worker (o Worker faz no máximo 25 s por sessão IMAP);
+   PRAZO_DURO_MS = 90 s: nenhuma chamada ao Worker termina depois disso (cada chamada recebe min(40 s, o que resta) e é recusada com "prazo_esgotado" se restarem menos de CHAMADA_MIN_MS);
+   margem de 10 s para gravar no banco e responder = a rodada acaba em ≤ 100 s, abaixo do timeout do pg_net (120 s) e do limite da função (150 s). */
+export const ORCAMENTO_MS = 45_000, CHAMADA_MAX_MS = 40_000, CHAMADA_MIN_MS = 5_000, PRAZO_DURO_MS = 90_000, MARGEM_GRAVACAO_MS = 10_000, INTERVALO_MIN = 10;
 
 /* depois de falhas seguidas a conta espera mais (10 min por rodada vira 20, 40, 80 e no máximo 120); uma rodada que dá certo zera a contagem. Autenticação recusada não entra: a conta sai da rotina. */
 export const esperaMin = (falhas: number): number => (falhas < 3 ? 0 : Math.min(INTERVALO_MIN * 2 ** (falhas - 2), 120));
@@ -39,7 +44,13 @@ export async function rodarRotina(d: {
   banco: Banco & BancoRotina; cofre: Cofre; worker: Worker; aviso: Aviso | null;
   registrar: (e: { operacao: string; codigo: string; status: number; detalhe?: string }) => void; agora?: () => number; orcamentoMs?: number;
 }): Promise<Resumo> {
-  const agora = d.agora ?? Date.now, inicio = agora(), limite = d.orcamentoMs ?? ORCAMENTO_MS;
+  const agora = d.agora ?? Date.now, inicio = agora(), limite = d.orcamentoMs ?? ORCAMENTO_MS, duro = inicio + PRAZO_DURO_MS;
+  /* toda chamada ao Worker passa por aqui: recebe só o tempo que resta até o prazo duro; sem tempo, nem é feita */
+  const worker: Worker = { async executar(op, ped, cred) {
+    const resta = duro - agora();
+    if (resta < CHAMADA_MIN_MS) return { ok: false, erro: "prazo_esgotado" };
+    return await d.worker.executar(op, ped, cred, { timeoutMs: Math.min(CHAMADA_MAX_MS, resta) });
+  } };
   const res: Resumo = { contas: 0, sincronizadas: 0, sem_mudanca: 0, novas: 0, avisos: 0, falhas: 0, ignoradas: 0, em_andamento: 0 };
   const reg = (codigo: string, detalhe?: string) => { try { d.registrar({ operacao: "rotina_sync", codigo, status: codigo === "ok" ? 200 : 502, ...(detalhe ? { detalhe } : {}) }); } catch (_) { /* o registro nunca derruba a rotina */ } };
   let contas: ContaAuto[] = [];
@@ -60,9 +71,10 @@ export async function rodarRotina(d: {
       bruto = null;
       if (!cred) { res.falhas++; reg(ausente ? "credencial_ausente" : "credencial_corrompida"); continue; }
       let r;
-      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker: d.worker, banco: d.banco, credencial: cred, modo: "agenda", agora, prazo: inicio + limite }); }
+      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker, banco: d.banco, credencial: cred, modo: "agenda", agora, prazo: inicio + limite }); }
       catch (e) { cred = null; res.falhas++; reg("servico_indisponivel", detalheDe(e)); try { await d.banco.falhaSync(c.dono, c.conta, c.pasta_id, "servico_indisponivel"); } catch (_) { /* a próxima rodada tenta de novo */ } continue; }
       cred = null;
+      if (!r.ok && r.erro === "prazo_esgotado") { res.ignoradas++; reg("prazo_esgotado"); continue; }   // o tempo da rodada acabou no meio: não é falha da conta; nada foi gravado e a próxima rodada refaz
       if (!r.ok) {
         const cod = codigoDoErro(r.erro);
         res.falhas++; reg(cod, /^[a-z][a-z0-9_]{1,40}$/.test(r.erro) ? r.erro : undefined);

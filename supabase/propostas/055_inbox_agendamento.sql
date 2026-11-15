@@ -14,7 +14,7 @@
 --     'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'rac_chave_publica'),
 --     'x-rac-rotina', (select decrypted_secret from vault.decrypted_secrets where name = 'rac_rotina')), body := '{"operacao":"rotina_sync"}'::jsonb, timeout_milliseconds := 120000);
 --   select status_code, left(content, 300) from net._http_response order by created desc limit 1;   -- esperado: 200 {"ok":true,"resumo":{…}}; 401 do gateway = chave errada; 401 sem_login = senha da rotina errada
--- Custo: pg_cron e pg_net já estão ativos (008). 144 chamadas por dia. A rotina cabe no tempo: orçamento de 45 s por execução, 20 contas no máximo, timeout do pg_net de 120 s.
+-- Custo: pg_cron e pg_net já estão ativos (008). 144 chamadas por dia. TEMPO (os mesmos números em rotina.ts, docs/inbox.md e tests/inbox_automatico.test.mjs): não começa conta nova depois de 45 s; cada chamada ao Worker tem no máximo 40 s e nenhuma passa do prazo duro de 90 s; mais 10 s de margem para gravar = a rotina responde em ≤ 100 s, abaixo do timeout do pg_net (120 s, abaixo do limite de 150 s da função). 20 contas no máximo.
 -- Não mexe no agendamento diário das 6h (rac-rotina), nem no Radar, nem na Newsletter: só o job 'inbox-sync'.
 -- Para DESLIGAR (rollback): select cron.unschedule('inbox-sync');   (ou desmarcar "sincronizar automaticamente" na conta; ou apagar a credencial)
 begin;

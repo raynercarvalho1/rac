@@ -1072,3 +1072,5 @@ Família e da Casa.
 3. Depois: teste real com e-mail novo; Gmail (Pub/Sub) e Outlook (Graph) na fase I3, conforme a arquitetura documentada.
 
 **Atualização (15/11/2026, auditoria final):** a proposta 055 passou a autenticar a chamada agendada com `Authorization: Bearer` (chave anon lida do Vault, com guarda que recusa service_role/chaves sb_*) mais `x-rac-rotina`, mantendo `verify_jwt=true`; orçamento da rotina reduzido a 45 s com prazo na leitura por páginas; testes novos dos cabeçalhos e da guarda. Nada aplicado nem publicado.
+
+**Atualização (15/11/2026, revisão do PR #36 — tempo):** a estimativa de pior caso de 125 s estava errada (45 s de orçamento + até 3 chamadas de 40 s ≈ 165 s, acima do timeout de 120 s do `pg_net`). Valores finais: orçamento para iniciar conta 45 s; chamada ao Worker ≤ 40 s (recebe `min(40 s, resto)`); prazo duro 90 s (`prazo_esgotado` não conta como falha); margem de gravação 10 s ⇒ resposta ≤ 100 s; `pg_net` 120 s; função 150 s. Autenticação: JWT público (Bearer anon do Vault) no gateway + `x-rac-rotina` na função. Teste de consistência entre `rotina.ts`, 055 e documentação. Nada aplicado nem publicado.

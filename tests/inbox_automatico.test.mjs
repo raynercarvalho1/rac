@@ -413,13 +413,61 @@ test("index.ts: o Authorization (gateway) NÃO autoriza a rotina: sem x-rac-roti
   const sv = semComent(ler("supabase/functions/rac-inbox/servico.ts")); assert.match(sv, /if \(!ctx\.usuario\) return falha\("sem_login"\)/); assert.match(sv, /if \(!ctx\.usuario\.mfaOk\) return falha\("mfa_requerido"\)/);
 });
 
-test("prazo da rodada: passado o orçamento a leitura por páginas para (cursor avança só até onde leu) e o orçamento é compatível com o timeout do pg_net", async () => {
+test("prazo da rodada: passado o orçamento a leitura por páginas para (cursor avança só até onde leu)", async () => {
   const m = mundo({ cursor: { uidvalidity: 700, uidnext: 10, reconciliada_em: iso(AGORA) } }); let t = AGORA;
   const w = worker((op, ped) => { t += 20_000; return op === "estado_pasta" ? estado(1000, 999) : janela(1000, faixa(ped.desde_uid, ped.desde_uid + 99), true); });
   await rodar(m, w, { agora: () => t, orcamentoMs: 45_000 });
   assert.ok(w.chamadas.filter((c) => c[0] === "listar_mensagens").length < 5, "parou antes das 5 páginas"); assert.ok(m.aplicados[0].cursor < 1000 && m.aplicados[0].cursor > 10, "cursor parcial, sem pular");
-  const { ORCAMENTO_MS } = await import("../supabase/functions/rac-inbox/rotina.ts"); const worker40 = 40_000;
-  assert.ok(ORCAMENTO_MS + 2 * worker40 <= 130_000 && ORCAMENTO_MS <= 60_000, "pior caso (orçamento + 2 chamadas no limite de 40 s) cabe nos 150 s da função");
-  assert.match(ler("supabase/propostas/055_inbox_agendamento.sql"), /timeout_milliseconds := 120000/);
 });
 
+/* ---------- tempo: o pior caso REAL cabe no timeout do pg_net ---------- */
+const rot = ler("supabase/functions/rac-inbox/rotina.ts"), K = (n) => Number(new RegExp("export const [^;]*?" + n + " = ([0-9_]{4,})").exec(rot)[1].replace(/_/g, ""));
+const [ORC, CH_MAX, CH_MIN, DURO, MARGEM] = ["ORCAMENTO_MS", "CHAMADA_MAX_MS", "CHAMADA_MIN_MS", "PRAZO_DURO_MS", "MARGEM_GRAVACAO_MS"].map(K);
+const PG_NET = Number(/timeout_milliseconds := (\d+)/.exec(ler("supabase/propostas/055_inbox_agendamento.sql"))[1]), FUNCAO = 150_000;
+
+test("tempo: valores finais iguais no código, na 055 e na documentação; duro + margem < pg_net < limite da função; o canal real limita cada chamada a 40 s", () => {
+  assert.deepEqual([ORC, CH_MAX, CH_MIN, DURO, MARGEM, PG_NET], [45_000, 40_000, 5_000, 90_000, 10_000, 120_000]);
+  assert.ok(DURO + MARGEM < PG_NET && PG_NET < FUNCAO, "100 s < 120 s < 150 s"); assert.ok(ORC < DURO && CH_MAX <= DURO && CH_MIN < CH_MAX);
+  assert.match(ler("supabase/functions/rac-inbox/canal.ts"), /cfg\.timeoutMs \?\? 40000/, "o canal real: 40 s por chamada");
+  const doc = ler("docs/inbox.md"), tempo = doc.slice(doc.indexOf("- **Tempo (valores finais"), doc.indexOf("\n", doc.indexOf("- **Tempo (valores finais")));
+  for (const f of ["**45 s**", "**40 s**", "**prazo duro de 90 s**", "**+10 s**", "**≤ 100 s**", "120000", "150 s"]) assert.ok(tempo.includes(f), "docs/inbox.md, Tempo: " + f);
+  const s55 = ler("supabase/propostas/055_inbox_agendamento.sql"); for (const f of ["45 s", "40 s", "90 s", "10 s", "100 s", "120 s", "150 s"]) assert.ok(s55.includes(f), "055: " + f);
+  for (const velho of ["pior caso ≈ 125", "Orçamento de 90 s", "orçamento de 90"]) assert.ok(!(doc.replace(/estimativa anterior[^.]*\./, "").includes(velho)) && !s55.includes(velho), "referência antiga: " + velho);
+  assert.match(doc, /Authorization: Bearer <chave anon>/); assert.match(doc, /verify_jwt=true/); assert.ok(!/\[sem navegador, sem JWT\]/.test(doc), "a rotina não é mais descrita como sem JWT");
+});
+
+test("tempo (simulado): conta começando no limite do orçamento, três chamadas de 40 s por conta: nenhuma chamada ao Worker passa do prazo duro, cada uma recebe no máximo o que resta, a rodada termina antes de 100 s e a falta de tempo não vira falha da conta", async () => {
+  let t = AGORA; const recebidos = [];
+  const m = mundo({ cursor: { uidvalidity: 700, uidnext: 10, reconciliada_em: null } });   // vencida: EXAMINE + janela completa
+  const w = { async executar(op, ped, cred, opc) { recebidos.push([op, t - AGORA, opc?.timeoutMs]); t += opc.timeoutMs; return op === "estado_pasta" ? estado(10) : janela(10, faixa(1, 9)); } };
+  t = AGORA; const comecou = AGORA;
+  const logs = []; const r = await rodarRotina({ banco: m.banco, cofre: m.cofre, worker: w, aviso: m.aviso, registrar: (e) => logs.push(e), agora: () => { return t; } });
+  for (const [, inicio, lim] of recebidos) { assert.ok(lim <= CH_MAX && lim >= CH_MIN, "limite por chamada: " + lim); assert.ok(inicio + lim <= DURO, "a chamada termina até o prazo duro"); }
+  assert.ok(t - comecou <= DURO, "tempo total gasto no Worker ≤ prazo duro"); assert.ok(t - comecou + MARGEM < PG_NET);
+  // conta que só começa aos 44 s, com cada chamada demorando o máximo (40 s): a 2ª já recebe só o que resta e a 3ª é recusada
+  let t2 = AGORA; const ch2 = [], inicio2 = AGORA;
+  const contas = [{ conta: C1, dono: U1, apelido: "A", notificar: true, pasta_id: P1, falhas: 0, ultima_tentativa_em: null }, { conta: C2, dono: U1, apelido: "B", notificar: true, pasta_id: P2, falhas: 0, ultima_tentativa_em: null }];
+  const m3 = mundo({ contas, cursor: { uidvalidity: 700, uidnext: 10, reconciliada_em: null } }); const w3 = { async executar(op, ped, cred, opc) { ch2.push([t2 - inicio2, opc.timeoutMs]); t2 += opc.timeoutMs; return op === "estado_pasta" ? estado(10) : janela(10, faixa(1, 9)); } };
+  const logs3 = []; const r3 = await rodarRotina({ banco: m3.banco, cofre: m3.cofre, worker: w3, aviso: m3.aviso, registrar: (e) => logs3.push(e), agora: () => t2 });
+  assert.ok(ch2.every(([ini, lim]) => ini + lim <= DURO), JSON.stringify(ch2)); assert.ok(t2 - inicio2 + MARGEM < PG_NET, "termina antes do timeout do pg_net: " + (t2 - inicio2));
+  assert.equal(m3.falhas.length, 0, "falta de tempo não é falha da conta"); assert.equal(r3.falhas, 0); assert.ok(r3.ignoradas >= 1, JSON.stringify(r3));
+  assert.deepEqual([m3.travadas.size, m3.marcas.length], [0, 0]);
+});
+
+test("canal.ts: opcoes.timeoutMs encurta a chamada (o prazo da rotina vale de verdade); nunca a alonga acima do limite do canal", async () => {
+  const { criarWorkerHttp } = await import("../supabase/functions/rac-inbox/canal.ts");
+  const sinais = []; const fetchFn = (u, init) => { sinais.push(init.signal); return new Promise((_, rej) => init.signal.addEventListener("abort", () => rej(new Error("x")))); };
+  const w = criarWorkerHttp({ url: "https://w.exemplo.workers.dev", segredo: "s".repeat(40), fetchFn });
+  const t0 = Date.now(); await assert.rejects(w.executar("ping", {}, null, { timeoutMs: 60 }), /canal_falhou/); assert.ok(Date.now() - t0 < 2000, "abortou pelo limite curto (60 ms), não pelos 40 s");
+  const w2 = criarWorkerHttp({ url: "https://w.exemplo.workers.dev", segredo: "s".repeat(40), fetchFn, timeoutMs: 50 }); const t1 = Date.now();
+  await assert.rejects(w2.executar("ping", {}, null, { timeoutMs: 60_000 }), /canal_falhou/); assert.ok(Date.now() - t1 < 2000, "opcoes não alonga acima do limite do canal");
+});
+
+
+test("prazo duro: sem pelo menos 5 s restantes a chamada ao Worker nem é feita; a conta é 'ignorada' (nunca falha, nunca invalida credencial, nada gravado) e a trava é liberada", async () => {
+  const m = mundo({ cursor: { uidvalidity: 700, uidnext: 10, reconciliada_em: null } }); let t = AGORA; let n = 0;
+  const w = { async executar(op, ped, cred, opc) { n++; t += 87_000; return op === "estado_pasta" ? estado(10) : janela(10, faixa(1, 9)); } };
+  const logs = []; const r = await rodarRotina({ banco: m.banco, cofre: m.cofre, worker: w, aviso: m.aviso, registrar: (e) => logs.push(e), agora: () => t });
+  assert.equal(n, 1, "a 2ª chamada (restavam 3 s) foi recusada antes de sair"); assert.deepEqual([r.ignoradas, r.falhas], [1, 0]); assert.ok(logs.some((l) => l.codigo === "prazo_esgotado"));
+  assert.deepEqual([m.falhas.length, m.marcas.length, m.estados.length, m.aplicados.length, m.travadas.size], [0, 0, 0, 0, 0]);
+});

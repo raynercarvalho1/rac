@@ -47,7 +47,7 @@ export function criarWorkerHttp(cfg: ConfigCanal | null): Worker | null {
   if (!RE_CHAVE.test(chave)) return null;
   const destino = base.origin + CAMINHO_CANAL, fetchFn = cfg.fetchFn ?? ((u, i) => fetch(u, i)), agora = cfg.agoraS ?? (() => Math.floor(Date.now() / 1000)), gerarNonce = cfg.nonce ?? nonceAleatorio;
   return {
-    async executar(operacao, pedido, credencial): Promise<ResultadoWorker> {
+    async executar(operacao, pedido, credencial, opcoes): Promise<ResultadoWorker> {
       // sem credencial (o ping do canal) o corpo não leva usuário nem senha: o Worker recusaria campos a mais
       const corpoBytes = codificador.encode(JSON.stringify(credencial ? { operacao, ...pedido, usuario: credencial.usuario, senha: credencial.senha } : { operacao, ...pedido }));
       const timestamp = agora(), nonce = gerarNonce();
@@ -55,7 +55,7 @@ export function criarWorkerHttp(cfg: ConfigCanal | null): Worker | null {
       let resp: Response, texto: string;
       try {
         resp = await fetchFn(destino, {
-          method: "POST", redirect: "error", body: corpoBytes, signal: AbortSignal.timeout(cfg.timeoutMs ?? 40000),
+          method: "POST", redirect: "error", body: corpoBytes, signal: AbortSignal.timeout(Math.max(1, Math.min(cfg.timeoutMs ?? 40000, opcoes?.timeoutMs ?? Infinity))),
           headers: { "Content-Type": "application/json", "X-RAC-Key-Id": chave, "X-RAC-Timestamp": String(timestamp), "X-RAC-Nonce": nonce, "X-RAC-Operacao": operacao, "X-RAC-Assinatura": assinatura },
         });
         texto = await resp.text();

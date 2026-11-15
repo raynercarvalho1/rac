@@ -216,6 +216,8 @@ Sem `RAC_INBOX_WORKER_URL` e `RAC_CANAL_K1` a função responde `worker_nao_conf
 - **Ainda não provado:** o Worker publicado na Cloudflare, a chave de produção igual nos dois serviços, a chamada real função → Worker, TLS e login reais com o iCloud.
 
 ### Roteiro de validação real (a partir de 15/11/2026, tarde)
+> **Atenção:** o site publicado serve a `main`. Os botões **Sincronizar**, **Sincronizar agora** e **Testar conexão** só existem no código do PR #34 e **só aparecem depois que ele for mesclado** e o Pages publicar a versão `2026-11-15.3`. Antes disso, a tela mostra a conta, a credencial e as pastas (código da `main`), mas não tem como disparar a sincronização: use o console (testes A a D abaixo). Depois do merge, basta recarregar o RAC (o Service Worker busca os arquivos na rede e troca o cache sozinho; se o app estiver aberto, feche e abra de novo).
+
 **Carimbos de versão** (aparecem na resposta de `testar_canal` e no botão **Testar conexão**): função `rac-inbox@i2.2` e Worker `rac-inbox-worker@p7.2`. Se o carimbo que voltar for outro, **o código no ar não é o desta branch**. Para a função, vale também `supabase functions download rac-inbox` e comparar `sha256sum` com o código do commit publicado.
 
 **Novidades desta etapa (código pronto, publicação do dono/ChatGPT):** operação **`ping`** no Worker e **`testar_canal`** na função (provam o canal SEM Vault, SEM banco, SEM credencial e SEM abrir o IMAP); o registro da função passa a incluir o **código fechado do Worker** (`detalhe`, ou `http_NNN` quando a resposta não é JSON, ex.: página de erro da Cloudflare) e o botão **Testar conexão** (canal e depois login no iCloud, sem ler nada).
@@ -241,6 +243,9 @@ RACdados.cliente().then(async (sb) => { window.CONTA = (await sb.from("inbox_con
 ```js
 racTeste({ operacao: "listar_pastas", conta_id: CONTA }).then(console.log)   // C) lista as pastas e grava SÓ o nome delas em inbox_pastas (nenhuma mensagem)
 ```
+```js
+RACdados.cliente().then(async (sb) => { const p = (await sb.from("inbox_pastas").select("id,nome_externo")).data; console.table(p); window.PASTA = p.find((x) => x.nome_externo === "RAC-TESTE").id; racTeste({ operacao: "sincronizar_pasta", conta_id: CONTA, pasta_id: PASTA }).then(console.log); })   // D) sincronização controlada da pasta de teste (grava só o cache de cabeçalhos; nada muda na caixa da Apple)
+```
 Depois do merge do PR #34, o mesmo A e B fica no botão **Testar conexão**, e C e a sincronização no botão **Sincronizar**.
 
 | Teste | Resposta que aprova | Se falhar |
@@ -248,6 +253,7 @@ Depois do merge do PR #34, o mesmo A e B fica no botão **Testar conexão**, e C
 | A · `testar_canal` | `{ok:true, canal:"ok", funcao:"rac-inbox@i2.2", worker:"rac-inbox-worker@p7.2"}` | `503 worker_nao_configurado`: `RAC_INBOX_WORKER_URL` ou `RAC_CANAL_K1` ausentes/ inválidos no Supabase. `502 canal_recusado`: chaves diferentes entre Supabase e Cloudflare (`detalhe: assinatura_invalida`), Worker sem o secret (`chave_desconhecida`) ou relógio (`timestamp_fora_da_janela`). `502 servico_indisponivel`: ver o `detalhe` no log da função (`http_404` = URL errada; `http_503`/`1102` = limite do Worker; `registro_indisponivel` = Durable Object; `canal_falhou` = rede). |
 | B · `testar_conta` | `{ok:true}` | `422 credencial_invalida`: a Apple recusou (marca a credencial como inválida; gerar nova senha de app e regravar). `409 credencial_ausente`, `500 credencial_corrompida`: regravar a credencial. `502 servico_indisponivel` com `detalhe` `conexao_falhou`/`timeout`/`saudacao_invalida`/`login_desabilitado`: problema entre o Worker e o iCloud. |
 | C · `listar_pastas` | `{ok:true, pastas:[{id,nome,uso}…]}` com a caixa de entrada (`uso:"entrada"`) | `detalhe` do log, como acima. |
+| D · `sincronizar_pasta` (RAC-TESTE) | `{ok:true, sincronizacao:{tipo:"primeira_leitura", novas:<n>, atualizadas:0, removidas:0}, mensagens_na_pasta:<n>, mais:false}`; repetir dá `sem_mudanca` com 0 novas e as mesmas linhas em `inbox_mensagens_ref` | `409 sincronizacao_em_andamento`: já há uma em curso. `502 servico_indisponivel` com `detalhe`: ver a tabela acima. Erro 22023 de jsonb: o código da função é anterior ao commit `5e9eff5` |
 
 **Onde ver os logs:** função, em *Supabase → Edge Functions → rac-inbox → Logs* (linhas `{"rac_inbox":{"operacao","codigo","status","detalhe"}}`, sem credencial); Worker, em `npx wrangler tail rac-inbox-worker` (na pasta do Worker) durante o teste (a observabilidade fica desligada de propósito).
 

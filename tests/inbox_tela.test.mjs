@@ -325,3 +325,14 @@ test("Testar conexão: duas provas em sequência (canal, depois login no iCloud)
   for (const x of [ambiente(REAL({ credenciais: [] })), ambiente(REAL({ publicado: false }))]) { await x.abrir(UUID); await assentar(); assert.ok(!botao(x.raiz, "Testar conexão"), "sem credencial ou com o serviço desligado não há teste"); }
 });
 
+test("o estado da captura de produção (conta com credencial guardada e a pasta RAC-TESTE, de uso 'outra', selecionada): o botão Sincronizar existe no topo e na conexão e sincroniza A PASTA MOSTRADA", async () => {
+  const P_TESTE = "aaaaaaaa-0000-4000-8000-0000000000a3";
+  const pastas = [...PASTAS(), { id: P_TESTE, conta_id: UUID, nome_externo: "RAC-TESTE", nome_exibicao: "RAC-TESTE", uso: "outra", total: 1, nao_lidas: 0 }];
+  const a = ambiente(REAL({ pastas, mensagens: [], sincs: [], invoke: () => ok({ sincronizacao: { tipo: "primeira_leitura", novas: 1, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: 1, mais: false }) })); await a.abrir(UUID); await assentar();
+  comClasse(a.raiz, "inb-pasta").find((b) => texto(b).includes("RAC-TESTE")).onclick();
+  assert.equal(comClasse(a.raiz, "inb-topo-sinc").length, 1, "o botão do topo (inb-topo-sinc) é desenhado"); assert.ok(botao(a.raiz, "Sincronizar agora"), "e o da caixa de conexão");
+  assert.ok(texto(comClasse(a.raiz, "inb-conexao")[0]).includes("Credencial guardada"), "no estado da captura: credencial guardada");
+  botao(a.raiz, "Sincronizar agora").onclick(); await assentar();
+  assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.pasta_id]), [["sincronizar_pasta", P_TESTE]], "sincroniza a pasta selecionada (RAC-TESTE), sem listar pastas de novo");
+});
+

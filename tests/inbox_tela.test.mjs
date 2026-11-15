@@ -27,7 +27,7 @@ const esperar = () => new Promise((r) => setTimeout(r, 0));
 const UUID = "11111111-1111-4111-8111-111111111111", SENHA_APP = "abcd-efgh-ijkl-mnop";
 
 /* o ambiente: h() como o da base, o kit real, o núcleo real, um banco de mentira que REGISTRA toda gravação, e "precisa" que carrega módulos de verdade */
-function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], erroLeitura = null, erroGravar = null, publicado = false, invoke = null } = {}) {
+function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], erroLeitura = null, erroGravar = null, publicado = true, invoke = null } = {}) {
   const raiz = new No("div"), titulo = new No("h1"), gravacoes = [], lidas = [], chamadas = [];
   const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : null) };
   const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
@@ -41,7 +41,7 @@ function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], err
   ctx.h = (tag, attrs, ...filhos) => { const e = doc.createElement(tag); if (attrs) Object.keys(attrs).forEach((k) => { const v = attrs[k]; if (v === undefined || v === null || v === false) return; if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v); });
     const add = (c) => { if (c === null || c === undefined || c === false) return; if (Array.isArray(c)) { c.forEach(add); return; } e.appendChild(typeof c === "string" || typeof c === "number" ? doc.createTextNode(String(c)) : c); }; filhos.forEach(add); return e; };
   for (const a of ["js/graficos.js", "js/kit.js", "js/inbox-servico.js", "js/inbox.js"]) vm.runInContext(lerArq(a), ctx, { filename: a });
-  if (publicado) vm.runInContext("INBS.publicado=true", ctx);
+  vm.runInContext("INBS.publicado=" + (publicado ? "true" : "false"), ctx);
   return { ctx, raiz, titulo, gravacoes, lidas, chamadas, abrir: async (...a) => { await ctx.renderInbox(...a); } };
 }
 const CONTA = { id: UUID, apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova", provedor: "icloud" };
@@ -68,8 +68,13 @@ test("sem contas: estado vazio com o formulário de cadastro; com contas sem con
   assert.ok(comClasse(d.raiz, "inb-ponto").every((p) => p.attrs["aria-label"] && p.attrs.title), "o estado da conta nunca é só a cor: tem rótulo");
   comClasse(d.raiz, "inb-conta")[0].onclick(); t = texto(d.raiz);
   assert.match(t, /Esta caixa ainda não foi lida/); assert.match(t, /não está vazia, está sem leitura/); assert.match(t, /Sem credencial/); assert.match(t, /Nova/, "o estado da conta aparece por extenso");
-  assert.match(t, /A conexão será liberada quando o serviço de e-mail for publicado/, "enquanto a função não existir, nada é pedido");
-  assert.equal(todos(d.raiz).filter((n) => n.tag === "input" && n.attrs.type === "password").length, 0, "sem serviço publicado não há campo de senha");
+  assert.ok(!/A conexão será liberada quando o serviço de e-mail for publicado/.test(t), "com a função publicada, o aviso de espera some");
+  assert.ok(botao(d.raiz, "Conectar"), "com o serviço publicado a conta oferece Conectar");
+  assert.equal(todos(d.raiz).filter((n) => n.tag === "input" && n.attrs.type === "password").length, 0, "o campo de senha só aparece depois de pedir Conectar");
+  assert.equal(d.chamadas.length, 0, "abrir a conta não chama o serviço nem manda credencial");
+  const sp = ambiente({ contas: [CONTA], publicado: false }); await sp.abrir(); comClasse(sp.raiz, "inb-conta")[0].onclick();
+  assert.match(texto(sp.raiz), /A conexão será liberada quando o serviço de e-mail for publicado/, "ramo de segurança: com a flag desligada, nada é pedido");
+  assert.equal(todos(sp.raiz).filter((n) => n.tag === "input" && n.attrs.type === "password").length, 0, "sem serviço publicado não há campo de senha");
   assert.deepEqual(d.gravacoes, [], "abrir a tela só lê");
 });
 
@@ -81,7 +86,9 @@ test("o 'exemplo da interface': isolado no módulo próprio, rotulado, com lista
   const linhas = comClasse(a.raiz, "inb-linha"); assert.equal(linhas.length, a.ctx.INBOX_DEMO.length);
   const t = texto(a.raiz); assert.equal(comClasse(a.raiz, "inb-demo").length, 1, "uma faixa só, no topo"); assert.match(texto(comClasse(a.raiz, "inb-demo")[0]), /DEMONSTRAÇÃO\s+Mensagens fictícias; nenhuma caixa real\./);
   for (const c of ["inb-remetente", "inb-assunto", "inb-previa", "inb-hora", "inb-avatar"]) assert.ok(comClasse(a.raiz, c).length >= linhas.length, c + " em cada linha");
-  assert.deepEqual(comClasse(a.raiz, "inb-data").map((n) => n.textContent).filter((x, i, l) => l.indexOf(x) === i), ["Hoje", "Esta semana", "Anteriores"], "grupos de data como no Mail");
+  const grupos = comClasse(a.raiz, "inb-data").map((n) => n.textContent).filter((x, i, l) => l.indexOf(x) === i);
+  assert.ok(["Hoje", "Ontem"].includes(grupos[0]), "o exemplo mais recente é de 'minutos atrás': Hoje, ou Ontem se o teste rodar logo após a meia-noite");   // (relógio real: não depende da hora do dia)
+  assert.deepEqual(grupos.slice(1), ["Esta semana", "Anteriores"], "grupos de data como no Mail");
   assert.ok(linhas.some((l) => / inb-linha--nova /.test(" " + l.className + " ")), "não lidas destacadas"); assert.ok(comClasse(a.raiz, "inb-ico--anexo").length >= 1, "anexo sinalizado por ícone");
   assert.ok(linhas.every((l) => /Não lida\. |^[^.]+\. /.test(l.attrs["aria-label"])), "cada linha tem rótulo de acessibilidade");
   /* filtros */

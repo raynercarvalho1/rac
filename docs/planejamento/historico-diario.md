@@ -939,3 +939,20 @@ Família e da Casa.
 1. Com as autorizações: aplicar e conferir as migrations; publicar a função; ligar `INBS.publicado`; conectar a conta do iCloud pela tela e conferir `inbox_cofre.conferir()`.
 2. P7 (Worker de produto e canal assinado) e, então, a I2: sincronizar pastas e estado e a lista real de mensagens no lugar do exemplo.
 
+## 15/11/2026 · RAC Inbox — habilitar o serviço publicado
+
+### 1. O que fizemos
+
+- Conferido que a branch `claude/rac-inbox-audit-ejpbe9` está em `4587f7e0231ea26b862cd5703c0421a681cc2d89`, a referência da função publicada (v1, `verify_jwt=true`, informado pelo dono).
+- `INBS.publicado = true` em `js/inbox-servico.js` (única mudança no código do produto); versão do site `2026-11-15.1` (sw.js, js/app.js e index.html).
+- Testes do Inbox ajustados ao novo padrão (o ramo "flag desligada" continua coberto) e uma asserção do exemplo tornada independente da hora do dia (falha preexistente após 00:00 UTC). Documentação atualizada (docs/inbox.md, 07, mapa).
+- **Sem** alteração da função, secrets, migrations, Worker, credencial real ou sincronização de mensagens.
+
+### 2. O que estamos fazendo
+
+- PR para a `main`; aguardando o CI do SHA atual. Merge só com CI verde, sem conflito e sem arquivo protegido.
+
+### 3. O que vamos fazer
+
+1. Dono: confirmar as migrations 051/052 em produção; depois o primeiro cadastro real (senha de app) e `inbox_cofre.conferir()`.
+2. P7 e I2, com autorização própria.

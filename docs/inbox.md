@@ -1,7 +1,7 @@
 # RAC Inbox · I1 — Fundação (documento técnico)
 
 Registro do que foi **efetivamente implementado** na fase I1 do [Documento 10](planejamento/10-rac-inbox.md). Atualizado em 14/11/2026.
-Estado: **código e testes prontos; migrations 051 e 052 PREPARADAS e NÃO aplicadas em produção; função `rac-inbox` escrita e testada, NÃO publicada; nada publicado.**
+Estado (15/11/2026): **função `rac-inbox` PUBLICADA em produção (versão 1, `verify_jwt=true`, informado pelo dono) e cliente do site HABILITADO (`INBS.publicado = true`, aguardando o merge e o deploy do site). Migrations 051 e 052: o estado em produção não foi confirmado nesta sessão (sem elas, guardar credencial volta erro controlado). Nenhuma credencial real cadastrada; leitura de e-mail (P7/I2) não implementada.**
 
 ## O que já funciona no RAC
 
@@ -10,7 +10,7 @@ Estado: **código e testes prontos; migrations 051 e 052 PREPARADAS e NÃO aplic
 - **iPhone (até 860 px):** a **lista ocupa a tela** com título grande, busca e filtros; a **leitura** e as **caixas** abrem em **tela própria** (voltar no topo); na leitura, as ações ficam numa **barra inferior** com alvos de 44 px; áreas seguras (`env(safe-area-inset-*)`) respeitadas. Temas claro e escuro vêm dos tokens `--rac-*`: o Inbox **não define token nem cor nova** (testado).
 - Estados: carregando, vazio, erro (com "Tentar de novo"), **estrutura pendente** (migration 051 ainda não aplicada) e **desconectado** (conta cadastrada, sem conexão: aparece como "Nova"/"Desconectada", nunca como caixa vazia; a caixa unificada marca a contagem como parcial).
 - **Cadastro de conta** (provedor, nome e endereço; só iCloud): é a única gravação **da tela** em tabela (`inbox_contas`); o cadastro não tem campo de senha.
-- **Conexão da conta (credencial no cofre):** dentro da conta, mostra o estado (sem credencial, guardada, recusada pelo provedor) e oferece **Conectar / Substituir senha / Desconectar e remover a credencial**. O formulário (login do ID Apple e senha **específica de app**) **só aparece com o serviço publicado**; hoje a tela diz que a conexão será liberada na etapa I2 e **nada é pedido nem guardado**. Detalhes na seção "Custódia da credencial no Vault".
+- **Conexão da conta (credencial no cofre):** dentro da conta, mostra o estado (sem credencial, guardada, recusada pelo provedor) e oferece **Conectar / Substituir senha / Desconectar e remover a credencial**. O formulário (login do ID Apple e senha **específica de app**) **só aparece com o serviço publicado** (`INBS.publicado`, ligado em 15/11/2026): a tela oferece **Conectar** e o campo de senha só abre depois desse clique; com a flag desligada a tela volta a dizer que a conexão será liberada e **nada é pedido nem guardado**. Detalhes na seção "Custódia da credencial no Vault".
 - **"Ver exemplo da interface"**: mostra mensagens **fictícias** (`js/inbox-demo.js`, domínio `example.com`) com a faixa "DEMONSTRAÇÃO" em todo lugar. Os dados nem são carregados até o dono pedir, ficam isolados em outro módulo, nunca são gravados, e o serviço real nunca os importa.
 - Matriz de **paridade honesta** entre provedores (comprovado / não comprovado / feito pelo RAC / indisponível / planejado).
 - **Não funciona ainda (de propósito):** ler mensagens reais, sincronizar, enviar, responder, mover, excluir, marcar, anexos, polling, notificações, IA, Gmail, Outlook, categorias inteligentes. As ações aparecem **desligadas** ("disponível nas próximas etapas"); nenhuma altera caixa.
@@ -60,7 +60,7 @@ Interface RAC (js/inbox.js)  →  inbox-servico.js  →  função "rac-inbox" (S
 
 Implementado agora (e testado):
 1. **Contrato** (`NUCLEO.INB_OPERACOES`, `NUCLEO.inbPedido`): só `testar_conta`, `listar_pastas` e `estado_pasta`, **todas de leitura**, só com IDs (UUID). Verbo de escrita (enviar, responder, mover, excluir, marcar, anexar, criar pasta/filtro, `store`, `expunge`, `append`…) é recusado com `escrita_fora_do_escopo`; qualquer campo de credencial (`usuario`, `senha`, `token`, `authorization`…) com `credencial_proibida`; campo extra, ID inválido e operação desconhecida também têm código fechado.
-2. **Cliente** (`inboxChamar`): valida antes de qualquer rede; **enquanto `INBS.publicado` for `false` não envia nada** e devolve `servico_nao_publicado` (nada é simulado). Falhas HTTP viram código (`sem_login`, `servico_nao_publicado`, `limite`, `servico_indisponivel`, `rede`); a mensagem do servidor nunca é mostrada.
+2. **Cliente** (`inboxChamar`): valida antes de qualquer rede; **com `INBS.publicado = false` não envia nada** e devolve `servico_nao_publicado` (nada é simulado); desde 15/11/2026 a flag é `true` e a chamada é `SB.functions.invoke("rac-inbox", …)`, que leva a sessão autenticada do Supabase (sem sessão → 401 → `sem_login`; sem MFA exigido → a política da função, `mfa_obrigatorio`); sem alternativa insegura nem armazenamento no aparelho. Falhas HTTP viram código (`sem_login`, `servico_nao_publicado`, `limite`, `servico_indisponivel`, `rede`); a mensagem do servidor nunca é mostrada.
 3. **Normalizador** (`NUCLEO.inbRespostaEstado`): converte a resposta de `estado_pasta` na linha de `inbox_sincronizacao` com **esquema fechado**; o formato é exatamente o da **P6 real** (conferido com a resposta de 14/11/2026: UIDVALIDITY 1752612613, UIDNEXT 4, `primeira_leitura`; 2ª rodada `sem_mudanca`). `NUCLEO.inbCursor` repete as regras de comparação do Worker.
 
 Preservado, sem alteração: Worker, pins (P1, P2, P6), OIDC, uso único; o Worker continua **isolado da `main`**.
@@ -128,8 +128,8 @@ Só nas operações de **leitura** no provedor (`testar_conta`, `listar_pastas`,
 3. Emergência sem o site, no SQL Editor: `select inbox_cofre.remover('<id do dono>', '<id da conta>');` (apaga ponteiro e segredo) e depois `select inbox_cofre.conferir();` deve mostrar zeros. Em último caso: `delete from public.inbox_credenciais where conta_id = '<id>';` (o gatilho apaga o segredo).
 4. Excluir o usuário no Supabase também remove tudo dele.
 
-### Como colocar para funcionar (só com autorização do dono; **nada disto foi feito**)
-Ordem: aplicar `051` e `052` (002 e 022 antes; 050 opcional) → conferir (`conferir()`, privilégios e `log_parameter_max_length_on_error`) → publicar a função `rac-inbox` → trocar `INBS.publicado` para `true` no site. A **leitura de e-mail** ainda depende do canal assinado com o Worker (P7), fora desta entrega.
+### Como colocar para funcionar (só com autorização do dono)
+Ordem: aplicar `051` e `052` (002 e 022 antes; 050 opcional) → conferir (`conferir()`, privilégios e `log_parameter_max_length_on_error`) → publicar a função `rac-inbox` (**feito pelo dono; versão 1**) → trocar `INBS.publicado` para `true` no site (**feito no código em 15/11/2026; vale quando o site for publicado**). A **leitura de e-mail** ainda depende do canal assinado com o Worker (P7), fora desta entrega.
 
 ## Testes
 
@@ -138,7 +138,7 @@ Limites: PGlite prova o PostgreSQL, **não** o Supabase real nem o Vault real; o
 
 ## O que falta para a I2 (leitura de e-mails)
 
-1. Autorização do dono para **aplicar a 051 e a 052** (e a 050, se quiser o catálogo), conferir (`inbox_cofre.conferir()`, privilégios do cofre, `log_parameter_max_length_on_error`) e **publicar a função `rac-inbox`**; depois, `INBS.publicado = true` no site.
+1. **Confirmar** que a 051 e a 052 estão aplicadas (e a 050, se quiser o catálogo) e conferir (`inbox_cofre.conferir()`, privilégios do cofre, `log_parameter_max_length_on_error`). A função `rac-inbox` já está publicada e `INBS.publicado = true` (15/11/2026). Primeiro cadastro real: com MFA do dono, **Conectar** com o ID Apple e uma senha **específica de app**; conferir depois `inbox_cofre.conferir()`.
 2. **Canal assinado com o Worker (P7)**: um Worker de produto (o atual é prova de infraestrutura e só aceita token do GitHub) e a assinatura da tarefa entre a função e ele. Sem isso a função responde `worker_nao_configurado` e a credencial guardada ainda não é usada.
 3. Sincronização de pastas (`listar_pastas` e `estado_pasta` → `inbox_pastas` e `inbox_sincronizacao`) e, depois, a lista real de mensagens (cabeçalhos mínimos) no lugar do exemplo.
 4. Decidir a retenção de qualquer cópia de conteúdo (Documento 10, seção 5.1) antes de guardar um byte de e-mail.

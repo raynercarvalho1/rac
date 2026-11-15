@@ -3,9 +3,9 @@
    A credencial (login do ID Apple + senha ESPECÍFICA DE APP) é enviada UMA vez, por HTTPS e com a sessão do dono, só na operação "credencial_guardar" (que também substitui), e
    NUNCA mais volta ao navegador: nenhuma resposta a traz, e este arquivo não a guarda, não a registra e não a repassa a nenhum outro lugar. As demais operações levam só IDs.
    Só existem operações de LEITURA e de custódia da credencial; verbo de escrita na caixa (enviar, mover, excluir…) é recusado antes de qualquer rede (NUCLEO.inbPedido).
-   INBS.publicado é false enquanto a função não for publicada (passo do dono, com as migrations 051 e 052): nada é simulado, o pedido volta com "servico_nao_publicado".
+   INBS.publicado é true desde 15/11/2026 (função rac-inbox publicada em produção, versão 1, verify_jwt=true). Se a função faltar (404) ou a flag voltar a false, nada é simulado: o pedido volta com "servico_nao_publicado".
    Toda falha volta como código fechado (INB_ERROS), nunca como texto do servidor. */
-  var INBS={publicado:false,funcao:"rac-inbox"};
+  var INBS={publicado:true,funcao:"rac-inbox"};
   function inboxStatusErro(status){return status===401||status===403?"sem_login":status===404?"servico_nao_publicado":status===429?"limite":"servico_indisponivel"}
   /* o corpo de um erro HTTP da função é {ok:false,erro:<código>}: só o código conhecido passa; o resto cai no código do status */
   function inboxCodigoDoErro(contexto,status){

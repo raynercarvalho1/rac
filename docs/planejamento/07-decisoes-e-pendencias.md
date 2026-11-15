@@ -248,7 +248,7 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Dados de exemplo** só no módulo isolado do exemplo da interface, rotulados "DEMONSTRAÇÃO" e nunca gravados.
 - Backup do site: as tabelas do Inbox são **só-exportar** (o estado de sincronização é reconstruível; restaurar um cursor antigo perderia mensagens). **A confirmar pelo dono.**
 - Catálogo da auditoria: a 051 se inclui nele **se a 050 existir** (senão avisa e segue).
-- Serviço de e-mail: contrato só de leitura e só com IDs; **não publicado** (`INBS.publicado = false`), nada é simulado.
+- Serviço de e-mail: contrato só de leitura e só com IDs; nada é simulado. **Atualização 15/11/2026:** função publicada (v1) e `INBS.publicado = true` no código (ver o registro de 15/11/2026 abaixo).
 - O iCloud respondeu `[READ-WRITE]` ao `EXAMINE`: a garantia de somente leitura é do Worker, não do servidor; nenhum comando de escrita foi adicionado.
 
 **Pendente, depende do dono:**
@@ -276,3 +276,9 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 3. Canal assinado com o Worker (**P7**): um Worker de produto e a assinatura da tarefa; sem ele a credencial guardada não é usada.
 4. Aceitar ou não o risco residual: a função conecta como `postgres`, e o administrador do Supabase pode ler o Vault.
 5. Ao desconectar uma conta, **revogar também a senha de app na Apple** (o RAC não consegue).
+
+## 15/11/2026 · RAC Inbox — função `rac-inbox` publicada e cliente habilitado
+
+- **Informado pelo dono:** a Edge Function `rac-inbox` está publicada no Supabase de produção, versão 1, `verify_jwt=true`. Código conferido: a branch está no SHA de referência `4587f7e`.
+- **Decisão técnica (reversível):** `INBS.publicado` passa de `false` para `true` em `js/inbox-servico.js`. Nada mais no código do produto muda; função, secrets, migrations, Worker e sincronização não foram tocados. A chamada `SB.functions.invoke("rac-inbox", …)` usa a sessão autenticada; sem sessão a resposta é `sem_login`; erros viram códigos fechados; nenhuma credencial fica no navegador (testes).
+- **Pendente, depende do dono:** (1) confirmar que as migrations 051 e 052 estão aplicadas em produção (sem elas, guardar credencial devolve erro controlado); (2) primeiro cadastro real pela tela, só com senha **específica de app**, e conferir `inbox_cofre.conferir()`; (3) P7 (canal assinado com o Worker) e I2 (leitura de e-mail), cada um com autorização própria.

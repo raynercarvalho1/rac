@@ -146,12 +146,13 @@ test("cliente do serviço (js/inbox-servico.js): valida antes de qualquer rede, 
   const ctx = { console, Promise, Object, Array, JSON, String, Number, NUCLEO: N, SB: { functions: { invoke: (nome, o) => { chamadas.push([nome, o]); return Promise.resolve(resposta); } } } };
   ctx.window = ctx; vm.createContext(ctx); vm.runInContext(ler("js/inbox-servico.js"), ctx);
   const chamar = async (...a) => JSON.parse(JSON.stringify(await ctx.inboxChamar(...a)));   // (objetos de outro contexto do vm: compara só os dados)
-  assert.equal(vm.runInContext("INBS.publicado", ctx), false, "a Edge Function ainda não foi publicada");
+  assert.equal(vm.runInContext("INBS.publicado", ctx), true, "a Edge Function rac-inbox está publicada (15/11/2026)");
+  vm.runInContext("INBS.publicado=false", ctx);   // ramo de segurança: com a flag desligada nada sai para a rede
   assert.deepEqual(await chamar("enviar", { conta_id: UUID_A }), { ok: false, erro: "escrita_fora_do_escopo" });
   assert.deepEqual(await chamar("testar_conta", { conta_id: UUID_A, senha: "x" }), { ok: false, erro: "credencial_proibida" });
   assert.deepEqual(await chamar("testar_conta", { conta_id: UUID_A }), { ok: false, erro: "servico_nao_publicado" });
   assert.equal(chamadas.length, 0, "nada foi enviado à rede (nem pedido válido, enquanto não publicado)");
-  vm.runInContext("INBS.publicado=true", ctx);   // só para testar o ramo de rede, com um serviço de mentira
+  vm.runInContext("INBS.publicado=true", ctx);   // religa para testar o ramo de rede, com um serviço de mentira
   resposta = { data: { ok: true, exame: { uidvalidity: 5, uidnext: 9 }, sincronizacao: { tipo: "sem_mudanca" }, mensagens_na_pasta: 2, duracao_ms: 10 }, error: null };
   assert.deepEqual(await chamar("estado_pasta", { conta_id: UUID_A, pasta_id: UUID_B }), { ok: true, linha: { uidvalidity: 5, uidnext: 9, tipo_ultima: "sem_mudanca", total: 2, duracao_ms: 10 } });
   assert.deepEqual(JSON.parse(JSON.stringify(chamadas[0])), ["rac-inbox", { body: { operacao: "estado_pasta", conta_id: UUID_A, pasta_id: UUID_B } }], "só a operação e os IDs saem do navegador");

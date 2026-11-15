@@ -24,7 +24,8 @@ test("segredos: CLOUDFLARE_* só no job publicar, que usa o Environment protegid
   assert.match(publicar, /environment: cloudflare-production\n/);
   const usos = [...publicar.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]); assert.deepEqual([...new Set(usos)].sort(), ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]);
   assert.ok(!/secrets\.(?!CLOUDFLARE_(API_TOKEN|ACCOUNT_ID)\b)/.test(semComent), "nenhum outro secret (nem a chave do canal, nem credencial iCloud, nem Supabase)");
-  assert.ok(!/RAC_CANAL_K[12]\s*[:=]|secret (put|bulk|delete)|wrangler secret|--var\b|--keep-vars/.test(semComent), "não cria, troca nem apaga secret");
+  assert.ok(!/RAC_CANAL_K[12]\s*[:=]|secret (put|bulk|delete)|wrangler secret|--var\b/.test(semComent), "não cria, troca nem apaga secret");
+  assert.match(publicar, /wrangler\.js" deploy --config "\$RUNNER_TEMP\/publicar\/wrangler\.publicar\.jsonc" --keep-vars /, "preserva as variáveis de texto do painel que não estão no arquivo");
   assert.ok(!/actions\/(upload|download)-artifact|actions\/cache/.test(semComent), "nenhum artefato nem cache: o pacote vai por output público e conferido por hash");
   assert.ok(!/echo[^\n]*(\$CLOUDFLARE_API_TOKEN|\$\{CLOUDFLARE_API_TOKEN)/.test(semComent), "o token nunca é impresso");
   assert.match(WF, /-K <\(printf 'header = "Authorization: Bearer %s"\\n' "\$CLOUDFLARE_API_TOKEN"\)/, "o token vai por substituição de processo, não como argumento");
@@ -75,4 +76,13 @@ test("confirmação e saúde: deployment ID, version ID, secret K1 preservado (s
 test("documentação: o guia explica secrets, Environment, execução pelo iPhone, conferência e rollback", () => {
   const g = ler("docs/inbox-worker-deploy.md");
   for (const t of [/CLOUDFLARE_API_TOKEN/, /CLOUDFLARE_ACCOUNT_ID/, /cloudflare-production/, /iPhone/, /Rollback|rollback/, /deployment ID/i, /RAC_CANAL_K1/, /Workers Scripts/, /Deployment branches|Selected branches/i, /Required reviewers/i]) assert.match(g, t);
+});
+
+test("falha segura: a API só distingue ok / ausente / falha; erro de permissão nunca vira 'secret ausente'; migration_tag v1 exigida; deploy e confirmação com falha parcial nunca aparecem como concluídos", () => {
+  assert.match(publicar, /CF_CLASSE=ok/); assert.match(publicar, /CF_CLASSE=ausente/); assert.match(publicar, /CF_CLASSE=falha/); assert.match(publicar, /\. == 10007 or \. == 10090 or \. == 10092/, "os mesmos códigos de 'Worker inexistente' que o Wrangler usa");
+  assert.ok(!/\|\| true\)?\s*\n[^\n]*NOMES/.test(publicar) && !/select\(\.success == true\) \| \[\.result\[\]\?\.name\]/.test(publicar), "a leitura de secrets não engole erro");
+  assert.match(publicar, /Isto NÃO significa que o secret não exista/); assert.match(publicar, /\.result\.default_environment\.script\.migration_tag/); assert.match(publicar, /\[ "\$TAG" = "v1" \] \|\| fail/);
+  assert.match(publicar, /id: deploy/); assert.match(publicar, /id: confirmar/); assert.match(publicar, /if: \$\{\{ always\(\) \}\}/); assert.match(publicar, /PUBLICADO, MAS NÃO CONFIRMADO/); assert.match(publicar, /Nada foi publicado/);
+  assert.match(publicar, /\[ "\$VER_LOG" = "\$VER_ID" \] \|\| fail/, "a versão ativa tem de ser a que o Wrangler publicou");
+  assert.ok(!/Worker rac-inbox-worker publicado\n/.test(publicar), "nenhum resumo afirma 'publicado' antes da confirmação");
 });

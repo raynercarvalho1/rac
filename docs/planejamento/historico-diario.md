@@ -1142,3 +1142,6 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono executa o workflow pelo iPhone, depois **Testar conexão**, **Testar envio (SMTP)** (sem e-mail) e o envio de teste. Só então o resultado real do SMTP é registrado aqui.
 
+### Auditoria do PR #42 (15/11/2026, antes da mesclagem)
+- Verificado no código do Wrangler `4.161.0`: `deploy` herda secrets (`keepSecrets` fixo), mas apagaria variáveis de texto não declaradas (corrigido com `--keep-vars`); a migração `v1` só é tratada como aplicada com `migration_tag == v1` no Worker publicado (agora conferido antes do deploy). Permissões da API (secrets, deployments, subdomínio) aceitam Workers Scripts Write segundo a documentação, **sem teste real**. Erro de API deixou de virar "secret ausente"; falhas parciais passam a ser sinalizadas ("PUBLICADO, MAS NÃO CONFIRMADO"). Limite conhecido: bindings não declarados de outros tipos (KV, D1…) não são preservados.
+

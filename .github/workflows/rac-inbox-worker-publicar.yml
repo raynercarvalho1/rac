@@ -334,44 +334,80 @@ jobs:
           fi
           echo "Token Cloudflare ativo (e-mail e nome da conta não são exibidos)."
 
-      # estado ANTES: nomes (nunca valores) dos secrets do Worker e o deployment atual (para o rollback)
-      - name: Estado anterior do Worker (nomes de secrets e deployment atual, sem valores)
+      # consulta à API da Cloudflare com resultado em TRÊS classes, para nunca confundir erro com ausência: ok (200 e success), ausente (a Cloudflare diz que o Worker não existe: códigos 10007, 10090 ou 10092, os mesmos
+      # que o Wrangler trata como "Worker novo") e falha (qualquer outra coisa: permissão negada, token inválido, rede, resposta inesperada). Falha NUNCA vira "ausente". O token vai por substituição de processo.
+      - name: Preparar a consulta segura à API (sem secrets neste passo)
+        run: |
+          cat > "$RUNNER_TEMP/cf-api.sh" <<'SH'
+          cf_get() {
+            local codigo
+            codigo=$(curl -sS -m 30 -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/$1" 2>/dev/null) || codigo=000
+            CF_HTTP="$codigo"
+            if [ "$codigo" = "200" ] && jq -e '.success == true' "$RUNNER_TEMP/resp.json" > /dev/null 2>&1; then CF_CLASSE=ok
+            elif jq -e '[.errors[]?.code] | any(. == 10007 or . == 10090 or . == 10092)' "$RUNNER_TEMP/resp.json" > /dev/null 2>&1; then CF_CLASSE=ausente
+            else CF_CLASSE=falha; fi
+          }
+          SH
+
+      # estado ANTES (só leitura): migração, nomes (nunca valores) dos secrets e deployment atual. Qualquer resposta que não seja "ok" ou "Worker inexistente" PARA tudo antes de publicar.
+      - name: Estado anterior do Worker (migração, nomes de secrets e deployment atual, sem valores)
         id: antes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           EXIGIR_K1: ${{ inputs.exigir_secret_k1 }}
         run: |
-          api() { curl -sS -m 30 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$NOME_WORKER/$1"; }
-          NOMES=$(api secrets | jq -r 'select(.success == true) | [.result[]?.name] | join(",")' || true)
-          DEP=$(api deployments | jq -r 'select(.success == true) | (.result.deployments // []) | sort_by(.created_on) | reverse | .[0].id // empty' || true)
-          if [ -z "$NOMES" ] && [ -z "$DEP" ]; then
-            echo "Worker $NOME_WORKER ainda sem secrets nem deployment (ou a leitura da API não foi permitida pelo token)."
+          fail() { echo "::error::$1"; exit 1; }
+          . "$RUNNER_TEMP/cf-api.sh"
+          # 1) o Worker existe? e a migração dele é exatamente v1? (é o que o Wrangler lê: sem v1 ele tentaria aplicar a migração de novo sobre a classe NonceUnico)
+          cf_get "workers/services/$NOME_WORKER"
+          case "$CF_CLASSE" in
+            ok)
+              TAG=$(jq -r '.result.default_environment.script.migration_tag // empty' "$RUNNER_TEMP/resp.json")
+              [ "$TAG" = "v1" ] || fail "O Worker publicado tem migration_tag \"${TAG:-nenhuma}\", e o esperado é \"v1\". Publicar agora faria o Wrangler tentar aplicar a migração de novo sobre a classe NonceUnico. Nada foi publicado; avise o desenvolvedor."
+              EXISTE=sim ;;
+            ausente)
+              [ "$EXIGIR_K1" = "nao" ] || fail "O Worker $NOME_WORKER não existe nesta conta. Para uma primeira publicação use exigir_secret_k1 = nao. Nada foi publicado."
+              EXISTE=nao ;;
+            *) fail "Não consegui confirmar o estado do Worker na Cloudflare (HTTP $CF_HTTP; token sem permissão de leitura de Workers Scripts, token inválido ou falha de rede). Nada foi publicado." ;;
+          esac
+          # 2) secrets: só os NOMES; erro de permissão nunca é lido como "secret ausente"
+          NOMES=""; DEP=""
+          if [ "$EXISTE" = "sim" ]; then
+            cf_get "workers/scripts/$NOME_WORKER/secrets"
+            [ "$CF_CLASSE" = "ok" ] || fail "Não consegui listar os secrets do Worker (HTTP $CF_HTTP). Isto NÃO significa que o secret não exista: o token precisa de Workers Scripts (Edit ou Read). Nada foi publicado."
+            NOMES=$(jq -r '[.result[]?.name] | join(",")' "$RUNNER_TEMP/resp.json")
+            cf_get "workers/scripts/$NOME_WORKER/deployments"
+            [ "$CF_CLASSE" = "ok" ] || fail "Não consegui ler os deployments do Worker (HTTP $CF_HTTP). Nada foi publicado."
+            DEP=$(jq -r '(.result.deployments // []) | sort_by(.created_on) | reverse | .[0].id // empty' "$RUNNER_TEMP/resp.json")
           fi
           TEM_K1=nao
           case ",$NOMES," in *,RAC_CANAL_K1,*) TEM_K1=sim ;; esac
           if [ "$EXIGIR_K1" = "sim" ] && [ "$TEM_K1" != "sim" ]; then
-            echo "::error::O secret RAC_CANAL_K1 não foi encontrado no Worker (ou o token não pode listar secrets). Nada foi publicado. Para uma primeira publicação use exigir_secret_k1 = nao e depois cadastre o secret (docs/inbox-worker-deploy.md)."
-            exit 1
+            fail "A Cloudflare respondeu normalmente e o secret RAC_CANAL_K1 NÃO está no Worker. Nada foi publicado. Cadastre o secret (docs/inbox-worker-deploy.md) ou, só se for mesmo a primeira publicação, use exigir_secret_k1 = nao."
           fi
           {
+            echo "existe=$EXISTE"
             echo "k1_antes=$TEM_K1"
             echo "deployment_anterior=$DEP"
           } >> "$GITHUB_OUTPUT"
-          echo "RAC_CANAL_K1 presente antes: $TEM_K1; deployment anterior: ${DEP:-nenhum}"
+          echo "Worker existe: $EXISTE$([ "$EXISTE" = sim ] && echo " (migration_tag v1 conferida)"); RAC_CANAL_K1 presente antes: $TEM_K1; deployment anterior: ${DEP:-nenhum}"
 
-      # PUBLICAÇÃO: o Wrangler fixado, num diretório vazio, com a configuração escrita neste arquivo e o pacote aprovado. Nenhum "secret put": os secrets existentes ficam como estão.
+      # PUBLICAÇÃO: o Wrangler fixado, num diretório vazio, com a configuração escrita neste arquivo e o pacote aprovado. Nenhum "secret put": o Wrangler herda os secrets existentes (keepSecrets fixo no código dele) e
+      # --keep-vars preserva as variáveis de texto do painel que não estão no arquivo (sem ele o deploy as apagaria). Bindings não declarados de outros tipos (KV, D1, R2…) NÃO são preservados: o Worker não tem nenhum.
       - name: Publicar o pacote aprovado
+        id: deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           COMMIT_APROVADO: ${{ needs.verificar.outputs.commit }}
         run: |
           cd "$RUNNER_TEMP/publicar"
-          node "$GITHUB_WORKSPACE/experimentos/rac-inbox-worker-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --config "$RUNNER_TEMP/publicar/wrangler.publicar.jsonc" --message "commit ${COMMIT_APROVADO:0:12}" 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          node "$GITHUB_WORKSPACE/experimentos/rac-inbox-worker-ferramenta/node_modules/wrangler/bin/wrangler.js" deploy --config "$RUNNER_TEMP/publicar/wrangler.publicar.jsonc" --keep-vars --message "commit ${COMMIT_APROVADO:0:12}" 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
-      # confirma o que foi publicado: deployment atual e versão, nomes dos secrets depois (K1 tem de continuar) e saúde SEM assinatura, sem credencial iCloud e sem e-mail
+      # confirma o que foi publicado. Cada verificação que não puder ser feita FALHA o job (nunca é ignorada) e o resumo final diz qual foi o estado real.
       - name: Confirmar versão, deployment e saúde (sem credencial iCloud e sem enviar e-mail)
+        id: confirmar
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -382,43 +418,80 @@ jobs:
           K1_ANTES: ${{ steps.antes.outputs.k1_antes }}
         run: |
           fail() { echo "::error::$1"; exit 1; }
-          api() { curl -sS -m 30 -K <(printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN") "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/$1"; }
-          DEPS=$(api "workers/scripts/$NOME_WORKER/deployments") || fail "Não consegui ler os deployments."
-          DEP=$(jq -r 'select(.success == true) | (.result.deployments // []) | sort_by(.created_on) | reverse | .[0]' <<< "$DEPS")
+          . "$RUNNER_TEMP/cf-api.sh"
+          cf_get "workers/scripts/$NOME_WORKER/deployments"
+          [ "$CF_CLASSE" = "ok" ] || fail "Não consegui ler os deployments depois da publicação (HTTP $CF_HTTP). A publicação PODE ter ocorrido: confira no painel da Cloudflare."
+          DEP=$(jq -c '(.result.deployments // []) | sort_by(.created_on) | reverse | .[0] // empty' "$RUNNER_TEMP/resp.json")
           DEP_ID=$(jq -r '.id // empty' <<< "$DEP")
-          VER_ID=$(jq -r '[.versions[]? | select(.percentage == 100)][0].version_id // .versions[0].version_id // empty' <<< "$DEP")
-          [ -n "$DEP_ID" ] || fail "A Cloudflare não devolveu o deployment atual (o token precisa ler Workers Scripts)."
-          [ -n "$VER_ID" ] || VER_ID=$(grep -oE 'Current Version ID: [0-9a-f-]{36}' "$RUNNER_TEMP/deploy.log" | tail -1 | cut -d' ' -f4)
-          [ "$DEP_ID" != "$DEP_ANTERIOR" ] || echo "::warning::O deployment atual é igual ao anterior (a Cloudflare pode ter reaproveitado a versão idêntica)."
-          NOMES=$(api "workers/scripts/$NOME_WORKER/secrets" | jq -r 'select(.success == true) | [.result[]?.name] | join(",")' || true)
+          VER_ID=$(jq -r '[.versions[]? | select(.percentage == 100)][0].version_id // empty' <<< "$DEP")
+          [ -n "$DEP_ID" ] && [ -n "$VER_ID" ] || fail "A Cloudflare não devolveu um deployment ativo com 100% em uma versão. Confira no painel."
+          # prova de que o deployment ativo é O QUE ESTE JOB PUBLICOU: a versão que o Wrangler imprimiu tem de ser a ativa; sem essa linha no log, o deployment tem de ser diferente do anterior
+          VER_LOG=$(grep -oE 'Current Version ID: [0-9a-f-]{36}' "$RUNNER_TEMP/deploy.log" | tail -1 | cut -d' ' -f4 || true)
+          PROVA="o deployment mudou em relação ao anterior (a versão não foi impressa no log do Wrangler)"
+          if [ -n "$VER_LOG" ]; then
+            PROVA="a versão ativa é exatamente a que o Wrangler publicou"
+            [ "$VER_LOG" = "$VER_ID" ] || fail "A versão ativa na Cloudflare ($VER_ID) não é a que o Wrangler publicou ($VER_LOG). Confira no painel antes de usar."
+          else
+            [ "$DEP_ID" != "$DEP_ANTERIOR" ] || fail "Não consegui provar que o deployment ativo é o publicado agora (sem versão no log do Wrangler e o deployment não mudou)."
+          fi
+          cf_get "workers/scripts/$NOME_WORKER/secrets"
+          [ "$CF_CLASSE" = "ok" ] || fail "Não consegui listar os secrets depois da publicação (HTTP $CF_HTTP); não dá para confirmar que RAC_CANAL_K1 foi preservado."
+          NOMES=$(jq -r '[.result[]?.name] | join(",")' "$RUNNER_TEMP/resp.json")
           K1_DEPOIS=nao; case ",$NOMES," in *,RAC_CANAL_K1,*) K1_DEPOIS=sim ;; esac
           if [ "$K1_ANTES" = "sim" ] && [ "$K1_DEPOIS" != "sim" ]; then fail "O secret RAC_CANAL_K1 não está mais no Worker depois da publicação. Pare e avise o desenvolvedor."; fi
-          SUB=$(api "workers/subdomain" | jq -r 'select(.success == true) | .result.subdomain // empty' || true)
-          [[ "$SUB" =~ ^[a-z0-9-]{1,63}$ ]] || fail "Não consegui obter o subdomínio workers.dev da conta."
+          cf_get "workers/subdomain"
+          [ "$CF_CLASSE" = "ok" ] || fail "Não consegui obter o subdomínio workers.dev (HTTP $CF_HTTP); a saúde não pôde ser verificada."
+          SUB=$(jq -r '.result.subdomain // empty' "$RUNNER_TEMP/resp.json")
+          [[ "$SUB" =~ ^[a-z0-9-]{1,63}$ ]] || fail "O subdomínio workers.dev veio em formato inesperado."
           URL="https://$NOME_WORKER.$SUB.workers.dev"
           # saúde: SEM assinatura. O Worker responde 401 "cabecalhos_invalidos" quando está no ar com a chave do canal configurada;
           # 503 "canal_nao_configurado" = no ar, mas SEM o secret RAC_CANAL_K1; GET = 404. Nada disto lê Vault, abre IMAP/SMTP ou envia e-mail.
           POST_STATUS=""; POST_ERRO=""
           for T in 1 2 3 4 5 6; do
-            R=$(curl -sS -m 15 -o "$RUNNER_TEMP/saude.json" -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"operacao":"ping"}' "$URL/v1/op" || true)
-            POST_STATUS="$R"; POST_ERRO=$(jq -r '.erro // empty' "$RUNNER_TEMP/saude.json" 2>/dev/null || true)
-            [ "$R" = "401" ] && break
+            rm -f "$RUNNER_TEMP/saude.json"
+            POST_STATUS=$(curl -sS -m 15 -o "$RUNNER_TEMP/saude.json" -w '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{"operacao":"ping"}' "$URL/v1/op" || true)
+            POST_ERRO=$(jq -r '.erro // empty' "$RUNNER_TEMP/saude.json" 2>/dev/null || true)
+            [ "$POST_STATUS" = "401" ] && break
             sleep 5
           done
           GET_STATUS=$(curl -sS -m 15 -o /dev/null -w '%{http_code}' "$URL/v1/op" || true)
           SAUDE=ok
-          if [ "$POST_STATUS" != "401" ] || [ "$POST_ERRO" != "cabecalhos_invalidos" ] || [ "$GET_STATUS" != "404" ]; then SAUDE="falhou (POST $POST_STATUS $POST_ERRO; GET $GET_STATUS)"; fi
+          if [ "$POST_STATUS" != "401" ] || [ "$POST_ERRO" != "cabecalhos_invalidos" ] || [ "$GET_STATUS" != "404" ]; then SAUDE="FALHOU (POST $POST_STATUS $POST_ERRO; GET $GET_STATUS)"; fi
           {
-            echo "### Worker rac-inbox-worker publicado"
+            echo "### Detalhes da publicação do Worker rac-inbox-worker"
             echo
             echo "- commit: \`$COMMIT_APROVADO\`; carimbo de versão esperado: **$VERSAO_APROVADA**"
             echo "- sha256 do pacote: \`$SHA256_APROVADO\`"
-            echo "- **deployment ID:** \`$DEP_ID\`; **version ID:** \`${VER_ID:-desconhecido}\`"
+            echo "- **deployment ID:** \`$DEP_ID\`; **version ID:** \`$VER_ID\` ($PROVA)"
             echo "- deployment anterior (para rollback): \`${DEP_ANTERIOR:-nenhum}\`"
             echo "- secret RAC_CANAL_K1 (só o nome, nunca o valor): antes **$K1_ANTES**, depois **$K1_DEPOIS**; nenhum secret foi criado, trocado ou apagado"
             echo "- saúde sem assinatura, sem credencial iCloud e sem e-mail: POST /v1/op → $POST_STATUS \`$POST_ERRO\` (esperado 401 cabecalhos_invalidos); GET → $GET_STATUS (esperado 404): **$SAUDE**"
-            echo "- URL do Worker (para o secret RAC_INBOX_WORKER_URL da função): \`$URL\`"
-            echo "- próximo passo: no RAC, Inbox → Opções da conta → Testar conexão (confere o canal assinado e mostra o carimbo \`$VERSAO_APROVADA\`) e depois Testar envio (SMTP)"
+            echo "- URL do Worker (conferir o secret RAC_INBOX_WORKER_URL da função): \`$URL\`"
           } >> "$GITHUB_STEP_SUMMARY"
           [ "$SAUDE" = "ok" ] || fail "A verificação de saúde falhou: POST $POST_STATUS $POST_ERRO; GET $GET_STATUS."
-          echo "Publicado: deployment $DEP_ID, versão ${VER_ID:-desconhecida}; saúde ok."
+          echo "Publicado e confirmado: deployment $DEP_ID, versão $VER_ID; saúde ok."
+
+      # o ÚLTIMO passo roda sempre e diz o estado REAL: uma publicação que não foi confirmada nunca aparece como concluída
+      - name: Resultado final (sempre)
+        if: ${{ always() }}
+        env:
+          RESULTADO_DEPLOY: ${{ steps.deploy.outcome }}
+          RESULTADO_CONFIRMAR: ${{ steps.confirmar.outcome }}
+          VERSAO_APROVADA: ${{ needs.verificar.outputs.versao }}
+        run: |
+          {
+            echo
+            if [ "$RESULTADO_DEPLOY" = "success" ] && [ "$RESULTADO_CONFIRMAR" = "success" ]; then
+              echo "## ✅ Concluído: publicado e confirmado"
+              echo "Próximo passo: no RAC, Inbox → Opções da conta → Testar conexão (deve mostrar \`$VERSAO_APROVADA\`) e depois Testar envio (SMTP)."
+            elif [ "$RESULTADO_DEPLOY" = "success" ]; then
+              echo "## ⚠️ PUBLICADO, MAS NÃO CONFIRMADO"
+              echo "O Wrangler terminou, porém a confirmação (versão, secret, saúde) **falhou**. Não use ainda: veja o erro do passo anterior, confira o painel da Cloudflare (Deployments) e, se preciso, faça o rollback (docs/inbox-worker-deploy.md)."
+            elif [ "$RESULTADO_DEPLOY" = "failure" ] || [ "$RESULTADO_DEPLOY" = "cancelled" ]; then
+              echo "## ❌ A publicação FALHOU ou foi cancelada"
+              echo "O deploy pode ter sido interrompido no meio: confira o painel da Cloudflare (Deployments) antes de tentar de novo."
+            else
+              echo "## ⛔ Nada foi publicado"
+              echo "Uma verificação anterior à publicação parou o job (veja o passo em vermelho). O Worker não foi alterado."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

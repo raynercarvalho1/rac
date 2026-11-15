@@ -6,13 +6,17 @@ Workflow: `.github/workflows/rac-inbox-worker-publicar.yml` (manual, só na `mai
 1. Recebe só **um commit completo (40 caracteres)**. Confere que ele existe, está na **história da `main`** e tem o CI `testes` **aprovado**.
 2. No job **`verificar`** (sem Environment e sem secrets): baixa o commit como *dados*, confere a lista fechada de arquivos do Worker, a configuração (nome `rac-inbox-worker`, binding `NONCES`, classe `NonceUnico`, migração `v1`), roda os testes do Worker, instala o Wrangler do lockfile (versão e integridade conferidas), empacota **sem publicar** (`--dry-run`), inspeciona o pacote e calcula o sha256. O carimbo de versão pedido precisa estar no pacote.
 3. No job **`publicar`** (Environment `cloudflare-production`, com os secrets da Cloudflare): **não baixa o commit do Worker**; só recebe o pacote conferido, reconfere o hash, confere o token, lê o estado anterior (nomes de secrets e deployment atual, nunca valores), publica com a configuração escrita no próprio workflow, e confirma versão, deployment ID, que `RAC_CANAL_K1` continua no Worker e a saúde.
-4. **Nunca** executa `wrangler secret put`, gera chave, troca ou apaga secret, binding ou Durable Object. A migração `v1` já aplicada é ignorada. Nenhum valor secreto vai a log, artefato ou output.
+4. **Nunca** executa `wrangler secret put`, gera chave, troca ou apaga secret, binding ou Durable Object. Nenhum valor secreto vai a log, artefato ou output. Como isso foi auditado (Wrangler `4.161.0`, lendo o código dele):
+   - **Secrets:** o `deploy` sempre inclui `keep_bindings: secret_text, secret_key` (`keepSecrets: true` fixo), então os secrets existentes, como `RAC_CANAL_K1`, são herdados mesmo sem estar no arquivo.
+   - **Variáveis de texto do painel:** sem `--keep-vars` o `deploy` as apagaria; por isso o workflow usa `--keep-vars`.
+   - **Limite conhecido:** bindings de outros tipos que não estão no arquivo (KV, D1, R2, serviços) **não** são preservados. O Worker só tem `NONCES` e o secret; se o dono acrescentar algo no painel, declare no `wrangler.jsonc` e na configuração fixa do workflow antes de publicar.
+   - **Migração:** o Wrangler lê o `migration_tag` do Worker publicado; só com `v1` exatamente ele considera a migração aplicada e não envia nada sobre `NonceUnico`. O workflow confere isso **antes** de publicar e para se a tag for outra ou ausente.
 5. A saúde **não assina** pedido, **não usa credencial iCloud** e **não envia e-mail**: um POST sem assinatura em `/v1/op` deve voltar `401 cabecalhos_invalidos` (no ar e com a chave do canal configurada); `503 canal_nao_configurado` significaria sem o secret `RAC_CANAL_K1`; `GET` deve voltar `404`.
 
 ## Configuração manual (uma vez, só o proprietário)
 ### 1. Token e ID da conta Cloudflare
 - No painel da Cloudflare: **My Profile → API Tokens → Create Token → Custom token**.
-- Permissão: **Account → Workers Scripts → Edit** (e, se quiser que o workflow leia o subdomínio `workers.dev`, **Account → Workers Scripts → Read** já vem junto). Escopo de conta: **só a sua conta**. Defina uma data de expiração. Não use "Global API Key" nem permissões de DNS, zonas ou administração.
+- Permissão: **Account → Workers Scripts → Edit** (só ela). Conforme a documentação da Cloudflare, os endpoints que o workflow consulta (secrets, deployments, subdomínio `workers.dev`) aceitam Workers Scripts **Write** ou Read; a leitura de `workers/services/<nome>` é a mesma que o próprio `wrangler deploy` faz. **Ainda não foi exercitado com a sua conta**: a primeira execução prova isso; se o token não puder ler, o workflow para antes de publicar e diz o motivo. Escopo de conta: **só a sua conta**. Defina uma data de expiração. Não use "Global API Key" nem permissões de DNS, zonas ou administração.
 - O **Account ID** está em **Workers & Pages → Overview** (coluna da direita) ou na URL do painel.
 
 ### 2. Environment no GitHub
@@ -50,7 +54,10 @@ O Worker guarda as versões anteriores; voltar não mexe em secrets nem no Durab
 | "A lista de arquivos do Worker não é a esperada" / "wrangler.jsonc … difere" | Alguém mudou a pasta do Worker; a lista fixa do workflow precisa ser atualizada num PR revisado. |
 | "O pacote não tem o carimbo de versão …" | `versao_esperada` diferente de `POLITICA.versao`. |
 | "Faltam os secrets CLOUDFLARE_…" / "token … ativo" | Secrets ausentes no Environment, ou token expirado/revogado. |
-| "O secret RAC_CANAL_K1 não foi encontrado" | O token não lista secrets ou o Worker não tem a chave (ver "Secret do canal"). |
+| "Não consegui confirmar o estado do Worker" / "Não consegui listar os secrets" | A Cloudflare não respondeu "ok" (token sem permissão, inválido ou rede). **Não** significa que o secret não exista. Nada foi publicado. |
+| "O secret RAC_CANAL_K1 NÃO está no Worker" | A Cloudflare respondeu normalmente e o secret não existe (ver "Secret do canal"). Nada foi publicado. |
+| "migration_tag … esperado v1" | O Worker na Cloudflare não está na migração `v1`; publicar tentaria reaplicá-la. Nada foi publicado; avise o desenvolvedor. |
+| Resumo "PUBLICADO, MAS NÃO CONFIRMADO" | O Wrangler terminou, mas a confirmação (versão ativa, secret ou saúde) falhou. Não use ainda: confira o painel e, se preciso, faça o rollback. |
 | "A verificação de saúde falhou" | `503 canal_nao_configurado` = sem K1; `404`/erro de rede = publicação ainda propagando (rode a saúde de novo) ou subdomínio errado. |
 
 ## Limites

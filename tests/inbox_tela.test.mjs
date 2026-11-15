@@ -87,8 +87,10 @@ test("o 'exemplo da interface': isolado no módulo próprio, rotulado, com lista
   const t = texto(a.raiz); assert.equal(comClasse(a.raiz, "inb-demo").length, 1, "uma faixa só, no topo"); assert.match(texto(comClasse(a.raiz, "inb-demo")[0]), /DEMONSTRAÇÃO\s+Mensagens fictícias; nenhuma caixa real\./);
   for (const c of ["inb-remetente", "inb-assunto", "inb-previa", "inb-hora", "inb-avatar"]) assert.ok(comClasse(a.raiz, c).length >= linhas.length, c + " em cada linha");
   const grupos = comClasse(a.raiz, "inb-data").map((n) => n.textContent).filter((x, i, l) => l.indexOf(x) === i);
-  assert.ok(["Hoje", "Ontem"].includes(grupos[0]), "o exemplo mais recente é de 'minutos atrás': Hoje, ou Ontem se o teste rodar logo após a meia-noite");   // (relógio real: não depende da hora do dia)
-  assert.deepEqual(grupos.slice(1), ["Esta semana", "Anteriores"], "grupos de data como no Mail");
+  /* o exemplo é de "minutos/horas atrás" pelo relógio real: entre 00:00 e ~03:10 UTC a mais antiga já cai em "Ontem" e a mais nova ainda em "Hoje" (ou as duas em "Ontem"); fora disso só há "Hoje" */
+  const recentes = grupos.filter((g) => g === "Hoje" || g === "Ontem");
+  assert.ok(recentes.length >= 1 && recentes.length <= 2 && grupos.slice(0, recentes.length).join() === recentes.join(), "os grupos mais recentes vêm primeiro: Hoje e, perto da meia-noite, Ontem");
+  assert.deepEqual(grupos.slice(recentes.length), ["Esta semana", "Anteriores"], "grupos de data como no Mail");
   assert.ok(linhas.some((l) => / inb-linha--nova /.test(" " + l.className + " ")), "não lidas destacadas"); assert.ok(comClasse(a.raiz, "inb-ico--anexo").length >= 1, "anexo sinalizado por ícone");
   assert.ok(linhas.every((l) => /Não lida\. |^[^.]+\. /.test(l.attrs["aria-label"])), "cada linha tem rótulo de acessibilidade");
   /* filtros */

@@ -966,7 +966,7 @@ Família e da Casa.
 - **Lote 2 · função `rac-inbox` v2 e migration 053** (branch `claude/inbox-i2-sync`): `canal.ts` (vetor de assinatura fixo igual ao do Worker), `sync.ts`, `repositorio.ts`, `servico.ts`; `supabase/053_inbox_cabecalhos.sql` (preparada); 24 testes novos (canal, serviço, SQL no PGlite) e testes antigos ajustados.
 - **Lote 3 · interface real:** lista do cache, Sincronizar, leitura sob demanda, anexos, estados; correção do estado vazio ilegível no iPhone; site `2026-11-15.2`; 8 testes novos. Suíte completa verde (1.741 e 73).
 - Documentação integrada: `docs/inbox.md` (seção I2), Documento 10 (seção 16), Documento 07, roadmap e mapa.
-- **Não foi feito, por não ser autorizado ou possível aqui:** publicar o Worker ou a função, cadastrar secrets, aplicar a 053, qualquer teste contra o iCloud real. **Tudo acima foi provado só com simulações.**
+- **Não foi feito, por não ser autorizado ou possível aqui:** publicar o Worker ou a função, cadastrar secrets, qualquer teste contra o iCloud real (a 053 foi aplicada depois pelo ChatGPT). **Tudo acima foi provado só com simulações.**
 
 ### 2. O que estamos fazendo
 
@@ -974,6 +974,25 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 
-1. **Dono (nesta ordem):** aplicar a 053; publicar o Worker; cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; autorizar o merge do PR do site.
+1. **Dono (nesta ordem):** publicar o Worker; cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; autorizar o merge do PR do site.
 2. **Primeiro teste real** (login real na Apple, primeira leitura, abrir mensagem, baixar anexo, sincronizar de novo sem duplicar) e só então dar a I2 como concluída.
 3. Depois: envio (SMTP), sincronização automática e `STATUS (UNSEEN)`, com autorização própria.
+
+## 15/11/2026 (tarde) · RAC Inbox — publicação do Worker (parou por falta de login)
+
+### 1. O que fizemos
+
+- Recuperado o estado: branch `claude/inbox-p7-worker` em `9818ea1` (Worker de produto, intacto; o Worker de prova não foi tocado); PR #34 aberto, HEAD `87d729b`, **sem merge**; o ChatGPT aplicou a **053** em produção (colunas e índice conferidos).
+- Tentativa de publicar o Worker: `wrangler whoami` = **não autenticado** (sem login nem token). Pelo combinado, **a publicação foi interrompida** e nenhum token foi pedido.
+- Testes do Worker: 12 de 12 (simulados). **Validação do canal em runtime real (workerd, local, chave descartável): 17 de 17**, inclusive replay, 10 simultâneos (1 aceito, 9 replays) e falha fechada sem o Durable Object; logs sem credencial nem chave.
+- **Não feito:** deploy na Cloudflare, secrets (`RAC_CANAL_K1` nos dois lados, `RAC_INBOX_WORKER_URL`; sem acesso do Claude ao Supabase e nenhuma chave gerada), publicação da função, qualquer teste com a Apple.
+
+### 2. O que estamos fazendo
+
+- Atualizando a documentação na branch do PR #34 (sem merge) e aguardando o dono fazer o login Cloudflare e os passos de publicação.
+
+### 3. O que vamos fazer
+
+1. Dono: `wrangler login` e `wrangler deploy`; chave do canal gerada e colocada nos dois lados sem aparecer na tela (procedimento em `docs/inbox.md`); informar a URL real e a confirmação dos secrets ao ChatGPT.
+2. ChatGPT: publicar `rac-inbox` v2 pelo conector Supabase, com o SHA do código da função.
+3. Primeiro teste real com a Apple; só então a I2 é dada como concluída.

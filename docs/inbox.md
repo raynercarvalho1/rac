@@ -1,7 +1,7 @@
 # RAC Inbox · I1 e I2 — Fundação, custódia, canal assinado e sincronização (documento técnico)
 
 Registro do que foi **efetivamente implementado** na fase I1 do [Documento 10](planejamento/10-rac-inbox.md). Atualizado em 15/11/2026.
-Estado (15/11/2026): **em produção (confirmado pelo dono):** migrations 051 e 052 aplicadas; função `rac-inbox` **versão 1** publicada (`verify_jwt=true`); credencial iCloud **cadastrada no Vault** (`inbox_cofre.conferir()`: credenciais 1, ponteiro_sem_segredo 0, segredo_sem_ponteiro 0); site `2026-11-15.1` com o cliente habilitado (deploy do Pages verificado pelo GitHub; a versão efetivamente servida foi vista pelo dono no navegador). **Pronto em código e testado só com simulações, NÃO publicado, NÃO testado contra a Apple:** Worker de produto (branch isolada `claude/inbox-p7-worker`), função `rac-inbox` v2 (canal assinado, sincronização, leitura), migration **053** (cache de cabeçalhos) e a interface real (branch `claude/inbox-i2-sync`). **A autenticação real com a Apple ainda não foi testada.** Ver "I2" e "O que falta".
+Estado (15/11/2026): **em produção (confirmado pelo dono):** migrations 051, 052 e **053** aplicadas (a 053 em 15/11/2026, diretamente no banco pelo ChatGPT; colunas e o índice `inbox_ref_lista` conferidos); função `rac-inbox` **versão 1** publicada (`verify_jwt=true`); credencial iCloud **cadastrada no Vault** (`inbox_cofre.conferir()`: credenciais 1, ponteiro_sem_segredo 0, segredo_sem_ponteiro 0); site `2026-11-15.1` com o cliente habilitado (deploy do Pages verificado pelo GitHub; a versão efetivamente servida foi vista pelo dono no navegador). **Pronto em código e testado só com simulações, NÃO publicado, NÃO testado contra a Apple:** Worker de produto (branch isolada `claude/inbox-p7-worker`), função `rac-inbox` v2 (canal assinado, sincronização, leitura) e a interface real (branch `claude/inbox-i2-sync`). **A autenticação real com a Apple ainda não foi testada.** Ver "I2" e "O que falta".
 
 > **Sobre o documento:** as seções "Arquitetura de integração" e "Custódia" descrevem a I1 e continuam válidas; a seção **"I2"** (abaixo) descreve o que foi acrescentado em 15/11/2026 e **prevalece** onde houver diferença.
 
@@ -30,7 +30,7 @@ Estado (15/11/2026): **em produção (confirmado pelo dono):** migrations 051 e 
 | `supabase/051_inbox_fundacao.sql` | Modelo de dados (preparado, não aplicado) |
 | `supabase/052_inbox_cofre.sql` | Custódia da credencial no Vault: ponteiro, schema privado, funções do cofre (preparada, não aplicada) |
 | `supabase/functions/rac-inbox/` | Função de servidor (contrato, serviço puro, ligação ao Deno); **versão 1 publicada** (custódia); a v2 (I2) está no código, **não publicada** |
-| `supabase/053_inbox_cabecalhos.sql` | I2: cache de **cabeçalhos** em `inbox_mensagens_ref` e nome legível da pasta (preparada, **não aplicada**) |
+| `supabase/053_inbox_cabecalhos.sql` | I2: cache de **cabeçalhos** em `inbox_mensagens_ref` e nome legível da pasta (**aplicada em produção em 15/11/2026**; a linha `-- status: pendente` do arquivo continua, como na 051 e na 052, e sai numa tarefa própria de higiene, pois os testes de texto a exigem hoje) |
 | `supabase/functions/rac-inbox/canal.ts`, `sync.ts`, `repositorio.ts` | I2: lado Supabase do canal assinado; sincronização e filtros de esquema fechado; SQL do cache e do cursor |
 | `experimentos/rac-inbox-worker/` (**só na branch `claude/inbox-p7-worker`**) | I2: Worker de produto (canal HMAC, anti-replay, IMAP somente leitura); **não publicado** |
 | `tests/inbox_nucleo.test.mjs`, `tests/inbox_sql.test.mjs`, `tests/inbox_tela.test.mjs`, `tests/inbox_cofre_sql.test.mjs`, `tests/inbox_cofre_servico.test.mjs`, `tests/inbox_canal.test.mjs`, `tests/inbox_sync_servico.test.mjs`, `tests/inbox_sync_sql.test.mjs` | Testes da fase; os do Worker (`tests/rac_inbox_worker*.mjs`) estão na branch do Worker |
@@ -193,12 +193,26 @@ O iCloud **não tem IDLE, CONDSTORE nem QRESYNC**: nada depende deles; é *polli
 Sem `RAC_INBOX_WORKER_URL` e `RAC_CANAL_K1` a função responde `worker_nao_configurado` e nada é enviado.
 
 ### Ordem para colocar em produção (cada passo é do dono; o Claude não executa SQL, secrets, função nem deploy)
-1. **SQL:** rodar `supabase/053_inbox_cabecalhos.sql` no SQL Editor (051 e 052 já estão).
-2. **Worker:** publicar `experimentos/rac-inbox-worker` (branch `claude/inbox-p7-worker`) numa conta Cloudflare **do dono**. O caminho mais simples é manual, no computador do dono: `npx wrangler deploy` dentro da pasta, e `npx wrangler secret put RAC_CANAL_K1` (digitando a chave no terminal). A publicação pelo workflow do Desenho B exige um workflow e um pin novos (`.github/workflows/`, decisão do dono).
+1. **SQL:** ~~rodar a 053~~ **feito em 15/11/2026** (051, 052 e 053 estão no banco).
+2. **Worker:** publicar `experimentos/rac-inbox-worker` (branch `claude/inbox-p7-worker`, commit `9818ea1`) numa conta Cloudflare **do dono**, no computador dele: `npx wrangler login`, depois `npx wrangler deploy` dentro da pasta, e anotar a URL `https://rac-inbox-worker.<conta>.workers.dev` que a Cloudflare mostrar. A chave do canal deve ser gerada e colocada **nos dois lados sem aparecer na tela, no histórico nem em argumento de processo**:
+   ```
+   umask 077; K=$(openssl rand -base64 48 | tr -d '\n')
+   printf %s "$K" | npx wrangler secret put RAC_CANAL_K1            # Cloudflare (lê da entrada padrão)
+   printf 'RAC_CANAL_K1=%s\nRAC_INBOX_WORKER_URL=%s\n' "$K" "https://rac-inbox-worker.<conta>.workers.dev" > /dev/shm/rac.env
+   supabase secrets set --env-file /dev/shm/rac.env --project-ref <ref do projeto>; shred -u /dev/shm/rac.env; unset K
+   ```
+   (`printf` é comando interno do shell, então a chave não vai em argumento de processo; o arquivo temporário fica só em memória, com permissão restrita, e é destruído.) A publicação pelo workflow do Desenho B exige um workflow e um pin novos (`.github/workflows/`, decisão do dono).
 3. **Secrets da função:** `RAC_CANAL_K1` (mesmo valor do Worker) e `RAC_INBOX_WORKER_URL`.
 4. **Função:** republicar `rac-inbox` (v2) com `verify_jwt=true`.
 5. **Site:** mesclar o PR da branch `claude/inbox-i2-sync` (versão `2026-11-15.2`) e esperar o Pages.
 6. **Primeiro teste real** (abaixo).
+
+### Registro de 15/11/2026 — tentativa de publicar o Worker (interrompida por falta de login)
+- **053 aplicada em produção** (informado pelo dono; colunas e índice conferidos no banco pelo ChatGPT).
+- **Worker NÃO publicado.** `wrangler whoami` no ambiente do Claude respondeu *"You are not authenticated"* (sem login Cloudflare, sem token no ambiente). Pelo combinado, o Claude não pede token no chat: o login é do dono. **URL do Worker: ainda não existe.**
+- **Secrets NÃO cadastrados** (`RAC_CANAL_K1` nos dois lados, `RAC_INBOX_WORKER_URL`). O ambiente do Claude não tem a CLI nem a API de gerenciamento do Supabase (bloqueadas pela política do projeto) e não tem conector do Supabase. **Nenhuma chave foi gerada**: um valor gerado aqui não teria como chegar aos dois serviços sem passar pelo Claude.
+- **Validação do canal em runtime real, em modo local (workerd)** — *não é o Worker publicado*: 17 de 17 verificações ok com o Worker rodando no workerd e assinadas pelo código do lado Supabase (`canal.ts`): sem assinatura, assinatura inválida, corpo adulterado, operação trocada, instante 120 s no passado e no futuro, chave `k2` sem segredo, assinatura válida (corpo inválido de propósito, sem tocar na Apple), **replay**, nonce novo aceito, **10 pedidos simultâneos com o mesmo nonce = 1 aceito e 9 replays** (atomicidade do Durable Object com SQLite), **sem o Durable Object = 503 e a operação não acontece**, corpo acima de 4 KiB, tipo de conteúdo errado, rotas e métodos. Os logs do wrangler e da execução não continham a credencial de teste nem a chave. A chave usada era descartável e foi apagada.
+- **Ainda não provado:** o Worker publicado na Cloudflare, a chave de produção igual nos dois serviços, a chamada real função → Worker, TLS e login reais com o iCloud.
 
 ### Primeiro teste real (critérios; só contam com a Apple de verdade)
 Logado com o MFA: Sincronizar → a primeira leitura traz as mensagens → abrir uma mensagem mostra o texto → baixar um anexo pequeno → sincronizar de novo não duplica → conferir no SQL (`select count(*) from public.inbox_mensagens_ref;`; `select tipo_ultima, falhas_seguidas, erro from public.inbox_sincronizacao;`) e que a senha não aparece em nenhuma resposta, tela ou log. Se o login for recusado, a conta mostra "Credencial recusada pelo provedor" (gerar nova senha de app e substituir).
@@ -222,6 +236,6 @@ Limites: PGlite prova o PostgreSQL, **não** o Supabase real nem o Vault real; o
 
 ## O que falta (a partir de 15/11/2026)
 
-**Depende do dono (nesta ordem):** aplicar a 053; publicar o Worker; cadastrar os secrets (`RAC_CANAL_K1` nos dois lados e `RAC_INBOX_WORKER_URL`); republicar a função (v2); mesclar o PR do site; fazer o **primeiro teste real** e conferir os critérios acima. Só depois disso a autenticação real com a Apple e a leitura real estarão validadas.
+**Depende do dono (nesta ordem):** ~~aplicar a 053~~ (feito); publicar o Worker; cadastrar os secrets (`RAC_CANAL_K1` nos dois lados e `RAC_INBOX_WORKER_URL`); republicar a função (v2); mesclar o PR do site; fazer o **primeiro teste real** e conferir os critérios acima. Só depois disso a autenticação real com a Apple e a leitura real estarão validadas.
 
 **Ainda não implementado (fora desta entrega):** envio (SMTP), responder, encaminhar, arquivar, excluir, marcar como lida (escritas na caixa); sincronização automática; `STATUS (UNSEEN)` para contar não lidas no provedor; busca; categorias (I4); Gmail e Outlook (I3); decisão sobre **retenção de corpos e anexos** (Documento 10, seção 5.1); remoção do Worker de prova e dos Environments antigos (autorização futura).

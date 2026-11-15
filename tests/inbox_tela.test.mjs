@@ -306,3 +306,22 @@ test("sem a 053, sem credencial ou sem o serviço publicado: a tela degrada com 
   for (const x of [a, b, c, d, e]) { assert.deepEqual(x.gravacoes, []); assert.equal(x.chamadas.length, 0); }
   const f = ambiente({ dono: false, ...REAL() }); await f.abrir(UUID); assert.equal(comClasse(f.raiz, "inb-linha").length, 0, "a casa (Fernanda) não vê nada do Inbox"); assert.equal(f.lidas.length, 0, "nem consulta as tabelas");
 });
+
+test("Testar conexão: duas provas em sequência (canal, depois login no iCloud), sem ler nem gravar nada; o aviso mostra as versões e diz QUAL prova falhou", async () => {
+  const CANAL = ok({ canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
+  let liberar; const pendente = new Promise((r) => { liberar = r; });
+  const a = ambiente(REAL({ invoke: (nome, o) => (o.body.operacao === "testar_canal" ? pendente : ok({})) })); await a.abrir(UUID); await assentar();
+  assert.ok(botao(a.raiz, "Testar conexão"), "o botão existe com a credencial guardada"); botao(a.raiz, "Testar conexão").onclick(); await esperar();
+  const ocupado = botao(a.raiz, "Testando…"); assert.ok(ocupado && ocupado.attrs.disabled === "disabled" && ocupado.attrs["aria-busy"] === "true"); ocupado.onclick(); await esperar(); assert.equal(a.chamadas.length, 1, "um segundo toque não dispara outro teste");
+  liberar(CANAL); await assentar();
+  assert.deepEqual(a.chamadas.map((c) => c[1].body), [{ operacao: "testar_canal" }, { operacao: "testar_conta", conta_id: UUID }], "primeiro o canal (sem conta nem credencial), depois o login");
+  assert.match(texto(a.raiz), /Conexão ok\. 1 de 2 · canal seguro com o servidor \(função rac-inbox@i2\.2, Worker rac-inbox-worker@p7\.2\)\. 2 de 2 · login no iCloud\. Nada foi lido nem alterado\./);
+  assert.deepEqual(a.gravacoes, []); assert.ok(!a.chamadas.some((c) => /sincronizar|listar_pastas|ler_mensagem|baixar/.test(JSON.stringify(c))), "nada de sincronização nem de leitura");
+  const b = ambiente(REAL({ invoke: () => erroHttp(502, "canal_recusado") })); await b.abrir(UUID); await assentar(); botao(b.raiz, "Testar conexão").onclick(); await assentar();
+  assert.equal(b.chamadas.length, 1, "falhou o canal: o login nem é tentado"); assert.match(texto(b.raiz), /1 de 2 · O canal seguro com o servidor falhou: O servidor de e-mail recusou o pedido/);
+  const c = ambiente(REAL({ invoke: (nome, o) => (o.body.operacao === "testar_canal" ? CANAL : erroHttp(422, "credencial_invalida")) })); await c.abrir(UUID); await assentar(); botao(c.raiz, "Testar conexão").onclick(); await assentar();
+  assert.equal(c.chamadas.length, 2); assert.match(texto(c.raiz), /1 de 2 · canal seguro ok \(função rac-inbox@i2\.2, Worker rac-inbox-worker@p7\.2\)\. 2 de 2 · o login no iCloud falhou: O provedor recusou a credencial/); assert.ok(!texto(c.raiz).includes("texto cru do servidor"));
+  const d = ambiente(REAL({ invoke: () => ok({ canal: "ok", funcao: "<script>", worker: "x" }) })); await d.abrir(UUID); await assentar(); botao(d.raiz, "Testar conexão").onclick(); await assentar(); assert.match(texto(d.raiz), /O serviço respondeu algo que o RAC não reconhece/, "resposta fora do formato é recusada");
+  for (const x of [ambiente(REAL({ credenciais: [] })), ambiente(REAL({ publicado: false }))]) { await x.abrir(UUID); await assentar(); assert.ok(!botao(x.raiz, "Testar conexão"), "sem credencial ou com o serviço desligado não há teste"); }
+});
+

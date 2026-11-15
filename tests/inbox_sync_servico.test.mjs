@@ -3,7 +3,7 @@
 // NÃO prova o iCloud real, o runtime do Deno nem o PostgreSQL (o SQL é de tests/inbox_sync_sql.test.mjs).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validarPedido, ERROS } from "../supabase/functions/rac-inbox/contrato.ts";
+import { validarPedido, ERROS, VERSAO_FUNCAO } from "../supabase/functions/rac-inbox/contrato.ts";
 import { atender } from "../supabase/functions/rac-inbox/servico.ts";
 import { compararSincronizacao, usoDoBanco, filtrarResumo, filtrarResumos, filtrarPastas, filtrarLeitura, filtrarAnexo, JANELA, PAGINA, MAX_PAGINAS } from "../supabase/functions/rac-inbox/sync.ts";
 import { empacotar } from "../supabase/functions/rac-inbox/contrato.ts";
@@ -26,7 +26,7 @@ function bancoFalso({ estado = null, travar = true, pasta = "INBOX", falhaAplica
     async aplicarSync(d, c, id, a) { log.push(["aplicarSync", d, c, id]); if (falhaAplicar) throw falhaAplicar; this.aplicados.push(a); return { novas: a.mensagens.length, atualizadas: 0, removidas: 0 }; },
     async falhaSync(d, c, id, e) { log.push(["falhaSync", d, c, id, e]); }, async estadoConta(d, c, e, er) { log.push(["estadoConta", d, c, e, er]); } };
 }
-function workerFalso(resp) { const chamadas = []; return { chamadas, async executar(op, ped, cred) { chamadas.push([op, ped, { ...cred }]); if (resp instanceof Error) throw resp; return typeof resp === "function" ? resp(op, ped, cred, chamadas.length) : resp; } }; }
+function workerFalso(resp) { const chamadas = []; return { chamadas, async executar(op, ped, cred) { chamadas.push([op, ped, cred === null ? null : { ...cred }]); if (resp instanceof Error) throw resp; return typeof resp === "function" ? resp(op, ped, cred, chamadas.length) : resp; } }; }
 function ctx({ worker, banco = bancoFalso(), cofre = cofreFalso(), usuario = { id: U1, mfaOk: true } } = {}) { const logs = []; return { c: { usuario, cofre, banco, worker, registrar: (e) => logs.push(e) }, logs, cofre, banco, worker }; }
 const visivel = (r, logs) => JSON.stringify([r, logs]);
 const semSegredo = (r, logs, extra = []) => { const t = visivel(r, logs); for (const s of [SENHA, "aaaa-bbbb", USUARIO, ...extra]) assert.ok(!t.includes(s), "vazou: " + s); };
@@ -180,3 +180,34 @@ test("estado_pasta e testar_conta continuam (sem sincronizar): testar_conta não
   assert.deepEqual((await atender(PED("estado_pasta", { pasta_id: P1 }), ctx({ worker: w }).c)).corpo, { ok: true, exame: { uidvalidity: 5, uidnext: 9 }, mensagens_na_pasta: 3, duracao_ms: 7 }); assert.deepEqual(w.chamadas[0][1], { conta_id: C1, pasta: "INBOX" });
   const w2 = workerFalso({ ok: true, dados: { duracao_ms: 5 } }), x = ctx({ worker: w2, banco: null }); assert.deepEqual(await atender(PED("testar_conta"), x.c), { status: 200, corpo: { ok: true } });
 });
+
+/* ---------- testar_canal (ping) e diagnóstico ---------- */
+test("testar_canal: prova o canal SEM Vault, SEM banco e SEM credencial; devolve o carimbo da função e do Worker; falhas viram códigos fechados com o detalhe só no registro", async () => {
+  const PING = { ok: true, dados: { canal: "ok", worker: "rac-inbox-worker@p7.2" } };
+  const w = workerFalso(PING), x = ctx({ worker: w, banco: null });
+  const r = await atender({ operacao: "testar_canal" }, x.c);
+  assert.deepEqual(r, { status: 200, corpo: { ok: true, canal: "ok", funcao: VERSAO_FUNCAO, worker: "rac-inbox-worker@p7.2" } });
+  assert.match(VERSAO_FUNCAO, /^rac-inbox@i\d+\.\d+$/); assert.deepEqual(w.chamadas, [["ping", {}, null]], "o Worker recebe SÓ o ping, sem credencial e sem conta");
+  assert.equal(x.cofre.chamadas.length, 0, "o Vault nem é aberto"); assert.deepEqual(x.logs, [{ operacao: "testar_canal", codigo: "ok", status: 200 }]); semSegredo(r, x.logs);
+  assert.equal((await atender({ operacao: "testar_canal" }, ctx({ worker: null }).c)).corpo.erro, "worker_nao_configurado"); assert.equal((await atender({ operacao: "testar_canal" }, ctx({ worker: w, usuario: null }).c)).status, 401); assert.equal((await atender({ operacao: "testar_canal" }, ctx({ worker: w, usuario: { id: U1, mfaOk: false } }).c)).status, 403);
+  assert.equal(validarPedido({ operacao: "testar_canal", conta_id: C1 }).erro, "campos_inesperados", "o ping não leva conta"); assert.equal(validarPedido({ operacao: "testar_canal" }).ok, true);
+  for (const [resp, status, saida, detalhe] of [[{ ok: false, erro: "assinatura_invalida" }, 502, "canal_recusado", "assinatura_invalida"], [{ ok: false, erro: "chave_desconhecida" }, 502, "canal_recusado", "chave_desconhecida"], [{ ok: false, erro: "timestamp_fora_da_janela" }, 502, "canal_recusado", "timestamp_fora_da_janela"],
+    [{ ok: false, erro: "registro_indisponivel" }, 502, "servico_indisponivel", "registro_indisponivel"], [{ ok: true, dados: { canal: "nao" } }, 502, "servico_indisponivel", "resposta_invalida"], [{ ok: true, dados: { canal: "ok", worker: "<script>" } }, 502, "servico_indisponivel", "resposta_invalida"]]) {
+    const y = ctx({ worker: workerFalso(resp), banco: null }), s = await atender({ operacao: "testar_canal" }, y.c);
+    assert.deepEqual([s.status, s.corpo.erro], [status, saida], JSON.stringify(resp)); assert.deepEqual(y.logs, [{ operacao: "testar_canal", codigo: saida, status, detalhe }], "o código fechado do Worker vai SÓ para o registro");
+  }
+  for (const [msg, det] of [["http_503", "http_503"], ["canal_falhou", "canal_falhou"], ["ECONNRESET com " + SENHA, "servico_indisponivel"]]) {
+    const y = ctx({ worker: workerFalso(new Error(msg)), banco: null }), s = await atender({ operacao: "testar_canal" }, y.c);
+    assert.deepEqual(s, { status: 502, corpo: { ok: false, erro: "servico_indisponivel" } }); assert.equal(y.logs[0].detalhe, det, msg); semSegredo(s, y.logs);
+  }
+});
+
+test("diagnóstico das demais operações: o código fechado do Worker (ou http_NNN) vai ao registro; texto livre e credencial nunca", async () => {
+  for (const [erroDoWorker, detalhe] of [[{ ok: false, erro: "timeout" }, "timeout"], [{ ok: false, erro: "conexao_falhou" }, "conexao_falhou"], [{ ok: false, erro: "login_desabilitado" }, "login_desabilitado"], [new Error("http_503"), "http_503"], [new Error("falhou com " + SENHA), "servico_indisponivel"]]) {
+    const x = ctx({ worker: workerFalso(erroDoWorker) }), r = await atender(PED("testar_conta"), x.c);
+    assert.equal(r.corpo.erro, "servico_indisponivel"); assert.equal(x.logs.at(-1).detalhe, detalhe); semSegredo(r, x.logs);
+  }
+  const x = ctx({ worker: workerFalso({ ok: false, erro: "autenticacao_recusada" }) }), r = await atender(PED("testar_conta"), x.c); assert.equal(r.corpo.erro, "credencial_invalida"); assert.equal(x.logs.at(-1).detalhe, undefined, "recusa de login não carrega detalhe");
+  const y = ctx({ worker: workerFalso({ ok: false, erro: "Texto Livre Do Servidor " + SENHA }) }), s = await atender(PED("testar_conta"), y.c); assert.equal(s.corpo.erro, "servico_indisponivel"); assert.equal(y.logs.at(-1).detalhe, undefined, "o que não é código fechado nem entra no registro"); semSegredo(s, y.logs);
+});
+

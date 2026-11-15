@@ -214,6 +214,44 @@ Sem `RAC_INBOX_WORKER_URL` e `RAC_CANAL_K1` a função responde `worker_nao_conf
 - **Validação do canal em runtime real, em modo local (workerd)** — *não é o Worker publicado*: 17 de 17 verificações ok com o Worker rodando no workerd e assinadas pelo código do lado Supabase (`canal.ts`): sem assinatura, assinatura inválida, corpo adulterado, operação trocada, instante 120 s no passado e no futuro, chave `k2` sem segredo, assinatura válida (corpo inválido de propósito, sem tocar na Apple), **replay**, nonce novo aceito, **10 pedidos simultâneos com o mesmo nonce = 1 aceito e 9 replays** (atomicidade do Durable Object com SQLite), **sem o Durable Object = 503 e a operação não acontece**, corpo acima de 4 KiB, tipo de conteúdo errado, rotas e métodos. Os logs do wrangler e da execução não continham a credencial de teste nem a chave. A chave usada era descartável e foi apagada.
 - **Ainda não provado:** o Worker publicado na Cloudflare, a chave de produção igual nos dois serviços, a chamada real função → Worker, TLS e login reais com o iCloud.
 
+### Roteiro de validação real (a partir de 15/11/2026, tarde)
+**Carimbos de versão** (aparecem na resposta de `testar_canal` e no botão **Testar conexão**): função `rac-inbox@i2.2` e Worker `rac-inbox-worker@p7.2`. Se o carimbo que voltar for outro, **o código no ar não é o desta branch**. Para a função, vale também `supabase functions download rac-inbox` e comparar `sha256sum` com o código do commit publicado.
+
+**Novidades desta etapa (código pronto, publicação do dono/ChatGPT):** operação **`ping`** no Worker e **`testar_canal`** na função (provam o canal SEM Vault, SEM banco, SEM credencial e SEM abrir o IMAP); o registro da função passa a incluir o **código fechado do Worker** (`detalhe`, ou `http_NNN` quando a resposta não é JSON, ex.: página de erro da Cloudflare) e o botão **Testar conexão** (canal e depois login no iCloud, sem ler nada).
+
+**1) Publicar o Worker p7.2 — PowerShell, no computador do dono:**
+```powershell
+cd <pasta do repositório>\experimentos\rac-inbox-worker
+git fetch origin; git switch claude/inbox-p7-worker; git pull --ff-only
+git rev-parse --short HEAD          # deve ser o commit informado no relatório
+npx wrangler whoami                 # confirma a conta
+npx wrangler deploy                 # a URL deve ser https://rac-inbox-worker.raynercarvalho.workers.dev
+```
+**2) Publicar a função v5** (ChatGPT, pelo conector): código de `supabase/functions/rac-inbox` no SHA do PR #34 informado no relatório; `verify_jwt=true`. Os secrets `RAC_CANAL_K1` e `RAC_INBOX_WORKER_URL` já existem e **não** mudam.
+
+**3) Testes reais, em ordem (console do navegador do site de produção, logado com o MFA).** Cole uma vez e rode as linhas seguintes; só aparecem status e códigos, nunca credencial:
+```js
+window.racTeste = async (corpo) => { const sb = await RACdados.cliente(); const r = await sb.functions.invoke("rac-inbox", { body: corpo }); if (!r.error) return r.data; const c = r.error.context; return { http: c && c.status, ...(c && c.json ? await c.json() : {}) }; };
+racTeste({ operacao: "testar_canal" }).then(console.log)      // A) canal: sem Apple, sem Vault
+```
+```js
+RACdados.cliente().then(async (sb) => { window.CONTA = (await sb.from("inbox_contas").select("id").limit(1)).data[0].id; racTeste({ operacao: "testar_conta", conta_id: CONTA }).then(console.log); })   // B) login no iCloud (LOGIN e LOGOUT; nada é lido)
+```
+```js
+racTeste({ operacao: "listar_pastas", conta_id: CONTA }).then(console.log)   // C) lista as pastas e grava SÓ o nome delas em inbox_pastas (nenhuma mensagem)
+```
+Depois do merge do PR #34, o mesmo A e B fica no botão **Testar conexão**, e C e a sincronização no botão **Sincronizar**.
+
+| Teste | Resposta que aprova | Se falhar |
+|---|---|---|
+| A · `testar_canal` | `{ok:true, canal:"ok", funcao:"rac-inbox@i2.2", worker:"rac-inbox-worker@p7.2"}` | `503 worker_nao_configurado`: `RAC_INBOX_WORKER_URL` ou `RAC_CANAL_K1` ausentes/ inválidos no Supabase. `502 canal_recusado`: chaves diferentes entre Supabase e Cloudflare (`detalhe: assinatura_invalida`), Worker sem o secret (`chave_desconhecida`) ou relógio (`timestamp_fora_da_janela`). `502 servico_indisponivel`: ver o `detalhe` no log da função (`http_404` = URL errada; `http_503`/`1102` = limite do Worker; `registro_indisponivel` = Durable Object; `canal_falhou` = rede). |
+| B · `testar_conta` | `{ok:true}` | `422 credencial_invalida`: a Apple recusou (marca a credencial como inválida; gerar nova senha de app e regravar). `409 credencial_ausente`, `500 credencial_corrompida`: regravar a credencial. `502 servico_indisponivel` com `detalhe` `conexao_falhou`/`timeout`/`saudacao_invalida`/`login_desabilitado`: problema entre o Worker e o iCloud. |
+| C · `listar_pastas` | `{ok:true, pastas:[{id,nome,uso}…]}` com a caixa de entrada (`uso:"entrada"`) | `detalhe` do log, como acima. |
+
+**Onde ver os logs:** função, em *Supabase → Edge Functions → rac-inbox → Logs* (linhas `{"rac_inbox":{"operacao","codigo","status","detalhe"}}`, sem credencial); Worker, em `npx wrangler tail rac-inbox-worker` (na pasta do Worker) durante o teste (a observabilidade fica desligada de propósito).
+
+**A integração é aprovada quando:** A, B e C respondem como acima; o carimbo é `i2.2`/`p7.2`; repetir A e B também passa (nonce novo aceito); nenhuma credencial aparece no console, nos logs da função nem no `wrangler tail`; `inbox_pastas` tem as pastas e `inbox_mensagens_ref` continua vazia até a primeira sincronização; depois a **sincronização** traz as mensagens, abrir uma mostra o texto, sincronizar de novo não duplica e **nada na caixa da Apple muda** (nenhuma mensagem marcada como lida, movida ou apagada).
+
 ### Primeiro teste real (critérios; só contam com a Apple de verdade)
 Logado com o MFA: Sincronizar → a primeira leitura traz as mensagens → abrir uma mensagem mostra o texto → baixar um anexo pequeno → sincronizar de novo não duplica → conferir no SQL (`select count(*) from public.inbox_mensagens_ref;`; `select tipo_ultima, falhas_seguidas, erro from public.inbox_sincronizacao;`) e que a senha não aparece em nenhuma resposta, tela ou log. Se o login for recusado, a conta mostra "Credencial recusada pelo provedor" (gerar nova senha de app e substituir).
 
@@ -226,6 +264,7 @@ Logado com o MFA: Sincronizar → a primeira leitura traz as mensagens → abrir
 | Sincronização: cursor, janela, buraco de UIDs, remoção, UIDVALIDITY, idempotência, concorrência | `tests/inbox_sync_servico.test.mjs` | simulado (Worker e banco de mentira) |
 | SQL do cache e do cursor, RLS, isolamento, transação, cascata | `tests/inbox_sync_sql.test.mjs` | **PostgreSQL real de teste (PGlite)**, não o Supabase |
 | Tela: lista, sincronizar, leitura, anexo, estados | `tests/inbox_tela.test.mjs` | DOM de mentira (não é o navegador) |
+| `ping`/`testar_canal` e o cliente real da função contra o Worker no workerd **local**: 11 de 11 (carimbos, chave errada, sem Durable Object, `http_404`, 10 simultâneos = 1 aceito); a bateria de 17 do canal também passa com o Worker novo | `ping_real` e `canal_real` (roteiros locais) | runtime real (workerd), **local**, não o Worker publicado |
 | TLS com o iCloud, **autenticação real**, leitura de pastas e mensagens reais, persistência no Supabase real, tela no iPhone com mensagens reais | — | **NÃO provado** (depende dos passos do dono) |
 | Nenhuma credencial em resposta, erro, log, tela ou teste | varreduras de texto e provas de vazamento nos testes | simulado |
 

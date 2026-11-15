@@ -16,6 +16,7 @@
   function inboxResposta(operacao,d){
     if(!d||d.ok!==true)return {ok:false,erro:d&&typeof d.erro==="string"&&NUCLEO.INB_ERROS[d.erro]?d.erro:"resposta_invalida"};
     if(operacao==="estado_pasta")return NUCLEO.inbRespostaEstado(d);
+    if(operacao==="testar_canal")return NUCLEO.inbRespostaCanal(d);
     if(operacao==="listar_pastas")return NUCLEO.inbRespostaPastas(d);
     if(operacao==="sincronizar_pasta")return NUCLEO.inbRespostaSincronizacao(d);
     if(operacao==="ler_mensagem")return NUCLEO.inbRespostaLeitura(d);

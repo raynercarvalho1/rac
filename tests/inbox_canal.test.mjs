@@ -65,7 +65,7 @@ test("respostas do Worker: sucesso, erro de lista fechada e qualquer outra coisa
   for (const [i, ruim] of falhas.entries()) {
     const e = await exec(ruim).then(() => null, (x) => x);
     assert.ok(e instanceof Error, "falha " + i);
-    assert.match(e.message, /^(canal_falhou|resposta_invalida|resposta_grande_demais)$/, "mensagem fixa, sem o conteúdo recebido (falha " + i + ")");
+    assert.match(e.message, /^(canal_falhou|resposta_invalida|resposta_grande_demais|http_\d{3})$/, "mensagem fixa, sem o conteúdo recebido (falha " + i + ")");
     assert.ok(!e.message.includes(SENHA) && !e.message.includes(USUARIO));
   }
 });
@@ -79,3 +79,18 @@ test("canal.ts (texto): sem Deno, sem ambiente, sem registro, redirecionamento r
   assert.equal((t.match(/\bfetch\(/g) || []).length, 1, "um único ponto de rede");
   const idx = ler("supabase/functions/rac-inbox/index.ts"); assert.match(idx, /RAC_INBOX_WORKER_URL/); assert.match(idx, /RAC_CANAL_K1/); assert.ok(!/RAC_CANAL_K1["']\)\s*[,;]?\s*\n?\s*console/.test(idx));
 });
+
+test("diagnóstico e ping: página de erro vira só o STATUS (http_NNN); sem credencial o corpo leva só a operação (o ping do canal)", async () => {
+  const exec = (resp) => criarWorkerHttp(cfg({ fetchFn: fetchFalso(resp).fn })).executar("listar_pastas", { conta_id: CONTA }, { usuario: USUARIO, senha: SENHA });
+  for (const [resp, msg] of [[() => resposta("<html>Error 1102 Worker exceeded resource limits " + SENHA + "</html>", 503), "http_503"], [() => resposta("nao json", 200), "http_200"], [() => resposta("<h1>404</h1>", 404), "http_404"], [() => resposta("", 502), "http_502"]]) {
+    const e = await exec(resp).then(() => null, (x) => x); assert.equal(e.message, msg); assert.ok(!e.message.includes(SENHA), "o conteúdo da página nunca entra na mensagem");
+  }
+  const f = fetchFalso(() => resposta({ ok: true, operacao: "ping", dados: { canal: "ok", worker: "rac-inbox-worker@p7.2" } }));
+  const r = await criarWorkerHttp(cfg({ fetchFn: f.fn })).executar("ping", {}, null);
+  assert.deepEqual(r, { ok: true, dados: { canal: "ok", worker: "rac-inbox-worker@p7.2" } });
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(f.chamadas[0].init.body)), { operacao: "ping" }, "sem credencial, sem conta, sem nada além da operação");
+  assert.equal(f.chamadas[0].init.headers["X-RAC-Operacao"], "ping"); assert.ok(!JSON.stringify(f.chamadas[0].init).includes(SENHA));
+  const h = f.chamadas[0].init.headers, corpo = f.chamadas[0].init.body;
+  assert.equal(await assinar({ segredo: SEGREDO, chave: "k1", timestamp: 1763200000, nonce: h["X-RAC-Nonce"], operacao: "ping", corpoBytes: corpo }), h["X-RAC-Assinatura"], "o ping é assinado como qualquer operação");
+});
+

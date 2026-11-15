@@ -3,7 +3,8 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const OPERACOES_LEITURA = ["testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"] as const;   // só LEITURA no provedor (nenhuma escrita na caixa existe aqui); "sincronizar_pasta" grava só o CACHE de cabeçalhos no banco
+export const VERSAO_FUNCAO = "rac-inbox@i2.2";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const OPERACOES_LEITURA = ["testar_canal", "testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"] as const;   // só LEITURA no provedor (nenhuma escrita na caixa existe aqui); "sincronizar_pasta" grava só o CACHE de cabeçalhos no banco
 
 /* código → HTTP */
 export const ERROS: Record<string, number> = {
@@ -25,6 +26,7 @@ const uidOk = (v: unknown): v is number => typeof v === "number" && Number.isInt
 
 export type Pedido =
   | { operacao: "credencial_guardar"; conta_id: string; usuario: string; senha_app: string }
+  | { operacao: "testar_canal" }   // prova o canal com o Worker: sem conta, sem Vault, sem credencial
   | { operacao: "credencial_remover" | "credencial_estado" | "testar_conta" | "listar_pastas"; conta_id: string }
   | { operacao: "estado_pasta" | "sincronizar_pasta"; conta_id: string; pasta_id: string }
   | { operacao: "ler_mensagem"; conta_id: string; pasta_id: string; uid: number }
@@ -32,7 +34,7 @@ export type Pedido =
 
 const CAMPOS: Record<string, string[]> = {
   credencial_guardar: ["conta_id", "usuario", "senha_app"], credencial_remover: ["conta_id"], credencial_estado: ["conta_id"],
-  testar_conta: ["conta_id"], listar_pastas: ["conta_id"], estado_pasta: ["conta_id", "pasta_id"],
+  testar_canal: [], testar_conta: ["conta_id"], listar_pastas: ["conta_id"], estado_pasta: ["conta_id", "pasta_id"],
   sincronizar_pasta: ["conta_id", "pasta_id"], ler_mensagem: ["conta_id", "pasta_id", "uid"], baixar_anexo: ["conta_id", "pasta_id", "uid", "parte"],
 };
 

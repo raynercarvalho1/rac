@@ -9,7 +9,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -91,6 +91,17 @@
         INBX.aviso={tipo:"ok",t:"Anexo pronto: "+r.nome+". Ele não fica guardado no RAC."}}
       catch(e){INBX.aviso={tipo:"erro",t:"Não consegui preparar o anexo."}}
       inboxDesenhar()})}
+  /* testar a conexão em duas provas, sem ler nem alterar nada: (1) o canal seguro com o servidor (sem credencial, sem Apple); (2) o login no iCloud. O aviso diz qual prova falhou e mostra as versões no ar. */
+  function inboxTestarConexao(c){
+    if(INBX.testando||!INBS.publicado)return;
+    INBX.testando=c.id;INBX.aviso=null;inboxDesenhar();
+    inboxChamar("testar_canal",{}).then(function(a){
+      if(!a.ok){INBX.testando=null;INBX.aviso={tipo:"erro",t:"1 de 2 · O canal seguro com o servidor falhou: "+NUCLEO.inbErroTexto(a.erro)};inboxDesenhar();return null}
+      var v="função "+a.funcao+", Worker "+a.worker;
+      return inboxChamar("testar_conta",{conta_id:c.id}).then(function(b){
+        INBX.testando=null;
+        INBX.aviso=b.ok?{tipo:"ok",t:"Conexão ok. 1 de 2 · canal seguro com o servidor ("+v+"). 2 de 2 · login no iCloud. Nada foi lido nem alterado."}:{tipo:"erro",t:"1 de 2 · canal seguro ok ("+v+"). 2 de 2 · o login no iCloud falhou: "+NUCLEO.inbErroTexto(b.erro)};
+        return inboxLer().then(inboxDesenhar)})}).then(null,function(){INBX.testando=null;INBX.aviso={tipo:"erro",t:NUCLEO.inbErroTexto("rede")};inboxDesenhar()})}
   function inboxTamanho(n){return n>=1048576?(n/1048576).toFixed(1).replace(".",",")+" MB":n>=1024?Math.round(n/1024)+" KB":n+" B"}
   function inboxExt(a){var m=/\.([A-Za-z0-9]{1,4})$/.exec(a.nome||"");return m?m[1].toUpperCase():"ARQ"}
   function inboxBtnIco(nome,rotulo,classe){return h("button",{type:"button",class:"inb-btn-ico"+(classe?" "+classe:""),"aria-disabled":"true","aria-label":rotulo,title:rotulo+" · "+INBX_FUTURO},inboxIco(nome),h("span",{class:"inb-btn-rot",text:rotulo}))}
@@ -159,7 +170,8 @@
     if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado. Nada foi pedido nem guardado."}));return box}
     if(INBX.credForm===c.id){box.appendChild(inboxFormCredencial(c));return box}
     var acoes=h("div",{class:"inb-conexao-acoes"}),conectar=rkBtn(est==="ativa"?"sec":est==="ausente"?"pri":"sec",est==="ausente"?"Conectar":"Substituir senha");conectar.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};
-    if(est==="ativa"&&!INBX.demo){var agora=rkBtn("pri",INBX.sinc?"Sincronizando…":"Sincronizar agora");agora.onclick=inboxSincronizar;if(INBX.sinc){agora.setAttribute("disabled","disabled");agora.setAttribute("aria-busy","true")}acoes.appendChild(agora)}
+    if(est==="ativa"&&!INBX.demo){var agora=rkBtn("pri",INBX.sinc?"Sincronizando…":"Sincronizar agora");agora.onclick=inboxSincronizar;if(INBX.sinc){agora.setAttribute("disabled","disabled");agora.setAttribute("aria-busy","true")}acoes.appendChild(agora);
+      var teste=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}acoes.appendChild(teste)}
     acoes.appendChild(conectar);
     if(est!=="ausente"){var rem=rkBtn("ter","Desconectar e remover a credencial");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
     if(est==="ativa"){var ent=INBX.pastas.filter(function(p){return p.conta_id===c.id&&p.uso==="entrada"})[0],sy=ent&&INBX.sincs[ent.id],

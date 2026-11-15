@@ -1,7 +1,7 @@
 // RAC Inbox: o serviço da função "rac-inbox" (docs/inbox.md). Puro e testado (tests/inbox_cofre_servico.test.mjs e tests/inbox_sync_servico.test.mjs): o cofre (Vault), o banco, o Worker e o registro entram como
 // dependências, então os testes usam versões de mentira e provam: a credencial nunca sai em resposta, erro ou registro; conta sem credencial nunca chega ao Worker; falha do cofre
 // interrompe a operação sem alternativa; só uma sincronização por conta ao mesmo tempo. SEM estado global: nada é guardado entre chamadas, e o segredo descriptografado vive só em variáveis locais de uma chamada.
-import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido } from "./contrato.ts";
+import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido, VERSAO_FUNCAO } from "./contrato.ts";
 import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
@@ -14,7 +14,7 @@ export interface Cofre {
 }
 export type ResultadoWorker = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 export interface Worker {
-  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string }): Promise<ResultadoWorker>;
+  executar(operacao: string, pedido: Record<string, unknown>, credencial: { usuario: string; senha: string } | null): Promise<ResultadoWorker>;
 }
 /* o cache de cabeçalhos e o cursor (tabelas da 051/053); a implementação SQL é de repositorio.ts */
 export interface PastaSalva { id: string; nome_externo: string; nome_exibicao: string; uso: string }
@@ -33,7 +33,7 @@ export interface Contexto {
   cofre: Cofre;
   banco?: Banco | null;                             // cache e cursor; ausente = operações que dependem dele respondem "banco_indisponivel"
   worker: Worker | null;                            // null se o canal assinado não está configurado (sem URL ou sem chave)
-  registrar: (e: { operacao: string; codigo: string; status: number }) => void;   // SÓ operação, código fechado e status
+  registrar: (e: { operacao: string; codigo: string; status: number; detalhe?: string }) => void;   // SÓ operação, código fechado, status e, se houver, o código FECHADO do Worker (nunca texto)
 }
 export type Resposta = { status: number; corpo: Record<string, unknown> };
 
@@ -41,7 +41,7 @@ export type Resposta = { status: number; corpo: Record<string, unknown> };
 const AUTENTICACAO_RECUSADA = ["autenticacao_recusada", "autenticacao_falhou", "login_recusado", "credencial_recusada"];
 const REPASSA = ["pasta_inexistente", "mensagem_inexistente", "parte_inexistente", "anexo_grande_demais", "uidvalidity_mudou"];   // informativos e seguros: o navegador sabe lidar
 const CANAL_RECUSADO = ["assinatura_invalida", "chave_desconhecida", "timestamp_fora_da_janela", "cabecalhos_invalidos", "replay", "canal_nao_configurado", "operacao_divergente"];
-const UID_MAX = 4294967295, RE_COD = /^[a-z][a-z0-9_]{1,40}$/;
+const UID_MAX = 4294967295, RE_COD = /^[a-z][a-z0-9_]{1,40}$/, RE_DETALHE = /^(?:[a-z][a-z0-9_]{1,40}|http_\d{3})$/, RE_VERSAO = /^[a-z0-9@._-]{1,60}$/;   // detalhe = código fechado do Worker ou "http_NNN"
 const uidOk = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= UID_MAX;
 const inteiroOuNulo = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null);
 
@@ -59,9 +59,9 @@ export function filtrarResposta(operacao: string, dados: Record<string, unknown>
 
 export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> {
   let operacao = "desconhecida";
-  const falha = (codigo: string): Resposta => {
+  const falha = (codigo: string, detalhe?: string): Resposta => {
     const status = ERROS[codigo] ?? 500;
-    try { ctx.registrar({ operacao, codigo, status }); } catch (_) { /* o registro nunca derruba a resposta */ }
+    try { ctx.registrar(detalhe && RE_DETALHE.test(detalhe) ? { operacao, codigo, status, detalhe } : { operacao, codigo, status }); } catch (_) { /* o registro nunca derruba a resposta */ }
     return { status, corpo: { ok: false, erro: codigo } };
   };
   const sucesso = (extra: Record<string, unknown>): Resposta => {
@@ -76,6 +76,17 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     if (!v.ok) return falha(v.erro);
     const p = v.pedido, dono = ctx.usuario.id;
     if (!ctx.usuario.mfaOk) return falha("mfa_requerido");
+
+    /* ---- prova do CANAL com o Worker: não lê o Vault, não toca no banco, não leva credencial e não abre o IMAP ---- */
+    if (p.operacao === "testar_canal") {
+      if (!ctx.worker) return falha("worker_nao_configurado");
+      let r: ResultadoWorker;
+      try { r = await ctx.worker.executar("ping", {}, null); } catch (e) { return falha("servico_indisponivel", detalheDe(e)); }
+      if (!r.ok) return falha(CANAL_RECUSADO.includes(r.erro) ? "canal_recusado" : "servico_indisponivel", r.erro);
+      const d = r.dados, w = typeof d.worker === "string" && RE_VERSAO.test(d.worker) ? d.worker : null;
+      if (d.canal !== "ok" || !w) return falha("servico_indisponivel", "resposta_invalida");
+      return sucesso({ canal: "ok", funcao: VERSAO_FUNCAO, worker: w });
+    }
 
     /* ---- ciclo da credencial ---- */
     if (p.operacao === "credencial_guardar") {
@@ -113,13 +124,13 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
         try { await banco?.estadoConta(dono, conta, "erro_autenticacao", "credencial_invalida"); } catch (_) { /* idem */ }
         return falha("credencial_invalida");
       }
-      if (REPASSA.includes(r.erro)) return falha(r.erro);
-      if (CANAL_RECUSADO.includes(r.erro)) return falha("canal_recusado");
-      return falha("servico_indisponivel");
+      if (REPASSA.includes(r.erro)) return falha(r.erro, r.erro);
+      if (CANAL_RECUSADO.includes(r.erro)) return falha("canal_recusado", r.erro);
+      return falha("servico_indisponivel", r.erro);
     };
     const marcarAtiva = async () => { try { await ctx.cofre.marcar(dono, conta, "ativa"); } catch (_) { /* a resposta continua controlada */ } };
     const chamar = async (op: string, ped: Record<string, unknown>): Promise<ResultadoWorker> => {
-      try { return await worker.executar(op, { conta_id: conta, ...ped }, credencial); } catch (_) { return { ok: false, erro: "servico_indisponivel" }; }   // a mensagem do erro (que poderia conter o segredo) é descartada
+      try { return await worker.executar(op, { conta_id: conta, ...ped }, credencial); } catch (e) { return { ok: false, erro: detalheDe(e) }; }   // a mensagem do erro (que poderia conter o segredo) é descartada
     };
     const pastaDe = async (pastaId: string) => { try { return await banco!.pasta(dono, conta, pastaId); } catch (_) { return undefined; } };
 
@@ -151,7 +162,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     if (p.operacao === "sincronizar_pasta") {
       let r;
       try { r = await sincronizarPasta({ dono, conta, pastaId, worker: { executar: (op, ped, c) => worker.executar(op, ped, c) }, banco: banco!, credencial }); }
-      catch (_) { cred = null; try { await banco!.falhaSync(dono, conta, pastaId, "servico_indisponivel"); } catch (_e) { /* idem */ } return falha("servico_indisponivel"); }
+      catch (e) { cred = null; try { await banco!.falhaSync(dono, conta, pastaId, "servico_indisponivel"); } catch (_e) { /* idem */ } return falha("servico_indisponivel", detalheDe(e)); }
       cred = null;
       if (!r.ok) {
         const resp = await traduzir(r);
@@ -183,6 +194,12 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
   } finally {
     if (travada) { try { await ctx.banco?.destravar(travada); } catch (_) { /* a conexão se fecha no fim da chamada e o travamento some com ela */ } }
   }
+}
+
+/* a falha de rede do canal (canal.ts) tem mensagem FIXA: "canal_falhou", "resposta_invalida", "resposta_grande_demais" ou "http_NNN". Só isso vai para o registro; qualquer outra coisa vira "servico_indisponivel". */
+function detalheDe(e: unknown): string {
+  const m = e instanceof Error ? e.message : "";
+  return /^(canal_falhou|resposta_invalida|resposta_grande_demais|http_\d{3})$/.test(m) ? m : "servico_indisponivel";
 }
 
 /* erro vindo do cofre → código fechado (só o campo "codigo" do ErroCofre; a mensagem nunca é usada) */

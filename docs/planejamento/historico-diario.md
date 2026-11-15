@@ -996,3 +996,24 @@ Família e da Casa.
 1. Dono: `wrangler login` e `wrangler deploy`; chave do canal gerada e colocada nos dois lados sem aparecer na tela (procedimento em `docs/inbox.md`); informar a URL real e a confirmação dos secrets ao ChatGPT.
 2. ChatGPT: publicar `rac-inbox` v2 pelo conector Supabase, com o SHA do código da função.
 3. Primeiro teste real com a Apple; só então a I2 é dada como concluída.
+
+## 15/11/2026 (noite) · RAC Inbox — preparação da validação real
+
+### 1. O que fizemos
+
+- Auditoria do fluxo da função (`index.ts`, `servico.ts`, `canal.ts`) e do Worker (`rotas.mjs`). **Achados:** nenhum código do site chamava `testar_conta`; não havia teste do canal sem a Apple; o log da função descartava o motivo da falha do Worker.
+- **Worker (branch `claude/inbox-p7-worker`):** operação `ping` (só assinatura e nonce; sem credencial; sem IMAP) e carimbo `rac-inbox-worker@p7.2`; 13 testes simulados.
+- **Função e site (branch `claude/inbox-i2-sync`, PR #34):** `testar_canal` (carimbo `rac-inbox@i2.2`), `detalhe` fechado no registro, `http_NNN` para respostas que não são JSON, botão **Testar conexão**; site `2026-11-15.3`.
+- **Runtime real local (workerd):** `ping` e a lógica real da função contra o Worker: 11 de 11; regressão do canal: 17 de 17; logs sem credencial nem chave.
+- Roteiro de validação (PowerShell e console) em `docs/inbox.md`.
+- **Não foi possível ao Claude:** publicar o Worker ou a função, ler logs do Supabase/Cloudflare ou falar com a Apple (sem credencial Cloudflare, sem acesso ao Supabase, sem rede para `workers.dev`).
+
+### 2. O que estamos fazendo
+
+- PR #34 pronto para revisão (sem merge). Aguardando a publicação do Worker p7.2 e da função v5 e os testes A, B e C do roteiro.
+
+### 3. O que vamos fazer
+
+1. Dono: publicar o Worker (`npx wrangler deploy`); ChatGPT: publicar a função v5; rodar os testes A, B e C e informar os resultados (status e `detalhe`, nunca credencial).
+2. Com A, B e C aprovados: sincronização controlada e leitura de uma mensagem; só então decidir o merge do PR #34.
+

@@ -48,7 +48,8 @@ export function criarWorkerHttp(cfg: ConfigCanal | null): Worker | null {
   const destino = base.origin + CAMINHO_CANAL, fetchFn = cfg.fetchFn ?? ((u, i) => fetch(u, i)), agora = cfg.agoraS ?? (() => Math.floor(Date.now() / 1000)), gerarNonce = cfg.nonce ?? nonceAleatorio;
   return {
     async executar(operacao, pedido, credencial): Promise<ResultadoWorker> {
-      const corpoBytes = codificador.encode(JSON.stringify({ operacao, ...pedido, usuario: credencial.usuario, senha: credencial.senha }));
+      // sem credencial (o ping do canal) o corpo não leva usuário nem senha: o Worker recusaria campos a mais
+      const corpoBytes = codificador.encode(JSON.stringify(credencial ? { operacao, ...pedido, usuario: credencial.usuario, senha: credencial.senha } : { operacao, ...pedido }));
       const timestamp = agora(), nonce = gerarNonce();
       const assinatura = await assinar({ segredo: cfg.segredo, chave, timestamp, nonce, operacao, corpoBytes });
       let resp: Response, texto: string;
@@ -61,7 +62,7 @@ export function criarWorkerHttp(cfg: ConfigCanal | null): Worker | null {
       } catch (_) { throw new Error("canal_falhou"); }   // rede, tempo esgotado, redirecionamento: mensagem FIXA (a original poderia citar destino ou conteúdo)
       if (texto.length > RESPOSTA_MAX_CARACTERES) throw new Error("resposta_grande_demais");   // mensagem fixa: nada do corpo
       let j: unknown;
-      try { j = JSON.parse(texto); } catch (_) { throw new Error("resposta_invalida"); }
+      try { j = JSON.parse(texto); } catch (_) { throw new Error("http_" + String(resp.status).padStart(3, "0").slice(0, 3)); }   // não é JSON (ex.: página de erro da Cloudflare): só o STATUS, nunca o conteúdo
       const o = j && typeof j === "object" ? (j as Record<string, unknown>) : null;
       if (resp.status === 200 && o && o.ok === true && o.dados && typeof o.dados === "object" && !Array.isArray(o.dados)) return { ok: true, dados: o.dados as Record<string, unknown> };
       if (o && o.ok === false && typeof o.erro === "string" && RE_CODIGO.test(o.erro)) return { ok: false, erro: o.erro };

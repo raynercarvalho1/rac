@@ -42,7 +42,7 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "testar_canal", "testar_conta"]);
   /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
   const SENHA_APP = "abcd-efgh-ijkl-mnop";
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });
@@ -258,3 +258,17 @@ test("I2 · cliente do serviço: as respostas novas passam pelos normalizadores 
   const antes = chamadas.length; assert.deepEqual(await chamar("ler_mensagem", { ...ped, uid: 0 }), { ok: false, erro: "id_invalido" }); assert.equal(chamadas.length, antes, "pedido inválido nem sai do navegador");
   for (const [st, cod] of [[404, "mensagem_inexistente"], [409, "uidvalidity_mudou"], [413, "anexo_grande_demais"]]) { resposta = { data: null, error: { name: "FunctionsHttpError", message: "texto do servidor", context: { status: st, json: () => Promise.resolve({ ok: false, erro: cod }) } } }; assert.deepEqual(await chamar("baixar_anexo", { ...ped, uid: 3, parte: "2" }), { ok: false, erro: cod }, cod + ": o código do corpo (de lista fechada) é o que vale"); }
 });
+
+test("I2 · testar_canal: pedido sem campos nenhum (sem conta, sem credencial) e resposta só com os carimbos de versão", async () => {
+  assert.deepEqual(N.inbPedido("testar_canal", {}), { ok: true, pedido: { operacao: "testar_canal" } });
+  assert.equal(N.inbPedido("testar_canal", { conta_id: UUID_A }).erro, "campos_inesperados"); assert.equal(N.inbPedido("testar_canal", { senha: "x" }).erro, "credencial_proibida"); assert.equal(N.INB_OPERACOES.testar_canal.escreve, false);
+  assert.deepEqual(N.inbRespostaCanal({ ok: true, canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2", x: 1 }), { ok: true, funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
+  for (const ruim of [null, { ok: true }, { ok: true, canal: "nao", funcao: "a", worker: "b" }, { ok: true, canal: "ok", funcao: "<script>", worker: "b" }, { ok: true, canal: "ok", funcao: "a", worker: "x".repeat(61) }, { ok: false, erro: "x" }, { ok: true, canal: "ok", funcao: 5, worker: "b" }]) assert.equal(N.inbRespostaCanal(ruim).erro, "resposta_invalida", JSON.stringify(ruim));
+  const chamadas = []; let resposta;
+  const ctx = { console, Promise, Object, Array, JSON, String, Number, NUCLEO: N, SB: { functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(resposta); } } } };
+  ctx.window = ctx; vm.createContext(ctx); vm.runInContext(ler("js/inbox-servico.js"), ctx);
+  resposta = { data: { ok: true, canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" }, error: null };
+  assert.deepEqual(JSON.parse(JSON.stringify(await ctx.inboxChamar("testar_canal", {}))), { ok: true, funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
+  assert.deepEqual(chamadas[0], ["rac-inbox", { body: { operacao: "testar_canal" } }], "o corpo é só a operação");
+});
+

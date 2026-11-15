@@ -311,3 +311,11 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Destino:** `#inbox/<conta>/<pasta>/<id da mensagem>`; o id é o da linha em `inbox_mensagens_ref` (nunca assunto/remetente). Abre direto a leitura.
 - **Agrupamento:** uma notificação por mensagem (tag própria); mais de 4 no ciclo = 3 individuais + 1 resumo. Reversível (constantes `MAX_INDIVIDUAIS`, `INDIVIDUAIS_NO_LOTE` em `rotina.ts`).
 
+## 15/11/2026 · RAC Inbox I3 — envio por SMTP (decisões técnicas do lote)
+
+- **Caminho:** navegador → `rac-inbox` → Worker → `smtp.mail.me.com:587` (STARTTLS). Credencial só no Vault; AUTH apenas após TLS. Nenhum novo armazenamento de credencial.
+- **Resultados:** enviado (2xx), falha confirmada, incerto (HTTP 202 `envio_incerto`); incerto nunca é repetido automaticamente.
+- **Anti-duplicidade:** `inbox_envios` (056) + `envio_id` do navegador; sem a tabela, não envia.
+- **Escopo:** só texto, 20 destinatários, sem anexos de saída, sem encaminhar anexos, sem APPEND em Enviados (Worker continua somente leitura no IMAP).
+- **Pendências (do dono):** aplicar 056; publicar Worker `p8.0` e função `i3.1`; rodar a prova SMTP real e o teste de ponta a ponta; confirmar se o iCloud grava a cópia em Enviados. O Worker de produto ainda está só na branch `claude/inbox-p7-worker`.
+

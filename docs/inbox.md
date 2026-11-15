@@ -386,6 +386,49 @@ Os provedores vão **convergir para o mesmo funil** da rotina iCloud: *adaptador
 
 **Limitação:** validar no iPhone (procedimento no relatório do PR).
 
+## I3 — Envio, resposta, resposta a todos e encaminhamento (implementado em código em 15/11/2026; NÃO publicado; SMTP real NÃO provado)
+
+**Estado honesto:** a prova de viabilidade do SMTP (`smtp_prova`) está implementada no Worker e testada contra um servidor SMTP **falso**. Ela **ainda não rodou contra `smtp.mail.me.com`**: o ambiente de desenvolvimento não resolve esse nome (sem DNS externo), não tem a credencial nem o Worker publicado. Nada na interface simula sucesso: o RAC só diz "enviado" com o 2xx do servidor depois do corpo.
+
+### Caminho
+Inbox (`js/inbox.js`) → função `rac-inbox` (`envio.ts`: valida, reserva o envio, lê a original, chama o Worker) → Worker (`smtp.mjs`, `saida.mjs`) → `smtp.mail.me.com:587` (STARTTLS). Canal HMAC, anti-replay, propriedade da conta, MFA e Vault são os de sempre; a credencial não ganhou nenhum novo lugar de guarda nem de transporte.
+
+### Operações novas
+| Operação (função) | Para quê | Observação |
+|---|---|---|
+| `smtp_prova` | Diagnostica o SMTP: conexão, saudação, EHLO, STARTTLS, TLS, EHLO, AUTH; relata etapas, códigos de 3 dígitos e durações | `enviar_teste: true` manda UMA mensagem curta só ao endereço da própria conta (o botão pede confirmação). Não marca a credencial como inválida. |
+| `enviar_mensagem` | Novo, responder, responder a todos, encaminhar | Só texto simples; até 20 destinatários (To+Cc+Cco), 300 caracteres de assunto, 100.000 de texto, mensagem MIME até 192 KiB |
+
+Worker: `smtp_prova` e `enviar` (política `saida`); corpo de até 256 KiB só nessas duas, as demais seguem em 4 KiB. Versões: Worker `p8.0`, função `i3.1`.
+
+### Segurança do SMTP
+- A senha só é enviada **depois** do STARTTLS aceito e da camada TLS aberta (`startTls({expectedServerHostname})` valida o certificado contra o nome fixo da política). Bytes em texto aberto depois do `220` do STARTTLS abortam a sessão.
+- Lista fechada de comandos SMTP conferida antes de escrever no socket (EHLO, STARTTLS, AUTH PLAIN, MAIL FROM, RCPT TO, DATA, QUIT). Uma tentativa de AUTH por chamada; nunca repete o envio.
+- Nada é registrado: nem senha, nem endereços, nem assunto, nem texto. A prova devolve só etapas, códigos e tempos; a função refiltra a resposta (esquema fechado, host e porta próprios).
+- Cabeçalhos: CR/LF/NUL recusados em endereço e assunto; assunto e corpo saem em ASCII (RFC 2047 e base64 UTF-8): acentos e emoji íntegros. O Cco só existe no envelope. O texto nunca vira HTML.
+- A função usa o endereço da conta (do banco) como remetente; o navegador não escolhe o "De".
+
+### Três resultados, nunca misturados
+- **Enviado:** o Worker recebeu 2xx depois do ".".
+- **Falha confirmada:** erro antes de o corpo ser transmitido, ou 4xx/5xx do servidor. Nada saiu; o mesmo envio pode ser tentado de novo.
+- **Incerto:** o corpo foi transmitido e a resposta não chegou, ou o canal falhou depois do pedido (HTTP 202, código `envio_incerto`). Nunca se repete sozinho; o dono confere Enviados e só um **novo** `envio_id` (botão "Não chegou: enviar de novo", com revisão) envia de novo.
+- Queda de rede no navegador: "Confirmar resultado" repete o **mesmo** `envio_id`; o servidor devolve o que aconteceu, sem transmitir duas vezes.
+
+### Sem duplicidade (migration 056, PENDENTE)
+`inbox_envios` guarda só metadados (estado, Message-ID, modo, nº de destinatários, código). O navegador gera o `envio_id`; o Message-ID é `<envio_id@domínio-da-conta>`. `pendente` recente = "em andamento"; `pendente` com mais de 2 min vira `incerto`; `enviado` e `incerto` nunca transmitem de novo; `falha` pode ser tentada outra vez. RLS só do dono + trava MFA; o site só lê. Sem a 056 o envio responde `registro_envio_indisponivel` e **nada é enviado**.
+
+### Responder e encaminhar
+- Responder: `In-Reply-To` = Message-ID da original e `References` = cadeia da original + ela (a função lê a original no provedor, não confia no navegador). Assunto `Re: ` sem repetir.
+- Responder a todos: remetente + Para + Cc originais, sem o próprio endereço (conta e login) e sem duplicidade (a função reaplica a regra).
+- Encaminhar: `Enc: `, cabeçalho "Mensagem encaminhada" e texto original no corpo. **Anexos não são encaminhados nesta etapa** (a tela avisa quais ficam de fora); a original nunca é alterada e não é marcada como lida/respondida.
+- Pasta Enviados: depois do "enviado", a função sincroniza o cache da pasta de uso `enviados` (melhor esforço; falhar não muda o resultado). **O Worker continua somente leitura no IMAP**: não há `APPEND`. Se o iCloud não gravar a cópia sozinho ao receber pelo SMTP (hipótese a verificar no teste real), a mensagem não aparecerá em Enviados; a solução seria um `APPEND` autorizado em lote próprio.
+
+### Limites
+Só texto; sem anexos de saída, sem HTML, sem rascunhos salvos (o rascunho vive só na memória da tela), sem agendamento, sem envio em massa (20 por mensagem), sem assinatura automática. Custos: nenhum plano novo (Cloudflare Workers aceita sockets TCP de saída na 587; a porta 25 é bloqueada, mas não é usada). A Cloudflare cobra por requisição/CPU como já ocorre com o IMAP.
+
+### Para publicar e validar (ordem)
+1. Dono aplica `supabase/056_inbox_envios.sql`. 2. Dono publica o Worker `p8.0` (README do Worker). 3. Dono republica a função `rac-inbox` (`i3.1`). 4. Site (`2026-11-15.11`). 5. Nas Opções da conta: **Testar envio (SMTP)**; se aprovado, **Testar envio com e-mail de teste** (um e-mail ao próprio endereço). 6. No iPhone: Nova mensagem para outro endereço seu, responder, responder a todos e encaminhar; só considerar concluído quando a mensagem **chegar** na conta de destino.
+
 ## Toque na notificação: confirmação da página e reserva (15/11/2026, versão `2026-11-15.10`)
 
 **Sintoma (teste real no iPhone com as versões `.8`/`.9`):** o toque trouxe o app para a frente na página que já estava aberta (Início), sem ir ao Inbox nem à mensagem.

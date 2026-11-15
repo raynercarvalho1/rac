@@ -2,6 +2,7 @@
 // dependências, então os testes usam versões de mentira e provam: a credencial nunca sai em resposta, erro ou registro; conta sem credencial nunca chega ao Worker; falha do cofre
 // interrompe a operação sem alternativa; só uma sincronização por conta ao mesmo tempo. SEM estado global: nada é guardado entre chamadas, e o segredo descriptografado vive só em variáveis locais de uma chamada.
 import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido, VERSAO_FUNCAO } from "./contrato.ts";
+import { envioPuro } from "./envio.ts";
 import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
@@ -28,12 +29,18 @@ export interface Banco {
   aplicarSync(dono: string, conta: string, pastaId: string, a: AplicacaoSync): Promise<{ novas: number; atualizadas: number; removidas: number }>;
   falhaSync(dono: string, conta: string, pastaId: string, erro: string): Promise<void>;
   estadoConta(dono: string, conta: string, estado: "conectada" | "erro_autenticacao" | "atrasada", erro: string | null): Promise<void>;
+  /* I3 · envio (migration 056). Opcionais para que os contextos antigos (rotina, testes de leitura) continuem válidos; sem elas o envio responde "registro_envio_indisponivel" */
+  contaEndereco?(dono: string, conta: string): Promise<string | null>;
+  pastaPorUso?(dono: string, conta: string, uso: string): Promise<{ id: string; nome_externo: string } | null>;
+  envioIniciar?(dono: string, conta: string, envioId: string, a: { message_id: string; modo: string; destinatarios: number }): Promise<{ novo: boolean; estado: "pendente" | "enviado" | "falha" | "incerto"; message_id: string } | null>;
+  envioFinalizar?(dono: string, conta: string, envioId: string, estado: "enviado" | "falha" | "incerto", codigo: string | null): Promise<void>;
 }
 export interface Contexto {
   usuario: { id: string; mfaOk: boolean } | null;   // já autenticado pelo index.ts (JWT validado)
   cofre: Cofre;
   banco?: Banco | null;                             // cache e cursor; ausente = operações que dependem dele respondem "banco_indisponivel"
   worker: Worker | null;                            // null se o canal assinado não está configurado (sem URL ou sem chave)
+  agora?: () => Date;                               // relógio (só os testes trocam)
   registrar: (e: { operacao: string; codigo: string; status: number; detalhe?: string }) => void;   // SÓ operação, código fechado, status e, se houver, o código FECHADO do Worker (nunca texto)
 }
 export type Resposta = { status: number; corpo: Record<string, unknown> };
@@ -104,7 +111,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     /* ---- operações no provedor (SÓ LEITURA): precisam do Worker, da credencial guardada e (as de pasta) do banco ---- */
     if (!ctx.worker) return falha("worker_nao_configurado");   // antes de abrir o cofre: sem canal para o Worker, o segredo nem é lido
     const worker = ctx.worker, banco = ctx.banco ?? null, conta = p.conta_id;
-    const precisaBanco = p.operacao !== "testar_conta";
+    const precisaBanco = p.operacao !== "testar_conta" && p.operacao !== "smtp_prova";   // (a prova só precisa do endereço da conta quando manda o teste: o envio.ts pede ao banco)
     if (precisaBanco && !banco) return falha("banco_indisponivel");
     if (p.operacao === "sincronizar_pasta") {
       // só uma sincronização por conta ao mesmo tempo (as duas esperam o mesmo cursor)
@@ -134,6 +141,13 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       try { return await worker.executar(op, { conta_id: conta, ...ped }, credencial); } catch (e) { return { ok: false, erro: detalheDe(e) }; }   // a mensagem do erro (que poderia conter o segredo) é descartada
     };
     const pastaDe = async (pastaId: string) => { try { return await banco!.pasta(dono, conta, pastaId); } catch (_) { return undefined; } };
+
+    if (p.operacao === "smtp_prova" || p.operacao === "enviar_mensagem") {
+      const rr = await envioPuro({ p, dono, conta, credencial, worker, banco, agora: ctx.agora ?? (() => new Date()), marcarAtiva });
+      cred = null;
+      if (rr.tipo === "sucesso") return sucesso(rr.corpo);
+      return falha(rr.codigo, rr.detalhe);
+    }
 
     if (p.operacao === "testar_conta") {
       const r = await chamar("testar_conta", {});

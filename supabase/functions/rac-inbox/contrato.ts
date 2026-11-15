@@ -3,7 +3,8 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const VERSAO_FUNCAO = "rac-inbox@i3.0";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const VERSAO_FUNCAO = "rac-inbox@i3.1";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const OPERACOES_SAIDA = ["smtp_prova", "enviar_mensagem"] as const;   // SMTP (I3): as ÚNICAS operações que escrevem no mundo; só o dono, só com a ação explícita do navegador
 export const OPERACOES_LEITURA = ["testar_canal", "testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"] as const;   // só LEITURA no provedor (nenhuma escrita na caixa existe aqui); "sincronizar_pasta" grava só o CACHE de cabeçalhos no banco
 
 /* código → HTTP */
@@ -15,6 +16,9 @@ export const ERROS: Record<string, number> = {
   /* I2 (leitura e sincronização) */
   pasta_inexistente: 404, mensagem_inexistente: 404, parte_inexistente: 404, anexo_grande_demais: 413, uidvalidity_mudou: 409, sincronizacao_em_andamento: 409,
   canal_recusado: 502, banco_indisponivel: 503,
+  /* I3 (envio): falha confirmada = 4xx/422; resultado incerto = 202 (a mensagem PODE ter sido aceita: nunca se repete sozinho) */
+  envio_recusado: 422, destinatario_recusado: 422, remetente_recusado: 422, smtp_autenticacao_recusada: 422, smtp_indisponivel: 502, envio_incerto: 202, envio_em_andamento: 409,
+  registro_envio_indisponivel: 503, origem_invalida: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413, modo_invalido: 400,
 };
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -30,11 +34,18 @@ export type Pedido =
   | { operacao: "credencial_remover" | "credencial_estado" | "testar_conta" | "listar_pastas"; conta_id: string }
   | { operacao: "estado_pasta" | "sincronizar_pasta"; conta_id: string; pasta_id: string }
   | { operacao: "ler_mensagem"; conta_id: string; pasta_id: string; uid: number }
-  | { operacao: "baixar_anexo"; conta_id: string; pasta_id: string; uid: number; parte: string };
+  | { operacao: "baixar_anexo"; conta_id: string; pasta_id: string; uid: number; parte: string }
+  | { operacao: "smtp_prova"; conta_id: string; enviar_teste: boolean }
+  | { operacao: "enviar_mensagem"; conta_id: string; envio_id: string; modo: ModoEnvio; pasta_id?: string; uid?: number; para: string[]; cc: string[]; cco: string[]; assunto: string; texto: string };
+export type ModoEnvio = "novo" | "responder" | "responder_todos" | "encaminhar";
+export const MODOS_ENVIO: readonly string[] = ["novo", "responder", "responder_todos", "encaminhar"];
+export const LIMITES_ENVIO = { destinatarios: 20, assunto: 300, texto: 100000 } as const;
+export const ENVIO_CORPO_MAX_CARACTERES = 450000;   // o pedido de envio carrega o texto (o limite das demais operações continua 2 KiB)
 
 const CAMPOS: Record<string, string[]> = {
   credencial_guardar: ["conta_id", "usuario", "senha_app"], credencial_remover: ["conta_id"], credencial_estado: ["conta_id"],
   testar_canal: [], testar_conta: ["conta_id"], listar_pastas: ["conta_id"], estado_pasta: ["conta_id", "pasta_id"],
+  smtp_prova: ["conta_id", "enviar_teste"], enviar_mensagem: ["conta_id", "envio_id", "modo", "pasta_id", "uid", "para", "cc", "cco", "assunto", "texto"],
   sincronizar_pasta: ["conta_id", "pasta_id"], ler_mensagem: ["conta_id", "pasta_id", "uid"], baixar_anexo: ["conta_id", "pasta_id", "uid", "parte"],
 };
 
@@ -44,6 +55,12 @@ export function validarPedido(corpo: unknown): { ok: true; pedido: Pedido } | { 
   if (typeof op !== "string" || !Object.prototype.hasOwnProperty.call(CAMPOS, op)) return { ok: false, erro: "operacao_invalida" };
   const permitidos = ["operacao", ...CAMPOS[op]];
   if (Object.keys(c).some((k) => !permitidos.includes(k))) return { ok: false, erro: "campos_inesperados" };
+  if (op === "smtp_prova") {
+    if (typeof c.conta_id !== "string" || !RE_UUID.test(c.conta_id)) return { ok: false, erro: "id_invalido" };
+    if (c.enviar_teste !== undefined && typeof c.enviar_teste !== "boolean") return { ok: false, erro: "campo_ausente" };
+    return { ok: true, pedido: { operacao: "smtp_prova", conta_id: c.conta_id, enviar_teste: c.enviar_teste === true } };
+  }
+  if (op === "enviar_mensagem") return validarEnvio(c);
   for (const k of CAMPOS[op]) if (c[k] === undefined) return { ok: false, erro: "campo_ausente" };
   for (const k of CAMPOS[op]) if ((k === "conta_id" || k === "pasta_id") && (typeof c[k] !== "string" || !RE_UUID.test(c[k] as string))) return { ok: false, erro: "id_invalido" };
   if ((op === "ler_mensagem" || op === "baixar_anexo") && !uidOk(c.uid)) return { ok: false, erro: "id_invalido" };
@@ -81,4 +98,34 @@ export function erroDoCofre(codigoPg: string | undefined): string {
     case "22023": return "campo_ausente";
     default: return "cofre_indisponivel";
   }
+}
+
+const RE_END_ENVIO = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}$/;
+/* o pedido de envio: esquema FECHADO. Endereços em minúsculas, sem duplicidade (a ordem de precedência é Para, Cc, Cco). O texto é só texto: nenhum HTML é montado nem aceito como tal. */
+function validarEnvio(c: Record<string, unknown>): { ok: true; pedido: Pedido } | { ok: false; erro: string } {
+  for (const k of ["conta_id", "envio_id"]) if (typeof c[k] !== "string" || !RE_UUID.test(c[k] as string)) return { ok: false, erro: "id_invalido" };
+  if (typeof c.modo !== "string" || !MODOS_ENVIO.includes(c.modo)) return { ok: false, erro: "modo_invalido" };
+  const resp = c.modo !== "novo";
+  if (resp) { if (typeof c.pasta_id !== "string" || !RE_UUID.test(c.pasta_id) || !uidOk(c.uid)) return { ok: false, erro: "origem_invalida" }; }
+  else if (c.pasta_id !== undefined || c.uid !== undefined) return { ok: false, erro: "origem_invalida" };
+  const lista = (v: unknown, obrigatoria: boolean): string[] | null => {
+    if (v === undefined) return obrigatoria ? null : [];
+    if (!Array.isArray(v) || v.length > LIMITES_ENVIO.destinatarios) return null;
+    const r: string[] = [];
+    for (const e of v) { if (typeof e !== "string" || e.length > 254 || !RE_END_ENVIO.test(e)) return null; r.push(e.toLowerCase()); }
+    return r;
+  };
+  if (!Array.isArray(c.para) || c.para.length > LIMITES_ENVIO.destinatarios) return { ok: false, erro: c.para === undefined ? "campo_ausente" : "destinatarios_demais" };
+  const para = lista(c.para, true), cc = lista(c.cc, false), cco = lista(c.cco, false);
+  if (!para || !cc || !cco) return { ok: false, erro: "destinatario_invalido" };
+  const vistos: Record<string, boolean> = {}, unico = (l: string[]) => l.filter((e) => (vistos[e] ? false : (vistos[e] = true)));
+  const p2 = unico(para), c2 = unico(cc), o2 = unico(cco);
+  if (p2.length === 0) return { ok: false, erro: "destinatario_invalido" };
+  if (p2.length + c2.length + o2.length > LIMITES_ENVIO.destinatarios) return { ok: false, erro: "destinatarios_demais" };
+  if (typeof c.assunto !== "string" || c.assunto.length > LIMITES_ENVIO.assunto || /[\u0000-\u001f\u007f]/.test(c.assunto)) return { ok: false, erro: "assunto_invalido" };
+  if (typeof c.texto !== "string") return { ok: false, erro: "campo_ausente" };
+  if (c.texto.length > LIMITES_ENVIO.texto) return { ok: false, erro: "texto_grande_demais" };
+  const pedido: Record<string, unknown> = { operacao: "enviar_mensagem", conta_id: c.conta_id, envio_id: c.envio_id, modo: c.modo, para: p2, cc: c2, cco: o2, assunto: c.assunto, texto: c.texto };
+  if (resp) { pedido.pasta_id = c.pasta_id; pedido.uid = c.uid; }
+  return { ok: true, pedido: pedido as Pedido };
 }

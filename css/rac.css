@@ -520,3 +520,15 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 /* iPhone (PWA): a barra inferior e os botões flutuantes (voltar, subir, +) subiam até o meio da tela ao rolar uma lista longa (Inbox) e voltavam ao rolar para cima.
    Cada um ganha a sua própria camada de composição, o que impede o WebKit de arrastá-los junto com a camada da página. Só posição/camada: nada muda no desenho. */
 html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+
+/* ---------- RAC Inbox · I3: escrever, responder, encaminhar (docs/inbox.md, "Envio") ---------- */
+.inb-compor-tit{font:700 var(--rac-fs-texto)/1.2 var(--f-ui);margin-left:var(--rac-esp-2)}
+.inb-compor-corpo{gap:var(--rac-esp-4)}
+.inb-compor-de{display:flex;gap:var(--rac-esp-3);align-items:baseline;margin:0;color:var(--rac-texto-2)}.inb-compor-de b{color:var(--rac-texto);overflow-wrap:anywhere}
+.inb-c-area{min-height:40vh;line-height:1.55;resize:vertical;font-family:var(--f-body)}
+.inb-compor-acoes{display:flex;justify-content:flex-end;gap:var(--rac-esp-3);position:sticky;bottom:0;padding:var(--rac-esp-3) 0;background:var(--rac-papel)}
+.inb-compor-acoes--col{flex-direction:column;align-items:stretch}
+.inb-compor-acoes .rac-btn{min-height:var(--rac-alvo)}
+.inb-rev{display:grid;grid-template-columns:max-content 1fr;gap:var(--rac-esp-2) var(--rac-esp-4);margin:0}.inb-rev dt{color:var(--rac-texto-2)}.inb-rev dd{margin:0;overflow-wrap:anywhere;font-weight:600}
+.inb-rev-texto{margin:0;padding:var(--rac-esp-3);max-height:40vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--rac-linha);border-radius:var(--rac-raio-1);font:400 var(--rac-fs-sec)/1.5 var(--f-body)}
+@media (max-width:760px){.inb-compor-corpo{padding:var(--rac-esp-2) var(--rac-esp-4) calc(24px + env(safe-area-inset-bottom,0px))}.inb-compor-acoes{padding-bottom:calc(var(--rac-esp-3) + env(safe-area-inset-bottom,0px))}.inb-compor-acoes .rac-btn{flex:1}.inb-rev{grid-template-columns:1fr}}

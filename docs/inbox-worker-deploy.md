@@ -1,6 +1,6 @@
 # Publicar o Worker `rac-inbox-worker` pelo GitHub Actions
 
-Workflow: `.github/workflows/rac-inbox-worker-publicar.yml` (manual, só na `main`). Ferramenta fixada: `experimentos/rac-inbox-worker-ferramenta/` (Wrangler `4.161.0`, lockfile próprio). Worker publicado: `experimentos/rac-inbox-worker/` (hoje `rac-inbox-worker@p8.0`: IMAP somente leitura + SMTP). Não tem relação com o Worker de prova iCloud (`rac-icloud-auth-poc`); só reaproveita os mesmos princípios de segurança de `docs/icloud-poc-deploy.md`.
+Workflow: `.github/workflows/rac-inbox-worker-publicar.yml` (manual, só na `main`). Ferramenta fixada: `experimentos/rac-inbox-worker-ferramenta/` (Wrangler `4.161.0`, lockfile próprio). Worker publicado: `experimentos/rac-inbox-worker/` (hoje `rac-inbox-worker@p9.0`: IMAP somente leitura + SMTP). Não tem relação com o Worker de prova iCloud (`rac-icloud-auth-poc`); só reaproveita os mesmos princípios de segurança de `docs/icloud-poc-deploy.md`.
 
 ## O que o workflow faz (e o que nunca faz)
 1. Recebe só **um commit completo (40 caracteres)**. Confere que ele existe, está na **história da `main`** e tem o CI `testes` **aprovado**.
@@ -31,14 +31,14 @@ Repositório → **Settings → Environments → New environment** → nome exat
 ## Como executar pelo iPhone
 1. No Safari, abra `https://github.com/raynercarvalho1/rac/actions/workflows/rac-inbox-worker-publicar.yml` (se faltar o botão, toque em **aA → Solicitar site para computador**).
 2. Toque em **Run workflow**. **Branch: `main`** (obrigatório).
-3. Preencha: **commit** = o SHA completo de 40 caracteres do commit da `main` com o CI verde (na página do commit, toque no SHA para copiar; ex.: o merge do PR #41 é `2351bc1066170c750a0a2688fe1601426fe54b9c`); **versao_esperada** = `rac-inbox-worker@p8.0`; **exigir_secret_k1** = `sim`. Toque em **Run workflow**.
+3. Preencha: **commit** = o SHA completo de 40 caracteres do commit da `main` com o CI verde (na página do commit, toque no SHA para copiar; ex.: o merge do PR #41 é `2351bc1066170c750a0a2688fe1601426fe54b9c`); **versao_esperada** = `rac-inbox-worker@p9.0`; **exigir_secret_k1** = `sim`. Toque em **Run workflow**.
 4. Abra a execução. Quando o job **verificar** terminar, leia o resumo (commit, sha256, lista de arquivos). Se estiver certo, toque em **Review deployments → cloudflare-production → Approve and deploy**.
 5. Ao terminar o job **publicar**, o **resumo** da execução mostra: commit, sha256, **deployment ID**, version ID, deployment anterior, `RAC_CANAL_K1` antes e depois (só o nome) e o resultado da saúde.
 
 ## Como conferir o deployment
 - **No resumo do Actions** (acima); a execução fica verde só se a saúde passar.
 - **Na Cloudflare**: Workers & Pages → `rac-inbox-worker` → **Deployments** (o ID mais recente deve ser o do resumo).
-- **No RAC** (conexão assinada de ponta a ponta): Inbox → Opções da conta → **Testar conexão**. A mensagem mostra a versão da função e do Worker (`rac-inbox-worker@p8.0`). Depois, **Testar envio (SMTP)** (sem e-mail) e, se aprovado, **Testar envio com e-mail de teste**.
+- **No RAC** (conexão assinada de ponta a ponta): Inbox → Opções da conta → **Testar conexão**. A mensagem mostra a versão da função e do Worker (`rac-inbox-worker@p9.0`). Depois, **Testar envio (SMTP)** (sem e-mail) e, se aprovado, **Testar envio com e-mail de teste**.
 
 ## Rollback
 O Worker guarda as versões anteriores; voltar não mexe em secrets nem no Durable Object.
@@ -62,6 +62,11 @@ O Worker guarda as versões anteriores; voltar não mexe em secrets nem no Durab
 
 ## Limites
 Este workflow não aplica SQL, não publica a função `rac-inbox` (Supabase) nem o site, e não faz a prova real de SMTP: isso continua sendo feito pelo botão **Testar envio (SMTP)** do RAC, que usa a credencial do Vault.
+
+## Histórico de publicação e manutenção
+
+- Em 16/11/2026, o Worker passou a `rac-inbox-worker@p9.0` (I3.2). O formulário do workflow e este guia devem usar o mesmo carimbo de versão de `experimentos/rac-inbox-worker/src/politica.mjs`.
+- O workflow consulta o check `testes` do commit selecionado. A execução manual deve ser iniciada somente depois de esse check terminar com `success`; se ainda estiver `in_progress`, aguarde e tente novamente.
 
 ## Inspeção dos comandos IMAP do pacote (corrigida em 16/11/2026, após o I3.2)
 O verificador do workflow reprovava qualquer `SELECT`, `STORE` ou `MOVE` no pacote (política antiga "IMAP só leitura") e por isso barrou o Worker `p9.0`. Agora a etapa "Empacotar sem publicar (dry-run) e inspecionar" chama `experimentos/rac-inbox-worker-ferramenta/inspecionar-verbos.mjs` sobre o bundle gerado. **Passam só:** `SELECT` na abertura controlada de pasta, `UID STORE` de `+FLAGS (\Seen)`/`-FLAGS (\Seen)` para um UID e `UID MOVE` de um UID para uma pasta validada (com o portão "MOVE anunciado depois do login"), cada um na forma exata e uma vez. **Reprovam:** COPY, APPEND, EXPUNGE (inclusive UID EXPUNGE), DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE, `\Deleted`, `FLAGS.SILENT` e qualquer STORE/MOVE/SELECT fora dessas formas. Mudar os comandos do Worker exige atualizar esta política no mesmo PR (de propósito). Teste: `tests/rac_inbox_worker_inspecao.test.mjs`. O job também roda `rac_inbox_worker_gestao.test.mjs`.

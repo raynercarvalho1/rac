@@ -42,7 +42,7 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "enviar_mensagem", "estado_pasta", "ler_mensagem", "listar_pastas", "sincronizar_pasta", "smtp_prova", "testar_canal", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "enviar_mensagem", "estado_pasta", "ler_mensagem", "listar_pastas", "organizar_mensagem", "sincronizar_pasta", "smtp_prova", "testar_canal", "testar_conta"]);
   /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
   const SENHA_APP = "abcd-efgh-ijkl-mnop";
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });
@@ -52,7 +52,7 @@ test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP, dono: UUID_B }), { ok: false, erro: "campos_inesperados" }, "o dono nunca vai no pedido");
   for (const op of ["credencial_remover", "credencial_estado", "testar_conta", "estado_pasta"]) assert.deepEqual(N.inbPedido(op, { conta_id: UUID_A, pasta_id: UUID_B, senha_app: SENHA_APP }), { ok: false, erro: "credencial_proibida" }, op + " não aceita credencial");
   assert.deepEqual(N.inbPedido("credencial_remover", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "credencial_remover", conta_id: UUID_A } });
-  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem"], "só o envio escreve (I3), e só a partir de um clique explícito");
+  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem", "organizar_mensagem"], "só o envio (I3) e o gerenciamento de uma mensagem (I3.2) escrevem, e só a partir de um clique explícito");
   assert.deepEqual(N.inbPedido("testar_conta", { conta_id: UUID_A }), { ok: true, pedido: { operacao: "testar_conta", conta_id: UUID_A } });
   assert.deepEqual(N.inbPedido("estado_pasta", { conta_id: UUID_A, pasta_id: UUID_B }), { ok: true, pedido: { operacao: "estado_pasta", conta_id: UUID_A, pasta_id: UUID_B } });
   for (const verbo of N.INB_ESCRITA) assert.deepEqual(N.inbPedido(verbo, { conta_id: UUID_A }), { ok: false, erro: "escrita_fora_do_escopo" }, verbo);
@@ -210,7 +210,7 @@ test("I2 · pedidos novos: sincronizar_pasta, ler_mensagem e baixar_anexo levam 
   assert.equal(N.inbPedido("sincronizar_pasta", { conta_id: UUID_A, pasta_id: UUID_B, nome: "INBOX" }).erro, "campos_inesperados", "o nome da pasta nunca vai do navegador");
   assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B, uid: 7, senha: "x" }).erro, "credencial_proibida");
   assert.equal(N.inbPedido("ler_mensagem", { conta_id: UUID_A, pasta_id: UUID_B }).erro, "campo_ausente");
-  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem"], "só o envio escreve (I3), e só a partir de um clique explícito");
+  assert.deepEqual(Object.entries(N.INB_OPERACOES).filter(([, o]) => o.escreve).map(([k]) => k), ["enviar_mensagem", "organizar_mensagem"], "só o envio (I3) e o gerenciamento de uma mensagem (I3.2) escrevem, e só a partir de um clique explícito");
 });
 
 test("I2 · a linha da lista vem do cache (sem prévia) e os normalizadores de resposta são de esquema fechado", () => {

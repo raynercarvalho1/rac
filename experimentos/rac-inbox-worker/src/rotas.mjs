@@ -4,7 +4,7 @@
 // Sem console, sem armazenamento próprio, sem eco de nada que o cliente enviou. Erros = código fechado + HTTP. A credencial só existe em variáveis locais desta chamada.
 import { POLITICA } from "./politica.mjs";
 import { verificarCanal, ErroCanal, ERROS_CANAL } from "./canal.mjs";
-import { comSessao, OPERACOES, ERROS_IMAP } from "./imap.mjs";
+import { comSessao, OPERACOES, ERROS_IMAP, GESTAO, OPERACOES_GESTAO } from "./imap.mjs";
 import { ERROS_SMTP, enviarMensagem, provarSmtp } from "./smtp.mjs";
 import { ErroSaida, examinarEnvio, enderecoValido } from "./saida.mjs";
 
@@ -15,6 +15,8 @@ const falha = (status, erro) => json(status, { ok: false, erro });
 const HTTP_IMAP = { autenticacao_recusada: 422, parametro_invalido: 400, pasta_invalida: 400, pasta_inexistente: 404, mensagem_inexistente: 404, parte_inexistente: 404, uidvalidity_mudou: 409, anexo_grande_demais: 413,
   // SMTP (I3): recusa do servidor é 422; resultado incerto é 504; o resto é indisponibilidade (502)
   smtp_autenticacao_recusada: 422, remetente_recusado: 422, destinatario_recusado: 422, dados_recusados: 422, envio_recusado: 422, envio_incerto: 504, smtp_autenticacao_nao_suportada: 502,
+  // I3.2 (gerenciamento): operação que o servidor não oferece, recusa definitiva, identidade diferente, pasta só de leitura e resultado incerto (504)
+  acao_indisponivel: 422, acao_recusada: 422, identidade_divergente: 409, pasta_somente_leitura: 422, acao_incerta: 504, confirmacao_ausente: 502,
   pedido_invalido: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, message_id_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413 };
 const CODIGOS = [...ERROS_IMAP, ...ERROS_SMTP];
 
@@ -26,6 +28,10 @@ const PARAMS = Object.freeze({
   listar_mensagens: ["pasta", "ultimas?", "desde_uid?", "antes_de_uid?", "limite?", "uidvalidity_esperado?"],
   ler_mensagem: ["pasta", "uid", "uidvalidity_esperado?"], baixar_anexo: ["pasta", "uid", "parte", "uidvalidity_esperado?"],
   // saída (SMTP): a prova leva, só se for mandar o teste, o endereço da conta, o Message-ID e o instante; "enviar" tem validação própria (saida.mjs)
+  // I3.2: o UIDVALIDITY esperado é OBRIGATÓRIO nas que alteram ou verificam; destino é nome de pasta que a função tirou do banco; message_id_esperado/tamanho_esperado conferem a identidade
+  capacidades: [], verificar_mensagem: ["pasta", "uid", "uidvalidity_esperado"],
+  marcar_lida: ["pasta", "uid", "uidvalidity_esperado", "lida", "message_id_esperado?", "tamanho_esperado?"],
+  mover_mensagem: ["pasta", "destino", "uid", "uidvalidity_esperado", "message_id_esperado?", "tamanho_esperado?"],
   smtp_prova: ["enviar_teste?", "endereco?", "message_id?", "data?"], enviar: ["de", "para", "cc?", "cco?", "assunto", "texto", "message_id", "em_resposta_a?", "referencias?", "data"],
 });
 
@@ -54,7 +60,10 @@ export function examinarCorpo(bytes, operacaoAssinada, politica = POLITICA) {
   for (const r of regras) {
     const nome = r.replace("?", ""), opcional = r.endsWith("?"), v = d[nome];
     if (v === undefined) { if (opcional) continue; return { erro: "campo_ausente" }; }
-    if (nome === "pasta") { if (typeof v !== "string") return { erro: "campo_invalido" }; }
+    if (nome === "pasta" || nome === "destino") { if (typeof v !== "string") return { erro: "campo_invalido" }; }
+    else if (nome === "lida") { if (typeof v !== "boolean") return { erro: "campo_invalido" }; }
+    else if (nome === "message_id_esperado") { if (typeof v !== "string" || !/^[\x21-\x7e]{1,255}$/.test(v)) return { erro: "campo_invalido" }; }
+    else if (nome === "tamanho_esperado") { if (!Number.isSafeInteger(v) || v < 0 || v > 2147483647) return { erro: "campo_invalido" }; }
     else if (nome === "parte") { if (typeof v !== "string") return { erro: "campo_invalido" }; }
     else if (nome === "limite") { if (!Number.isSafeInteger(v) || v < 1 || v > politica.imap.maxMensagensPorChamada) return { erro: "campo_invalido" }; }
     else if (!uid32(v)) return { erro: "campo_invalido" };
@@ -120,6 +129,10 @@ export function executarOperacao({ abrir, abrirSmtp, politica = POLITICA, relogi
       const base = { abrir: abrirSmtp, usuario: corpo.usuario, senha: corpo.senha, relogio };
       if (corpo.operacao === "enviar") return enviarMensagem(base, corpo, politica);
       return provarSmtp(base, { enviar_teste: corpo.enviar_teste === true, endereco: corpo.endereco, message_id: corpo.message_id, instante: corpo.data }, politica);
+    }
+    if (politica.gestao.includes(corpo.operacao)) {   // I3.2: só estas quatro; as de ESCRITA recebem o gancho com a lista fechada de comandos (seção "I3.2 · GERENCIAMENTO" do imap.mjs), as outras não
+      return comSessao({ abrir, usuario: corpo.usuario, senha: corpo.senha, politica, relogio, gestao: politica.escrita.includes(corpo.operacao) ? GESTAO : null, capacidadesPosLogin: corpo.operacao === "capacidades" || corpo.operacao === "mover_mensagem" },
+        (ctx) => OPERACOES_GESTAO[corpo.operacao](ctx, corpo));
     }
     return comSessao({ abrir, usuario: corpo.usuario, senha: corpo.senha, politica, relogio }, (ctx) => OPERACOES[corpo.operacao](ctx, corpo));
   };

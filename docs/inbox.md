@@ -75,7 +75,7 @@ Preservado, sem alteração: Worker, pins (P1, P2, P6), OIDC, uso único; o Work
 ### Fatos que moldam o desenho (evidência real)
 
 - O iCloud respondeu **`[READ-WRITE]`** ao `EXAMINE` (P6, rodada 1). **Não se presume somente leitura do servidor.** A garantia é do Worker: lista fechada de comandos, só `BODY.PEEK`, sem `STORE`/`COPY`/`MOVE`/`EXPUNGE`/`APPEND`/`SELECT`. A I1 não adiciona comando de escrita nenhum; a tela diz isso na matriz de paridade.
-- Sem CONDSTORE, QRESYNC, IDLE, UIDPLUS ou MOVE no iCloud: a sincronização é por UIDVALIDITY/UIDNEXT (polling, na I2 em diante).
+- Sem CONDSTORE, QRESYNC, IDLE, UIDPLUS ou MOVE no iCloud **antes do login** (P6; a lista de depois do login é verificada na I3.2, seção "I3.2"): a sincronização é por UIDVALIDITY/UIDNEXT (polling, na I2 em diante).
 - `PERMANENTFLAGS` veio "nao_vazio": tratar antes de qualquer prova que altere a caixa (P3).
 
 ## Custódia da credencial no Vault (implementada; 051/052 aplicadas e função v1 publicada em 15/11/2026)
@@ -429,6 +429,57 @@ Só texto; sem anexos de saída, sem HTML, sem rascunhos salvos (o rascunho vive
 ### Para publicar e validar (ordem)
 1. Dono aplica `supabase/056_inbox_envios.sql`. 2. Dono publica o Worker `p8.0` (README do Worker). 3. Dono republica a função `rac-inbox` (`i3.1`). 4. Site (`2026-11-15.11`). 5. Nas Opções da conta: **Testar envio (SMTP)**; se aprovado, **Testar envio com e-mail de teste** (um e-mail ao próprio endereço). 6. No iPhone: Nova mensagem para outro endereço seu, responder, responder a todos e encaminhar; só considerar concluído quando a mensagem **chegar** na conta de destino.
 
+## I3.2 — Gerenciamento de mensagens (implementado em código em 16/11/2026; NÃO publicado; versão `2026-11-16.4`)
+
+**Estado de partida (confirmado pelo dono):** leitura, sincronização automática, notificações, Vault, **SMTP, nova mensagem, resposta, resposta a todos e encaminhamento já validados em produção**. Esta etapa acrescenta as escritas na caixa, em lote único.
+
+### O que foi implementado
+Uma única operação da função, `organizar_mensagem`, com sete ações fechadas: `marcar_lida`, `marcar_nao_lida`, `arquivar`, `excluir` (= mover para a **Lixeira**; não existe exclusão definitiva), `spam`, `nao_spam` (mover do Spam para a Caixa de Entrada) e `mover` (para outra pasta da mesma conta). Cada pedido age sobre **uma** mensagem (pasta + UID). Sem migration: usa as tabelas 051/053/054 (RLS, trava MFA e chaves compostas dono+conta+pasta intactas).
+
+### Caminho e quem decide o quê
+Interface (`inboxOrganizar`) → função `rac-inbox` (`organizar.ts`) → canal HMAC → Worker (seção "I3.2 · GERENCIAMENTO" de `imap.mjs`) → IMAP iCloud.
+- **Navegador:** manda só IDs, UID e a ação (+ UUID da pasta em `mover`). Nome de pasta, comando IMAP, flag e credencial nunca saem dele.
+- **Função:** JWT + MFA; confere **no banco** que pasta e mensagem são deste dono e desta conta, que o UIDVALIDITY do cache é o do cursor, e resolve o destino: arquivar/excluir/spam/não é spam usam a pasta cujo `uso` o servidor identificou (atributos `\Archive`, `\Trash`, `\Junk` do LIST; sem ela: `destino_ausente`, nada é inventado); `mover` exige pasta ativa (selecionável) da mesma conta. Uma operação por vez por conta (mesmo travamento da sincronização).
+- **Worker:** lista fechada de comandos, UIDVALIDITY e identidade da mensagem conferidos antes de alterar, confirmação pela resposta etiquetada, esquema e códigos de erro fechados.
+- **Cache:** só muda depois da confirmação (transação: flag, linha de origem/destino com o UID novo quando o servidor o informa — `COPYUID` —, totais e não lidas das duas pastas). A linha do destino nasce já "tratada": mover não gera notificação.
+
+### Comandos IMAP que existem (e os que não existem)
+Só no Worker, só em sessão de gerenciamento: `SELECT "<pasta>"`, `UID STORE <uid> +FLAGS (\Seen)` / `-FLAGS (\Seen)` e `UID MOVE <uid> "<destino>"`. Cada um é conferido por expressão regular **antes** de escrever no socket (um UID numérico, nome de pasta sem aspas/barra/controle, só a flag `\Seen`).
+**Nunca existem:** `EXPUNGE` (global ou `UID EXPUNGE`), `CLOSE`, `COPY`, `STORE` de `\Deleted`, `APPEND`, `DELETE`, `IDLE`. Um teste varre todos os arquivos do Worker e falha se qualquer um deles aparecer.
+**Sobre o SELECT:** marcar/mover exigem abrir a pasta para escrita; o IMAP não tem outro caminho (`EXAMINE` é somente leitura e o servidor recusaria o STORE/MOVE). O `SELECT` em si não altera `\Seen` nem mensagens; as operações de leitura continuam usando só `EXAMINE` e `BODY.PEEK` (testado: nenhuma delas envia SELECT/STORE/MOVE).
+
+### O que o iCloud realmente oferece (FATO × HIPÓTESE)
+- **Fato registrado (P6, 14/11/2026, `CAPABILITY` do servidor real, antes do login):** sem MOVE, sem UIDPLUS, sem IDLE/CONDSTORE/QRESYNC.
+- **Hipótese não comprovada:** o servidor pode anunciar mais capacidades **depois** do login. Por isso o Worker pergunta `CAPABILITY` de novo após o login e só move se vir `MOVE` **nessa** lista (operação `capacidades` mostra as duas listas, para o dono ver o que o iCloud realmente anuncia).
+- **Consequência de projeto:** **marcar lida/não lida** não depende de MOVE e deve funcionar. **Arquivar, excluir (Lixeira), spam, não é spam e mover** só funcionam se o iCloud anunciar `MOVE` depois do login. Sem MOVE: erro controlado `acao_indisponivel` (nada é alterado), a tela explica e deixa de oferecer essas ações naquela sessão. **Não há alternativa:** `COPY` + `\Deleted` + `EXPUNGE` foi descartada de propósito (o EXPUNGE sem UIDPLUS é global; com UIDPLUS ainda seria um fallback destrutivo que a regra do projeto proíbe). Se a validação real mostrar UIDPLUS sem MOVE, isso é decisão do dono para um lote futuro.
+
+### Falha definitiva × resposta incerta (nunca repete sozinho)
+- Recusa do servidor (NO/BAD), UIDVALIDITY diferente, mensagem inexistente, identidade divergente, pasta só de leitura, MOVE ausente, login recusado, assinatura recusada: **falha confirmada**, nada foi alterado, o cache não muda.
+- Comando de alteração **já enviado** e resposta que não veio inteira (queda, tempo esgotado, resposta estranha, resposta fora do esquema): o Worker devolve `acao_incerta`. A função **não repete**: pergunta ao Worker `verificar_mensagem` (somente leitura) e decide: aplicada (`resultado: "verificada"`), `acao_nao_aplicada` (o servidor mostra que nada mudou; o dono pode tentar de novo), `mensagem_inexistente` ou, se nem a verificação responde, `acao_incerta` (HTTP 202; a tela pede Sincronizar).
+- Repetir a mesma operação é seguro: marcar de novo → `ja_estava` (nada é enviado); mover de novo → UID não existe mais → `mensagem_inexistente`, cache intocado.
+- Servidor mudou mas o banco falhou ao gravar o cache: continua sucesso, com `cache: "nao_atualizado"` (a tela pede Sincronizar).
+
+### Interface
+Na leitura (desktop: barra do topo; iPhone: barra inferior com áreas seguras e alvos de 44 px): **Arquivar**, **Excluir** (pede confirmação; vai para a Lixeira) e **Mais** (marcar como lida/não lida, mover para spam/"Não é spam", mover para pasta — só pastas selecionáveis da conta, sem a atual). No iPhone o menu é uma folha acima da barra. Estados: "Aguardando a confirmação do iCloud…", botões travados (um toque por vez), sucesso e erro em frases fixas; a lista só muda depois da confirmação (relida do banco). Falha ou incerto preservam a tela. Ações desligadas dizem o motivo (também ao toque). O exemplo da interface e contas sem credencial ativa nunca executam.
+**Decisões de escopo:** abrir uma mensagem continua **não** marcando como lida no provedor (só o botão marca); na lista não há botão por linha (no celular a linha abre a leitura, onde ficam as ações; no desktop a leitura fica ao lado da lista).
+
+### Arquivos
+Worker: `experimentos/rac-inbox-worker/src/imap.mjs` (seção final), `rotas.mjs`, `politica.mjs` (`p9.0`; operações `capacidades`, `verificar_mensagem`, `marcar_lida`, `mover_mensagem`; **nenhum arquivo novo**, para não alterar a lista fechada do workflow de publicação). Função: `contrato.ts`, `organizar.ts` (novo), `servico.ts`, `repositorio.ts` (`i3.2`). Site: `nucleo.js` (`INB_ACOES`, `inbRespostaOrganizacao`, `inbAcoesDisponiveis`…), `js/inbox.js`, `js/inbox-servico.js`, `css/rac.css`.
+
+### Testes e evidências (TODOS simulados; nada foi executado contra o iCloud real)
+`rac_inbox_worker_gestao.test.mjs` (servidor IMAP falso que registra cada comando), `inbox_organizar_servico.test.mjs` (função), `inbox_organizar_sql.test.mjs` (PGlite, migrations reais), `inbox_organizar_nucleo.test.mjs`, `inbox_organizar_tela.test.mjs`; Chromium real a 390 e 1440 px com servidor de mentira na página (52 verificações). **Não provam o iCloud real.**
+
+### Para publicar (ordem; cada passo é do dono, com autorização própria)
+1. Mesclar o PR. 2. Publicar o **Worker** (workflow `rac-inbox-worker-publicar`, carimbo `p9.0`). 3. Republicar a função `rac-inbox` (`i3.2`). **Sem SQL.** Nenhum secret novo. O site vai ao ar com a mesclagem. A função nova sem o Worker novo responde erro controlado (operação desconhecida no Worker); o Worker novo sem o site novo não muda nada para o usuário.
+**Nota de CI:** `inbox_organizar_sql.test.mjs` roda no Grupo 1 do `testes.yml` e é *pulado* onde o PGlite não está instalado; para ser obrigatório como os demais testes de banco, o nome dele precisa entrar na lista do Grupo 2 (arquivo de workflow: depende da autorização do dono).
+
+### Validação real no iPhone (depois de publicar)
+1. Inbox → Opções da conexão → **Testar conexão** (mostra `função rac-inbox@i3.2, Worker rac-inbox-worker@p9.0`: confirma as versões).
+2. Abrir uma mensagem de teste → Mais → **Marcar como lida**; no app Mail do iPhone/iCloud.com conferir a bolinha. Repetir com **Marcar como não lida**.
+3. **Arquivar** uma mensagem de teste: se o iCloud anunciar MOVE, ela some da Caixa de Entrada e aparece em Arquivo (conferir no iCloud.com); se não, a tela mostra "não oferece mover mensagens por um caminho seguro" e **nada** deve ter mudado no iCloud.com. Esse resultado é a evidência real das capacidades.
+4. Se mover funcionar: **Excluir** (confirma; vai para a Lixeira), **Mover para spam**, **Não é spam**, **Mover para pasta**. Confirmar no iCloud.com que nenhuma outra mensagem sumiu.
+5. Avisar o resultado ao Claude para registrar no histórico (inclusive qual foi a lista de capacidades).
+
 ## Toque na notificação: confirmação da página e reserva (15/11/2026, versão `2026-11-15.10`)
 
 **Sintoma (teste real no iPhone com as versões `.8`/`.9`):** o toque trouxe o app para a frente na página que já estava aberta (Início), sem ir ao Inbox nem à mensagem.
@@ -462,4 +513,4 @@ A rotina automática e as notificações têm os testes de `tests/inbox_automati
 
 **Depende do dono (nesta ordem):** ~~aplicar a 053~~ (feito); publicar o Worker; cadastrar os secrets (`RAC_CANAL_K1` nos dois lados e `RAC_INBOX_WORKER_URL`); republicar a função (v2); mesclar o PR do site; fazer o **primeiro teste real** e conferir os critérios acima. Só depois disso a autenticação real com a Apple e a leitura real estarão validadas.
 
-**Ainda não implementado (fora desta entrega):** envio (SMTP), responder, encaminhar, arquivar, excluir, marcar como lida (escritas na caixa); ~~sincronização automática~~ (feita em código, seção "Automático"; falta publicar); `STATUS (UNSEEN)` para contar não lidas no provedor; busca; categorias (I4); Gmail e Outlook (I3); decisão sobre **retenção de corpos e anexos** (Documento 10, seção 5.1); remoção do Worker de prova e dos Environments antigos (autorização futura).
+**Registro histórico (15/11/2026, antes da I3 e da I3.2):** nesta entrega ainda não existiam envio (SMTP), responder, encaminhar, arquivar, excluir nem marcar como lida. **Estado atual (16/11/2026):** envio, resposta, resposta a todos e encaminhamento (I3) estão validados em produção pelo dono; arquivar, excluir, spam, mover e marcar lida/não lida estão implementados em código na I3.2 (seção acima), ainda não publicados; ~~sincronização automática~~ (feita em código, seção "Automático"; falta publicar); `STATUS (UNSEEN)` para contar não lidas no provedor; busca; categorias (I4); Gmail e Outlook (I3); decisão sobre **retenção de corpos e anexos** (Documento 10, seção 5.1); remoção do Worker de prova e dos Environments antigos (autorização futura).

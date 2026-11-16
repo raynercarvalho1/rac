@@ -4,12 +4,13 @@
    I2: com a conta conectada, a lista é a REAL: o cache de cabeçalhos (inbox_mensagens_ref, migration 053; remetente, assunto, data, flags: sem corpo nem prévia), preenchido pela função "rac-inbox" quando se toca em
    Sincronizar. O TEXTO da mensagem e os ANEXOS são pedidos ao serviço na hora de abrir (ler_mensagem, baixar_anexo), chegam só em memória e não ficam guardados em lugar nenhum; o HTML nunca chega (vem convertido em texto).
    Este módulo só LÊ (inbox_contas, inbox_pastas, inbox_sincronizacao, inbox_mensagens_ref e o estado da credencial) e grava só o cadastro da conta; o cache é escrito pelo servidor. O "exemplo da interface" (js/inbox-demo.js)
-   continua à parte: dados FICTÍCIOS, rotulados e nunca misturados com mensagens reais. Ações que alteram a caixa existem na tela desligadas: nada aqui escreve em e-mail (ler aqui não marca como lida no provedor).
+   continua à parte: dados FICTÍCIOS, rotulados e nunca misturados com mensagens reais. I3.2: Arquivar, Excluir (Lixeira, com confirmação) e \"Mais\" (lida/não lida, spam, mover para pasta) agem sobre UMA mensagem real por vez, pelo serviço, e a tela só muda depois que o
+   servidor confirma (inboxOrganizar). Abrir uma mensagem continua NÃO a marcando como lida no provedor.
    CREDENCIAL: o formulário de conexão pede o login do ID Apple e a senha ESPECÍFICA DE APP, envia UMA vez pelo serviço (js/inbox-servico.js, que a guarda no Vault) e limpa o campo na hora; a senha
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null,acao:null,menuMais:null,menuPasta:false,semMover:{}};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -20,7 +21,8 @@
     tag:'<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.3"/>',clip:'<path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7L9.2 17.2a1.7 1.7 0 0 1-2.4-2.4L14.5 7"/>',
     responder:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>',todos:'<path d="M7 14L2 9l5-5"/><path d="M12 14L7 9l5-5"/><path d="M7 9h8a6 6 0 0 1 6 6v3"/>',encaminhar:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v3"/>',
     mais:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',voltar:'<path d="M15 5l-7 7 7 7"/>',buscar:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
-    nova:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',cadeado:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',atualizar:'<path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/>'};
+    nova:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',cadeado:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',atualizar:'<path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/>',
+    lida:'<path d="M3 9l9 6 9-6"/><path d="M3 9l9-6 9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',naolida:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',mover:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5L12 11l2.5 2.5"/>'};
   function inboxIco(nome,cls){var s=h("span",{class:"inb-ico"+(cls?" "+cls:""),"aria-hidden":"true"});s.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(INBX_ICO[nome]||INBX_ICO.outra)+'</svg>';return s}
   function inboxLer(){
     INBX.carregando=true;INBX.erro=null;
@@ -47,7 +49,7 @@
   /* abrir uma mensagem real: o texto vem do serviço na hora (sob demanda); se a pessoa abrir outra enquanto esta carrega, a resposta antiga é ignorada */
   function inboxAbrirMsg(id){
     if(INBX.compor&&!inboxDescartarCompor()){INBX.painel="leitura";inboxDesenhar();return}   /* envio em curso ou rascunho que a pessoa quis manter */
-    INBX.form=false;INBX.msg=id;INBX.painel="leitura";INBX.leit=null;
+    INBX.form=false;INBX.msg=id;INBX.painel="leitura";INBX.leit=null;INBX.menuMais=null;INBX.menuPasta=false;
     var m=INBX.demo?null:inboxLinhaPorId(id);
     if(m)INBX.leit={id:id,estado:"carregando"};
     inboxDesenhar();if(m)inboxLerMensagem(m)}
@@ -55,7 +57,7 @@
     return inboxChamar("ler_mensagem",{conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid}).then(function(r){
       if(!INBX.leit||INBX.leit.id!==m.id)return;
       INBX.leit=r.ok?{id:m.id,estado:"ok",dados:r}:{id:m.id,estado:"erro",erro:r.erro};inboxDesenhar()})}
-  function inboxIr(conta,pasta){INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
+  function inboxIr(conta,pasta){INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
   /* a conta cujas ações de conexão (Sincronizar, Testar conexão) aparecem: a selecionada ou, em "Todas as contas", a ÚNICA conta (antes não havia linha de conexão nesse caso) */
   function inboxContaAcoes(){return inboxContaAtual()||(INBX.conta==="todas"&&INBX.contas.length===1?INBX.contas[0]:null)}
@@ -118,6 +120,43 @@
   /* ação já implementada (I3): ativa com `fn`; sem `fn` (mensagem ainda carregando, exemplo, conta sem credencial) fica desligada e diz por quê */
   function inboxBtnAcao(nome,rotulo,fn){var b=h("button",{type:"button",class:"inb-btn-ico","aria-label":rotulo,title:fn?rotulo:rotulo+" · disponível com a mensagem carregada, numa conta conectada"},inboxIco(nome),h("span",{class:"inb-btn-rot",text:rotulo}));
     if(fn)b.onclick=fn;else b.setAttribute("aria-disabled","true");return b}
+  /* ---- I3.2: gerenciar UMA mensagem real (lida/não lida, arquivar, excluir=Lixeira, spam, mover). A tela só muda DEPOIS da confirmação do servidor: a lista e as contagens vêm do cache que a função atualizou
+     (relido do banco); se falhar, nada na tela muda e a frase diz o que aconteceu. Um toque por vez (INBX.acao); excluir pede confirmação; o exemplo e contas sem conexão nunca executam. ---- */
+  function inboxOrganizar(m,acao,destino){
+    if(INBX.acao||INBX.demo||!INBS.publicado||!m||INBX.cred[m.conta_id]!=="ativa")return;
+    if(acao==="excluir"&&!window.confirm("Mover esta mensagem para a Lixeira? Ela sai desta pasta. O RAC não faz exclusão definitiva."))return;
+    var ped={conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid,acao:acao};if(acao==="mover"){if(!destino)return;ped.destino_pasta_id=destino.id}
+    INBX.acao={id:m.id,acao:acao};INBX.aviso=null;INBX.menuMais=null;INBX.menuPasta=false;inboxDesenhar();
+    return inboxChamar("organizar_mensagem",ped).then(function(r){
+      INBX.acao=null;
+      if(!r.ok){   /* falha ou resultado incerto: o estado anterior fica como estava; o iCloud sem MOVE é lembrado nesta sessão para não oferecer o que não funciona */
+        if(r.erro==="acao_indisponivel")INBX.semMover[m.conta_id]=true;
+        INBX.aviso={tipo:r.erro==="acao_incerta"||r.erro==="confirmacao_ausente"?"aviso":"erro",t:NUCLEO.inbErroTexto(r.erro)};inboxDesenhar();return}
+      INBX.aviso={tipo:"ok",t:NUCLEO.inbFraseOrganizacao(r,destino?(destino.nome_exibicao||destino.nome_externo):null)};
+      return inboxLer().then(function(){
+        if(acao!=="marcar_lida"&&acao!=="marcar_nao_lida"&&INBX.msg===m.id){INBX.msg=null;INBX.leit=null;INBX.painel="lista"}   /* a mensagem saiu desta pasta */
+        inboxDesenhar()})})}
+  /* botão de ação do gerenciamento: `est` = {ok,motivo} (NUCLEO.inbAcoesDisponiveis) ou nulo (exemplo, conta sem conexão); desligado explica por quê (também no toque, onde "title" não aparece) */
+  function inboxBtnOrg(nome,rotulo,est,fn){
+    var ocupado=!!INBX.acao,exec=INBX.acao&&INBX.acao.acao,b=h("button",{type:"button",class:"inb-btn-ico","aria-label":rotulo,title:est&&est.ok?rotulo:rotulo+" · "+(est&&est.motivo?est.motivo:"disponível com a mensagem carregada, numa conta conectada")},inboxIco(nome),h("span",{class:"inb-btn-rot",text:rotulo}));
+    if(!est){b.setAttribute("aria-disabled","true");return b}
+    if(!est.ok){b.setAttribute("aria-disabled","true");b.onclick=function(){INBX.aviso={tipo:"aviso",t:rotulo+": "+est.motivo};inboxDesenhar()};return b}
+    if(ocupado){b.setAttribute("aria-disabled","true");b.setAttribute("disabled","disabled");if(exec&&exec===b.getAttribute("data-acao"))b.setAttribute("aria-busy","true");return b}
+    b.onclick=fn;return b}
+  /* "Mais": lida/não lida, spam / não é spam e mover para pasta (só pastas selecionáveis desta conta); no celular vira uma folha acima da barra de ações */
+  function inboxMenuMais(m,org){
+    var ocupado=!!INBX.acao,box=h("div",{class:"inb-menu",role:"menu","aria-label":"Mais ações da mensagem"}),pastaAtual=INBX.pastas.filter(function(p){return p.id===m.pasta_id})[0],noSpam=pastaAtual&&pastaAtual.uso==="spam";
+    var item=function(acao,rotulo,ico,fn){var e=org[acao],b=h("button",{type:"button",class:"inb-menu-item",role:"menuitem"},inboxIco(ico),h("span",{class:"inb-menu-txt"},h("b",{text:rotulo}),e.ok?null:h("span",{text:e.motivo})));
+      if(!e.ok||ocupado){b.setAttribute("aria-disabled","true");if(ocupado)b.setAttribute("disabled","disabled");if(!e.ok)b.onclick=function(){INBX.aviso={tipo:"aviso",t:rotulo+": "+e.motivo};INBX.menuMais=null;inboxDesenhar()}}else b.onclick=fn;
+      return b};
+    box.appendChild(m.lida?item("marcar_nao_lida","Marcar como não lida","naolida",function(){inboxOrganizar(m,"marcar_nao_lida")}):item("marcar_lida","Marcar como lida","lida",function(){inboxOrganizar(m,"marcar_lida")}));
+    box.appendChild(noSpam?item("nao_spam","Não é spam","entrada",function(){inboxOrganizar(m,"nao_spam")}):item("spam","Mover para spam","spam",function(){inboxOrganizar(m,"spam")}));
+    var pasta=item("mover","Mover para pasta…","mover",function(){INBX.menuPasta=!INBX.menuPasta;inboxDesenhar()});pasta.setAttribute("aria-expanded",INBX.menuPasta?"true":"false");box.appendChild(pasta);
+    if(INBX.menuPasta&&org.mover.ok){var lista=h("div",{class:"inb-menu-pastas",role:"group","aria-label":"Pastas desta conta"});
+      NUCLEO.inbDestinosMover(INBX.pastas,m.conta_id,m.pasta_id).forEach(function(p){var b=h("button",{type:"button",class:"inb-menu-item inb-menu-pasta",role:"menuitem"},inboxIco(p.uso),h("span",{class:"inb-menu-txt"},h("b",{text:p.nome_exibicao||p.nome_externo})));
+        if(ocupado){b.setAttribute("aria-disabled","true");b.setAttribute("disabled","disabled")}else b.onclick=function(){inboxOrganizar(m,"mover",p)};lista.appendChild(b)});box.appendChild(lista)}
+    if(ocupado)box.appendChild(h("p",{class:"inb-nota",role:"status",text:"Aguardando a confirmação do iCloud…"}));
+    return box}
   /* ---- lateral: nova mensagem (desligada), caixas com contas e pastas, categorias ---- */
   function inboxLateral(){
     var u=NUCLEO.inbUnificada(INBX.contas,INBX.pastas),arv=NUCLEO.inbArvore(INBX.contas,INBX.pastas),box=h("aside",{class:"inb-lateral","aria-label":"Caixas de e-mail"});
@@ -249,7 +288,15 @@
     var acoes=h("div",{class:"inb-acoes",role:"toolbar","aria-label":"Ações da mensagem"});
     var pronta=!INBX.demo&&m&&INBX.leit&&INBX.leit.id===m.id&&INBX.leit.estado==="ok"&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado;
     [["responder","Responder","responder"],["todos","Responder a todos","responder_todos"],["encaminhar","Encaminhar","encaminhar"]].forEach(function(a){acoes.appendChild(inboxBtnAcao(a[0],a[1],pronta?function(){inboxCompor(a[2],m)}:null))});
-    [["arquivo","Arquivar"],["lixo","Excluir"],["mais","Mais"]].forEach(function(a){acoes.appendChild(inboxBtnIco(a[0],a[1]))});topo.appendChild(acoes);art.appendChild(topo);
+    var org=!INBX.demo&&m&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado?NUCLEO.inbAcoesDisponiveis(m,INBX.pastas,!!INBX.semMover[m.conta_id]):null;   /* I3.2: só mensagem real de conta conectada */
+    var bArq=inboxBtnOrg("arquivo","Arquivar",org&&org.arquivar,function(){inboxOrganizar(m,"arquivar")}),bLix=inboxBtnOrg("lixo","Excluir",org&&org.excluir,function(){inboxOrganizar(m,"excluir")}),
+      bMais=inboxBtnOrg("mais","Mais",org?{ok:true}:null,function(){INBX.menuMais=INBX.menuMais===m.id?null:m.id;INBX.menuPasta=false;inboxDesenhar()});
+    bArq.setAttribute("data-acao","arquivar");bLix.setAttribute("data-acao","excluir");
+    if(INBX.acao&&INBX.acao.id===(m&&m.id)){var bb=INBX.acao.acao==="arquivar"?bArq:INBX.acao.acao==="excluir"?bLix:bMais;bb.setAttribute("aria-busy","true")}
+    if(org){bMais.setAttribute("aria-haspopup","menu");bMais.setAttribute("aria-expanded",INBX.menuMais===m.id?"true":"false")}
+    acoes.appendChild(bArq);acoes.appendChild(bLix);acoes.appendChild(bMais);topo.appendChild(acoes);art.appendChild(topo);
+    if(org&&INBX.menuMais===m.id)art.appendChild(inboxMenuMais(m,org));
+    if(INBX.acao&&m&&INBX.acao.id===m.id)art.appendChild(h("p",{class:"inb-nota inb-andamento",role:"status","aria-live":"polite",text:"Aguardando a confirmação do iCloud… A lista só muda depois dela."}));
     if(!m){art.appendChild(inboxVazio("caixa","Nenhuma mensagem selecionada","Escolha uma mensagem na lista para ler."));return art}
     var corpo=h("div",{class:"inb-leitura-corpo"});
     corpo.appendChild(h("h2",{class:"inb-leitura-assunto",text:m.assunto}));

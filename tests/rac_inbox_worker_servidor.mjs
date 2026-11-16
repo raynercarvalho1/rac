@@ -10,13 +10,16 @@ export function mensagem({ uid, flags = ["\\Seen"], data = "14-Nov-2026 10:20:30
 }
 
 // caixas: { "INBOX": { uidvalidity, uidnext, msgs: [...] } }; pastas: linhas "* LIST ..." prontas
-export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caixas = {}, literalPrimeiro = false, aoComando = () => {} } = {}) {
+// I3.2: capacidade/capacidadeDepois = linha CAPABILITY antes/depois do login; leitura = SELECT responde READ-ONLY; recusar = NO etiquetado no STORE/MOVE; cortar = derruba a conexão ao receber STORE/MOVE
+// (aplicarAntesDeCortar: o servidor FEZ a alteração e a resposta se perdeu); semCopyuid; semFlagsNoStore (o STORE não devolve as flags: o Worker precisa reler)
+export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caixas = {}, literalPrimeiro = false, aoComando = () => {}, capacidade = "IMAP4rev1 UIDPLUS MOVE NAMESPACE", capacidadeDepois = null,
+  leitura = false, recusar = false, cortar = false, aplicarAntesDeCortar = false, semCopyuid = false, semFlagsNoStore = false, moveNaoRemove = false } = {}) {
   const log = [];
   const c2s = new TransformStream(), s2c = new TransformStream();
   const escritor = s2c.writable.getWriter(), leitor = c2s.readable.getReader();
   const enc = (s) => Uint8Array.from(s, (ch) => ch.charCodeAt(0) & 0xff);
   const dec = new TextDecoder("latin1");
-  let atual = null, buf = "";
+  let atual = null, buf = "", logado = false;
   const env = (s) => escritor.write(enc(s));
   const cx = () => atual && caixas[atual];
 
@@ -53,8 +56,14 @@ export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caix
     log.push(linha); aoComando(linha);
     const m = /^(a\d+) ([A-Z]+)(.*)$/.exec(linha); if (!m) return;
     const [, tag, verbo, resto] = m;
-    if (verbo === "CAPABILITY") { await env("* CAPABILITY IMAP4rev1 UIDPLUS MOVE NAMESPACE\r\n" + tag + " OK done\r\n"); return; }
-    if (verbo === "LOGIN") { const mm = /^ "([^"]*)" "([^"]*)"$/.exec(resto); await env(mm && mm[2] === senha ? tag + " OK LOGIN completed\r\n" : tag + " NO [AUTHENTICATIONFAILED] Authentication failed\r\n"); return; }
+    if (verbo === "CAPABILITY") { await env("* CAPABILITY " + (logado && capacidadeDepois ? capacidadeDepois : capacidade) + "\r\n" + tag + " OK done\r\n"); return; }
+    if (verbo === "LOGIN") { const mm = /^ "([^"]*)" "([^"]*)"$/.exec(resto); logado = !!(mm && mm[2] === senha); await env(logado ? tag + " OK LOGIN completed\r\n" : tag + " NO [AUTHENTICATIONFAILED] Authentication failed\r\n"); return; }
+    if (verbo === "SELECT") {
+      const nome = /^ "(.*)"$/.exec(resto)[1]; const c = caixas[nome];
+      if (!c) { await env(tag + " NO [NONEXISTENT] Mailbox does not exist\r\n"); return; }
+      atual = nome;
+      await env("* " + c.msgs.length + " EXISTS\r\n* OK [UIDVALIDITY " + c.uidvalidity + "] UIDs valid\r\n* OK [UIDNEXT " + c.uidnext + "] Predicted next UID\r\n" + tag + (leitura ? " OK [READ-ONLY] SELECT completed\r\n" : " OK [READ-WRITE] SELECT completed\r\n")); return;
+    }
     if (verbo === "LOGOUT") { await env("* BYE bye\r\n" + tag + " OK LOGOUT completed\r\n"); return; }
     if (verbo === "LIST") { await env(pastas.join("\r\n") + (pastas.length ? "\r\n" : "") + tag + " OK LIST completed\r\n"); return; }
     if (verbo === "EXAMINE") {
@@ -67,6 +76,24 @@ export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caix
       const mm = /^ (\S+) \((.*)\)$/.exec(resto); let out = "";
       for (const seq of conjunto(mm[1], cx().msgs.length)) { const msg = cx().msgs[seq - 1]; if (msg) out += itens(msg, seq, mm[2]); }
       await env(out + tag + " OK FETCH completed\r\n"); return;
+    }
+    if (verbo === "UID" && /^ (STORE|MOVE) /.test(resto)) {   // I3.2: alterações (só chegam se o Worker as permitir)
+      const mst = /^ STORE (\d+) ([+-])FLAGS \(\\Seen\)$/.exec(resto), mmv = /^ MOVE (\d+) "(.*)"$/.exec(resto);
+      const idx = cx().msgs.findIndex((x) => x.uid === Number((mst || mmv)[1]));
+      const aplicar = () => {
+        if (idx < 0) return "";
+        const m = cx().msgs[idx];
+        if (mst) { m.flags = m.flags.filter((f) => f.toLowerCase() !== "\\seen"); if (mst[2] === "+") m.flags.push("\\Seen"); return semFlagsNoStore ? "" : "* " + (idx + 1) + " FETCH (UID " + m.uid + " FLAGS (" + m.flags.join(" ") + "))\r\n"; }
+        const dest = caixas[mmv[2]]; if (!dest) return null;
+        if (moveNaoRemove) return "";
+        cx().msgs.splice(idx, 1); const novo = dest.uidnext++; dest.msgs.push({ ...m, uid: novo });
+        return (semCopyuid ? "" : "* OK [COPYUID " + dest.uidvalidity + " " + m.uid + " " + novo + "] Moved\r\n") + "* " + (idx + 1) + " EXPUNGE\r\n";
+      };
+      if (cortar) { if (aplicarAntesDeCortar) aplicar(); await escritor.close(); return; }
+      if (recusar) { await env(tag + " NO [CANNOT] operação recusada\r\n"); return; }
+      const saida = aplicar();
+      if (saida === null) { await env(tag + " NO [TRYCREATE] destino não existe\r\n"); return; }
+      await env(saida + tag + " OK " + (mst ? "STORE" : "MOVE") + " completed\r\n"); return;
     }
     if (verbo === "UID") {
       const sub = /^ (FETCH|SEARCH)/.exec(resto)[1], maxUid = Math.max(...cx().msgs.map((x) => x.uid));

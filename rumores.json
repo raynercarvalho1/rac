@@ -1,13 +1,50 @@
 {
- "coletado": "2026-11-16T00:59:16.086031+00:00",
+ "coletado": "2026-11-16T11:08:29.707082+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "MLBTR Live Chat",
+   "t": "Brewers Acquire Ryan Walker",
+   "link": "https://www.mlbtraderumors.com/2026/11/brewers-acquire-ryan-walker.html",
+   "data": "2026-11-16T05:02:34+00:00",
+   "resumo": "The Brewers announced that right-hander Ryan Walker has been acquired in a trade with the Giants. Right-handed pitching prospects Blake Holub and Gavin Perry head to San Francisco as the return. Milwaukee has seven open spots on its 40-man roster, so no further moves were…",
+   "tags": [
+    "Milwaukee Brewers",
+    "San Francisco Giants",
+    "Transactions",
+    "Blake Holub",
+    "Ryan Walker"
+   ]
+  },
+  {
+   "t": "Carlos Santana Hoping To Play In 2027",
+   "link": "https://www.mlbtraderumors.com/2026/11/carlos-santana-hoping-to-play-in-2027.html",
+   "data": "2026-11-16T04:51:37+00:00",
+   "resumo": "With 17 Major League seasons already on his resume, Carlos Santana is planning to play in 2027, as The Athletic’s Will Sammon, Ken Rosenthal, and Katie Woo reported earlier this week. Santana turns 41 in April, and he is playing in the Dominican Winter League for the first time…",
+   "tags": [
+    "2026-27 MLB Free Agents",
+    "Carlos Santana"
+   ]
+  },
+  {
+   "t": "Five Teams Interested In A.J. Minter",
+   "link": "https://www.mlbtraderumors.com/2026/11/five-teams-interested-in-a-j-minter.html",
+   "data": "2026-11-16T03:44:40+00:00",
+   "resumo": "The Royals, Rangers, Phillies, Nationals, and Blue Jays are some of the teams involved in A.J. Minter’s market, MLB Network’s Jon Morosi reports. The veteran left-hander is a free agent for the second time in his career, following the expiration of the two-year, $22MM deal he…",
+   "tags": [
+    "Kansas City Royals",
+    "Philadelphia Phillies",
+    "Texas Rangers",
+    "Toronto Blue Jays",
+    "Washington Nationals",
+    "A.J. Minter"
+   ]
+  },
+  {
+   "t": "MLBTR Chat Transcript",
    "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-live-chat-926.html",
-   "data": "2026-11-16T00:42:57+00:00",
-   "resumo": "Click here to submit questions and follow along with tonight’s live baseball chat",
+   "data": "2026-11-16T02:46:57+00:00",
+   "resumo": "Mark P The Weekend Chat is upon us! Let’s dive into your questions…. Kevin Guardians sign any free agents? Mark P Maybe a one-year contract type, but hardly anything earth-shaking John What would the orioles have to give up for Marte? Mark P Feels like one of the infielders…",
    "tags": [
     "MLBTR Chats"
    ]
@@ -22,19 +59,6 @@
     "Baltimore Orioles",
     "Ketel Marte",
     "Trevor Rogers"
-   ]
-  },
-  {
-   "t": "Brewers Acquire Ryan Walker",
-   "link": "https://www.mlbtraderumors.com/2026/11/brewers-acquire-ryan-walker.html",
-   "data": "2026-11-15T23:21:34+00:00",
-   "resumo": "The Brewers announced that right-hander Ryan Walker has been acquired in a trade with the Giants. Right-handed pitching prospects Blake Holub and Gavin Perry head to San Francisco as the return. Milwaukee has seven open spots on its 40-man roster, so no further moves were…",
-   "tags": [
-    "Milwaukee Brewers",
-    "San Francisco Giants",
-    "Transactions",
-    "Blake Holub",
-    "Ryan Walker"
    ]
   },
   {
@@ -141,30 +165,6 @@
    "tags": [
     "Arizona Diamondbacks",
     "Ketel Marte"
-   ]
-  },
-  {
-   "t": "Adalberto Mondesi Attempting Comeback",
-   "link": "https://www.mlbtraderumors.com/2026/11/adalberto-mondesi-attempting-comeback.html",
-   "data": "2026-11-15T05:04:56+00:00",
-   "resumo": "Former Royals speedster Adalberto Mondesi is trying to get back to the majors, reports Will Sammon, Ken Rosenthal, and Katie Woo of The Athletic. Mondesi is currently playing winter ball in the Dominican Republic. His last big-league stint was in 2022. Mondesi, 31, has appeared…",
-   "tags": [
-    "Kansas City Royals",
-    "Adalberto Mondesi"
-   ]
-  },
-  {
-   "t": "Yankees Notes: Bullpen, Morejon, Coaches",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-notes-bullpen-morejon-coaches.html",
-   "data": "2026-11-15T03:57:14+00:00",
-   "resumo": "The Yankees had the second-best bullpen ERA in the league last season. Maintaining that level will take some work this offseason, with several key pieces hitting free agency. General manager Brian Cashman referred to the bullpen as New York’s “main priority” during an…",
-   "tags": [
-    "New York Yankees",
-    "Notes",
-    "Aaron Bates",
-    "Adrian Morejon",
-    "David Bednar",
-    "Joe Dillon"
    ]
   }
  ],
@@ -329,17 +329,6 @@
     "Seattle Mariners",
     "Tampa Bay Rays",
     "Brandon Hyde"
-   ]
-  },
-  {
-   "t": "Rocco Baldelli Withdraws Name From Mariners’ Managerial Search",
-   "link": "https://www.mlbtraderumors.com/2026/10/rocco-baldelli-withdraws-name-from-mariners-managerial-search.html",
-   "data": "2026-10-26T02:25:58+00:00",
-   "resumo": "Rocco Baldelli was a candidate to be the Mariners’ next manager, but the former Twins skipper has removed himself from the search due to “family considerations,” The Athletic’s Ken Rosenthal reports. The news leaves former Astros manager Joe Espada and Cubs director of player…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Seattle Mariners",
-    "Rocco Baldelli"
    ]
   }
  ]

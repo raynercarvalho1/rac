@@ -1185,7 +1185,7 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: avaliar importação de vários prints de uma vez e colar texto.
 
-## 16/11/2026 · Fernanda com acesso igual em Finanças e compras (branch `claude/peaceful-edison-lfxv7q`, versão `2026-11-16.4`)
+## 16/11/2026 · Fernanda com acesso igual em Finanças e compras (branch `claude/peaceful-edison-lfxv7q`, versão `2026-11-16.5`)
 
 ### 1. O que fizemos
 - Pedido do dono: a Fernanda com acesso igual ao dele em toda a área Finanças e compras (Radar compartilhado, IA fiscal liberada, Gmail fica só do dono; um lote único). Código pronto e testado, **nada aplicado nem publicado**.
@@ -1199,3 +1199,27 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Depois que o dono aplicar: rodar a conferência 057, testar com a conta da Fernanda (Radar, alertas, nota por foto) e então rodar a 058 (liga a IA fiscal para a casa); avaliar teto de custo das buscas pagas do Radar para ela.
 
+## 16/11/2026 · RAC Inbox I3.2 — gerenciamento de mensagens (branch `claude/rac-inbox-message-management-deiton`, versão `2026-11-16.4`)
+
+### 1. O que fizemos
+- Estado de partida (dono): leitura, sincronização, notificações, Vault, SMTP, nova mensagem, resposta, resposta a todos e encaminhamento **validados em produção** (corrige os registros anteriores que ainda os davam como pendentes; o histórico foi preservado).
+- Implementado em código: operação `organizar_mensagem` (marcar lida/não lida, arquivar, excluir=Lixeira, spam, não é spam, mover para pasta): Worker (`imap.mjs`, seção I3.2; `p9.0`), função (`organizar.ts`; `i3.2`), site (`inbox.js`, `nucleo.js`, CSS). Sem migration.
+- Auditoria: o `CAPABILITY` real do iCloud (P6, antes do login) não tem MOVE nem UIDPLUS; por isso mover só ocorre se o MOVE aparecer depois do login, e sem ele há erro controlado, sem fallback destrutivo.
+- Testes (simulados, não contra o iCloud real): novos `rac_inbox_worker_gestao`, `inbox_organizar_servico`, `inbox_organizar_sql`, `inbox_organizar_nucleo`, `inbox_organizar_tela`; Chromium a 390 e 1440 px (52 verificações ok).
+
+### 2. O que estamos fazendo
+- PR aberto para revisão; **nada publicado**: Worker, função e site dependem de autorização do dono; nenhum SQL.
+
+### 3. O que vamos fazer
+- Dono: mesclar, publicar Worker e função, validar no iPhone (roteiro em `docs/inbox.md`, "I3.2") e informar se o iCloud anuncia MOVE depois do login. Depois: decidir sobre caminho alternativo se não anunciar; ações em lote; botão por linha.
+
+## 16/11/2026 · Correção do verificador de publicação do Worker após o I3.2 (branch `claude/rac-inbox-worker-scanner-i32`)
+
+### 1. O que fizemos
+- Causa: a etapa "Empacotar sem publicar (dry-run)" do workflow `rac-inbox-worker-publicar.yml` ainda reprovava `SELECT`, `STORE` e `MOVE`, embora façam parte do gerenciamento restrito do I3.2 (main `f55aaec`). Novo inspetor `inspecionar-verbos.mjs` com política exata (SELECT controlado, UID STORE só de \Seen para um UID, UID MOVE de um UID com MOVE anunciado) e proibição de COPY, APPEND, EXPUNGE/UID EXPUNGE, DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE e \Deleted. Textos do workflow corrigidos. Teste novo `rac_inbox_worker_inspecao`.
+
+### 2. O que estamos fazendo
+- PR aberto; **nada publicado** (Worker `p9.0`, secrets e Durable Object intactos).
+
+### 3. O que vamos fazer
+- Dono: mesclar e só então rodar o workflow de publicação do Worker; depois, validação no iPhone (docs/inbox.md, I3.2).

@@ -432,3 +432,13 @@ Evidência usada: P6 real (UIDVALIDITY 1752612613, UIDNEXT 4; segunda rodada `se
 **Limites reconhecidos:** tudo provado com servidor IMAP falso, Worker e banco de mentira e PGlite; **nenhuma** prova contra o iCloud real, o Supabase real, o Deno ou o runtime da Cloudflare. O plano Workers Free (CPU ~10 ms) pode não bastar; o plano Paid é decisão de custo do dono.
 
 **Pendências do dono (ordem):** publicar o Worker (a tentativa de 15/11/2026 parou por falta de login Cloudflare no ambiente do Claude); cadastrar `RAC_CANAL_K1` (nos dois lados) e `RAC_INBOX_WORKER_URL`; republicar a função; mesclar o PR do site; primeiro teste real. Detalhe e critérios em [docs/inbox.md](../inbox.md). A I2 só será dada como concluída depois desse teste real.
+
+## 17. Fase I3.2 — Gerenciamento de mensagens (16/11/2026; implementada em código, NÃO publicada)
+
+**Registro de estado (para corrigir registros anteriores sem apagar o histórico):** as seções 16 e anteriores descrevem o Inbox como somente leitura, e planos antigos listam SMTP, resposta e encaminhamento como pendentes. **Estado atual confirmado pelo dono em 16/11/2026:** leitura, sincronização automática, notificações, Vault, SMTP, nova mensagem, resposta, resposta a todos e encaminhamento estão validados em produção.
+
+**Escopo desta fase:** marcar lida/não lida, arquivar, mover para pasta, excluir (para a Lixeira), mover para Spam e retirar do Spam (para a Caixa de Entrada), para a conta iCloud já conectada. Detalhes técnicos, comandos IMAP permitidos, limitações do iCloud, testes e roteiro de validação no iPhone: `docs/inbox.md`, seção "I3.2".
+
+**Decisões permanentes registradas:** (1) a única porta de escrita na caixa é a operação `organizar_mensagem`; (2) nunca expurgo global, nunca `\Deleted`, nunca exclusão definitiva: excluir = Lixeira; (3) mover só com `MOVE` anunciado pelo servidor depois do login; sem ele a ação é indisponível e nenhum fallback destrutivo é usado; (4) resposta incerta nunca é repetida: o estado é verificado no servidor antes de decidir; (5) a tela só reflete o que o servidor confirmou.
+
+**Pendências reais:** publicar Worker (`p9.0`) e função (`i3.2`) (autorização do dono); validar no iPhone; descobrir pela validação real se o iCloud anuncia MOVE (se não, arquivar/excluir/spam/mover ficam indisponíveis e a decisão sobre um caminho alternativo é do dono); ações em lote e botão por linha ficam para depois.

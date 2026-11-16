@@ -306,7 +306,9 @@ test("código do Worker de produto: sem console, sem env, sem eval, sem armazena
   for (const a of arqs) {
     const t = fs.readFileSync(new URL(a, dir), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\/\/ [^\n"']*$/gm, "");
     assert.ok(!/\bconsole\b|process\.env|\beval\s*\(|new Function|\bimport\s*\(|\brequire\s*\(|localStorage|\bKV\b|\bD1\b|\bR2\b|service_role|SUPABASE/.test(t), a + ": sem log, env, eval, armazenamento nem service_role");
-    assert.ok(!/["'`](?:SELECT|STORE|COPY|MOVE|APPEND|EXPUNGE|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CREATE)["'`]/.test(t.replace(/CREATE TABLE IF NOT EXISTS[^"]*/g, "")), a + ": nenhum verbo IMAP de escrita");
+    const semCriar = t.replace(/CREATE TABLE IF NOT EXISTS[^"]*/g, "");
+    if (a !== "imap.mjs") assert.ok(!/["'`](?:SELECT|STORE|COPY|MOVE|APPEND|EXPUNGE|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CREATE)["'`]/.test(semCriar), a + ": nenhum verbo IMAP de escrita (só a seção de gerenciamento do imap.mjs, I3.2, tem a lista fechada)");
+    assert.ok(!/["'`](?:EXPUNGE|COPY|APPEND|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CLOSE|UNSELECT)["'`]|\\Deleted/i.test(semCriar), a + ": EXPUNGE, COPY, APPEND, DELETE, CLOSE e a flag Deleted não existem em arquivo nenhum do Worker");
     if (a !== "smtp.mjs") assert.ok(!/["'`]STARTTLS["'`]/.test(t), a + ": STARTTLS só no cliente SMTP (o IMAP é TLS implícito)");
     if (a !== "index.mjs") assert.ok(!/cloudflare:/.test(t), a + " não importa módulo da Cloudflare");
   }

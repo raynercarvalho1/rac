@@ -18,9 +18,9 @@ on:
         required: true
         type: string
       versao_esperada:
-        description: "Carimbo de versão que o Worker deve ter (política.mjs), ex.: rac-inbox-worker@p8.0. Se o pacote tiver outro, nada é publicado."
+        description: "Carimbo de versão do Worker em política.mjs. Se o pacote tiver outro, nada é publicado."
         required: true
-        default: "rac-inbox-worker@p8.0"
+        default: "rac-inbox-worker@p9.0"
         type: string
       exigir_secret_k1:
         description: "sim = só publica se o secret RAC_CANAL_K1 já existir no Worker (padrão). nao = para a primeira publicação de um Worker novo."
@@ -167,10 +167,10 @@ jobs:
           echo "Configuração conferida: rac-inbox-worker, binding NONCES, classe NonceUnico, migração v1."
 
       # os testes do Worker rodam aqui, SEM secrets e sem Environment (o código já está na main)
-      - name: Testes do Worker (leitura IMAP, canal assinado e saída SMTP)
+      - name: Testes do Worker (leitura e gerenciamento restrito IMAP, canal assinado e saída SMTP)
         run: |
           cd codigo
-          node --test tests/rac_inbox_worker.test.mjs tests/rac_inbox_worker_smtp.test.mjs
+          node --test tests/rac_inbox_worker.test.mjs tests/rac_inbox_worker_smtp.test.mjs tests/rac_inbox_worker_gestao.test.mjs
 
       - name: Instalar o Wrangler pelo lockfile (sem scripts, integridade conferida)
         run: |
@@ -205,8 +205,10 @@ jobs:
           [ "$(grep -oE 'cloudflare:[a-z]+' "$BUNDLE" | sort -u)" = "cloudflare:sockets" ] || fail "O pacote importa módulos cloudflare: além de sockets."
           [ "$(grep -oE '[A-Za-z0-9.-]+\.mail\.me\.com' "$BUNDLE" | sort -u)" = $'imap.mail.me.com\nsmtp.mail.me.com' ] || fail "O pacote cita endereço da Apple além do IMAP e do SMTP."
           [ "$(grep -oE 'https?://[A-Za-z0-9.-]+' "$BUNDLE" | sort -u)" = "https://registro.interno" ] || fail "O pacote cita endereços http(s) além do nome interno do Durable Object."
-          # o IMAP continua SOMENTE LEITURA: nenhum verbo de escrita entre aspas no pacote
-          if grep -qE '"(SELECT|STORE|COPY|MOVE|APPEND|EXPUNGE|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE)"' "$BUNDLE"; then fail "O pacote contém verbo IMAP de escrita."; fi
+          # política de comandos IMAP (I3.2): leitura + gerenciamento RESTRITO. Só passam SELECT (abertura controlada de pasta), UID STORE de +/-FLAGS (\Seen) para um UID e UID MOVE de um UID para uma pasta
+          # validada (com MOVE anunciado pelo servidor depois do login); COPY, APPEND, EXPUNGE (inclusive UID EXPUNGE), DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE, a flag \Deleted e qualquer
+          # STORE/MOVE/SELECT fora dessas formas reprovam o pacote. A inspeção vem da ferramenta (checkout da main), não do pacote inspecionado.
+          node "$GITHUB_WORKSPACE/experimentos/rac-inbox-worker-ferramenta/inspecionar-verbos.mjs" "$BUNDLE" || fail "O pacote contém verbo IMAP fora da política de gerenciamento restrito (I3.2)."
           # a classe do Durable Object precisa estar no pacote E exportada (o binding NONCES e a migração v1 a referenciam)
           if ! grep -qE '^var NonceUnico = class' "$BUNDLE" || ! grep -qE '^  NonceUnico,?$' "$BUNDLE"; then fail "A classe NonceUnico não está no pacote ou não é exportada."; fi
           # o carimbo de versão pedido está no pacote (e só ele)
@@ -229,7 +231,7 @@ jobs:
             echo "- carimbo de versão: **$VERSAO_ESPERADA**"
             echo "- sha256 do arquivo que será publicado: \`$SHA\`; tamanho: $(wc -c < "$BUNDLE") bytes"
             echo "- configuração fixa: Worker rac-inbox-worker; binding NONCES (classe NonceUnico, SQLite); migração v1"
-            echo "- sem process.env, eval, console, import dinâmico ou require; único módulo cloudflare: sockets; hosts da Apple: imap e smtp; IMAP sem verbo de escrita"
+            echo "- sem process.env, eval, console, import dinâmico ou require; único módulo cloudflare: sockets; hosts da Apple: imap e smtp; IMAP só com a política restrita do I3.2 (SELECT controlado, UID STORE de \\Seen, UID MOVE de um UID com MOVE anunciado; nunca COPY, APPEND, EXPUNGE, DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE nem \\Deleted)"
             echo "- testes do Worker aprovados neste job (sem secrets)"
             echo "- **Antes de aprovar o Environment:** conferir o commit e o hash acima. Nenhum secret existe neste job."
             echo

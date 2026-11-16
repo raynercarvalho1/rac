@@ -168,6 +168,47 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
       await sessao.exec("update public.inbox_envios set estado = $4, codigo = $5 where id = $1 and dono = $2 and conta_id = $3 and estado = 'pendente'", [envioId, dono, conta, estado, codigo]);
     },
 
+    /* ---- I3.2 · gerenciamento (sem migration) ---- */
+    async pastaDetalhe(dono, conta, pastaId) {
+      const r = await sessao.exec("select id, nome_externo, uso from public.inbox_pastas where id = $1 and conta_id = $2 and dono = $3 and ativa", [pastaId, conta, dono]);
+      return r[0] ? { id: String(r[0].id), nome_externo: String(r[0].nome_externo), uso: String(r[0].uso) } : null;
+    },
+    async mensagemRef(dono, conta, pastaId, uid) {
+      const r = await sessao.exec("select id, uid, uidvalidity, message_id, tamanho, lida from public.inbox_mensagens_ref where conta_id = $1 and pasta_id = $2 and dono = $3 and uid = $4 order by uidvalidity desc nulls last limit 1", [conta, pastaId, dono, uid]);
+      return r[0] ? { id: String(r[0].id), uid: Number(r[0].uid), uidvalidity: num(r[0].uidvalidity), message_id: (r[0].message_id as string | null) ?? null, tamanho: num(r[0].tamanho), lida: r[0].lida === true } : null;
+    },
+    // Só depois da confirmação do servidor. Uma transação: tudo ou nada. Tudo filtra por dono E conta (a conexão da função não passa pelo RLS).
+    //  - lida: muda a flag no cache e recalcula as não lidas da pasta;
+    //  - mover: copia a linha para a pasta de destino com o UID NOVO (se o servidor o informou; do contrário a próxima sincronização a traz), apaga a da origem, ajusta total e não lidas das duas pastas.
+    //    A linha do destino nasce já "tratada" (notificada_em): mover não gera aviso de e-mail novo.
+    async aplicarOrganizacao(dono, conta, a) {
+      await sessao.transacao(async (s) => {
+        const recontar = async (pastaId: string) => s.exec(
+          `update public.inbox_pastas p set nao_lidas = least(coalesce(p.total, 2147483647), (select count(*)::integer from public.inbox_mensagens_ref r where r.pasta_id = p.id and r.conta_id = p.conta_id and r.dono = p.dono and not r.lida))
+           where p.id = $1 and p.conta_id = $2 and p.dono = $3`, [pastaId, conta, dono]);
+        if (a.tipo === "lida") {
+          await s.exec("update public.inbox_mensagens_ref set lida = $4, sincronizada_em = now() where id = $1 and conta_id = $2 and dono = $3", [a.mensagemId, conta, dono, a.lida]);
+          await recontar(a.pastaId);
+          return;
+        }
+        let inserida = false;
+        if (a.destinoUidvalidity !== undefined && a.destinoUid !== undefined) {
+          const r = await s.exec(
+            `insert into public.inbox_mensagens_ref (dono, conta_id, pasta_id, id_externo, uidvalidity, uid, recebida_em, assunto, remetente_nome, remetente_endereco, destinatarios, lida, sinalizada, respondida, tamanho, anexo_provavel, message_id, sincronizada_em, notificada_em)
+             select o.dono, o.conta_id, $4::uuid, ($5::bigint)::text || ':' || ($6::bigint)::text, $5::bigint, $6::bigint, o.recebida_em, o.assunto, o.remetente_nome, o.remetente_endereco, o.destinatarios, o.lida, o.sinalizada, o.respondida, o.tamanho, o.anexo_provavel, o.message_id, now(), now()
+             from public.inbox_mensagens_ref o where o.id = $1 and o.conta_id = $2 and o.dono = $3
+             on conflict (conta_id, coalesce(pasta_id, '${SEM_PASTA}'::uuid), id_externo) do nothing returning id`, [a.mensagemId, conta, dono, a.destinoPastaId, a.destinoUidvalidity, a.destinoUid]);
+          inserida = r.length === 1;
+        }
+        const apagada = (await s.exec("delete from public.inbox_mensagens_ref where id = $1 and conta_id = $2 and dono = $3 returning 1", [a.mensagemId, conta, dono])).length === 1;
+        // ordem que respeita a regra "não lidas ≤ total" (051): na origem recontar ANTES de baixar o total; no destino subir o total ANTES de recontar
+        await recontar(a.pastaId);
+        if (apagada) await s.exec("update public.inbox_pastas set total = case when total is null then null else greatest(total - 1, 0) end where id = $1 and conta_id = $2 and dono = $3", [a.pastaId, conta, dono]);
+        if (inserida) await s.exec("update public.inbox_pastas set total = case when total is null then null else total + 1 end where id = $1 and conta_id = $2 and dono = $3", [a.destinoPastaId, conta, dono]);
+        await recontar(a.destinoPastaId);
+      });
+    },
+
     async estadoConta(dono, conta, estado, erro) {
       await sessao.exec("update public.inbox_contas set estado = $3, ultimo_erro = $4 where id = $2 and dono = $1", [dono, conta, estado, erro]);
     },

@@ -3,8 +3,11 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const VERSAO_FUNCAO = "rac-inbox@i3.1";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const VERSAO_FUNCAO = "rac-inbox@i3.2";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
 export const OPERACOES_SAIDA = ["smtp_prova", "enviar_mensagem"] as const;   // SMTP (I3): as ÚNICAS operações que escrevem no mundo; só o dono, só com a ação explícita do navegador
+export const OPERACOES_GESTAO = ["organizar_mensagem"] as const;   // I3.2: alteram a CAIXA (lida/não lida, arquivar, mover, Lixeira, Spam); só o dono, só com a ação explícita do navegador, uma mensagem por vez
+export const ACOES_ORGANIZAR = ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"] as const;
+export type AcaoOrganizar = typeof ACOES_ORGANIZAR[number];
 export const OPERACOES_LEITURA = ["testar_canal", "testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"] as const;   // só LEITURA no provedor (nenhuma escrita na caixa existe aqui); "sincronizar_pasta" grava só o CACHE de cabeçalhos no banco
 
 /* código → HTTP */
@@ -18,6 +21,9 @@ export const ERROS: Record<string, number> = {
   canal_recusado: 502, banco_indisponivel: 503,
   /* I3 (envio): falha confirmada = 4xx/422; resultado incerto = 202 (a mensagem PODE ter sido aceita: nunca se repete sozinho) */
   envio_recusado: 422, destinatario_recusado: 422, remetente_recusado: 422, smtp_autenticacao_recusada: 422, smtp_indisponivel: 502, envio_incerto: 202, envio_em_andamento: 409,
+  /* I3.2 (gerenciamento): falha confirmada = 4xx; "acao_incerta" = 202 (a caixa PODE ter mudado: nunca se repete sozinho e se consulta o estado antes de decidir) */
+  acao_invalida: 400, destino_invalido: 422, destino_ausente: 422, acao_indisponivel: 422, identidade_divergente: 409, acao_recusada: 422, acao_nao_aplicada: 422, acao_incerta: 202, acao_em_andamento: 409,
+  pasta_somente_leitura: 422, confirmacao_ausente: 502,
   registro_envio_indisponivel: 503, origem_invalida: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413, modo_invalido: 400,
 };
 
@@ -35,6 +41,7 @@ export type Pedido =
   | { operacao: "estado_pasta" | "sincronizar_pasta"; conta_id: string; pasta_id: string }
   | { operacao: "ler_mensagem"; conta_id: string; pasta_id: string; uid: number }
   | { operacao: "baixar_anexo"; conta_id: string; pasta_id: string; uid: number; parte: string }
+  | { operacao: "organizar_mensagem"; conta_id: string; pasta_id: string; uid: number; acao: AcaoOrganizar; destino_pasta_id?: string }
   | { operacao: "smtp_prova"; conta_id: string; enviar_teste: boolean }
   | { operacao: "enviar_mensagem"; conta_id: string; envio_id: string; modo: ModoEnvio; pasta_id?: string; uid?: number; para: string[]; cc: string[]; cco: string[]; assunto: string; texto: string };
 export type ModoEnvio = "novo" | "responder" | "responder_todos" | "encaminhar";
@@ -46,6 +53,7 @@ const CAMPOS: Record<string, string[]> = {
   credencial_guardar: ["conta_id", "usuario", "senha_app"], credencial_remover: ["conta_id"], credencial_estado: ["conta_id"],
   testar_canal: [], testar_conta: ["conta_id"], listar_pastas: ["conta_id"], estado_pasta: ["conta_id", "pasta_id"],
   smtp_prova: ["conta_id", "enviar_teste"], enviar_mensagem: ["conta_id", "envio_id", "modo", "pasta_id", "uid", "para", "cc", "cco", "assunto", "texto"],
+  organizar_mensagem: ["conta_id", "pasta_id", "uid", "acao", "destino_pasta_id"],
   sincronizar_pasta: ["conta_id", "pasta_id"], ler_mensagem: ["conta_id", "pasta_id", "uid"], baixar_anexo: ["conta_id", "pasta_id", "uid", "parte"],
 };
 
@@ -61,6 +69,7 @@ export function validarPedido(corpo: unknown): { ok: true; pedido: Pedido } | { 
     return { ok: true, pedido: { operacao: "smtp_prova", conta_id: c.conta_id, enviar_teste: c.enviar_teste === true } };
   }
   if (op === "enviar_mensagem") return validarEnvio(c);
+  if (op === "organizar_mensagem") return validarOrganizar(c);
   for (const k of CAMPOS[op]) if (c[k] === undefined) return { ok: false, erro: "campo_ausente" };
   for (const k of CAMPOS[op]) if ((k === "conta_id" || k === "pasta_id") && (typeof c[k] !== "string" || !RE_UUID.test(c[k] as string))) return { ok: false, erro: "id_invalido" };
   if ((op === "ler_mensagem" || op === "baixar_anexo") && !uidOk(c.uid)) return { ok: false, erro: "id_invalido" };
@@ -128,4 +137,16 @@ function validarEnvio(c: Record<string, unknown>): { ok: true; pedido: Pedido } 
   const pedido: Record<string, unknown> = { operacao: "enviar_mensagem", conta_id: c.conta_id, envio_id: c.envio_id, modo: c.modo, para: p2, cc: c2, cco: o2, assunto: c.assunto, texto: c.texto };
   if (resp) { pedido.pasta_id = c.pasta_id; pedido.uid = c.uid; }
   return { ok: true, pedido: pedido as Pedido };
+}
+
+/* I3.2: o pedido de gerenciamento, esquema FECHADO: uma ação da lista, uma mensagem (pasta + UID) e, só em "mover", a pasta de destino (UUID do banco; o NOME da pasta nunca vem do navegador) */
+function validarOrganizar(c: Record<string, unknown>): { ok: true; pedido: Pedido } | { ok: false; erro: string } {
+  for (const k of ["conta_id", "pasta_id"]) if (typeof c[k] !== "string" || !RE_UUID.test(c[k] as string)) return { ok: false, erro: "id_invalido" };
+  if (!uidOk(c.uid)) return { ok: false, erro: "id_invalido" };
+  if (typeof c.acao !== "string" || !(ACOES_ORGANIZAR as readonly string[]).includes(c.acao)) return { ok: false, erro: "acao_invalida" };
+  if (c.acao === "mover") { if (typeof c.destino_pasta_id !== "string" || !RE_UUID.test(c.destino_pasta_id)) return { ok: false, erro: "destino_invalido" }; }
+  else if (c.destino_pasta_id !== undefined) return { ok: false, erro: "campos_inesperados" };   // o destino das ações especiais é o que o servidor identificou, nunca o que o navegador disser
+  const p: Record<string, unknown> = { operacao: "organizar_mensagem", conta_id: c.conta_id, pasta_id: c.pasta_id, uid: c.uid, acao: c.acao };
+  if (c.acao === "mover") p.destino_pasta_id = c.destino_pasta_id;
+  return { ok: true, pedido: p as Pedido };
 }

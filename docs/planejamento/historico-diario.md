@@ -1158,3 +1158,18 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - iPhone: conferir título/corpo e a abertura direta; se falhar, ler "toque que não chegou à mensagem" em Sistema → erros.
 
+## 16/11/2026 · RAC Inbox — botão "Adicionar conta" não abria no iPhone (branch `claude/rac-inbox-smtp-send-xpg9gm`, versão `2026-11-16.1`)
+
+### 1. O que fizemos
+- Diagnóstico em Chromium real: o formulário existia no DOM mas ficava coberto pela camada fixa das caixas (painel "caixas") no celular; no desktop funcionava. Correção: abrir o formulário fecha a camada e rola até ele; Cancelar; campos que guardam o digitado. Testes no DOM de teste e no Chromium (390 e 1440 px); ambos falham no código antigo. Documentação em `docs/inbox.md`.
+
+### 2. O que estamos fazendo
+- PR aberto para revisão; sem migration, sem função e sem Worker: só o site.
+
+### 3. O que vamos fazer
+- Dono confirma no iPhone depois de publicado: Inbox → menu das caixas → Adicionar conta → o formulário aparece no topo; Cancelar fecha.
+
+
+
+### Segunda rodada do Adicionar conta (16/11/2026, versão `2026-11-16.2`)
+- O aparelho do dono ainda estava na versão antiga (PR #44 não mesclado): o formulário ficava aberto ao navegar e sem Cancelar; "Testar conexão" não aparecia (linha de conexão só existia com conta selecionada e o botão ficava em Opções). Corrigido: o formulário fecha ao navegar; Sincronizar e Testar conexão à vista, inclusive em "Todas as contas" com uma única conta; painel sólido na linha de conexão. Testes atualizados (o desenho antigo "discreto" foi substituído de propósito).

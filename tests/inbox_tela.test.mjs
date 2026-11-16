@@ -31,7 +31,7 @@ const UUID = "11111111-1111-4111-8111-111111111111", SENHA_APP = "abcd-efgh-ijkl
 /* o ambiente: h() como o da base, o kit real, o núcleo real, um banco de mentira que REGISTRA toda gravação, e "precisa" que carrega módulos de verdade */
 function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], mensagens = [], sincs = [], erroMsgs = false, erroLeitura = null, erroGravar = null, publicado = true, invoke = null } = {}) {
   const raiz = new No("div"), titulo = new No("h1"), gravacoes = [], lidas = [], chamadas = [];
-  const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : null) };
+  const doc = { createElement: (t) => new No(t), createTextNode: (t) => { const n = new No("#texto"); n.textContent = t; return n; }, getElementById: (id) => (id === "inbox-view" ? raiz : todos(raiz).find((n) => n.attrs && n.attrs.id === id) || null) };
   const tabela = (t) => { const q = { _acao: "ler", select() { return q; }, order() { return q; }, limit() { return q; }, insert(l) { q._acao = "insert"; q._l = l; gravacoes.push([t, "insert", l]); return q; },
     update(l) { gravacoes.push([t, "update", l]); return q; }, eq(c, v) { q._eq = [c, v]; return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
     then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
@@ -217,7 +217,7 @@ test("lista REAL: as mensagens do cache da pasta de entrada, sem prévia (o corp
   assert.ok(!t0.includes("Enviada") && !t0.includes("DEMONSTRAÇÃO"), "nada de outra pasta nem do exemplo");
   assert.equal(comClasse(a.raiz, "inb-previa").length, 0, "não há prévia: o corpo não é guardado");
   assert.equal(linhas().filter((l) => (" " + l.className + " ").includes(" inb-linha--nova ")).length, 1, "uma não lida, destacada");
-  assert.match(t0, /3 mensagens · 1 não lidas/); assert.match(t0, /Sincronizada (hoje|ontem|em \d{2}\/\d{2}) às \d{2}:\d{2}\./); assert.ok(sincBtn(a.raiz), "sincronizar é o ícone do topo"); assert.ok(!botao(a.raiz, "Testar conexão") && !botao(a.raiz, "Substituir senha") && !botao(a.raiz, "Sincronizar agora"), "nada de botões grandes na conexão em ordem"); assert.equal(comClasse(a.raiz, "inb-conexao--compacta").length, 1);
+  assert.match(t0, /3 mensagens · 1 não lidas/); assert.match(t0, /Sincronizada (hoje|ontem|em \d{2}\/\d{2}) às \d{2}:\d{2}\./); assert.ok(sincBtn(a.raiz), "sincronizar é o ícone do topo"); assert.ok(botao(a.raiz, "Testar conexão") && botao(a.raiz, "Sincronizar"), "Sincronizar e Testar conexão ficam À VISTA na conexão em ordem"); assert.ok(!botao(a.raiz, "Substituir senha") && !botao(a.raiz, "Sincronizar agora"), "senha e desconectar seguem em Opções"); assert.equal(comClasse(a.raiz, "inb-conexao--compacta").length, 1);
   assert.ok(linhas().every((l) => /^(Não lida\. )?Ana \d\. Assunto \d$/.test(l.attrs["aria-label"])), "rótulo de acessibilidade em cada linha");
   botao(a.raiz, "Não lidas").onclick(); assert.equal(linhas().length, 1); botao(a.raiz, "Com anexo").onclick(); assert.equal(linhas().length, 1, "o anexo provável da mensagem 2"); assert.ok(texto(linhas()[0]).includes("Assunto 2"));
   botao(a.raiz, "Todas").onclick();
@@ -314,7 +314,7 @@ test("Testar conexão: duas provas em sequência (canal, depois login no iCloud)
   const CANAL = ok({ canal: "ok", funcao: "rac-inbox@i2.2", worker: "rac-inbox-worker@p7.2" });
   let liberar; const pendente = new Promise((r) => { liberar = r; });
   const a = ambiente(REAL({ invoke: (nome, o) => (o.body.operacao === "testar_canal" ? pendente : ok({})) })); await a.abrir(UUID); await assentar();
-  assert.ok(!botao(a.raiz, "Testar conexão"), "discreto: só aparece em Opções"); opcoes(a.raiz); assert.ok(botao(a.raiz, "Testar conexão"), "o teste existe com a credencial guardada"); botao(a.raiz, "Testar conexão").onclick(); await esperar();
+  assert.ok(botao(a.raiz, "Testar conexão"), "o teste está à vista com a credencial guardada (não escondido em Opções)"); botao(a.raiz, "Testar conexão").onclick(); await esperar();
   const ocupado = botao(a.raiz, "Testando…"); assert.ok(ocupado && ocupado.attrs.disabled === "disabled" && ocupado.attrs["aria-busy"] === "true"); ocupado.onclick(); await esperar(); assert.equal(a.chamadas.length, 1, "um segundo toque não dispara outro teste");
   liberar(CANAL); await assentar();
   assert.deepEqual(a.chamadas.map((c) => c[1].body), [{ operacao: "testar_canal" }, { operacao: "testar_conta", conta_id: UUID }], "primeiro o canal (sem conta nem credencial), depois o login");
@@ -339,13 +339,13 @@ test("o estado da captura de produção (conta com credencial guardada e a pasta
   assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.pasta_id]), [["sincronizar_pasta", P_TESTE]], "sincroniza a pasta selecionada (RAC-TESTE), sem listar pastas de novo");
 });
 
-test("conexão em ordem: UMA linha discreta com a última sincronização e o botão Opções (testar, substituir, desconectar só quando pedido); credencial ausente ou recusada continua com os botões grandes", async () => {
+test("conexão em ordem: uma linha com a última sincronização, os botões Sincronizar e Testar conexão À VISTA e o botão Opções (prova do envio, substituir, desconectar só quando pedido); credencial ausente ou recusada continua com os botões grandes", async () => {
   const a = ambiente(REAL()); await a.abrir(UUID); await assentar();
   const caixa = comClasse(a.raiz, "inb-conexao")[0]; assert.ok((" " + caixa.className + " ").includes(" inb-conexao--compacta "));
-  assert.equal(todos(caixa).filter((n) => n.tag === "button").length, 1, "só o botão Opções está visível");
+  assert.deepEqual(todos(caixa).filter((n) => n.tag === "button").map((n) => texto(n).trim()).filter(Boolean), ["Sincronizar", "Testar conexão"], "à vista: Sincronizar e Testar conexão (o botão Opções é só o ícone)"); assert.equal(todos(caixa).filter((n) => n.tag === "button").length, 3);
   const mais = comClasse(a.raiz, "inb-conexao-mais")[0]; assert.deepEqual([mais.attrs["aria-label"], mais.attrs["aria-expanded"]], ["Opções da conexão", "false"]);
   mais.onclick(); const aberto = comClasse(a.raiz, "inb-conexao")[0]; assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "true");
-  assert.deepEqual(todos(aberto).filter((n) => n.tag === "button" && !(" " + n.className + " ").includes(" inb-conexao-mais ")).map((n) => texto(n).trim()), ["Testar conexão", "Testar envio (SMTP)", "Testar envio com e-mail de teste", "Substituir senha", "Desconectar e remover a credencial"], "as ações raras (conexão, prova do envio, senha, desconectar), como texto discreto");
+  assert.deepEqual(todos(aberto).filter((n) => n.tag === "button" && !(" " + n.className + " ").includes(" inb-conexao-mais ")).map((n) => texto(n).trim()), ["Sincronizar", "Testar conexão", "Testar envio (SMTP)", "Testar envio com e-mail de teste", "Substituir senha", "Desconectar e remover a credencial"], "à vista Sincronizar e Testar conexão; em Opções a prova do envio, a senha e desconectar");
   assert.match(texto(aberto), /cifrada no cofre do servidor e não volta ao navegador/);
   comClasse(a.raiz, "inb-conexao-mais")[0].onclick(); assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "false", "toca de novo e recolhe");
   // substituir senha abre o formulário dentro da conexão; a senha segue as regras de sempre
@@ -481,4 +481,48 @@ test("I3 · prova de envio (SMTP) nas Opções: relata etapa por etapa, o e-mail
   await a.abrir(UUID); await assentar(); opcoes(a.raiz); botao(a.raiz, "Testar envio (SMTP)").onclick(); await assentar(); await assentar();
   const t = texto(a.raiz); assert.match(t, /reprovada na etapa “Login \(AUTH\)” \(smtp_autenticacao_recusada\)/); assert.match(t, /Pedido de STARTTLS \(220\) ✓ 80 ms/); assert.deepEqual(a.chamadas.at(-1), ["rac-inbox", { body: { operacao: "smtp_prova", conta_id: UUID } }]);
   let confirmou = 0; a.ctx.confirm = () => { confirmou++; return false; }; opcoes(a.raiz); botao(a.raiz, "Testar envio com e-mail de teste").onclick(); await assentar(); assert.equal(confirmou, 1); assert.equal(a.chamadas.filter((c) => c[1].body.enviar_teste).length, 0, "sem confirmar, o e-mail de teste não é pedido");
+});
+
+/* ---------- "Adicionar conta" (correção de 16/11/2026: no celular a lateral é uma camada fixa e cobria o formulário) ---------- */
+test("Adicionar conta: abre e fecha o formulário; abrir FECHA a camada das caixas (o formulário ficava coberto no iPhone); o que foi digitado sobrevive a nova renderização", async () => {
+  const a = ambiente(REAL()); await a.abrir(UUID); await assentar();
+  const janela = () => comClasse(a.raiz, "inb-janela")[0], formAberto = () => !!campo(a.raiz, "inb-apelido");
+  const abrirCaixas = () => todos(a.raiz).find((n) => n.tag === "button" && n.attrs["aria-label"] === "Caixas").onclick();
+  const adicionar = () => botao(a.raiz, "Adicionar conta");
+  assert.equal(formAberto(), false, "com conta cadastrada o formulário começa fechado");
+  abrirCaixas(); assert.equal(janela().attrs["data-painel"], "caixas", "no iPhone o botão fica na camada das caixas"); assert.equal(adicionar().attrs["aria-expanded"], "false");
+  adicionar().onclick();
+  assert.equal(formAberto(), true, "o formulário foi desenhado"); assert.equal(janela().attrs["data-painel"], "lista", "a camada fixa das caixas é fechada: o formulário não fica coberto");
+  assert.ok(campo(a.raiz, "inb-prov") && campo(a.raiz, "inb-endereco") && campo(a.raiz, "inb-form-conta"), "provedor, apelido e endereço (e o âncora de rolagem)");
+  /* digitar, e uma renderização qualquer no meio (sincronização, aviso, troca de painel) não apaga nada */
+  preencher(a.raiz, "inb-apelido", "Trabalho"); preencher(a.raiz, "inb-endereco", "t@icloud.example"); campo(a.raiz, "inb-prov").onchange();
+  a.ctx.inboxDesenhar(); a.ctx.inboxDesenhar();
+  assert.equal(campo(a.raiz, "inb-apelido").value, "Trabalho"); assert.equal(campo(a.raiz, "inb-endereco").value, "t@icloud.example", "valores preservados durante a renderização");
+  /* fechar pelo Cancelar e reabrir pelo botão (alterna) */
+  botao(a.raiz, "Cancelar").onclick(); assert.equal(formAberto(), false, "Cancelar fecha");
+  abrirCaixas(); adicionar().onclick(); assert.equal(formAberto(), true, "reabre"); adicionar().onclick; 
+  abrirCaixas(); adicionar().onclick(); assert.equal(formAberto(), false, "o próprio botão também fecha (alterna)"); assert.equal(janela().attrs["data-painel"], "lista");
+  assert.deepEqual(a.gravacoes, [], "abrir, digitar e fechar não gravam nada");
+});
+
+test("Adicionar conta: o cadastro continua usando o fluxo existente (insert em inbox_contas pelo Supabase, só a linha validada); sem contas o formulário é o estado vazio e não tem Cancelar", async () => {
+  const v = ambiente(); await v.abrir(); assert.ok(campo(v.raiz, "inb-apelido"), "sem conta o formulário já está na tela"); assert.equal(botao(v.raiz, "Cancelar"), undefined, "sem contas não há o que cancelar");
+  campo(v.raiz, "inb-prov").value = "icloud"; preencher(v.raiz, "inb-apelido", "Pessoal"); preencher(v.raiz, "inb-endereco", "pessoa@icloud.example"); botao(v.raiz, "Cadastrar conta").onclick(); await assentar();
+  assert.deepEqual(v.gravacoes, [["inbox_contas", "insert", { provedor: "icloud", apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova" }]], "só o cadastro da conta, sem credencial e sem dono no pedido (o RLS define o dono)");
+  const e = ambiente(); await e.abrir(); preencher(e.raiz, "inb-apelido", ""); preencher(e.raiz, "inb-endereco", "ruim"); botao(e.raiz, "Cadastrar conta").onclick();
+  assert.match(texto(e.raiz), /Dê um nome de 1 a 60 caracteres/); assert.match(texto(e.raiz), /endereço de e-mail válido/); assert.deepEqual(e.gravacoes, [], "dados inválidos não saem do navegador");
+});
+
+test("Inbox: o formulário de adicionar conta FECHA ao navegar (conta, pasta, mensagem, exemplo, reabrir o Inbox) e o digitado volta ao reabrir; Sincronizar e Testar conexão aparecem também em 'Todas as contas' com uma só conta", async () => {
+  const a = ambiente(REAL()); await a.abrir(UUID); await assentar();
+  const abrirForm = () => { todos(a.raiz).find((n) => n.tag === "button" && n.attrs["aria-label"] === "Caixas").onclick(); botao(a.raiz, "Adicionar conta").onclick(); };
+  /* "Todas as contas" com uma única conta: a linha de conexão existe (antes não havia nenhuma) */
+  a.ctx.inboxIr("todas"); assert.ok(botao(a.raiz, "Sincronizar") && botao(a.raiz, "Testar conexão"), "Sincronizar e Testar conexão à vista na caixa unificada");
+  abrirForm(); assert.ok(campo(a.raiz, "inb-apelido")); preencher(a.raiz, "inb-apelido", "Rascunho");
+  comClasse(a.raiz, "inb-linha")[0].onclick(); assert.equal(campo(a.raiz, "inb-apelido"), undefined, "abrir uma mensagem fecha o formulário");
+  botao(a.raiz, "Mensagens").onclick(); abrirForm(); assert.equal(campo(a.raiz, "inb-apelido").value, "Rascunho", "ao reabrir, o digitado volta");
+  a.ctx.inboxIr(UUID); assert.equal(campo(a.raiz, "inb-apelido"), undefined, "trocar de conta fecha o formulário");
+  abrirForm(); await a.ctx.renderInbox(); await assentar(); assert.equal(campo(a.raiz, "inb-apelido"), undefined, "voltar ao Inbox começa sem formulário");
+  abrirForm(); todos(a.raiz).find((n) => n.tag === "button" && /Ver exemplo/.test(texto(n))); 
+  assert.deepEqual(a.gravacoes, []);
 });

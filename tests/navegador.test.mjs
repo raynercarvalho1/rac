@@ -871,3 +871,61 @@ test("Inbox: o aviso de e-mail novo abre direto a leitura da mensagem (app abert
     assert.deepEqual(erros, [], "nenhum erro no navegador");
   } finally { await nav.close(); servidor.close(); }
 });
+
+// Inbox · "Adicionar conta" (16/11/2026). Causa do defeito no iPhone: o botão fica na lateral, que no celular é uma camada FIXA em tela cheia (painel "caixas"); o formulário era desenhado na página, POR BAIXO dela,
+// e ficava coberto (existia no DOM, mas o usuário não o via). Só um navegador de verdade enxerga isso (elementFromPoint): o teste confere nos dois tamanhos que o formulário fica visível e clicável,
+// que o que foi digitado sobrevive a nova renderização, que fecha pelo Cancelar e pelo botão, e que nada dá erro de JavaScript.
+test("Inbox: Adicionar conta abre um formulário VISÍVEL (390 px e 1440 px), mantém o digitado, fecha e não dá erro", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    for (const [rotulo, viewport] of [["iPhone 390", { width: 390, height: 844 }], ["desktop 1440", { width: 1440, height: 900 }]]) {
+      const pag = await nav.newPage({ viewport }), erros = [];
+      pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+      pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+      await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+      await pag.evaluate(() => {
+        const C = "aaaaaaaa-0000-4000-8000-000000000001", P = "bbbbbbbb-0000-4000-8000-000000000001", ins = [];
+        const dados = { inbox_contas: [{ id: C, apelido: "Pessoal", endereco: "p@icloud.example", estado: "conectada", provedor: "icloud" }], inbox_pastas: [{ id: P, conta_id: C, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 0, nao_lidas: 0 }], inbox_credenciais: [{ conta_id: C, estado: "ativa" }] };
+        const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, insert: (l) => { ins.push([t, l]); return q; }, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+        window.__inseridos = ins;
+        SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) }, functions: { invoke: () => Promise.resolve({ data: { ok: true }, error: null }) } };
+        PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+        document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inbox"; route();
+      });
+      await pag.waitForSelector(".inb-janela", { timeout: 10000 });
+      /* o formulário está de fato na tela: o elemento no ponto central do campo é o próprio campo (não a camada lateral) */
+      const visivel = () => pag.evaluate(() => { const f = document.getElementById("inb-apelido"); if (!f) return { noDOM: false }; f.scrollIntoView({ block: "center" }); const r = f.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { noDOM: true, visivel: !!e && (e === f || f.contains(e)), coberto: e ? (e.closest(".inb-lateral") ? "lateral" : e.tagName) : null, painel: INBX.painel }; });
+      const abrir = async () => { if (viewport.width < 900) await pag.click('button[aria-label="Caixas"]'); await pag.locator("button.inb-link", { hasText: "Adicionar conta" }).click(); await pag.waitForTimeout(150); };
+      assert.deepEqual(await pag.evaluate(() => !!document.getElementById("inb-apelido")), false, rotulo + ": começa fechado");
+      await abrir(); const v1 = await visivel();
+      assert.deepEqual([v1.noDOM, v1.visivel, v1.painel], [true, true, "lista"], rotulo + ": o formulário abre VISÍVEL (coberto por: " + v1.coberto + ")");
+      /* campos funcionam, e uma nova renderização no meio não apaga o digitado */
+      await pag.fill("#inb-apelido", "Trabalho"); await pag.fill("#inb-endereco", "t@icloud.example"); await pag.selectOption("#inb-prov", "icloud");
+      await pag.evaluate(() => { inboxDesenhar(); inboxDesenhar(); });
+      assert.deepEqual(await pag.evaluate(() => [document.getElementById("inb-apelido").value, document.getElementById("inb-endereco").value, document.getElementById("inb-prov").value]), ["Trabalho", "t@icloud.example", "icloud"], rotulo + ": o digitado sobrevive à renderização");
+      /* fecha pelo Cancelar; reabre e fecha pelo próprio botão */
+      await pag.getByRole("button", { name: "Cancelar" }).click();
+      assert.equal(await pag.evaluate(() => !!document.getElementById("inb-apelido")), false, rotulo + ": Cancelar fecha");
+      await abrir(); assert.equal((await visivel()).visivel, true, rotulo + ": reabre visível");
+      await abrir(); assert.equal(await pag.evaluate(() => !!document.getElementById("inb-apelido")), false, rotulo + ": o botão alterna e fecha");
+      /* cadastro pelo fluxo existente: só a linha validada vai ao Supabase */
+      await abrir(); await pag.fill("#inb-apelido", "Trabalho"); await pag.fill("#inb-endereco", "t@icloud.example"); await pag.selectOption("#inb-prov", "icloud");
+      await pag.getByRole("button", { name: "Cadastrar conta" }).click(); await pag.waitForTimeout(300);
+      assert.deepEqual(await pag.evaluate(() => __inseridos), [["inbox_contas", { provedor: "icloud", apelido: "Trabalho", endereco: "t@icloud.example", estado: "nova" }]], rotulo + ": insert só com a linha validada, sem dono (o RLS define)");
+      assert.deepEqual(erros, [], rotulo + ": nenhum erro de JavaScript");
+      await pag.close();
+    }
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

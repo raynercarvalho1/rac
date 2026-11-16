@@ -1,7 +1,7 @@
 /* Dia a Dia RAC — módulo carregado quando a seção abre. Central Fiscal (docs/fiscal.md): leitura de XML de NF-e/NFC-e, conferência na tela e, quando a pessoa
    clica em "Salvar nota", a gravação segura (Lote B): o XML original vai para o cofre privado "familia" em <dono>/notas-fiscais/<nota>/<sha256>.xml e a função do banco
    nota_fiscal_salvar grava nota, itens, pagamentos e a referência do original numa transação só (migration 034). A leitura é no próprio aparelho; nada sai dele antes do Salvar.
-   Nenhuma nota gera despesa. Foto e PDF (Lote 1.4, só o dono): lidos pela IA (racIA, ação fiscal.nota) e validados pelas mesmas regras; Lote 1.6: gravados pela função nota_fiscal_salvar_doc (migration 037) com o original no cofre privado. Toda regra fica no núcleo (NUCLEO.nf*) e no banco.
+   Nenhuma nota gera despesa. Foto e PDF (Lote 1.4; dono e casa desde 16/11/2026): lidos pela IA (racIA, ação fiscal.nota) e validados pelas mesmas regras; Lote 1.6: gravados pela função nota_fiscal_salvar_doc (migration 037) com o original no cofre privado. Toda regra fica no núcleo (NUCLEO.nf*) e no banco.
    Lote 1.3: a tela mostra a validação (conta, situação fiscal, diferença) e só grava o que o núcleo permite (NUCLEO.nfDecisaoGravacao); a duplicidade é conferida antes de enviar qualquer arquivo. */
   var FX={lote:[],recarregar:null};
   var FX_MAX=2*1024*1024;
@@ -150,7 +150,7 @@
     if(r.arquivo)c.appendChild(fxBlocoSalvar(r));
     c.appendChild(h("p",{class:"sub",text:r.ia?"Não gera despesa. O arquivo original só vai ao cofre privado da casa quando você clica em salvar ou registrar.":"Não gera despesa. CPF e nome do consumidor do XML não são lidos nem mostrados; o arquivo original, que os contém, é guardado inteiro no cofre privado da casa."}));
     return c}
-  /* ---------- Lote 1.4: nota em foto ou PDF lida pela IA (só o dono; ação fiscal.nota da rac-ia; docs/fiscal.md) ----------
+  /* ---------- Lote 1.4: nota em foto ou PDF lida pela IA (dono e casa; ação fiscal.nota da rac-ia; docs/fiscal.md) ----------
      O arquivo é conferido pelo CONTEÚDO (bytes), o PDF só é desenhado (nunca executado), o texto do PDF perde o CPF antes de sair do aparelho e a IA só devolve JSON:
      quem valida é o núcleo (conta, situação fiscal, confiança mínima de 0,90, duplicidade). A leitura em si não grava nada; a gravação (Lote 1.6) só acontece no clique em salvar e nunca lança despesa. */
   var FX_PDF="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",FX_PDF_W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -394,7 +394,7 @@
         st.textContent=x.mensagem;btn.disabled=x.estado==="atualizada"||x.estado==="sem_mudanca"||x.estado==="incerto";if(FX.recarregar&&x.estado==="atualizada")FX.recarregar()})};
     return h("div",null,btn,st)}
 
-  /* ---------- notas já gravadas: situação fiscal, histórico, tentativas e original (a Fernanda lê as notas; tentativas e histórico são só do dono) ---------- */
+  /* ---------- notas já gravadas: situação fiscal, histórico, tentativas e original (dono e casa leem as notas, as tentativas e o histórico) ---------- */
   var FX_NOTA_COLS="id,chave,modelo,serie,numero,emitente_nome,data_emissao,valor_total,situacao,protocolo,formato_origem,requer_conferencia,conferida_em";
   function fxEstadoNota(n){var s=n.situacao;
     if(s==="autorizada")return {rotulo:n.conferida_em?"Validada · conferida":n.requer_conferencia?"Validada · falta conferir":"Validada",tom:"fxok"};
@@ -415,7 +415,7 @@
     (t.motivos||[]).forEach(function(m){w.appendChild(h("div",{class:"fxaviso",text:String(m)}))});
     (t.docs||[]).forEach(function(d){w.appendChild(h("div",null,fxLinkOriginal(d,st)))});
     return w}
-  /* conferir (nota autorizada de foto/PDF) e mudar a situação (pendente → autorizada/cancelada/rejeitada; autorizada → cancelada): só o dono; o banco confere MFA e as transições */
+  /* conferir (nota autorizada de foto/PDF) e mudar a situação (pendente → autorizada/cancelada/rejeitada; autorizada → cancelada): dono e casa; o banco confere MFA e as transições */
   function fxAcoesNota(n,foto,corpo,st){
     var trans=NUCLEO.NF_TRANSICOES[n.situacao]||[];
     if(foto&&n.situacao==="autorizada"&&!n.conferida_em){
@@ -455,7 +455,7 @@
         else if(n.situacao!=="cancelada"&&n.situacao!=="rejeitada")corpo.appendChild(fxBlocoEntradaMercado(n,function(){if(FX.recarregar)FX.recarregar()}))}})
     .then(null,function(e){st.textContent="Não consegui ler os detalhes: "+(e&&e.message||e)})}
   function fxListaPainel(){
-    var p=h("div",{class:"panel"}),corpo=h("div"),st=h("p",{class:"sub",role:"status"}),dono=typeof isOwner==="function"&&isOwner();
+    var p=h("div",{class:"panel"}),corpo=h("div"),st=h("p",{class:"sub",role:"status"}),dono=typeof isDonoOuCasa==="function"&&isDonoOuCasa();
     p.appendChild(h("h3",{text:"Notas já gravadas"}));
     p.appendChild(h("p",{class:"sub",text:"Pendentes, validadas e canceladas. Abra uma nota para ver o documento original"+(dono?", o histórico da situação fiscal e as tentativas de leitura":"")+"."}));
     p.appendChild(st);p.appendChild(corpo);
@@ -491,8 +491,8 @@
       corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},loading()));
       fxLote(sel.files).then(function(l){FX.lote=l;fxResultado(corpo,l)}).catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(sel.onchange,e)));logErro("fiscal",e)})};
     topo.appendChild(h("label",{class:"fxsel"},"XML da nota (um ou vários):",sel));
-    topo.appendChild(h("p",{class:"sub",text:(typeof isOwner==="function"&&isOwner()?"":"Fotos e PDF ainda não são lidos (sem OCR). ")+"O XML original, inclusive com CPF, fica guardado como está no cofre privado; nenhum CPF vai para campo do banco."}));
-    if(typeof isOwner==="function"&&isOwner()){
+    topo.appendChild(h("p",{class:"sub",text:(typeof isDonoOuCasa==="function"&&isDonoOuCasa()?"":"Fotos e PDF ainda não são lidos (sem OCR). ")+"O XML original, inclusive com CPF, fica guardado como está no cofre privado; nenhum CPF vai para campo do banco."}));
+    if(typeof isDonoOuCasa==="function"&&isDonoOuCasa()){
       var foto=h("input",{type:"file",accept:"image/jpeg,image/png,image/webp,application/pdf,.pdf",multiple:"multiple","aria-label":"Escolher foto ou PDF da nota"}),
         cam=h("input",{type:"file",accept:"image/*",capture:"environment","aria-label":"Fotografar a nota"}),
         lerb=h("button",{type:"button",class:"ghostbtn pri",text:"Ler foto ou PDF com IA"}),st=h("p",{class:"sub",role:"status"});
@@ -509,4 +509,4 @@
       topo.appendChild(h("div",{class:"vfil"},lerb));topo.appendChild(st);
       topo.appendChild(h("p",{class:"sub",text:"A IA (Claude Sonnet) só lê o documento e usa o orçamento de IA da casa; nada é enviado antes do clique. Um PDF sozinho ou até 4 fotos da mesma nota, JPEG, PNG ou WebP. O texto do PDF perde o CPF antes de sair do aparelho; numa foto ou página não dá para apagar o CPF da imagem, então evite enquadrá-lo (a IA é instruída a não copiá-lo e o resultado é filtrado). A conta, a situação fiscal, a confiança mínima de 90% e a duplicidade são conferidas aqui. Ao salvar, o original vai ao cofre privado e o banco refaz a conta e decide (validada, pendente fiscal, bloqueada ou duplicada); a conferência é um passo seu, depois."}))}
     root.appendChild(topo);root.appendChild(corpo);
-    if(typeof isOwner==="function"&&isOwner())root.appendChild(fxListaPainel())}
+    if(typeof isDonoOuCasa==="function"&&isDonoOuCasa())root.appendChild(fxListaPainel())}

@@ -325,3 +325,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - A saúde do deploy **não assina** pedido: 401 `cabecalhos_invalidos` sem assinatura prova Worker no ar e chave do canal configurada. A prova assinada de ponta a ponta é o botão "Testar conexão" do RAC.
 - **Pendências do dono:** token Cloudflare (Workers Scripts: Edit), Environment `cloudflare-production` (só `main`, aprovação do dono), secrets, mesclar o PR e executar o workflow.
 
+
+## 16/11/2026 · Fernanda com acesso igual em Finanças e compras (decisão do dono)
+- **Decisão (pedido do dono, "os 2 juntos em 1 lote único"):** a Fernanda (papel casa) passa a ter acesso igual ao do dono em toda a área Finanças e compras. Isso **substitui** as regras anteriores "Radar só do dono" (docs/radar.md), "leitura fiscal por IA só do dono" (docs/fiscal.md, 036) e "a Fernanda não vê a lista de notas gravadas" (CLAUDE.md, "preservar a experiência da Fernanda" vale para o que o dono não pediu para mudar).
+- **Escolhas do dono:** Radar e dados **compartilhados** (a mesma conta do dono, não cópia); leitura fiscal por IA **liberada** para a casa (consumo no mesmo orçamento de IA da casa); importar do **Gmail fica só do dono**.
+- **Continua só do dono:** Gmail de Compras, custos de IA, Sistema, backup/restauração, RAC Hoje, Newsletter, aviso de preço por push (rotina só do dono), função `garmin` (intocada).
+- **Como:** migration 057 (proposta), função `radar` (sem o 403, sempre na conta do dono), ação `fiscal.nota` com papel `casa`, site com `isDonoOuCasa()`. Ordem: SQL → `radar` → `rac-ia` → site; o `UPDATE` que liga a IA fiscal para a casa fica comentado no fim da 057 e é do dono. Detalhes em `docs/seguranca.md`.
+- **Pendências do dono:** rodar a 057 e a conferência; republicar as funções `radar` e `rac-ia`; decidir quando rodar o `UPDATE` da IA fiscal para a casa; se a 039/040 forem aplicadas depois, rodar a 057 de novo; avaliar um teto de custo para as buscas pagas do Radar feitas pela Fernanda (hoje o limite é o mesmo do dono).

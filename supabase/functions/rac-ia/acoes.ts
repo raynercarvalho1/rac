@@ -614,7 +614,7 @@ const hojeAnalise: Acao = {
   },
 };
 
-/* ---------- Central Fiscal: nota em foto ou PDF (Sonnet 5.5; só o dono; só REAL, sem demonstração) ---------- */
+/* ---------- Central Fiscal: nota em foto ou PDF (Sonnet 5.5; dono e casa (057); só REAL, sem demonstração) ---------- */
 /* Lote 1.4 (docs/fiscal.md). A IA só LÊ: o RAC valida a conta (nfValidarSoma/nfVeredito), a situação e a duplicidade, e a confiança mínima de 0,90 vale
    para a gravação como validada. Sem demonstração: em DEMO a função responde sem_real (como o RAC Hoje). */
 const FISCAL_COMP = ["seguro", "st", "fcp_st", "ipi", "ii", "ipi_devol", "deson"];
@@ -638,7 +638,7 @@ const fiscalNota: Acao = {
   id: "fiscal.nota",
   modulo: "fiscal",
   modelo: "claude-sonnet-5-5",
-  papeis: ["dono"],
+  papeis: ["dono", "casa"], // a casa (Fernanda) também usa, desde 16/11/2026 (pedido do dono): só vale se o banco listar fiscal.nota em acoes_casa e acoes_reais_casa (057, UPDATE do dono)
   real: true, // vale quando o banco liberar (036), a função for publicada e a casa estiver em REAL; sem DEMO
   maxTokens: 12000,
   esforco: "low",

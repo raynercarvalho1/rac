@@ -95,7 +95,7 @@ test("a função radar envia push só por push.ts (sem tocar na Garmin), só ao 
   assert.match(idx, /from "\.\/push\.ts"/); assert.ok(!/garmin/.test(semComent(idx)) && !/garmin/.test(semComent(push)), "nada importa da Garmin");
   assert.ok(!/radar/i.test(garmin) && !fs.existsSync(new URL("../supabase/functions/garmin/radar.ts", import.meta.url)), "a Garmin não conhece o Radar");
   assert.match(push, /select\("valor"\)|vapid\(\): Promise/); assert.ok(!/\.insert\(|novasChaves|generateKey\(\{ name: "ECDSA"/.test(semComent(push)), "nunca cria chave VAPID");
-  assert.match(idx, /eq\("user_id", uid\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/); assert.match(idx, /sem_permissao/);
+  assert.match(idx, /eq\("user_id", uid\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/, "a rotina (e o push) só trata o dono"); assert.doesNotMatch(semComent(idx), /sem_permissao/, "o site não recusa mais a casa (057, 16/11/2026): ela usa o Radar na conta do dono");
   assert.ok(!/anthropic|claude-|api\.openai/i.test(semComent(idx + push)), "sem IA na função radar");
 });
 test("045 (aplicada): agenda só a função radar com a senha que já existe, tem rollback e não mexe na Garmin", () => {

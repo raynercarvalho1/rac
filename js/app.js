@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-16.3",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-16.4",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -448,6 +448,13 @@
      Quem está na tabela "membros" (a esposa) é "casa" e vê só o Mercado; o dono vê tudo. */
   var PAPEL=null,SB=null,EU=null,DONO=null,PESSOAL={},SEM_TABELA=false;
   function isOwner(){return PAPEL==="dono"}
+  /* Finanças e compras é igual para o dono e para a casa (Fernanda), desde 16/11/2026 (pedido do dono; docs/seguranca.md, "Casa e Finanças e compras") */
+  function isDonoOuCasa(){return PAPEL==="dono"||PAPEL==="casa"}
+  /* as únicas chaves de "pessoal" que a casa lê e grava, SEMPRE na linha do dono (política "casa compartilha" da 057): Mercado e Radar */
+  var PESSOAL_CASA=["radar-config","radar-pagos","radar-vinculos","mercado-equivalencias","mercado-alertas","mercado-canais"];
+  function pessoalDaCasa(chave){return PESSOAL_CASA.indexOf(chave)>=0}
+  function podePessoal(chave){return isOwner()||(PAPEL==="casa"&&pessoalDaCasa(chave))}
+  function pessoalDono(){return isOwner()?EU.id:DONO}
   /* o RAC Hoje guarda neste aparelho (js/hoje.js), numa chave por conta ("rac-hoje-ia…:" + id do usuário), as análises, as tentativas, a trava entre abas e as
      chamadas sem resultado. Ao sair da conta, se quem entrou não é o dono, ou quando o RAC Hoje abre com outra conta (manter = id dessa conta): o conteúdo vai embora
      (análises, tentativas e trava) e os registros de chamada sem resultado FICAM, sem o conteúdo do pedido (uma cobrança incerta não pode sumir; sem o conteúdo,
@@ -472,9 +479,11 @@
      - alteração daqui que ainda não subiu e a conta não mudou desde então: sobe;
      - a conta mudou depois da base da alteração daqui e os valores são diferentes: vira conflito, e você escolhe na página Sistema. */
   function pessoalCarregar(){
-    return SB.from("pessoal").select("chave,valor,atualizado").then(function(r){
+    var q=SB.from("pessoal").select("chave,valor,atualizado");
+    if(!isOwner())q=q.eq("user_id",DONO).in("chave",PESSOAL_CASA);   /* a casa lê só as 6 chaves do dono; o banco também só devolve essas */
+    return q.then(function(r){
       if(r.error)throw new Error(r.error.message);
-      var locais={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf("rac-p-")===0)locais[k.slice(6)]=copiaLer(k.slice(6))}
+      var locais={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf("rac-p-")===0&&podePessoal(k.slice(6)))locais[k.slice(6)]=copiaLer(k.slice(6))}
       var naConta={};(r.data||[]).forEach(function(x){naConta[x.chave]=x;PESSOAL[x.chave]=x.valor;SIS.versao[x.chave]=x.atualizado});
       Object.keys(naConta).forEach(function(ch){var cp=locais[ch],cc=naConta[ch];
         if(cp&&!cp.ok&&!vazio(cp.v)&&JSON.stringify(cp.v)!==JSON.stringify(cc.valor)){
@@ -486,22 +495,25 @@
       Object.keys(locais).forEach(function(ch){var cp=locais[ch];if(naConta[ch]||!cp||vazio(cp.v))return;PESSOAL[ch]=cp.v;pessoalGravar(ch,cp.v)});
       SIS.ultimaSinc=Date.now();SIS.falhaSinc=null;syncSelo()})}
   /* sem a conta (falha de rede ou tabela), usa o que este aparelho guardou */
-  function pessoalDaCopia(){for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf("rac-p-")===0){var cp=copiaLer(k.slice(6));if(cp)PESSOAL[k.slice(6)]=cp.v}}}
+  function pessoalDaCopia(){for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf("rac-p-")===0&&podePessoal(k.slice(6))){var cp=copiaLer(k.slice(6));if(cp)PESSOAL[k.slice(6)]=cp.v}}}
   var gravando={};
   /* grava na conta sem sobrescrever às cegas: se a conta mudou desde a versão que este aparelho conhece, vira conflito */
   function pessoalGravar(chave,valor,pronto){
     PESSOAL[chave]=valor;copiaGravar(chave,valor,false);syncSelo();
-    if(!SB||!isOwner()||SEM_TABELA){if(pronto)pronto("Guardado só neste aparelho (a conta não respondeu).");return}
+    if(!SB||!podePessoal(chave)||SEM_TABELA){if(pronto)pronto("Guardado só neste aparelho (a conta não respondeu).");return}
     clearTimeout(gravando[chave]);
     gravando[chave]=setTimeout(function tentar(n){
-      SB.from("pessoal").select("valor,atualizado").eq("chave",chave).then(function(r){
+      SB.from("pessoal").select("valor,atualizado").eq("user_id",pessoalDono()).eq("chave",chave).then(function(r){
         if(r.error)throw new Error(r.error.message);
         var cc=(r.data||[])[0],base=SIS.versao[chave];
         if(cc&&base&&Date.parse(cc.atualizado)>Date.parse(base)&&JSON.stringify(cc.valor)!==JSON.stringify(valor)){
+          /* a casa não tem a página Sistema para escolher: vale a versão que está na conta (outra pessoa da casa mudou há pouco) */
+          if(!isOwner()){PESSOAL[chave]=cc.valor;SIS.versao[chave]=cc.atualizado;copiaGravar(chave,cc.valor,true,cc.atualizado);syncSelo();
+            if(pronto)pronto("Esse dado foi alterado por outra pessoa da casa agora há pouco. Veja a versão atual e refaça a alteração.");return}
           SIS.conflitos[chave]={local:valor,conta:cc.valor,tLocal:Date.now(),tConta:cc.atualizado};syncSelo();
           if(pronto)pronto("Esse dado mudou em outro aparelho. Escolha qual versão vale em Sistema.");return}
         var agora=new Date().toISOString();
-        return SB.from("pessoal").upsert({user_id:EU.id,chave:chave,valor:valor,atualizado:agora}).then(function(r2){
+        return SB.from("pessoal").upsert({user_id:pessoalDono(),chave:chave,valor:valor,atualizado:agora}).then(function(r2){
           if(r2.error)throw new Error(r2.error.message);
           SIS.versao[chave]=agora;copiaGravar(chave,valor,true,agora);SIS.ultimaSinc=Date.now();SIS.falhaSinc=null;syncSelo();if(pronto)pronto("")})
       }).catch(function(e){
@@ -552,7 +564,7 @@
       return SB.from("membros").select("dono").eq("membro",EU.id).then(function(m){
         PAPEL=m.data&&m.data.length?"casa":"dono";
         DONO=PAPEL==="casa"?m.data[0].dono:EU.id;
-        if(PAPEL!=="dono"){hojeLimparLocal();return}
+        if(PAPEL!=="dono"){hojeLimparLocal();return pessoalCarregar().catch(function(e){SEM_TABELA=true;SIS.falhaSinc="Não consegui ler a conta ("+e.message+").";logErro("sincronização",e);pessoalDaCopia()})}
         return pessoalCarregar().catch(function(e){SEM_TABELA=true;SIS.falhaSinc="Não consegui ler a conta ("+e.message+").";logErro("sincronização",e);pessoalDaCopia()}).then(migrarDoNavegador)
       }).then(iniciar)})
     }).catch(function(e){mostrarGate("Não consegui conectar agora ("+(e.message||e)+"). Tente de novo.")})}

@@ -180,7 +180,7 @@ Foto legível; baixa qualidade (confiança < 0,90); parcialmente cortada; PDF de
 - Índice único `(user_id, chave)` em `notas_fiscais` e `(user_id, sha256)` em `notas_fiscais_docs` (duplicidade por chave e por arquivo já garantida pelo banco).
 - 034: congelamento da nota conferida (única mudança de situação: autorizada → cancelada), registro do original imutável, políticas restritivas do Storage para arquivo registrado, travas por advisory lock, `unique_violation` tratada com savepoint.
 - 032: cancelada é definitiva; nota que vira cancelada/rejeitada invalida os vínculos.
-- Acesso: as tabelas fiscais são da **casa** (Rayner e Fernanda) + trava `mfa`. A leitura por IA e esta proposta são **só do dono** (`auth.uid() = dono_da_casa()`).
+- Acesso: as tabelas fiscais são da **casa** (Rayner e Fernanda) + trava `mfa`. A leitura por IA e esta proposta eram **só do dono** (`auth.uid() = dono_da_casa()`); a casa passa a ter acesso igual com a 057 (seção "Fernanda (casa) com acesso igual", no fim deste documento).
 - Storage: bucket `familia` (privado, 50 MB por arquivo, aceita `image/*` e `application/pdf`); caminho `<dono>/notas-fiscais/<nota>/<sha256>.<ext>`.
 - Falta no banco: lugar para o **resultado do processamento** (confiança, campos incertos, conta), o **histórico de tentativas** (inclusive as bloqueadas) e o **histórico de mudanças de situação**.
 
@@ -393,3 +393,12 @@ A 034 foi aplicada pelo dono no SQL Editor em 07/11/2026 e conferida por consult
   existe e o anon recebe 42501.
 - **Testes:** `tests/banco_foto_pdf.test.mjs` (testes "049": o hash real do CI passa, CPF de verdade continua barrado, 150 hashes, nulo e formato inesperado,
   anon sem execução), validados em PGlite (Postgres 18.6) e em Postgres 16 de verdade. Os testes de foto/PDF geram o arquivo por sequência, não por sorteio.
+
+## Fernanda (casa) com acesso igual ao do dono (decisão do dono, 16/11/2026; migration 057, proposta)
+
+Pedido do dono: toda a Central Fiscal igual para a Fernanda. O que mudou (código pronto, **nada aplicado nem publicado até o dono seguir a ordem em `docs/seguranca.md`**, "Casa e Finanças e compras"):
+- **Site (`js/fiscal.js`):** a lista de notas gravadas, as tentativas, o histórico da situação fiscal, as ações (conferir, mudar situação, entrada no Mercado) e a leitura por foto/PDF com IA passam a aparecer também para a casa (`isDonoOuCasa()`). O Gmail de Compras e os custos de IA continuam só do dono.
+- **Banco (057):** sai a linha "só o dono da casa" de `nota_fiscal_salvar_doc`, `nota_fiscal_atualizar_situacao` e `nota_fiscal_entrada_mercado` (editada dentro da definição que já está no banco: se a 039 ou a 040 ainda não foram aplicadas, a 057 **não** as ativa; se forem aplicadas depois, rodar a 057 de novo); saem as políticas restritivas "foto so dono ..."; a casa lê `notas_fiscais_tentativas` e `notas_fiscais_situacoes`; sai a trava `ia_config_fiscal_so_dono`. O MFA continua obrigatório. A restauração de backup continua só do dono (exceção do gatilho de conferência da 034).
+- **IA (`rac-ia`):** `fiscal.nota` aceita o papel `casa`. Só vale para ela depois de o dono rodar o `UPDATE` comentado no fim da 057 (acrescenta `fiscal.nota` em `acoes_casa` e `acoes_reais_casa`, com a casa em REAL). Até lá, a função responde `sem_permissao` para a Fernanda e nada é cobrado. A leitura dela usa o mesmo orçamento de IA da casa; o dono pode desligar de novo para a casa com o `UPDATE` de desligar (também comentado na 057).
+- **Gravação:** a nota é sempre da casa (`user_id = dono_da_casa()`, arquivo em `<dono>/notas-fiscais/...`), gravada pela mesma função; quem conferiu fica registrado pelo próprio `auth.uid()` de quem clicou.
+- **Testes:** `tests/banco_casa_radar_fiscal.test.mjs` (PGlite: a Fernanda grava nota de foto, lê tentativas e histórico, atualiza a situação; quem é de fora não; MFA exigido; 057 idempotente e sem ativar a 039/040) e as telas em `tests/fiscal_foto_gravar.test.mjs` / `tests/fiscal_ia.test.mjs`.

@@ -1,6 +1,6 @@
 // Central de Compras como um mercado: as TELAS (mercado.js) desenhadas num DOM falso, sem banco real, sem rede e sem IA.
 // Garante a navegação de ponta a ponta: Central → categoria → produto → compra; Central → estabelecimento → produtos e comparação; pedido online e nota abrem a compra;
-// os totais das páginas batem com as barras da Central; só o dono vê as páginas e os painéis novos (a experiência da casa não muda); nada é gravado.
+// os totais das páginas batem com as barras da Central; dono e casa veem as páginas e os painéis (o Radar e a junção também, desde 16/11/2026); nada é gravado.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -27,6 +27,7 @@ globalThis.window.scrollTo = () => {}; globalThis.window.scrollY = 0; globalThis
 globalThis.location = { hash: "" };
 globalThis.PESSOAL = {}; let DONO = true;
 globalThis.isOwner = () => DONO;
+globalThis.isDonoOuCasa = () => true;   // Finanças e compras é igual para dono e casa (16/11/2026); o papel só muda o que é do dono de verdade
 const gravP = []; globalThis.pessoalGravar = (k, v, cb) => { gravP.push([k, JSON.parse(JSON.stringify(v))]); globalThis.PESSOAL[k] = v; if (cb) cb(null); };
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo || globalThis.window.RACnucleo; globalThis.window.RACnucleo = N;
@@ -92,17 +93,17 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
   assert.equal(links("#mercado/estabelecimento/Amazon").filter((a) => /Abrir o estabelecimento/.test(texto(a))).length, 1);
 });
 
-test("a casa (Fernanda) vê as páginas de mercado (liberado pelo dono em 12/11/2026), mas nada do Radar nem a junção de produtos; nada é gravado", async () => {
+test("a casa (Fernanda) vê as páginas de mercado (12/11/2026) e, desde 16/11/2026, o Radar e a junção de produtos igual ao dono; nada é gravado só por abrir", async () => {
   let calls = await abrir("central", "", { dono: false, cu: { per: "tudo", sel: { tipo: "cat", valor: "Pet" } } }); let t = tudo();
   for (const x of ["Evolução dos gastos", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Últimas compras"]) assert.ok(t.includes(x), x);
   assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length === 1, "ela navega para as páginas");
   calls = calls.concat(await abrir("estabelecimento", "Amazon", { dono: false, cu: { per: "tudo" } })); t = tudo(); assert.ok(t.includes("Comparação com outros estabelecimentos") && t.includes("Produtos comprados aqui"));
   calls = calls.concat(await abrir("categoria", "Padaria", { dono: false, cu: { per: "tudo" } })); t = tudo();
-  assert.ok(t.includes("Onde você compra Padaria") && t.includes("Último preço pago") && t.includes("Maior pago")); assert.ok(!/Radar|Ofertas|ofertas do produto/.test(t), "sem o selo de ofertas");
+  assert.ok(t.includes("Onde você compra Padaria") && t.includes("Último preço pago") && t.includes("Maior pago")); { const casaCat = t; await abrir("categoria", "Padaria", { dono: true, cu: { per: "tudo" } }); assert.equal(casaCat, tudo(), "a categoria é idêntica para a casa e para o dono (inclusive o selo de ofertas)"); }
   calls = calls.concat(await abrir("produto", encodeURIComponent("Pão Francês"), { dono: false })); t = tudo();
   assert.ok(t.includes("O que você pagou") && t.includes("Onde você comprou") && t.includes("Comprou? Registre a compra"));
-  for (const x of ["Ofertas na internet", "Radar de Preços", "Mesmo produto com outro nome"]) assert.ok(!t.includes(x), x);
-  assert.deepEqual(calls.filter((c) => /^radar_/.test(c[1])), [], "nem consulta o Radar"); assert.deepEqual(escritas(calls), []); assert.deepEqual(gravP, [], "nem grava preferências");
+  const casa = t; await abrir("produto", encodeURIComponent("Pão Francês"), { dono: true }); assert.equal(casa, tudo(), "a página do produto é idêntica para a casa e para o dono");
+  assert.ok(calls.some((c) => /^radar_/.test(c[1])), "a casa também consulta o Radar"); assert.deepEqual(escritas(calls), []); assert.deepEqual(gravP, [], "e nada grava só por abrir");
 });
 
 test("categoria só online (Pet): produtos do pedido, gasto sem o frete, onde comprou e a evolução; o último preço abre o PEDIDO na Central", async () => {
@@ -183,11 +184,11 @@ test("novo registro alimenta a Central: Compras online avisa (ccEsquecer → esq
   assert.ok((ler("mercado.js").match(/return loadRows\(true\)/g) || []).length >= 2, "o Mercado relê as notas depois de salvar/importar");
 });
 
-test("código: a navegação nova só lê (nenhuma escrita, RPC, IA ou função), e a rota do Radar continua só do dono", () => {
+test("código: a navegação nova só lê (nenhuma escrita, RPC, IA ou função), e a rota do Radar é de dono e casa", () => {
   const m = ler("mercado.js"), i0 = m.indexOf("/* ---------- Navegação de mercado"), i1 = m.indexOf("/* 2) registrar uma compra:"); assert.ok(i0 > 0 && i1 > i0);
   const b = m.slice(i0, i1); assert.ok(!/\.(insert|update|delete|upsert|rpc)\(|functions\.invoke|racIA|pessoalGravar/.test(b), "só leitura");
   assert.ok(!/sb\.from\(/.test(b.replace(/sb\.from\("radar_candidatos"\)\.select\(/, "")), "a única consulta nova é a de ofertas que já existia (radar_candidatos)");
-  assert.match(m, /x\[0\] === sub && \(x\[0\] !== "radar" \|\| ehDono\(\)\)/, "pelo endereço a casa abre categoria, produto e estabelecimento; o Radar continua só do dono");
+  assert.match(m, /x\[0\] === sub && \(x\[0\] !== "radar" \|\| ehDono\(\)\)/, "pelo endereço a casa abre categoria, produto e estabelecimento; o Radar também é da casa desde 16/11/2026 (ehDono = dono ou casa)");
   assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento" \? loadOnline\(\)/, "as páginas carregam as compras online junto");
   assert.match(ler("index.html"), /\.cmvbars\{[^}]*overflow-x:auto[^}]*\}\.cmvbars \.vb\{flex:1 0 36px\}/, "colunas com largura mínima: rolam para o lado em vez de espremer ou vazar do quadro");
 });
@@ -264,7 +265,7 @@ test("juntar pela página do produto (dono): o pedido online sugere o produto pa
   assert.deepEqual(escritas(calls), [], "nada no banco de compras");
 });
 
-test("junção na Central e na aba Produtos (dono): o pedido aberto mostra o nome do pedido; a aba Produtos lista sugestões e junções; a casa não vê nada disso e vê os nomes como estão", async () => {
+test("junção na Central e na aba Produtos: o pedido aberto mostra o nome do pedido; a aba Produtos lista sugestões e junções; a casa vê e faz o mesmo (16/11/2026)", async () => {
   const pessoal = { "mercado-equivalencias": { v: 1, itens: { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Golden Adulto 10kg" } } };
   await abrir("central", "", { linhas: COM_PET, pessoal, cu: { per: "tudo", aberta: "online:o1" } }); let t = tudo();
   assert.ok(t.includes("Ração Golden Adulto 10kg") && t.includes("no pedido: Ração Golden 10kg"), "o pedido mostra o produto juntado e o nome original");
@@ -272,7 +273,7 @@ test("junção na Central e na aba Produtos (dono): o pedido aberto mostra o nom
   assert.ok(t.includes("Pedidos online com nome diferente") && t.includes("1 sugestão") && t.includes("“Ração Golden 10kg”") && t.includes("Ração Golden Adulto 10kg (Mercado, 67%)"));
   botoes("Juntar")[0].onclick(); assert.equal(gravP.length, 1); await esperar(); assert.ok(tudo().includes("1 junção feita") && tudo().includes("“Ração Golden 10kg” → Ração Golden Adulto 10kg"));
   botoes("Separar")[0].onclick(); await esperar(); assert.ok(tudo().includes("0 junções feitas") && tudo().includes("1 sugestão"));
-  await abrir("produtos", "", { dono: false, linhas: COM_PET, db: { produtos: [] } }); assert.ok(!tudo().includes("Pedidos online com nome diferente"), "a casa: a aba Produtos como era");
+  await abrir("produtos", "", { dono: false, linhas: COM_PET, db: { produtos: [] } }); await esperar(); assert.ok(tudo().includes("Pedidos online com nome diferente"), "a casa: a aba Produtos com a junção");
   await abrir("produto", encodeURIComponent("Ração Golden 10kg"), { dono: false, linhas: COM_PET }); t = tudo();
-  assert.ok(t.includes("O que você pagou") && !t.includes("Mesmo produto com outro nome"), "a casa vê o produto pelo nome do pedido, sem o quadro de junção"); assert.deepEqual(gravP, []);
+  assert.ok(t.includes("O que você pagou"), "a casa vê o produto pelo nome do pedido"); assert.deepEqual(gravP, []);
 });

@@ -189,6 +189,26 @@ a função nova responde, e a Fernanda não vê a Auditoria. Desfazer: recriar `
 `tests/seguranca_catalogo.test.mjs` falha se uma migration depois da 050 criar tabela sem catalogá-la, se o `backup` do catálogo divergir de
 `NUCLEO.SEG_TABELAS`, se uma tabela com trava não tiver a política "mfa" ou se faltar no teste de segurança com o banco real.
 
+## Casa (Fernanda) e Finanças e compras (decisão do dono, 16/11/2026)
+
+O dono pediu que a Fernanda (papel casa, `membros`) tenha **acesso igual ao dele em toda a área Finanças e compras** (Central de Compras, Alimentação, Compras online,
+Central Fiscal). Antes, o Radar de Preços, os alertas de preço, a junção de produtos, o canal da nota e a leitura de nota por IA eram só do dono. Como ficou
+(migration `supabase/057_casa_radar_fiscal.sql`, **proposta, não aplicada** até o dono rodar; conferência só de leitura em `supabase/conferencias/057_conferir_producao.sql`):
+
+| Parte | Antes | Agora |
+|---|---|---|
+| `pessoal` | só o dono | a casa lê e grava **6 chaves** na linha do dono (política "casa compartilha"): `radar-config`, `radar-pagos`, `radar-vinculos`, `mercado-equivalencias`, `mercado-alertas`, `mercado-canais`. Qualquer outra chave continua invisível para ela |
+| Radar (9 tabelas) | política "so o dono" (`dono = auth.uid()` e fora de `membros`) | política "casa" (`dono = dono_da_casa()`); linhas novas nascem do dono da casa; a trava "mfa" continua |
+| Função `radar` | 403 `sem_permissao` para membro | a casa usa na conta do dono; a rotina e o push seguem só para o dono |
+| Central Fiscal (foto/PDF, situação, entrada no Mercado) | as 3 funções recusavam quem não era o dono da casa; políticas restritivas "foto so dono"; tentativas e histórico só do dono | sem a linha "só o dono da casa" (editada dentro da definição existente: **não ativa a 039/040 se ainda não aplicadas**; rodar a 057 de novo depois de aplicá-las); sem as políticas "foto so dono"; a casa lê tentativas e histórico |
+| IA fiscal (`fiscal.nota`) | `acoes.ts` só `dono`; trava `ia_config_fiscal_so_dono` | `acoes.ts` aceita `casa`; a trava do banco sai; **só liga quando o dono roda o UPDATE comentado no fim da 057** (`acoes_casa` e `acoes_reais_casa`), com a casa em REAL |
+
+**Continua só do dono:** importar do Gmail (usa o e-mail dele), custos de IA, Sistema, backup e restauração, RAC Hoje (`hoje.analise`), Newsletter (`newsletter.resumo`),
+aviso de preço por push (a rotina trata só o dono) e a função `garmin` (não foi tocada). O MFA (`rac_aal_ok()`) vale para a casa em tudo isso.
+**Custos:** a Fernanda passa a poder disparar buscas pagas do Radar (mesma chave, mesmo limite e mesma conta do dono) e, quando o dono ligar, a leitura fiscal por IA
+(mesmo orçamento de IA da casa). **Dados compartilhados:** ela edita os mesmos produtos, lojas, vínculos, junções e ajustes de alertas do dono, não uma cópia.
+**Ordem de publicação:** SQL (057) → função `radar` → função `rac-ia` → site; só depois, se o dono quiser, o UPDATE que liga a IA fiscal para a casa.
+
 ## Implantação (nesta ordem)
 
 1. `node --test tests/*.test.mjs` passando.

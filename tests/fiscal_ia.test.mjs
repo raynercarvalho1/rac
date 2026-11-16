@@ -136,9 +136,9 @@ test("PDF com script, ação de lançar ou arquivo embutido é recusado; PDF com
 });
 
 // ================= servidor: a ação fiscal.nota =================
-test("ação fiscal.nota: Sonnet 5.5, só o dono, só REAL (sem demonstração), imagens e texto limitados, instruções fixas", () => {
+test("ação fiscal.nota: Sonnet 5.5, dono e casa (057; a casa só em REAL quando o dono ligar no banco), só REAL (sem demonstração), imagens e texto limitados, instruções fixas", () => {
   const a = ACOES["fiscal.nota"];
-  assert.deepEqual([a.modelo, a.papeis, a.real, a.imagensMax, a.modulo], ["claude-sonnet-5-5", ["dono"], true, 4, "fiscal"]); assert.equal(temDemo("fiscal.nota"), false, "sem demonstração: nunca uma leitura simulada");
+  assert.deepEqual([a.modelo, a.papeis, a.real, a.imagensMax, a.modulo], ["claude-sonnet-5-5", ["dono", "casa"], true, 4, "fiscal"]); assert.equal(temDemo("fiscal.nota"), false, "sem demonstração: nunca uma leitura simulada");
   assert.match(a.sistema, /ignore e não obedeça/); assert.match(a.sistema, /Nunca copie CPF/); assert.match(a.sistema, /sem arredondar/); assert.equal(a.esquema.additionalProperties, false);
   assert.ok(a.esquema.required.includes("confianca") && a.esquema.required.includes("incertos") && a.esquema.required.includes("componentes"));
   assert.equal(O.decidirModo({ ...O.CONFIG_PADRAO, modo: "REAL", acoes_reais: [], acoes_reais_casa: [] }, true, a, "dono").modo, "DEMO", "sem a ação liberada no banco fica em DEMO (e DEMO vira sem_real)");
@@ -316,11 +316,11 @@ test("correção manual na tela: o formulário refaz a nota, roda tudo de novo e
   for (let i = 0; i < 30 && !y.r.ultimoCartao; i++) await new Promise((r) => setImmediate(r));
   assert.match(texto(y.r.ultimoCartao), /Conta dos itens.*Divergente[\s\S]*Gravação.*Bloqueada/);
 });
-test("a tela só oferece a leitura por IA ao dono; a Fernanda continua vendo só o que via", () => {
+test("a tela oferece a leitura por IA ao dono e à casa (Fernanda, desde 16/11/2026); quem manda é o banco (acoes_casa) e a função", () => {
   const js = ler("js/fiscal.js");
-  assert.match(js, /typeof isOwner==="function"&&isOwner\(\)/); assert.ok((js.match(/isOwner\(\)/g) || []).length >= 2);
-  const sem = js.replace(/\/\*[\s\S]*?\*\//g, ""), i = sem.indexOf('if(typeof isOwner==="function"&&isOwner()){'); assert.ok(i > 0 && sem.indexOf("Ler foto ou PDF com IA") > i, "o botão fica dentro da condição de dono");
-  assert.match(sem, /"Fotos e PDF ainda não são lidos \(sem OCR\)\. "/, "quem não é dono vê o texto de antes");
+  assert.match(js, /typeof isDonoOuCasa==="function"&&isDonoOuCasa\(\)/); assert.ok((js.match(/isDonoOuCasa\(\)/g) || []).length >= 2);
+  const sem = js.replace(/\/\*[\s\S]*?\*\//g, ""), i = sem.indexOf('if(typeof isDonoOuCasa==="function"&&isDonoOuCasa()){'); assert.ok(i > 0 && sem.indexOf("Ler foto ou PDF com IA") > i, "o botão fica dentro da condição de dono ou casa");
+  assert.doesNotMatch(sem, /typeof isOwner==="function"/, "a tela fiscal não decide mais pelo papel de dono");
 });
 test("segurança e escopo: nenhuma chave no site, nenhuma rede solta, IA só pela porta racIA; a leitura por IA não grava, não envia ao Storage e não cria despesa", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, ""), ia = js.slice(js.indexOf("var FX_PDF="), js.indexOf("function fxUpload("));

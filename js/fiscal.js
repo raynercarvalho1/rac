@@ -2,7 +2,9 @@
    clica em "Salvar nota", a gravação segura (Lote B): o XML original vai para o cofre privado "familia" em <dono>/notas-fiscais/<nota>/<sha256>.xml e a função do banco
    nota_fiscal_salvar grava nota, itens, pagamentos e a referência do original numa transação só (migration 034). A leitura é no próprio aparelho; nada sai dele antes do Salvar.
    Nenhuma nota gera despesa. Foto e PDF (Lote 1.4; dono e casa desde 16/11/2026): lidos pela IA (racIA, ação fiscal.nota) e validados pelas mesmas regras; Lote 1.6: gravados pela função nota_fiscal_salvar_doc (migration 037) com o original no cofre privado. Toda regra fica no núcleo (NUCLEO.nf*) e no banco.
-   Lote 1.3: a tela mostra a validação (conta, situação fiscal, diferença) e só grava o que o núcleo permite (NUCLEO.nfDecisaoGravacao); a duplicidade é conferida antes de enviar qualquer arquivo. */
+   Lote 1.3: a tela mostra a validação (conta, situação fiscal, diferença) e só grava o que o núcleo permite (NUCLEO.nfDecisaoGravacao); a duplicidade é conferida antes de enviar qualquer arquivo.
+   Confirmação única (16/11/2026, migration 059): um só botão de confirmação humana, "Estou de acordo". Ele grava a nota na Central Fiscal e lança a compra no Mercado numa chamada (nota_fiscal_confirmar);
+   a situação fiscal não impede a entrada (só cancelada e rejeitada); sem o clique nada é gravado; falha técnica no Mercado tem só o "Tentar de novo" (retoma o que já foi confirmado). Não existe fluxo de recusa. */
   var FX={lote:[],recarregar:null};
   var FX_MAX=2*1024*1024;
   function fxGrupos(s,n){return String(s||"").replace(new RegExp("(\\d{"+n+"})(?=\\d)","g"),"$1 ")}
@@ -19,8 +21,6 @@
       var lido=NUCLEO.nfLerXML(t);
       if(!lido)return {nome:nome,erro:"Não é um XML de NF-e ou NFC-e (não achei a nota dentro do arquivo)."};
       return {nome:nome,nota:NUCLEO.nfNormalizar(lido),lido:lido,arquivo:f}},function(){return {nome:nome,erro:"Não consegui abrir o arquivo."}})}
-  function fxLote(files){
-    return Array.prototype.slice.call(files,0,20).reduce(function(p,f){return p.then(function(acc){return fxLerArquivo(f).then(function(r){acc.push(r);return acc})})},Promise.resolve([]))}
 
   /* ---------- gravação: Storage + função do banco, com limpeza do que falhou ---------- */
   function fxHex(buf){return Array.prototype.map.call(new Uint8Array(buf),function(x){return ("0"+x.toString(16)).slice(-2)}).join("")}
@@ -32,7 +32,7 @@
       if(ms==null){var x=new Error(e.message||"erro do banco");x.code=e.code;throw x}
       return fxEsperar(ms+Math.floor(Math.random()*50)).then(function(){return fxRpc(nome,args,rep+1)})})}
   function fxMsgErro(e){var c=e&&e.code,m=String(e&&e.message||e||"erro");
-    if(c==="PGRST202"||/Could not find the function/i.test(m))return "A gravação ainda não está disponível no banco (a migration 034 não foi aplicada).";
+    if(c==="PGRST202"||/Could not find the function/i.test(m))return /nota_fiscal_(confirmar|entrada_mercado)/.test(m)?"A confirmação com entrada no Mercado ainda não está disponível no banco (a migration 059 não foi aplicada).":"A gravação ainda não está disponível no banco (a migration 034 não foi aplicada).";
     if(c==="42501")return "Sem permissão para gravar (faça login de novo e confirme o código de segurança, se pedido).";
     if(c==="23514")return "O banco recusou os dados por uma regra de segurança: "+m;
     return m}
@@ -61,7 +61,11 @@
         despesas:(r[6]||[]).map(function(p){return {id:p.id,data:p.data,valor:p.total_pago,estabelecimento:p.estabelecimento}})}}})}
   /* grava uma nota lida do XML. r = {nota, lido, arquivo}; devolve {estado, mensagem, ...} (nunca lança):
      gravada | ja_existia | duplicada | invalido | erro */
-  function fxSalvar(r,conferir){
+  function fxArgsConfirmar(formato,a,entrada){
+    return {p_formato:formato,p_nota:a.p_nota,p_itens:a.p_itens,p_docs:a.p_docs,p_proc:formato==="doc"?a.p_proc:null,p_conferir:formato==="xml"?a.p_conferir===true:false,p_decisoes:entrada}}
+  /* entrada (opcional) = decisões de produto e estabelecimento (NUCLEO.nfEntradaPayload): com ela a gravação é a CONFIRMAÇÃO ÚNICA (RPC nota_fiscal_confirmar: grava a nota, registra o "Estou de acordo" e lança no Mercado);
+     sem ela é a gravação antiga (nota_fiscal_salvar), que a tela não usa mais */
+  function fxSalvar(r,conferir,entrada){
     var f=r.arquivo,n=r.nota,id=r.idNota||(r.idNota=crypto.randomUUID()),path=null,enviou=false;
     function fim(estado,mensagem,extra){var o=extra||{};o.estado=estado;o.mensagem=mensagem;return o}
     return Promise.resolve().then(function(){
@@ -73,17 +77,19 @@
           /* antes de enviar qualquer arquivo: confere duplicidade (nota, arquivo, Compras, Mercado, pedidos) e a decisão do núcleo; bloqueado = nada é enviado */
           return fxExistentes(n,sha).then(function(ex){
             var dup=NUCLEO.nfDuplicidade(n,ex.dados,{sha256:sha}),dec=NUCLEO.nfDecisaoGravacao(n,dup),avisos0=dec.avisos.concat(ex.avisos);
-            if(!dec.pode){var a0=dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0];
-              return fim("duplicada",dec.bloqueios.join(" ")+" Nada foi enviado.",{id:a0?a0.id:null,atualizar:dup.atualizar_situacao})}
+            var a0=dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0],mesma=!!(entrada&&a0&&a0.id===id&&dec.bloqueios.length===dec.bloqueios_dup.length);     /* a nota que já existe é desta mesma leitura (a resposta se perdeu): segue, o banco devolve o estado e conclui a entrada */
+            if(!dec.pode&&!mesma)return fim("duplicada",dec.bloqueios.join(" ")+" Nada foi enviado.",{id:a0?a0.id:null,atualizar:dup.atualizar_situacao})
             return Promise.resolve(SB.storage.from("familia").upload(path,new Blob([buf],{type:mime}),{upsert:false,contentType:mime})).then(function(u){
               var e=u&&u.error;
               if(e&&!(/exist|duplicate|409/i.test(e.message||"")||e.statusCode==="409"))throw e;     // 409: o mesmo arquivo já está lá (tentativa anterior): segue
               enviou=!e;
-              return fxRpc("nota_fiscal_salvar",g.args).then(function(d){
-                var apagar=(d&&d.docs_para_apagar)||[];
+              return (entrada?fxRpc("nota_fiscal_confirmar",fxArgsConfirmar("xml",g.args,entrada)):fxRpc("nota_fiscal_salvar",g.args)).then(function(dd){
+                var d=entrada?(dd&&dd.fiscal)||{}:dd,apagar=(d&&d.docs_para_apagar)||[],conf=entrada?NUCLEO.nfResultadoConfirmar(dd,n):null;
+                function com(o){if(conf){o.confirmar=conf;o.entrada=dd.entrada||null}return o}
+                if(conf&&conf.gravada)return fxLimpar(apagar).then(function(){return fim("gravada",conf.texto,com({id:conf.id,conferida:!!g.args.p_conferir,modo:g.modo,avisos:(d.avisos||[]).concat(g.avisos,avisos0,conf.avisos||[]),semelhantes:d.semelhantes||[]}))});
                 if(d&&d.criado)return fim("gravada",g.args.p_conferir?"Nota gravada e conferida.":g.modo==="pendente_fiscal"?"Nota gravada como pendente fiscal (sem validação até a autorização).":"Nota gravada (pendente de conferência).",{id:d.id,conferida:!!d.conferida,modo:g.modo,avisos:(d.avisos||[]).concat(g.avisos,avisos0),semelhantes:d.semelhantes||[]});
-                if(d&&d.ja_existia)return fxLimpar(apagar).then(function(){return fim("ja_existia","Esta nota já estava gravada.",{id:d.id})});
-                return fxLimpar(apagar).then(function(){return fim("duplicada","Já existe uma nota igual na Central Fiscal ("+(d&&d.motivo==="arquivo"?"o mesmo arquivo":"a mesma chave de acesso")+"). O arquivo enviado foi descartado.",{id:d&&d.id})})})})})})})
+                if(d&&d.ja_existia)return fxLimpar(apagar).then(function(){return fim("ja_existia","Esta nota já estava gravada.",com({id:d.id}))});
+                return fxLimpar(apagar).then(function(){return fim("duplicada",conf?conf.texto:"Já existe uma nota igual na Central Fiscal ("+(d&&d.motivo==="arquivo"?"o mesmo arquivo":"a mesma chave de acesso")+"). O arquivo enviado foi descartado.",com({id:d&&d.id}))})})})})})})
     }).catch(function(e){
       /* qualquer falha: apaga o que ESTA tentativa enviou (o banco recusa apagar arquivo já registrado, então nada de uma gravação que deu certo se perde) */
       return fxLimpar(enviou&&path?[path]:[]).then(function(){return fim("erro","Não gravei: "+fxMsgErro(e))})})}
@@ -96,7 +102,7 @@
   function fxLinha(r,v){return h("div",{class:"row"},h("span",{class:"grow",text:r}),h("b",{text:v}))}
   /* validação à vista: a conta (consistente / divergente / baixa confiança), o total calculado contra o fiscal, a diferença em reais e o que a gravação pode fazer. A situação fiscal tem linha própria no cartão. */
   function fxValidacao(n,r){
-    var d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,r&&r.ia?{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true}:undefined),v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
+    var ia=r&&r.ia,d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,ia?{confianca:NUCLEO.nfConfiancaIA(ia),revisada:ia.revisada===true}:undefined),dc=d,v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
     box.appendChild(h("h4",{text:"Validação da nota"}));
     box.appendChild(fxLinha("Conta dos itens",v.rotulo));
     if(s.total_calculado!=null&&s.total_fiscal!=null){box.appendChild(fxLinha("Total calculado pelos itens",fxMoeda(s.total_calculado)));box.appendChild(fxLinha("Total fiscal",fxMoeda(s.total_fiscal)));box.appendChild(fxLinha("Diferença",v.diferenca_texto||"—"))}
@@ -104,18 +110,8 @@
     v.bloqueios.forEach(function(b){box.appendChild(h("div",{class:"fxaviso fxbloq",text:b.texto}))});
     v.avisos.forEach(function(a){if((n.avisos||[]).indexOf(a)<0)box.appendChild(h("div",{class:"fxaviso",text:a}))});
     d.bloqueios_dup.forEach(function(b){box.appendChild(h("div",{class:"fxaviso fxbloq",text:b}))});d.avisos_dup.forEach(function(a){box.appendChild(h("div",{class:"fxaviso",text:a}))});
-    box.appendChild(fxLinha("Gravação",d.modo==="validada"?"Pode ser gravada como validada"+(r&&r.ia?" (fica pendente da sua conferência)":""):d.modo==="pendente_fiscal"?"Só como pendente fiscal (sem validação)":r&&r.ia?"Bloqueada como nota (só a tentativa e o original podem ser registrados)":"Bloqueada"));
-    return box}
-  function fxBlocoSalvar(r){
-    var n=r.nota,dec=NUCLEO.nfDecisaoGravacao(n,null),pendFiscal=dec.modo==="pendente_fiscal",semChave=!(n.chave_valida&&n.chave),chk=h("input",{type:"checkbox"}),btn=h("button",{type:"button",class:"ghostbtn pri",text:pendFiscal?"Salvar como pendente fiscal":"Salvar na Central Fiscal"}),
-      st=h("p",{class:"sub",role:"status"}),box=h("div",{class:"fxsalvar"});
-    if(!dec.pode)return h("div",{class:"fxsalvar"},h("div",{class:"fxaviso fxbloq",role:"status",text:"Gravação bloqueada. "+dec.bloqueios.join(" ")+" Refaça a leitura com outro arquivo ou trate a compra por outra via. Nada foi enviado nem gravado."}));
-    if(semChave||pendFiscal)chk.disabled=true;
-    box.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:pendFiscal?" Nota pendente fiscal: fica guardada sem conferência e sem validação até ser autorizada.":semChave?" A chave de acesso não confere: a nota é salva pendente e conferida depois.":" Conferi os dados com o documento (a conferência fica registrada com o seu nome e a data; depois dela a nota não muda)."})));
-    box.appendChild(h("div",{class:"vfil"},btn));box.appendChild(st);
-    btn.onclick=function(){btn.disabled=chk.disabled=true;st.textContent="Salvando…";
-      fxSalvar(r,chk.checked).then(function(x){var t=x.mensagem+((x.avisos||[]).length?" Avisos: "+x.avisos.join(" "):"")+((x.semelhantes||[]).length?" Há nota parecida já gravada.":"");
-        st.textContent=t;if(x.estado==="erro"||x.estado==="invalido"){btn.disabled=false;chk.disabled=semChave||pendFiscal}})};
+    /* a linha "Gravação" diz se o "Estou de acordo" vai existir: leitura completa, conta, confiança mínima, situação fiscal e duplicidade */
+    box.appendChild(fxLinha("Gravação",dc.modo==="validada"?"Pode ser gravada como validada e lançada no Mercado":dc.modo==="pendente_fiscal"?"Só como pendente fiscal (sem validação); a entrada no Mercado não espera a SEFAZ":"Bloqueada: não pode ser confirmada"));
     return box}
   function fxCartao(r,repetida){
     var n=r.nota,c=h("div",{class:"panel fxnota"});
@@ -123,7 +119,7 @@
     if(r.erro){c.appendChild(h("div",{class:"fxaviso",text:r.erro}));return c}
     var em=n.emitente||{},V=n.valores||{};
     c.appendChild(h("p",{class:"sub",text:(n.tipo||"Nota")+" · nº "+(n.numero||"?")+" · série "+(n.serie||"?")+" · "+(n.data_emissao?dataBR(n.data_emissao):"data não identificada")}));
-    c.appendChild(fxLinha("Situação fiscal",(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao)+(n.situacao==="autorizada"?"":n.situacao==="cancelada"||n.situacao==="rejeitada"?" — não vale como compra":" — pendente de validação fiscal")));
+    c.appendChild(fxLinha("Situação fiscal",(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao)+(n.situacao==="autorizada"?"":n.situacao==="cancelada"||n.situacao==="rejeitada"?" — não vale como compra":" — pendente na SEFAZ: a compra entra no Mercado mesmo assim")));
     c.appendChild(fxLinha("Emitente",(em.nome||"não identificado")+(em.cnpj?" · "+fxCnpj(em.cnpj):"")+(em.uf?" · "+em.uf:"")));
     c.appendChild(fxLinha("Chave de acesso",n.chave?fxGrupos(n.chave,4):"não identificada"));
     c.appendChild(fxLinha("Chave confere",n.chave_valida?"Sim (dígito verificador, CNPJ, modelo, série, número e mês batem)":"NÃO — veja os avisos"));
@@ -147,8 +143,8 @@
     c.appendChild(fxValidacao(n,r));
     if(r.ia)c.appendChild(fxBlocoIA(r,c));
     if(repetida)c.appendChild(h("div",{class:"fxaviso",text:"Esta chave de acesso já apareceu neste lote: provável arquivo repetido."}));
-    if(r.arquivo)c.appendChild(fxBlocoSalvar(r));
-    c.appendChild(h("p",{class:"sub",text:r.ia?"Não gera despesa. O arquivo original só vai ao cofre privado da casa quando você clica em salvar ou registrar.":"Não gera despesa. CPF e nome do consumidor do XML não são lidos nem mostrados; o arquivo original, que os contém, é guardado inteiro no cofre privado da casa."}));
+    if(r.arquivo)c.appendChild(fxBlocoConfirmar(r));
+    c.appendChild(h("p",{class:"sub",text:r.ia?"Não gera despesa. O arquivo original só vai ao cofre privado da casa quando você clica em “Estou de acordo”.":"Não gera despesa. CPF e nome do consumidor do XML não são lidos nem mostrados; o arquivo original, que os contém, é guardado inteiro no cofre privado da casa."}));
     return c}
   /* ---------- Lote 1.4: nota em foto ou PDF lida pela IA (dono e casa; ação fiscal.nota da rac-ia; docs/fiscal.md) ----------
      O arquivo é conferido pelo CONTEÚDO (bytes), o PDF só é desenhado (nunca executado), o texto do PDF perde o CPF antes de sair do aparelho e a IA só devolve JSON:
@@ -215,7 +211,7 @@
     if(ia.consumo&&ia.consumo.mes&&ia.consumo.mes.alerta)box.appendChild(h("div",{class:"fxaviso",text:"A IA já usou "+ia.consumo.mes.percentual+"% do limite do mês."}));
     box.appendChild(fxEditor(r,c));
     box.appendChild(fxOriginais(r));
-    box.appendChild(fxBlocoSalvarDoc(r));
+    box.appendChild(fxBlocoConfirmar(r));
     return box}
   function fxCampo(rotulo,valor,inp){var i=h("input",{type:"text","aria-label":rotulo});i.value=valor==null?"":String(valor);inp[rotulo]=i;return h("label",{class:"fxcampo"},rotulo+": ",i)}
   /* correção manual: o que a pessoa digita volta pelo núcleo (nfCorrigir → nfNormalizar) e TODAS as regras rodam de novo; "Conferi" é o que vale como revisão humana (confiança 100%) */
@@ -229,7 +225,7 @@
         var e=h("input",{type:"text","aria-label":x[1]+" do item "+(k+1)});e.value=x[2]==null?"":String(x[2]);o[x[0]]=e;linha.appendChild(h("label",{class:"fxcampo"},x[1]+": ",e))});
       o.unidade=i.unidade;o.codigo=i.codigo;itIn.push(o);d.appendChild(linha)});
     var chk=h("input",{type:"checkbox"}),btn=h("button",{type:"button",class:"ghostbtn pri",text:"Aplicar correção e revalidar"}),st=h("p",{class:"sub",role:"status"});
-    d.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi todos os campos com o documento original (vale como revisão: a confiança passa a 100%; a conta, a situação fiscal e a duplicidade continuam valendo)."})));
+    d.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi todos os campos com o documento original (vale como revisão: a confiança passa a 100%; a conta, a situação fiscal e a duplicidade continuam valendo). Com os dados válidos aparece o botão “Estou de acordo”."})));
     d.appendChild(h("div",{class:"vfil"},btn));d.appendChild(st);
     btn.onclick=function(){
       var val=function(k){return inp[k].value};
@@ -263,7 +259,7 @@
       return {ok:!!l[0][0]&&l[1].length>=qtd,nota:l[0][0]||null,docs:l[1].length}},function(){return {ok:false,nota:null,docs:0,falhou:true}})}
   /* r = leitura por IA (r.fotos = arquivos escolhidos). Devolve {estado, mensagem, ...} (nunca lança):
      validada | pendente_fiscal | bloqueada | duplicada | ja_existia | invalido | erro | ocupado */
-  function fxSalvarDoc(r){
+  function fxSalvarDoc(r,entrada){
     if(r.salvando)return Promise.resolve({estado:"ocupado",mensagem:"Já estou gravando esta nota. Espere terminar."});
     r.salvando=true;
     var id=r.idNota||(r.idNota=crypto.randomUUID()),idem=r.idem||(r.idem=crypto.randomUUID()),novos=[];
@@ -281,7 +277,8 @@
             return fxDuplicidadeDoc(r.nota,shas).then(function(dx){
               var dec=NUCLEO.nfDecisaoGravacao(r.nota,dx.dup,{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true});
               r.dup=dx.dup;
-              if(dec.bloqueios_dup.length){var a0=dx.dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0];
+              var a0=dx.dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0];
+              if(dec.bloqueios_dup.length&&!(entrada&&a0&&a0.id===id)){      /* com a confirmação única, a nota que já existe sendo desta mesma leitura não é duplicidade: o banco devolve o estado e conclui a entrada */
                 /* a nota que já existe é desta mesma leitura (a resposta anterior se perdeu depois de gravar): não é duplicidade, é a mesma gravação */
                 if(a0&&a0.id===id)return fxConfirmarDoc(id,g.args.p_docs.length).then(function(cf){
                   var t="Esta leitura já tinha sido gravada (a resposta anterior se perdeu): a nota existe no banco"+(cf.ok?" e foi lida de volta com "+cf.docs+(cf.docs===1?" documento":" documentos")+".":", mas não consegui lê-la de volta agora; confira na lista.")+" Nada foi enviado de novo.";
@@ -289,10 +286,13 @@
                 return fim("duplicada",dec.bloqueios_dup.join(" ")+" Nada foi enviado nem gravado.",{id:a0?a0.id:null,atualizar:dx.dup.atualizar_situacao})}
               /* enviar um por vez: se um falhar, só o que já subiu nesta tentativa é apagado */
               return g.args.p_docs.reduce(function(p,d,i){return p.then(function(){return fxUpload(d.path,bufs[i],d.mime).then(function(novo){if(novo)novos.push(d.path)})})},Promise.resolve()).then(function(){
-                return fxRpc("nota_fiscal_salvar_doc",g.args)}).then(function(d){
-                var res=NUCLEO.nfResultadoDoc(d),apagar=(d&&d.docs_para_apagar)||[];
+                return entrada?fxRpc("nota_fiscal_confirmar",fxArgsConfirmar("doc",g.args,entrada)):fxRpc("nota_fiscal_salvar_doc",g.args)}).then(function(dd){
+                var d=entrada?(dd&&dd.fiscal)||{}:dd,conf=entrada?NUCLEO.nfResultadoConfirmar(dd,r.nota):null,res=NUCLEO.nfResultadoDoc(d),apagar=(d&&d.docs_para_apagar)||[];
+                if(conf&&conf.gravada){res={estado:conf.estado,gravada:true,id:conf.id,texto:conf.texto}}
+                else if(conf&&conf.estado==="duplicada")res={estado:"duplicada",gravada:false,id:conf.id,texto:conf.texto};
                 return fxLimpar(apagar).then(function(){
-                  var base={id:res.id,gravada:res.gravada,estado:res.estado,tentativa_id:d&&d.tentativa_id||null,resultado:d&&d.resultado||null,avisos:(d&&d.avisos||[]).concat(g.avisos,dec.avisos_dup,dx.avisos),texto:res.texto};
+                  var base={id:res.id,gravada:res.gravada,estado:res.estado,tentativa_id:d&&d.tentativa_id||null,resultado:d&&d.resultado||null,avisos:(d&&d.avisos||[]).concat(g.avisos,dec.avisos_dup,dx.avisos,conf&&conf.avisos||[]),texto:res.texto};
+                  if(conf){base.confirmar=conf;base.entrada=dd.entrada||null}
                   if(!res.gravada){r.gravado=base;return fim(res.estado,res.texto,base)}
                   return fxConfirmarDoc(res.id,g.args.p_docs.length).then(function(cf){
                     base.confirmacao=cf.ok?"Conferido no banco: a nota e "+cf.docs+(cf.docs===1?" documento foram":" documentos foram")+" lidos de volta.":"O banco respondeu que gravou, mas não consegui ler a nota de volta agora: confira na lista abaixo.";
@@ -310,48 +310,114 @@
         var n=l[0];if(n&&n.situacao===v.args.p_situacao)return {estado:"atualizada",mensagem:"Situação atualizada: "+(NUCLEO.NF_SITUACOES[nota.situacao]||nota.situacao)+" → "+NUCLEO.NF_SITUACOES[n.situacao]+". O histórico foi registrado.",de:nota.situacao,para:n.situacao};
         return {estado:"incerto",mensagem:"O banco respondeu que atualizou, mas não confirmei a nova situação ao reler a nota. Confira na lista."}},function(){return {estado:"incerto",mensagem:"O banco respondeu que atualizou, mas não consegui reler a nota agora. Confira na lista."}})
     },function(e){return {estado:"erro",mensagem:"Não atualizei: "+fxMsgErro(e)}})}
-  /* ---------- Lote 1.6: dar entrada da nota no Mercado (função nota_fiscal_entrada_mercado, migration 040) ----------
-     A entrada vale pelo "Conferi" do dono e NÃO espera a validação fiscal (protocolo): a situação fiscal é só uma etiqueta da nota e não muda aqui.
-     O banco cria a compra e os itens do Mercado a partir da nota guardada e registra o vínculo (sem despesa). Só aparece "entrou" depois de o banco responder e a compra ser lida de volta. */
-  function fxEntradaMercado(notaId,conferi){
-    if(conferi!==true)return Promise.resolve({estado:"invalido",mensagem:"Marque que conferiu os itens com o documento."});
-    return fxRpc("nota_fiscal_entrada_mercado",{p_nota_id:notaId,p_conferi:true}).then(function(d){
-      if(d&&d.duplicada)return {estado:"duplicada",mensagem:"Já existe uma compra no Mercado com a mesma chave de acesso: nada foi criado.",id:d.mercado_nota_id||null};
-      if(d&&d.ja_existia)return {estado:"ja_existia",mensagem:"Esta nota já deu entrada no Mercado: nada foi criado de novo.",id:d.mercado_nota_id||null};
-      if(!(d&&d.criado===true&&d.mercado_nota_id))return {estado:"erro",mensagem:"O banco respondeu algo inesperado: não considere a entrada feita."};
-      var aviso=(d.avisos||[]).length?" "+d.avisos.join(" "):"";
-      return Promise.all([fxLer("notas","id,total","id",d.mercado_nota_id),fxLer("itens","id","nota_id",d.mercado_nota_id)]).then(function(l){
-        var ok=!!l[0][0]&&l[1].length>=1;
-        return {estado:"entrou",id:d.mercado_nota_id,itens:d.itens,mensagem:"Entrada feita no Mercado: "+d.itens+(d.itens===1?" item":" itens")+", total "+fxMoeda(d.total)+". "+(ok?"Conferido no banco: a compra e "+l[1].length+(l[1].length===1?" item foram":" itens foram")+" lidos de volta.":"O banco respondeu que criou, mas não consegui ler a compra de volta agora: confira no Mercado.")+aviso}},
-        function(){return {estado:"entrou",id:d.mercado_nota_id,itens:d.itens,mensagem:"Entrada feita no Mercado ("+d.itens+" itens), mas não consegui ler a compra de volta agora: confira no Mercado."+aviso}})
-    },function(e){return {estado:"erro",mensagem:"Não dei entrada: "+fxMsgErro(e)}})}
-  /* compra do Mercado na mesma data e com o mesmo valor (aviso antes de entrar; o dono decide) */
-  function fxMercadoParecido(n){
-    if(!n.data_emissao||n.valor_total==null)return Promise.resolve([]);
-    return fxLer("notas","id,data,total","data",n.data_emissao).then(function(l){return l.filter(function(x){return x.total!=null&&Math.abs(+x.total-(+n.valor_total))<=0.01})},function(){return []})}
-  /* n = {id, data_emissao, valor_total}; aoEntrar é chamado depois da entrada confirmada */
-  function fxBlocoEntradaMercado(n,aoEntrar){
-    var box=h("div",{class:"fxdet"}),chk=h("input",{type:"checkbox"}),btn=h("button",{type:"button",class:"ghostbtn pri",text:"Dar entrada no Mercado"}),st=h("p",{class:"sub",role:"status"});
-    box.appendChild(h("h4",{text:"Entrada no Mercado"}));
-    box.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi os itens com o documento. A compra entra agora nos itens e no balanço do Mercado, mesmo com a nota pendente fiscal (sem esperar protocolo). Não cria despesa e não muda a situação fiscal."})));
-    box.appendChild(h("div",{class:"vfil"},btn));box.appendChild(st);
-    /* o resultado aparece no próprio bloco, com sinal claro: o botão muda de texto (✓ Entrada feita), a mensagem ganha cor (verde, aviso ou erro) e a tela rola até
-       ela; no cartão logo depois de salvar a foto, FX.recarregar só relê a lista de notas e não redesenha este bloco, então o aviso não pode depender disso */
-    var rot0=btn.textContent||"Dar entrada no Mercado";
-    function resultado(classe,sinal,texto){st.className=classe;st.textContent=sinal+texto;if(st.scrollIntoView)st.scrollIntoView({behavior:"smooth",block:"center"})}
+  /* ---------- Confirmação única (docs/fiscal.md, "Redesenho"): "Estou de acordo" grava a nota na Central Fiscal e lança a compra no Mercado numa chamada só (RPC nota_fiscal_confirmar, migration 059).
+     A situação fiscal NÃO impede a entrada (autorizada, pendente e contingência entram; cancelada e rejeitada não). Nunca cria despesa. Sem o clique nada é enviado nem gravado: não existe botão, tela ou estado de recusa. ---------- */
+  /* retoma uma entrada já confirmada ("Tentar de novo": sem nova leitura nem nova confirmação) ou, com decisoes, lança uma nota antiga depois do "Estou de acordo" dela. Só diz que entrou depois de o banco responder e a compra ser lida de volta. */
+  function fxEntradaMercado(notaId,nota,decisoes){
+    var args={p_nota_id:notaId};if(decisoes){args.p_concordo=true;args.p_decisoes=decisoes}
+    return fxRpc("nota_fiscal_entrada_mercado",args).then(function(d){
+      var x=NUCLEO.nfResultadoConfirmar({gravada:true,nota_id:notaId,entrada:d&&d.entrada},nota);
+      if(x.estado==="mercado_pendente")return x;
+      if(!x.ok)return {estado:"erro",ok:false,texto:x.texto};
+      return Promise.all([fxLer("notas","id,total","id",x.mercado_nota_id),fxLer("itens","id","nota_id",x.mercado_nota_id)]).then(function(l){
+        x.confirmacao=!!l[0][0]&&l[1].length>=1?"Conferido no banco: a compra e "+l[1].length+(l[1].length===1?" item foram":" itens foram")+" lidos de volta.":"O banco respondeu que lançou, mas não consegui ler a compra de volta agora: confira no Mercado.";return x},
+        function(){x.confirmacao="O banco respondeu que lançou, mas não consegui ler a compra de volta agora: confira no Mercado.";return x})
+    },function(e){return {estado:"erro",ok:false,texto:"Não concluí a entrada no Mercado: "+fxMsgErro(e)}})}
+  /* o que o RAC vai usar em cada item e no estabelecimento (NUCLEO.nfEntradaDecisoes), calculado com os produtos que o Mercado já tem. Se a leitura falhar, o banco decide (mesmo produto se a descrição for igual; senão cria). */
+  function fxPrepararEntrada(nota){
+    return Promise.resolve().then(function(){return Promise.all([fxLer("mercados","id,nome,cnpj",null,null,{col:"nome",asc:true,lim:1000}),fxLer("produtos","id,nome,categoria,unidade",null,null,{col:"nome",asc:true,lim:1000}),
+      fxLer("itens","descricao,produto_id",null,null,{col:"created_at",asc:false,lim:1000})])}).then(function(l){
+      var ap={};l[2].forEach(function(x){var k=x.produto_id&&x.descricao?NUCLEO.mkChave(x.descricao):"";if(k&&!ap[k])ap[k]=x.produto_id});
+      return {dec:NUCLEO.nfEntradaDecisoes(nota,l[1],l[0],ap),aviso:null}},function(){
+      return {dec:null,aviso:"Não consegui ler seus produtos do Mercado agora: o RAC usa o mesmo produto quando a descrição for igual a uma já comprada e cria os demais."}})}
+  function fxResumoEntrada(dec){
+    var box=h("div",{class:"fxdet"}),m=dec.mercado,rs=dec.resumo;
+    box.appendChild(h("h4",{text:"Compra no Mercado"}));
+    box.appendChild(fxLinha("Estabelecimento",m.nome+(m.tipo==="cnpj"?" · já cadastrado (mesmo CNPJ)":m.tipo==="nome"?" · já cadastrado (nome parecido, "+m.pontos+"%)":" · novo estabelecimento")));
+    dec.itens.forEach(function(x){
+      var t=x.tipo==="nova"?"produto novo “"+x.nome+"” · "+x.categoria+(x.revisar?" (categoria a revisar)":"")+(x.ambigua?" · parecido com mais de um produto: não escolhi nenhum":""):"produto “"+x.nome+"” · já existe"+(x.tipo==="aproximada"?" ("+x.pontos+"% parecido)":"");
+      box.appendChild(h("div",{class:"sub",text:(x.ordem+1)+". "+(x.descricao||"(sem descrição)")+" → "+t}))});
+    box.appendChild(h("p",{class:"sub",text:rs.existentes+(rs.existentes===1?" item usa":" itens usam")+" produto já cadastrado; "+rs.novos+(rs.novos===1?" produto novo será criado":" produtos novos serão criados")+". Depois você pode trocar o produto de qualquer item no Mercado: a nota fiscal não muda."}));
+    return box}
+  function fxLinkMercado(){return h("a",{href:"#mercado",class:"ghostbtn",style:"display:inline-block;margin-top:8px",text:"Abrir o Mercado"})}
+  /* "Tentar de novo": retoma o que já foi confirmado, sem repetir a leitura e sem pedir outra confirmação */
+  function fxBotaoTentar(notaId,nota,st,aoFim){
+    var b=h("button",{type:"button",class:"ghostbtn pri",text:"Tentar de novo"});
+    b.onclick=function(){if(b.disabled)return;b.disabled=true;st.className="sub";st.textContent="Concluindo a entrada no Mercado…";
+      fxEntradaMercado(notaId,nota).then(function(x){var bom=x.estado==="concluida"||x.estado==="ja_no_mercado";
+        st.className=bom?"qrok":"qrwarn";st.textContent=(bom?"✓ ":"⚠ ")+x.texto+(x.confirmacao?" "+x.confirmacao:"");
+        if(bom){b.textContent="✓ Lançada";if(aoFim)aoFim(x)}else b.disabled=false})};
+    return b}
+  /* o resultado único de uma nota confirmada: sucesso, ou a pendência técnica específica com o "Tentar de novo" */
+  function fxResultadoBloco(rc){
+    var c=rc.conf,bom=!!c.ok,box=h("div",{class:"fxsalvar"}),st=h("p",{class:"sub",role:"status"});
+    box.appendChild(h("p",{class:bom?"qrok":"qrwarn",role:"status",text:(bom?"✓ ":"⚠ ")+rc.texto}));
+    if(bom)box.appendChild(fxLinkMercado());
+    else if(c.tentar)box.appendChild(h("div",{class:"vfil"},fxBotaoTentar(rc.notaId,rc.nota,st,function(){if(FX.recarregar)FX.recarregar()})));
+    box.appendChild(st);return box}
+  /* a duplicidade com o que já existe, para os avisos aparecerem ANTES do "Estou de acordo" (XML: o SHA-256 do arquivo entra na conferência) */
+  function fxDuplicarXML(r){
+    return r.arquivo.arrayBuffer().then(function(buf){return crypto.subtle.digest("SHA-256",buf)}).then(function(dg){var sha=fxHex(dg);
+      return fxExistentes(r.nota,sha).then(function(ex){r.dup=NUCLEO.nfDuplicidade(r.nota,ex.dados,{sha256:sha});r.dupAvisos=ex.avisos;return r})}).then(null,function(){
+      r.dup=null;r.dupAvisos=["Não consegui conferir duplicidade agora; ela será conferida de novo ao confirmar."];return r})}
+  /* o único botão de confirmação humana. Só existe quando a nota pode ser gravada: leitura completa, conta que fecha, confiança mínima (a revisão feita no editor, "Conferi", vale como antes) e sem duplicidade. */
+  function fxBlocoConfirmar(r){
+    var n=r.nota,ia=r.ia,box=h("div",{class:"fxsalvar"}),st=h("p",{class:"sub",role:"status"}),av=h("div"),pv=h("div"),
+      btn=h("button",{type:"button",class:"ghostbtn pri",text:"Estou de acordo"}),bw=h("div",{class:"vfil"},btn),
+      opc=ia?{confianca:NUCLEO.nfConfiancaIA(ia),revisada:ia.revisada===true}:undefined,dec0=NUCLEO.nfDecisaoGravacao(n,r.dup||null,opc);
+    if(r.confirmado)return fxResultadoBloco(r.confirmado);
+    if(!dec0.pode&&dec0.bloqueios_dup.length<dec0.bloqueios.length)return h("div",{class:"fxsalvar"},h("div",{class:"fxaviso fxbloq",role:"status",text:"Ainda não dá para confirmar: "+dec0.bloqueios.join(" ")+" Leia de novo com outra foto"+(ia?" ou corrija os dados lidos no formulário acima":"")+". Nada foi enviado nem gravado."}));
+    box.appendChild(av);box.appendChild(pv);
+    box.appendChild(h("p",{class:"sub",text:"Ao clicar, o RAC grava a nota na Central Fiscal (o original vai ao cofre privado) e lança a compra no Mercado"+(dec0.modo==="pendente_fiscal"?". A situação fiscal pendente não impede a entrada: ela continua pendente na Central Fiscal até a autorização":"")+". Não cria despesa."}));
+    btn.disabled=true;box.appendChild(bw);box.appendChild(st);
+    function pronto(){
+      var dec=NUCLEO.nfDecisaoGravacao(n,r.dup||null,opc);
+      (r.dupAvisos||[]).forEach(function(a){av.appendChild(h("div",{class:"fxaviso",text:a}))});
+      dec.avisos_dup.forEach(function(a){av.appendChild(h("div",{class:"fxaviso",text:a}))});
+      if(dec.bloqueios_dup.length){dec.bloqueios_dup.forEach(function(b){av.appendChild(h("div",{class:"fxaviso fxbloq",text:b+" Nada será enviado."}))});
+        var at=ia&&r.dup&&r.dup.atualizar_situacao;if(at)av.appendChild(fxBotaoAtualizarDup(r,at));btn.hidden=true;return}
+      if(r.entrada)pv.appendChild(fxResumoEntrada(r.entrada));
+      if(r.entradaAviso)av.appendChild(h("div",{class:"fxaviso",text:r.entradaAviso}));
+      btn.disabled=false}
+    (r.arquivo&&r.dup===undefined?fxDuplicarXML(r):Promise.resolve(r)).then(function(){return fxPrepararEntrada(n)}).then(function(x){r.entrada=x.dec;r.entradaAviso=x.aviso}).then(pronto,pronto);
     btn.onclick=function(){
-      if(btn.disabled)return;
-      if(!chk.checked){resultado("qrwarn","⚠ ","Marque que conferiu os itens com o documento.");return}
-      btn.disabled=true;btn.textContent="Dando entrada…";st.className="sub";st.textContent="Dando entrada…";
-      fxMercadoParecido(n).then(function(par){
-        if(par.length&&!(typeof confirm==="function"&&confirm("Já existe uma compra no Mercado com a mesma data e o mesmo valor. Dar entrada mesmo assim?"))){btn.disabled=false;btn.textContent=rot0;resultado("qrwarn","⚠ ","Entrada cancelada: nada foi criado.");return}
-        return fxEntradaMercado(n.id,true).then(function(x){
-          var bom=x.estado==="entrou",ja=x.estado==="ja_existia"||x.estado==="duplicada";
-          if(x.estado==="erro"||x.estado==="invalido"){btn.disabled=false;btn.textContent=rot0;resultado("qrwarn","⚠ ",x.mensagem);return}
-          btn.textContent=bom?"✓ Entrada feita":"Já deu entrada";chk.disabled=true;
-          resultado(bom?"qrok":"qrwarn",bom?"✓ ":"ℹ ",x.mensagem);
-          if(bom||ja)box.appendChild(h("a",{href:"#mercado",class:"ghostbtn",style:"display:inline-block;margin-top:8px",text:"Abrir o Mercado"}));
-          if(aoEntrar)aoEntrar(x)})})};
+      if(btn.disabled||r.salvando)return;
+      btn.disabled=true;st.className="sub";st.textContent="Gravando na Central Fiscal e lançando no Mercado…";
+      var entrada=NUCLEO.nfEntradaPayload(r.entrada||{mercado:{},itens:[]});
+      (ia?fxSalvarDoc(r,entrada):fxSalvar(r,true,entrada)).then(function(x){
+        var c=x.confirmar||null;
+        if(x.estado==="erro"||x.estado==="invalido"||x.estado==="ocupado"){st.className="qrwarn";st.textContent="⚠ "+x.mensagem;btn.disabled=false;return}
+        if(!c||!c.gravada){st.className="qrwarn";st.textContent="ℹ "+x.mensagem;btn.hidden=true;return}
+        r.confirmado={texto:x.mensagem,conf:c,notaId:c.id,nota:{id:c.id,situacao:n.situacao}};
+        if(FX.recarregar)FX.recarregar();
+        var novo=fxResultadoBloco(r.confirmado);bw.hidden=true;btn.hidden=true;st.textContent="";
+        if(box.parentNode&&box.parentNode.replaceChild)box.parentNode.replaceChild(novo,box);else box.appendChild(novo)})};
+    return box}
+  /* na lista de notas gravadas: a entrada no Mercado de cada nota (lançada, falta concluir, ou nota antiga que ainda pede o "Estou de acordo" dela) */
+  function fxBlocoEntradaLista(n,ent,entOk){
+    if(!entOk)return null;
+    var box=h("div",{class:"fxdet"}),st=h("p",{class:"sub",role:"status"}),e=ent&&ent.estado;
+    box.appendChild(h("h4",{text:"Entrada no Mercado"}));
+    if(e==="concluida"||e==="ja_no_mercado"){
+      box.appendChild(h("p",{class:"qrok",role:"status",text:"✓ "+(e==="ja_no_mercado"?"A compra desta nota já estava no Mercado":"Lançada no Mercado")+(ent.confirmado_em?" · “Estou de acordo” em "+fxFmtDH(ent.confirmado_em):"")+"."}));
+      if(ent.revisar)box.appendChild(h("div",{class:"fxaviso fxbloq",text:"Revisar: a nota fiscal foi "+(ent.revisar==="nota_rejeitada"?"rejeitada":"cancelada")+" depois da entrada. A compra foi mantida no Mercado."}));
+      box.appendChild(fxLinkMercado());return box}
+    if(e==="pendente"||e==="falhou"){
+      box.appendChild(h("p",{class:"qrwarn",role:"status",text:"⚠ A nota está gravada e confirmada, mas o lançamento no Mercado não foi concluído"+(ent.erro?": "+ent.erro:".")}));
+      box.appendChild(h("div",{class:"vfil"},fxBotaoTentar(n.id,n,st,function(){if(FX.recarregar)FX.recarregar()})));box.appendChild(st);return box}
+    if(n.situacao==="cancelada"||n.situacao==="rejeitada"){box.appendChild(h("p",{class:"sub",text:"Nota "+(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao).toLowerCase()+": não vale como compra e não entra no Mercado."}));return box}
+    /* nota gravada antes da confirmação única: cada nota pede o seu "Estou de acordo" */
+    var btn=h("button",{type:"button",class:"ghostbtn pri",text:"Estou de acordo"}),pv=h("div"),dec=null;
+    btn.disabled=true;
+    box.appendChild(h("p",{class:"sub",text:"Esta nota foi gravada antes da entrada automática e ainda não está no Mercado. Confira os itens e clique em “Estou de acordo” para lançá-la (não cria despesa; a situação fiscal não impede)."}));
+    box.appendChild(pv);box.appendChild(h("div",{class:"vfil"},btn));box.appendChild(st);
+    fxLer("notas_fiscais_itens","ordem,descricao,unidade","nota_id",n.id,{col:"ordem",asc:true,lim:1000}).then(function(its){
+      return fxPrepararEntrada({emitente:{nome:n.emitente_nome,cnpj:n.emitente_cnpj},itens:its.map(function(i){return {descricao:i.descricao,unidade:i.unidade}})})}).then(function(x){
+      dec=x.dec;if(dec)pv.appendChild(fxResumoEntrada(dec));else st.textContent=x.aviso;btn.disabled=false},function(){st.textContent="Não consegui ler os itens da nota agora.";btn.disabled=false});
+    btn.onclick=function(){if(btn.disabled)return;btn.disabled=true;st.className="sub";st.textContent="Lançando no Mercado…";
+      fxEntradaMercado(n.id,n,NUCLEO.nfEntradaPayload(dec||{mercado:{},itens:[]})).then(function(x){var bom=x.estado==="concluida"||x.estado==="ja_no_mercado";
+        st.className=bom?"qrok":"qrwarn";st.textContent=(bom?"✓ ":"⚠ ")+x.texto+(x.confirmacao?" "+x.confirmacao:"");
+        if(bom){btn.textContent="✓ Lançada";box.appendChild(fxLinkMercado());if(FX.recarregar)FX.recarregar()}else btn.disabled=false})};
     return box}
   /* ---------- tela da gravação de foto ou PDF ---------- */
   function fxOriginais(r){
@@ -359,33 +425,6 @@
     (r.fotos||[]).forEach(function(f,i){var u=r.urls[i];
       if(!u){try{u=typeof URL!=="undefined"&&URL.createObjectURL?URL.createObjectURL(f):null}catch(e){u=null}r.urls[i]=u}
       if(u)box.appendChild(h("div",null,h("a",{href:u,target:"_blank",rel:"noopener",text:"Ver o original: "+(f.name||"arquivo "+(i+1))})))});
-    return box}
-  function fxBlocoSalvarDoc(r){
-    var box=h("div",{class:"fxsalvar"}),st=h("p",{class:"sub",role:"status"}),g=r.gravado;
-    if(g&&g.gravada){box.appendChild(h("div",{class:"fxaviso",role:"status",text:"✓ "+g.texto+(g.confirmacao?" "+g.confirmacao:"")}));
-      if(g.id&&r.nota){
-        if(r.entrouMercado)box.appendChild(h("div",{class:"fxaviso",role:"status",text:"✓ "+r.entrouMercado}));
-        else box.appendChild(fxBlocoEntradaMercado({id:g.id,data_emissao:r.nota.data_emissao,valor_total:r.nota.valores&&r.nota.valores.total},function(x){r.entrouMercado=x.mensagem;if(FX.recarregar)FX.recarregar()}))}
-      return box}
-    var dec=NUCLEO.nfDecisaoGravacao(r.nota,r.dup||null,{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true}),negocio=!dec.bloqueios_dup.length&&!dec.pode,pend=dec.modo==="pendente_fiscal";
-    if(g)box.appendChild(h("div",{class:"fxaviso"+(g.estado==="bloqueada"?" fxbloq":""),role:"status",text:g.texto}));
-    if(dec.bloqueios_dup.length){
-      box.appendChild(h("div",{class:"fxaviso fxbloq",text:dec.bloqueios_dup.join(" ")+" Nada será enviado."}));
-      var at=r.dup&&r.dup.atualizar_situacao;
-      if(at)box.appendChild(fxBotaoAtualizarDup(r,at));
-      return box}
-    var btn=h("button",{type:"button",class:"ghostbtn pri",text:negocio?"Registrar tentativa bloqueada (guarda o original, não cria nota)":pend?"Salvar como pendente fiscal":"Salvar na Central Fiscal"});
-    box.appendChild(h("p",{class:"sub",text:negocio?"A nota NÃO será criada. Só o original e a tentativa ficam guardados no cofre privado, para auditoria (não são apagados sozinhos).":
-      "O original vai ao cofre privado e o banco refaz a conta e confere a confiança, a situação e a duplicidade antes de gravar. A nota nunca é conferida automaticamente: a conferência é um passo seu, depois, e só vale para nota autorizada. Nada é lançado nas despesas."}));
-    box.appendChild(h("div",{class:"vfil"},btn));box.appendChild(st);
-    btn.onclick=function(){
-      if(btn.disabled)return;
-      btn.disabled=true;st.textContent="Enviando o original ao cofre e gravando…";
-      fxSalvarDoc(r).then(function(x){
-        st.textContent=x.mensagem+((x.avisos||[]).length?" Avisos: "+x.avisos.join(" "):"");
-        if(x.estado==="erro"||x.estado==="invalido"||x.estado==="ocupado"){btn.disabled=false;return}
-        if(FX.recarregar)FX.recarregar();
-        var novo=fxBlocoSalvarDoc(r);if(box.parentNode&&box.parentNode.replaceChild)box.parentNode.replaceChild(novo,box)})};
     return box}
   function fxBotaoAtualizarDup(r,at){
     var fonte=r.tipoDoc==="pdf"?"pdf":"foto",btn=h("button",{type:"button",class:"ghostbtn",text:"Atualizar a nota já gravada: "+(NUCLEO.NF_SITUACOES[at.de]||at.de)+" → "+(NUCLEO.NF_SITUACOES[at.para]||at.para)}),st=h("p",{class:"sub",role:"status"});
@@ -395,11 +434,7 @@
     return h("div",null,btn,st)}
 
   /* ---------- notas já gravadas: situação fiscal, histórico, tentativas e original (dono e casa leem as notas, as tentativas e o histórico) ---------- */
-  var FX_NOTA_COLS="id,chave,modelo,serie,numero,emitente_nome,data_emissao,valor_total,situacao,protocolo,formato_origem,requer_conferencia,conferida_em";
-  function fxEstadoNota(n){var s=n.situacao;
-    if(s==="autorizada")return {rotulo:n.conferida_em?"Validada · conferida":n.requer_conferencia?"Validada · falta conferir":"Validada",tom:"fxok"};
-    if(s==="cancelada"||s==="rejeitada")return {rotulo:NUCLEO.NF_SITUACOES[s]+" · não vale como compra",tom:"fxruim"};
-    return {rotulo:"Pendente fiscal · "+(NUCLEO.NF_SITUACOES[s]||s),tom:"fxpend"}}
+  var FX_NOTA_COLS="id,chave,modelo,serie,numero,emitente_nome,emitente_cnpj,data_emissao,valor_total,situacao,protocolo,formato_origem,requer_conferencia,conferida_em";
   function fxFmtDH(t){t=String(t||"");if(!t)return "";var d=new Date(t),p=function(n){return ("0"+n).slice(-2)};
     if(isNaN(d.getTime()))return dataBR(t.slice(0,10))+" "+t.slice(11,16);     /* o banco guarda em UTC: mostra no horário do aparelho */
     return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()+" "+p(d.getHours())+":"+p(d.getMinutes())}
@@ -434,7 +469,7 @@
       ub.onclick=function(){if(ub.disabled)return;ub.disabled=true;st.textContent="Atualizando…";
         fxAtualizarSituacao({id:n.id,situacao:n.situacao},{para:sel.value,protocolo:prot.value,evidencia:ev.value,fonte:n.formato_origem==="pdf"?"pdf":n.formato_origem==="imagem"?"foto":"manual"}).then(function(x){
           st.textContent=x.mensagem;ub.disabled=x.estado==="atualizada"||x.estado==="sem_mudanca"||x.estado==="incerto";if(x.estado==="atualizada"&&FX.recarregar)FX.recarregar()})}}}
-  function fxDetalheNota(n,tent,dono,corpo){
+  function fxDetalheNota(n,tent,dono,corpo,ents){
     var st=h("p",{class:"sub",role:"status"}),foto=!!n.formato_origem&&n.formato_origem!=="xml";
     corpo.appendChild(h("p",{class:"sub",text:(n.chave?"Chave: "+fxGrupos(n.chave,4)+". ":"Sem chave. ")+(n.protocolo?"Protocolo "+n.protocolo+". ":"")+"Origem: "+(n.formato_origem==="xml"?"XML":n.formato_origem==="pdf"?"PDF":n.formato_origem==="imagem"?"foto":"?")+"."}));
     corpo.appendChild(st);
@@ -449,64 +484,87 @@
         var mine=(tent||[]).filter(function(t){return t.nota_id===n.id});
         if(mine.length){corpo.appendChild(h("h4",{text:"Tentativas de leitura"}));mine.forEach(function(t){corpo.appendChild(fxLinhaTentativa(t,st))})}
         fxAcoesNota(n,foto,corpo,st);
-        /* entrada no Mercado: vale pelo Conferi do dono e não espera protocolo; cancelada/rejeitada não entra; quem já entrou mostra a data */
-        var entrou=(vincs||[]).filter(function(v){return v.modulo==="mercado"&&v.valido})[0];
-        if(entrou)corpo.appendChild(h("div",{class:"fxaviso",role:"status",text:"✓ Esta nota já deu entrada no Mercado em "+fxFmtDH(entrou.criado_em)+"."}));
-        else if(n.situacao!=="cancelada"&&n.situacao!=="rejeitada")corpo.appendChild(fxBlocoEntradaMercado(n,function(){if(FX.recarregar)FX.recarregar()}))}})
+        /* entrada no Mercado: não espera a SEFAZ; cancelada/rejeitada não entra; quem falhou tem "Tentar de novo"; nota antiga pede o "Estou de acordo" dela */
+        var bl=fxBlocoEntradaLista(n,ents&&ents[n.id]||null,ents!==null&&ents!==undefined);if(bl)corpo.appendChild(bl)}})
     .then(null,function(e){st.textContent="Não consegui ler os detalhes: "+(e&&e.message||e)})}
   function fxListaPainel(){
     var p=h("div",{class:"panel"}),corpo=h("div"),st=h("p",{class:"sub",role:"status"}),dono=typeof isDonoOuCasa==="function"&&isDonoOuCasa();
     p.appendChild(h("h3",{text:"Notas já gravadas"}));
-    p.appendChild(h("p",{class:"sub",text:"Pendentes, validadas e canceladas. Abra uma nota para ver o documento original"+(dono?", o histórico da situação fiscal e as tentativas de leitura":"")+"."}));
+    p.appendChild(h("p",{class:"sub",text:"Cada nota mostra quatro coisas separadas: a leitura, a sua confirmação, a situação fiscal (SEFAZ) e a entrada no Mercado. Abra uma nota para ver o documento original"+(dono?", o histórico da situação fiscal e as tentativas de leitura":"")+"."}));
     p.appendChild(st);p.appendChild(corpo);
-    function linha(n,tent){
-      var e=fxEstadoNota(n),d=h("details",{class:"fxdet"}),cor=h("div"),aberto=false;
-      d.appendChild(h("summary",null,h("span",{text:(n.emitente_nome||"Emitente não identificado")+" · "+(n.valor_total!=null?fxMoeda(n.valor_total):"—")+" · "+(n.data_emissao?dataBR(n.data_emissao):"sem data")+" "}),h("span",{class:"fxchip "+e.tom,text:e.rotulo})));
-      d.appendChild(cor);
-      d.ontoggle=function(){if(d.open&&!aberto){aberto=true;fxDetalheNota(n,tent,dono,cor)}};
+    function linha(n,tent,ents){
+      var est=NUCLEO.nfEstadosNota(n,ents?ents[n.id]:null).filter(function(x){return ents||x.chave!=="mercado"}),d=h("details",{class:"fxdet"}),cor=h("div"),aberto=false,sm=h("summary",null,h("span",{text:(n.emitente_nome||"Emitente não identificado")+" · "+(n.valor_total!=null?fxMoeda(n.valor_total):"—")+" · "+(n.data_emissao?dataBR(n.data_emissao):"sem data")+" "}));
+      est.forEach(function(x){sm.appendChild(h("span",{class:"fxchip "+x.tom,title:x.chave,text:x.rotulo}))});     /* leitura, conferência, situação fiscal e Mercado: quatro coisas separadas */
+      d.appendChild(sm);d.appendChild(cor);
+      d.ontoggle=function(){if(d.open&&!aberto){aberto=true;fxDetalheNota(n,tent,dono,cor,ents)}};
       return h("li",null,d)}
     function carregar(){
       st.textContent="Carregando as notas…";
       return Promise.all([fxLer("notas_fiscais",FX_NOTA_COLS,null,null,{col:"data_emissao",asc:false,lim:60}),
-        dono?fxLer("notas_fiscais_tentativas","id,nota_id,origem,resultado,classe,situacao_fiscal,confianca,revisada,motivos,docs,criado_em",null,null,{col:"criado_em",asc:false,lim:60}).then(null,function(){return null}):Promise.resolve([])]).then(function(r){
-        var notas=r[0]||[],tent=r[1],sem=(tent||[]).filter(function(t){return !t.nota_id&&(t.resultado==="bloqueada"||t.resultado==="duplicada")});
+        dono?fxLer("notas_fiscais_tentativas","id,nota_id,origem,resultado,classe,situacao_fiscal,confianca,revisada,motivos,docs,criado_em",null,null,{col:"criado_em",asc:false,lim:60}).then(null,function(){return null}):Promise.resolve([]),
+        fxLer("notas_fiscais_entradas","nota_id,estado,confirmado_em,mercado_nota_id,erro,revisar,tentativas",null,null,{col:"criado_em",asc:false,lim:500}).then(null,function(){return null})]).then(function(r){
+        var notas=r[0]||[],tent=r[1],ents=null,sem=(tent||[]).filter(function(t){return !t.nota_id&&(t.resultado==="bloqueada"||t.resultado==="duplicada")});
         corpo.innerHTML="";st.textContent=notas.length?"":"Nenhuma nota gravada ainda.";
-        var ul=h("ul",{class:"fxlista"});notas.forEach(function(n){ul.appendChild(linha(n,tent||[]))});corpo.appendChild(ul);
+        if(r[2]){ents={};r[2].forEach(function(x){ents[x.nota_id]=x})}
+        if(ents===null)corpo.appendChild(h("div",{class:"fxaviso",text:"A entrada no Mercado ainda não está disponível no banco (migration 059 pendente) ou não consegui ler agora."}));
+        else{var falta=notas.filter(function(n){var e=ents[n.id];return e?(e.estado==="pendente"||e.estado==="falhou"):(n.situacao!=="cancelada"&&n.situacao!=="rejeitada")});
+          if(falta.length)corpo.appendChild(h("div",{class:"fxaviso",role:"status",text:falta.length+(falta.length===1?" nota ainda não está lançada no Mercado":" notas ainda não estão lançadas no Mercado")+": abra a nota para concluir."}))}
+        var ul=h("ul",{class:"fxlista"});notas.forEach(function(n){ul.appendChild(linha(n,tent||[],ents))});corpo.appendChild(ul);
         if(dono&&tent===null)corpo.appendChild(h("div",{class:"fxaviso",text:"Não consegui ler as tentativas de leitura agora (faça login de novo e confirme o código de segurança, se pedido)."}));
         if(sem.length){var s2=h("div",{class:"fxdet"}),sst=h("p",{class:"sub",role:"status"});s2.appendChild(h("h4",{text:"Tentativas sem nota (bloqueadas ou duplicadas): "+sem.length}));
           sem.forEach(function(t){s2.appendChild(fxLinhaTentativa(t,sst))});s2.appendChild(sst);corpo.appendChild(s2)}
       }).then(null,function(e){st.textContent="Não consegui ler as notas: "+(e&&e.message||e)})}
     FX.recarregar=carregar;carregar();
     return p}
-  function fxResultado(corpo,lista){
+  function fxExtTipo(f){var e=fxExt(f.name),t=String(f.type||"");return e==="xml"||/xml/i.test(t)?"xml":e==="pdf"||t==="application/pdf"?"pdf":/^image\//.test(t)||/^(jpe?g|png|webp|heic|heif)$/.test(e)?"foto":"outro"}
+  /* um XML = uma nota; um PDF = uma nota; fotos = UMA nota (até 4) ou, se a pessoa marcar, uma nota por foto */
+  function fxTarefas(files,separadas){
+    var l=Array.prototype.slice.call(files||[]),xml=[],pdf=[],fot=[],out=[],t=[],erro=null;
+    l.forEach(function(f){var k=fxExtTipo(f);if(k==="xml")xml.push(f);else if(k==="pdf")pdf.push(f);else if(k==="foto")fot.push(f);else out.push(f)});
+    xml.slice(0,20).forEach(function(f){t.push({tipo:"xml",arquivos:[f]})});
+    pdf.forEach(function(f){t.push({tipo:"pdf",arquivos:[f]})});
+    if(fot.length){if(separadas)fot.forEach(function(f){t.push({tipo:"foto",arquivos:[f]})});
+      else if(fot.length>4)erro="São "+fot.length+" fotos e uma nota aceita até 4. Marque “Cada foto é uma nota separada” ou escolha menos fotos.";else t.push({tipo:"foto",arquivos:fot})}
+    return {tarefas:t,outros:out,erro:erro,excedeu:xml.length>20}}
+  function fxLerTarefa(t){
+    if(t.tipo==="xml")return fxLerArquivo(t.arquivos[0]);
+    return fxIA(t.arquivos).then(function(x){return x.r?x.r:{nome:t.arquivos.map(function(f){return f.name||"arquivo"}).join(", ").slice(0,160),erro:x.mensagem}})}
+  /* lê as notas escolhidas, uma por vez, mostrando o progresso e cada cartão assim que fica pronto. Nada é gravado: quem grava é o "Estou de acordo" de cada nota. */
+  function fxFila(files,separadas,corpo,st){
+    var pl=fxTarefas(files,separadas),total=pl.tarefas.length,lista=[],vistas={};
     corpo.innerHTML="";
-    var vistas={};
-    lista.forEach(function(r){var k=r.nota&&r.nota.chave,rep=!!(k&&vistas[k]);if(k)vistas[k]=1;corpo.appendChild(fxCartao(r,rep))})}
+    if(pl.erro){st.textContent=pl.erro;return Promise.resolve([])}
+    if(!total&&!pl.outros.length){st.textContent="Escolha ao menos uma nota.";return Promise.resolve([])}
+    pl.outros.forEach(function(f){corpo.appendChild(fxCartao({nome:f.name||"arquivo",erro:"Tipo de arquivo não aceito (use XML, PDF, JPEG, PNG ou WebP). Nada foi lido nem enviado."},false))});
+    if(pl.excedeu)corpo.appendChild(fxCartao({nome:"Muitos arquivos",erro:"Só os 20 primeiros XML foram lidos."},false));
+    return pl.tarefas.reduce(function(p,t,i){return p.then(function(){
+      st.textContent="Lendo "+(i+1)+" de "+total+(t.tipo==="xml"?"":" (a IA lê um documento por vez; pode levar cerca de um minuto)")+"…";
+      return fxLerTarefa(t).then(function(r){var k=r.nota&&r.nota.chave,rep=!!(k&&vistas[k]);if(k)vistas[k]=1;lista.push(r);corpo.appendChild(fxCartao(r,rep))},
+        function(e){corpo.appendChild(fxCartao({nome:"documento",erro:"Não consegui ler: "+(e&&e.message||e)},false))})})},Promise.resolve()).then(function(){
+      var ok=lista.filter(function(r){return r.nota}).length;FX.lote=lista;
+      st.textContent=ok?ok+(ok===1?" nota lida":" notas lidas")+" de "+total+". Confira cada uma e clique em “Estou de acordo”: nada foi gravado ainda.":"Nenhuma nota foi lida. Veja os avisos abaixo.";return lista})}
   function renderFiscal(){
     var root=$("#fiscal-view");root.innerHTML="";
-    var topo=panel("Central Fiscal","Confira uma nota fiscal pelo XML. A leitura acontece neste aparelho. Só quando você clica em “Salvar na Central Fiscal” o XML original vai para o cofre privado da casa e a nota é gravada; nada é lançado nas despesas.");
-    var sel=h("input",{type:"file",accept:".xml,text/xml,application/xml",multiple:"multiple","aria-label":"Escolher XML de nota fiscal"}),corpo=h("div",{class:"stack"});
-    sel.onchange=function(){
-      if(!sel.files||!sel.files.length)return;
-      corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},loading()));
-      fxLote(sel.files).then(function(l){FX.lote=l;fxResultado(corpo,l)}).catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(sel.onchange,e)));logErro("fiscal",e)})};
-    topo.appendChild(h("label",{class:"fxsel"},"XML da nota (um ou vários):",sel));
-    topo.appendChild(h("p",{class:"sub",text:(typeof isDonoOuCasa==="function"&&isDonoOuCasa()?"":"Fotos e PDF ainda não são lidos (sem OCR). ")+"O XML original, inclusive com CPF, fica guardado como está no cofre privado; nenhum CPF vai para campo do banco."}));
-    if(typeof isDonoOuCasa==="function"&&isDonoOuCasa()){
-      var foto=h("input",{type:"file",accept:"image/jpeg,image/png,image/webp,application/pdf,.pdf",multiple:"multiple","aria-label":"Escolher foto ou PDF da nota"}),
-        cam=h("input",{type:"file",accept:"image/*",capture:"environment","aria-label":"Fotografar a nota"}),
-        lerb=h("button",{type:"button",class:"ghostbtn pri",text:"Ler foto ou PDF com IA"}),st=h("p",{class:"sub",role:"status"});
-      lerb.onclick=function(){
-        var fs=foto.files&&foto.files.length?foto.files:cam.files;
-        if(!fs||!fs.length){st.textContent="Escolha uma foto, fotografe a nota ou escolha um PDF.";return}
-        if(lerb.disabled)return;
-        lerb.disabled=true;st.textContent="Lendo com a IA… (pode levar cerca de um minuto)";
-        fxIA(fs).then(function(x){lerb.disabled=false;
-          st.textContent=x.estado==="lido"?"REAL · lido pelo Claude, usou o orçamento de IA da casa. Confira abaixo: nada foi gravado ainda.":x.mensagem||"";
-          if(x.r){corpo.innerHTML="";corpo.appendChild(fxCartao(x.r,false))}})};
-      topo.appendChild(h("h4",{text:"Foto ou PDF da nota (leitura por IA)"}));
-      topo.appendChild(h("label",{class:"fxsel"},"Foto(s) ou PDF:",foto));topo.appendChild(h("label",{class:"fxsel"},"Ou fotografar agora:",cam));
-      topo.appendChild(h("div",{class:"vfil"},lerb));topo.appendChild(st);
-      topo.appendChild(h("p",{class:"sub",text:"A IA (Claude Sonnet) só lê o documento e usa o orçamento de IA da casa; nada é enviado antes do clique. Um PDF sozinho ou até 4 fotos da mesma nota, JPEG, PNG ou WebP. O texto do PDF perde o CPF antes de sair do aparelho; numa foto ou página não dá para apagar o CPF da imagem, então evite enquadrá-lo (a IA é instruída a não copiá-lo e o resultado é filtrado). A conta, a situação fiscal, a confiança mínima de 90% e a duplicidade são conferidas aqui. Ao salvar, o original vai ao cofre privado e o banco refaz a conta e decide (validada, pendente fiscal, bloqueada ou duplicada); a conferência é um passo seu, depois."}))}
+    var casa=typeof isDonoOuCasa==="function"&&isDonoOuCasa(),
+      topo=panel("Central Fiscal","Escolha uma ou várias notas (XML, PDF ou foto). O RAC lê, mostra o que entendeu e, se estiver tudo certo, você clica em “Estou de acordo”: a nota é gravada na Central Fiscal e a compra é lançada no Mercado, sem criar despesa. Nada é gravado antes do seu clique."),
+      sel=h("input",{type:"file",accept:casa?".xml,text/xml,application/xml,image/jpeg,image/png,image/webp,application/pdf,.pdf":".xml,text/xml,application/xml",multiple:"multiple","aria-label":"Escolher notas fiscais (XML, PDF ou foto)"}),
+      cam=casa?h("input",{type:"file",accept:"image/*",capture:"environment","aria-label":"Fotografar a nota"}):null,
+      sep=h("input",{type:"checkbox","aria-label":"Cada foto é uma nota separada"}),lerb=h("button",{type:"button",class:"ghostbtn pri",text:"Ler as notas escolhidas"}),
+      st=h("p",{class:"sub",role:"status"}),corpo=h("div",{class:"stack"}),ocupado=false;
+    function arquivos(){var a=[];[sel,cam].forEach(function(i){if(i&&i.files)Array.prototype.forEach.call(i.files,function(f){a.push(f)})});return a}
+    function ler(){
+      if(ocupado)return;var fs=arquivos();if(!fs.length){st.textContent="Escolha ao menos uma nota.";return}
+      ocupado=true;lerb.disabled=true;
+      fxFila(fs,sep.checked,corpo,st).then(function(){ocupado=false;lerb.disabled=false},function(e){ocupado=false;lerb.disabled=false;corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(ler,e)));logErro("fiscal",e)})}
+    /* só XML: lê na hora (é no próprio aparelho e não custa nada); com foto ou PDF espera o botão, porque a IA usa o orçamento da casa */
+    sel.onchange=function(){var fs=arquivos();if(!fs.length)return;
+      if(fs.every(function(f){return fxExtTipo(f)==="xml"}))ler();
+      else st.textContent=fs.length+(fs.length===1?" arquivo escolhido":" arquivos escolhidos")+". Toque em “Ler as notas escolhidas”: foto e PDF são lidos pela IA e usam o orçamento de IA da casa."};
+    lerb.onclick=ler;
+    topo.appendChild(h("label",{class:"fxsel"},"Notas (XML"+(casa?", PDF ou foto":"")+"; uma ou várias):",sel));
+    if(cam)topo.appendChild(h("label",{class:"fxsel"},"Ou fotografar agora:",cam));
+    if(casa)topo.appendChild(h("label",{class:"fxconf"},sep,h("span",{text:" Cada foto é uma nota separada (por padrão, até 4 fotos formam uma nota só)."})));
+    topo.appendChild(h("div",{class:"vfil"},lerb));topo.appendChild(st);
+    topo.appendChild(h("p",{class:"sub",text:(casa?"O XML é lido neste aparelho. Foto e PDF são lidos pela IA (Claude Sonnet) com o orçamento de IA da casa, um documento por vez: nada é enviado antes do clique em ler. Um PDF vale uma nota; JPEG, PNG ou WebP, até 4 fotos por nota. O texto do PDF perde o CPF antes de sair do aparelho; numa foto não dá para apagar o CPF da imagem, então evite enquadrá-lo. ":"Fotos e PDF ainda não são lidos. ")+"O XML original, inclusive com CPF, fica no cofre privado como está; nenhum CPF vai para campo do banco. Se a leitura errar, tire outra foto e leia de novo; se continuar errando, faça a entrada manual dos itens no Mercado."}));
     root.appendChild(topo);root.appendChild(corpo);
-    if(typeof isDonoOuCasa==="function"&&isDonoOuCasa())root.appendChild(fxListaPainel())}
+    if(casa)root.appendChild(fxListaPainel())}

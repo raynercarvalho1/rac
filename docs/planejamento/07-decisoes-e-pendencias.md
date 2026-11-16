@@ -20,7 +20,8 @@ como substituída. Convenções: ver o [Documento 1](01-visao-e-mapa-mestre.md#c
 | 02/11/2026 | Limitações aceitas da atualização global (Resumo, Esportes e Lista pelo caminho padrão; a aba Hoje da Newsletter pode gravar a edição de regras) | `README.md` |
 | 12/11/2026 | Desenvolvimento pelo Claude Code na nuvem: só branches `claude/*`, commit e push só com "autorizo", PR só a pedido, merge do dono | `CLAUDE.md`, `docs/nuvem.md` |
 | 12/11/2026 | A casa vê as páginas de categoria, produto e estabelecimento da Central de Compras; Radar e junção continuam só do dono | commit `fd9796f` (PR #5) |
-| 13/11/2026 | **Funcionalidades fiscais, OCR, SEFAZ e acompanhamento fiscal saem do planejamento.** A Central Fiscal existente não evolui | pedido do dono (esta etapa) |
+| 16/11/2026 | **SUPERA o "congelamento" da Central Fiscal e a decisão sobre a `040` (D-03).** Confirmação única "Estou de acordo" grava a nota e lança a compra no Mercado; situação fiscal independente da entrada (pendente e contingência entram; cancelada e rejeitada não); correspondência de produto com corte de 70% (Jaccard simétrico, sem bloquear); nota antiga pede confirmação individual; XML autorizado confirma também confere; cancelamento posterior marca a compra para revisão; sem fluxo de recusa; a `040` é substituída pela `059`. Consulta automática à SEFAZ continua **fora** (sem viabilidade comprovada) | pedido do dono em 16/11/2026 (`docs/fiscal.md`, "Confirmação única") |
+| 13/11/2026 | **Funcionalidades fiscais, OCR, SEFAZ e acompanhamento fiscal saem do planejamento.** A Central Fiscal existente não evolui | — *superado em 16/11/2026 (linha acima)* pedido do dono (esta etapa) |
 | 13/11/2026 | **Central da Família e da Casa** passa a integrar o escopo oficial (pessoas e animais, medicamentos, contas domésticas, condomínio e encomendas) | pedido do dono |
 | 13/11/2026 | **Central de Compras** continua no roadmap, com o objetivo preservado, mas sua implementação fica para uma etapa posterior | pedido do dono |
 | 13/11/2026 | **A IA é proativa e transversal, não um chatbot**: detecção determinística → interpretação → apresentação, sempre com justificativa | pedido do dono |
@@ -47,7 +48,7 @@ O texto original de cada questão foi preservado. Nenhuma questão foi apagada: 
 |---|---|---|
 | D-01 | Qual tema é o padrão? | **Decidida pelo dono em 13/11/2026**: tema claro como padrão; escuro existente funcional; fundo e azul Dodger preservados (direção RAC Modern Workspace) |
 | D-02 | O que a Fernanda vê e faz nas frentes novas (medicamentos, contas, encomendas, condomínio, integrantes)? | **Em aberto**, antes da Família e Casa (F4) |
-| D-03 | O que fazer com a Central Fiscal e a proposta `040`? | **Resolvida** em 13/11/2026: código congelado, sem evolução, fora do roadmap; a `040` não é pendência de desenvolvimento (ver "Decisões tomadas") |
+| D-03 | O que fazer com a Central Fiscal e a proposta `040`? | **Resolvida em 13/11/2026 e SUPERADA em 16/11/2026**: a Central Fiscal evolui (confirmação única); a `040` foi substituída pela `059` (proposta, não aplicada; depende do dono) |
 | D-04 | Propostas `041` (categorias oficiais do Mercado) e `044` (IA do Radar)? | **Em aberto**, só na etapa própria da Central de Compras |
 | D-05 | Para onde a notificação das 6h deve levar? | **Em aberto**; não impede a correção do clique na notificação (F1) |
 | D-06 | Como enviar push dos sinais e alertas do monitor? | **Em aberto**, para a fase dos sinais no servidor (F6) |
@@ -113,7 +114,8 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 
 | Pendência | Origem | Situação |
 |---|---|---|
-| Migration `040` (dar entrada da nota fiscal no Mercado) | `supabase/040_nota_fiscal_entrada_mercado.sql` | **Deixou de ser pendência em 13/11/2026** (decisão do dono, D-03 resolvida): o arquivo fica no repositório como está, sem aplicar e sem plano de aplicação. Registro anterior: "pendente; a função não existe em produção" (conferido em 13/11/2026). O `tests/banco.test.mjs` continua a listá-la como "todo" por causa da linha `-- status: pendente` do arquivo; isso não é pendência de desenvolvimento |
+| **Migration `059` (confirmação única da Central Fiscal)** | `supabase/059_central_fiscal_entrada_unica.sql` | **Pendência do dono (16/11/2026)**: aplicar no SQL Editor antes do site novo (ordem em `docs/fiscal.md`); conferir com `conferencias/059_conferir_producao.sql`. Substitui a `040`, que não deve ser aplicada. |
+| Migration `040` (dar entrada da nota fiscal no Mercado) | `supabase/040_nota_fiscal_entrada_mercado.sql` | **Substituída pela `059` em 16/11/2026 (não aplicar).** Antes: deixou de ser pendência em 13/11/2026 (decisão do dono, D-03 resolvida): o arquivo fica no repositório como está, sem aplicar e sem plano de aplicação. Registro anterior: "pendente; a função não existe em produção" (conferido em 13/11/2026). O `tests/banco.test.mjs` continua a listá-la como "todo" por causa da linha `-- status: pendente` do arquivo; isso não é pendência de desenvolvimento |
 | Comprovar que os robôs de Notícias e Vagas continuam gravando na `main` depois da ruleset | `.github/workflows/noticias.yml`, `.github/workflows/vagas.yml` | **Pendente**: comprovado quando cada robô tiver um push bem-sucedido na `main` depois da criação da ruleset (commit "Notícias atualizadas" e "Vagas atualizadas em …" de `github-actions[bot]`). Evidência registrada no [histórico diário](historico-diario.md) |
 | Propostas `041` e `044` | `supabase/propostas/` | Não aplicadas; ver D-04 |
 | P2 (recuperar análise paga perdida) e P5 (validar fato × inferência) | `docs/hoje.md` | Não resolvidas; dependem de servidor |
@@ -143,7 +145,7 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 | Chat de IA como interface principal | Decisão do dono: inteligência proativa e contextual |
 | IA calculando números | O banco e o núcleo calculam com precisão e sem custo |
 | OCR, SEFAZ, emissão e acompanhamento fiscal | Retirados do planejamento em 13/11/2026 |
-| Evoluir a Central Fiscal ou aplicar a migration `040` | Decisão do dono em 13/11/2026: código congelado, fora do roadmap; a `040` não será implementada |
+| Evoluir a Central Fiscal ou aplicar a migration `040` | Decisão de 13/11/2026 **superada em 16/11/2026** (a Central Fiscal evolui; a `040` é substituída pela `059`). Continuam fora: OCR local, consulta automática à SEFAZ, emissão |
 | Rastrear localização continuamente ou guardar rotas sem pedido | Invasivo; trajetos só com ativação voluntária e zonas de privacidade |
 | Raspagem de LinkedIn, de aplicativos do condomínio ou de sites sem permissão | Regras do `CLAUDE.md` e termos de cada fonte |
 | Guardar códigos de acesso, senhas ou credenciais do condomínio | Risco de segurança sem benefício que justifique |

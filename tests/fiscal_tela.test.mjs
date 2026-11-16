@@ -67,13 +67,22 @@ test("chave adulterada no XML: a nota é lida, mas a chave NÃO confere e há av
   assert.equal(r.nota.chave_valida, false); assert.ok(r.nota.avisos.some((a) => /chave/i.test(a)));
 });
 
-test("lote: lê vários arquivos (no máximo 20) e mistura XML com foto sem travar", async () => {
-  const l = await ctx.fxLote([arq("a.xml", XML), { name: "f.jpeg", size: 1, text: () => "" }, arq("b.xml", XML)]);
-  assert.equal(Array.from(l, (x) => !!x.nota).join(), "true,false,true");
-  const muitos = await ctx.fxLote(Array.from({ length: 25 }, (_, i) => arq(`n${i}.xml`, XML)));
-  assert.equal(muitos.length, 20);
+test("fila de leitura: um XML ou PDF é uma nota; fotos formam UMA nota (até 4) ou uma por foto se marcado; tipo desconhecido e excesso viram aviso", () => {
+  const f = (name, type = "") => ({ name, type, size: 10 });
+  const t = ctx.fxTarefas([f("a.xml"), f("b.pdf", "application/pdf"), f("c.jpg", "image/jpeg"), f("d.png", "image/png"), f("e.xml"), f("x.docx")], false);
+  assert.deepEqual(Array.from(t.tarefas, (x) => x.tipo + ":" + x.arquivos.length), ["xml:1", "xml:1", "pdf:1", "foto:2"], "duas fotos = uma nota"); assert.equal(t.outros.length, 1); assert.equal(t.erro, null);
+  const s = ctx.fxTarefas([f("c.jpg", "image/jpeg"), f("d.png", "image/png")], true); assert.deepEqual(Array.from(s.tarefas, (x) => x.tipo + ":" + x.arquivos.length), ["foto:1", "foto:1"], "cada foto é uma nota");
+  const cinco = ctx.fxTarefas(Array.from({ length: 5 }, (_, i) => f("f" + i + ".jpg", "image/jpeg")), false); assert.equal(cinco.tarefas.length, 0); assert.match(cinco.erro, /5 fotos.*até 4.*Cada foto é uma nota separada/);
+  const muitos = ctx.fxTarefas(Array.from({ length: 25 }, (_, i) => f("n" + i + ".xml")), false); assert.equal(muitos.tarefas.length, 20); assert.equal(muitos.excedeu, true);
 });
-
+test("fila de leitura: lê em ordem, mostra o progresso e um cartão por nota; XML ruim e tipo desconhecido não travam as outras; nada é gravado", async () => {
+  const stub = (tag, attrs, ...kids) => { const n = { tag, attrs: attrs || {}, kids: [], text: (attrs && attrs.text) || "" }; n.appendChild = (k) => { n.kids.push(k); return k; }; kids.forEach((k) => { if (k != null) n.kids.push(typeof k === "string" ? { tag: "#t", attrs: {}, kids: [], text: k } : k); }); return n; };
+  Object.assign(ctx, { h: stub, brl: (v) => "R$ " + Number(v).toFixed(2).replace(".", ","), dataBR: (d) => d, DONO: "x", crypto: globalThis.crypto });
+  const corpo = { innerHTML: "", kids: [], appendChild(k) { this.kids.push(k); return k; } }, st = { textContent: "" }, vistos = [];
+  const lote = await ctx.fxFila([arq("a.xml", XML), { name: "lixo.xml", size: 5, type: "text/xml", text: () => Promise.resolve("<x/>") }, { name: "f.docx", size: 1, type: "" }, arq("b.xml", XML)], false, corpo, st);
+  assert.equal(lote.length, 3); assert.equal(Array.from(lote, (x) => !!x.nota).join(), "true,false,true"); assert.equal(corpo.kids.length, 4, "um cartão por nota + o aviso do tipo desconhecido");
+  assert.match(st.textContent, /2 notas lidas de 3.*Estou de acordo.*nada foi gravado ainda/); const texto = (n) => (n.text || "") + " " + (n.kids || []).map(texto).join(" "); assert.match(texto(corpo.kids[0]), /Tipo de arquivo não aceito/); void vistos;
+});
 test("a leitura não toca em banco nem Storage; a gravação só usa o cofre privado e as duas funções do banco, sem IA, OCR ou escrita direta em tabela", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, "");
   const leitura = js.slice(js.indexOf("function fxLerArquivo"), js.indexOf("function fxHex"));
@@ -81,9 +90,9 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
   assert.ok(!/fetch\(|XMLHttpRequest|tesseract|createWorker|localStorage|sessionStorage|pessoalGravar|\.insert\(|\.update\(|\.upsert\(|\.delete\(/i.test(js), "nada de rede solta, IA, OCR nem escrita direta em tabela");
   assert.ok(!/\.(?:cpf|dest)\b|infCpl/i.test(js), "a tela não toca em CPF nem em destinatário");
   assert.deepEqual([...js.matchAll(/racIA\(([^)]*)\)/g)].map((m) => m[1].split(",").slice(0, 2).join(",")), ['"fiscal","fiscal.nota"'], "a única chamada de IA da tela é a ação fiscal.nota, pela porta racIA (Lote 1.4)");
-  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
+  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_confirmar", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"].sort());
   assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura (fxLer), só com select");
-  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "itens", "notas", "notas_fiscais", "notas_fiscais_docs", "notas_fiscais_situacoes", "notas_fiscais_tentativas", "notas_fiscais_vinculos", "pedidos"], "as leituras da conferência de duplicidade, todas só leitura");
+  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "itens", "mercados", "notas", "notas_fiscais", "notas_fiscais_docs", "notas_fiscais_entradas", "notas_fiscais_itens", "notas_fiscais_situacoes", "notas_fiscais_tentativas", "notas_fiscais_vinculos", "pedidos", "produtos"], "as leituras da conferência de duplicidade, todas só leitura");
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true, "só o cofre familia");
   assert.match(js, /NUCLEO\.nfLerXML/); assert.match(js, /NUCLEO\.nfNormalizar/); assert.match(js, /NUCLEO\.nfParaGravar/); assert.match(js, /NUCLEO\.nfRetentar/);
   assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); const envio = js.slice(js.indexOf("function fxSalvar"), js.indexOf("function fxConferir"));
@@ -102,7 +111,7 @@ test("ligação ao site: rota, menu, seção, módulo no sw.js e acesso da Ferna
 
 test("nenhuma ação da tela fiscal gera despesa e o texto diz quando algo é gravado", () => {
   const js = ler("js/fiscal.js");
-  assert.match(js, /Não gera despesa\./); assert.match(js, /Só quando você clica em “Salvar na Central Fiscal”/); assert.match(js, /nada é lançado nas despesas/);
+  assert.match(js, /Não gera despesa\./); assert.match(js, /Nada é gravado antes do seu clique/); assert.match(js, /sem criar despesa/); assert.match(js, /Não cria despesa/);
   assert.ok(!/gera_despesa/.test(js.replace(/\/\*[\s\S]*?\*\//g, "")), "a tela não mexe em despesa");
 });
 

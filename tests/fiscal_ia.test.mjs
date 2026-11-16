@@ -232,9 +232,9 @@ test("foto legível: um envio à IA com a foto reduzida, nota lida e validada, n
   assert.equal(x.r.nota.formato, "imagem"); assert.equal(x.r.ia.confianca, 0.96); assert.equal(x.r.arquivo, null, "nada do arquivo vira gravável");
   assert.deepEqual([ch.rpc, ch.upload], [0, 0], "nenhuma gravação nem envio ao cofre");
   const t = texto(c.fxCartao(x.r, false));
-  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Mínimo para validar.*90%/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Pode ser gravada como validada \(fica pendente da sua conferência\)/);
+  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Mínimo para validar.*90%/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Pode ser gravada como validada e lançada no Mercado/);
   assert.doesNotMatch(t, /ainda não disponível/); assert.match(t, /Corrigir os dados lidos/);
-  assert.equal(achar(c.fxCartao(x.r, false), (n) => n.tag === "button" && /Salvar na Central Fiscal/.test(n.attrs.text || "")).length, 1, "Lote 1.6: a foto lida tem o botão de salvar; só o clique grava");
+  assert.equal(achar(c.fxCartao(x.r, false), (n) => n.tag === "button" && /^Estou de acordo$/.test(n.attrs.text || "")).length, 1, "a foto lida tem o botão 'Estou de acordo'; só o clique grava");
 });
 test("PDF de uma página e de várias: o texto vai SEM CPF, as páginas viram imagens (até 4) e o pdf.js só desenha", async () => {
   for (const pag of [1, 3]) {
@@ -297,7 +297,7 @@ test("a tela mostra cada caso: baixa confiança, divergência, pendente e cancel
   const b60 = await mostrar(resposta({ confianca: 0.6 }));
   assert.match(b60, /Conta dos itens Baixa confiança/); assert.match(b60, /Baixa confiança: Confiança da leitura \(60%\) abaixo do mínimo \(90%\)/); assert.match(b60, /Confiança da leitura 60%/); assert.match(b60, /Gravação Bloqueada/);
   assert.match(await mostrar(resposta({ total: 60 })), /Conta dos itens.*Divergente[\s\S]*R\$ 6,00 a menos que o total fiscal/);
-  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente de validação fiscal[\s\S]*Só como pendente fiscal/);
+  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim[\s\S]*Só como pendente fiscal/);
   assert.match(await mostrar(resposta({ situacao: "cancelada" })), /Situação fiscal.*Cancelada — não vale como compra[\s\S]*não vale como compra fiscal validada[\s\S]*Gravação.*Bloqueada/);
   assert.match(await mostrar(resposta({ incertos: [{ campo: "total", motivo: "cortado" }] })), /Incerto — total: cortado/);
 });
@@ -319,8 +319,8 @@ test("correção manual na tela: o formulário refaz a nota, roda tudo de novo e
 test("a tela oferece a leitura por IA ao dono e à casa (Fernanda, desde 16/11/2026); quem manda é o banco (acoes_casa) e a função", () => {
   const js = ler("js/fiscal.js");
   assert.match(js, /typeof isDonoOuCasa==="function"&&isDonoOuCasa\(\)/); assert.ok((js.match(/isDonoOuCasa\(\)/g) || []).length >= 2);
-  const sem = js.replace(/\/\*[\s\S]*?\*\//g, ""), i = sem.indexOf('if(typeof isDonoOuCasa==="function"&&isDonoOuCasa()){'); assert.ok(i > 0 && sem.indexOf("Ler foto ou PDF com IA") > i, "o botão fica dentro da condição de dono ou casa");
-  assert.doesNotMatch(sem, /typeof isOwner==="function"/, "a tela fiscal não decide mais pelo papel de dono");
+  const sem = js.replace(/\/\*[\s\S]*?\*\//g, ""); assert.match(sem, /accept:casa\?"\.xml,text\/xml,application\/xml,image\/jpeg,image\/png,image\/webp,application\/pdf,\.pdf":"\.xml,text\/xml,application\/xml"/, "foto e PDF só para dono ou casa; os demais só XML");
+  assert.match(sem, /cam=casa\?h\("input"/, "a câmera também"); assert.doesNotMatch(sem, /typeof isOwner==="function"/, "a tela fiscal não decide mais pelo papel de dono");
 });
 test("segurança e escopo: nenhuma chave no site, nenhuma rede solta, IA só pela porta racIA; a leitura por IA não grava, não envia ao Storage e não cria despesa", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, ""), ia = js.slice(js.indexOf("var FX_PDF="), js.indexOf("function fxUpload("));

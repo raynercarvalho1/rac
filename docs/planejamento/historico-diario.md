@@ -1180,8 +1180,8 @@ Família e da Casa.
 - Diagnóstico: o leitor de texto de pedidos não entendia a tela "Detalhes da transação" do Mercado Livre (perdia itens, número, data e total, e tratava o desconto como produto). Criado `coLerML` em `nucleo.js` (usado pela importação de print/PDF/e-mail), ajustes de categoria (garrafa PET não é animal; limpador, milho, ketchup, coca-cola) e teste `tests/compras_ml_transacao.test.mjs`. Testes de Compras, Central, estrutura e núcleo: 172 passaram. Documentado em `docs/compras.md`.
 
 ### 2. O que estamos fazendo
-- Nada publicado: alteração local, sem commit, sem SQL, sem função. `VERSAO`/`MOD_VERSAO` ainda não trocadas (fazem parte da publicação).
+- PR #46 mesclado em 16/11/2026 (`2c88bb1`); CI do PR, CI da `main` (Testes, execução 266) e publicação no GitHub Pages (execução 376) concluídos com sucesso. Versão `2026-11-16.3` no ar (`VERSAO`, `MOD_VERSAO` e `?v=` do CSS trocados juntos; suíte completa: 1887 + 73 testes, 0 falhas). Sem SQL, sem função, sem secret. Falta o teste do dono com um print real (o OCR do aparelho não foi exercitado).
 
 ### 3. O que vamos fazer
-- Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: commit/PR/publicação quando o dono autorizar; avaliar importação de vários prints de uma vez e colar texto.
+- Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: avaliar importação de vários prints de uma vez e colar texto.
 

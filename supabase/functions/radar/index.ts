@@ -4,7 +4,7 @@
 //   1) o site (login do dono): { tipo: "ler_url", url }  → lê a página (só domínios das lojas do dono), extrai os dados e devolve para o dono conferir. Não grava nada.
 //   2) a rotina do servidor (senha x-rac-rotina conferida no banco por rac_rotina_ok): { tipo: "rodada" } → para cada dono: coleta as ofertas liberadas e manda o aviso de oportunidades
 //      (Web Push só para os aparelhos do dono, por push.ts, sem depender da função garmin). Só vale depois de um agendamento próprio (supabase/propostas/045_radar_rotina.sql, não aplicada).
-// Descoberta (SerpApi): { tipo: "descobrir" | "expandir" | "uso_descoberta" | "cota_provedor" }, só o dono; o orçamento é reservado no banco ANTES da chamada (radar_reservar_consulta, atômico); o Secret SERPAPI_API_KEY é o único segredo novo e nunca sai da função. Membro da casa (Fernanda) é recusado.
+// Descoberta (SerpApi): { tipo: "descobrir" | "expandir" | "uso_descoberta" | "cota_provedor" }, o dono e a casa (a conta do dono); o orçamento é reservado no banco ANTES da chamada (radar_reservar_consulta, atômico); o Secret SERPAPI_API_KEY é o único segredo novo e nunca sai da função. Membro da casa (Fernanda) é recusado.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { chavePublica, chaveServidor } from "./chaves.ts";
 import { configPadrao, type Banco as BancoAvisos } from "./avisos.ts";
@@ -191,30 +191,31 @@ Deno.serve(async (req) => {
     const uid = u.user.id;
     etapa = "login_membro";
     const { data: mem } = await adm.from("membros").select("dono").eq("membro", uid).maybeSingle();
-    if (mem) return json({ ok: false, erro: "sem_permissao" }, 403); // a casa não usa o Radar
+    /* a casa (Fernanda) usa o Radar igual ao dono, desde 16/11/2026 (057): tudo vale na conta do DONO da casa (quem chama só se identifica pelo login) */
+    const dono: string = (mem?.dono as string | undefined) ?? uid;
     if (typeof corpo.tipo === "string" && ["descobrir", "expandir", "uso_descoberta", "cota_provedor"].includes(corpo.tipo)) {
-      /* descoberta de ofertas pelo provedor (SerpApi): só o dono; a chave vem do Secret SERPAPI_API_KEY (só o nome aparece aqui) e nunca sai da função */
+      /* descoberta de ofertas pelo provedor (SerpApi): o dono e a casa (mesma conta e mesmo limite); a chave vem do Secret SERPAPI_API_KEY (só o nome aparece aqui) e nunca sai da função */
       etapa = "descoberta_" + corpo.tipo;
       const ctx: ContextoDescoberta = { banco: bancoDescobertaSupabase(adm), fetch: (u, i) => fetch(u, i), chave: ambiente("SERPAPI_API_KEY") ?? "", agora: () => Date.now() };
       const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
       try {
-        if (corpo.tipo === "uso_descoberta") return json(await usoDescoberta(uid, ctx));
+        if (corpo.tipo === "uso_descoberta") return json(await usoDescoberta(dono, ctx));
         if (corpo.tipo === "cota_provedor") return json(await cotaDoProvedor(ctx));
         if (!ctx.chave) return json({ ok: false, erro: "sem_chave_serpapi", mensagem: "O Secret SERPAPI_API_KEY não está cadastrado na função." });
         if (corpo.tipo === "descobrir") {
           if (!uuid(corpo.item_id)) return json({ ok: false, erro: "entrada_invalida" }, 400);
           const variantes = Array.isArray(corpo.variantes) ? corpo.variantes.filter((x: unknown): x is string => typeof x === "string").slice(0, 3) : undefined;
-          return json(await descobrir(uid, { item_id: corpo.item_id, variantes, forcar: corpo.forcar === true }, ctx));
+          return json(await descobrir(dono, { item_id: corpo.item_id, variantes, forcar: corpo.forcar === true }, ctx));
         }
         if (!uuid(corpo.candidato_id)) return json({ ok: false, erro: "entrada_invalida" }, 400);
-        return json(await expandir(uid, { candidato_id: corpo.candidato_id, engine: corpo.engine === "produto" ? "produto" : "imersivo", forcar: corpo.forcar === true }, ctx));
+        return json(await expandir(dono, { candidato_id: corpo.candidato_id, engine: corpo.engine === "produto" ? "produto" : "imersivo", forcar: corpo.forcar === true }, ctx));
       } catch (e) {
         if ((e as Error)?.name === "MigracaoPendente") return json({ ok: false, erro: "migracao_pendente", mensagem: "A migration 048 (descoberta) ainda não foi aplicada no banco." });
         throw e;
       }
     }
     if (corpo.tipo !== "ler_url" || typeof corpo.url !== "string") return json({ ok: false, erro: "entrada_invalida" }, 400);
-    const { data: lojas, error: el } = await adm.from("radar_lojas").select("dominio").eq("dono", uid).not("dominio", "is", null);
+    const { data: lojas, error: el } = await adm.from("radar_lojas").select("dominio").eq("dono", dono).not("dominio", "is", null);
     if (el) throw erroDoBanco("radar_lojas(dominios)", el);
     etapa = "ler_url";
     const dominios = (lojas ?? []).map((l) => l.dominio as string).filter(Boolean);

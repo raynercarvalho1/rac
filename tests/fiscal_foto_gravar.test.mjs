@@ -62,7 +62,7 @@ function ambiente(o = {}) {
     kids.forEach((k) => { if (k != null) n.appendChild(typeof k === "string" ? { tag: "#t", attrs: {}, kids: [], text: k } : k); }); return n; };
   const pdfjsLib = { GlobalWorkerOptions: {}, getDocument: () => ({ promise: Promise.resolve({ numPages: 1, getPage: () => Promise.resolve({ getTextContent: () => Promise.resolve({ items: [{ str: "TOTAL 54,00" }] }), getViewport: ({ scale }) => ({ width: 600 * scale, height: 1200 * scale }), render: () => ({ promise: Promise.resolve() }) }) }) }) };
   const c = vm.createContext({ NUCLEO: N, SB: sb, DONO, crypto: globalThis.crypto, Blob, TextEncoder, Uint8Array, ArrayBuffer, Math, String, Array, JSON, Date, setTimeout: (f) => { f(); return 0; }, h: stub,
-    isOwner: () => o.dono !== false, brl: (v) => "R$ " + Number(v).toFixed(2).replace(".", ","), dataBR: (d) => d, carregarScript: () => Promise.resolve(), window: { pdfjsLib, open: (u) => ch.abertos.push(u) },
+    isOwner: () => o.dono !== false, isDonoOuCasa: () => true, brl: (v) => "R$ " + Number(v).toFixed(2).replace(".", ","), dataBR: (d) => d, carregarScript: () => Promise.resolve(), window: { pdfjsLib, open: (u) => ch.abertos.push(u) },
     document: { createElement: () => ({ width: 0, height: 0, getContext: () => ({}), toDataURL: () => "data:image/jpeg;base64,QUJD" }) }, iaFoto: () => Promise.resolve(IMG),
     racIA: (modulo, acao, entrada) => { ch.ia.push({ modulo, acao, entrada }); return Promise.resolve(o.ia || REAL(o.res || resposta())); } });
   vm.runInContext(ler("js/fiscal.js"), c);
@@ -293,18 +293,23 @@ test("conferir uma nota autorizada de foto: só com a marca 'conferi', pela fun�
   det[1].open = true; det[1].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(opts(det[1]), ["autorizada", "cancelada", "rejeitada"]); assert.equal(achar(det[1], (n) => n.tag === "button" && /Marcar como conferida/.test(n.attrs.text || "")).length, 0, "pendente fiscal não se confere");
   det[2].open = true; det[2].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(opts(det[2]), [], "cancelada não muda mais");
 });
-test("Fernanda (papel casa): a tela dela NÃO muda (sem lista de notas gravadas, sem leitura por IA); se a lista fosse montada para ela, não leria tentativas nem histórico e não mostraria ações", async () => {
-  const a = ambiente({ dono: false, tab: { notas_fiscais: NOTAS, notas_fiscais_tentativas: TENT, notas_fiscais_situacoes: HIST, notas_fiscais_docs: [{ nota_id: "a1", id: "d1", nome: "m.jpg", path: DONO + "/notas-fiscais/a1/" + "e".repeat(64) + ".jpg", tamanho: 1024 }] } });
-  const { painel, det } = await aberta(a); assert.equal(det.length, 4); assert.ok(!a.ch.sel.some(([t]) => t === "notas_fiscais_tentativas"), "nem tenta ler as tentativas"); assert.doesNotMatch(texto(painel), /Tentativas sem nota/);
-  det[0].open = true; det[0].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); const t = texto(det[0]); assert.match(t, /Abrir original: m\.jpg/); assert.doesNotMatch(t, /Histórico|Tentativas de leitura|Atualizar a situação|Marcar como conferida/);
-  assert.ok(!a.ch.sel.some(([t2]) => t2 === "notas_fiscais_situacoes"));
-  const fonte = ler("js/fiscal.js"); assert.match(fonte, /if\(typeof isOwner==="function"&&isOwner\(\)\)\{\s*var foto=/, "a leitura por IA continua só do dono");
-  assert.match(fonte, /if\(typeof isOwner==="function"&&isOwner\(\)\)root\.appendChild\(fxListaPainel\(\)\)/, "a lista de notas gravadas é só do dono: a experiência da Fernanda não muda (CLAUDE.md)");
+test("Fernanda (papel casa) recebe a MESMA tela do dono (16/11/2026): lista de notas, tentativas, histórico, ações e leitura por IA; o banco e a função decidem o que vale", async () => {
+  const dados = (dono) => ambiente({ dono, tab: { notas_fiscais: NOTAS, notas_fiscais_tentativas: TENT, notas_fiscais_situacoes: HIST, notas_fiscais_docs: [{ nota_id: "a1", id: "d1", nome: "m.jpg", path: DONO + "/notas-fiscais/a1/" + "e".repeat(64) + ".jpg", tamanho: 1024 }] } });
+  const a = dados(false), b = dados(true);
+  const ra = await aberta(a), rb = await aberta(b); assert.equal(ra.det.length, 4);
+  assert.ok(a.ch.sel.some(([t]) => t === "notas_fiscais_tentativas"), "ela também lê as tentativas (o banco 057 deixa)"); assert.match(texto(ra.painel), /Tentativas sem nota/);
+  ra.det[0].open = true; ra.det[0].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q));
+  rb.det[0].open = true; rb.det[0].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q));
+  const t = texto(ra.det[0]); assert.match(t, /Abrir original: m\.jpg/); assert.match(t, /Histórico|Tentativas de leitura/); assert.match(t, /Atualizar a situação|Marcar como conferida/);
+  assert.equal(t, texto(rb.det[0]), "o detalhe da nota é idêntico para a casa e para o dono");
+  assert.ok(a.ch.sel.some(([t2]) => t2 === "notas_fiscais_situacoes"));
+  const fonte = ler("js/fiscal.js"); assert.match(fonte, /if\(typeof isDonoOuCasa==="function"&&isDonoOuCasa\(\)\)\{\s*var foto=/, "a leitura por IA é do dono e da casa");
+  assert.match(fonte, /if\(typeof isDonoOuCasa==="function"&&isDonoOuCasa\(\)\)root\.appendChild\(fxListaPainel\(\)\)/, "a lista de notas gravadas é do dono e da casa");
   const f = ambiente({ dono: false }); const raiz = { innerHTML: "", kids: [], appendChild(k) { this.kids.push(k); return k; } };
   f.c.$ = () => raiz; f.c.panel = (t) => f.c.h("div", { class: "panel" }); f.c.loading = () => f.c.h("div"); f.c.failed = () => f.c.h("div"); f.c.logErro = () => {};
-  vm.runInContext("renderFiscal()", f.c); assert.equal(raiz.kids.length, 2, "a Fernanda recebe só o que recebia: o painel do XML e a área de resultado"); assert.equal(f.ch.sel.length, 0, "nenhuma leitura extra no banco");
+  vm.runInContext("renderFiscal()", f.c); assert.equal(raiz.kids.length, 3, "a Fernanda recebe o painel do XML, a área de resultado e a lista de notas gravadas");
   const o = ambiente({ dono: true }); const raizO = { innerHTML: "", kids: [], appendChild(k) { this.kids.push(k); return k; } }; o.c.$ = () => raizO; o.c.panel = (t) => o.c.h("div", { class: "panel" }); o.c.loading = () => o.c.h("div"); o.c.failed = () => o.c.h("div"); o.c.logErro = () => {};
-  vm.runInContext("renderFiscal()", o.c); assert.equal(raizO.kids.length, 3, "o dono recebe também a lista de notas gravadas");
+  vm.runInContext("renderFiscal()", o.c); assert.equal(raizO.kids.length, 3, "o dono recebe os mesmos três");
 });
 test("lista: erro ao ler as notas aparece como erro (não como lista vazia); tentativas ilegíveis avisam o dono", async () => {
   const a = ambiente({ erroLer: (t) => t === "notas_fiscais" }); const p = a.c.fxListaPainel(); for (let i = 0; i < 6; i++) await new Promise((q) => setImmediate(q)); assert.match(texto(p), /Não consegui ler as notas: leitura falhou em notas_fiscais/); assert.doesNotMatch(texto(p), /Nenhuma nota gravada/);

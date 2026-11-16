@@ -128,7 +128,7 @@
   /* ---------- casca: abas internas e sair ---------- */
   var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"], ["categoria", "Categoria"], ["produto", "Produto"], ["estabelecimento", "Estabelecimento"]];
   function drawApp(sub, arg) {
-    /* categoria, produto e estabelecimento são da casa também desde 12/11/2026 (pedido do dono); o Radar continua só do dono */
+    /* categoria, produto e estabelecimento são da casa também desde 12/11/2026 (pedido do dono); o Radar, desde 16/11/2026 */
     var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
@@ -955,9 +955,10 @@
   }
 
   /* ---------- Alertas de preço (docs/mercado-alertas.md) ----------
-     Regras fixas em NUCLEO.mkal* (sem IA). Configurações, limites e o que já foi lido ficam em PESSOAL["mercado-alertas"] (tabela pessoal: só o dono, com a trava MFA e no backup).
+     Regras fixas em NUCLEO.mkal* (sem IA). Configurações, limites e o que já foi lido ficam em PESSOAL["mercado-alertas"] (tabela pessoal: linha do dono, compartilhada com a casa pela política "casa compartilha" da 057, com a trava MFA e no backup).
      Só o dono vê esta aba. Não há envio por Web Push neste lote (docs/mercado-alertas.md). */
-  function ehDono() { return typeof isOwner === "function" && isOwner(); }
+  /* Radar, alertas de preço, junção e canal da nota: do dono e da casa (Fernanda), desde 16/11/2026. O nome ficou por compatibilidade. */
+  function ehDono() { return typeof isDonoOuCasa === "function" && isDonoOuCasa(); }
   function alLer() {
     var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-alertas"]) || {};
     return { cfg: NU().mkalConfig(raw.cfg), estado: { lidos: Array.isArray(raw.estado && raw.estado.lidos) ? raw.estado.lidos : [] } };
@@ -980,9 +981,9 @@
   /* Aba Alertas como painel: visão geral compacta (indicadores clicáveis por tipo) → lista do tipo → detalhe do alerta → ajustes.
      Só muda a apresentação: as regras (mkalGerar), a leitura (mkalClassificar/mkalMarcarLido) e a gravação (alPersistir → pessoal) são as mesmas.
      A vista atual fica em st.al.vista e sobrevive a marcar como lido (o app redesenha a tela). */
-  /* Radar de Preços (docs/radar.md): só do dono; o módulo js/radar.js carrega quando a aba abre e desenha o próprio corpo */
+  /* Radar de Preços (docs/radar.md): dono e casa; o módulo js/radar.js carrega quando a aba abre e desenha o próprio corpo */
   function viewRadar(body) {
-    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "O Radar de Preços é só do dono." }))); return; }
+    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Entre na sua conta para usar o Radar de Preços." }))); return; }
     body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando o Radar…" })));
     var alvo = h("div", { class: "stack" }), ok = function () { body.innerHTML = ""; body.appendChild(alvo); return window.rtMontar(alvo, sb, user); };
     (window.precisa ? window.precisa(["radar"]) : Promise.reject(new Error("módulos indisponíveis"))).then(ok).catch(function (e) {
@@ -992,7 +993,7 @@
   function viewAlertas(body) {
     var N = NU(), hoje = new Date().toISOString().slice(0, 10), iconeDe = {}, rotuloDe = {};
     N.MKAL_TIPOS.forEach(function (t) { rotuloDe[t[0]] = t[1]; iconeDe[t[0]] = t[2]; });
-    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Os alertas de preço são só do dono." }))); return; }
+    if (!ehDono()) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Entre na sua conta para ver os alertas de preço." }))); return; }
     var L = alLer(), cfg = L.cfg, estado = L.estado;
     var cl = N.mkalClassificar(N.mkalGerar(rows, cfg), estado, hoje, cfg), R = cl.resumo;
     /* só os tipos ligados entram nas listas e nas contagens (como antes) */
@@ -1256,7 +1257,7 @@
   /* ---------- Navegação de mercado (docs/central-compras.md, "Navegação de mercado") ----------
      Categoria → produtos → preços; estabelecimento → compras, produtos e comparação. Os números vêm de NUCLEO.cm* sobre as MESMAS compras da aba Central
      (notas do Mercado + pedidos online que contam, sem duplicidade): o total de uma página bate com a barra da Central no mesmo período e canal. Só leitura.
-     O dono e a casa veem as páginas (a casa desde 12/11/2026, a pedido do dono); as ofertas do Radar e a junção de produtos são só do dono. */
+     O dono e a casa veem as páginas (a casa desde 12/11/2026, a pedido do dono); as ofertas do Radar e a junção de produtos são do dono e da casa desde 16/11/2026. */
   var CM = { ord: "gasto", ordE: "gasto", histTodas: false, opoTodas: false };
   function linkEst(nome) { return "#mercado/estabelecimento/" + encodeURIComponent(nome); }
   function cmUn(u) { return u === "kg" ? "/kg" : u === "l" ? "/L" : u === "un" ? "/un" : "/" + u; }
@@ -1388,7 +1389,7 @@
     var lista = h("div", { class: "mkpcs" }), selos = {}, porProd = groupBy(lin, function (x) { return x.produto; });
     c.produtos.forEach(function (x) {
       var un = cmUn(x.unidade), ls = porProd[x.nome] || [], lu = linhaDoPonto(ls, x.unidade, x.ultimo), lm = linhaDoPonto(ls, x.unidade, x.menor), lM = linhaDoPonto(ls, x.unidade, x.maior);
-      var selo = ehDono() ? h("p", { class: "mkoferta sub", text: "Ofertas: conferindo…" }) : null;   /* ofertas do Radar: só o dono */
+      var selo = ehDono() ? h("p", { class: "mkoferta sub", text: "Ofertas: conferindo…" }) : null;   /* ofertas do Radar: dono e casa */
       if (selo) selos[N.pcChave(x.nome)] = selo;
       var ult = h("a", { class: "mkpc-pago mk-linkcompra", href: hrefCompra(lu), title: "Abrir a compra do último preço pago" }, h("span", { class: "sub", text: "Último preço pago " }), h("b", { text: money(x.ultimo.preco) + un }), h("span", { class: "sub", text: " em " + dataBR(x.ultimo.data) + (x.ultimo.mercado ? " · " + x.ultimo.mercado : "") + " ›" }));
       if (lu) linkCompra(ult, lu);
@@ -1559,7 +1560,7 @@
     /* 2) registrar uma compra: sempre pelo fluxo normal (nota ou pedido), nunca a partir de um anúncio. Fica DEPOIS das ofertas (o dono vê o que a internet oferece antes de decidir comprar). */
     var reg = panel("Comprou? Registre a compra", "O preço de um anúncio só entra no histórico depois que a compra for registrada pelo fluxo normal da Central de Compras (nota ou pedido). Nada é gravado automaticamente a partir das ofertas.");
     reg.appendChild(h("p", null, h("a", { class: "mkadd", href: "#mercado/importar", text: "Registrar compra (adicionar nota)" })));
-    /* 3) ofertas da internet (Radar): só o dono; separadas do que foi pago, acima do registro de compra */
+    /* 3) ofertas da internet (Radar): dono e casa; separadas do que foi pago, acima do registro de compra */
     if (!ehDono()) { body.appendChild(reg); return; }
     var box = h("div", { class: "stack mkradarbox" }); body.appendChild(box); body.appendChild(reg);
     var pago = b0 && b0.ultimo ? { unitario: b0.ultimo.preco, unidade: b0.unidade, data: b0.ultimo.data } : null;
@@ -1670,7 +1671,7 @@
     var form = h("div", { class: "mkmerge", hidden: "" }); p.appendChild(form);
     var info = h("p", { class: "sub", role: "status" }); p.appendChild(info);
     var list = h("div", { class: "mkplist" }); p.appendChild(list);
-    if (ehDono()) body.appendChild(painelJuncoes());   /* pedido online × nota com nomes diferentes (só o dono) */
+    if (ehDono()) body.appendChild(painelJuncoes());   /* pedido online × nota com nomes diferentes (dono e casa) */
     body.appendChild(p);
     var prods = [], sel = {};
     var cats = listaCats(rows);
@@ -2411,7 +2412,7 @@
   }
   function canalTxt(c) { return c.canal === "online" ? "Online" + (c.plataforma && c.plataforma !== c.estabelecimento ? " · " + c.plataforma : "") : "Presencial"; }
   function canalNota(chave, depois) {
-    /* só o dono grava (a tabela pessoal é dele); a Fernanda vê as notas como estão */
+    /* dono e casa gravam (chave "mercado-canais" compartilhada pela 057) */
     var D = centralDados(), c = D.compras.filter(function (x) { return x.id === "nota:" + chave; })[0];
     var caixa = h("div", { class: "cucanal" });
     if (!c) return caixa;

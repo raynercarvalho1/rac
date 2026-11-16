@@ -198,9 +198,9 @@ test("aviso: desligado, vendedor bloqueado, equivalência não confirmada e pre�
   assert.deepEqual(configPadrao(undefined), { push: true, janela: 90, vendedoresBloqueados: [] }); assert.equal(configPadrao({ push: { on: false }, janela: 999 }).janela, 90);
   assert.equal(montarMensagem([], new Map()), null);
 });
-test("a função não envia nada à Fernanda: quem a chama só passa o uid do dono; a rotina exclui membros e o site recusa membro", () => {
+test("a função não envia push à Fernanda: a rotina exclui membros; o site deixa a casa usar o Radar, sempre na conta do dono (057, 16/11/2026)", () => {
   const idx = ler("supabase/functions/radar/index.ts");
-  assert.match(idx, /from\("membros"\)\.select\("membro"\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/); assert.match(idx, /select\("dono"\)\.eq\("membro", uid\)\.maybeSingle\(\)[\s\S]*sem_permissao/);
+  assert.match(idx, /from\("membros"\)\.select\("membro"\)/); assert.match(idx, /filter\(\(d\) => !membros\.has\(d\)\)/); assert.match(idx, /select\("dono"\)\.eq\("membro", uid\)\.maybeSingle\(\)[\s\S]*const dono: string = \(mem\?\.dono as string \| undefined\) \?\? uid;/); assert.ok(!/\buid\b/.test(semComent(idx).slice(semComent(idx).indexOf("const dono: string")).replace(/const dono: string[^\n]*\n/, "")), "depois do login, tudo usa a conta do dono, nunca o uid de quem chamou");
   assert.ok(/from "\.\/push\.ts"/.test(idx) && !/aes128gcm|crypto\.subtle/i.test(semComent(idx)), "o envio de push vive em push.ts (independente da Garmin), não no index.ts");
   assert.ok(!/garmin/.test(semComent(idx).replace(/rac-ia\/chaves\.ts/, "")), "não mexe na garmin");
 });

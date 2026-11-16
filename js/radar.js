@@ -1,4 +1,4 @@
-/* Dia a Dia RAC — módulo carregado quando a aba Radar do Mercado abre (docs/radar.md). SÓ DO DONO: a Fernanda não vê a aba e o banco recusa (RLS).
+/* Dia a Dia RAC — módulo carregado quando a aba Radar do Mercado abre (docs/radar.md). Dono e casa (Fernanda) usam igual desde 16/11/2026 (migration 057): o banco filtra pela casa.
    Cadastro de produtos (comprados ou desejados), lojas, ofertas e observações de preço; histórico por série (à vista e parcelado nunca se misturam), janelas de 30/90/180/365 dias
    e todo o histórico, ranking só com preço final confirmado e oportunidades. As regras vêm de NUCLEO.rd* (nucleo.js); o banco (043) repete as mesmas.
    Leitura automática de página: função "radar" (ainda não publicada: sem ela o botão avisa e o preenchimento é manual). IA: só sugestão, hoje indisponível (aguarda liberação).
@@ -14,7 +14,7 @@
   function rtBarrada(dominio){var h=String(dominio||"").toLowerCase().replace(/^www\./,"");for(var d in RT_BARRADAS)if(h===d||h.slice(-d.length-1)==="."+d)return RT_BARRADAS[d];return ""}
   var RT_EQUIV=[["confirmada","Equivalente (confirmado)"],["provavel","Provável (a confirmar)"],["nao_confirmada","Não confirmada"],["rejeitada","Rejeitada"]];
 
-  function rtDono(){return typeof isOwner==="function"&&isOwner()}
+  function rtDono(){return typeof isDonoOuCasa==="function"&&isDonoOuCasa()}
   function rtMoeda(v){return v==null?"—":"R$ "+(+v).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".")}
   function rtData(iso){var d=new Date(iso);if(isNaN(d.getTime()))return "—";var p=function(n){return n<10?"0"+n:""+n};return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+d.getFullYear()}
   function rtErro(e){var m=(e&&e.message)||String(e||"erro");return /foreign key|23503|still referenced/i.test(m)?"Há ofertas ou histórico ligados a isto: não dá para excluir. Pause ou arquive.":/duplicate key|23505|unique/i.test(m)?"Isso já está registrado.":/violates check|23514/i.test(m)?"O banco recusou os valores (confira modalidade, frete e preços).":/row-level security|42501|permission denied/i.test(m)?"Sem permissão: o Radar é só do dono, com a segunda etapa (código) concluída.":m}
@@ -369,7 +369,7 @@
     p.appendChild(h("h3",{text:"Avisos de oportunidade"}));
     var push=h("input",{type:"checkbox",checked:cfg.push?"checked":null});push.checked=cfg.push;
     var jan=rtSel([["30","30 dias"],["90","90 dias"],["180","180 dias"],["365","365 dias"],["0","Todo o histórico"]],String(cfg.janela)),venc=h("textarea",{rows:"3",placeholder:"Um vendedor por linha"});venc.value=cfg.vendedoresBloqueados.join("\n");
-    p.appendChild(h("p",{class:"sub",text:"Só você recebe (nunca a Fernanda), no máximo 1 aviso por dia e nunca repetindo o mesmo preço. O envio depende de a função do Radar ser publicada e agendada: enquanto isso, as oportunidades aparecem só aqui na aba."}));
+    p.appendChild(h("p",{class:"sub",text:"O aviso por push vai só para os aparelhos do dono (a Fernanda vê as oportunidades aqui na aba), no máximo 1 por dia e nunca repetindo o mesmo preço. O envio depende de a função do Radar ser publicada e agendada: enquanto isso, as oportunidades aparecem só aqui na aba."}));
     p.appendChild(h("div",{class:"rtform"},h("label",{class:"rtchk"},push," Avisar por notificação"),rtCampo("Janela padrão de comparação",jan),rtCampo("Vendedores que eu não aceito",venc),
       rtBotao("Salvar ajustes",function(){if(typeof pessoalGravar==="function")pessoalGravar("radar-config",{ia:{on:iaChk.checked},push:{on:push.checked},janela:+jan.value,vendedoresBloqueados:venc.value.split("\n").map(function(x){return x.trim()}).filter(Boolean).slice(0,100)});RT.janela=+jan.value;rtAvisar("Ajustes salvos.")},"pri")));
     p.appendChild(h("h3",{text:"Leitura automática e coleta"}));
@@ -498,7 +498,7 @@
   /* ---------- casca ---------- */
   function rtDesenhar(){
     var r=RT.corpo;if(!r)return;r.innerHTML="";
-    if(!rtDono()){r.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"O Radar de Preços é só do dono."})));return}
+    if(!rtDono()){r.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Entre na sua conta para usar o Radar de Preços."})));return}
     if(!RT.d){r.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:RT.aviso||"Carregando o Radar…"})));return}
     if(RT.aviso)r.appendChild(h("div",{class:"panel rtaviso",role:"status",text:RT.aviso}));
     if(RT.embed){rtAbaDescobrir(r);return}   /* modo embutido: só as ofertas de UM produto, dentro da página do produto da Central de Compras */
@@ -506,7 +506,7 @@
     var abas=h("div",{class:"pills rtabas"},RT_ABAS.map(function(a){var b=h("a",{href:"#mercado/radar","aria-current":a[0]===RT.aba?"page":null,text:a[1]});b.onclick=function(e){if(e&&e.preventDefault)e.preventDefault();RT.aba=a[0];RT.aviso="";rtDesenhar()};return b}));
     r.appendChild(abas);
     ({oport:rtAbaOport,desc:rtAbaDescobrir,itens:rtAbaItens,lojas:rtAbaLojas,ajustes:rtAbaAjustes})[RT.aba](r)}
-  /* chamada pelo Mercado: sb = cliente já logado; só o dono chega aqui (a aba nem aparece para a casa) */
+  /* chamada pelo Mercado: sb = cliente já logado; o dono e a casa chegam aqui */
   function rtMontar(corpo,sb,user){
     RT.sb=sb;RT.user=user;RT.corpo=corpo;RT.embed=null;
     if(!rtDono()){rtDesenhar();return Promise.resolve()}

@@ -31,7 +31,7 @@ const ONL = [{ id: "o1", data: "2026-11-02", loja: "amazon", numero: "111-1", su
   { id: "o2", data: "2026-11-04", loja: "amazon", numero: "111-2", subtotal: 50, frete: 12.5, total_pago: 62.5, itens: [{ descricao: "Antipulgas", qtd: 1, total: 50, categoria: "Pet" }] }];
 
 function desenhar(estado = {}, dono = true) {
-  globalThis.isOwner = () => dono;
+  globalThis.isOwner = () => dono; globalThis.isDonoOuCasa = () => true;
   globalThis.PESSOAL = { "mercado-canais": { v: 1, notas: { "2026-11-08|WILLIAM DA COSTA FREITAS LTDA|300": { canal: "online", plataforma: "Mercado Livre" } } } };
   T.hoje("2026-11-10"); T.usar(ROWS, { id: "u1" }); T.usarOnline(ONL);
   Object.assign(T.CU, { per: "2026-11", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null }, estado);
@@ -58,9 +58,9 @@ test("abrir uma compra mostra itens, emissor fiscal e a conta; a cortina fica no
   assert.ok(/Emissor fiscal:\s+WILLIAM DA COSTA FREITAS LTDA/.test(t), "emissor preservado"); assert.ok(/Canal:\s+Online/.test(t)); assert.ok(/Automotivo › Proteção/.test(t));
   const o = texto(desenhar({ aberta: "online:o2" })); assert.ok(/Frete/.test(o) && o.includes(BRL(12.5)) && /Valor pago/.test(o) && o.includes(BRL(62.5)));
 });
-test("só o dono vê o botão de alterar o canal; a Fernanda vê a nota como está", () => {
+test("dono e Fernanda veem o botão de alterar o canal (a chave mercado-canais é da casa desde a 057, 16/11/2026)", () => {
   const com = (dono) => achar(desenhar({ aberta: "nota:2026-11-03|Tauste (Sorocaba)|100" }, dono), (e) => e.tag === "button").map(texto).join("|");
-  assert.match(com(true), /Alterar canal/); assert.doesNotMatch(com(false), /Alterar canal/);
+  assert.match(com(true), /Alterar canal/); assert.match(com(false), /Alterar canal/);
 });
 test("clicar numa barra de loja abre os produtos daquela loja; as barras usam a dica padrão", () => {
   const b = desenhar({ sel: { tipo: "estab", valor: "Amazon" } }), t = texto(b);
@@ -73,7 +73,7 @@ test("só leitura nas tabelas de compras: a Central não insere, atualiza nem ap
   assert.match(bloco, /pessoalGravar\("mercado-canais"/); assert.match(bloco, /from\("compras_online"\)\.select\(/);
   /* a 049_tentativas_cpf_ignora_hash é da Central Fiscal (trava de CPF, 12/11/2026), não da Central de Compras */
   /* a 050_seguranca_catalogo é da Fase 2 · A6 (auditoria de segurança), também não é da Central de Compras */
-  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(049|05)/.test(f) && f !== "049_tentativas_cpf_ignora_hash.sql" && f !== "050_seguranca_catalogo.sql" && f !== "051_inbox_fundacao.sql" && f !== "052_inbox_cofre.sql" && f !== "053_inbox_cabecalhos.sql" && f !== "054_inbox_automatico.sql" && f !== "056_inbox_envios.sql");   // a 051, a 052 e a 053 são do RAC Inbox (dados, cofre de credenciais e cache de cabeçalhos), não da Central de Compras
+  const novas = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^(049|05)/.test(f) && f !== "049_tentativas_cpf_ignora_hash.sql" && f !== "050_seguranca_catalogo.sql" && f !== "051_inbox_fundacao.sql" && f !== "052_inbox_cofre.sql" && f !== "053_inbox_cabecalhos.sql" && f !== "054_inbox_automatico.sql" && f !== "057_casa_radar_fiscal.sql" && f !== "058_ligar_ia_fiscal_casa.sql" && f !== "056_inbox_envios.sql");   // a 051, a 052 e a 053 são do RAC Inbox (dados, cofre de credenciais e cache de cabeçalhos), não da Central de Compras
   assert.deepEqual(novas, [], "a Central não criou migration (a 047 e a 048 são do Radar; a 049 é da Central Fiscal)");
 });
 test("o módulo se chama Central de Compras no menu e na casca, e as telas existentes continuam", () => {
@@ -84,7 +84,7 @@ test("o módulo se chama Central de Compras no menu e na casca, e as telas exist
 });
 
 test("Painel do Mercado e Notas mostram a compra marcada como online sob a plataforma, com o emissor ao lado e os totais iguais", () => {
-  globalThis.isOwner = () => true;
+  globalThis.isOwner = () => true; globalThis.isDonoOuCasa = () => true;
   globalThis.PESSOAL = { "mercado-canais": { v: 1, notas: { "2026-11-08|WILLIAM DA COSTA FREITAS LTDA|300": { canal: "online", plataforma: "Mercado Livre" } } } };
   T.hoje("2026-11-10"); T.usar(ROWS, { id: "u1" }); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null;
   const p = new El("div"); T.viewPainel(p); const t = texto(p);

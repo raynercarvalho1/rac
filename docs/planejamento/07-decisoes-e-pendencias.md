@@ -330,3 +330,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Sem MOVE no servidor (depois do login), nada que move é feito** (`acao_indisponivel`); alternativa só por decisão futura do dono.
 - **Resposta incerta nunca é repetida**; o estado real é verificado (`verificar_mensagem`) antes de concluir.
 - **Pendências:** publicar Worker `p9.0` e função `i3.2` (dono); validar no iPhone; incluir `inbox_organizar_sql.test.mjs` no Grupo 2 do `testes.yml` (workflow: autorização do dono).
+
+## 16/11/2026 · Fernanda com acesso igual em Finanças e compras (decisão do dono)
+- **Decisão (pedido do dono, "os 2 juntos em 1 lote único"):** a Fernanda (papel casa) passa a ter acesso igual ao do dono em toda a área Finanças e compras. Isso **substitui** as regras anteriores "Radar só do dono" (docs/radar.md), "leitura fiscal por IA só do dono" (docs/fiscal.md, 036) e "a Fernanda não vê a lista de notas gravadas" (CLAUDE.md, "preservar a experiência da Fernanda" vale para o que o dono não pediu para mudar).
+- **Escolhas do dono:** Radar e dados **compartilhados** (a mesma conta do dono, não cópia); leitura fiscal por IA **liberada** para a casa (consumo no mesmo orçamento de IA da casa); importar do **Gmail fica só do dono**.
+- **Continua só do dono:** Gmail de Compras, custos de IA, Sistema, backup/restauração, RAC Hoje, Newsletter, aviso de preço por push (rotina só do dono), função `garmin` (intocada).
+- **Como:** migration 057 (proposta), função `radar` (sem o 403, sempre na conta do dono), ação `fiscal.nota` com papel `casa`, site com `isDonoOuCasa()`. Ordem: SQL → `radar` → `rac-ia` → site; a 058 (`supabase/058_ligar_ia_fiscal_casa.sql`) liga a IA fiscal para a casa e é do dono (a 057 não liga nada). Detalhes em `docs/seguranca.md`.
+- **Pendências do dono:** rodar a 057 e a conferência; republicar as funções `radar` e `rac-ia`; rodar a 058 depois do site, quando quiser a IA fiscal da Fernanda no ar; se a 039/040 forem aplicadas depois, rodar a 057 de novo; avaliar um teto de custo para as buscas pagas do Radar feitas pela Fernanda (hoje o limite é o mesmo do dono).

@@ -51,7 +51,7 @@ test("publicação: roteiro com --no-verify-jwt (a rotina chama sem login), proj
   const doc = ler("docs/radar.md"), cmd = /npx supabase@2\.121\.0 functions deploy radar --project-ref hofnhbxnfebfnncwxrds --use-api --no-verify-jwt/;
   assert.match(doc, cmd); assert.ok(!/functions deploy (garmin|rac-ia|rac-newsletter)/.test(doc.split("## Publicação da função radar")[1] || ""), "o roteiro não publica outra função");
   const idx = ler("supabase/functions/radar/index.ts");
-  assert.match(idx, /rac_rotina_ok[\s\S]*?nao_autenticado/); assert.match(idx, /getUser\(jwt\)/); assert.match(idx, /if \(mem\) return json\(\{ ok: false, erro: "sem_permissao" \}, 403\)/);
+  assert.match(idx, /rac_rotina_ok[\s\S]*?nao_autenticado/); assert.match(idx, /getUser\(jwt\)/); assert.match(idx, /const dono: string = \(mem\?\.dono as string \| undefined\) \?\? uid;/, "a casa usa o Radar na conta do dono (057)"); assert.doesNotMatch(idx, /return json\(\{ ok: false, erro: "sem_permissao" \}, 403\)/);
   assert.ok(!/console\.(log|info|debug)/.test(idx) && idx.split(/\r?\n/).filter((l) => /console\./.test(l)).every((l) => /registroDeErro/.test(l)), "logs só pelo registro sanitizado (diag.ts)");
   assert.match(idx, /texto\.length > 20_000/);
 });

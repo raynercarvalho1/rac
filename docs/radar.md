@@ -1,7 +1,7 @@
 # Radar de Preços
 
 Acompanha o preço de produtos que o dono comprou ou quer comprar, em várias lojas, com **histórico real** e **preço final comparável**.
-**Só o dono** usa. Fernanda e demais membros da casa não veem nada do Radar (o banco recusa).
+**Dono e casa (Fernanda) usam igual, desde 16/11/2026** (pedido do dono; migration 057, proposta): as tabelas e as 6 chaves de ajustes são da casa, a função `radar` atende a casa na conta do dono. Antes era só do dono e o banco recusava a casa. Detalhes e ordem de publicação em `docs/seguranca.md` ("Casa e Finanças e compras").
 
 Estado: **Lote 1** (dados e segurança, aplicado em produção) e **Lote 2** (tela, leitura de página, coletor piloto, oportunidades, aviso e ação de IA). **Parte do Lote 2 depende de publicação e de autorização:** veja "O que está ativo" no fim deste arquivo. Fontes externas: `docs/radar-fontes.md`.
 Migration: `supabase/043_radar_precos.sql` (**aplicada em produção em 09/11/2026**). Núcleo: `nucleo.js` (`rd*`, `RD_*`). Testes: `tests/radar.test.mjs`.
@@ -105,7 +105,7 @@ O envio é **`supabase/functions/radar/push.ts`**: o mesmo mecanismo da Garmin (
 - **Arquivos afetados:** só `supabase/functions/radar/` (novos: `push.ts`, `rotina.ts`; alterado: `index.ts`). **Nenhum arquivo da Garmin foi lido para alteração, alterado ou referenciado** (um teste garante que a Garmin não menciona o Radar).
 - **Garmin precisa mudar?** **Não.** A proposta anterior (um passo novo em `garmin/index.ts`) fica **descartada**, a menos que você prefira ela.
 - **Para ligar:** publicar a função `radar`; ter as notificações ativas em Sistema (chaves e aparelho inscrito); aplicar `supabase/045_radar_rotina.sql` (agenda 6h20 e 18h20 de Brasília). **Rollback:** `select cron.unschedule('radar-rotina');` desliga tudo; a função pode ser despublicada; nenhuma tabela nova.
-- **Isolamento:** a rotina só trata donos que **não** estão em `membros`; a casa (Fernanda) nunca recebe; o site recusa membro com 403.
+- **Isolamento:** a rotina só trata donos que **não** estão em `membros`; o aviso por push vai só para os aparelhos do dono (a casa vê as oportunidades na aba). Desde 16/11/2026 o site **não** recusa mais membro: a casa chama a função e tudo vale na conta do dono.
 
 ## Publicação da função radar (Lote 4) — roteiro para o dono
 O `.claude/settings.json` nega `supabase functions deploy`, `supabase db`/`migration`, `psql` e a API de gerenciamento, e a CLI nem está instalada na máquina do Claude: a publicação e o SQL são feitos por você (ou pelo painel). Verificações já feitas no código (Lote 4): a função não importa de outra função (cópia própria de `chaves.ts`); DNS com fallback seguro (`dns.ts`); rodada com orçamento de 90 s (a Edge Function tem limite de duração); logs só com o nome do erro; recusa anônimo (401), membro (403) e corpo grande (413).

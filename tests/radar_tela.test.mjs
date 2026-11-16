@@ -62,18 +62,21 @@ const P = (dias, preco, extra = {}) => ({ id: "p" + ++seq, oferta_id: "o1", moda
 
 function montar({ dono = true, dados = {}, falhas = {}, pessoal = {} } = {}) {
   const banco = bancoFalso({ radar_config: [{ id: "c1", cep_padrao: CEP }], radar_itens: [ITEM], radar_lojas: [LOJA], radar_ofertas: [OFERTA], radar_precos: [], ...dados }, falhas), dicas = [], gravados = [];
-  const ctx = vm.createContext({ NUCLEO: N, console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, isNaN, h, vbRotulo: (a, b) => h("span", { class: "vbl" }, h("b", { text: a }), h("small", { text: b })), isOwner: () => dono,
+  const ctx = vm.createContext({ NUCLEO: N, console, Promise, Object, Array, JSON, Date, Math, String, Number, Error, isFinite, isNaN, h, vbRotulo: (a, b) => h("span", { class: "vbl" }, h("b", { text: a }), h("small", { text: b })), isOwner: () => dono, isDonoOuCasa: () => true,
     PESSOAL: { ...pessoal }, pessoalGravar: (k, v) => { gravados.push([k, v]); ctx.PESSOAL[k] = v; }, confirm: () => true, window: { racDica: { ligar: (el, f) => { dicas.push([el, f]); } } } });
   vm.runInContext(ler("js/radar.js") + "\n;globalThis.RT=RT;", ctx);
   const corpo = new El("div");
   return { ctx, banco, corpo, dicas, gravados, abrir: () => ctx.rtMontar(corpo, banco.SB, { id: "u1" }) };
 }
 
-/* ---------- só o dono ---------- */
-test("a casa não vê o Radar: a tela só diz que é do dono e nenhuma consulta é feita", async () => {
-  const t = montar({ dono: false }); await t.abrir();
-  assert.match(textoDe(t.corpo), /só do dono/); assert.equal(t.banco.log.length, 0);
-  assert.ok(!todos(t.corpo, (e) => e.tag === "button").length, "sem botões");
+/* ---------- dono e casa (Fernanda), desde 16/11/2026 ---------- */
+test("a casa vê o Radar igual ao dono: mesma tela, mesmas consultas (o banco filtra pela casa)", async () => {
+  const casa = montar({ dono: false }); await casa.abrir();
+  const dono = montar({ dono: true }); await dono.abrir();
+  assert.doesNotMatch(textoDe(casa.corpo), /Entre na sua conta/);
+  assert.equal(textoDe(casa.corpo), textoDe(dono.corpo), "a mesma tela");
+  assert.deepEqual(casa.banco.log.map((x) => x.t), dono.banco.log.map((x) => x.t), "as mesmas consultas");
+  assert.ok(todos(casa.corpo, (e) => e.tag === "button").length > 0, "com os mesmos botões");
 });
 test("o dono abre o Radar: lê as cinco tabelas, mostra as abas e o vazio explicado", async () => {
   const t = montar(); await t.abrir();
@@ -484,10 +487,10 @@ test("embutido: comparação INDICATIVA com o último preço pago só quando a b
   const s = await abrirEmbutido(null); assert.ok(!textoDe(s.corpo).includes("Você pagou"), "sem compra registrada, nada a comparar");
   for (const x of [t, u, s]) assert.equal(x.banco.de("radar_precos", "insert").length, 0, "nenhum preço entra no histórico confirmado");
 });
-test("embutido: Acompanhar usa o fluxo existente (oferta não confirmada, sem preço pago); só o dono; produto fora do Radar é avisado", async () => {
+test("embutido: Acompanhar usa o fluxo existente (oferta não confirmada, sem preço pago); dono e casa; produto fora do Radar é avisado", async () => {
   const t = await abrirEmbutido({ unitario: 150, unidade: "kg" }), card = (ini) => todos(t.corpo, (e) => String(e.attrs.class || "").includes("rtopo") && textoDe(e).trim().startsWith(ini))[0];
   const g = todos(card("Creme Hidratante Corporal Principia CH-02 454g"), (e) => e.tag === "button" && e.attrs.text === "Acompanhar")[0]; g.onclick(); await espera();
   assert.match(textoDe(t.corpo), /só tem a página do Google/, "anúncio só do Google pede 'Ver lojas', como na aba Descobrir"); assert.equal(t.banco.gravacoes().length, 0);
-  const casa = montar({ dono: false, dados: { radar_candidatos: CANDS } }); await casa.ctx.rtMontarOfertas(casa.corpo, casa.banco.SB, { id: "u1" }, "i1", null); await espera(); assert.match(textoDe(casa.corpo), /só do dono/); assert.equal(casa.banco.consultas?.length ?? 0, 0);
+  const casa = montar({ dono: false, dados: { radar_candidatos: CANDS } }); await casa.ctx.rtMontarOfertas(casa.corpo, casa.banco.SB, { id: "u1" }, "i1", null); await espera(); assert.doesNotMatch(textoDe(casa.corpo), /Entre na sua conta/); assert.ok(casa.banco.log.length > 0, "a casa também consulta as ofertas (16/11/2026)");
   const fora = montar({ dados: { radar_candidatos: [] } }); await fora.ctx.rtMontarOfertas(fora.corpo, fora.banco.SB, { id: "u1" }, "nao-existe", null); await espera(); await espera(); assert.match(textoDe(fora.corpo), /não foi encontrado/);
 });

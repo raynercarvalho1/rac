@@ -25,6 +25,7 @@ globalThis.window.scrollTo = () => {}; globalThis.window.racDica = { ligar: (el,
 globalThis.location = { hash: "" };
 globalThis.PESSOAL = {}; let DONO = true; let gravacoes = [];
 globalThis.isOwner = () => DONO;
+globalThis.isDonoOuCasa = () => true;   // Finanças e compras é igual para dono e casa (16/11/2026); o papel só muda o que é do dono de verdade
 globalThis.pessoalGravar = (k, v, cb) => { globalThis.PESSOAL[k] = v; gravacoes.push([k, v]); if (cb) cb(); };
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo || globalThis.window.RACnucleo; globalThis.window.RACnucleo = N;
@@ -274,12 +275,12 @@ test("responsividade estrutural: grade de indicadores, linhas compactas e regras
   assert.equal(achar(body, (e) => e.tag === "div" && e.className === "alkpis").length, 1);
 });
 
-test("segurança: só o dono vê e grava; a casa não tem a aba nem altera nada", () => {
+test("segurança: dono e casa (Fernanda) veem e ajustam os mesmos alertas desde 16/11/2026; a chave dos ajustes é da casa no banco (057)", () => {
   DONO = false; gravacoes = []; globalThis.PESSOAL = {}; T.usar(ROWS, { email: "casa@teste" });
-  const body = new El("div"); T.viewAlertas(body); assert.match(texto(body), /só do dono/); assert.ok(!/Novos/.test(texto(body)));
-  assert.equal(gravacoes.length, 0);
-  const mk = ler("mercado.js"); assert.match(mk, /\(x\[0\] === "alertas" \|\| x\[0\] === "radar"\) && !ehDono\(\)/, "a aba não é montada para a casa");
-  assert.match(ler("supabase/003_pessoal.sql"), /not exists \(select 1 from public\.membros where membro = auth\.uid\(\)\)/, "a tabela onde ficam os ajustes não aceita gravação da casa (RLS)");
+  const body = new El("div"); T.viewAlertas(body); assert.doesNotMatch(texto(body), /Entre na sua conta/); assert.ok(/Novos/.test(texto(body)), "a casa vê os alertas");
+  assert.equal(gravacoes.length, 0, "só ver não grava");
+  const mk = ler("mercado.js"); assert.match(mk, /function ehDono\(\) \{ return typeof isDonoOuCasa === "function" && isDonoOuCasa\(\); \}/, "a aba é montada para dono e casa");
+  assert.match(ler("supabase/057_casa_radar_fiscal.sql"), /chave in \([^)]*'mercado-alertas'/, "a chave dos ajustes é uma das 6 da casa (RLS)");
   DONO = true;
 });
 

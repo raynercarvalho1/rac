@@ -1180,10 +1180,24 @@ Família e da Casa.
 - Diagnóstico: o leitor de texto de pedidos não entendia a tela "Detalhes da transação" do Mercado Livre (perdia itens, número, data e total, e tratava o desconto como produto). Criado `coLerML` em `nucleo.js` (usado pela importação de print/PDF/e-mail), ajustes de categoria (garrafa PET não é animal; limpador, milho, ketchup, coca-cola) e teste `tests/compras_ml_transacao.test.mjs`. Testes de Compras, Central, estrutura e núcleo: 172 passaram. Documentado em `docs/compras.md`.
 
 ### 2. O que estamos fazendo
-- Nada publicado: alteração local, sem commit, sem SQL, sem função. `VERSAO`/`MOD_VERSAO` ainda não trocadas (fazem parte da publicação).
+- PR #46 mesclado em 16/11/2026 (`2c88bb1`); CI do PR, CI da `main` (Testes, execução 266) e publicação no GitHub Pages (execução 376) concluídos com sucesso. Versão `2026-11-16.3` no ar (`VERSAO`, `MOD_VERSAO` e `?v=` do CSS trocados juntos; suíte completa: 1887 + 73 testes, 0 falhas). Sem SQL, sem função, sem secret. Falta o teste do dono com um print real (o OCR do aparelho não foi exercitado).
 
 ### 3. O que vamos fazer
-- Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: commit/PR/publicação quando o dono autorizar; avaliar importação de vários prints de uma vez e colar texto.
+- Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: avaliar importação de vários prints de uma vez e colar texto.
+
+## 16/11/2026 · Fernanda com acesso igual em Finanças e compras (branch `claude/peaceful-edison-lfxv7q`, versão `2026-11-16.5`)
+
+### 1. O que fizemos
+- Pedido do dono: a Fernanda com acesso igual ao dele em toda a área Finanças e compras (Radar compartilhado, IA fiscal liberada, Gmail fica só do dono; um lote único). Código pronto e testado, **nada aplicado nem publicado**.
+- Banco: `supabase/057_casa_radar_fiscal.sql` (6 chaves de `pessoal`, 9 tabelas do Radar, 3 funções fiscais sem a trava de dono editadas dentro da definição existente, políticas de foto/PDF e leitura de tentativas/histórico, remoção da trava `ia_config_fiscal_so_dono`; o que liga a IA para a casa fica à parte, em `supabase/058_ligar_ia_fiscal_casa.sql`) e `supabase/conferencias/057_conferir_producao.sql`.
+- Funções: `radar` (sem o 403; tudo na conta do dono) e `rac-ia` (`fiscal.nota` aceita `casa`).
+- Site: `isDonoOuCasa()`, 6 chaves compartilhadas em `js/app.js`, Radar/alertas/junção em `mercado.js`/`js/radar.js`, Central Fiscal em `js/fiscal.js`. Testes: novos `banco_casa_radar_fiscal` (PGlite) e `pessoal_casa`; testes antigos que descreviam "só o dono" foram reescritos para a regra nova (não afrouxados nem apagados). Documentação em `docs/seguranca.md`, `docs/radar.md`, `docs/fiscal.md` e `07-decisoes-e-pendencias.md`.
+
+### 2. O que estamos fazendo
+- Aguardando o dono: PR e a ordem SQL → `radar` → `rac-ia` → site. Sem SQL, função ou site publicados por mim.
+
+### 3. O que vamos fazer
+- Depois que o dono aplicar: rodar a conferência 057, testar com a conta da Fernanda (Radar, alertas, nota por foto) e então rodar a 058 (liga a IA fiscal para a casa); avaliar teto de custo das buscas pagas do Radar para ela.
 
 ## 16/11/2026 · RAC Inbox I3.2 — gerenciamento de mensagens (branch `claude/rac-inbox-message-management-deiton`, versão `2026-11-16.4`)
 

@@ -25,6 +25,7 @@ globalThis.window.scrollTo = () => {}; globalThis.window.racDica = { ligar: (el,
 globalThis.location = { hash: "" };
 globalThis.PESSOAL = {}; let DONO = true;
 globalThis.isOwner = () => DONO;
+globalThis.isDonoOuCasa = () => true;   // Finanças e compras é igual para dono e casa (16/11/2026); o papel só muda o que é do dono de verdade
 globalThis.pessoalGravar = (k, v, cb) => { globalThis.PESSOAL[k] = v; if (cb) cb(); };
 createRequire(import.meta.url)("../nucleo.js");
 const N = globalThis.RACnucleo || globalThis.window.RACnucleo; globalThis.window.RACnucleo = N;
@@ -311,7 +312,7 @@ test("tela: Painel e Preços exportam o mês e a busca ativos", () => {
   } finally { cap.volta(); T.st.pmes = ""; T.st.q = ""; T.st.mes = null; }
 });
 
-test("tela: Alertas exportam o tipo aberto (só novos, ou também lidos e anteriores) e só aparecem para o dono", () => {
+test("tela: Alertas exportam o tipo aberto (só novos, ou também lidos e anteriores) e aparecem igual para o dono e para a casa (16/11/2026)", () => {
   DONO = true; globalThis.PESSOAL = {}; T.st.al = null; T.usar(ROWS, { email: "dono@teste" }); T.hoje(HOJE); const cap = capturar();
   try {
     const b = new El("div"); T.viewAlertas(b); assert.match(status(b), /Vai exportar: Alertas · todos os tipos ligados \(novos, lidos e anteriores\) · \d+ alertas/);
@@ -319,8 +320,8 @@ test("tela: Alertas exportam o tipo aberto (só novos, ou também lidos e anteri
     const tile = achar(b, (e) => e.tag === "button" && (e.attrs["aria-label"] || "").startsWith("Aumento de preço"))[0]; tile.onclick();
     const l = new El("div"); T.viewAlertas(l); assert.match(status(l), /Aumento de preço \(só os novos\)/); botao(l, "⬇ Exportar CSV").onclick();
     const s = secao(cap.feitos[1].csv, "Alertas"); assert.ok(s.linhas.length >= 1 && s.linhas.every((x) => x[0] === "Aumento de preço" && x[s.col("Situação")] === "Novo")); assert.equal(cap.feitos[1].nome, "rac-mercado-alertas_aumento_" + HOJE + ".csv");
-    /* fora do dono: a aba nem monta e a função recusa */
-    DONO = false; const n = new El("div"); T.viewAlertas(n); assert.equal(botao(n, "⬇ Exportar CSV"), undefined); assert.match(texto(n), /só do dono/);
+    /* a casa (Fernanda) tem a mesma aba e o mesmo botão */
+    DONO = false; const n = new El("div"); T.viewAlertas(n); assert.ok(botao(n, "⬇ Exportar CSV")); assert.doesNotMatch(texto(n), /Entre na sua conta/);
   } finally { cap.volta(); DONO = true; T.st.al = null; }
 });
 

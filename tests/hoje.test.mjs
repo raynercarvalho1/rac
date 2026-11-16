@@ -1229,7 +1229,7 @@ test("E4/1: a troca de identidade é tratada na hora (app.js, ao entrar), sem es
   assert.match(app, /EU=ses\.user;hojeAoEntrar\(EU\.id\);/, "ao entrar com uma conta");
   assert.match(app, /sair\.onclick=function\(\)\{hojeLimparLocal\(\);SB\.auth\.signOut/, "Sair no passo do código");
   assert.match(app, /hojeLimparLocal\(\);\s*SB\.auth\.signOut\(\)\.then\(function\(\)\{location\.reload\(\)\}\)\}\);/, "botão Sair");
-  assert.match(app, /if\(PAPEL!=="dono"\)\{hojeLimparLocal\(\);return\}/, "entrar como casa");
+  assert.match(app, /if\(PAPEL!=="dono"\)\{hojeLimparLocal\(\);return pessoalCarregar\(\)/, "entrar como casa: limpa o RAC Hoje ANTES de qualquer coisa e só então lê as 6 chaves compartilhadas (16/11/2026)");
   const ia = iaTeste(), mem = {}, s = comApp(site({ resp: RESP, jsons: JSONS, racIA: ia.racIA, mem }), mem); s.ctx.HOJE_IA_PRAZO = 30;
   await s.ctx.hojeAnalisar({ pergunta: PERG }); const chave = ia.chamadas[0][4];
   mem[CAC] = JSON.stringify({ k: { chave: "k", resultado: boa(), quando: iso(1e3), hoje: HOJE, fatos: [] } }); s.ctx.HOJE.mem = { k: { chave: "k" } };
@@ -1485,7 +1485,7 @@ test("E5/2: a conta da casa continua exatamente como era: mesma tela, nenhum eve
   assert.equal(t.ctx.HOJE.suspenso, null); assert.equal(limpezas, 0); assert.equal(JSON.stringify(mem), foto); assert.equal(tela.textContent, texto, "a tela da casa não mudou");
   await assert.rejects(t.ctx.hojeAnalisar(), /só da conta do dono/, "a mensagem da casa é a de sempre, não a de sessão"); assert.deepEqual(plano(t.ctx.RAChoje.historico()), []);
   /* o app.js: os caminhos de saída e da casa continuam os de antes, e nada de autenticação foi tocado */
-  const app = ler("js/app.js"); assert.match(app, /if\(PAPEL!=="dono"\)\{hojeLimparLocal\(\);return\}/); assert.match(app, /hojeAoEntrar\(EU\.id\)/);
+  const app = ler("js/app.js"); assert.match(app, /if\(PAPEL!=="dono"\)\{hojeLimparLocal\(\);return pessoalCarregar\(\)/); assert.match(app, /hojeAoEntrar\(EU\.id\)/);
   assert.ok(!/onAuthStateChange/.test(app + ler("js/hoje.js").replace(/\/\*[\s\S]*?\*\//g, "")), "nenhum listener de autenticação foi criado");
   const mer = ler("js/dados.js"); assert.match(mer, /persistSession: true, autoRefreshToken: true, storageKey: "rac-mercado-auth", experimental: \{ passkey: true \}/, "a configuração do Supabase não foi alterada (mora na camada de dados desde a Fase 2 · A1)");
   assert.match(ler("js/hoje.js"), /HOJE_AUTH_CHAVE="rac-mercado-auth"/, "e a chave vigiada é a mesma da configuração");

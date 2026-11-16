@@ -17,6 +17,7 @@ dos documentos da própria loja, guardando sempre o **arquivo original** e o que
 | ZIP exportado pela loja | JSZip 3.10.1 (cdnjs): lê os PDF, XML, CSV, e-mails e imagens de dentro |
 | E-mail (Gmail, .eml ou texto colado) | MIME decodificado (quoted-printable/base64, HTML sem tags) e anexos PDF/XML; confirmação, pagamento, envio, entrega, cancelamento, reembolso e nota fiscal |
 | Print / foto do pedido | OCR local com Tesseract.js 5.1.1 (jsDelivr; dados do português baixados na primeira vez) |
+| Print do Mercado Livre (tela "Detalhes da transação") | Mesmo OCR; `NUCLEO.coLerTexto` reconhece o layout (`coLerML`): número do pedido (`#…`, não o `#` do pagamento), data sem ano (ano de hoje, ou o anterior se cair no futuro), itens com "N unidade", desconto à vista, frete grátis, total pago e cartão. O valor ao lado do item é tratado como total da linha (hipótese, não confirmada para quantidade maior que 1). Se a soma não bater com o total, a conferência mostra um aviso. Nomes cortados pelo app ("…") ficam como aparecem. Teste: `tests/compras_ml_transacao.test.mjs` |
 
 - **Histórico oficial da Amazon, sem senha:** Central de Privacidade → "Solicitar seus dados" → "Seus pedidos". A Amazon manda um
   ZIP com o CSV de todos os pedidos; importar o ZIP traz o histórico inteiro. O site nunca pede nem guarda a senha da loja, não

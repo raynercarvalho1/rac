@@ -1173,3 +1173,15 @@ Família e da Casa.
 
 ### Segunda rodada do Adicionar conta (16/11/2026, versão `2026-11-16.2`)
 - O aparelho do dono ainda estava na versão antiga (PR #44 não mesclado): o formulário ficava aberto ao navegar e sem Cancelar; "Testar conexão" não aparecia (linha de conexão só existia com conta selecionada e o botão ficava em Opções). Corrigido: o formulário fecha ao navegar; Sincronizar e Testar conexão à vista, inclusive em "Todas as contas" com uma única conta; painel sólido na linha de conexão. Testes atualizados (o desenho antigo "discreto" foi substituído de propósito).
+
+## 16/11/2026 · Compras online — leitura do print do Mercado Livre (branch `claude/peaceful-edison-lfxv7q`)
+
+### 1. O que fizemos
+- Diagnóstico: o leitor de texto de pedidos não entendia a tela "Detalhes da transação" do Mercado Livre (perdia itens, número, data e total, e tratava o desconto como produto). Criado `coLerML` em `nucleo.js` (usado pela importação de print/PDF/e-mail), ajustes de categoria (garrafa PET não é animal; limpador, milho, ketchup, coca-cola) e teste `tests/compras_ml_transacao.test.mjs`. Testes de Compras, Central, estrutura e núcleo: 172 passaram. Documentado em `docs/compras.md`.
+
+### 2. O que estamos fazendo
+- Nada publicado: alteração local, sem commit, sem SQL, sem função. `VERSAO`/`MOD_VERSAO` ainda não trocadas (fazem parte da publicação).
+
+### 3. O que vamos fazer
+- Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: commit/PR/publicação quando o dono autorizar; avaliar importação de vários prints de uma vez e colar texto.
+

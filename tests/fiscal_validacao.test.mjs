@@ -52,7 +52,7 @@ function ambiente(o = {}) {
 const texto = (n) => (n.textContent !== undefined ? n.textContent : n.text) + (n.kids || []).map(texto).join(" ");
 const achar = (n, f) => (f(n) ? [n] : []).concat(...(n.kids || []).map((k) => achar(k, f)));
 const lerNota = (c, t) => c.fxLerArquivo(arq(t));
-const esperar = async (bloco) => { for (let i = 0; i < 600; i++) { await new Promise((r) => setTimeout(r, 5)); if (!/Salvando…/.test(texto(bloco))) return; } assert.fail("a gravação não terminou"); };
+const esperar = async (bloco) => { for (let i = 0; i < 600; i++) { await new Promise((r) => setTimeout(r, 5)); if (!/Gravando na Central Fiscal e lançando/.test(texto(bloco))) return; } assert.fail("a gravação não terminou"); };
 
 // ================= decisão do núcleo (a mesma que a tela e a gravação seguem) =================
 test("decisão: autorizada e consistente = validada; pendente/contingência consistente = pendente fiscal; o resto é bloqueado", () => {
@@ -100,7 +100,7 @@ test("nota divergente, de baixa confiança, cancelada ou rejeitada: nada é envi
 });
 test("nenhum caminho da tela cria despesa: só a função de gravar e a de conferir; sem escrita direta", () => {
   const js = ler("js/fiscal.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"]);
+  assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_confirmar", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"].sort());
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|gera_despesa|despesa\s*[:=]/i.test(js.replace(/Nenhuma nota gera despesa|Não gera despesa|despesas?\./gi, "")), "sem escrita em tabela nem criação de despesa");
 });
 
@@ -151,27 +151,30 @@ test("interface: cada situação mostra a conta, a diferença em reais e a situa
   const aut = await cartao("autorizada");
   assert.match(aut, /Situação fiscal.*Autorizada/); assert.match(aut, /Conta dos itens.*Consistente/); assert.match(aut, /Total calculado pelos itens.*R\$ 25,25/); assert.match(aut, /Total fiscal.*R\$ 25,25/); assert.match(aut, /Os itens fecham com o total fiscal/); assert.match(aut, /Pode ser gravada como validada/);
   const pend = await cartao("contingencia");
-  assert.match(pend, /Situação fiscal.*Contingência — pendente de validação fiscal/); assert.match(pend, /Conta dos itens.*Consistente/, "a conta certa não torna a nota autorizada"); assert.match(pend, /Só como pendente fiscal \(sem validação\)/);
+  assert.match(pend, /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim/); assert.match(pend, /Conta dos itens.*Consistente/, "a conta certa não torna a nota autorizada"); assert.match(pend, /Só como pendente fiscal \(sem validação\); a entrada no Mercado não espera a SEFAZ/);
   const div = await cartao("divergente");
   assert.match(div, /Conta dos itens.*Divergente/); assert.match(div, /Total calculado pelos itens.*R\$ 25,25/); assert.match(div, /Total fiscal.*R\$ 30,00/); assert.match(div, /R\$ 4,75 a menos que o total fiscal/); assert.match(div, /Situação fiscal.*Autorizada/, "autorizada com conta errada"); assert.match(div, /Gravação.*Bloqueada/);
   const baixa = await cartao("baixa"); assert.match(baixa, /Conta dos itens.*Baixa confiança/); assert.match(baixa, /Baixa confiança: Item 1.*falta a quantidade/);
   for (const k of ["cancelada", "rejeitada"]) { const t = await cartao(k); assert.match(t, new RegExp("Situação fiscal.*" + (k === "cancelada" ? "Cancelada" : "Rejeitada") + " — não vale como compra"), k); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /não vale como compra fiscal validada/); assert.match(t, /Gravação.*Bloqueada/); }
 });
-test("interface: o botão de salvar existe só quando a gravação é possível; pendente fiscal não pode ser conferida", async () => {
-  const { c } = ambiente(); const bloco = async (k) => c.fxBlocoSalvar(await lerNota(c, CASOS[k]));
+test("interface: o botão 'Estou de acordo' existe só quando a nota pode ser confirmada; sem botão de recusa; cancelada, rejeitada, divergente e sem quantidade mostram o motivo", async () => {
+  const { c } = ambiente(); const bloco = async (k) => { const b = c.fxBlocoConfirmar(await lerNota(c, CASOS[k])); await new Promise((r) => setTimeout(r, 30)); return b; };
   const botoes = (n) => achar(n, (x) => x.tag === "button"), caixas = (n) => achar(n, (x) => x.tag === "input");
-  const aut = await bloco("autorizada"); assert.equal(botoes(aut).length, 1); assert.equal(botoes(aut)[0].attrs.text, "Salvar na Central Fiscal"); assert.ok(!caixas(aut)[0].disabled, "pode marcar 'Conferi'");
-  for (const k of ["pendente", "contingencia"]) { const b = await bloco(k); assert.equal(botoes(b)[0].attrs.text, "Salvar como pendente fiscal"); assert.equal(caixas(b)[0].disabled, true); assert.match(texto(b), /sem conferência e sem validação até ser autorizada/); }
-  for (const k of ["divergente", "baixa", "cancelada", "rejeitada"]) { const b = await bloco(k); assert.equal(botoes(b).length, 0, k + ": sem botão"); assert.match(texto(b), /Gravação bloqueada.*Refaça a leitura.*Nada foi enviado nem gravado/, k); }
+  for (const k of ["autorizada", "pendente", "contingencia"]) { const b = await bloco(k); assert.equal(botoes(b).length, 1, k); assert.equal(botoes(b)[0].attrs.text, "Estou de acordo"); assert.equal(caixas(b).length, 0, "sem caixa 'Conferi'"); assert.equal(botoes(b)[0].disabled, false, k + ": habilitado depois de conferir a duplicidade"); }
+  assert.match(texto(await bloco("pendente")), /A situação fiscal pendente não impede a entrada/); assert.doesNotMatch(texto(await bloco("autorizada")), /não impede a entrada/);
+  for (const k of ["divergente", "baixa", "cancelada", "rejeitada"]) { const b = await bloco(k); assert.equal(botoes(b).length, 0, k + ": sem botão (e não existe botão de recusa)"); assert.match(texto(b), /Ainda não dá para confirmar.*Leia de novo com outra foto.*Nada foi enviado nem gravado/, k); }
 });
-test("interface: clicar em salvar mostra sucesso só se gravou; bloqueio por duplicidade mostra o motivo e não diz 'gravada'", async () => {
-  const ok = ambiente(); const bOk = ok.c.fxBlocoSalvar(await lerNota(ok.c, CASOS.autorizada)); achar(bOk, (x) => x.tag === "button")[0].onclick(); await esperar(bOk);
-  assert.match(texto(bOk), /Nota gravada \(pendente de conferência\)/); assert.equal(ok.ch.rpc.length, 1);
-  const dup = ambiente({ tab: { notas_fiscais: [{ id: "n1", chave: CHAVE, situacao: "autorizada" }] } }); const bDup = dup.c.fxBlocoSalvar(await lerNota(dup.c, CASOS.autorizada)); const btn = achar(bDup, (x) => x.tag === "button")[0]; btn.onclick(); await esperar(bDup);
-  const t = texto(bDup); assert.match(t, /já está na Central Fiscal/); assert.ok(!/Nota gravada/.test(t), "nenhuma mensagem de sucesso"); assert.equal(btn.disabled, true, "não dá para tentar de novo"); assert.equal(dup.ch.rpc.length, 0);
-  const pf = ambiente(); const bPf = pf.c.fxBlocoSalvar(await lerNota(pf.c, CASOS.contingencia)); achar(bPf, (x) => x.tag === "button")[0].onclick(); await esperar(bPf);
-  assert.match(texto(bPf), /gravada como pendente fiscal \(sem validação até a autorização\)/);
-  const falha = ambiente({ rpc: { error: { code: "42501", message: "x" } } }); const bF = falha.c.fxBlocoSalvar(await lerNota(falha.c, CASOS.autorizada)); const bt = achar(bF, (x) => x.tag === "button")[0]; bt.onclick(); await esperar(bF);
+test("interface: 'Estou de acordo' mostra sucesso só se o banco confirmou gravada E lançada; duplicidade mostra o motivo; falha permite tentar de novo", async () => {
+  const resp = (estado, extra = {}) => ({ data: { gravada: true, fiscal: { id: "novo", criado: true, avisos: [], semelhantes: [] }, nota_id: "novo", entrada: { estado, mercado_nota_id: estado === "falhou" ? null : "m1", itens: 2, total: 25.25, produtos_novos: 1, erro: estado === "falhou" ? "motivo do banco" : null, avisos: [] }, ...extra } });
+  const ok = ambiente({ rpc: resp("concluida") }); const bOk = ok.c.fxBlocoConfirmar(await lerNota(ok.c, CASOS.autorizada)); await new Promise((r) => setTimeout(r, 30)); achar(bOk, (x) => x.tag === "button")[0].onclick(); await esperar(bOk);
+  assert.match(texto(bOk), /✓ Nota gravada na Central Fiscal \(autorizada\) e lançada no Mercado: 2 itens, total R\$ 25,25\. 1 produto novo\./); assert.deepEqual(ok.ch.rpc.map((q) => q[0]), ["nota_fiscal_confirmar"]); assert.equal(ok.ch.rpc[0][1].p_conferir, true, "XML autorizado: a confirmação também confere");
+  const pf = ambiente({ rpc: resp("concluida") }); const bPf = pf.c.fxBlocoConfirmar(await lerNota(pf.c, CASOS.contingencia)); await new Promise((r) => setTimeout(r, 30)); achar(bPf, (x) => x.tag === "button")[0].onclick(); await esperar(bPf);
+  assert.match(texto(bPf), /\(contingência\) e lançada no Mercado/); assert.equal(pf.ch.rpc[0][1].p_conferir, false, "pendente e contingência nunca são conferidas");
+  const mf = ambiente({ rpc: resp("falhou") }); const bMf = mf.c.fxBlocoConfirmar(await lerNota(mf.c, CASOS.autorizada)); await new Promise((r) => setTimeout(r, 30)); achar(bMf, (x) => x.tag === "button")[0].onclick(); await esperar(bMf);
+  assert.match(texto(bMf), /⚠ Nota gravada na Central Fiscal.*confirmação ficou registrada.*não foi concluído: motivo do banco/); assert.ok(!/✓/.test(texto(bMf)), "falha no Mercado nunca mostra ✓"); assert.equal(achar(bMf, (x) => x.tag === "button" && x.attrs.text === "Tentar de novo").length, 1);
+  const dup = ambiente({ tab: { notas_fiscais: [{ id: "n1", chave: CHAVE, situacao: "autorizada" }] } }); const bDup = dup.c.fxBlocoConfirmar(await lerNota(dup.c, CASOS.autorizada)); await new Promise((r) => setTimeout(r, 30));
+  const t = texto(bDup); assert.match(t, /já está na Central Fiscal.*Nada será enviado/); assert.ok(!/Nota gravada/.test(t), "nenhuma mensagem de sucesso"); assert.ok(achar(bDup, (x) => x.tag === "button").every((b) => b.hidden === true), "não dá para confirmar"); assert.equal(dup.ch.rpc.length, 0);
+  const falha = ambiente({ rpc: { error: { code: "42501", message: "x" } } }); const bF = falha.c.fxBlocoConfirmar(await lerNota(falha.c, CASOS.autorizada)); await new Promise((r) => setTimeout(r, 30)); const bt = achar(bF, (x) => x.tag === "button")[0]; bt.onclick(); await esperar(bF);
   assert.match(texto(bF), /Não gravei/); assert.ok(!/Nota gravada/.test(texto(bF))); assert.equal(bt.disabled, false, "falha de rede/permissão permite tentar de novo");
 });
 test("estilo e versão: a classe de bloqueio existe no CSS e a versão do site e dos módulos mudou junto", () => {

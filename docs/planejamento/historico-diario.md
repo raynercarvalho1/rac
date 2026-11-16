@@ -1223,3 +1223,18 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: mesclar e só então rodar o workflow de publicação do Worker; depois, validação no iPhone (docs/inbox.md, I3.2).
+
+## 16/11/2026 · Central Fiscal: confirmação única "Estou de acordo" (branch `claude/central-fiscal-rac-redesign-r9r578`, versão `2026-11-16.6`)
+
+### 1. O que fizemos
+- Decisão do dono (16/11/2026), que **supera** o "congelamento" da Central Fiscal e a decisão sobre a `040` (registrada no Documento 07). Análise integral do fluxo (tela, núcleo, 034/036 a 040/057, `rac-ia`, testes) e plano aprovado com as decisões 1 a 8.
+- **Código (local, sem commit, nada aplicado nem publicado):** `nucleo.js` (correspondência de produto e de estabelecimento com corte de 70% por Jaccard simétrico e travas de marca/tamanho/embalagem/variante, decisões da entrada, quatro estados da nota, leitura da resposta; `SEG_TABELAS` com `notas_fiscais_entradas`); `supabase/059_central_fiscal_entrada_unica.sql` (tabela `notas_fiscais_entradas`, RPCs `nota_fiscal_confirmar` e `nota_fiscal_entrada_mercado`, ajudantes internos, gatilho de revisão, catálogo/`seguranca_estado()`) e `conferencias/059_conferir_producao.sql`; `js/fiscal.js` (seletor único, fila com progresso, cartão com a compra no Mercado, botão único "Estou de acordo", resultado único, "Tentar de novo", lista com quatro estados, nota antiga com confirmação individual); `index.html` (estilo); `sw.js`/`js/app.js`/`index.html` na versão `2026-11-16.6`; `scripts/calibrar_correspondencia.mjs`; `040` marcada como substituída (recusa-se a rodar).
+- **Testes:** novos `banco_entrada_unica` (PGlite, 17) e `fiscal_correspondencia` (7); `fiscal_foto_gravar`, `fiscal_validacao`, `fiscal_tela`, `fiscal_ia`, `banco_foto_pdf_site`, `banco_casa_radar_fiscal` e os guardas de migration/catálogo reescritos ou ajustados para o fluxo novo (nenhum teste foi apagado para passar sem equivalente). Resultado da suíte completa no relatório do lote.
+- Documentação: `docs/fiscal.md` (seção "Confirmação única"), `docs/seguranca.md`, `docs/mapa.md`, `README.md`, `docs/planejamento/` (01, 06, 07, 08).
+
+### 2. O que estamos fazendo
+- Ajustes pedidos pelo dono depois do relatório (16/11/2026): (1) a confiança baixa da IA volta a esconder o botão (a revisão humana não substitui a validação mínima; vale o editor que já existia); (2) recuperação técnica provada em teste (nota, original e confirmação preservados; falha registrada; "Tentar de novo" sem nova leitura nem confirmação; sem duplicar); (3) suíte completa reexecutada. A 057 **já está aplicada** em produção (informado pelo dono): não reaplicar.
+- Aguardando a autorização do dono para qualquer passo de produção. **Nada foi commitado, empurrado, publicado nem aplicado**; a `059` não foi rodada no Supabase real; nenhuma chamada de IA foi feita.
+
+### 3. O que vamos fazer
+- Dono, na ordem: (1) conferir o relatório; (2) a `057` já está aplicada: não reaplicar; (3) rodar a `059` no SQL Editor e a conferência `059`; (4) autorizar commit/PR/publicação do site; (5) teste real com uma nota (XML e foto) e, se quiser, calibrar os 70% com `scripts/calibrar_correspondencia.mjs` usando os produtos reais. Depois: decidir sobre estudo de viabilidade da consulta à SEFAZ (continua fora do escopo).

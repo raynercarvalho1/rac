@@ -23,7 +23,7 @@ const R = "11111111-1111-4111-8111-111111111111", F = "22222222-2222-4222-8222-2
 const trecho = (arq, ini, fim) => { const t = ler(arq), i = t.indexOf(ini); assert.ok(i >= 0, ini); return t.slice(i, t.indexOf(fim, i) + fim.length); };
 
 /* R = dono, F = Fernanda (membro da casa de R), X = de fora. com057 = aplica a proposta; migs = migrations de nota de foto a aplicar antes dela */
-async function banco({ com057 = true, migs = ["037_notas_fiscais_foto_pdf", "039_nota_foto_sem_chave", "040_nota_fiscal_entrada_mercado"] } = {}) {
+async function banco({ com057 = true, migs = ["037_notas_fiscais_foto_pdf", "039_nota_foto_sem_chave"] } = {}) {
   const db = await PGlite.create();
   await db.exec(`
     create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
@@ -174,8 +174,8 @@ test("PGlite · fiscal: a Fernanda grava nota de foto, lê tentativas e históri
   const u = await como(db, F, "select public.nota_fiscal_atualizar_situacao($1, 'cancelada', null, 'cancelamento lido', 'foto') as r", [c.id]).then((l) => l[0].r);
   assert.equal(u.para, "cancelada");
   assert.equal((await como(db, F, "select count(*)::int n from public.notas_fiscais_situacoes where nota_id = $1", [c.id]))[0].n >= 1, true, "ela lê o histórico");
-  const sem = await admin(db, "select proname, position('só o dono da casa' in prosrc) as pos from pg_proc where pronamespace='public'::regnamespace and proname in ('nota_fiscal_salvar_doc','nota_fiscal_atualizar_situacao','nota_fiscal_entrada_mercado') order by proname");
-  assert.equal(sem.length, 3); for (const f of sem) assert.equal(f.pos, 0, f.proname + " sem a trava de dono");
+  const sem = await admin(db, "select proname, position('só o dono da casa' in prosrc) as pos from pg_proc where pronamespace='public'::regnamespace and proname in ('nota_fiscal_salvar_doc','nota_fiscal_atualizar_situacao') order by proname");
+  assert.equal(sem.length, 2); for (const f of sem) assert.equal(f.pos, 0, f.proname + " sem a trava de dono");
   const x = await falha(salvarDoc(db, X, await subir(db, preparar(204))));
   assert.match(x.message, /caminho do documento|faça login|row-level|permission/i, "quem é de fora não grava na casa do dono: o caminho do arquivo da nota é da casa dele");
 });

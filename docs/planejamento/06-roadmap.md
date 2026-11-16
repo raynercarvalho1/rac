@@ -94,9 +94,8 @@ Classificação pedida: **Funciona** (já existe e funciona) · **Parcial** (exi
 | n8n | Agora não | — | — | — | — | — | Reavaliar nos gatilhos do [Documento 05](05-integracoes-e-automacoes.md#6-n8n-avaliar-depois-não-agora) |
 | Framework, TypeScript, bundler, reescrita | Agora não | — | — | — | — | — | — |
 
-**Fora do roadmap** (decisão do dono, 13/11/2026): a **Central Fiscal**. OCR, SEFAZ, emissão e acompanhamento fiscal não serão
-desenvolvidos; o código existente continua no ar, congelado, sem evolução; a migration `040` não é pendência e não será
-implementada. Registro completo no [Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas).
+**Central Fiscal (decisão do dono, 16/11/2026, supera a de 13/11/2026):** volta a evoluir só com a confirmação única ("Estou de acordo": nota + compra no Mercado; migration `059`, proposta; substitui a `040`). OCR local, consulta automática à SEFAZ e emissão continuam fora do roadmap.
+Registro completo no [Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas).
 
 **Proteção da `main`**: a ruleset já está ativa (13/11/2026) e não é item do roadmap; só a comprovação dos robôs está na F1.
 

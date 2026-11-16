@@ -1,5 +1,6 @@
 -- status: pendente
 -- PROPOSTA 040 · NÃO APLICADA EM PRODUÇÃO (Lote 1.6, pedido do dono em 08/11/2026). O dono roda no SQL Editor do Supabase ANTES de usar "Dar entrada no Mercado" no site.
+-- SUBSTITUÍDA pela 059 (16/11/2026, confirmação única): NÃO APLIQUE esta migration. Ela só reaproveitava produto de descrição idêntica, não rateava descontos/frete, fixava a categoria em Mercearia e não registrava a confirmação. Mantida só como histórico; o arquivo se recusa a rodar.
 -- Por que existe: muitas notas de mercado não têm chave legível e o dono quer lançar a compra NO SISTEMA dele na hora, sem esperar a validação fiscal (protocolo).
 -- A situação fiscal (pendente/autorizada) é só uma etiqueta da nota; a ENTRADA no Mercado vale pelo "Conferi" do dono. As duas coisas ficam separadas.
 -- O que faz: nota_fiscal_entrada_mercado(p_nota_id, p_conferi) cria UMA compra no Mercado (notas + itens, e o mercado e os produtos que faltarem) a partir da nota já guardada na Central Fiscal,
@@ -11,6 +12,8 @@
 -- SECURITY INVOKER (RLS e as travas "mfa" valem); tudo numa transação; não cria tabela, política nem gatilho; não altera dado existente. Pode rodar de novo sem estragar nada.
 -- Conferência depois de aplicar: supabase/conferencias/040_conferir_producao.sql (só leitura).
 begin;
+
+do $$ begin raise exception '040 substituída pela 059: não aplique (supabase/059_central_fiscal_entrada_unica.sql)'; end $$;
 
 create or replace function public.nota_fiscal_entrada_mercado(p_nota_id uuid, p_conferi boolean)
   returns jsonb language plpgsql security invoker set search_path = '' as $$

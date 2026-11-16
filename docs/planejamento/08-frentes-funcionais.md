@@ -1,8 +1,7 @@
 # RAC · 08 · Frentes funcionais
 
 Propostas funcionais e técnicas de cada frente (13/11/2026). **Nada aqui foi implementado.** Toda tabela citada é proposta;
-os nomes são sugestões para discussão. Migrations novas começariam no número 050 (a 049 é a última aplicada; a 040 não foi aplicada
-e não será, por decisão do dono; 041 e 044 são propostas). Convenções [Fato] / [Hipótese] / [Recomendação]: ver o
+os nomes são sugestões para discussão. Migrations novas começariam no número 050 (a 049 é a última aplicada; a 040 foi **substituída** pela 059 em 16/11/2026 e não deve ser aplicada; 041 e 044 são propostas). Convenções [Fato] / [Hipótese] / [Recomendação]: ver o
 [Documento 1](01-visao-e-mapa-mestre.md#como-ler-este-conjunto).
 
 Regras que valem para toda tabela nova (do `CLAUDE.md`): arquivo numerado em `supabase/` que pode rodar de novo, RLS ligado,
@@ -213,6 +212,4 @@ garantias e manutenção.
 **Fica para uma etapa própria**: kits e combos, patrimônio (bens duráveis ligados à nota e à garantia em Documentos) e
 manutenção. Pendentes desta área: a proposta `041` (categorias oficiais) e a `044` (IA do Radar).
 
-**Fora do planejamento** (decisão de 13/11/2026): funcionalidades fiscais, OCR, SEFAZ, emissão e acompanhamento fiscal. A Central Fiscal
-continua no ar, congelada e sem evolução; não volta ao roadmap. A migration `040` (dar entrada da nota no Mercado) não será
-implementada e não é pendência ([Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas)).
+**Central Fiscal (decisão de 16/11/2026, que supera a de 13/11/2026):** evolui com a confirmação única ("Estou de acordo" grava a nota e lança a compra no Mercado; migration `059`, proposta). Seguem **fora do planejamento**: OCR local, consulta automática à SEFAZ (sem viabilidade comprovada) e emissão ([Documento 07](07-decisoes-e-pendencias.md#decisões-tomadas), [docs/fiscal.md](../fiscal.md)).

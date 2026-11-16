@@ -209,6 +209,12 @@ aviso de preço por push (a rotina trata só o dono) e a função `garmin` (não
 (mesmo orçamento de IA da casa). **Dados compartilhados:** ela edita os mesmos produtos, lojas, vínculos, junções e ajustes de alertas do dono, não uma cópia.
 **Ordem de publicação:** SQL (057) → função `radar` → função `rac-ia` → site; por último a 058 (liga a IA fiscal para a casa; o mesmo arquivo traz o comando de desligar).
 
+### Central Fiscal: confirmação única e a tabela `notas_fiscais_entradas` (16/11/2026; migration 059, proposta, não aplicada)
+- Tabela nova **`notas_fiscais_entradas`** (uma linha por nota confirmada: quem clicou em "Estou de acordo", quando, as decisões de produto e o estado da entrada no Mercado): RLS ligado; política "casa" **só de leitura**; trava restritiva **"mfa"**; `revoke all` do anon e do authenticated e `grant select` só para quem entrou (**ninguém escreve direto**; só as funções); entra em `NUCLEO.SEG_TABELAS` (só exportar) e em `seguranca_estado()` (lista da trava "mfa").
+- Funções `nota_fiscal_confirmar` e `nota_fiscal_entrada_mercado`: **SECURITY DEFINER** com `search_path` vazio (como a 037, para a trilha não ser forjável); conferem login, MFA (`rac_aal_ok()`) e a casa por conta própria e gravam sempre com `user_id = dono_da_casa()`; **dono e casa** (sem a linha "só o dono"). Os ajudantes `nf_mercado_lancar` e `nf_entrada_processar` **não são executáveis** por quem entrou. `anon` não executa nenhuma. Não chamam IA, não criam despesa e não alteram `notas_fiscais` nem os itens originais.
+- A 059 **não enfraquece** RLS, MFA, validações nem a proteção do Storage; a gravação fiscal continua sendo a da 034/037/039. Limite conhecido: as funções chamadas por dentro rodam com o dono da função (RLS não se aplica ao que elas gravam; por isso cada gravação filtra a casa explicitamente e a validação de MFA/login é refeita).
+- **Ordem:** 034 → 037 → 038 → 039 → (057, para a Fernanda gravar foto/PDF) → **059** → site. Depois: `supabase/conferencias/059_conferir_producao.sql`. A 040 foi substituída e **não deve ser aplicada**.
+
 ## Implantação (nesta ordem)
 
 1. `node --test tests/*.test.mjs` passando.

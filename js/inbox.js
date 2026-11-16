@@ -135,7 +135,7 @@
         if(!g.pastas.length)box.appendChild(h("p",{class:"inb-nota",text:INBX.cred[c.id]==="ativa"?"As pastas aparecem na primeira sincronização.":"Conecte a conta para ver as pastas."}))}});
     box.appendChild(h("p",{class:"inb-grupo"},"Categorias",h("span",{class:"inb-etiqueta",text:"Etapa I4"})));
     NUCLEO.INB_CATEGORIAS.forEach(function(k){box.appendChild(h("button",{type:"button",class:"inb-pasta inb-item--off","aria-disabled":"true",title:"Categorias inteligentes chegam na etapa I4"},inboxIco("tag"),h("span",{class:"inb-item-nome",text:k[1]})))});
-    var rod=h("div",{class:"inb-lateral-rod"}),add=h("button",{type:"button",class:"inb-link","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=function(){INBX.form=!INBX.form;INBX.aviso=null;inboxDesenhar()};rod.appendChild(add);
+    var rod=h("div",{class:"inb-lateral-rod"}),add=h("button",{type:"button",class:"inb-link","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=inboxAlternarForm;rod.appendChild(add);
     var ex=h("button",{type:"button",class:"inb-link",text:INBX.demo?"Sair do exemplo":"Ver exemplo da interface"});ex.onclick=inboxAlternarDemo;rod.appendChild(ex);box.appendChild(rod);
     return box}
   function inboxAlternarDemo(){
@@ -294,7 +294,7 @@
     INBX.compor={modo:modo,conta_id:conta.id,origem:origem,de:conta.endereco,para:r.para.join(", "),cc:r.cc.join(", "),cco:"",assunto:r.assunto,texto:r.texto,avisos:r.avisos,inicial:r.texto,mostrarCc:r.cc.length>0,
       etapa:"editar",envioId:inboxNovoId(),erros:{},entrada:null,resultado:null,classe:null};
     INBX.painel="leitura";INBX.aviso=null;inboxDesenhar();
-    setTimeout(function(){var el=document.getElementById(modo==="novo"||modo==="encaminhar"?"inb-c-para":"inb-c-texto");if(el){el.focus();if(el.setSelectionRange&&el.id==="inb-c-texto")el.setSelectionRange(0,0)}},30)}
+    setTimeout(function(){var el=document.getElementById(modo==="novo"||modo==="encaminhar"?"inb-c-para":"inb-c-texto");if(el&&typeof el.focus==="function"){el.focus();if(el.setSelectionRange&&el.id==="inb-c-texto")el.setSelectionRange(0,0)}},30)}
   function inboxDescartarCompor(){
     var C=INBX.compor;if(!C)return true;
     if(C.etapa==="enviando")return false;
@@ -380,21 +380,35 @@
         INBX.aviso=r.aprovada?{tipo:"ok",t:"Prova de envio aprovada em "+r.total_ms+" ms. "+seq+(r.teste==="enviado"?" · E-mail de teste aceito pelo servidor: confira se ele chegou à caixa.":" · Nenhum e-mail foi enviado.")}:
           {tipo:"erro",t:"Prova de envio reprovada na etapa “"+(NUCLEO.INB_ETAPAS_PROVA[r.etapa_falha]||r.etapa_falha)+"” ("+r.erro+")"+(r.teste==="incerto"?"; o e-mail de teste ficou incerto, confira a caixa. ":". ")+seq}}
       inboxDesenhar()})}
+  /* Abrir/fechar o formulário "Adicionar conta". O botão mora na lateral, que no celular é uma camada FIXA em tela cheia (painel "caixas"); o formulário é desenhado na página, por baixo dela.
+     Por isso abrir o formulário FECHA a camada (painel "lista"): sem isso o formulário existia no DOM mas ficava coberto (causa do "botão não abre" no iPhone). Depois rola até ele. */
+  function inboxAlternarForm(){
+    var abrir=!INBX.form;INBX.form=abrir;INBX.aviso=null;INBX.painel="lista";inboxDesenhar();
+    if(abrir)setTimeout(inboxRolarAoForm,30)}
+  function inboxRolarAoForm(){var el=document.getElementById("inb-form-conta");if(el&&el.scrollIntoView)el.scrollIntoView({block:"start",behavior:"auto"})}
+  function inboxFecharForm(){INBX.form=false;INBX.erros={};INBX.aviso=null;inboxDesenhar()}
+  /* campo do formulário que guarda o que foi digitado em INBX.valores a cada tecla: uma nova renderização (sincronização, aviso, troca de painel) nunca apaga o que a pessoa escreveu */
+  function inboxCampoConta(rotulo,id,campo,opc){
+    var V=INBX.valores,erro=INBX.erros[campo],ajId=id+"-aj",inp=h("input",{class:"rac-campo-entrada",id:id,type:"text",inputmode:opc.email?"email":"text",autocapitalize:opc.email?"none":"words",autocomplete:"off",autocorrect:"off",spellcheck:"false","aria-describedby":opc.ajuda||erro?ajId:null,"aria-invalid":erro?"true":null});
+    inp.value=V[campo]||"";inp.oninput=function(){INBX.valores[campo]=inp.value};
+    return h("div",{class:"rac-campo"+(erro?" rac-campo--erro":"")},h("label",{class:"rac-campo-rotulo","for":id,text:rotulo}),inp,erro||opc.ajuda?h("span",{class:"rac-campo-ajuda",id:ajId,text:(erro?"✗ ":"")+(erro||opc.ajuda)}):null)}
   /* ---- adicionar conta: só provedor, apelido e endereço (a credencial é um passo à parte, na conta) ---- */
   function inboxForm(){
     var V=INBX.valores,E=INBX.erros,sel=h("select",{class:"rac-campo-entrada",id:"inb-prov","aria-label":"Provedor"});
     NUCLEO.INB_PROVEDORES.forEach(function(p){var o=h("option",{value:p.id,text:p.nome+(p.ativo?"":" (fase futura)")});if(!p.ativo)o.setAttribute("disabled","disabled");if(V.provedor===p.id)o.setAttribute("selected","selected");sel.appendChild(o)});
-    var ap=rkCampo("Nome da conta","inb-apelido",{valor:V.apelido,erro:E.apelido,ajuda:"Como você quer ver esta caixa (ex.: Pessoal)."}),en=rkCampo("Endereço de e-mail","inb-endereco",{valor:V.endereco,erro:E.endereco});
-    var salvar=rkBtn("pri","Cadastrar conta");
+    sel.onchange=function(){INBX.valores.provedor=sel.value};
+    var ap=inboxCampoConta("Nome da conta","inb-apelido","apelido",{ajuda:"Como você quer ver esta caixa (ex.: Pessoal)."}),en=inboxCampoConta("Endereço de e-mail","inb-endereco","endereco",{email:true});
+    var salvar=rkBtn("pri","Cadastrar conta"),cancelar=rkBtn("ter","Cancelar");cancelar.onclick=inboxFecharForm;
     salvar.onclick=function(){
-      INBX.valores={provedor:sel.value,apelido:document.getElementById("inb-apelido").value,endereco:document.getElementById("inb-endereco").value};
+      INBX.valores={provedor:sel.value,apelido:document.getElementById("inb-apelido").value,endereco:document.getElementById("inb-endereco").value};   /* (relê dos campos: cobre o preenchimento automático do navegador, que não dispara tecla) */
       var v=NUCLEO.inbContaValida(INBX.valores);INBX.erros=v.ok?{}:v.erros;
       if(!v.ok){inboxDesenhar();return}
       salvar.setAttribute("disabled","disabled");salvar.setAttribute("aria-busy","true");
       Promise.resolve(SB.from("inbox_contas").insert(v.linha).select("*")).then(sbOk).then(function(){INBX.form=false;INBX.valores={provedor:"icloud",apelido:"",endereco:""};INBX.aviso={tipo:"ok",t:"Conta cadastrada. Conecte-a com a senha específica de app para poder sincronizar."};return inboxLer()},
         function(e){INBX.erros={endereco:e&&e.code==="23505"?"Esta conta já está cadastrada.":NUCLEO.segTabelaAusente(e&&(e.message||e.code))?"A estrutura do Inbox ainda não existe no banco (migration 051 pendente).":"Não consegui cadastrar agora."}}).then(inboxDesenhar)};
-    return rkCard("Adicionar conta",h("div",{class:"rac-pilha"},h("div",{class:"rac-campo"},h("label",{class:"rac-campo-rotulo","for":"inb-prov",text:"Provedor"}),sel,E.provedor?h("span",{class:"rac-campo-ajuda",text:"✗ "+E.provedor}):null),ap,en,
-      rkInfo("i","Sem senha neste formulário","Aqui só se cadastra a conta. A credencial (senha específica de app) é um passo à parte, dentro da conta, e vai direto para o cofre do servidor."),salvar))}
+    /* "Cancelar" só existe quando há contas (sem nenhuma, o formulário é o próprio estado vazio e não se fecha) */
+    return h("div",{id:"inb-form-conta"},rkCard("Adicionar conta",h("div",{class:"rac-pilha"},h("div",{class:"rac-campo"},h("label",{class:"rac-campo-rotulo","for":"inb-prov",text:"Provedor"}),sel,E.provedor?h("span",{class:"rac-campo-ajuda",text:"✗ "+E.provedor}):null),ap,en,
+      rkInfo("i","Sem senha neste formulário","Aqui só se cadastra a conta. A credencial (senha específica de app) é um passo à parte, dentro da conta, e vai direto para o cofre do servidor."),h("div",{class:"inb-form-acoes"},INBX.contas.length?cancelar:null,salvar))))}
   /* ---- paridade honesta: o que cada provedor faz de verdade, com o nível de evidência ---- */
   function inboxMatriz(){
     var tab=h("table",{class:"rac-tabela inb-matriz"}),cab=h("tr",null,h("th",{text:"Recurso"}));

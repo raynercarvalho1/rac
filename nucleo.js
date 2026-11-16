@@ -1743,12 +1743,12 @@
      evita duplicidade e acha recorrências. Nunca guarda número de cartão: só a bandeira e os 4 últimos dígitos. ===== */
   var CO_LOJAS={amazon:"Amazon",mercadolivre:"Mercado Livre",shopee:"Shopee",magalu:"Magazine Luiza",outra:"Outra loja"};
   var CO_CATEGORIAS=["Pet","Saúde e farmácia","Casa","Eletrônicos","Higiene e beleza","Bebê","Alimentação","Livros e papelaria","Veículos","Vestuário","Presentes","Outros"];
-  var CO_CAT_PALAVRAS=[["Pet",/bravecto|nexgard|simparic|credeli|ra[cç][aã]o|petisco|antipulga|vermifug|coleira|areia (?:sanit|higi)|\bpet\b|\bcaes\b|\bcaes\b|gatos?\b/],["Bebê",/fralda|pampers|huggies|\bnan\b|aptamil|mamadeira|chupeta|len[cç]o umedecido|bebe\b/],
+  var CO_CAT_PALAVRAS=[["Pet",/bravecto|nexgard|simparic|credeli|ra[cç][aã]o|petisco|antipulga|vermifug|coleira|areia (?:sanit|higi)|\bpet\b(?!\s*\d+\s*(?:ml|l|litros?)\b)|\bcaes\b|\bcaes\b|gatos?\b/],["Bebê",/fralda|pampers|huggies|\bnan\b|aptamil|mamadeira|chupeta|len[cç]o umedecido|bebe\b/],
     ["Saúde e farmácia",/vitamina|suplemento|medicament|dipirona|paracetamol|ibuprofeno|termometro|curativo|whey|creatina/],["Higiene e beleza",/shampoo|condicionador|sabonete|desodorante|creme dental|escova de dente|perfume|protetor solar|hidratante/],
     ["Eletrônicos",/fone|cabo usb|carregador|celular|smartphone|notebook|tablet|kindle|echo|alexa|mouse|teclado|monitor|ssd|hd externo|pilha|bateria|smartwatch|hdmi/],
     ["Livros e papelaria",/livro|caderno|caneta|papel a4|agenda|lapis|marca texto/],["Veículos",/oleo de motor|lubrificante|pneu|palheta|automotiv|capacete|moto\b/],
-    ["Casa",/panela|toalha|lencol|travesseiro|organizador|lampada|ferramenta|cozinha|limpeza|detergente|vassoura|aspirador|cafeteira|filtro de agua/],
-    ["Vestuário",/camiseta|camisa|calca|tenis|bermuda|meia|cueca|vestido|jaqueta/],["Alimentação",/cafe |capsula|chocolate|biscoito|azeite|arroz|feijao|leite|cerveja|refrigerante/]];
+    ["Casa",/panela|toalha|lencol|travesseiro|organizador|lampada|ferramenta|cozinha|limpeza|detergente|vassoura|aspirador|cafeteira|filtro de agua|limpador|desinfetante|amaciante/],
+    ["Vestuário",/camiseta|camisa|calca|tenis|bermuda|meia|cueca|vestido|jaqueta/],["Alimentação",/cafe |capsula|chocolate|biscoito|azeite|arroz|feijao|leite|cerveja|refrigerante|coca-cola|milho|ketchup|maionese/]];
   function coCategoria(desc){var n=" "+norm(desc)+" ";for(var i=0;i<CO_CAT_PALAVRAS.length;i++)if(CO_CAT_PALAVRAS[i][1].test(n))return CO_CAT_PALAVRAS[i][0];return "Outros"}
   /* "R$ 1.234,56", "-R$ 6,82", "136.42" → número (≥ 0); vazio → null */
   function coNum(v){if(v==null||v==="")return null;if(typeof v==="number")return isFinite(v)?Math.abs(v):null;
@@ -1769,7 +1769,34 @@
   function coLinhaValor(txt,re){var m=re.exec(txt);return m?coNum(m[m.length-1]):null}
   /* texto de pedido (PDF de resumo, e-mail de confirmação/envio/entrega, print com OCR) → dados do pedido. Tolerante: o que não for
      lido fica null e vai para a conferência. */
-  function coLerTexto(texto){var t=String(texto||"").replace(/ /g," ").replace(/[ \t]+/g," "),n=norm(t),o={itens:[],avisos:[]};
+  /* Mercado Livre · tela "Detalhes da transação" (print do app): data sem ano, "#número" do pedido, itens com "N unidade", "Desconto à vista",
+     "Frete Grátis" e "Total pago". Devolve null se o texto não for dessa tela (aí vale o leitor geral). O ano que falta é o do dia de
+     hoje (ou o anterior, se a data cair no futuro); o valor ao lado de cada item é tratado como o total da linha. */
+  function coLerML(t,hoje){if(!/detalhes da transa[cç][aã]o/i.test(t)||!/mercado ?livre|mercadolivre|total pago/i.test(t))return null;
+    var L=t.split("\n").map(function(x){return x.trim()}).filter(Boolean),J=[];
+    L.forEach(function(x){if(/^R\$\s*[\d.,]+$/i.test(x)&&J.length&&!/R\$/.test(J[J.length-1]))J[J.length-1]+=" "+x;else J.push(x)});
+    var o={itens:[],avisos:[],loja:"mercadolivre",tipo:"resumo",vendedor:null,recorrencia:null,chave_nfe:null,subtotal:null,desconto:null,frete:null,taxas:null,total_pago:null,numero:null,data:null};
+    var tn=/#\s*(\d{14,20})\b/.exec(t);o.numero=tn?tn[1]:null;
+    var dm=/(\d{1,2})\s+de\s+([a-zçãé]+)\.?(?:\s+de\s+(\d{4}))?/i.exec(t.replace(/\|/g," ")),mes=dm?CO_MESES[norm(dm[2])]:null;
+    if(dm&&mes){var h=hoje instanceof Date?hoje:new Date(),ano=dm[3]?+dm[3]:h.getFullYear(),dd=+dm[1];
+      if(!dm[3]&&new Date(ano,mes-1,dd)>h)ano-=1;o.data=ano+"-"+(mes<10?"0":"")+mes+"-"+(dd<10?"0":"")+dd}
+    var desc=0,achouD=false;
+    for(var i=0;i<J.length;i++){var x=J[i],m;
+      if(/^desconto|^cupom/i.test(x)){if((m=/[-−–]\s*R\$\s*([\d.,]+)/.exec(x))){desc+=coNum(m[1])||0;achouD=true}continue}
+      if(/^frete/i.test(x)){if(/gr[aá]tis|gratuito/i.test(x))o.frete=0;else if((m=/R\$\s*([\d.,]+)/.exec(x)))o.frete=coNum(m[1]);continue}
+      if(/^total/i.test(x)){if((m=/R\$\s*([\d.,]+)/.exec(x)))o.total_pago=coNum(m[1]);continue}
+      if(/^(?:juros|taxas?)\b/i.test(x)){if((m=/R\$\s*([\d.,]+)/.exec(x)))o.taxas=coNum(m[1]);continue}
+      if((m=/^(.{3,}?)\s+R\$\s*([\d.,]+)$/i.exec(x))&&!/^\d+\s*x\b/i.test(x)&&!/^(?:mastercard|visa|elo|amex|hipercard|pix)\b/i.test(x)){
+        var q=/^(\d+)\s*unidades?\b/i.exec(J[i+1]||"");o.itens.push({descricao:m[1].replace(/\s*(?:\.{2,}|…)\s*$/,"").trim().slice(0,160),qtd:q?+q[1]:1,total:coNum(m[2]),unitario:null});if(q)i++}}
+    o.itens.forEach(function(it){if(it.total!=null&&it.qtd)it.unitario=Math.round(it.total/it.qtd*100)/100;it.categoria=coCategoria(it.descricao)});
+    o.desconto=achouD?Math.round(desc*100)/100:null;
+    if(o.itens.length&&o.itens.every(function(it){return it.total!=null}))o.subtotal=Math.round(o.itens.reduce(function(s,it){return s+it.total},0)*100)/100;
+    o.pagamento=coPagamento(t);
+    if(o.subtotal!=null&&o.total_pago!=null){var conta=Math.round((o.subtotal-(o.desconto||0)+(o.frete||0)+(o.taxas||0))*100)/100;
+      if(Math.abs(conta-o.total_pago)>0.009)o.avisos.push("A soma dos itens menos o desconto ("+conta.toFixed(2).replace(".",",")+") não bate com o total pago ("+o.total_pago.toFixed(2).replace(".",",")+"): confira se algum item não foi lido.")}
+    return o}
+  function coLerTexto(texto,hoje){var t=String(texto||"").replace(/ /g," ").replace(/[ \t]+/g," "),n=norm(t),o={itens:[],avisos:[]};
+    var ml=coLerML(t,hoje);if(ml)return ml;
     o.loja=/amazon/.test(n)?"amazon":/mercado ?livre|mercadolivre/.test(n)?"mercadolivre":/shopee/.test(n)?"shopee":/magalu|magazine luiza/.test(n)?"magalu":"outra";
     var num=/\b(\d{3}-\d{7}-\d{7})\b/.exec(t)||/(?:pedido|compra|order)\s*(?:n[ºo°.]*|#|numero|id)?\s*:?\s*#?(\d{8,20})\b/i.exec(t);o.numero=num?num[1]:null;
     var dl=/(?:pedido (?:feito|realizado|efetuado)(?: em)?|data do pedido|feito em|realizado em|order placed|compra realizada em)\s*:?\s*([^\n]{6,40})/i.exec(t);o.data=coData(dl?dl[1]:t);

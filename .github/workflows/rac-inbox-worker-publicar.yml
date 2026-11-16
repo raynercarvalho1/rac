@@ -18,9 +18,9 @@ on:
         required: true
         type: string
       versao_esperada:
-        description: "Carimbo de versão que o Worker deve ter (política.mjs), ex.: rac-inbox-worker@p8.0. Se o pacote tiver outro, nada é publicado."
+        description: "Carimbo de versão do Worker em política.mjs. Se o pacote tiver outro, nada é publicado."
         required: true
-        default: "rac-inbox-worker@p8.0"
+        default: "rac-inbox-worker@p9.0"
         type: string
       exigir_secret_k1:
         description: "sim = só publica se o secret RAC_CANAL_K1 já existir no Worker (padrão). nao = para a primeira publicação de um Worker novo."

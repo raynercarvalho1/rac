@@ -1185,3 +1185,16 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono testa com um print real em Compras → Importar (o OCR do aparelho não foi exercitado aqui, só o texto). Depois: commit/PR/publicação quando o dono autorizar; avaliar importação de vários prints de uma vez e colar texto.
 
+## 16/11/2026 · RAC Inbox I3.2 — gerenciamento de mensagens (branch `claude/rac-inbox-message-management-deiton`, versão `2026-11-16.4`)
+
+### 1. O que fizemos
+- Estado de partida (dono): leitura, sincronização, notificações, Vault, SMTP, nova mensagem, resposta, resposta a todos e encaminhamento **validados em produção** (corrige os registros anteriores que ainda os davam como pendentes; o histórico foi preservado).
+- Implementado em código: operação `organizar_mensagem` (marcar lida/não lida, arquivar, excluir=Lixeira, spam, não é spam, mover para pasta): Worker (`imap.mjs`, seção I3.2; `p9.0`), função (`organizar.ts`; `i3.2`), site (`inbox.js`, `nucleo.js`, CSS). Sem migration.
+- Auditoria: o `CAPABILITY` real do iCloud (P6, antes do login) não tem MOVE nem UIDPLUS; por isso mover só ocorre se o MOVE aparecer depois do login, e sem ele há erro controlado, sem fallback destrutivo.
+- Testes (simulados, não contra o iCloud real): novos `rac_inbox_worker_gestao`, `inbox_organizar_servico`, `inbox_organizar_sql`, `inbox_organizar_nucleo`, `inbox_organizar_tela`; Chromium a 390 e 1440 px (52 verificações ok).
+
+### 2. O que estamos fazendo
+- PR aberto para revisão; **nada publicado**: Worker, função e site dependem de autorização do dono; nenhum SQL.
+
+### 3. O que vamos fazer
+- Dono: mesclar, publicar Worker e função, validar no iPhone (roteiro em `docs/inbox.md`, "I3.2") e informar se o iCloud anuncia MOVE depois do login. Depois: decidir sobre caminho alternativo se não anunciar; ações em lote; botão por linha.

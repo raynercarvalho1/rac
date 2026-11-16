@@ -325,3 +325,8 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - A saúde do deploy **não assina** pedido: 401 `cabecalhos_invalidos` sem assinatura prova Worker no ar e chave do canal configurada. A prova assinada de ponta a ponta é o botão "Testar conexão" do RAC.
 - **Pendências do dono:** token Cloudflare (Workers Scripts: Edit), Environment `cloudflare-production` (só `main`, aprovação do dono), secrets, mesclar o PR e executar o workflow.
 
+## Decisões — RAC Inbox I3.2 (16/11/2026)
+- **Escrita na caixa só por `organizar_mensagem`**, uma mensagem por vez; comandos IMAP em lista fechada (`SELECT`, `UID STORE \Seen`, `UID MOVE`); nunca EXPUNGE, `\Deleted`, COPY, CLOSE nem exclusão definitiva (excluir = Lixeira).
+- **Sem MOVE no servidor (depois do login), nada que move é feito** (`acao_indisponivel`); alternativa só por decisão futura do dono.
+- **Resposta incerta nunca é repetida**; o estado real é verificado (`verificar_mensagem`) antes de concluir.
+- **Pendências:** publicar Worker `p9.0` e função `i3.2` (dono); validar no iPhone; incluir `inbox_organizar_sql.test.mjs` no Grupo 2 do `testes.yml` (workflow: autorização do dono).

@@ -3,6 +3,7 @@
 // interrompe a operação sem alternativa; só uma sincronização por conta ao mesmo tempo. SEM estado global: nada é guardado entre chamadas, e o segredo descriptografado vive só em variáveis locais de uma chamada.
 import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido, VERSAO_FUNCAO } from "./contrato.ts";
 import { envioPuro } from "./envio.ts";
+import { organizarPuro } from "./organizar.ts";
 import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
@@ -34,7 +35,14 @@ export interface Banco {
   pastaPorUso?(dono: string, conta: string, uso: string): Promise<{ id: string; nome_externo: string } | null>;
   envioIniciar?(dono: string, conta: string, envioId: string, a: { message_id: string; modo: string; destinatarios: number }): Promise<{ novo: boolean; estado: "pendente" | "enviado" | "falha" | "incerto"; message_id: string } | null>;
   envioFinalizar?(dono: string, conta: string, envioId: string, estado: "enviado" | "falha" | "incerto", codigo: string | null): Promise<void>;
+  /* I3.2 · gerenciamento (sem migration: usa as tabelas 051/053). Opcionais pelo mesmo motivo do envio: sem elas, "organizar_mensagem" responde "banco_indisponivel" */
+  pastaDetalhe?(dono: string, conta: string, pastaId: string): Promise<{ id: string; nome_externo: string; uso: string } | null>;
+  mensagemRef?(dono: string, conta: string, pastaId: string, uid: number): Promise<{ id: string; uid: number; uidvalidity: number | null; message_id: string | null; tamanho: number | null; lida: boolean } | null>;
+  aplicarOrganizacao?(dono: string, conta: string, a: AplicacaoOrganizacao): Promise<void>;
 }
+export type AplicacaoOrganizacao =
+  | { tipo: "lida"; mensagemId: string; pastaId: string; lida: boolean }
+  | { tipo: "mover"; mensagemId: string; pastaId: string; destinoPastaId: string; destinoUidvalidity?: number; destinoUid?: number };
 export interface Contexto {
   usuario: { id: string; mfaOk: boolean } | null;   // já autenticado pelo index.ts (JWT validado)
   cofre: Cofre;
@@ -108,7 +116,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       try { return sucesso({ credencial: await ctx.cofre.estado(dono, p.conta_id) }); } catch (e) { return falha(codigoDe(e)); }
     }
 
-    /* ---- operações no provedor (SÓ LEITURA): precisam do Worker, da credencial guardada e (as de pasta) do banco ---- */
+    /* ---- operações no provedor (leitura; e, desde a I3.2, o gerenciamento de UMA mensagem por vez): precisam do Worker, da credencial guardada e (as de pasta) do banco ---- */
     if (!ctx.worker) return falha("worker_nao_configurado");   // antes de abrir o cofre: sem canal para o Worker, o segredo nem é lido
     const worker = ctx.worker, banco = ctx.banco ?? null, conta = p.conta_id;
     const precisaBanco = p.operacao !== "testar_conta" && p.operacao !== "smtp_prova";   // (a prova só precisa do endereço da conta quando manda o teste: o envio.ts pede ao banco)
@@ -144,6 +152,14 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
 
     if (p.operacao === "smtp_prova" || p.operacao === "enviar_mensagem") {
       const rr = await envioPuro({ p, dono, conta, credencial, worker, banco, agora: ctx.agora ?? (() => new Date()), marcarAtiva });
+      cred = null;
+      if (rr.tipo === "sucesso") return sucesso(rr.corpo);
+      return falha(rr.codigo, rr.detalhe);
+    }
+
+    if (p.operacao === "organizar_mensagem") {   // I3.2: lida/não lida, arquivar, mover, Lixeira, Spam (organizar.ts); a credencial só vive nesta chamada
+      const rr = await organizarPuro({ p, dono, conta, credencial, worker, banco, marcarAtiva,
+        credencialRecusada: async () => { try { await ctx.cofre.marcar(dono, conta, "invalida"); } catch (_) { /* o estado fica como está */ } try { await banco?.estadoConta(dono, conta, "erro_autenticacao", "credencial_invalida"); } catch (_) { /* idem */ } } });
       cred = null;
       if (rr.tipo === "sucesso") return sucesso(rr.corpo);
       return falha(rr.codigo, rr.detalhe);

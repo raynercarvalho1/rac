@@ -450,6 +450,11 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .inb-acoes{display:flex;gap:var(--rac-esp-1)}
 .inb-btn-ico{display:inline-grid;place-items:center;width:40px;height:40px;border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto-2);font:inherit;opacity:.55;cursor:not-allowed}
 .inb-btn-rot{display:none}
+/* I3.2: ação disponível (sem aria-disabled) fica nítida; a indisponível continua apagada */
+.inb-btn-ico:not([aria-disabled="true"]){opacity:1;cursor:pointer;color:var(--rac-info)}
+.inb-btn-ico:not([aria-disabled="true"]):hover{background:var(--rac-papel-2)}
+.inb-btn-ico[aria-disabled="true"]:not([disabled]){cursor:pointer}
+.inb-btn-ico[aria-busy="true"]{opacity:.55;cursor:progress}
 .inb-leitura-corpo{display:flex;flex-direction:column;gap:var(--rac-esp-5);padding:var(--rac-esp-2) var(--rac-esp-10) var(--rac-esp-10)}
 .inb-leitura-assunto{margin:0;font:700 calc(26px + var(--fz))/1.25 var(--f-ui);letter-spacing:-.01em;overflow-wrap:anywhere}
 .inb-de{display:flex;align-items:flex-start;gap:var(--rac-esp-3)}
@@ -538,3 +543,20 @@ html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:tran
 @media (max-width:760px){.inb-conexao-botoes .rac-btn{flex:1 1 0}}
 
 .inb-conexao--compacta{background:var(--rac-papel-2);border-radius:var(--rac-raio-2);padding-bottom:var(--rac-esp-1)}.inb-conexao--compacta .inb-conexao-botoes{padding-left:var(--rac-esp-2);padding-right:var(--rac-esp-2)}
+
+/* ---------- RAC Inbox · I3.2: gerenciar mensagens (docs/inbox.md, "Gerenciamento") ---------- */
+.inb-menu{display:flex;flex-direction:column;gap:2px;margin:0 var(--rac-esp-5) var(--rac-esp-3);padding:var(--rac-esp-2);border:1px solid var(--rac-linha);border-radius:var(--rac-raio-2);background:var(--rac-papel-2)}
+.inb-menu-item{display:flex;align-items:center;gap:var(--rac-esp-3);width:100%;min-height:var(--rac-alvo,44px);padding:var(--rac-esp-1) var(--rac-esp-3);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto);font:inherit;text-align:left;cursor:pointer}
+.inb-menu-item:hover:not([disabled]){background:var(--rac-papel)}
+.inb-menu-item[aria-disabled="true"]{opacity:.6}.inb-menu-item[disabled]{cursor:progress}
+.inb-menu-item .inb-ico{color:var(--rac-info);flex:none}
+.inb-menu-txt{display:flex;flex-direction:column;min-width:0}.inb-menu-txt b{font-weight:600}.inb-menu-txt span{color:var(--rac-texto-2);font-size:var(--rac-fs-legenda)}
+.inb-menu-pastas{display:flex;flex-direction:column;gap:2px;margin-left:var(--rac-esp-6);padding-left:var(--rac-esp-2);border-left:2px solid var(--rac-linha)}
+.inb-andamento{margin:0 var(--rac-esp-5) var(--rac-esp-3)}
+@media (max-width:860px){.inb-andamento{margin-left:var(--rac-esp-4);margin-right:var(--rac-esp-4)}}
+.inb-menu .inb-nota{margin:var(--rac-esp-1) var(--rac-esp-3)}
+.inb-menu-item:focus-visible{outline:2px solid var(--rac-foco);outline-offset:1px}
+@media (max-width:860px){
+  /* no celular o menu vira uma folha acima da barra de ações fixa, com a área segura de baixo respeitada e rolagem própria se a lista de pastas for longa */
+  .inb-menu{position:fixed;left:var(--rac-esp-3);right:var(--rac-esp-3);bottom:calc(var(--rac-alvo,44px) + var(--rac-esp-2) + env(safe-area-inset-bottom,0px) + 8px);z-index:calc(var(--rac-z-janela,50) + 1);margin:0;max-height:min(60vh,420px);overflow-y:auto;background:var(--rac-papel);box-shadow:var(--rac-sombra-3)}
+}

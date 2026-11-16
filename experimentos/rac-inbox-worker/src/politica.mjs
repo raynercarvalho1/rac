@@ -1,5 +1,5 @@
 // RAC Inbox · Worker de PRODUTO (P7/I2): política fixa, não sensível. Nada aqui depende de variável, de secret ou do que o cliente disser.
-// O Worker só faz TRANSPORTE IMAP SOMENTE LEITURA para a função "rac-inbox" do Supabase (docs/inbox.md, seção "Canal assinado com o Worker").
+// O Worker faz TRANSPORTE IMAP (leitura; e, desde a I3.2, só os poucos comandos de gerenciamento do seção "I3.2 · GERENCIAMENTO" do imap.mjs) para a função "rac-inbox" do Supabase (docs/inbox.md, seção "Canal assinado com o Worker").
 // Quem chama é autenticado por ASSINATURA HMAC (canal.mjs), nunca por token do usuário; o navegador nunca fala com este Worker.
 
 export const POLITICA = Object.freeze({
@@ -7,11 +7,14 @@ export const POLITICA = Object.freeze({
   canal: Object.freeze({ versao: "rac-canal-v1", caminho: "/v1/op", janelaS: 60, nonceRetencaoS: 600, corpoMaxBytes: 4096, corpoMaxEnvioBytes: 262144, chavesAceitas: Object.freeze(["k1", "k2"]) }),
   // operações aceitas (lista fechada); todas só LEEM
   // "ping" prova o CANAL (assinatura + nonce) sem credencial e sem IMAP: o corpo é só { operacao }, e a resposta nunca toca na Apple
-  operacoes: Object.freeze(["ping", "testar_conta", "listar_pastas", "estado_pasta", "listar_mensagens", "ler_mensagem", "baixar_anexo", "smtp_prova", "enviar"]),
+  operacoes: Object.freeze(["ping", "testar_conta", "listar_pastas", "estado_pasta", "listar_mensagens", "ler_mensagem", "baixar_anexo", "smtp_prova", "enviar", "capacidades", "verificar_mensagem", "marcar_lida", "mover_mensagem"]),
+  // I3.2 · gerenciamento (seção "I3.2 · GERENCIAMENTO" do imap.mjs). "capacidades" e "verificar_mensagem" só LEEM; "marcar_lida" e "mover_mensagem" são as ÚNICAS operações IMAP que alteram a caixa (lista fechada de comandos no seção "I3.2 · GERENCIAMENTO" do imap.mjs)
+  gestao: Object.freeze(["capacidades", "verificar_mensagem", "marcar_lida", "mover_mensagem"]),
+  escrita: Object.freeze(["marcar_lida", "mover_mensagem"]),
   // operações de SAÍDA (SMTP): as únicas que escrevem no mundo; usam smtp, não imap
   saida: Object.freeze(["smtp_prova", "enviar"]),
   // carimbo do código publicado: aparece na resposta do ping, para provar QUAL versão está no ar (mudar a cada alteração publicável)
-  versao: "rac-inbox-worker@p8.0",
+  versao: "rac-inbox-worker@p9.0",
   // IMAP: host e porta fixos no código (TLS implícito). Nunca vêm do cliente.
   imap: Object.freeze({
     host: "imap.mail.me.com", porta: 993, timeoutMs: 25000,

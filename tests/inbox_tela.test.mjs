@@ -105,7 +105,7 @@ test("o 'exemplo da interface': isolado no módulo próprio, rotulado, com lista
   assert.equal(comClasse(a.raiz, "inb-janela")[0].attrs["data-painel"], "leitura", "no iPhone a leitura passa a ser a tela própria");
   const acoes = comClasse(leitura, "inb-btn-ico"); assert.deepEqual(acoes.map((b) => b.attrs["aria-label"]), ["Responder", "Responder a todos", "Encaminhar", "Arquivar", "Excluir", "Mais"]);
   for (const b of acoes) { assert.equal(b.attrs["aria-disabled"], "true", b.attrs["aria-label"] + " desligada"); assert.equal(b.onclick, null, b.attrs["aria-label"] + " não faz nada"); assert.match(b.attrs.title, /próximas etapas|mensagem carregada, numa conta conectada/, "diz por que está desligada"); }
-  for (const b of acoes.slice(3)) assert.match(b.attrs.title, /próximas etapas/, b.attrs["aria-label"] + " ainda é de outra etapa");
+  for (const b of acoes.slice(3)) assert.match(b.attrs.title, /mensagem carregada, numa conta conectada/, b.attrs["aria-label"] + " (I3.2): no exemplo, desligada e sem executar nada");
   const novaDemo = todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))); assert.equal(novaDemo.attrs["aria-disabled"], "true", "no exemplo não há envio: nova mensagem fica desligada (clicar só explica)");
   comClasse(a.raiz, "inb-linha")[1].onclick(); leitura = comClasse(a.raiz, "inb-leitura")[0]; lt = texto(leitura);
   assert.match(lt, /1 anexo/); assert.match(lt, /comprovante-exemplo\.pdf/); assert.match(lt, /PDF/); assert.match(lt, /184 KB/);

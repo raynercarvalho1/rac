@@ -1,6 +1,6 @@
 # rac-inbox-worker — Worker de produto do RAC Inbox (P7 / I2)
 
-Transporte **IMAP somente leitura** para o iCloud. É chamado **só pela Edge Function `rac-inbox`** do Supabase; o navegador nunca fala com ele. Contexto: [docs/inbox.md](../../docs/inbox.md) (seção "Canal assinado com o Worker") e [Documento 10](../../docs/planejamento/10-rac-inbox.md).
+Transporte **IMAP** para o iCloud: leitura (somente `EXAMINE` e `BODY.PEEK`) e, desde a I3.2, o gerenciamento de uma mensagem por vez (seção final do `imap.mjs`). É chamado **só pela Edge Function `rac-inbox`** do Supabase; o navegador nunca fala com ele. Contexto: [docs/inbox.md](../../docs/inbox.md) (seção "Canal assinado com o Worker") e [Documento 10](../../docs/planejamento/10-rac-inbox.md).
 
 **Estado:** código e testes **simulados** prontos (`tests/rac_inbox_worker.test.mjs`, servidor IMAP falso). **Não publicado, nunca falou com o iCloud real.** Fica nesta branch, fora da `main`; a publicação depende de autorizações do dono (secrets, workflow/Environment da Cloudflare e a função `rac-inbox` v2).
 
@@ -40,3 +40,6 @@ Operações `smtp_prova` (diagnóstico: etapas, códigos e tempos; com `enviar_t
 
 ## Publicação
 Pelo workflow `.github/workflows/rac-inbox-worker-publicar.yml` (manual, só `main`, Environment `cloudflare-production`). Guia: `docs/inbox-worker-deploy.md`. A lista de arquivos desta pasta é fechada no workflow: ao criar ou remover arquivo aqui, atualize a lista dele no mesmo PR.
+
+## I3.2 — gerenciamento (`p9.0`)
+Operações novas: `capacidades` e `verificar_mensagem` (só leem) e `marcar_lida` / `mover_mensagem` (as ÚNICAS que alteram a caixa). Comandos extras, só em sessão de gerenciamento e conferidos por expressão regular antes do socket: `SELECT "<pasta>"`, `UID STORE <uid> +/-FLAGS (\Seen)` e `UID MOVE <uid> "<destino>"` (só se o servidor anunciar `MOVE` **depois do login**). Nunca: EXPUNGE, CLOSE, COPY, `\Deleted`, APPEND, DELETE. UIDVALIDITY obrigatório e identidade (Message-ID/tamanho) conferida antes de alterar; resposta etiquetada confirma; falha de transporte depois do comando = `acao_incerta`. Detalhes: `docs/inbox.md`, seção "I3.2".

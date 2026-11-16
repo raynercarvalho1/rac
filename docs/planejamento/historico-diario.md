@@ -1189,7 +1189,7 @@ Família e da Casa.
 
 ### 1. O que fizemos
 - Pedido do dono: a Fernanda com acesso igual ao dele em toda a área Finanças e compras (Radar compartilhado, IA fiscal liberada, Gmail fica só do dono; um lote único). Código pronto e testado, **nada aplicado nem publicado**.
-- Banco: `supabase/057_casa_radar_fiscal.sql` (6 chaves de `pessoal`, 9 tabelas do Radar, 3 funções fiscais sem a trava de dono editadas dentro da definição existente, políticas de foto/PDF e leitura de tentativas/histórico, remoção da trava `ia_config_fiscal_so_dono`; o UPDATE que liga a IA para a casa só em comentário) e `supabase/conferencias/057_conferir_producao.sql`.
+- Banco: `supabase/057_casa_radar_fiscal.sql` (6 chaves de `pessoal`, 9 tabelas do Radar, 3 funções fiscais sem a trava de dono editadas dentro da definição existente, políticas de foto/PDF e leitura de tentativas/histórico, remoção da trava `ia_config_fiscal_so_dono`; o que liga a IA para a casa fica à parte, em `supabase/058_ligar_ia_fiscal_casa.sql`) e `supabase/conferencias/057_conferir_producao.sql`.
 - Funções: `radar` (sem o 403; tudo na conta do dono) e `rac-ia` (`fiscal.nota` aceita `casa`).
 - Site: `isDonoOuCasa()`, 6 chaves compartilhadas em `js/app.js`, Radar/alertas/junção em `mercado.js`/`js/radar.js`, Central Fiscal em `js/fiscal.js`. Testes: novos `banco_casa_radar_fiscal` (PGlite) e `pessoal_casa`; testes antigos que descreviam "só o dono" foram reescritos para a regra nova (não afrouxados nem apagados). Documentação em `docs/seguranca.md`, `docs/radar.md`, `docs/fiscal.md` e `07-decisoes-e-pendencias.md`.
 
@@ -1197,5 +1197,5 @@ Família e da Casa.
 - Aguardando o dono: PR e a ordem SQL → `radar` → `rac-ia` → site. Sem SQL, função ou site publicados por mim.
 
 ### 3. O que vamos fazer
-- Depois que o dono aplicar: rodar a conferência 057, testar com a conta da Fernanda (Radar, alertas, nota por foto) e só então decidir o UPDATE da IA fiscal para a casa; avaliar teto de custo das buscas pagas do Radar para ela.
+- Depois que o dono aplicar: rodar a conferência 057, testar com a conta da Fernanda (Radar, alertas, nota por foto) e então rodar a 058 (liga a IA fiscal para a casa); avaliar teto de custo das buscas pagas do Radar para ela.
 

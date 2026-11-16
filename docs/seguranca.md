@@ -201,13 +201,13 @@ Central Fiscal). Antes, o Radar de Preços, os alertas de preço, a junção de 
 | Radar (9 tabelas) | política "so o dono" (`dono = auth.uid()` e fora de `membros`) | política "casa" (`dono = dono_da_casa()`); linhas novas nascem do dono da casa; a trava "mfa" continua |
 | Função `radar` | 403 `sem_permissao` para membro | a casa usa na conta do dono; a rotina e o push seguem só para o dono |
 | Central Fiscal (foto/PDF, situação, entrada no Mercado) | as 3 funções recusavam quem não era o dono da casa; políticas restritivas "foto so dono"; tentativas e histórico só do dono | sem a linha "só o dono da casa" (editada dentro da definição existente: **não ativa a 039/040 se ainda não aplicadas**; rodar a 057 de novo depois de aplicá-las); sem as políticas "foto so dono"; a casa lê tentativas e histórico |
-| IA fiscal (`fiscal.nota`) | `acoes.ts` só `dono`; trava `ia_config_fiscal_so_dono` | `acoes.ts` aceita `casa`; a trava do banco sai; **só liga quando o dono roda o UPDATE comentado no fim da 057** (`acoes_casa` e `acoes_reais_casa`), com a casa em REAL |
+| IA fiscal (`fiscal.nota`) | `acoes.ts` só `dono`; trava `ia_config_fiscal_so_dono` | `acoes.ts` aceita `casa`; a trava do banco sai; **só liga quando o dono roda `supabase/058_ligar_ia_fiscal_casa.sql`** (acrescenta `fiscal.nota` em `acoes_casa` e `acoes_reais_casa`; arquivo à parte porque é a única parte que gera custo), com a casa em REAL |
 
 **Continua só do dono:** importar do Gmail (usa o e-mail dele), custos de IA, Sistema, backup e restauração, RAC Hoje (`hoje.analise`), Newsletter (`newsletter.resumo`),
 aviso de preço por push (a rotina trata só o dono) e a função `garmin` (não foi tocada). O MFA (`rac_aal_ok()`) vale para a casa em tudo isso.
 **Custos:** a Fernanda passa a poder disparar buscas pagas do Radar (mesma chave, mesmo limite e mesma conta do dono) e, quando o dono ligar, a leitura fiscal por IA
 (mesmo orçamento de IA da casa). **Dados compartilhados:** ela edita os mesmos produtos, lojas, vínculos, junções e ajustes de alertas do dono, não uma cópia.
-**Ordem de publicação:** SQL (057) → função `radar` → função `rac-ia` → site; só depois, se o dono quiser, o UPDATE que liga a IA fiscal para a casa.
+**Ordem de publicação:** SQL (057) → função `radar` → função `rac-ia` → site; por último a 058 (liga a IA fiscal para a casa; o mesmo arquivo traz o comando de desligar).
 
 ## Implantação (nesta ordem)
 

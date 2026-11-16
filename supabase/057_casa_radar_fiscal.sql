@@ -8,7 +8,7 @@
 --      ainda não foram aplicadas, este arquivo NÃO as ativa. Se você aplicar a 039/040 DEPOIS, rode este arquivo de novo.
 --      Saem as políticas restritivas "foto so dono ..." e a leitura de tentativas e histórico passa de "só o dono" para "a casa".
 --   4) ia_config: sai a trava "ia_config_fiscal_so_dono" (o banco deixa de proibir fiscal.nota para a casa). NÃO liga nada: o consumo pago só começa
---      quando o dono rodar o UPDATE comentado no fim deste arquivo.
+--      quando o dono rodar o arquivo 058_ligar_ia_fiscal_casa.sql.
 -- Não muda: a trava "mfa" (continua em todas as tabelas), o RLS ligado, nada para anon, as ações hoje.analise e newsletter.resumo (continuam só do dono),
 --   a restauração de backup (só o dono) e a função garmin.
 -- Ordem de publicação: 1) este SQL, 2) função "radar", 3) função "rac-ia", 4) o site. Conferência depois: supabase/conferencias/057_conferir_producao.sql (só leitura).
@@ -78,13 +78,5 @@ commit;
 
 notify pgrst, 'reload schema';
 
--- PARA LIGAR a leitura por IA para a Fernanda (decisão e custo do dono; NÃO faz parte do que roda acima). Só depois do SQL, da função rac-ia e do site no ar,
--- com a casa em REAL e fiscal.nota já em acoes_reais. Preserva as outras ações e não duplica:
---   update public.ia_config
---      set acoes_casa = (select array_agg(distinct x) from unnest(acoes_casa || array['fiscal.nota']) x),
---          acoes_reais_casa = (select array_agg(distinct x) from unnest(acoes_reais_casa || array['fiscal.nota']) x),
---          atualizado_em = now()
---    where modo = 'REAL' and 'fiscal.nota' = any (acoes_reais);
--- Para DESLIGAR de novo para a casa (a leitura do dono não muda):
---   update public.ia_config
---      set acoes_casa = array_remove(acoes_casa, 'fiscal.nota'), acoes_reais_casa = array_remove(acoes_reais_casa, 'fiscal.nota'), atualizado_em = now();
+-- PARA LIGAR a leitura por IA para a Fernanda (decisão e custo do dono): rode DEPOIS deste arquivo, da função rac-ia e do site o arquivo supabase/058_ligar_ia_fiscal_casa.sql
+-- (traz também o comando de desligar). A 057 não liga nada.

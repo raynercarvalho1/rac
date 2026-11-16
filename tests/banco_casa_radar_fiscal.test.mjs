@@ -102,8 +102,8 @@ test("057: proposta (não aplicada), com begin/commit, sem tocar dado nem deslig
   assert.match(t, /^-- PROPOSTA 057 · NÃO APLICADA EM PRODUÇÃO/);
   assert.match(s, /^\s*begin;/); assert.match(s, /commit;\s*notify pgrst, 'reload schema';\s*$/);
   assert.doesNotMatch(s, /disable row level security|drop policy if exists "mfa"|create policy "mfa"|grant .* to anon|insert into|delete from|truncate|drop table|drop function/i);
-  assert.doesNotMatch(s, /update public\.ia_config/i, "o UPDATE que liga a IA fiscal para a casa fica só em comentário (decisão do dono)");
-  assert.match(t, /--\s+update public\.ia_config\s*\n--\s+set acoes_casa/);
+  assert.doesNotMatch(s, /update public\.ia_config/i, "a 057 não liga a IA fiscal: isso é do arquivo 058, à parte (custo, decisão do dono)");
+  assert.match(t, /058_ligar_ia_fiscal_casa\.sql/);
   assert.doesNotMatch(s, /garmin/i);
   for (const k of ["radar-config", "radar-pagos", "radar-vinculos", "mercado-equivalencias", "mercado-alertas", "mercado-canais"]) assert.ok(s.includes("'" + k + "'"), k);
   assert.ok(!s.includes("'x-amigos'") && !s.includes("'compras'"), "nenhuma chave pessoal fora das 6");
@@ -207,4 +207,24 @@ test("PGlite · ia_config: antes da 057 o banco proíbe fiscal.nota para a casa;
   assert.deepEqual((await admin(db, "select acoes_reais_casa from public.ia_config"))[0].acoes_reais_casa, ["fiscal.nota"]);
   /* as travas de hoje.analise e newsletter.resumo (028 e 020) não são tocadas: a 057 nem as menciona */
   assert.doesNotMatch(semComent(ler(SQL)), /hoje\.analise|newsletter|ia_config_hoje|ia_config_newsletter/i);
+});
+
+test("058: liga fiscal.nota para a casa só em REAL e com a ação já liberada; preserva as outras; idempotente; não toca hoje.analise nem newsletter", () => {
+  const t = ler("supabase/058_ligar_ia_fiscal_casa.sql"), s2 = semComent(t);
+  assert.match(t, /^-- PROPOSTA 058 · NÃO APLICADA EM PRODUÇÃO/);
+  assert.match(s2, /where modo = 'REAL' and 'fiscal\.nota' = any \(acoes_reais\)/);
+  assert.doesNotMatch(s2, /limite_brl|cambio|margem|hoje\.analise|newsletter|insert into|delete from|drop /i);
+  assert.match(t, /--\s+update public\.ia_config\s*\n--\s+set acoes_casa = array_remove/, "o comando de desligar está comentado");
+});
+test("PGlite · 058: depois da 057 a casa passa a poder usar fiscal.nota em REAL; rodar de novo não duplica; em DEMO não muda nada", { skip: pular }, async () => {
+  const db = await banco();
+  await admin(db, "insert into public.ia_config (dono, modo) values ($1, 'DEMO')", [R]);
+  await db.exec(ler("supabase/058_ligar_ia_fiscal_casa.sql"));
+  assert.deepEqual((await admin(db, "select acoes_reais_casa from public.ia_config"))[0].acoes_reais_casa, [], "em DEMO nada muda");
+  await admin(db, "update public.ia_config set modo = 'REAL', acoes_reais = array['fiscal.nota']::text[]");
+  await db.exec(ler("supabase/058_ligar_ia_fiscal_casa.sql")); await db.exec(ler("supabase/058_ligar_ia_fiscal_casa.sql"));
+  const c = (await admin(db, "select acoes_reais, acoes_reais_casa, acoes_casa from public.ia_config"))[0];
+  assert.deepEqual(c.acoes_reais_casa, ["fiscal.nota"]); assert.deepEqual(c.acoes_reais, ["fiscal.nota"]);
+  assert.equal(c.acoes_casa.filter((x) => x === "fiscal.nota").length, 1, "sem duplicar");
+  assert.ok(c.acoes_casa.includes("abastecimento.interpretar") && c.acoes_casa.includes("mercado.nota"), "preserva as ações que a casa já tinha");
 });

@@ -1169,3 +1169,7 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono confirma no iPhone depois de publicado: Inbox → menu das caixas → Adicionar conta → o formulário aparece no topo; Cancelar fecha.
 
+
+
+### Segunda rodada do Adicionar conta (16/11/2026, versão `2026-11-16.2`)
+- O aparelho do dono ainda estava na versão antiga (PR #44 não mesclado): o formulário ficava aberto ao navegar e sem Cancelar; "Testar conexão" não aparecia (linha de conexão só existia com conta selecionada e o botão ficava em Opções). Corrigido: o formulário fecha ao navegar; Sincronizar e Testar conexão à vista, inclusive em "Todas as contas" com uma única conta; painel sólido na linha de conexão. Testes atualizados (o desenho antigo "discreto" foi substituído de propósito).

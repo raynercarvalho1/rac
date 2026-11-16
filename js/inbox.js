@@ -47,7 +47,7 @@
   /* abrir uma mensagem real: o texto vem do serviço na hora (sob demanda); se a pessoa abrir outra enquanto esta carrega, a resposta antiga é ignorada */
   function inboxAbrirMsg(id){
     if(INBX.compor&&!inboxDescartarCompor()){INBX.painel="leitura";inboxDesenhar();return}   /* envio em curso ou rascunho que a pessoa quis manter */
-    INBX.msg=id;INBX.painel="leitura";INBX.leit=null;
+    INBX.form=false;INBX.msg=id;INBX.painel="leitura";INBX.leit=null;
     var m=INBX.demo?null:inboxLinhaPorId(id);
     if(m)INBX.leit={id:id,estado:"carregando"};
     inboxDesenhar();if(m)inboxLerMensagem(m)}
@@ -55,8 +55,10 @@
     return inboxChamar("ler_mensagem",{conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid}).then(function(r){
       if(!INBX.leit||INBX.leit.id!==m.id)return;
       INBX.leit=r.ok?{id:m.id,estado:"ok",dados:r}:{id:m.id,estado:"erro",erro:r.erro};inboxDesenhar()})}
-  function inboxIr(conta,pasta){INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
+  function inboxIr(conta,pasta){INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
+  /* a conta cujas ações de conexão (Sincronizar, Testar conexão) aparecem: a selecionada ou, em "Todas as contas", a ÚNICA conta (antes não havia linha de conexão nesse caso) */
+  function inboxContaAcoes(){return inboxContaAtual()||(INBX.conta==="todas"&&INBX.contas.length===1?INBX.contas[0]:null)}
   /* sincronizar: as contas conectadas (a atual, ou todas na caixa unificada); cada uma lista as pastas se ainda não tem e sincroniza a pasta mostrada (ou a de entrada) */
   function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){return INBX.cred[c.id]==="ativa"})}
   /* selo do ícone do app com o total de não lidas da caixa de entrada (onde o navegador suporta; o servidor também o atualiza a cada aviso) */
@@ -139,6 +141,7 @@
     var ex=h("button",{type:"button",class:"inb-link",text:INBX.demo?"Sair do exemplo":"Ver exemplo da interface"});ex.onclick=inboxAlternarDemo;rod.appendChild(ex);box.appendChild(rod);
     return box}
   function inboxAlternarDemo(){
+    INBX.form=false;
     if(INBX.demo){INBX.demo=false;INBX.msg=null;INBX.painel="lista";inboxDesenhar();return}
     precisa(["inbox-demo"]).then(function(){INBX.demo=true;INBX.msg=null;INBX.painel="lista";inboxDesenhar()},function(){INBX.aviso={tipo:"erro",t:"Não consegui abrir o exemplo agora."};inboxDesenhar()})}
   /* ---- lista agrupada por data: remetente, assunto, prévia e horário ---- */
@@ -161,7 +164,7 @@
     var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");topo.appendChild(novaTopo);cab.appendChild(topo);
     cab.appendChild(h("div",{class:"inb-busca","aria-disabled":"true",title:INBX_FUTURO},inboxIco("buscar"),h("span",{text:"Buscar mensagens"})));
     cab.appendChild(inboxFiltros());col.appendChild(cab);
-    if(cont&&!INBX.demo)col.appendChild(inboxConexao(cont));
+    var contaAcoes=inboxContaAcoes();if(contaAcoes&&!INBX.demo)col.appendChild(inboxConexao(contaAcoes));
     if(ms.length){var l=h("div",{class:"inb-linhas",role:"list"});
       NUCLEO.inbAgrupar(ms).forEach(function(g){l.appendChild(h("h3",{class:"inb-data",text:g.rotulo}));g.itens.forEach(function(m){l.appendChild(inboxLinha(m))})});col.appendChild(l)}
     else if(INBX.demo)col.appendChild(inboxVazio("caixa","Nada neste filtro","Nenhuma mensagem de exemplo corresponde a este filtro."));
@@ -193,14 +196,18 @@
     var mais=h("button",{type:"button",class:"inb-conexao-mais","aria-label":"Opções da conexão","aria-expanded":aberto?"true":"false",title:"Opções da conexão"},inboxIco("mais"));
     mais.onclick=function(){INBX.opcoes=aberto?null:c.id;inboxDesenhar()};
     box.appendChild(h("div",{class:"inb-conexao-linha"},inboxIco("cadeado","inb-conexao-ico"),h("span",{class:"inb-conexao-info",text:info}),mais));
+    /* as duas ações do dia a dia ficam À VISTA (não escondidas em "Opções") */
+    var bSinc=rkBtn("sec",INBX.sinc?"Sincronizando…":"Sincronizar"),teste=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");
+    bSinc.onclick=inboxSincronizar;if(INBX.sinc){bSinc.setAttribute("disabled","disabled");bSinc.setAttribute("aria-busy","true")}
+    teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
+    box.appendChild(h("div",{class:"inb-conexao-botoes"},bSinc,teste));
     if(aberto){
-      var op=h("div",{class:"inb-conexao-opcoes",role:"group","aria-label":"Opções da conexão"}),teste=h("button",{type:"button",class:"inb-link",text:INBX.testando===c.id?"Testando…":"Testar conexão"}),
+      var op=h("div",{class:"inb-conexao-opcoes",role:"group","aria-label":"Opções da conexão"}),
         subst=h("button",{type:"button",class:"inb-link",text:"Substituir senha"}),rem=h("button",{type:"button",class:"inb-link inb-link--perigo",text:"Desconectar e remover a credencial"});
-      teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
       subst.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};rem.onclick=function(){inboxRemoverCredencial(c)};
       var bProva=h("button",{type:"button",class:"inb-link",text:INBX.testandoSmtp===c.id?"Testando envio…":"Testar envio (SMTP)"}),bProvaMail=h("button",{type:"button",class:"inb-link",text:"Testar envio com e-mail de teste"});
       bProva.onclick=function(){inboxProvaSmtp(c,false)};bProvaMail.onclick=function(){inboxProvaSmtp(c,true)};if(INBX.testandoSmtp){bProva.setAttribute("disabled","disabled");bProvaMail.setAttribute("disabled","disabled")}
-      op.appendChild(teste);op.appendChild(bProva);op.appendChild(bProvaMail);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
+      op.appendChild(bProva);op.appendChild(bProvaMail);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
       if("sync_auto" in c){   /* só com a 054 aplicada */
         box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
         box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
@@ -448,6 +455,6 @@
   function renderInbox(conta,pasta,msg,refresh){
     var abrir=INB_RE_ID.test(msg||"")?msg:null;
     if(refresh){if(conta&&!INBX.msg){INBX.conta=conta;INBX.pasta=pasta||null}return inboxCarregar().then(function(){if(abrir&&INBX.msg!==abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
-    INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};
+    INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
     return inboxCarregar().then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}

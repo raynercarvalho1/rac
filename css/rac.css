@@ -534,3 +534,7 @@ html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:tran
 @media (max-width:760px){.inb-compor-corpo{padding:var(--rac-esp-2) var(--rac-esp-4) calc(24px + env(safe-area-inset-bottom,0px))}.inb-compor-acoes{padding-bottom:calc(var(--rac-esp-3) + env(safe-area-inset-bottom,0px))}.inb-compor-acoes .rac-btn{flex:1}.inb-rev{grid-template-columns:1fr}}
 .inb-form-acoes{display:flex;justify-content:flex-end;gap:var(--rac-esp-3)}.inb-form-acoes .rac-btn{min-height:var(--rac-alvo)}
 @media (max-width:760px){.inb-form-acoes .rac-btn{flex:1}#inb-form-conta{scroll-margin-top:calc(var(--rac-esp-4) + env(safe-area-inset-top,0px))}}
+.inb-conexao-botoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);padding:var(--rac-esp-1) var(--rac-esp-2) var(--rac-esp-2) var(--rac-esp-4)}.inb-conexao-botoes .rac-btn{min-height:var(--rac-alvo);flex:0 1 auto}
+@media (max-width:760px){.inb-conexao-botoes .rac-btn{flex:1 1 0}}
+
+.inb-conexao--compacta{background:var(--rac-papel-2);border-radius:var(--rac-raio-2);padding-bottom:var(--rac-esp-1)}.inb-conexao--compacta .inb-conexao-botoes{padding-left:var(--rac-esp-2);padding-right:var(--rac-esp-2)}

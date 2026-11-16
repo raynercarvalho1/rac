@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-16.2",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-16.3",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -117,14 +117,17 @@
     setSide(false);
     window.scrollTo(0,0);
     /* a página: o registro (js/rotas.js) diz como desenhar; sem marcaPropria, o item do menu é o da própria página */
+    VOLTAR_LOCAL=null;   /* cada página registra o seu ao abrir (o Inbox em renderInbox) */
     var R=ROTAS[top];if(!R.marcaPropria)sideMark(top,top);parts.refresh=ROTA_REFRESH;if(R.abrir)R.abrir(parts)
   }
   window.addEventListener("hashchange",route);
   /* profundidade da navegação dentro do site, guardada no próprio histórico: o Voltar só usa o histórico se for daqui */
   var PROF=-1,VOLTAR_PAI="";
+  /* gancho de "voltar" da PÁGINA: uma página com telas internas (o Inbox: lista, leitura, caixas, escrever) registra aqui uma função que desfaz o passo interno e devolve true quando consumiu o toque; só quando devolve false o voltar sai da página */
+  var VOLTAR_LOCAL=null;
   function marcarProfundidade(){var st=history.state;if(st&&typeof st.racD==="number")PROF=st.racD;else{PROF=PROF+1;try{history.replaceState({racD:PROF},"")}catch(e){}}}
   $("#atubtn").addEventListener("click",function(){atuAtualizar()});
-  function voltarPagina(){if(PROF>0)history.back();else if(VOLTAR_PAI)location.hash=VOLTAR_PAI}
+  function voltarPagina(){if(typeof VOLTAR_LOCAL==="function"&&VOLTAR_LOCAL())return;if(PROF>0)history.back();else if(VOLTAR_PAI)location.hash=VOLTAR_PAI}
   $("#voltarbtn").addEventListener("click",voltarPagina);
 
   /* Barra lateral: no celular ela desliza por cima do conteúdo */

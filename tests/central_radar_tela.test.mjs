@@ -164,7 +164,7 @@ test("Produtos (dono): o NOME abre a página do produto e 'Renomear' é um botã
 
 test("botão voltar flutuante (celular): em TODAS as páginas do site (não só na Central), com a mesma regra do voltar da barra de título; acima do ☰; nada de voltar próprio no Mercado", () => {
   const app = ler("js/app.js"), css = ler("index.html"), mk = ler("mercado.js");
-  assert.match(app, /function voltarPagina\(\)\{if\(PROF>0\)history\.back\(\);else if\(VOLTAR_PAI\)location\.hash=VOLTAR_PAI\}/, "uma função só: histórico do site, ou o nível acima");
+  assert.match(app, /function voltarPagina\(\)\{if\(typeof VOLTAR_LOCAL==="function"&&VOLTAR_LOCAL\(\)\)return;if\(PROF>0\)history\.back\(\);else if\(VOLTAR_PAI\)location\.hash=VOLTAR_PAI\}/, "uma função só: primeiro o gancho da página (Inbox: telas internas), depois histórico do site, ou o nível acima");
   assert.match(app, /\$\("#voltarbtn"\)\.addEventListener\("click",voltarPagina\)/, "o da barra de título usa a mesma função");
   assert.match(app, /if\(!\$\("\.voltarbtn"\)\)\{var vb=h\("button",\{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"\}\);vb\.onclick=voltarPagina;/, "criado uma vez, depois do login, para todas as seções");
   assert.match(app, /\$\("#voltarbtn"\)\.hidden=!\(PROF>0\|\|VOLTAR_PAI\);\s*var vf=\$\("\.voltarbtn"\);if\(vf\)vf\.hidden=!\(PROF>0\|\|VOLTAR_PAI\);/, "aparece/some em cada rota pela MESMA expressão do voltar da barra de título (some no Início)");

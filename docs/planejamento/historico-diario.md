@@ -1173,3 +1173,15 @@ Família e da Casa.
 
 ### Segunda rodada do Adicionar conta (16/11/2026, versão `2026-11-16.2`)
 - O aparelho do dono ainda estava na versão antiga (PR #44 não mesclado): o formulário ficava aberto ao navegar e sem Cancelar; "Testar conexão" não aparecia (linha de conexão só existia com conta selecionada e o botão ficava em Opções). Corrigido: o formulário fecha ao navegar; Sincronizar e Testar conexão à vista, inclusive em "Todas as contas" com uma única conta; painel sólido na linha de conexão. Testes atualizados (o desenho antigo "discreto" foi substituído de propósito).
+
+## 16/11/2026 · RAC Inbox — os ← do app saíam do Inbox (versão `2026-11-16.3`)
+
+### 1. O que fizemos
+- Causa: `voltarPagina()` usa `history.back()` e as telas internas do Inbox não criam histórico. Correção: gancho `VOLTAR_LOCAL` (app.js) + `inboxVoltar()` (lista → menu das caixas; leitura/escrever/formulário/Opções desfeitos antes de sair; do menu o app sai). Testes no DOM de teste e em Chromium (o último falha sem a correção). Documentado em `docs/inbox.md`.
+
+### 2. O que estamos fazendo
+- PR para revisão. Só o site; sem SQL, função ou Worker.
+
+### 3. O que vamos fazer
+- Dono confere no iPhone depois de publicado: da lista, ← leva ao menu do Inbox; do menu, ← sai.
+

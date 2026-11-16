@@ -1198,3 +1198,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: mesclar, publicar Worker e função, validar no iPhone (roteiro em `docs/inbox.md`, "I3.2") e informar se o iCloud anuncia MOVE depois do login. Depois: decidir sobre caminho alternativo se não anunciar; ações em lote; botão por linha.
+
+## 16/11/2026 · Correção do verificador de publicação do Worker após o I3.2 (branch `claude/rac-inbox-worker-scanner-i32`)
+
+### 1. O que fizemos
+- Causa: a etapa "Empacotar sem publicar (dry-run)" do workflow `rac-inbox-worker-publicar.yml` ainda reprovava `SELECT`, `STORE` e `MOVE`, embora façam parte do gerenciamento restrito do I3.2 (main `f55aaec`). Novo inspetor `inspecionar-verbos.mjs` com política exata (SELECT controlado, UID STORE só de \Seen para um UID, UID MOVE de um UID com MOVE anunciado) e proibição de COPY, APPEND, EXPUNGE/UID EXPUNGE, DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE e \Deleted. Textos do workflow corrigidos. Teste novo `rac_inbox_worker_inspecao`.
+
+### 2. O que estamos fazendo
+- PR aberto; **nada publicado** (Worker `p9.0`, secrets e Durable Object intactos).
+
+### 3. O que vamos fazer
+- Dono: mesclar e só então rodar o workflow de publicação do Worker; depois, validação no iPhone (docs/inbox.md, I3.2).

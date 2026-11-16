@@ -62,3 +62,6 @@ O Worker guarda as versões anteriores; voltar não mexe em secrets nem no Durab
 
 ## Limites
 Este workflow não aplica SQL, não publica a função `rac-inbox` (Supabase) nem o site, e não faz a prova real de SMTP: isso continua sendo feito pelo botão **Testar envio (SMTP)** do RAC, que usa a credencial do Vault.
+
+## Inspeção dos comandos IMAP do pacote (corrigida em 16/11/2026, após o I3.2)
+O verificador do workflow reprovava qualquer `SELECT`, `STORE` ou `MOVE` no pacote (política antiga "IMAP só leitura") e por isso barrou o Worker `p9.0`. Agora a etapa "Empacotar sem publicar (dry-run) e inspecionar" chama `experimentos/rac-inbox-worker-ferramenta/inspecionar-verbos.mjs` sobre o bundle gerado. **Passam só:** `SELECT` na abertura controlada de pasta, `UID STORE` de `+FLAGS (\Seen)`/`-FLAGS (\Seen)` para um UID e `UID MOVE` de um UID para uma pasta validada (com o portão "MOVE anunciado depois do login"), cada um na forma exata e uma vez. **Reprovam:** COPY, APPEND, EXPUNGE (inclusive UID EXPUNGE), DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE, `\Deleted`, `FLAGS.SILENT` e qualquer STORE/MOVE/SELECT fora dessas formas. Mudar os comandos do Worker exige atualizar esta política no mesmo PR (de propósito). Teste: `tests/rac_inbox_worker_inspecao.test.mjs`. O job também roda `rac_inbox_worker_gestao.test.mjs`.

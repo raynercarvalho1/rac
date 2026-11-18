@@ -1,8 +1,41 @@
 {
- "coletado": "2026-11-18T02:52:50.065781+00:00",
+ "coletado": "2026-11-18T11:35:14.596729+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "White Sox To Sign Dustin May",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-sign-dustin-may.html",
+   "data": "2026-11-18T05:57:48+00:00",
+   "resumo": "The White Sox and right-hander Dustin May are in agreement on a three-year contract, $52.5MM contract. The team has yet to officially announced the deal. May is represented by Paragon Sports International. It’s a surprisingly strong deal for the pitcher. The White Sox are…",
+   "tags": [
+    "Chicago White Sox",
+    "Newsstand",
+    "Transactions",
+    "Dustin May"
+   ]
+  },
+  {
+   "t": "Ryan Jeffers Declined Multi-Year Offer From Twins To Accept QO",
+   "link": "https://www.mlbtraderumors.com/2026/11/ryan-jeffers-declined-multi-year-offer-from-twins-to-accept-qo.html",
+   "data": "2026-11-18T05:14:02+00:00",
+   "resumo": "Ryan Jeffers will be back in Minnesota for another season. The slugging catcher surprisingly accepted the one-year, $23.15MM qualifying offer this afternoon — just days after reports that he planned to decline in search of a multi-year deal. Jeffers apparently had at least one…",
+   "tags": [
+    "Minnesota Twins",
+    "Ryan Jeffers"
+   ]
+  },
+  {
+   "t": "Mariners, Bryce Conley Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-bryce-conley-agree-to-minor-league-deal.html",
+   "data": "2026-11-18T03:48:13+00:00",
+   "resumo": "The Mariners are in agreement with right-hander Bryce Conley on a minor league contract, reports Will Sammon of The Athletic. He’ll be in camp as a non-roster invitee. Conley, 32, spent the 2026 season in the Mets’ system. He started 18 of 29 games between Double-A Binghamton…",
+   "tags": [
+    "Seattle Mariners",
+    "Transactions",
+    "Bryce Conley"
+   ]
+  },
   {
    "t": "Frankie Montas Throws Showcase After Missed 2026 Season",
    "link": "https://www.mlbtraderumors.com/2026/11/frankie-montas-throws-showcase-after-missed-2026-season.html",
@@ -156,46 +189,6 @@
     "Cincinnati Reds",
     "Transactions",
     "Carter Graham"
-   ]
-  },
-  {
-   "t": "Marlins Select Four Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/marlins-select-four-players.html",
-   "data": "2026-11-17T23:19:16+00:00",
-   "resumo": "The Marlins announced that they have selected right-handers Jace Beck, Eliazar Dishmey, and Brandon White, as well as infielder Juan Matheus, to the 40-man roster. Those players are now protected from being selected in the Rule 5 draft, if it takes place this offseason. Miami…",
-   "tags": [
-    "Miami Marlins",
-    "Transactions",
-    "Brandon White",
-    "Eliazar Dishmey",
-    "Jace Beck",
-    "Juan Matheus"
-   ]
-  },
-  {
-   "t": "Guardians Make Multiple Roster Moves",
-   "link": "https://www.mlbtraderumors.com/2026/11/guardians-make-multiple-roster-moves.html",
-   "data": "2026-11-17T23:11:15+00:00",
-   "resumo": "The Guardians announced that right-hander Justin Campbell, catcher Kody Huff, and outfielder Jaison Chourio were selected to the 40-man roster. Chourio is the most well-regarded prospect of the group. MLB Pipeline had him at No. 5 in Cleveland’s system. Chourio slashed…",
-   "tags": [
-    "Cleveland Guardians",
-    "Transactions",
-    "Jaison Chourio",
-    "Justin Campbell",
-    "Kody Huff"
-   ]
-  },
-  {
-   "t": "Blue Jays Select Three Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-select-three-players.html",
-   "data": "2026-11-17T23:11:10+00:00",
-   "resumo": "The Blue Jays announced that they selected outfielder RJ Schreck as well as right-handers Nolan Perry and Daniel Guerra to the 40-man roster. That protects those players from being selected in the Rule 5 draft, if it actually takes place this offseason. Toronto had three 40-man…",
-   "tags": [
-    "Toronto Blue Jays",
-    "Transactions",
-    "Daniel Guerra",
-    "Nolan Perry",
-    "RJ Schreck"
    ]
   }
  ],

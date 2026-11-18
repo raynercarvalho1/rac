@@ -1,13 +1,113 @@
 {
- "coletado": "2026-11-18T11:35:14.596729+00:00",
+ "coletado": "2026-11-18T20:27:15.726081+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
+   "t": "Red Sox Acquire Nick Fortes",
+   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-acquire-nick-fortes.html",
+   "data": "2026-11-18T20:20:15+00:00",
+   "resumo": "The Red Sox have acquired catcher Nick Fortes from the Rays, according to announcements from both clubs. Tampa gets minor league right-hander Angel Roa in return. The Sox designated catcher Connor Wong to open a 40-man spot for Fortes. It’s probably not a coincidence that this…",
+   "tags": [
+    "Boston Red Sox",
+    "Tampa Bay Rays",
+    "Transactions",
+    "Connor Wong",
+    "Nick Fortes"
+   ]
+  },
+  {
+   "t": "Reds Receiving Trade Interest In Nick Lodolo",
+   "link": "https://www.mlbtraderumors.com/2026/11/reds-trade-rumors-nick-lodolo.html",
+   "data": "2026-11-18T20:18:20+00:00",
+   "resumo": "As clubs around the league scour the market for rotation help, the Reds have been receiving trade interest in left-hander Nick Lodolo, per Ken Rosenthal of The Athletic. There’s no indication any kind of deal is close at the moment. Lodolo, 29 in February, is down to one final…",
+   "tags": [
+    "Cincinnati Reds",
+    "Nick Lodolo"
+   ]
+  },
+  {
+   "t": "Latest On Corey Seager",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-corey-seager-2.html",
+   "data": "2026-11-18T19:44:02+00:00",
+   "resumo": "It’s no big secret that the Rangers are putting out feelers, trying to line up a Corey Seager trade. Even if they can agree to a framework with another club, Seager would have to give his consent. As a 10-and-5 guy, Seager has full no-trade rights. Jeff Passan of ESPN reports…",
+   "tags": [
+    "Texas Rangers",
+    "Corey Seager"
+   ]
+  },
+  {
+   "t": "Angels Acquire Jace Jung",
+   "link": "https://www.mlbtraderumors.com/2026/11/tigers-trade-jace-jung-angels.html",
+   "data": "2026-11-18T19:34:28+00:00",
+   "resumo": "The Angels announced Wednesday that they’ve acquired infielder Jace Jung from the Tigers in exchange for cash. Detroit designated Jung, a former No. 12 overall pick (2022) and top prospect, for assignment yesterday. The younger brother of Rangers third baseman Josh Jung, Jace…",
+   "tags": [
+    "Detroit Tigers",
+    "Los Angeles Angels",
+    "Transactions",
+    "Jace Jung"
+   ]
+  },
+  {
+   "t": "The Best Fits For Trevor Rogers",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-trevor-rogers.html",
+   "data": "2026-11-18T18:36:33+00:00",
+   "resumo": "MLBTR’s series of examining the market for the best free agents continues. We’re on to Trevor Rogers, the only starting pitcher who declined the qualifying offer and arguably the #2 pitcher in the class. Rogers’ first couple seasons were up and down, with his career reaching a…",
+   "tags": [
+    "Baltimore Orioles",
+    "Front Office Originals",
+    "Trevor Rogers"
+   ]
+  },
+  {
+   "t": "Giants Open To Offers On Casey Schmitt In Search For Pitching Help",
+   "link": "https://www.mlbtraderumors.com/2026/11/giants-trade-rumors-casey-schmitt-pitching-help.html",
+   "data": "2026-11-18T17:51:46+00:00",
+   "resumo": "As the Giants scour the market for pitching help, they’ve floated the possibility of trading infielder/outfielder Casey Schmitt, reports Jeff Passan of ESPN. There’s no indication any sort of deal is close, but Schmitt is the type of controllable infielder who could net them…",
+   "tags": [
+    "San Francisco Giants",
+    "Casey Schmitt"
+   ]
+  },
+  {
+   "t": "Royals, Mariners Swap Maikel Garcia For Bryce Miller In Six-Player Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-acquire-maikel-garcia.html",
+   "data": "2026-11-18T17:30:22+00:00",
+   "resumo": "The Mariners and Royals have lined up on a six-player blockbuster, announcing Wednesday that infielder Maikel Garcia, reliever James McArthur and left-handed pitching prospect L.P. Langevin are going from Kansas City to Seattle in exchange for right-handed starters Bryce Miller…",
+   "tags": [
+    "Kansas City Royals",
+    "Newsstand",
+    "Seattle Mariners",
+    "Transactions",
+    "Bryce Miller",
+    "James McArthur"
+   ]
+  },
+  {
+   "t": "Nationals To Sign Hagen Danner To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-to-sign-hagen-danner-to-minor-league-deal.html",
+   "data": "2026-11-18T15:32:43+00:00",
+   "resumo": "The Nationals are adding right-hander Hagen Danner on a minor league agreement, reports Spencer Nusbaum of The Athletic. He spent last season in the minors with the Reds and Angels. The 28-year-old Danner posted a 6.35 ERA in 37 appearances at Triple-A in 2026. He had a…",
+   "tags": [
+    "Transactions",
+    "Washington Nationals",
+    "Hagen Danner"
+   ]
+  },
+  {
+   "t": "The Opener: Silver Sluggers, Qualifying Offers, May",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-silver-sluggers-qualifying-offers-may.html",
+   "data": "2026-11-18T14:42:30+00:00",
+   "resumo": "Tuesday was a wild one for transactions with the Rule 5 deadline in the evening. Virtually every team shuffled players on and off its 40-man roster. 1. Silver Sluggers announced The Silver Slugger Awards for both leagues were handed out last night. The crop included a pair of…",
+   "tags": [
+    "The Opener"
+   ]
+  },
+  {
    "t": "White Sox To Sign Dustin May",
    "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-sign-dustin-may.html",
    "data": "2026-11-18T05:57:48+00:00",
-   "resumo": "The White Sox and right-hander Dustin May are in agreement on a three-year contract, $52.5MM contract. The team has yet to officially announced the deal. May is represented by Paragon Sports International. It’s a surprisingly strong deal for the pitcher. The White Sox are…",
+   "resumo": "The White Sox and right-hander Dustin May are in agreement on a three-year, $52.5MM contract. The team has yet to officially announce the deal. May is represented by Paragon Sports International. It’s a surprisingly strong deal for the pitcher. The White Sox are placing a…",
    "tags": [
     "Chicago White Sox",
     "Newsstand",
@@ -70,125 +170,6 @@
     "Transactions",
     "Ian Koenig",
     "Tucker Musgrove"
-   ]
-  },
-  {
-   "t": "Tigers Designate Four Players For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/tigers-designate-four-players-for-assignment.html",
-   "data": "2026-11-18T00:04:09+00:00",
-   "resumo": "The Tigers announced they’ve designated four players for assignment: infielders Jace Jung and Trey Sweeney, outfielder Matt Vierling, and left-handed pitcher Jake Miller. That clears 40-man roster space for them to finalize the Emilio Pagán signing and select Josue Briceño, Max…",
-   "tags": [
-    "Detroit Tigers",
-    "Transactions",
-    "Jace Jung",
-    "Jake Miller",
-    "Josue Briceno",
-    "Matt Vierling"
-   ]
-  },
-  {
-   "t": "Cubs Select Jaxon Wiggins, Brody McCullough",
-   "link": "https://www.mlbtraderumors.com/2026/11/cubs-select-jaxon-wiggins-brody-mccullough.html",
-   "data": "2026-11-17T23:58:57+00:00",
-   "resumo": "The Cubs announced that they have selected right-handers Jaxon Wiggins and Brody McCullough to the 40-man roster. Those players are now protected from the Rule 5 draft, if it even takes place this offseason. The club’s 40-man roster count is now at 36. The 2021 Rule 5 draft was…",
-   "tags": [
-    "Chicago Cubs",
-    "Transactions",
-    "Brody McCullough",
-    "Jaxon Wiggins"
-   ]
-  },
-  {
-   "t": "Orioles Select Seven Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/orioles-select-seven-players.html",
-   "data": "2026-11-17T23:55:23+00:00",
-   "resumo": "The Orioles have the league’s biggest group of newcomers on Rule 5 protection day. Baltimore added seven players to their 40-man roster: outfielder Enrique Bradfield Jr., infielder Aron Estrada and pitchers Braxton Bragg, Michael Forret, Nestor German, Patrick Reilly and Levi…",
-   "tags": [
-    "Baltimore Orioles",
-    "Transactions",
-    "Aron Estrada",
-    "Braxton Bragg",
-    "Enrique Bradfield",
-    "Levi Wells"
-   ]
-  },
-  {
-   "t": "Athletics Acquire Yaqui Rivera From Orioles",
-   "link": "https://www.mlbtraderumors.com/2026/11/athletics-acquire-yaqui-rivera-from-orioles.html",
-   "data": "2026-11-17T23:52:02+00:00",
-   "resumo": "The Athletics announced they’ve acquired right-hander Yaqui Rivera from the Orioles for minor league righty Josiah Romeo. They added Rivera to their 40-man roster to keep him out of the Rule 5 draft. The A’s also selected catcher Cole Conn onto the roster and designated…",
-   "tags": [
-    "Athletics",
-    "Baltimore Orioles",
-    "Transactions",
-    "Cole Conn",
-    "Hayden Juenger",
-    "Yaqui Rivera"
-   ]
-  },
-  {
-   "t": "Dodgers Designate Jake Cousins, Christian Cairo For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-designate-jake-cousins-christian-cairo-for-assignment.html",
-   "data": "2026-11-17T23:34:45+00:00",
-   "resumo": "The Dodgers announced they’ve designated reliever Jake Cousins and infielder Christian Cairo for assignment. They needed to open two spots on the 40-man roster to select four pitchers: righty Christian Zazueta and left-handers Jackson Ferris, Adam Serwinowski and Luke Fox. The…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Transactions",
-    "Adam Serwinowski",
-    "Christian Cairo",
-    "Christian Zazueta",
-    "Jackson Ferris"
-   ]
-  },
-  {
-   "t": "Brewers Select Six Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/brewers-select-six-players.html",
-   "data": "2026-11-17T23:31:46+00:00",
-   "resumo": "The Brewers announced that they have selected six players to the 40-man roster. They are infielders Luke Adams and Dylan O’Rae, catcher Matt Wood, left-hander Tate Kuehner, right-hander Cameron Wagoner, and infielder/outfielder Jett Williams. Those players are now protected…",
-   "tags": [
-    "Milwaukee Brewers",
-    "Transactions",
-    "Cameron Wagoner",
-    "Dylan O'Rae",
-    "Luke Adams",
-    "Matt Wood"
-   ]
-  },
-  {
-   "t": "Cardinals Designate Max Rajcic For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-designate-max-rajcic-for-assignment.html",
-   "data": "2026-11-17T23:29:14+00:00",
-   "resumo": "The Cardinals announced they’ve designated right-hander Max Rajcic for assignment. They had one opening on the 40-man roster but needed a second to select infielder Jesús Báez and right-hander Jacob Odle, both of whom are now protected from the Rule 5 draft. It’s a tough break…",
-   "tags": [
-    "St. Louis Cardinals",
-    "Transactions",
-    "Jacob Odle",
-    "Jesus Baez",
-    "Max Rajcic"
-   ]
-  },
-  {
-   "t": "Rockies Select Three Players",
-   "link": "https://www.mlbtraderumors.com/2026/11/rockies-select-three-players.html",
-   "data": "2026-11-17T23:27:28+00:00",
-   "resumo": "The Rockies selected the contracts of catcher Bryant Betancourt and right-handers Jackson Cox and Jack Mahoney, per a team announcement. Colorado’s 40-man roster is now at 39 players. Cox was a second-round pick in 2022. Injuries have slowed his rise through the system. His…",
-   "tags": [
-    "Colorado Rockies",
-    "Transactions",
-    "Bryant Betancourt",
-    "Jack Mahoney",
-    "Jackson Cox"
-   ]
-  },
-  {
-   "t": "Reds Select Carter Graham",
-   "link": "https://www.mlbtraderumors.com/2026/11/reds-select-carter-graham.html",
-   "data": "2026-11-17T23:24:35+00:00",
-   "resumo": "The Reds announced that infielder/outfielder Carter Graham has been selected to the 40-man roster. That protects him from being exposed in the Rule 5 draft, if it takes place this offseason. Cincinnati had multiple 40-man vacancies, so no corresponding move was required.…",
-   "tags": [
-    "Cincinnati Reds",
-    "Transactions",
-    "Carter Graham"
    ]
   }
  ],

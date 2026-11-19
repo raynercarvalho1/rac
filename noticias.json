@@ -1,6 +1,48 @@
 {
- "coletado": "2026-11-19T02:32:15.127382+00:00",
+ "coletado": "2026-11-19T11:33:19.503468+00:00",
  "noticias": [
+  {
+   "t": "Casal de Jundiaí transforma Quantum 1995 em motorhome e viaja até o 'Fim do Mundo' na Argentina",
+   "u": "https://g1.globo.com/sp/sorocaba-jundiai/noticia/2026/11/19/casal-de-jundiai-transforma-carro-dos-anos-90-em-motorhome-e-viaja-ate-o-fim-do-mundo-na-argentina.ghtml",
+   "f": "g1",
+   "d": "2026-11-19T10:27:00+00:00"
+  },
+  {
+   "t": "Previsão do tempo em Sorocaba: 59% de chance de chuva e máxima de 30.6°C",
+   "u": "https://news.google.com/rss/articles/CBMipAFBVV95cUxQTG5iQVpVa28yMk9jaDEyd3RNWGRSVjF6VGk3Sk55c2hlNlBKcUpXeDJWbTZNT1h1TEVYMll6OUJxZVlvSkVBdzVUbWVHOWlZai1YOC14ZnNsTjNwNXluZFVja1dmRzR1NkQzMmhSSlRIODRGODZIRE9TTng4dW9ISHpBeUNPQkhwZy1TdTgxanNranZ6SjJrQzJmSnRIZm1kSklSWA?oc=5",
+   "f": "www.bra1.com.br",
+   "d": "2026-11-19T09:07:00+00:00"
+  },
+  {
+   "t": "Falta de merenda suspende aulas em creches de São Miguel Arcanjo",
+   "u": "https://news.google.com/rss/articles/CBMipAFBVV95cUxQYmtUWVpFUzJHUlNpT1dsc3EtT0RCSnROb2lCUnlkN1F2UUxlS3lpekRGUlFyQkc5cXZZVktOV0JmZ3Fvc1ZTbGExZk9aU29rMWhwYkVlTnFvWFBoZTNnVjI4b3BVbzE2TEVTdDVaRU55ZHJlOS1WbGN3WWRIRHhyMEVPQWl3cGcwNlNTMjhmalJWS0xUVE9sWklZVHJvQ3lLY0Q2cA?oc=5",
+   "f": "Portal Sorocaba.com",
+   "d": "2026-11-19T08:58:00+00:00"
+  },
+  {
+   "t": "Toyota inaugura fábrica em Sorocaba e lança picape Corolla Deck",
+   "u": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQZGtmWDMzcWhibzJKN1YtcW5sY3Itc3oyX2tGOVY4aTRtTUNPaUdTeWJwT29vS1dUdk1MUVVZb1NZTWticm9UYUdFZjZLeUl3bGRfdnc2S1BPUm9semh6N1ZVVWg1Q2tGNl8tNzNKaXFCQUdaQlBVV09pcnRfSjB0Q3pBbzg3LXF0RjRlYlFXLWZQdHVRRThhSUs3VDVnakpNZXBz?oc=5",
+   "f": "Portal Sorocaba.com",
+   "d": "2026-11-19T08:57:00+00:00"
+  },
+  {
+   "t": "Homem de 64 anos é preso por suspeita de abuso sexual em ponto de ônibus em Sorocaba",
+   "u": "https://news.google.com/rss/articles/CBMivwFBVV95cUxOajB4VU9QVkNZakoyMXZxeVZ5eHk5OGM3SlJrRE9pbHRIVVFjbDYtc0xGSk9WUVAyX2Jha1otbTJfUFNUZFk0MUE1N1JkNXJjb2xkYWxSQ3dwY3FKdmFQY2c4M1FLZUFYYV9yYTNkUmxnUHlRVFp5aFZxTk5XQ2FzMUk1V3I2enV5OVpjQThpVzJlZmVVSEkxYmc1bTBKQlE5UmxKS3BNM2t3R2hvM1pUTjMzZ3hjNEMzd0xCUWw3SQ?oc=5",
+   "f": "Portal Sorocaba.com",
+   "d": "2026-11-19T08:55:00+00:00"
+  },
+  {
+   "t": "Morre trabalhador ferido em explosão de fábrica química em Salto",
+   "u": "https://news.google.com/rss/articles/CBMipAFBVV95cUxOaGZSUHk4YVJ0bjVzZmVUUDVTWjJPSFZiY0Z4el8zTHpVRF94eFZEZTBJRVVWa2daVUtTUzlwODZ3NG9nU0tDbVRmTWlXNldvbzNTb19fUmp2aFJkNjBBTzNyZF9nTEFIczNkcndLeTA5VDNDTGZJZUttbS0yUk9VcUZoa1pHWmVzVFBVUFZyaDVkS0xKVkpwcHFEMTg2Zm1ZSUxwUQ?oc=5",
+   "f": "Portal Sorocaba.com",
+   "d": "2026-11-19T08:53:00+00:00"
+  },
+  {
+   "t": "Sexta (20/11) tem discotecagem com Djodi no Tacinha Vinho & Pista",
+   "u": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTE43cUNONmhHRlhpMnlVczVQNVhqNVEyWTZhT2hzSFpfSm52QUk2OVhySWcxWVhfUVMySDJ5YVEyV0dvemlOeVMyeVBsTkd4dFFkNGRqQlBZd1RDVEtMc1paQ01aV3gzZXM?oc=5",
+   "f": "Agenda Sorocaba",
+   "d": "2026-11-19T02:33:51+00:00"
+  },
   {
    "t": "Veja o que abre e fecha em Sorocaba no feriado de amanhã",
    "u": "https://news.google.com/rss/articles/CBMixwFBVV95cUxNeF9PZG0weFFTLUgtTkZ4Qlo5czY4QWxheE4wUVBwNzlZc1NGM1UzLTBIWVNhTnAwbXAyamRkZ1RsR0lsQUFiXzEyTHVqTWFFUXhobVRaV0ZzQ0Y1cWRaanpCNUJPWld5dTFOekRGNTFfWnpJVy1TYmwtQ25BZEJyN3NsZDBwREFwcEJTTEFvQ1Q2em9DYXdJdmFpbEdNUXYyZy1EQ2paWlNlY0JXN3o3VkpOUGUwMWFWcXBqMlpwY2xxUHNCZ0Mw0gHMAUFVX3lxTE5FLVdWLXljRnVXdjhBQnBRXzlTR2YxTEtIcDh3eWF1cDNRS0EtUmFYSloxdVdGMU50ajhZVmFha2M4Mlo1eW0tSTJ1UlRGNGN2RnBsRktTYlZnYS0zeC14ZERFOHV4MnVhQW1EX0lyY3NCVzNNRDlmZU00OTNjSm1jbmxFZDlreXF6QTh5ZVl6MEdId0dUR0hXNkYxb1UzRWhLUF94WlEwWENiTjBxX1ZYQm1mdWY1US0wQlRrdGpKREtneC16MjF3MnZLSg?oc=5",
@@ -32,22 +74,10 @@
    "d": "2026-11-19T00:22:00+00:00"
   },
   {
-   "t": "Fundo Estadual de Recursos Hídricos aprova 25 projetos para a região",
-   "u": "https://news.google.com/rss/articles/CBMi1wFBVV95cUxPMXJrRjF3U2JTZlhqbHRxRHcydUVyN2VlV1pEVksxcUItZi1ZSTNwaHNHcFlmdzRkWnpFRHByQ3pvUFhnRHJwQ0VCbFN5MHIzNFNDRm14bFZubUNpUVI1ajI4SDNMekZ6MU5vQUtFZzRZX0I5bVVkdy1wbE44b1NvWkxNcy1xWWQ1VW4zS1I4MXlEWW9UaDE5cGtjQVYzbTBWa1B3QmRFYWgyNnNnLTllYW1Mem1DVUJhZ1dtVWxqSE5CZ0ZUM3VhZW9TbFI0Vy1CU3k5Q0tlWdIB3AFBVV95cUxNVTdycHpvWjdNWGF4aHFVZWYyZ19KSlFxX3BrYnltSzBmcUYtS2hLQ0c1MVpNbEV2el9aWjQ3dDJsN2s4Y25iMnF4aU5laTFvRGd0SHVQYjhsMkkxRjRubmJuMHN2dHRiUGRGNmxyemNmMWRzRHNyQ3dQdEYwb25IdE56a2NIMEFsVklybFRhUjFaVHNXRElXTTNWcWR2cVlBMFlzamw3NWlEXzdxSnlFYWs4TGdjNnY0akthV0RRN0xEamw4VUVTOHN3djBKZ0ZzeVoyeHVsa25pcTRI?oc=5",
-   "f": "Jornal Cruzeiro do Sul",
-   "d": "2026-11-19T00:22:00+00:00"
-  },
-  {
    "t": "Toyota inaugura nova fábrica em Sorocaba e anuncia produção de novo modelo híbrido flex",
    "u": "https://news.google.com/rss/articles/CBMixAFBVV95cUxPUDNETGtRbHpYVFVsWHRxTy1xTFBBMWo0WUdXUTg4UEw4ekRMRzlOc3F3NDBkOVl1b0xTY1Utc2RGVUFiLTZ3NEYzdDJXaGNhUW0wVkl6QXdGNm0yTHkwNGZray1pTmNzWU5jNnBGNlpKTjF2UEN2YWJsTmR1SkdIcVU2ak9pTHhmY2E3Zm9Ib2FLLUVNYXZ5cElSYVdGNmFPX3BNbWVuUnRZRFdyUkctSDdWQ28xNjMtMGZqaWhxRkZsVlYy?oc=5",
    "f": "Mirian Gasparin",
    "d": "2026-11-18T23:50:16+00:00"
-  },
-  {
-   "t": "Prefeitura constrói banheiro masculino após denúncia",
-   "u": "https://news.google.com/rss/articles/CBMiwgFBVV95cUxQRTB1eGJGNGJmMkt2Qy1UUlJIUU9aOXhUUmtkNGwwNlBXNkFMNXN1MVpxay1FalItMjlzbmRHUTFQLV9pSGNwRnBSWUFQdF9iUHRaZ29SdGtjRUxrZW1waHBGYVNpVXFLS1RHdDhhSHZmS2hMdF93OUg5cUNvTmplSzA1WlduZ2ZBNlpiQThPcmVUZDhyb2x6MW9QdXVrUGRLN1d0X2hzUU4yZmMwb2lNUEtBYlpUUmNRazI5QW9VT3Nsd9IBxwFBVV95cUxNYUNDUE9NelV4X2J5Z2dTR3FwMkVmazJRZHp1dGVqaFY3YUZBQTMyTkZkOUtWZklaMC1pTWRjaHowTjRVLWxtSXZkZ0Jfc2hjT1V6bXU4azVJUWwxMl9BbU50bzFEU2loSmRyUHhyYlhkU1R2ZTNrdncwWVVKMF90cUFfV0ZiQXN0bnU5N19FcFNyWjJMOXRXMmlKTEZWVzVidW5PRTdoTUpibEJLZ09SRk1ueEpJdWN6SVFOaUR6N2Z1TTQ5UF84?oc=5",
-   "f": "Jornal Cruzeiro do Sul",
-   "d": "2026-11-18T23:01:00+00:00"
   },
   {
    "t": "Morre servidor do Saae atingido por explosão em fábrica de Salto",
@@ -66,12 +96,6 @@
    "u": "https://news.google.com/rss/articles/CBMixgFBVV95cUxPdjZJTm5XUzRnYUtPQXJJUjhnSHVWam5nUlNXWkNYTHNBY2RnbEpwbTAySS1ZMF9xX1RmTTQ0VGlibTBRNWgxbXpDelZobWpSMnlUWTZoZEJBYlJDcHhOM2QyMzJxVm9VRjFBdzlqaFhJYWxuU184eDJtYW9pajJhLTlNZVdWMkRuaUo5TUVuM3ZtbnVIZmtQSHZwZTJwd0ZJb2pWMzljdVFmcUFFaFhLRDVpUGo0aUk0TjE5NC1GVzd4bV94NFE?oc=5",
    "f": "agenciasp.sp.gov.br",
    "d": "2026-11-18T21:53:20+00:00"
-  },
-  {
-   "t": "Demo Day apresenta projetos do hackathon da NASA e define equipes que poderão representar Sorocaba na etapa global",
-   "u": "https://news.google.com/rss/articles/CBMi5wFBVV95cUxNQ2t2amxfU2ZvaE4tWURxQ1Z0MVZVY0o4cTlVbFZ2TzVnMXB2dEw2UDlzWHpKVGJ6N2pXMHMyOVBreUlsYUhmOUZ5UDRhbVNkNmtJcEU4ZUVDb3JrM1VHX2hyT0ROV3RpMXN5eEwxOTFhdGlWdTFPNEgwYlZHTExJTDU3YmlrY0xaYTJxV2ZVUnJOcGRSRVdQZWd1cVFoamw5bEgzSnk1M3d3aU5aeWxzbi15RWxqaUoxTHBfOEVJZ2U1NE5rTHZzei1KTm55OTFuZGMzN3JCWXp2Vmx3X2RSLUlLSHpvZ28?oc=5",
-   "f": "Grupo Portal de Notícias",
-   "d": "2026-11-18T21:43:01+00:00"
   },
   {
    "t": "Hackathon da Nasa reúne 25 projetos em Sorocaba",
@@ -96,30 +120,6 @@
    "u": "https://news.google.com/rss/articles/CBMinwFBVV95cUxNV1JuVzBtTktQeUZxUE5MSHh4V1lpRlFUMUxmR0ZWbVJJT0Z2cGZ0RlBTMm5ON0dJeFJPQ0xQRUVjQ2o2OXE0R21pS3lKdTJBdWFoLUtrVDJlYjEyM2NUX3l1bmRIU1ZGWEY3MjA3WXpBWkp2ZEwtWExyZmFBVTdTdFhqcUFDd0trb0E4VENnNTNNcHhkOUxCanNZYzIwU0U?oc=5",
    "f": "Automotive Business",
    "d": "2026-11-18T20:58:52+00:00"
-  },
-  {
-   "t": "Sexta (20/11) tem samba em dose dupla no Naesquina Botequim",
-   "u": "https://news.google.com/rss/articles/CBMigwFBVV95cUxPSkhET21lN21KdFdvVU5pcWlqR2RvVEc1MUlDZExkTlNTMHMtTXR2OVd2Rng2UTUwZkkyaE14WU0wTnp5MURib3dhcXNvdVlLV2V5UEViYjBmT0lpb0E0NHB6WVBZRDJMcWxwOTVobE9faUcwbUw3bGdkbTdtdlNLa0JPOA?oc=5",
-   "f": "Agenda Sorocaba",
-   "d": "2026-11-18T20:52:07+00:00"
-  },
-  {
-   "t": "Prefeitura de Sorocaba abre inscrições para o City Tour no sábado (21/11)",
-   "u": "https://news.google.com/rss/articles/CBMiuwFBVV95cUxNZFlMUkVUUVNsT2FUMXdPWXRqZ3I3LXJMdGlNWEtIQ1ZKdTdBSWx1UEhjbVpNMU8xR25PQW9FZTZnVDVjaVlNQUl3RVhDRjk5UHVfNlAxeEpNWkh1LW5xVTktZjd6MkVsRTRWQUZaZlFDSlRIRFJKS3RLellwMjZxZmg4UUl6NGdDNFg0WlFSeUFPd05aM0tRZXhKWGtMWVlPaWdkMkRzRHp6WGNCR1NmZTZPZ0hGWVE3NzJR?oc=5",
-   "f": "Agenda Sorocaba",
-   "d": "2026-11-18T20:37:53+00:00"
-  },
-  {
-   "t": "Sorocaba recebe imersão gratuita em Teatro Musical com aulas de canto, dança e atuação",
-   "u": "https://news.google.com/rss/articles/CBMizgFBVV95cUxQLTMyX1lYekxkWEVxeEQ4REtQNTVjd2VBNzdRemczdXJjeHd2YUpCZTRfdG4zZHcyQXowM2dWUWFScC14SEFqVDMxeXc5czBkZlZBbk9vb21pOVJWMVRGUGV6VDc0Zk1TUXk3VW55WGQtQXdBMWhBcC1pc29ZTndmbTdmWlpfMVcwaXEyRlJoMmU5LTVEREhSNGVpRVdMSEliMUhNdVQ4bTktZ0RLbFBhM2VBODJoa19iSjhtMVI4SnE3WHZMQ0Nidk5VYlpFUQ?oc=5",
-   "f": "Agenda Sorocaba",
-   "d": "2026-11-18T20:37:53+00:00"
-  },
-  {
-   "t": "‘Turismo Vai à Escola’ apresenta atrativos de Sorocaba a estudantes da rede municipal",
-   "u": "https://news.google.com/rss/articles/CBMivAFBVV95cUxPVFpFcXRIbTJqNG1pVVFCWllQWTFxNTZtYW1KRHZHRjJrRy1jbmVEa2FtTkk5VGwzcG11WWNVU04yRVNPYzRxLVRSQ1hSZ1RvcS1iTjM5Yl94SVhKLXlQX2NwVlpESEo4RDhrbFZ0ZjdXT01nUnM1NzlhV2Rndm1GQ1FmLVYxak81WWc4VHlEdGtaZmtfV092MkloVHBaN3FhRml5ZGZQVV9QRUxLS3NGdjJqUy1JTHJoTXF3Qg?oc=5",
-   "f": "Prefeitura de Sorocaba",
-   "d": "2026-11-18T20:26:36+00:00"
   }
  ]
 }

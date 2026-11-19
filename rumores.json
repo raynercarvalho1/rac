@@ -1,8 +1,125 @@
 {
- "coletado": "2026-11-18T20:27:15.726081+00:00",
+ "coletado": "2026-11-19T02:32:22.232014+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Twins Sign Sonny Gray",
+   "link": "https://www.mlbtraderumors.com/2026/11/twins-sign-sonny-gray.html",
+   "data": "2026-11-19T02:22:30+00:00",
+   "resumo": "8:22pm: Jon Heyman of The New York Post reports that the deal also includes a mutual option for 2029. Gray will make a $20MM salary next year and would collect a $5MM buyout if he declines a $30MM player option for 2028. There’s a $5MM buyout on the option, which is valued at…",
+   "tags": [
+    "Minnesota Twins",
+    "Newsstand",
+    "Transactions",
+    "Sonny Gray"
+   ]
+  },
+  {
+   "t": "Mets, Joel Kuhnel Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-joel-kuhnel-agree-to-minor-league-deal.html",
+   "data": "2026-11-19T01:07:13+00:00",
+   "resumo": "The Mets are in agreement with reliever Joel Kuhnel on a minor league contract, reports Jon Heyman of The New York Post. The Octagon client will presumably be in camp as a non-roster invitee. Kuhnel qualified for minor league free agency when he was outrighted by the Giants at…",
+   "tags": [
+    "New York Mets",
+    "Transactions",
+    "Joel Kuhnel"
+   ]
+  },
+  {
+   "t": "Orioles Sign Junior Pérez, Alex Carrillo To Minor League Deals",
+   "link": "https://www.mlbtraderumors.com/2026/11/orioles-sign-junior-perez-alex-carrillo-to-minor-league-deals.html",
+   "data": "2026-11-18T23:19:33+00:00",
+   "resumo": "The Orioles announced that they have signed outfielder Junior Pérez and right-hander Alex Carrillo to minor league deals. Presumably, each player will receive an invite to big league camp in spring training, though that wasn’t specified in the announcement. Pérez, 25, seemed to…",
+   "tags": [
+    "Baltimore Orioles",
+    "Transactions",
+    "Alex Carrillo",
+    "Junior Perez"
+   ]
+  },
+  {
+   "t": "White Sox Designate Jordan Leasure For Assignment",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-designate-jordan-leasure-for-assignment.html",
+   "data": "2026-11-18T23:00:02+00:00",
+   "resumo": "The White Sox officially announced their signing of right-hander Dustin May. Fellow righty Jordan Leasure has been designated for assignment as the corresponding 40-man roster move. Leasure is expected to miss 2027 while recovering from surgery. Leasure, now 28, seemed to have…",
+   "tags": [
+    "Chicago White Sox",
+    "Transactions",
+    "Jordan Leasure"
+   ]
+  },
+  {
+   "t": "White Sox Sign Dustin May",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-sign-dustin-may.html",
+   "data": "2026-11-18T22:45:48+00:00",
+   "resumo": "November 18: The Sox made it official today. November 17: The White Sox and right-hander Dustin May are in agreement on a three-year, $52.5MM contract. The team has yet to officially announce the deal. May is represented by Paragon Sports International. It’s a surprisingly…",
+   "tags": [
+    "Chicago White Sox",
+    "Newsstand",
+    "Transactions",
+    "Dustin May"
+   ]
+  },
+  {
+   "t": "Dipoto: “Zero” Chance Mariners Trade Another Starter",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-rumors-zero-chance-trade-another-starter-dipoto.html",
+   "data": "2026-11-18T22:24:59+00:00",
+   "resumo": "The Mariners’ blockbuster acquisition of third baseman Maikel Garcia earlier today subtracted righties Bryce Miller and Logan Evans from their rotation outlook. It’s been known for some time that Seattle was much, much more open to dealing from its rotation supply this winter…",
+   "tags": [
+    "Newsstand",
+    "Seattle Mariners",
+    "Bryan Woo",
+    "Emerson Hancock",
+    "George Kirby",
+    "Kade Anderson"
+   ]
+  },
+  {
+   "t": "Seth Halvorsen Undergoes Tommy John Surgery",
+   "link": "https://www.mlbtraderumors.com/2026/11/seth-halvorsen-undergoes-tommy-john-surgery.html",
+   "data": "2026-11-18T22:16:48+00:00",
+   "resumo": "The Dodgers announced that right-hander Seth Halvorsen has undergone ulnar collateral ligament reconstruction surgery, also known as Tommy John surgery, on his throwing arm. He will miss the entire 2027 season. Halvorsen, 27 in February, was acquired from the Rockies ahead of…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Seth Halvorsen"
+   ]
+  },
+  {
+   "t": "Rockies Re-Sign TJ Shook To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/rockies-re-sign-tj-shook-to-minor-league-deal.html",
+   "data": "2026-11-18T21:52:27+00:00",
+   "resumo": "The Rockies announced that they have re-signed right-hander TJ Shook to a minor league deal. Prior to the official announcement, it was reported by Thomas Harding of MLB.com, who noted that Shook has been assigned to Triple-A Albuquerque. Shook, 29 in May, played minor league…",
+   "tags": [
+    "Colorado Rockies",
+    "Transactions",
+    "TJ Shook"
+   ]
+  },
+  {
+   "t": "Royals Designate Kyle Isbel For Assignment",
+   "link": "https://www.mlbtraderumors.com/2026/11/royals-designate-kyle-isbel-for-assignment.html",
+   "data": "2026-11-18T21:05:50+00:00",
+   "resumo": "The Royals announced their six-player trade with the Mariners, which was reported earlier today. It was a three-for-three swap but all three players heading to Kansas City had 40-man roster spots, compared to just two of the players going to Seattle. The Royals therefore needed…",
+   "tags": [
+    "Kansas City Royals",
+    "Transactions",
+    "Kyle Isbel"
+   ]
+  },
+  {
+   "t": "Athletics Add Trevor Amicone, Casey Weathers To Coaching Staff",
+   "link": "https://www.mlbtraderumors.com/2026/11/athletics-hire-trevor-amicone-twins-casey-weathers-phillies-coaches.html",
+   "data": "2026-11-18T20:35:59+00:00",
+   "resumo": "The Athletics announced a pair of new additions to their coaching staff Wednesday. Trevor Amicone has been hired as the team’s new hitting coach. He’d previously been an assistant hitting coach with the Twins. The A’s also named Casey Weathers their new pitching coach. He’d…",
+   "tags": [
+    "Athletics",
+    "Minnesota Twins",
+    "Philadelphia Phillies",
+    "Casey Weathers",
+    "Trevor Amicone"
+   ]
+  },
   {
    "t": "Red Sox Acquire Nick Fortes",
    "link": "https://www.mlbtraderumors.com/2026/11/red-sox-to-acquire-nick-fortes.html",
@@ -58,122 +175,19 @@
     "Front Office Originals",
     "Trevor Rogers"
    ]
-  },
-  {
-   "t": "Giants Open To Offers On Casey Schmitt In Search For Pitching Help",
-   "link": "https://www.mlbtraderumors.com/2026/11/giants-trade-rumors-casey-schmitt-pitching-help.html",
-   "data": "2026-11-18T17:51:46+00:00",
-   "resumo": "As the Giants scour the market for pitching help, they’ve floated the possibility of trading infielder/outfielder Casey Schmitt, reports Jeff Passan of ESPN. There’s no indication any sort of deal is close, but Schmitt is the type of controllable infielder who could net them…",
-   "tags": [
-    "San Francisco Giants",
-    "Casey Schmitt"
-   ]
-  },
-  {
-   "t": "Royals, Mariners Swap Maikel Garcia For Bryce Miller In Six-Player Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-acquire-maikel-garcia.html",
-   "data": "2026-11-18T17:30:22+00:00",
-   "resumo": "The Mariners and Royals have lined up on a six-player blockbuster, announcing Wednesday that infielder Maikel Garcia, reliever James McArthur and left-handed pitching prospect L.P. Langevin are going from Kansas City to Seattle in exchange for right-handed starters Bryce Miller…",
-   "tags": [
-    "Kansas City Royals",
-    "Newsstand",
-    "Seattle Mariners",
-    "Transactions",
-    "Bryce Miller",
-    "James McArthur"
-   ]
-  },
-  {
-   "t": "Nationals To Sign Hagen Danner To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/nationals-to-sign-hagen-danner-to-minor-league-deal.html",
-   "data": "2026-11-18T15:32:43+00:00",
-   "resumo": "The Nationals are adding right-hander Hagen Danner on a minor league agreement, reports Spencer Nusbaum of The Athletic. He spent last season in the minors with the Reds and Angels. The 28-year-old Danner posted a 6.35 ERA in 37 appearances at Triple-A in 2026. He had a…",
-   "tags": [
-    "Transactions",
-    "Washington Nationals",
-    "Hagen Danner"
-   ]
-  },
-  {
-   "t": "The Opener: Silver Sluggers, Qualifying Offers, May",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-silver-sluggers-qualifying-offers-may.html",
-   "data": "2026-11-18T14:42:30+00:00",
-   "resumo": "Tuesday was a wild one for transactions with the Rule 5 deadline in the evening. Virtually every team shuffled players on and off its 40-man roster. 1. Silver Sluggers announced The Silver Slugger Awards for both leagues were handed out last night. The crop included a pair of…",
-   "tags": [
-    "The Opener"
-   ]
-  },
-  {
-   "t": "White Sox To Sign Dustin May",
-   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-sign-dustin-may.html",
-   "data": "2026-11-18T05:57:48+00:00",
-   "resumo": "The White Sox and right-hander Dustin May are in agreement on a three-year, $52.5MM contract. The team has yet to officially announce the deal. May is represented by Paragon Sports International. It’s a surprisingly strong deal for the pitcher. The White Sox are placing a…",
-   "tags": [
-    "Chicago White Sox",
-    "Newsstand",
-    "Transactions",
-    "Dustin May"
-   ]
-  },
-  {
-   "t": "Ryan Jeffers Declined Multi-Year Offer From Twins To Accept QO",
-   "link": "https://www.mlbtraderumors.com/2026/11/ryan-jeffers-declined-multi-year-offer-from-twins-to-accept-qo.html",
-   "data": "2026-11-18T05:14:02+00:00",
-   "resumo": "Ryan Jeffers will be back in Minnesota for another season. The slugging catcher surprisingly accepted the one-year, $23.15MM qualifying offer this afternoon — just days after reports that he planned to decline in search of a multi-year deal. Jeffers apparently had at least one…",
-   "tags": [
-    "Minnesota Twins",
-    "Ryan Jeffers"
-   ]
-  },
-  {
-   "t": "Mariners, Bryce Conley Agree To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-bryce-conley-agree-to-minor-league-deal.html",
-   "data": "2026-11-18T03:48:13+00:00",
-   "resumo": "The Mariners are in agreement with right-hander Bryce Conley on a minor league contract, reports Will Sammon of The Athletic. He’ll be in camp as a non-roster invitee. Conley, 32, spent the 2026 season in the Mets’ system. He started 18 of 29 games between Double-A Binghamton…",
-   "tags": [
-    "Seattle Mariners",
-    "Transactions",
-    "Bryce Conley"
-   ]
-  },
-  {
-   "t": "Frankie Montas Throws Showcase After Missed 2026 Season",
-   "link": "https://www.mlbtraderumors.com/2026/11/frankie-montas-throws-showcase-after-missed-2026-season.html",
-   "data": "2026-11-18T02:30:41+00:00",
-   "resumo": "Frankie Montas is back on the free agent radar. Will Sammon and Dennis Lin of The Athletic report that the right-hander threw a showcase on Tuesday. More than two-thirds of the league had an evaluator in attendance, according to the report, some as high as the general manager…",
-   "tags": [
-    "2026-27 MLB Free Agents",
-    "Frankie Montas"
-   ]
-  },
-  {
-   "t": "Giants Designate Christian Koss, Rowan Wick For Assignment",
-   "link": "https://www.mlbtraderumors.com/2026/11/giants-designate-christian-koss-rowan-wick-for-assignment.html",
-   "data": "2026-11-18T01:06:08+00:00",
-   "resumo": "The Giants added three pitching prospects to their 40-man roster on Rule 5 protection day: righties Marty Gair and Josh Bostick plus southpaw Henry Lalane. San Francisco designated reliever Rowan Wick and infielder Christian Koss for assignment in corresponding moves. They…",
-   "tags": [
-    "San Francisco Giants",
-    "Transactions",
-    "Christian Koss",
-    "Henry Lalane",
-    "Josh Bostick",
-    "Marty Gair"
-   ]
-  },
-  {
-   "t": "Padres Select Tucker Musgrove, Ian Koenig",
-   "link": "https://www.mlbtraderumors.com/2026/11/padres-select-tucker-musgrove-ian-koenig.html",
-   "data": "2026-11-18T00:16:05+00:00",
-   "resumo": "The Padres announced they’ve selected right-handed pitchers Tucker Musgrove and Ian Koenig onto the 40-man roster. Both players would otherwise have been eligible for the Rule 5 draft, assuming it takes place. San Diego’s roster count climbs to 35. Musgrove, who is not related…",
-   "tags": [
-    "San Diego Padres",
-    "Transactions",
-    "Ian Koenig",
-    "Tucker Musgrove"
-   ]
   }
  ],
  "dodgers": [
+  {
+   "t": "Seth Halvorsen Undergoes Tommy John Surgery",
+   "link": "https://www.mlbtraderumors.com/2026/11/seth-halvorsen-undergoes-tommy-john-surgery.html",
+   "data": "2026-11-18T22:16:48+00:00",
+   "resumo": "The Dodgers announced that right-hander Seth Halvorsen has undergone ulnar collateral ligament reconstruction surgery, also known as Tommy John surgery, on his throwing arm. He will miss the entire 2027 season. Halvorsen, 27 in February, was acquired from the Rockies ahead of…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Seth Halvorsen"
+   ]
+  },
   {
    "t": "Dodgers Designate Jake Cousins, Christian Cairo For Assignment",
    "link": "https://www.mlbtraderumors.com/2026/11/dodgers-designate-jake-cousins-christian-cairo-for-assignment.html",

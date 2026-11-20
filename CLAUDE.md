@@ -55,6 +55,15 @@ Não pedir aprovação para escolhas técnicas rotineiras, organização interna
 - Se o contexto de um chat acabar, o próximo agente deve retomar pela documentação e pelo estado real do GitHub, sem pedir ao dono para reconstruir o histórico já registrado.
 
 
+## RAC Knowledge (memória técnica do projeto, `docs/conhecimento.md`) — protocolo obrigatório
+Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs/conhecimento/registros/<tipo>/<nome>.md` (índice `docs/conhecimento/indice.json`; o dono importa para o site em RAC Knowledge → ⇄ Repositório).
+- **ANTES de implementar** (todo lote que mexe em código, banco, testes, publicação ou segurança): `node scripts/conhecimento.mjs antes "a tarefa"` — ou Grep/Read em `docs/conhecimento/registros/` se o script não puder rodar. Ler as regras permanentes,
+  as decisões e os **erros** relacionados (repetir erro registrado ou desfazer decisão aprovada é falha), os procedimentos aplicáveis e o estado atual do projeto. Se um registro contradiz o que o dono pediu, parar e consultar o dono.
+- **DEPOIS de implementar**: registrar só o que é novo e reutilizável: decisão nova (com o motivo); erro relevante (com causa-raiz, solução e prevenção); procedimento que mudou; estado do projeto atualizado; resultado de testes, commits, PR e publicação
+  (`diario`). `node scripts/conhecimento.mjs novo ...` ou editar o `.md`, depois `node scripts/conhecimento.mjs indice`, tudo no commit do lote (o teste reprova índice desatualizado). Corrigir o registro existente em vez de duplicar; decisão que substitui outra a cita em `relacionados`.
+- Não registrar detalhe trivial. **Nunca** registrar senha, chave, token, CPF, endereço, telefone, placa, foto ou exame: o repositório é público e o banco e o script recusam. Registro de decisão ou regra do dono só com o que o dono realmente decidiu; o resto é hipótese e vai como tal.
+- Isto complementa, não substitui, `docs/planejamento/` (histórico diário e decisões) e o restante deste arquivo; em conflito valem as autorizações do dono.
+
 ## Planejamento e histórico diário
 - Planejamento oficial (visão, arquitetura, roadmap, decisões e pendências): `docs/planejamento/` (Documento 1).
 - Ao fim de cada dia de trabalho, registrar em `docs/planejamento/historico-diario.md` (datado, sem apagar o passado) em três partes:
@@ -113,6 +122,13 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
   o erro `sem_real`, nunca uma análise simulada; só do dono (o banco proíbe para a casa); nunca automático, só a pedido do dono.
 - Nada de repetição paga automática, de troca de modelo na recusa nem de liberar reserva incerta por prazo.
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
+
+## Supabase MCP (acesso ao banco do RAC pelo Claude Code)
+- Servidor remoto oficial, só do projeto `hofnhbxnfebfnncwxrds` (`.mcp.json`, sem segredo; `features=docs,database,debugging,development,branching`: sem `functions` nem `storage`, sem ferramentas de conta). Autenticação **OAuth no navegador**, feita pelo dono (`/mcp` → supabase → Authenticate, ou conectar o Supabase em claude.ai → Connectors e abrir sessão nova). Nunca pedir nem guardar senha do banco, `service_role`, PAT ou token; nada disso vai para arquivo, commit ou chat.
+- Os servidores MCP são lidos no início da sessão; sem a autenticação feita, as ferramentas `mcp__supabase__*` não aparecem. Não simular resultado nem usar `psql`/CLI/API de gerenciamento (continuam negados).
+- Leitura (`list_tables`, `list_migrations`, `list_extensions`, `get_advisors`, `get_logs`, `execute_sql` só com `select`) vale para conferir o estado real antes de qualquer lote com banco. Escrita (`apply_migration`, `execute_sql` que altera, branches) mantém a **confirmação manual a cada chamada** (não liberar em `.claude/settings.json`) e continua sujeita às Autorizações do proprietário: só com pedido explícito do dono para aquela migration, naquela sessão.
+- Antes de alterar produção: ler a migration inteira; conferir o impacto (tabelas, políticas, funções, dados); a sequência (`list_migrations` × arquivos de `supabase/`, status `-- status: pendente`); rodar a conferência só leitura de `supabase/conferencias/`; preferir testar a mudança estrutural num branch de desenvolvimento (`create_branch`, se o plano permitir) ou em PGlite (`tests/*_sql.test.mjs`) antes de produção. Depois de aplicar: rodar a conferência, trocar o cabeçalho da migration para aplicada (com a data) e registrar no histórico diário.
+- `apply_migration` grava no histórico do Supabase com número próprio: o arquivo `supabase/NNN_*.sql` do repositório continua sendo a fonte; usar o mesmo texto, sem editar na hora.
 
 ## Segurança (o repositório é público)
 - Nunca escrever senhas, chaves secretas, tokens, CPF, documentos, endereço, telefone, placas, chassi, fotos ou exames no repositório.

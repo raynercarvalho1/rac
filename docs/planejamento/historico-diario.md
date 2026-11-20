@@ -1292,3 +1292,18 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: corrigir a categoria dos dois itens da Drogasil em Mercado → Notas → Editar item; aplicar a migration 060 (pendente desde o lote anterior).
+
+## 20/11/2026 · RAC Knowledge: memória técnica permanente (branch `claude/rac-knowledge-module-h1tc3r`)
+
+### 1. O que fizemos
+- Auditoria da arquitetura (rotas, módulos do dono, migrations 051/056, catálogo de segurança, backup, MFA) e decisão: duas tabelas novas (`conhecimento`, `conhecimento_historico`), porque `erros`/`rotina_log` são logs técnicos e `pessoal` é chave-valor.
+- Migration `062_conhecimento.sql` (**aplicada em produção em 20/11/2026 via Supabase MCP e conferida**): RLS só do dono + trava mfa, anon e service_role sem acesso, histórico gravado por gatilho (site só lê), sem DELETE pelo site, gatilho que recusa segredo/CPF, catálogo da auditoria; conferência só leitura.
+- Tela `#conhecimento` (`js/conhecimento.js`, menu Sistema, só do dono): busca, filtros, detalhe, novo, erro rápido, edição, histórico com restauração, importação do repositório e cópia para o agente; regras puras `NUCLEO.kn*`.
+- Ponte com os agentes: `scripts/conhecimento.mjs`, 30 registros iniciais em `docs/conhecimento/registros/` e índice; protocolo obrigatório no `CLAUDE.md`; `docs/conhecimento.md`.
+- Testes novos: `conhecimento_nucleo`, `conhecimento_sql` (PGlite), `conhecimento_tela`; ajustados `rotas`, `design_system`, `seguranca`, `seguranca_catalogo`, `inbox_notificacao_abrir` (versão). Versão `2026-11-20.3` (sw.js, app.js, index.html).
+
+### 2. O que estamos fazendo
+- PR #54 aberto; checks do CI e merge a confirmar. Supabase MCP conectado pelo dono; 062 aplicada e conferida (ver acima). Site ainda não publicado.
+
+### 3. O que vamos fazer
+- Merge do PR #54 e confirmação do site publicado (`2026-11-20.3`); dono: abrir RAC Knowledge → ⇄ Repositório → Importar; opcionalmente liberar `Bash(node scripts/conhecimento.mjs *)` em `.claude/settings.json`.

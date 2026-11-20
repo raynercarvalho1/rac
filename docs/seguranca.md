@@ -160,6 +160,9 @@ A Fernanda faz o mesmo no iPhone dela, com a conta dela.
 A conferência viva fica em `seguranca_estado()` (022): tabelas sem RLS, tabelas que `anon` lê, tabelas pessoais sem a trava,
 cofres públicos e funções privilegiadas abertas a `anon`. Só nomes, nenhum dado.
 
+### RAC Knowledge (062)
+`conhecimento` e `conhecimento_historico` (`docs/conhecimento.md`): só o dono (a casa fica de fora), trava "mfa", `anon` e `service_role` sem privilégio, histórico só de leitura para o site (gravado pelo gatilho, que também recusa texto que pareça chave, token, chave privada ou CPF) e sem DELETE pelo site. Entram no catálogo e no backup (só exportam). Conferência: `supabase/conferencias/062_conferir_producao.sql`.
+
 ### Catálogo da auditoria
 
 Fase 2 · A6 (13/11/2026). Até a 048, `seguranca_estado()` tinha uma **lista fixa** de tabelas pessoais e precisava ser recriada a cada tabela

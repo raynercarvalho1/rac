@@ -9,4 +9,4 @@ data: 2026-11-20
 relacionados: decisao/consulta-oficial-a-sefaz-fora-do-escopo
 ---
 
-Site publicado na versão `2026-11-20.2` (Mercado: categoria Farmácia). Segundo `docs/mapa.md` e o histórico, estão pendentes de aplicação pelo dono: 050 (catálogo de segurança), 054 (Inbox automático), 057 e 058 (casa no Radar e Fiscal), 059 e 060 (Central Fiscal). Confirme no banco com as conferências antes de agir. Consulta SEFAZ fora do escopo. O RAC Knowledge (062) é novo e também depende de aplicação pelo dono.
+Site publicado na versão `2026-11-20.3` (RAC Knowledge, PR #54). Banco real conferido em 20/11/2026 por `list_migrations` (Supabase MCP): aplicadas 051 a 057, 059, 060 e 062; **pendentes: 050** (catálogo de segurança; as tabelas do RAC Knowledge entram nele quando a 050 for aplicada e a 062 rodada de novo) **e 058** (IA fiscal para a casa). O que `docs/mapa.md` diz sobre "pendente" pode estar atrasado: confirme no banco antes de agir. Consulta SEFAZ fora do escopo.

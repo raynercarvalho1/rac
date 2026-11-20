@@ -1307,3 +1307,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Merge do PR #54 e confirmação do site publicado (`2026-11-20.3`); dono: abrir RAC Knowledge → ⇄ Repositório → Importar; opcionalmente liberar `Bash(node scripts/conhecimento.mjs *)` em `.claude/settings.json`.
+
+## 20/11/2026 · RAC Knowledge: reforço do protocolo (lote pequeno)
+
+### 1. O que fizemos
+- **RAC Knowledge em produção**: PR #54 mesclado (`8ddb6ed`), CI da `main` e Pages verdes, versão `2026-11-20.3` na `main`; migration 062 aplicada e conferida pelo Supabase MCP. O site publicado não foi aberto por esta sessão (o proxy bloqueia o domínio).
+- Reforço do protocolo, pedido pelo dono: lembrete "Antes de qualquer trabalho" no topo do `CLAUDE.md`; checklist de conclusão (decisão, erro, procedimento, estado, índice, commit do lote) e linha obrigatória "RAC Knowledge: registrado … / nada novo, porque …" no relatório final; `.claude/settings.json` libera só `node scripts/conhecimento.mjs` com `antes`, `buscar`, `listar`, `ver`, `novo`, `indice` e `verificar`; o `novo` recusa nome de arquivo com barra ou `..`. Testes: `permissoes` (lista fechada e variantes perigosas) e `conhecimento_nucleo`. Registros novos: decisão da permissão e erro "estado deduzido da documentação diverge do banco"; estado do projeto corrigido pelo `list_migrations` (aplicadas 051–057, 059, 060, 062; pendentes 050 e 058).
+
+### 2. O que estamos fazendo
+- PR do reforço aberto; checks do CI e merge a confirmar. Sem banco, migration, interface ou site alterados.
+
+### 3. O que vamos fazer
+- Dono: importar os registros no site (RAC Knowledge → ⇄ Repositório); decidir quando aplicar a 050 (catálogo) e a 058; conferir o site publicado no iPhone.

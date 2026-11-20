@@ -8,7 +8,7 @@ select (select count(*) from public.produtos where lower(btrim(categoria)) in ('
        (select count(*) from public.itens    where lower(btrim(categoria)) in ('limpeza/descartáveis', 'limpeza/descartaveis', 'limpeza / descartáveis', 'limpeza / descartaveis', 'descartáveis', 'descartaveis')) as itens_antigos,
        (select count(*) from public.orcamentos where lower(btrim(categoria)) in ('limpeza/descartáveis', 'limpeza/descartaveis', 'limpeza / descartáveis', 'limpeza / descartaveis', 'descartáveis', 'descartaveis')) as orcamentos_antigos;
 
--- 3) categorias em uso e quantos produtos/itens em cada. Esperado: só as 11 oficiais (Mercearia, Padaria, Açougue/Frios, Hortifruti, Chocolates/Doces, Bebidas, Limpeza, Higiene Pessoal, Peixaria, Casa/Utilidades, Bebê/Infantil);
+-- 3) categorias em uso e quantos produtos/itens em cada. Esperado: só as 12 oficiais (Mercearia, Padaria, Açougue/Frios, Hortifruti, Chocolates/Doces, Bebidas, Limpeza, Higiene Pessoal, Peixaria, Casa/Utilidades, Bebê/Infantil, Farmácia) e 'Outros' (produto de nota fiscal sem classificação segura, à espera de revisão);
 -- qualquer outra aparece aqui para o dono ajustar em Mercado → Produtos (a 041 não mexe nelas).
 select categoria, count(*) as itens, count(distinct produto_id) as produtos from public.itens group by categoria order by itens desc;
 

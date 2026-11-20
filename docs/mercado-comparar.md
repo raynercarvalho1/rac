@@ -23,6 +23,6 @@ Para produtos nos dois períodos, a coluna **Explicação** diz o que explica a 
 Ex.: gastar mais por comprar mais não é "ficou mais caro". Produto só em A ou só em B aparece como "só no período A/B".
 
 ## Quadros
-Indicadores (A, B, diferença, variação); comparação geral; categorias (as 11 oficiais; barras lado a lado, clique para detalhar); produtos (lista ordenável + listas prontas: maior aumento e maior redução de gasto, aumento e redução de quantidade,
+Indicadores (A, B, diferença, variação); comparação geral; categorias (as 12 oficiais; barras lado a lado, clique para detalhar); produtos (lista ordenável + listas prontas: maior aumento e maior redução de gasto, aumento e redução de quantidade,
 preço subiu/caiu, só em A, só em B; clique abre o detalhe lado a lado com menor, maior, último e médio e onde comprou); estabelecimentos (gasto, participação e sua mudança).
 Os filtros de categoria, mercado e produto valem para os dois períodos; cada quadro ignora só o filtro da própria dimensão para dar para trocar. Gasto maior em um mercado não significa preço maior: produtos e quantidades mudam.

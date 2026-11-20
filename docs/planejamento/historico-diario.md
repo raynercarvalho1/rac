@@ -1279,3 +1279,16 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: revisar; aplicar a 060 e publicar o site quando autorizar. Lote futuro: certificado A1, endereços por UF, função, 061.
+
+## 20/11/2026 · Mercado: categoria Farmácia e correção do fallback para Mercearia (versão `2026-11-20.2`)
+
+### 1. O que fizemos
+- O teste real da Central Fiscal foi concluído com sucesso (nota da Raia Drogasil de 19/11/2026, R$ 569,99, dois itens, valores e descontos corretos, compra registrada). Defeito: os dois medicamentos saíram como Mercearia.
+- **Causa raiz:** não havia categoria Farmácia nem regra de medicamento, e a entrada automática trocava "sem classificação" por "Mercearia". Correção: Farmácia virou a 12ª categoria oficial; regra de medicamento por princípio ativo, marca, dose e forma farmacêutica sem ambiguidade (higiene continua Higiene Pessoal; o estabelecimento nunca classifica); sem classificação segura o produto recebe a etiqueta neutra "Outros" + revisar, nunca Mercearia. Nenhuma migration, nenhum dado de produção alterado; a compra da Drogasil já registrada fica como está (correção manual pela tela).
+- Testes novos em `mercado_classificacao`; `alimentacao`, `mercado_reclassificar`, `mercado_comparar` e `fiscal_correspondencia` ajustados.
+
+### 2. O que estamos fazendo
+- Publicação pelo fluxo normal (PR, checks, merge, GitHub Pages).
+
+### 3. O que vamos fazer
+- Dono: corrigir a categoria dos dois itens da Drogasil em Mercado → Notas → Editar item; aplicar a migration 060 (pendente desde o lote anterior).

@@ -58,7 +58,7 @@ test("categorias: as oito de alimentação; limpeza, higiene, descartáveis e fr
     "Alimentação · Delivery", "Alimentação · Restaurante", "Alimentação · Taxas de entrega e serviço", "Alimentação · Gorjeta"]);
   /* toda categoria que o Mercado sugere hoje tem destino explícito (comida ou fora), nunca "sem classificação" */
   const cats = N.MK_CATEGORIAS;
-  assert.equal(cats.length, 11);
+  assert.equal(cats.length, 12);
   for (const c of cats) assert.notEqual(N.alCatMercado(c, "x"), null, c);
   assert.equal(N.alCatMercado("Mercearia", "Arroz 5kg"), "Alimentação · Supermercado");
   assert.equal(N.alCatMercado("Açougue/Frios", "Fraldinha bovina"), "Alimentação · Açougue/Peixaria", "fraldinha é carne");

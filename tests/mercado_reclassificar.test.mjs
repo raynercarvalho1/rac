@@ -43,7 +43,7 @@ test("opções: oficiais + sugeridas + as já usadas, sem repetir; subcategorias
   assert.equal(new Set(o).size, o.length); for (const c of ["Mercearia", "Automotivo", "Tecnologia", "Saúde", "Vestuário", "Pets"]) assert.ok(o.includes(c), c);
   assert.deepEqual(N.mkSubOpcoes("Automotivo", [{ categoria: "Automotivo", subcategoria: "Som" }]), ["Acessórios", "Manutenção", "Combustível", "Proteção", "Som"]);
   assert.deepEqual(N.mkSubOpcoes("Mercearia", []), []);
-  assert.equal(N.MK_CATEGORIAS.length, 11, "as 11 oficiais não mudaram");
+  assert.equal(N.MK_CATEGORIAS.length, 12, "as 11 antigas + Farmácia (20/11/2026)");
 });
 test("reclassificar atualiza os relatórios: Painel/Consumo (por categoria) e o resumo por subcategoria, sem mudar o total geral", () => {
   const antes = [L("a", "Mercado Livre", "Cortina solar", "Mercearia", 19.9), L("b", "Confiança", "Arroz", "Mercearia", 30), L("c", "Confiança", "Sabão", "Limpeza", 10)];

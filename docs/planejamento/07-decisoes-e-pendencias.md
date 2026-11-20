@@ -341,3 +341,13 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Continua só do dono:** Gmail de Compras, custos de IA, Sistema, backup/restauração, RAC Hoje, Newsletter, aviso de preço por push (rotina só do dono), função `garmin` (intocada).
 - **Como:** migration 057 (proposta), função `radar` (sem o 403, sempre na conta do dono), ação `fiscal.nota` com papel `casa`, site com `isDonoOuCasa()`. Ordem: SQL → `radar` → `rac-ia` → site; a 058 (`supabase/058_ligar_ia_fiscal_casa.sql`) liga a IA fiscal para a casa e é do dono (a 057 não liga nada). Detalhes em `docs/seguranca.md`.
 - **Pendências do dono:** rodar a 057 e a conferência; republicar as funções `radar` e `rac-ia`; rodar a 058 depois do site, quando quiser a IA fiscal da Fernanda no ar; se a 039/040 forem aplicadas depois, rodar a 057 de novo; avaliar um teto de custo para as buscas pagas do Radar feitas pela Fernanda (hoje o limite é o mesmo do dono).
+
+## 20/11/2026 · RAC Inbox — cartão E-mail do Início vem do Inbox (decisão do lote)
+- O cartão E-mail do Início consome as tabelas do Inbox e sincroniza pela mesma função do Inbox; não há segundo sistema de e-mail no cartão. A leitura direta do Gmail no cartão foi removida a pedido do dono.
+- As duas contas Gmail continuam identificadas como "Fora do Inbox" (sem número inventado) até o Gmail ter conexão no Inbox. O Gmail no Inbox depende de OAuth no servidor, projeto Google Cloud e secret (pendência do dono).
+- Compras, Carreira e alertas de vagas ainda leem o Gmail pelo navegador (`gmApi`); migram junto com o Gmail no Inbox.
+
+## 20/11/2026 · RAC Inbox I4 — Gmail e Outlook por OAuth (decisões do lote 1)
+- Código do OAuth volta ao site e é entregue à função autenticada (JWT + MFA); nenhum endpoint público o recebe. Só o refresh token vai ao Vault; token de acesso nunca é guardado. A conta autorizada tem de ser a cadastrada (isolamento das duas contas Gmail).
+- Gmail/Outlook usarão o mesmo contrato e cache do iCloud: `uid` sintético por pasta no servidor, ID do provedor em `id_externo`. Escopos: `gmail.modify` e Graph `Mail.ReadWrite` + `Mail.Send` (sem exclusão definitiva).
+- Pendências do dono: apps no Google Cloud (modo Teste expira o refresh em 7 dias; produção exige verificação do escopo restrito) e no Entra, Secrets, migration 063, republicar a função.

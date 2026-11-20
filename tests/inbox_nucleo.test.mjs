@@ -11,8 +11,9 @@ const N = globalThis.RACnucleo;
 const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const UUID_A = "11111111-1111-4111-8111-111111111111", UUID_B = "22222222-2222-4222-8222-222222222222";
 
-test("provedores: só o iCloud está ativo; a paridade é honesta (comprovado só o que teve prova; filtros do iCloud são do RAC; Gmail e Outlook só planejados)", () => {
-  assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, p.ativo]), [["icloud", true], ["gmail", false], ["outlook", false]]);
+test("provedores: iCloud lê; Gmail e Outlook conectam por OAuth mas ainda NÃO leem; a paridade é honesta (comprovado só o que teve prova; filtros do iCloud são do RAC; Gmail e Outlook só planejados)", () => {
+  assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, p.ativo]), [["icloud", true], ["gmail", true], ["outlook", true]]);
+  assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, !!p.leitura, !!p.oauth]), [["icloud", true, false], ["gmail", false, true], ["outlook", false, true]], "só o iCloud lê mensagens; Gmail e Outlook só têm a conexão OAuth");
   const ic = N.inbProvedor("icloud");
   assert.deepEqual(ic.rec, { pastas: "comprovado", estado: "comprovado", ler: "comprovado", organizar: "nao_comprovado", enviar: "nao_comprovado", filtros: "rac" });
   for (const id of ["gmail", "outlook"]) assert.ok(Object.values(N.inbProvedor(id).rec).every((v) => v === "planejado"), id);
@@ -27,10 +28,10 @@ test("estados da conta: sempre ícone + palavra (tipo do selo), 'nova' ≠ 'desc
   assert.equal(N.inbEstado("qualquer").id, "desconectada", "o desconhecido é tratado como sem conexão, nunca como saudável");
 });
 
-test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook recusados (fase futura); qualquer campo de credencial é recusado", () => {
+test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook aceitos para cadastro (conexão OAuth); provedor desconhecido recusado; qualquer campo de credencial é recusado", () => {
   const ok = N.inbContaValida({ provedor: "icloud", apelido: "  Pessoal ", endereco: " pessoa@icloud.example " });
   assert.deepEqual(ok, { ok: true, linha: { provedor: "icloud", apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova" } });
-  assert.ok(N.inbContaValida({ provedor: "gmail", apelido: "x", endereco: "a@b.co" }).erros.provedor.includes("fase futura"));
+  assert.equal(N.inbContaValida({ provedor: "gmail", apelido: "x", endereco: "a@b.co" }).linha.provedor, "gmail"); assert.equal(N.inbContaValida({ provedor: "outlook", apelido: "x", endereco: "a@b.co" }).linha.provedor, "outlook");
   assert.ok(N.inbContaValida({ provedor: "xyz", apelido: "x", endereco: "a@b.co" }).erros.provedor);
   assert.ok(N.inbContaValida({ provedor: "icloud", apelido: "", endereco: "a@b.co" }).erros.apelido);
   assert.ok(N.inbContaValida({ provedor: "icloud", apelido: "x".repeat(61), endereco: "a@b.co" }).erros.apelido);
@@ -42,7 +43,7 @@ test("formulário de conta: provedor ativo + apelido + endereço; Gmail/Outlook 
 });
 
 test("contrato com o serviço: só LEITURA e só IDs; escrita, credencial, campo extra e ID inválido são recusados com código fechado", () => {
-  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "enviar_mensagem", "estado_pasta", "ler_mensagem", "listar_pastas", "organizar_mensagem", "sincronizar_pasta", "smtp_prova", "testar_canal", "testar_conta"]);
+  assert.deepEqual(Object.keys(N.INB_OPERACOES).sort(), ["baixar_anexo", "credencial_estado", "credencial_guardar", "credencial_remover", "enviar_mensagem", "estado_pasta", "ler_mensagem", "listar_pastas", "oauth_concluir", "oauth_iniciar", "organizar_mensagem", "sincronizar_pasta", "smtp_prova", "testar_canal", "testar_conta"]);
   /* custódia: só o "guardar" aceita credencial (e só no formato de senha específica de app); remover e estado levam só o ID */
   const SENHA_APP = "abcd-efgh-ijkl-mnop";
   assert.deepEqual(N.inbPedido("credencial_guardar", { conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP }), { ok: true, pedido: { operacao: "credencial_guardar", conta_id: UUID_A, usuario: "a@icloud.example", senha_app: SENHA_APP } });

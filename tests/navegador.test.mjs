@@ -929,3 +929,135 @@ test("Inbox: Adicionar conta abre um formulário VISÍVEL (390 px e 1440 px), ma
     servidor.close();
   }
 });
+
+// Inbox · os dois ← do app (barra de título e flutuante do celular). Defeito: as telas internas do Inbox (leitura, caixas, escrever) não criam histórico, e o ← fazia history.back(): saltava direto para fora
+// do Inbox. Agora o app pergunta primeiro à página (VOLTAR_LOCAL): o Inbox desfaz o passo interno e só deixa sair quando está na lista. O teste usa os botões de verdade e o histórico real do navegador.
+test("Inbox: os ← do app voltam DENTRO do Inbox (leitura → lista, caixas → lista, escrever → lista) e só da lista saem para a página anterior", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    const pag = await nav.newPage({ viewport: { width: 390, height: 844 } }), erros = [];
+    pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+    await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+    await pag.evaluate(() => {
+      const C = "aaaaaaaa-0000-4000-8000-000000000001", P = "bbbbbbbb-0000-4000-8000-000000000001";
+      const msg = (n) => ({ id: "dddddddd-0000-4000-8000-00000000000" + n, conta_id: C, pasta_id: P, uid: n, uidvalidity: 7, recebida_em: new Date().toISOString(), assunto: "Assunto " + n, remetente_nome: "Ana " + n, remetente_endereco: "a" + n + "@x.co", destinatarios: [], lida: false, sinalizada: false, respondida: false, tamanho: 1, anexo_provavel: false });
+      const dados = { inbox_contas: [{ id: C, apelido: "Pessoal", endereco: "p@icloud.example", estado: "conectada", provedor: "icloud" }], inbox_pastas: [{ id: P, conta_id: C, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 2, nao_lidas: 2 }], inbox_credenciais: [{ conta_id: C, estado: "ativa" }], inbox_mensagens_ref: [msg(1), msg(2)] };
+      const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+      SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) },
+        functions: { invoke: () => Promise.resolve({ data: { ok: true, mensagem: { texto: "Corpo do e-mail", formato: "texto", truncado: false, anexos: [] } }, error: null }) } };
+      PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+      document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inicio"; route();
+    });
+    await pag.waitForTimeout(300);
+    await pag.evaluate(() => { location.hash = "#inbox"; }); await pag.waitForSelector(".inb-janela", { timeout: 10000 });
+    /* o ← flutuante só é criado em iniciar() (depois do login real, que este teste não faz): aqui é criado igual, ligado à MESMA voltarPagina do app, e segue a regra de visibilidade da rota */
+    await pag.evaluate(() => { if (!document.querySelector(".voltarbtn")) { const vb = document.createElement("button"); vb.type = "button"; vb.className = "voltarbtn"; vb.setAttribute("aria-label", "Voltar"); vb.textContent = "←"; vb.onclick = voltarPagina; document.body.appendChild(vb); } document.querySelector(".voltarbtn").hidden = false; });
+    const estado = () => pag.evaluate(() => ({ hash: location.hash, painel: INBX.painel, inboxVisivel: !document.getElementById("inbox").hidden, compor: !!INBX.compor }));
+    const flut = () => pag.locator("button.voltarbtn"), topo = () => pag.locator("#voltarbtn");
+    assert.equal(await flut().isVisible(), true, "o ← flutuante existe no celular"); assert.equal(await topo().isVisible(), true, "o ← do topo existe");
+    const lista = { hash: "#inbox", painel: "lista", inboxVisivel: true, compor: false }, caixas = { ...lista, painel: "caixas" };
+    /* da LISTA, pelos dois botões: vai ao MENU do Inbox (caixas), sem sair do Inbox; do menu, a própria seta "Mensagens" volta à lista */
+    for (const [nome, botao] of [["flutuante", flut], ["topo", topo]]) {
+      assert.deepEqual(await estado(), lista, nome + ": começa na lista");
+      await botao().click(); await pag.waitForTimeout(200);
+      assert.deepEqual(await estado(), caixas, nome + ": da lista o ← leva ao menu do Inbox (caixas), não para fora dele");
+      await pag.locator(".inb-lateral .inb-voltar").click(); await pag.waitForTimeout(150);
+      assert.deepEqual(await estado(), lista, nome + ": a seta do menu volta à lista");
+    }
+    /* formulário aberto: o ← fecha o formulário em vez de sair */
+    await pag.click('button[aria-label="Caixas"]'); await pag.locator("button.inb-link", { hasText: "Adicionar conta" }).click(); await pag.waitForTimeout(150);
+    assert.equal(await pag.evaluate(() => !!document.getElementById("inb-apelido")), true);
+    await flut().click(); await pag.waitForTimeout(150);
+    assert.deepEqual([await pag.evaluate(() => !!document.getElementById("inb-apelido")), (await estado()).hash, (await estado()).painel], [false, "#inbox", "lista"], "formulário aberto: o ← fecha o formulário");
+    /* leitura e escrever são telas em CAMADA (cobrem os ← do app no celular; têm a seta própria): a ação de voltar do app, quando acionada (teclado/desktop), também fica dentro do Inbox */
+    await pag.locator(".inb-linha").first().click(); await pag.waitForFunction(() => INBX.painel === "leitura" && INBX.leit && INBX.leit.estado === "ok");
+    await pag.evaluate(() => voltarPagina()); assert.deepEqual(await estado(), lista, "leitura → lista");
+    await pag.locator("button.inb-topo-nova").click(); assert.equal((await estado()).compor, true);
+    await pag.evaluate(() => voltarPagina()); assert.deepEqual(await estado(), lista, "escrever → lista");
+    /* do menu do Inbox (topo da hierarquia) o ← sai para a página anterior do app, como sempre */
+    await flut().click(); assert.deepEqual(await estado(), caixas);
+    await pag.evaluate(() => voltarPagina()); await pag.waitForFunction(() => location.hash === "#inicio", null, { timeout: 5000 });
+    assert.equal(await pag.evaluate(() => document.getElementById("inbox").hidden), true, "do menu do Inbox o ← sai do Inbox");
+    assert.equal(await pag.evaluate(() => VOLTAR_LOCAL), null, "fora do Inbox não há gancho de voltar");
+    assert.deepEqual(erros, [], "nenhum erro de JavaScript");
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});
+
+// Início · cartão E-mail do RAC Inbox (390 px, tablet e desktop): as duas contas do iCloud do Inbox e as duas contas Gmail antigas aparecem, cada uma identificada; nada estoura na horizontal;
+// Abrir leva ao Inbox da conta; Atualizar chama o serviço só para a conta tocada; o fluxo antigo de leitura do Gmail não existe mais no cartão.
+test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas contas Gmail identificadas, Atualizar só da conta tocada, Abrir no Inbox certo", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    for (const [rotulo, viewport] of [["iPhone 390", { width: 390, height: 844 }], ["tablet 820", { width: 820, height: 1180 }], ["desktop 1440", { width: 1440, height: 900 }]]) {
+      const pag = await nav.newPage({ viewport }), erros = [];
+      pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+      pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+      /* o Início também desenha Esportes, clima, notícias etc., que chamam serviços externos (ESPN, Open-Meteo…): no CI a ESPN responde sem CORS e o console acusa erro. Este teste é do cartão E-mail,
+         então TODA requisição fora do servidor local recebe uma resposta controlada (vazia, com CORS liberado) e nada externo é alcançado; o filtro do console acima continua valendo, sem silenciar nada. */
+      const externas = [];
+      await pag.route((u) => !u.href.startsWith(base), (rota) => {
+        const rq = rota.request(), tipo = rq.resourceType(); externas.push(new URL(rq.url()).host);
+        const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+        if (rq.method() === "OPTIONS") return rota.fulfill({ status: 204, headers: cors });
+        if (tipo === "script") return rota.fulfill({ status: 200, headers: cors, contentType: "application/javascript", body: "" });
+        if (tipo === "stylesheet") return rota.fulfill({ status: 200, headers: cors, contentType: "text/css", body: "" });
+        if (tipo === "image" || tipo === "font" || tipo === "media") return rota.fulfill({ status: 204, headers: cors });
+        return rota.fulfill({ status: 200, headers: cors, contentType: "application/json", body: "{}" });
+      });
+      await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+      await pag.evaluate(() => {
+        const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", PA = "bbbbbbbb-0000-4000-8000-000000000001", PB = "bbbbbbbb-0000-4000-8000-000000000002", chamadas = [];
+        const dados = { inbox_contas: [{ id: A, apelido: "Pessoal com um nome bem comprido para testar o corte", endereco: "pessoa.com.endereco.bem.comprido@icloud.example", estado: "conectada", provedor: "icloud" }, { id: B, apelido: "Trabalho", endereco: "trab@icloud.example", estado: "conectada", provedor: "icloud" }],
+          inbox_pastas: [{ id: PA, conta_id: A, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 9, nao_lidas: 3 }, { id: PB, conta_id: B, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 2, nao_lidas: 0 }],
+          inbox_credenciais: [{ conta_id: A, estado: "ativa" }, { conta_id: B, estado: "ativa" }], inbox_sincronizacao: [{ pasta_id: PA, ultima_ok_em: new Date().toISOString(), erro: null }], inbox_mensagens_ref: [] };
+        const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+        window.__chamadas = chamadas;
+        SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) },
+          functions: { invoke: (n, o) => { chamadas.push(o.body); return Promise.resolve({ data: { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: 9, mais: false }, error: null }); } } };
+        PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+        document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inicio"; route();
+      });
+      await pag.waitForSelector(".inbc-conta", { timeout: 10000 }); await pag.waitForTimeout(300);
+      assert.equal(await pag.locator(".inbc-conta").count(), 4, rotulo + ": duas contas do Inbox + as duas do Gmail");
+      const nomes = await pag.locator(".inbc-conta").evaluateAll((l) => l.map((e) => [e.dataset.origem, e.querySelector("b").textContent.slice(0, 16)]));
+      assert.deepEqual(nomes.map((n) => n[0]), ["inbox", "inbox", "externa", "externa"], rotulo); assert.deepEqual(nomes.slice(2).map((n) => n[1]), ["Rayner Carvalho", "Raynim Carvalho"], rotulo + ": as duas contas Gmail continuam identificadas");
+      assert.equal(await pag.locator('.inbc-conta[data-origem="externa"] .inb-estado').first().innerText(), "Fora do Inbox", rotulo);
+      /* nada estoura na horizontal (nem a página nem o cartão) e os botões têm alvo de 44 px */
+      const med = await pag.evaluate(() => { const c = document.querySelector(".inbc").getBoundingClientRect(), pn = document.querySelector(".inbc").closest(".panel").getBoundingClientRect(); return { pag: document.documentElement.scrollWidth - innerWidth, dentro: c.right <= pn.right + 1 && c.left >= pn.left - 1, alvos: [...document.querySelectorAll(".inbc-acoes .ghostbtn")].map((b) => Math.round(b.getBoundingClientRect().height)) }; });
+      assert.ok(med.pag <= 0, rotulo + ": sem rolagem horizontal da página (" + med.pag + ")"); assert.equal(med.dentro, true, rotulo + ": o cartão fica dentro do painel"); assert.ok(med.alvos.length >= 4 && med.alvos.every((a) => a >= 44), rotulo + ": alvos de 44 px (" + med.alvos + ")");
+      /* Abrir leva ao Inbox da conta certa (a segunda) e Atualizar chama o serviço só para a conta tocada */
+      assert.equal(await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] a:has-text("Abrir")').getAttribute("href"), "#inbox/aaaaaaaa-0000-4000-8000-000000000002", rotulo);
+      await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] button:has-text("Atualizar")').click(); await pag.waitForTimeout(400);
+      assert.deepEqual(await pag.evaluate(() => __chamadas.map((c) => [c.operacao, c.conta_id])), [["sincronizar_pasta", "aaaaaaaa-0000-4000-8000-000000000002"]], rotulo + ": só a conta tocada foi sincronizada");
+      assert.equal(await pag.evaluate(() => typeof gmailBloco), "undefined", rotulo + ": o leitor antigo do Gmail no cartão não existe mais");
+      assert.equal(await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] a:has-text("Abrir")').count(), 1, rotulo + ": a conta tocada continua inteira depois de atualizar");
+      assert.ok(externas.every((h) => !/^(127\.0\.0\.1|localhost)/.test(h)), rotulo + ": só hosts externos foram interceptados");
+      assert.deepEqual(erros, [], rotulo + ": nenhum erro de JavaScript");
+      await pag.close();
+    }
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

@@ -4,6 +4,7 @@
 import { aalOk as _aalOk, desempacotar, empacotar, ERROS, erroDoCofre, validarPedido, VERSAO_FUNCAO } from "./contrato.ts";
 import { envioPuro } from "./envio.ts";
 import { organizarPuro } from "./organizar.ts";
+import { desempacotarOauth, empacotarOauth, hashDoEstado, identidade, novoPkce, renovarAcesso as _renovar, revogar, trocarCodigo, urlAutorizacao, type AmbienteOauth, type Http, type ProvedorOauth } from "./oauth.ts";
 import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
@@ -13,6 +14,9 @@ export interface Cofre {
   remover(dono: string, conta: string): Promise<boolean>;
   estado(dono: string, conta: string): Promise<EstadoCredencial>;
   marcar(dono: string, conta: string, estado: "ativa" | "invalida"): Promise<void>;
+  /* I4 · OAuth (migration 063): o state de uso único e o verificador PKCE ficam no schema privado; opcionais para os contextos antigos */
+  oauthAbrir?(dono: string, conta: string, estadoHash: string, verificador: string): Promise<string>;
+  oauthConsumir?(dono: string, estadoHash: string): Promise<{ conta_id: string; provedor: string; verificador: string } | null>;
 }
 export type ResultadoWorker = { ok: true; dados: Record<string, unknown> } | { ok: false; erro: string };
 export interface Worker {
@@ -32,6 +36,7 @@ export interface Banco {
   estadoConta(dono: string, conta: string, estado: "conectada" | "erro_autenticacao" | "atrasada", erro: string | null): Promise<void>;
   /* I3 · envio (migration 056). Opcionais para que os contextos antigos (rotina, testes de leitura) continuem válidos; sem elas o envio responde "registro_envio_indisponivel" */
   contaEndereco?(dono: string, conta: string): Promise<string | null>;
+  contaProvedor?(dono: string, conta: string): Promise<{ provedor: string; endereco: string } | null>;   // I4: o provedor da conta (icloud, gmail, outlook)
   pastaPorUso?(dono: string, conta: string, uso: string): Promise<{ id: string; nome_externo: string } | null>;
   envioIniciar?(dono: string, conta: string, envioId: string, a: { message_id: string; modo: string; destinatarios: number }): Promise<{ novo: boolean; estado: "pendente" | "enviado" | "falha" | "incerto"; message_id: string } | null>;
   envioFinalizar?(dono: string, conta: string, envioId: string, estado: "enviado" | "falha" | "incerto", codigo: string | null): Promise<void>;
@@ -47,6 +52,8 @@ export interface Contexto {
   usuario: { id: string; mfaOk: boolean } | null;   // já autenticado pelo index.ts (JWT validado)
   cofre: Cofre;
   banco?: Banco | null;                             // cache e cursor; ausente = operações que dependem dele respondem "banco_indisponivel"
+  oauth?: AmbienteOauth;                            // I4: client id/secret e redirect de cada provedor (Secrets da função); ausente = "oauth_nao_configurado"
+  http?: Http;                                      // I4: a rede do OAuth (os testes passam uma de mentira)
   worker: Worker | null;                            // null se o canal assinado não está configurado (sem URL ou sem chave)
   agora?: () => Date;                               // relógio (só os testes trocam)
   registrar: (e: { operacao: string; codigo: string; status: number; detalhe?: string }) => void;   // SÓ operação, código fechado, status e, se houver, o código FECHADO do Worker (nunca texto)
@@ -104,12 +111,58 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       return sucesso({ canal: "ok", funcao: VERSAO_FUNCAO, worker: w });
     }
 
+    /* ---- I4 · conexão OAuth do Gmail e do Outlook: o código volta ao site, que o entrega aqui (JWT + MFA); a troca usa o client secret dos Secrets; só o refresh token vai ao Vault ---- */
+    if (p.operacao === "oauth_iniciar" || p.operacao === "oauth_concluir") {
+      const http = ctx.http, banco = ctx.banco;
+      if (!banco?.contaProvedor || !ctx.cofre.oauthAbrir || !ctx.cofre.oauthConsumir) return falha("banco_indisponivel");
+      if (!http) return falha("oauth_nao_configurado");
+      if (p.operacao === "oauth_iniciar") {
+        let c; try { c = await banco.contaProvedor(dono, p.conta_id); } catch (_) { return falha("banco_indisponivel"); }
+        if (!c) return falha("conta_inexistente");
+        if (c.provedor !== "gmail" && c.provedor !== "outlook") return falha("provedor_invalido");
+        const cfg = ctx.oauth?.[c.provedor as ProvedorOauth];
+        if (!cfg) return falha("oauth_nao_configurado");
+        const k = await novoPkce();
+        try { await ctx.cofre.oauthAbrir(dono, p.conta_id, k.estadoHash, k.verificador); } catch (e) { return falha(codigoDe(e)); }
+        return sucesso({ provedor: c.provedor, url: urlAutorizacao(c.provedor as ProvedorOauth, cfg, { estado: k.estado, desafio: k.desafio, loginHint: c.endereco }) });
+      }
+      let est; try { est = await ctx.cofre.oauthConsumir(dono, await hashDoEstado(p.state)); } catch (e) { return (e as { codigo?: string })?.codigo === "P0002" ? falha("oauth_estado_invalido") : falha(codigoDe(e)); }
+      if (!est) return falha("oauth_estado_invalido");
+      const prov = est.provedor as ProvedorOauth, cfg = ctx.oauth?.[prov];
+      if (!cfg) return falha("oauth_nao_configurado");
+      const t = await trocarCodigo(prov, cfg, { codigo: p.code, verificador: est.verificador }, http, (ctx.agora ?? (() => new Date()))().getTime());
+      if (!t.ok) return falha(t.erro);
+      if (!t.refresh) { await revogar(prov, t.acesso, http); return falha("oauth_recusado"); }   // sem refresh token a conta não ficaria conectada
+      let c; try { c = await banco.contaProvedor(dono, est.conta_id); } catch (_) { return falha("banco_indisponivel"); }
+      if (!c) return falha("conta_inexistente");
+      const quem = await identidade(prov, t.acesso, http);
+      if (!quem) return falha("oauth_indisponivel");
+      if (quem !== c.endereco.toLowerCase()) { await revogar(prov, t.refresh, http); return falha("oauth_conta_divergente"); }   // outra conta foi autorizada: nada é guardado
+      try { await ctx.cofre.guardar(dono, est.conta_id, empacotarOauth(t.refresh)); } catch (e) { return falha(codigoDe(e)); }
+      try { await ctx.cofre.marcar(dono, est.conta_id, "ativa"); } catch (_) { /* o estado fica como está */ }
+      try { await banco.estadoConta(dono, est.conta_id, "conectada", null); } catch (_) { /* idem */ }
+      return sucesso({ conectada: true, provedor: prov });   // nunca devolve token
+    }
+
+    /* contas Gmail/Outlook não aceitam senha de app e (ainda) não têm leitura pelo servidor: respostas honestas, antes de ler o Vault ou chamar o Worker */
+    if (ctx.banco?.contaProvedor && p.operacao !== "credencial_estado" && p.operacao !== "credencial_remover") {
+      let c; try { c = await ctx.banco.contaProvedor(dono, (p as { conta_id: string }).conta_id); } catch (_) { return falha("banco_indisponivel"); }
+      if (!c) return falha("conta_inexistente");
+      if (c.provedor !== "icloud") return falha(p.operacao === "credencial_guardar" ? "provedor_invalido" : "provedor_sem_leitura");
+    }
+
     /* ---- ciclo da credencial ---- */
     if (p.operacao === "credencial_guardar") {
       try { await ctx.cofre.guardar(dono, p.conta_id, empacotar(p.usuario, p.senha_app)); } catch (e) { return falha(codigoDe(e)); }
       return sucesso({ credencial: "guardada" });   // nunca devolve a credencial
     }
     if (p.operacao === "credencial_remover") {
+      if (ctx.http && ctx.banco?.contaProvedor) {   // OAuth: revoga o token no Google (melhor esforço; a Microsoft não tem endpoint: ver docs) antes de apagar o segredo
+        try {
+          const c = await ctx.banco.contaProvedor(dono, p.conta_id);
+          if (c?.provedor === "gmail") { const b = await ctx.cofre.ler(dono, p.conta_id), o = b ? desempacotarOauth(b) : null; if (o) await revogar("gmail", o.refresh, ctx.http); }
+        } catch (_) { /* a remoção local acontece de qualquer jeito */ }
+      }
       try { return sucesso({ removida: await ctx.cofre.remover(dono, p.conta_id) }); } catch (e) { return falha(codigoDe(e)); }
     }
     if (p.operacao === "credencial_estado") {

@@ -40,7 +40,7 @@ const nadaGravado = (banco) => assert.equal(banco.aplicados.length, 0, "o cache 
 
 /* ---------- contrato ---------- */
 test("validarPedido: esquema fechado; só as sete ações; destino só em 'mover' e só como UUID; nenhum nome de pasta nem comando vem do navegador", () => {
-  assert.equal(VERSAO_FUNCAO, "rac-inbox@i3.2"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
+  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.0"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
   for (const a of ACOES_ORGANIZAR) { const v = validarPedido(a === "mover" ? PED(a, { destino_pasta_id: ARQ }) : PED(a)); assert.equal(v.ok, true, a); assert.deepEqual(Object.keys(v.pedido).sort(), (a === "mover" ? ["acao", "conta_id", "destino_pasta_id", "operacao", "pasta_id", "uid"] : ["acao", "conta_id", "operacao", "pasta_id", "uid"]), a); }
   const ruim = [[PED("apagar_tudo"), "acao_invalida"], [PED("expunge"), "acao_invalida"], [PED(undefined), "acao_invalida"], [PED("mover"), "destino_invalido"], [PED("mover", { destino_pasta_id: "Archive" }), "destino_invalido"], [PED("arquivar", { destino_pasta_id: ARQ }), "campos_inesperados"],
     [PED("excluir", { destino_pasta_id: LIX }), "campos_inesperados"], [PED("marcar_lida", { uid: 0 }), "id_invalido"], [PED("marcar_lida", { uid: "7" }), "id_invalido"], [PED("marcar_lida", { uid: 4294967296 }), "id_invalido"], [PED("marcar_lida", { pasta_id: "INBOX" }), "id_invalido"],

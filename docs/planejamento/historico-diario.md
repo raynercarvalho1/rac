@@ -1239,6 +1239,18 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono, na ordem: (1) conferir o relatório; (2) a `057` já está aplicada: não reaplicar; (3) rodar a `059` no SQL Editor e a conferência `059`; (4) autorizar commit/PR/publicação do site; (5) teste real com uma nota (XML e foto) e, se quiser, calibrar os 70% com `scripts/calibrar_correspondencia.mjs` usando os produtos reais. Depois: decidir sobre estudo de viabilidade da consulta à SEFAZ (continua fora do escopo).
 
+## 16/11/2026 · RAC Inbox — os ← do app saíam do Inbox (versão `2026-11-16.3`)
+
+### 1. O que fizemos
+- Causa: `voltarPagina()` usa `history.back()` e as telas internas do Inbox não criam histórico. Correção: gancho `VOLTAR_LOCAL` (app.js) + `inboxVoltar()` (lista → menu das caixas; leitura/escrever/formulário/Opções desfeitos antes de sair; do menu o app sai). Testes no DOM de teste e em Chromium (o último falha sem a correção). Documentado em `docs/inbox.md`.
+
+### 2. O que estamos fazendo
+- PR para revisão. Só o site; sem SQL, função ou Worker.
+
+### 3. O que vamos fazer
+- Dono confere no iPhone depois de publicado: da lista, ← leva ao menu do Inbox; do menu, ← sai.
+
+
 ## 20/11/2026 · Central Fiscal: correção após o teste real da versão 2026-11-16.6 (branch `claude/central-fiscal-rac-redesign-r9r578`, versão `2026-11-20.1`)
 
 ### 1. O que fizemos
@@ -1319,3 +1331,30 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: importar os registros no site (RAC Knowledge → ⇄ Repositório); decidir quando aplicar a 050 (catálogo) e a 058; conferir o site publicado no iPhone.
+
+## 20/11/2026 · RAC Inbox: cartão E-mail do Início integrado ao Inbox (versão `2026-11-20.4`)
+
+### 1. O que fizemos
+- Auditoria: código do Inbox (I1, I2, I3, I3.2, automático) lido; banco conferido em leitura (migrations 051 a 056 aplicadas; função `rac-inbox` v10 ativa, `verify_jwt=true`). PRs: #45 aproveitado (merge nesta branch); #15 (docs, base antiga) e #17 (POC Draft, "não mesclar") não tocados.
+- Cartão E-mail do Início agora é do Inbox (`inboxCartao`, `NUCLEO.inbCartao`): contas do Inbox com não lidas reais, estado, Atualizar por conta e Abrir na conta; as duas contas Gmail seguem identificadas como "Fora do Inbox". Leitura direta do Gmail no cartão removida.
+- Testes: `inbox_inicio` (13) novo e teste Chromium a 390/820/1440 px. Detalhes em `docs/inbox.md` ("Início").
+
+### 2. O que estamos fazendo
+- PR para revisão. Sem SQL, função, Worker ou secrets alterados; nada publicado.
+
+### 3. O que vamos fazer
+- Dono: mesclar e conferir no iPhone; decidir o Gmail no Inbox (projeto Google Cloud/OAuth, secret, publicação, migration) e a validação real da I3.2. Depois: Gmail no Inbox e migração de Compras/Carreira/alertas de vagas, que ainda leem o Gmail pelo navegador.
+
+## 20/11/2026 · RAC Inbox I4: Gmail e Outlook por OAuth, lote 1 (conexão e custódia; versão `2026-11-20.5`)
+
+### 1. O que fizemos
+- Novo escopo do dono: Inbox só concluído com iCloud, as duas contas Gmail e uma Outlook conectadas e em uso real, validação final no iPhone. Auditoria da arquitetura (`Worker` do serviço, cofre, contrato, cache por `uid`) e decisão de reaproveitar tudo.
+- **Lote 1 (fundação):** OAuth 2.0 com PKCE e state de uso único (`oauth.ts`, migration 063 pendente, operações `oauth_iniciar`/`oauth_concluir`), troca do código só na função autenticada, conferência da conta autorizada, só o refresh token no Vault, renovação a cada operação, desconexão com revogação no Google, tela Conectar/Reconectar/Desconectar, retorno do provedor em memória e cartão do Início com as contas dos três provedores. Testes novos: `inbox_oauth` (18) e `inbox_oauth_tela` (7); suíte completa verde.
+- Instruções exatas dos consoles Google Cloud e Microsoft Entra, Secrets e URI de redirecionamento em `docs/inbox.md` (I4).
+
+### 2. O que estamos fazendo
+- PR #56 (branch `claude/bold-franklin-51d7uv`) acumula o cartão do Início e este lote. Nada publicado, nenhum SQL aplicado, nenhum secret criado, nenhuma chamada ao Google ou à Microsoft.
+
+### 3. O que vamos fazer
+- Lotes 2 a 5 (nada implementado ainda): Gmail leitura/sincronização, Outlook leitura/sincronização (uid sintético por pasta, mesmo funil), envio/resposta/encaminhamento, gerenciamento, automático/notificações, migração de Compras/Carreira/vagas e remoção do `gmApi`. Dono: criar os apps no Google Cloud e no Entra, cadastrar os Secrets, aplicar a 063 e republicar a função; depois validar no iPhone.
+

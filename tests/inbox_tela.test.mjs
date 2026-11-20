@@ -161,7 +161,7 @@ test("cadastrar conta: valida antes (sem senha em lugar nenhum), só 'inbox_cont
   const sel = todos(a.raiz).find((n) => n.tag === "select"); sel.value = "icloud";
   botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /endereço de e-mail válido/); assert.deepEqual(a.gravacoes, [], "endereço inválido não chega ao banco");
   vals["inb-endereco"] = "pessoa@icloud.example";
-  const sel2 = todos(a.raiz).find((n) => n.tag === "select"); sel2.value = "gmail"; botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /fase futura/); assert.deepEqual(a.gravacoes, []);
+  const sel2 = todos(a.raiz).find((n) => n.tag === "select"); sel2.value = "xyz"; botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /Escolha um provedor/); assert.deepEqual(a.gravacoes, [], "provedor desconhecido não chega ao banco");
   todos(a.raiz).find((n) => n.tag === "select").value = "icloud"; botao(a.raiz, "Cadastrar conta").onclick(); await esperar();
   assert.deepEqual(a.gravacoes, [["inbox_contas", "insert", { provedor: "icloud", apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova" }]], "só o cadastro, sem dono (o banco preenche com auth.uid()) e sem credencial");
   assert.match(texto(a.raiz), /Conta cadastrada\. Conecte-a com a senha específica de app para poder sincronizar/);
@@ -525,4 +525,33 @@ test("Inbox: o formulário de adicionar conta FECHA ao navegar (conta, pasta, me
   abrirForm(); await a.ctx.renderInbox(); await assentar(); assert.equal(campo(a.raiz, "inb-apelido"), undefined, "voltar ao Inbox começa sem formulário");
   abrirForm(); todos(a.raiz).find((n) => n.tag === "button" && /Ver exemplo/.test(texto(n))); 
   assert.deepEqual(a.gravacoes, []);
+});
+
+/* ---------- ← do app dentro do Inbox (16/11/2026): desfaz o passo interno antes de sair do Inbox ---------- */
+test("voltar (←): o Inbox registra o gancho e desfaz o passo interno (leitura, caixas, formulário, opções, escrever) antes de deixar o app sair; na lista devolve false", async () => {
+  const a = ambiente(REAL({ invoke: (n, o) => o.body.operacao === "ler_mensagem" ? ok({ mensagem: { texto: "Corpo", formato: "texto", truncado: false, anexos: [] } }) : ok({}) })); await a.abrir(UUID); await assentar();
+  assert.equal(a.ctx.VOLTAR_LOCAL, a.ctx.inboxVoltar, "a página registra o gancho de voltar ao abrir");
+  const painel = () => comClasse(a.raiz, "inb-janela")[0].attrs["data-painel"], voltar = () => a.ctx.inboxVoltar();
+  assert.equal(voltar(), false, "desktop largo, na lista, sem nada aberto: o menu já está à vista e o app é quem volta de página");
+  comClasse(a.raiz, "inb-linha")[0].onclick(); await assentar(); assert.equal(painel(), "leitura");
+  assert.equal(voltar(), true); assert.equal(painel(), "lista", "leitura → lista (não sai do Inbox)"); assert.equal(voltar(), false);
+  todos(a.raiz).find((n) => n.tag === "button" && n.attrs["aria-label"] === "Caixas").onclick(); assert.equal(painel(), "caixas");
+  assert.equal(voltar(), false, "o menu do Inbox (caixas) é o topo: dele o app volta de página"); botao(a.raiz, "Mensagens").onclick(); assert.equal(painel(), "lista");
+  todos(a.raiz).find((n) => n.tag === "button" && n.attrs["aria-label"] === "Caixas").onclick(); botao(a.raiz, "Adicionar conta").onclick(); assert.ok(campo(a.raiz, "inb-apelido"));
+  assert.equal(voltar(), true); assert.equal(campo(a.raiz, "inb-apelido"), undefined, "formulário aberto → fecha"); assert.equal(voltar(), false);
+  opcoes(a.raiz); assert.ok(comClasse(a.raiz, "inb-conexao-opcoes").length); assert.equal(voltar(), true); assert.equal(comClasse(a.raiz, "inb-conexao-opcoes").length, 0, "Opções abertas → fecham"); assert.equal(voltar(), false);
+  /* escrever: revisar → editar → (confirma se há texto) → lista */
+  todos(a.raiz).find((n) => n.tag === "button" && /Nova mensagem/.test(texto(n))).onclick(); preencher(a.raiz, "inb-c-para", "bia@x.com"); preencher(a.raiz, "inb-c-texto", "oi");
+  botao(a.raiz, "Revisar e enviar").onclick(); assert.match(texto(a.raiz), /Confira antes de enviar/);
+  assert.equal(voltar(), true); assert.ok(campo(a.raiz, "inb-c-para"), "revisar → volta a editar"); assert.equal(comClasse(a.raiz, "inb-compor").length, 1);
+  let perguntou = 0; a.ctx.confirm = () => { perguntou++; return false; };
+  assert.equal(voltar(), true); assert.equal(perguntou, 1); assert.equal(comClasse(a.raiz, "inb-compor").length, 1, "com texto escrito, pergunta e (se a pessoa disser não) mantém o rascunho");
+  a.ctx.confirm = () => true; assert.equal(voltar(), true); assert.equal(comClasse(a.raiz, "inb-compor").length, 0); assert.equal(painel(), "lista"); assert.equal(voltar(), false);
+  assert.deepEqual(a.gravacoes, [], "voltar nunca grava nada");
+  /* celular/tablet: da lista o ← leva ao MENU do Inbox (caixas); do menu é que o app sai */
+  a.ctx.matchMedia = (q) => ({ matches: /1180/.test(q) });
+  assert.equal(voltar(), true); assert.equal(painel(), "caixas", "lista → menu do Inbox (caixas), não para fora do Inbox");
+  assert.equal(voltar(), false, "do menu do Inbox o app volta de página");
+  botao(a.raiz, "Mensagens") && botao(a.raiz, "Mensagens").onclick(); assert.equal(painel(), "lista");
+  comClasse(a.raiz, "inb-linha")[0].onclick(); await assentar(); assert.equal(voltar(), true); assert.equal(painel(), "lista", "leitura → lista"); assert.equal(voltar(), true); assert.equal(painel(), "caixas");
 });

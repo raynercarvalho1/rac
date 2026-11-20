@@ -560,3 +560,16 @@ html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:tran
   /* no celular o menu vira uma folha acima da barra de ações fixa, com a área segura de baixo respeitada e rolagem própria se a lista de pastas for longa */
   .inb-menu{position:fixed;left:var(--rac-esp-3);right:var(--rac-esp-3);bottom:calc(var(--rac-alvo,44px) + var(--rac-esp-2) + env(safe-area-inset-bottom,0px) + 8px);z-index:calc(var(--rac-z-janela,50) + 1);margin:0;max-height:min(60vh,420px);overflow-y:auto;background:var(--rac-papel);box-shadow:var(--rac-sombra-3)}
 }
+
+/* ---------- RAC Inbox · cartão E-mail do Início (docs/inbox.md, "Início"); só tokens ---------- */
+.inbc{display:grid;gap:var(--rac-esp-3)}
+.inbc-conta{display:grid;gap:var(--rac-esp-2);padding:var(--rac-esp-3);border-radius:var(--rac-raio-2);background:var(--rac-papel-2);min-width:0}
+.inbc-cab{display:flex;align-items:center;gap:var(--rac-esp-3);min-width:0}
+.inbc-cab .grow{display:grid;min-width:0}.inbc-cab .grow>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbc-nl{flex:none;font-size:var(--rac-fs-legenda);font-weight:600;color:var(--rac-texto-2)}
+.inbc-nl--tem{padding:2px var(--rac-esp-2);border-radius:var(--rac-raio-pilula);background:var(--rac-azul-suave);color:var(--rac-info)}
+.inbc-est{display:flex;flex-wrap:wrap;align-items:center;gap:var(--rac-esp-1) var(--rac-esp-3)}
+.inbc-problema{margin:0;font-size:var(--rac-fs-sec);color:var(--rac-texto-2)}
+.inbc-msgs{margin:0}.inbc-nova b,.inbc-nova a{font-weight:700}
+.inbc-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2)}
+.inbc-acoes .ghostbtn{min-height:var(--rac-alvo,44px);display:inline-flex;align-items:center;justify-content:center}

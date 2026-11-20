@@ -82,19 +82,27 @@ test("retorno do provedor: o código é entregue UMA vez ao serviço (state + co
   assert.match(texto(f.raiz), /não é a cadastrada/); assert.ok(!texto(f.raiz).includes(CODE), "o código nunca aparece na tela");
 });
 
-test("conta Gmail conectada: a tela diz que a leitura ainda não foi liberada (nada simulado) e oferece Reconectar e Desconectar; sem Sincronizar", async () => {
+test("conta Gmail conectada: a tela oferece Sincronizar, Reconectar e Desconectar e avisa que enviar/organizar ainda não existem; Outlook conectado continua sem leitura e sem Sincronizar", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }] }); await a.abrir(G1); await assentar();
-  assert.match(texto(a.raiz), /leitura de mensagens deste provedor ainda não foi liberada/); assert.ok(rot(a, "Reconectar com Google").length && rot(a, "Desconectar").length);
-  assert.ok(!sincBtnOuNada(a), "sem botão de sincronizar para provedor sem leitura");
+  assert.match(texto(a.raiz), /Toque em Sincronizar para trazer as mensagens/); assert.ok(rot(a, "Reconectar com Google").length && rot(a, "Desconectar").length); assert.ok(sincBtnOuNada(a), "Gmail sincroniza");
+  const o = amb({ credenciais: [{ conta_id: O1, estado: "ativa" }] }); await o.abrir(O1); await assentar();
+  assert.match(texto(o.raiz), /leitura de mensagens deste provedor ainda não foi liberada/); assert.ok(!sincBtnOuNada(o), "sem botão de sincronizar para provedor sem leitura");
 });
 const sincBtnOuNada = (a) => todos(a.raiz).some((n) => /inb-topo-sinc/.test(n.className || "") && !n.attrs.disabled);
 
-test("cartão do Início: contas Gmail/Outlook do Inbox aparecem separadas, com 'Sem conexão' ou 'Conectada, sem leitura' (sem Atualizar), e a identidade antiga não duplica", async () => {
+test("Gmail na tela: Nova mensagem e as ações de organizar ficam desligadas (o servidor responderia provedor_sem_operacao); nenhuma chamada de escrita sai", async () => {
+  const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true }, error: null }) }); await a.abrir(G1); await assentar();
+  const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), false, "não envia a partir de conta Gmail"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), false);
+  assert.deepEqual(a.chamadas, [], "abrir a conta não chama nada");
+});
+
+test("cartão do Início: contas Gmail/Outlook do Inbox aparecem separadas — Gmail conectado tem Atualizar; sem conexão e Outlook não; a identidade antiga não duplica", async () => {
   const a = amb({ credenciais: [{ conta_id: G2, estado: "ativa" }] }), alvo = new No("div");
   a.ctx.inboxCartao(alvo, [{ n: "Rayner Carvalho", e: "rayner@gmail.example", u: "https://mail.google.com/mail/u/0/#inbox" }, { n: "Raynim Carvalho", e: "raynim@gmail.example", u: "https://mail.google.com/mail/u/1/#inbox" }]); await assentar();
   const els = comClasse(alvo, "inbc-conta"); assert.equal(els.length, 3, "as duas Gmail e a Outlook, sem repetir a identidade antiga (mesmo endereço)"); const t = (c) => texto(els.find((e) => e.attrs["data-conta"] === c)).replace(/\s+/g, " ");
-  assert.match(t(G1), /Rayner Carvalho.*rayner@gmail\.example.*Sem conexão/); assert.match(t(G2), /Raynim Carvalho.*Conectada, sem leitura/); assert.match(t(O1), /Outlook.*eu@outlook\.example.*Sem conexão/);
-  assert.ok(!todos(alvo).some((n) => n.tag === "button" && /Atualizar/.test(n.textContent)), "provedor sem leitura não tem Atualizar"); assert.ok(!/\d+ não lidas?/.test(texto(alvo)), "nenhum número inventado");
+  assert.match(t(G1), /Rayner Carvalho.*rayner@gmail\.example.*Sem conexão/); assert.match(t(G2), /Raynim Carvalho.*raynim@gmail\.example.*Nova.*Ainda não sincronizada/); assert.ok(!/sem leitura/.test(t(G2))); assert.match(t(O1), /Outlook.*eu@outlook\.example.*Sem conexão/);
+  const atualizar = (c) => todos(els.find((e) => e.attrs["data-conta"] === c)).some((n) => n.tag === "button" && /Atualizar/.test(n.textContent));
+  assert.deepEqual([atualizar(G1), atualizar(G2), atualizar(O1)], [false, true, false]); assert.ok(!/\d+ não lidas?/.test(texto(alvo)), "nenhum número inventado antes da primeira sincronização");
 });
 
 test("app.js: o retorno do OAuth limpa o endereço, guarda o código só em memória e ignora parâmetros fora do formato", () => {

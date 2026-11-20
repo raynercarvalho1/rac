@@ -59,12 +59,12 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
         // o texto chega duplamente codificado, o PostgreSQL vê um jsonb ESCALAR (string) e `jsonb_to_recordset` falha com 22023 "cannot call jsonb_to_recordset on a non-array" (tests/inbox_sync_driver.test.mjs).
         const lote = JSON.stringify(a.mensagens.map((m) => ({
           uid: m.uid, recebida: m.recebida, assunto: m.assunto, remetente_nome: m.de?.nome ?? null, remetente_endereco: m.de?.endereco ?? null, destinatarios: m.para,
-          lida: m.lida, sinalizada: m.sinalizada, respondida: m.respondida, tamanho: m.tamanho, anexo_provavel: m.anexo_provavel, message_id: m.message_id,
+          lida: m.lida, sinalizada: m.sinalizada, respondida: m.respondida, tamanho: m.tamanho, anexo_provavel: m.anexo_provavel, message_id: m.message_id, ext: m.ext ?? null,
         })));
         const gravadas = a.mensagens.length === 0 ? [] : await s.exec(
           `insert into public.inbox_mensagens_ref (dono, conta_id, pasta_id, id_externo, uidvalidity, uid, recebida_em, assunto, remetente_nome, remetente_endereco, destinatarios, lida, sinalizada, respondida, tamanho, anexo_provavel, message_id, sincronizada_em, notificada_em)
-           select $1::uuid, $2::uuid, $3::uuid, ($4::bigint)::text || ':' || m.uid::text, $4::bigint, m.uid, m.recebida, m.assunto, m.remetente_nome, m.remetente_endereco, m.destinatarios, m.lida, m.sinalizada, m.respondida, m.tamanho, m.anexo_provavel, m.message_id, now(), case when $6::boolean then now() end
-           from jsonb_to_recordset($5::text::jsonb) as m(uid bigint, recebida timestamptz, assunto text, remetente_nome text, remetente_endereco text, destinatarios jsonb, lida boolean, sinalizada boolean, respondida boolean, tamanho integer, anexo_provavel boolean, message_id text)
+           select $1::uuid, $2::uuid, $3::uuid, coalesce(m.ext, ($4::bigint)::text || ':' || m.uid::text), $4::bigint, m.uid, m.recebida, m.assunto, m.remetente_nome, m.remetente_endereco, m.destinatarios, m.lida, m.sinalizada, m.respondida, m.tamanho, m.anexo_provavel, m.message_id, now(), case when $6::boolean then now() end
+           from jsonb_to_recordset($5::text::jsonb) as m(uid bigint, recebida timestamptz, assunto text, remetente_nome text, remetente_endereco text, destinatarios jsonb, lida boolean, sinalizada boolean, respondida boolean, tamanho integer, anexo_provavel boolean, message_id text, ext text)
            on conflict (conta_id, coalesce(pasta_id, '${SEM_PASTA}'::uuid), id_externo) do update set recebida_em = excluded.recebida_em, assunto = excluded.assunto, remetente_nome = excluded.remetente_nome,
              remetente_endereco = excluded.remetente_endereco, destinatarios = excluded.destinatarios, lida = excluded.lida, sinalizada = excluded.sinalizada, respondida = excluded.respondida,
              tamanho = excluded.tamanho, anexo_provavel = excluded.anexo_provavel, message_id = excluded.message_id, sincronizada_em = now()
@@ -143,6 +143,27 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
     async contaEndereco(dono, conta) {
       const r = await sessao.exec("select endereco from public.inbox_contas where id = $1 and dono = $2", [conta, dono]);
       return r[0] ? String(r[0].endereco) : null;
+    },
+    /* Gmail (I4 lote 2): uid sintético por pasta; o ID do provedor fica em id_externo */
+    async pastaIdPorNome(dono, conta, nome) {
+      const r = await sessao.exec("select id from public.inbox_pastas where conta_id = $1 and dono = $2 and nome_externo = $3", [conta, dono, nome]);
+      return r[0] ? String(r[0].id) : null;
+    },
+    async idsExternos(dono, conta, pastaId, ids) {
+      const m = new Map<string, number>();
+      if (!ids.length) return m;
+      const r = await sessao.exec("select id_externo, uid from public.inbox_mensagens_ref where conta_id = $1 and dono = $2 and pasta_id = $3 and id_externo = any($4::text[])", [conta, dono, pastaId, literalArray(ids)]);
+      for (const x of r) m.set(String(x.id_externo), Number(x.uid));
+      return m;
+    },
+    async maiorUid(dono, conta, pastaId) {
+      const r = await sessao.exec(`select greatest(coalesce((select max(uid) from public.inbox_mensagens_ref where conta_id = $1 and dono = $2 and pasta_id = $3), 0),
+        coalesce((select uidnext - 1 from public.inbox_sincronizacao where conta_id = $1 and dono = $2 and pasta_id = $3), 0)) as m`, [conta, dono, pastaId]);
+      return Number(r[0]?.m ?? 0);
+    },
+    async idExterno(dono, conta, pastaId, uid) {
+      const r = await sessao.exec("select id_externo from public.inbox_mensagens_ref where conta_id = $1 and dono = $2 and pasta_id = $3 and uid = $4", [conta, dono, pastaId, uid]);
+      return r[0] ? String(r[0].id_externo) : null;
     },
     async contaProvedor(dono, conta) {
       const r = await sessao.exec("select provedor, endereco from public.inbox_contas where id = $1 and dono = $2", [conta, dono]);

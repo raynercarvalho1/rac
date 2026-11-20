@@ -10,7 +10,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null,acao:null,menuMais:null,menuPasta:false,semMover:{}};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null,acao:null,menuMais:null,menuPasta:false,semMover:{},gerenciar:false,secContas:true,contasAbertas:{}};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -57,7 +57,7 @@
     return inboxChamar("ler_mensagem",{conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid}).then(function(r){
       if(!INBX.leit||INBX.leit.id!==m.id)return;
       INBX.leit=r.ok?{id:m.id,estado:"ok",dados:r}:{id:m.id,estado:"erro",erro:r.erro};inboxDesenhar()})}
-  function inboxIr(conta,pasta){INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
+  function inboxIr(conta,pasta){INBX.gerenciar=false;INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
   /* a conta cujas ações de conexão (Sincronizar, Testar conexão) aparecem: a selecionada ou, em "Todas as contas", a ÚNICA conta (antes não havia linha de conexão nesse caso) */
   function inboxContaAcoes(){return inboxContaAtual()||(INBX.conta==="todas"&&INBX.contas.length===1?INBX.contas[0]:null)}
@@ -78,9 +78,10 @@
         var ps=INBX.pastas.filter(function(p){return p.conta_id===c.id}),sel=(INBX.conta===c.id&&INBX.pasta?ps.filter(function(p){return p.id===INBX.pasta})[0]:null)||ps.filter(function(p){return p.uso==="entrada"})[0]||ps[0];
         if(!sel)return {ok:false,erro:"pasta_inexistente"};
         return inboxChamar("sincronizar_pasta",{conta_id:c.id,pasta_id:sel.id}).then(function(s){return s.ok?{ok:true,frase:NUCLEO.inbFraseSincronizacao(s)}:s})})})}
-  function inboxSincronizar(){
+  function inboxSincronizar(){inboxSincronizarAlvo(null)}   /* o botão do cabeçalho: a conta aberta ou todas as conectadas (comportamento de sempre) */
+  function inboxSincronizarAlvo(uma){
     if(INBX.sinc||!INBS.publicado||INBX.demo)return;
-    var alvo=inboxContasSincronizaveis(),erro=null,frases=[];
+    var alvo=uma?inboxContasSincronizaveis().filter(function(c){return c.id===uma.id}):inboxContasSincronizaveis(),erro=null,frases=[];
     if(!alvo.length){INBX.aviso={tipo:"erro",t:"Conecte a conta com a senha específica de app para poder sincronizar."};inboxDesenhar();return}
     INBX.sinc=true;INBX.aviso=null;inboxDesenhar();
     alvo.reduce(function(p,c){return p.then(function(){
@@ -107,6 +108,9 @@
   function inboxTestarConexao(c){
     if(INBX.testando||!INBS.publicado)return;
     INBX.testando=c.id;INBX.aviso=null;inboxDesenhar();
+    if(NUCLEO.inbProvedor(c.provedor).oauth){   /* Gmail: não há Worker no caminho; testa só o acesso à conta (renova o token e consulta o perfil; nada é lido nem alterado) */
+      inboxChamar("testar_conta",{conta_id:c.id}).then(function(b){INBX.testando=null;
+        INBX.aviso=b.ok?{tipo:"ok",t:"Conexão ok. O acesso ao Google está funcionando. Nada foi lido nem alterado."}:{tipo:"erro",t:"O acesso ao Google falhou: "+NUCLEO.inbErroTexto(b.erro)};return inboxLer().then(inboxDesenhar)}).then(null,function(){INBX.testando=null;INBX.aviso={tipo:"erro",t:NUCLEO.inbErroTexto("rede")};inboxDesenhar()});return}
     inboxChamar("testar_canal",{}).then(function(a){
       if(!a.ok){INBX.testando=null;INBX.aviso={tipo:"erro",t:"1 de 2 · O canal seguro com o servidor falhou: "+NUCLEO.inbErroTexto(a.erro)};inboxDesenhar();return null}
       var v="função "+a.funcao+", Worker "+a.worker;
@@ -159,27 +163,54 @@
     if(ocupado)box.appendChild(h("p",{class:"inb-nota",role:"status",text:"Aguardando a confirmação do iCloud…"}));
     return box}
   /* ---- lateral: nova mensagem (desligada), caixas com contas e pastas, categorias ---- */
+  /* ---- menu lateral: Caixa unificada; uma seção "Contas" (recolhível) com cada conta e, ao expandir, as pastas dela; Categorias; Gerenciar contas ---- */
+  function inboxAbrirGerenciar(){INBX.gerenciar=true;INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;inboxDesenhar()}
+  function inboxContaAberta(c){return c.id in INBX.contasAbertas?INBX.contasAbertas[c.id]:INBX.conta===c.id}
   function inboxLateral(){
     var u=NUCLEO.inbUnificada(INBX.contas,INBX.pastas),arv=NUCLEO.inbArvore(INBX.contas,INBX.pastas),box=h("aside",{class:"inb-lateral","aria-label":"Caixas de e-mail"});
     var fechar=h("button",{type:"button",class:"inb-voltar",text:"Mensagens"});fechar.onclick=function(){INBX.painel="lista";inboxDesenhar()};box.appendChild(fechar);
     var nova=h("button",{type:"button",class:"inb-novo",title:inboxPodeEnviar()?"Escrever uma nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"),"Nova mensagem");nova.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())nova.setAttribute("aria-disabled","true");box.appendChild(nova);
-    box.appendChild(h("p",{class:"inb-grupo",text:"Caixas"}));
-    var un=h("button",{type:"button",class:"inb-item"+(INBX.conta==="todas"?" inb-item--ativo":"")},inboxIco("caixa"),h("span",{class:"inb-item-nome",text:"Caixa unificada"}),
+    var un=h("button",{type:"button",class:"inb-item inb-unificada"+(INBX.conta==="todas"&&!INBX.gerenciar?" inb-item--ativo":"")},inboxIco("caixa"),h("span",{class:"inb-item-nome",text:"Caixa unificada"}),
       h("span",{class:"inb-item-n",text:u.contas&&u.naoLidas!=null?String(u.naoLidas):""}));
     un.onclick=function(){inboxIr("todas")};box.appendChild(un);
     if(u.parcial)box.appendChild(h("p",{class:"inb-nota",text:"Contagem parcial: há conta sem conexão."}));
+    var sec=h("button",{type:"button",class:"inb-secao","aria-expanded":INBX.secContas?"true":"false","aria-controls":"inb-contas"},h("span",{class:"inb-seta","aria-hidden":"true",text:INBX.secContas?"▾":"▸"}),h("span",{text:"Contas"}),h("span",{class:"inb-item-n",text:String(arv.length)}));
+    sec.onclick=function(){INBX.secContas=!INBX.secContas;inboxDesenhar()};box.appendChild(sec);
+    var lista=h("div",{id:"inb-contas",class:"inb-contas",hidden:INBX.secContas?null:""});if(!INBX.secContas)lista.setAttribute("hidden","");
     arv.forEach(function(g){
-      var c=g.conta,ativa=INBX.conta===c.id,t=h("button",{type:"button",class:"inb-conta"+(ativa&&!INBX.pasta?" inb-item--ativo":"")},h("span",{class:"inb-avatar inb-avatar--p","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),
-        h("span",{class:"inb-conta-txt"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),h("span",{class:"inb-ponto inb-ponto--"+g.estado.tipo,title:g.estado.rotulo,"aria-label":g.estado.rotulo}));
-      t.onclick=function(){inboxIr(c.id)};box.appendChild(t);
-      if(ativa){g.pastas.forEach(function(p){var b=h("button",{type:"button",class:"inb-pasta"+(INBX.pasta===p.id?" inb-item--ativo":"")},inboxIco(p.uso),h("span",{class:"inb-item-nome",text:p.nome_exibicao||p.nome_externo}),h("span",{class:"inb-item-n",text:p.nao_lidas==null?"":String(p.nao_lidas)}));
-        b.onclick=function(){inboxIr(c.id,p.id)};box.appendChild(b)});
-        if(!g.pastas.length)box.appendChild(h("p",{class:"inb-nota",text:INBX.cred[c.id]==="ativa"?"As pastas aparecem na primeira sincronização.":"Conecte a conta para ver as pastas."}))}});
+      var c=g.conta,sel=INBX.conta===c.id&&!INBX.gerenciar,aberta=inboxContaAberta(c),ent=g.pastas.filter(function(p){return p.uso==="entrada"})[0],
+        t=h("button",{type:"button",class:"inb-conta"+(sel&&!INBX.pasta?" inb-item--ativo":"")},h("span",{class:"inb-avatar inb-avatar--p","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),
+          h("span",{class:"inb-conta-txt"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),ent&&ent.nao_lidas>0?h("span",{class:"inb-item-n",title:"Não lidas na caixa de entrada",text:String(ent.nao_lidas)}):null,
+          h("span",{class:"inb-ponto inb-ponto--"+g.estado.tipo,title:g.estado.rotulo,"aria-label":g.estado.rotulo})),
+        exp=h("button",{type:"button",class:"inb-exp","aria-expanded":aberta?"true":"false","aria-label":(aberta?"Recolher as pastas de ":"Mostrar as pastas de ")+c.apelido,title:aberta?"Recolher as pastas":"Mostrar as pastas"},h("span",{"aria-hidden":"true",text:aberta?"▾":"▸"}));
+      t.onclick=function(){INBX.contasAbertas[c.id]=true;inboxIr(c.id)};exp.onclick=function(){INBX.contasAbertas[c.id]=!aberta;inboxDesenhar()};
+      lista.appendChild(h("div",{class:"inb-conta-linha","data-conta":c.id},t,exp));
+      if(aberta){g.pastas.forEach(function(p){var b=h("button",{type:"button",class:"inb-pasta"+(sel&&INBX.pasta===p.id?" inb-item--ativo":"")},inboxIco(p.uso),h("span",{class:"inb-item-nome",text:p.nome_exibicao||p.nome_externo}),h("span",{class:"inb-item-n",text:p.nao_lidas==null?"":String(p.nao_lidas)}));
+        b.onclick=function(){inboxIr(c.id,p.id)};lista.appendChild(b)});
+        if(!g.pastas.length)lista.appendChild(h("p",{class:"inb-nota",text:INBX.cred[c.id]==="ativa"?"As pastas aparecem na primeira sincronização.":"Conecte a conta em Gerenciar contas para ver as pastas."}))}});
+    box.appendChild(lista);
     box.appendChild(h("p",{class:"inb-grupo"},"Categorias",h("span",{class:"inb-etiqueta",text:"Etapa I4"})));
     NUCLEO.INB_CATEGORIAS.forEach(function(k){box.appendChild(h("button",{type:"button",class:"inb-pasta inb-item--off","aria-disabled":"true",title:"Categorias inteligentes chegam na etapa I4"},inboxIco("tag"),h("span",{class:"inb-item-nome",text:k[1]})))});
-    var rod=h("div",{class:"inb-lateral-rod"}),add=h("button",{type:"button",class:"inb-link","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=inboxAlternarForm;rod.appendChild(add);
+    var rod=h("div",{class:"inb-lateral-rod"}),ger=h("button",{type:"button",class:"inb-link inb-ger"+(INBX.gerenciar?" inb-item--ativo":""),"aria-current":INBX.gerenciar?"page":null,text:"Gerenciar contas"});ger.onclick=inboxAbrirGerenciar;rod.appendChild(ger);
+    var add=h("button",{type:"button",class:"inb-link","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=inboxAlternarForm;rod.appendChild(add);
     var ex=h("button",{type:"button",class:"inb-link",text:INBX.demo?"Sair do exemplo":"Ver exemplo da interface"});ex.onclick=inboxAlternarDemo;rod.appendChild(ex);box.appendChild(rod);
     return box}
+  /* ---- Gerenciar contas: cada conta individualmente (nome, endereço, provedor, estado, última sincronização) e só as ações que o provedor implementa (NUCLEO.inbAcoesConta); reutiliza a conexão que já existia ---- */
+  function inboxContaGerenciar(c){
+    var pv=NUCLEO.inbProvedor(c.provedor),est=INBX.cred[c.id]||"ausente",ac=NUCLEO.inbAcoesConta(c,est),us=NUCLEO.inbUltimaSync(c,INBX.pastas,INBX.sincs),
+      el=h("section",{class:"inb-gc","data-conta":c.id,"aria-label":"Conta "+c.apelido},
+        h("div",{class:"inb-gc-cab"},h("span",{class:"inb-avatar","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),h("div",{class:"inb-gc-id"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),h("span",{class:"inb-chip",text:pv?pv.nome:c.provedor})));
+    el.appendChild(h("p",{class:"inb-gc-sinc",text:pv&&pv.leitura?(est==="ativa"?"Última sincronização: "+us.frase.replace(/^Sincronizada /,"").replace(/\.$/,"").replace(/^Ainda não sincronizada$/,"ainda não houve")+(us.erro?". Última tentativa falhou: "+us.erro:"."):"Sem conexão: sem sincronização."):"Leitura de mensagens ainda não liberada para este provedor."}));
+    el.appendChild(inboxConexao(c));return el}
+  function inboxGerenciar(){
+    var col=h("section",{class:"inb-mensagens inb-gerenciar","aria-label":"Gerenciar contas"}),cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));
+    menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};topo.appendChild(menu);
+    topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:"Gerenciar contas"}),h("span",{class:"inb-sub",text:INBX.contas.length+(INBX.contas.length===1?" conta":" contas")})));
+    var voltar=h("button",{type:"button",class:"inb-topo-btn","aria-label":"Voltar às mensagens",title:"Voltar às mensagens"},inboxIco("voltar"));voltar.onclick=function(){INBX.gerenciar=false;inboxDesenhar()};topo.appendChild(voltar);cab.appendChild(topo);col.appendChild(cab);
+    var corpo=h("div",{class:"inb-gc-lista"});
+    if(!INBX.contas.length)corpo.appendChild(inboxVazio("caixa","Nenhuma conta cadastrada","Use Adicionar conta no menu para cadastrar o iCloud, o Gmail ou o Outlook."));
+    NUCLEO.inbArvore(INBX.contas,INBX.pastas).forEach(function(g){corpo.appendChild(inboxContaGerenciar(g.conta))});
+    col.appendChild(corpo);return col}
   function inboxAlternarDemo(){
     INBX.form=false;
     if(INBX.demo){INBX.demo=false;INBX.msg=null;INBX.painel="lista";inboxDesenhar();return}
@@ -204,12 +235,11 @@
     var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");topo.appendChild(novaTopo);cab.appendChild(topo);
     cab.appendChild(h("div",{class:"inb-busca","aria-disabled":"true",title:INBX_FUTURO},inboxIco("buscar"),h("span",{text:"Buscar mensagens"})));
     cab.appendChild(inboxFiltros());col.appendChild(cab);
-    var contaAcoes=inboxContaAcoes();if(contaAcoes&&!INBX.demo)col.appendChild(inboxConexao(contaAcoes));
     if(ms.length){var l=h("div",{class:"inb-linhas",role:"list"});
       NUCLEO.inbAgrupar(ms).forEach(function(g){l.appendChild(h("h3",{class:"inb-data",text:g.rotulo}));g.itens.forEach(function(m){l.appendChild(inboxLinha(m))})});col.appendChild(l)}
     else if(INBX.demo)col.appendChild(inboxVazio("caixa","Nada neste filtro","Nenhuma mensagem de exemplo corresponde a este filtro."));
     else if(!INBX.contas.length)col.appendChild(inboxVazio("caixa","Nenhuma conta cadastrada","Adicione a sua conta do iCloud para começar, ou veja o exemplo da interface."));
-    else if(cont&&INBX.cred[cont.id]!=="ativa")col.appendChild(inboxVazio("cadeado","Esta caixa ainda não foi lida","Conecte a conta com a senha específica de app para o RAC poder ler esta caixa. Sem conexão, o RAC não sabe quantas mensagens existem: ela não está vazia, está sem leitura."));
+    else if(cont&&INBX.cred[cont.id]!=="ativa"){var gc=rkBtn("pri","Gerenciar contas");gc.onclick=inboxAbrirGerenciar;col.appendChild(inboxVazio("cadeado","Esta caixa ainda não foi lida","Conecte a conta em Gerenciar contas para o RAC poder ler esta caixa. Sem conexão, o RAC não sabe quantas mensagens existem: ela não está vazia, está sem leitura.",gc))}
     else if(INBX.msgs.length&&NUCLEO.inbFiltrar(inboxMensagensSemFiltro(),"todas").length)col.appendChild(inboxVazio("caixa","Nada neste filtro","Nenhuma mensagem sincronizada corresponde a este filtro."));
     else{var sy=INBS.publicado&&inboxContasSincronizaveis().length?rkBtn("pri",INBX.sinc?"Sincronizando…":"Sincronizar agora"):null;
       if(sy){sy.onclick=inboxSincronizar;if(INBX.sinc){sy.setAttribute("disabled","disabled");sy.setAttribute("aria-busy","true")}}
@@ -236,7 +266,10 @@
         ativa:NUCLEO.inbProvedor(c.provedor).leitura?"Autorizada. Toque em Sincronizar para trazer as mensagens. Enviar e organizar ainda não estão disponíveis para este provedor.":"Autorizada. A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",invalida:"A autorização foi recusada ou revogada. Conecte de novo."}[est];
     box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:est==="ativa"?"Autorização guardada":est==="invalida"?"Autorização recusada":"Sem conexão"}),h("span",{text:txt})),inboxSelo(c.estado)));
     if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado."}));return box}
-    var acoes=h("div",{class:"inb-conexao-acoes"}),b=rkBtn(est==="ausente"?"pri":"sec",(est==="ausente"?"Conectar com ":"Reconectar com ")+marca);if(INBX.credOcupado)b.setAttribute("disabled","disabled");b.onclick=function(){inboxOAuthIniciar(c)};acoes.appendChild(b);
+    var ac=NUCLEO.inbAcoesConta(c,est),acoes=h("div",{class:"inb-conexao-acoes"});
+    if(ac.sincronizar){var bs=rkBtn("sec",INBX.sinc?"Sincronizando…":"Sincronizar");bs.onclick=function(){inboxSincronizarAlvo(c)};if(INBX.sinc){bs.setAttribute("disabled","disabled");bs.setAttribute("aria-busy","true")}acoes.appendChild(bs)}
+    if(ac.testar){var bt=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");bt.onclick=function(){inboxTestarConexao(c)};if(INBX.testando)bt.setAttribute("disabled","disabled");acoes.appendChild(bt)}
+    var b=rkBtn(est==="ausente"?"pri":"sec",(est==="ausente"?"Conectar com ":"Reconectar com ")+marca);if(INBX.credOcupado)b.setAttribute("disabled","disabled");b.onclick=function(){inboxOAuthIniciar(c)};acoes.appendChild(b);
     if(est!=="ausente"){var rem=rkBtn("ter","Desconectar");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
     box.appendChild(acoes);return box}
   function inboxConexao(c){
@@ -261,7 +294,7 @@
     box.appendChild(h("div",{class:"inb-conexao-linha"},inboxIco("cadeado","inb-conexao-ico"),h("span",{class:"inb-conexao-info",text:info}),mais));
     /* as duas ações do dia a dia ficam À VISTA (não escondidas em "Opções") */
     var bSinc=rkBtn("sec",INBX.sinc?"Sincronizando…":"Sincronizar"),teste=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");
-    bSinc.onclick=inboxSincronizar;if(INBX.sinc){bSinc.setAttribute("disabled","disabled");bSinc.setAttribute("aria-busy","true")}
+    bSinc.onclick=function(){inboxSincronizarAlvo(c)};if(INBX.sinc){bSinc.setAttribute("disabled","disabled");bSinc.setAttribute("aria-busy","true")}
     teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
     box.appendChild(h("div",{class:"inb-conexao-botoes"},bSinc,teste));
     if(aberto){
@@ -505,7 +538,7 @@
     if(st.tipo==="estrutura_pendente")pg.appendChild(rkEstado("aviso","A estrutura do Inbox ainda não foi criada no banco (migration 051 pendente). Quando o dono aplicar, as contas aparecem aqui."));
     else if(st.tipo==="erro"){var re=rkBtn("sec","Tentar de novo");re.onclick=function(){inboxCarregar()};pg.appendChild(rkEstado("erro","Não consegui carregar o Inbox agora.",re))}
     if(INBX.form||(st.tipo==="vazio"&&!INBX.demo))pg.appendChild(inboxForm());
-    if(st.tipo!=="erro")pg.appendChild(h("div",{class:"inb-janela","data-painel":INBX.painel},inboxLateral(),inboxLista(),inboxLeitura()));
+    if(st.tipo!=="erro")pg.appendChild(INBX.gerenciar&&!INBX.demo?h("div",{class:"inb-janela inb-janela--gerenciar","data-painel":"lista"},inboxLateral(),inboxGerenciar()):h("div",{class:"inb-janela","data-painel":INBX.painel},inboxLateral(),inboxLista(),inboxLeitura()));
     pg.appendChild(inboxMatriz())}
   function inboxCarregar(){if(!isOwner()){INBX.carregando=false;inboxDesenhar();return Promise.resolve()}   /* a casa (Fernanda) não vê o Inbox: nem consulta as tabelas */
     INBX.carregando=true;inboxDesenhar();return inboxLer().then(inboxDesenhar)}
@@ -533,6 +566,7 @@
       if(C.etapa==="editar"){if(inboxDescartarCompor()){INBX.painel="lista";inboxDesenhar()}return true}   /* pede confirmação se há texto */
       INBX.compor=null;INBX.painel="lista";inboxDesenhar();return true}     /* resultado do envio */
     if(INBX.form){inboxFecharForm();return true}
+    if(INBX.gerenciar&&!INBX.credForm&&!INBX.opcoes){INBX.gerenciar=false;inboxDesenhar();return true}   /* Gerenciar contas → lista */
     if(INBX.credForm){INBX.credForm=null;INBX.credErros={};inboxDesenhar();return true}
     if(INBX.opcoes){INBX.opcoes=null;inboxDesenhar();return true}
     if(INBX.painel==="caixas")return false;                                   /* o menu do Inbox (caixas) é o topo: daqui o app volta de página */
@@ -545,7 +579,7 @@
     VOLTAR_LOCAL=inboxVoltar;
     var abrir=INB_RE_ID.test(msg||"")?msg:null;
     if(refresh){if(conta&&!INBX.msg){INBX.conta=conta;INBX.pasta=pasta||null}return inboxCarregar().then(function(){if(abrir&&INBX.msg!==abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
-    INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */
+    INBX.gerenciar=false;INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
     return inboxCarregar().then(function(){if(isOwner()&&!INBX.demo)return inboxOAuthConcluir()}).then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
   /* ===== Cartão "E-mail" da tela Início (docs/inbox.md, "Início"). O Início só abre este cartão (app.js, wEmail); TUDO o que ele mostra e faz é do Inbox: lê as mesmas tabelas (inbox_contas, inbox_pastas,

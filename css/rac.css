@@ -573,3 +573,22 @@ html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:tran
 .inbc-msgs{margin:0}.inbc-nova b,.inbc-nova a{font-weight:700}
 .inbc-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2)}
 .inbc-acoes .ghostbtn{min-height:var(--rac-alvo,44px);display:inline-flex;align-items:center;justify-content:center}
+
+/* ---------- RAC Inbox · menu com seção "Contas" e Gerenciar contas (docs/inbox.md, "Menu e contas"); só tokens ---------- */
+.inb-secao{display:flex;align-items:center;gap:var(--rac-esp-2);width:100%;min-height:38px;margin-top:var(--rac-esp-3);padding:var(--rac-esp-1) var(--rac-esp-3);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto-2);font:inherit;font-size:var(--rac-fs-legenda);font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:left;cursor:pointer}
+.inb-secao .inb-item-n{margin-left:auto}.inb-seta{width:1em;text-align:center}
+.inb-secao:hover,.inb-exp:hover{background:var(--rac-azul-suave)}
+.inb-contas{display:flex;flex-direction:column;gap:2px}.inb-contas[hidden]{display:none}
+.inb-conta-linha{display:flex;align-items:center;gap:2px;min-width:0}.inb-conta-linha>.inb-conta{flex:1;min-width:0;width:auto}
+.inb-exp{flex:none;display:grid;place-items:center;width:var(--rac-alvo,44px);min-height:var(--rac-alvo,44px);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto-2);font:inherit;cursor:pointer}
+.inb-ger.inb-item--ativo{font-weight:700;color:var(--rac-info)}
+.inb-gerenciar{overflow-y:auto}
+.inb-gc-lista{display:grid;gap:var(--rac-esp-4);padding:var(--rac-esp-3) var(--rac-esp-5) var(--rac-esp-6)}
+.inb-gc{display:grid;gap:var(--rac-esp-2);min-width:0;padding:var(--rac-esp-3);border-radius:var(--rac-raio-2);background:var(--rac-papel-2)}
+.inb-gc-cab{display:flex;align-items:center;gap:var(--rac-esp-3);min-width:0}
+.inb-gc-id{display:flex;flex-direction:column;flex:1;min-width:0}.inb-gc-id b,.inb-gc-id span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inb-gc-id span{color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
+.inb-chip{flex:none;padding:2px var(--rac-esp-2);border-radius:var(--rac-raio-pilula);background:var(--rac-azul-suave);color:var(--rac-info);font-size:var(--rac-fs-legenda);font-weight:600}
+.inb-gc-sinc{margin:0;color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
+.inb-gc>.inb-conexao{margin:0}
+@media (min-width:861px){.inb-janela--gerenciar>.inb-gerenciar{grid-column:2 / -1}}
+.inb-gc .inb-conexao-mais{min-width:var(--rac-alvo,44px);min-height:var(--rac-alvo,44px)}

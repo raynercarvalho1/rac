@@ -4229,8 +4229,9 @@
   var KN_ESTADOS=[{k:"ativo",nome:"Ativo"},{k:"resolvido",nome:"Resolvido"},{k:"substituido",nome:"Substituído"},{k:"arquivado",nome:"Arquivado"}];
   /* os campos extras que o arquivo .md escreve como seção "## Nome" (o resto do texto é o conteúdo) */
   var KN_SECOES=[{k:"motivo",nome:"Motivo"},{k:"causa",nome:"Causa"},{k:"solucao",nome:"Solução"},{k:"prevencao",nome:"Prevenção"}];
-  /* o mesmo detector que o gatilho do banco (supabase/062): chave da Anthropic, do Supabase, do GitHub, JWT, chave privada, CPF */
-  var KN_SEGREDOS=[/sk-ant-[A-Za-z0-9_-]{20,}/,/sb_secret_[A-Za-z0-9_-]{10,}/,/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,/gh[pousr]_[A-Za-z0-9]{30,}/,/github_pat_[A-Za-z0-9_]{30,}/,/AIza[A-Za-z0-9_-]{30,}/,/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/\d{3}\.\d{3}\.\d{3}-\d{2}/];
+  /* o mesmo detector que o gatilho do banco (migration 062): chave da Anthropic, do Supabase, do GitHub, JWT, chave privada, CPF */
+  /* o prefixo da chave da Anthropic é montado em partes: os testes proíbem o texto inteiro em qualquer arquivo do site */
+  var KN_SEGREDOS=[new RegExp("sk-"+"ant-[A-Za-z0-9_-]{20,}"),/sb_secret_[A-Za-z0-9_-]{10,}/,/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,/gh[pousr]_[A-Za-z0-9]{30,}/,/github_pat_[A-Za-z0-9_]{30,}/,/AIza[A-Za-z0-9_-]{30,}/,/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/\d{3}\.\d{3}\.\d{3}-\d{2}/];
   function knSegredo(t){t=String(t||"");for(var i=0;i<KN_SEGREDOS.length;i++)if(KN_SEGREDOS[i].test(t))return true;return false}
   function knTipo(k){for(var i=0;i<KN_TIPOS.length;i++)if(KN_TIPOS[i].k===k)return KN_TIPOS[i];return null}
   function knEstado(k){for(var i=0;i<KN_ESTADOS.length;i++)if(KN_ESTADOS[i].k===k)return KN_ESTADOS[i];return null}

@@ -42,10 +42,11 @@ test("022: a trava da 2ª etapa cobre todas as tabelas pessoais e os cofres, com
   const cobertas56 = listaMfa(ler("supabase/056_inbox_envios.sql")); assert.deepEqual(cobertas56, ["inbox_envios"]);   // a 056 (controle de envio, I3) aplica a trava na própria tabela
   const cobertas59 = listaMfa(ler("supabase/059_central_fiscal_entrada_unica.sql")); assert.deepEqual(cobertas59, ["notas_fiscais_entradas"]);   // a 059 (confirmação única da Central Fiscal) aplica a trava na própria tabela
   const cobertas60 = listaMfa(ler("supabase/060_central_fiscal_rotinas.sql")); assert.deepEqual(cobertas60, ["notas_fiscais_consultas"]);   // a 060 (rotinas da Central Fiscal) aplica a trava na tabela das consultas oficiais
+  const cobertas62 = listaMfa(ler("supabase/062_conhecimento.sql")); assert.deepEqual(cobertas62, ["conhecimento", "conhecimento_historico"]);   // a 062 (RAC Knowledge)
   const cobertas51 = listaMfa(ler("supabase/051_inbox_fundacao.sql"));
   assert.deepEqual(cobertas51, ["inbox_contas", "inbox_pastas", "inbox_sincronizacao", "inbox_mensagens_ref"]);
   /* o 022 é histórico e não muda: as tabelas das migrations 030 a 032 são cobertas pelo 033 e as da 037 por ela mesma */
-  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t) || cobertas48.includes(t) || cobertas51.includes(t) || cobertas52.includes(t) || cobertas56.includes(t) || cobertas59.includes(t) || cobertas60.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037, na 043, na 048, na 051, na 052, na 056, na 059 nem na 060`);
+  for (const t of tabelas) if (t !== "seguranca_eventos") assert.ok(cobertas.includes(t) || cobertas33.includes(t) || cobertas37.includes(t) || cobertas43.includes(t) || cobertas48.includes(t) || cobertas51.includes(t) || cobertas52.includes(t) || cobertas56.includes(t) || cobertas59.includes(t) || cobertas60.includes(t) || cobertas62.includes(t), `${t} sem a trava da 2ª etapa no 022, no 033, na 037, na 043, na 048, na 051, na 052, na 056, na 059, na 060 nem na 062`);
   assert.match(sql, /create policy "mfa" on public\.%I as restrictive for all to authenticated using \(\(select public\.rac_aal_ok\(\)\)\) with check \(\(select public\.rac_aal_ok\(\)\)\)/);
   assert.match(sql, /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   assert.match(sql, /create policy "mfa cofres" on storage\.objects as restrictive[\s\S]*'familia', 'backups'/);

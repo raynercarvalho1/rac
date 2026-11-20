@@ -1319,3 +1319,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: importar os registros no site (RAC Knowledge → ⇄ Repositório); decidir quando aplicar a 050 (catálogo) e a 058; conferir o site publicado no iPhone.
+
+## 16/11/2026 · RAC Inbox — os ← do app saíam do Inbox (versão `2026-11-16.3`)
+
+### 1. O que fizemos
+- Causa: `voltarPagina()` usa `history.back()` e as telas internas do Inbox não criam histórico. Correção: gancho `VOLTAR_LOCAL` (app.js) + `inboxVoltar()` (lista → menu das caixas; leitura/escrever/formulário/Opções desfeitos antes de sair; do menu o app sai). Testes no DOM de teste e em Chromium (o último falha sem a correção). Documentado em `docs/inbox.md`.
+
+### 2. O que estamos fazendo
+- PR para revisão. Só o site; sem SQL, função ou Worker.
+
+### 3. O que vamos fazer
+- Dono confere no iPhone depois de publicado: da lista, ← leva ao menu do Inbox; do menu, ← sai.
+

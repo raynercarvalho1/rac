@@ -499,7 +499,26 @@
       inboxAbrirMsg(m.id);inboxAvisoResultado(INBX.msg===m.id,INBX.msg===m.id?null:"rascunho_aberto");return true})}
   /* refresh = a atualização automática (ao voltar ao site) redesenha a MESMA rota: só relê os dados; nunca fecha a leitura aberta nem o rascunho. Sem isso, a atualização da página que estava aberta
      (o Início) rodava a rota do aviso por cima e a leitura recém-aberta voltava para a lista. */
+  /* O ← do app (barra de título e flutuante do celular) chama isto ANTES de sair do Inbox: desfaz o passo interno e devolve true; na lista ele leva ao menu do Inbox (caixas) e só do menu (ou no desktop largo) devolve false e o app volta de página.
+     As telas internas (lista, leitura, caixas, escrever, formulário) não criam histórico do navegador; sem este gancho o ← saltava direto para fora do Inbox. */
+  function inboxVoltar(){
+    var C=INBX.compor;
+    if(C){
+      if(C.etapa==="enviando")return true;                                   /* envio em curso: nada a desfazer, e não se perde o resultado */
+      if(C.etapa==="revisar"){C.etapa="editar";inboxDesenhar();return true}
+      if(C.etapa==="editar"){if(inboxDescartarCompor()){INBX.painel="lista";inboxDesenhar()}return true}   /* pede confirmação se há texto */
+      INBX.compor=null;INBX.painel="lista";inboxDesenhar();return true}     /* resultado do envio */
+    if(INBX.form){inboxFecharForm();return true}
+    if(INBX.credForm){INBX.credForm=null;INBX.credErros={};inboxDesenhar();return true}
+    if(INBX.opcoes){INBX.opcoes=null;inboxDesenhar();return true}
+    if(INBX.painel==="caixas")return false;                                   /* o menu do Inbox (caixas) é o topo: daqui o app volta de página */
+    if(INBX.painel!=="lista"){INBX.painel="lista";INBX.msg=null;inboxDesenhar();return true}   /* leitura → lista */
+    if(inboxMenuEhTela()){INBX.painel="caixas";inboxDesenhar();return true}   /* lista → menu do Inbox (caixas), como no Mail do iPhone */
+    return false}
+  /* no celular e no tablet o menu (caixas) é uma tela/gaveta própria; no desktop largo ele já está sempre à vista (não há para onde "voltar" dentro do Inbox) */
+  function inboxMenuEhTela(){return !!(window.matchMedia&&window.matchMedia("(max-width:1180px)").matches)}
   function renderInbox(conta,pasta,msg,refresh){
+    VOLTAR_LOCAL=inboxVoltar;
     var abrir=INB_RE_ID.test(msg||"")?msg:null;
     if(refresh){if(conta&&!INBX.msg){INBX.conta=conta;INBX.pasta=pasta||null}return inboxCarregar().then(function(){if(abrir&&INBX.msg!==abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
     INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */

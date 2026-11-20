@@ -525,6 +525,54 @@ Worker: `experimentos/rac-inbox-worker/src/imap.mjs` (seção final), `rotas.mjs
 **Testes:** `tests/inbox_inicio.test.mjs` (13: contas, isolamento, contagens reais, Atualizar só da conta tocada, erros, Abrir, fluxo antigo removido, casa, CSS) e `tests/navegador.test.mjs` (Chromium real a 390, 820 e 1440 px: quatro contas, sem rolagem horizontal, alvos de 44 px, Abrir/Atualizar, sem `gmailBloco`).
 O PR #45 (botão ← do app dentro do Inbox) foi trazido para esta branch por merge.
 
+## I4 — Gmail e Outlook por OAuth 2.0 (lote 1: conexão e custódia; código pronto, NÃO publicado, NÃO testado contra Google/Microsoft; versão `2026-11-20.5`, função `rac-inbox@i4.0`)
+
+**Escopo pedido pelo dono (20/11/2026):** o Inbox só está concluído quando iCloud, as **duas contas Gmail** e uma conta **Outlook** estiverem conectadas e em uso real (leitura, sincronização, envio, resposta, encaminhamento, gerenciamento), com validação final no iPhone, sem tokens no navegador e sem sistemas paralelos. **Este lote entrega só a fundação (conexão OAuth e custódia do token).** Leitura, sincronização, envio e gerenciamento de Gmail e Outlook **NÃO foram implementados** e a interface diz isso (nada é simulado).
+
+### O que está implementado (testado só com rede e cofre de mentira e PGlite)
+- **Fluxo "authorization code" com PKCE (S256) e `state` de uso único.** `oauth_iniciar` (conta Gmail/Outlook do dono) devolve só a URL do provedor; o provedor devolve `?code&state` ao **site** (redirect URI = `https://raynercarvalho.com.br/`); `app.js` guarda o código só em memória (`OAUTH_RETORNO`), limpa o endereço e abre o Inbox, que o entrega à função autenticada (JWT + MFA) em `oauth_concluir`. **Nenhum endpoint público recebe o código.** A função troca o código pelo token com o *client secret* (Secrets da função), **confere que a conta autorizada é a cadastrada naquela conta do Inbox** (cada conta Gmail é uma conexão separada; divergência = nada é guardado e o token é revogado) e guarda **só o refresh token** no Vault (mesma custódia da senha de app; `inbox_cofre.guardar`, limite subiu para 6000 caracteres porque o refresh token da Microsoft é longo).
+- **Token de acesso nunca é guardado** (nem no banco, nem no Vault, nem no navegador): é pedido a cada operação pelo refresh (`renovarAcesso`; a Microsoft rotaciona o refresh e o novo é regravado). `invalid_grant` = autenticação recusada → a credencial vira `invalida` e a tela pede **Reconectar**.
+- **Desconectar:** apaga o segredo e, no Google, **revoga o token** (melhor esforço). A Microsoft não tem endpoint de revogação: revogar em account.microsoft.com → Privacidade → Apps e serviços.
+- **Migration 063** (`-- status: pendente`): `inbox_cofre.oauth_estados` (schema privado; guarda só o **hash** do state e o verificador PKCE, 10 min, uso único, 1 por conta, máx. 10 por dono, a casa recusada, cascata), `oauth_abrir`/`oauth_consumir`, `guardar` com limite maior. O site não lê nem executa nada.
+- **Contratos:** operações `oauth_iniciar` e `oauth_concluir` (esquema fechado; o redirect e a conta no retorno nunca vêm do navegador), códigos `oauth_nao_configurado`, `oauth_estado_invalido`, `oauth_recusado`, `oauth_conta_divergente`, `oauth_indisponivel`, `provedor_invalido`, `provedor_sem_leitura`. Contas Gmail/Outlook **não aceitam senha de app** e as operações de leitura do IMAP respondem `provedor_sem_leitura` **antes** de ler o cofre ou chamar o Worker.
+- **Interface:** o cadastro aceita Gmail e Outlook; a conta mostra **Conectar com Google / Microsoft** (sem campo de senha), Reconectar e Desconectar; conectada, a tela e o cartão do Início dizem **"Conectada, sem leitura"** (a leitura ainda não existe). Provedores têm `leitura` e `oauth` em `INB_PROVEDORES`.
+- **Cartão do Início:** as contas Gmail/Outlook cadastradas no Inbox aparecem separadas (Sem conexão / Conectada, sem leitura, Erro de autenticação), sem número de não lidas inventado e sem Atualizar até haver leitura. As duas identidades Gmail antigas ainda aparecem "Fora do Inbox" enquanto não forem cadastradas no Inbox com o mesmo endereço.
+- **Testes:** `tests/inbox_oauth.test.mjs` (PKCE, URLs, troca, renovação, identidade, revogação, isolamento entre as duas contas e entre usuários, replay do state, divergência de conta, falha do cofre, SQL 063 em PGlite) e `tests/inbox_oauth_tela.test.mjs` (tela, retorno do provedor, cartão).
+
+### O que NÃO existe ainda (lotes seguintes; nada disto é simulado)
+1. **Gmail (leitura e sincronização):** adaptador para a Gmail API (`labels`, `messages.list/get`, `history.list`), no mesmo funil do iCloud (`sincronizarPasta` → cache). **Decisão de desenho:** o contrato e a interface usam `uid` numérico; para Gmail/Graph o servidor atribui um `uid` sintético por pasta (contador no `uidnext`) e guarda o ID do provedor em `id_externo`, e a função traduz `uid` ↔ ID. Assim a tela, o contrato e o cache continuam únicos (sem sistema por provedor). `uidvalidity` = 1 fixo.
+2. **Outlook (leitura e sincronização):** adaptador Microsoft Graph (`mailFolders`, `messages`, `delta`), mesmo funil.
+3. **Envio, resposta, resposta a todos, encaminhamento:** Gmail `messages.send` (MIME com `In-Reply-To`/`References`), Graph `sendMail`/`createReply`/`createForward`; mesma reserva `inbox_envios` (sem duplicar).
+4. **Gerenciamento:** Gmail por rótulos (`modify`: INBOX, TRASH, SPAM, UNREAD) e Graph por `move`/`PATCH isRead`; sem exclusão definitiva (nos escopos pedidos ela nem é possível no Gmail).
+5. **Sincronização automática e notificações** para Gmail/Outlook (`history.list` / `delta` na rotina de 10 min, mesmo funil de push).
+6. **Migração de Compras, Carreira e alertas de vagas** (ainda leem o Gmail pelo navegador com `gmApi`) para o Inbox, e depois remoção de `gmToken/gmApi/gmConectar` de `js/app.js`.
+7. Validação real no iPhone com as contas reais.
+
+### Configuração externa que depende do dono (instruções exatas)
+**Valores sensíveis nunca no chat nem no repositório.** Redirect URI único para os dois provedores: **`https://raynercarvalho.com.br/`** (barra final incluída; HTTPS obrigatório; confira a URL real do site).
+
+**A) Google Cloud (Gmail)**
+1. console.cloud.google.com → criar um projeto (ex.: "RAC Inbox") → *APIs e serviços* → *Biblioteca* → ativar **Gmail API**.
+2. *Tela de permissão OAuth* (Google Auth Platform → Branding/Público): tipo **Externo**; nome do app, e-mail de suporte; **Público → Usuários de teste: adicione os DOIS endereços Gmail** (as duas contas). Escopos (Acesso a dados): `openid`, `email` e **`https://www.googleapis.com/auth/gmail.modify`** (escopo *restrito*).
+3. **Atenção, limite real:** com o app em modo **Teste** o refresh token **expira em 7 dias** e a conta precisa reconectar. Para tokens duradouros é preciso **publicar o app (Em produção)**; como `gmail.modify` é restrito, o Google exige **verificação do app** (e, para apps com mais de 100 usuários, avaliação de segurança). Para uso pessoal de 2 contas, a alternativa comum é publicar sem verificação e aceitar a tela "app não verificado" (limite de 100 usuários); a viabilidade final é do Google, **não confirmada aqui**.
+4. *Credenciais* → *Criar credenciais* → **ID do cliente OAuth** → tipo **Aplicativo da Web** → *URIs de redirecionamento autorizados*: `https://raynercarvalho.com.br/`. Anote o **ID do cliente** e a **chave secreta**.
+5. Supabase → Edge Functions → Secrets (ou `supabase secrets set` sem expor no histórico): `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
+
+**B) Microsoft Entra (Outlook)**
+1. entra.microsoft.com (ou portal.azure.com) → *Identidade/Entra ID* → *Registros de aplicativo* → **Novo registro**: nome "RAC Inbox"; **Tipos de conta com suporte: "Contas em qualquer diretório organizacional e contas pessoais Microsoft"** (necessário para Outlook.com/Hotmail/Live); *URI de redirecionamento*: plataforma **Web**, `https://raynercarvalho.com.br/`.
+2. *Permissões de API* → *Microsoft Graph* → **Permissões delegadas**: `openid`, `email`, `offline_access`, `User.Read`, **`Mail.ReadWrite`**, **`Mail.Send`**. Não exigem consentimento de administrador em conta pessoal.
+3. *Certificados e segredos* → **Novo segredo do cliente** (anote o **valor** na hora; ele só aparece uma vez; defina a validade e renove antes de vencer). Anote o **ID do aplicativo (cliente)**.
+4. Supabase → Secrets: `MS_OAUTH_CLIENT_ID`, `MS_OAUTH_CLIENT_SECRET`.
+5. Contas pessoais Microsoft: o refresh token vale ~90 dias de inatividade e é rotacionado a cada uso (o RAC regrava o novo).
+
+**C) Supabase (comum)**
+- Secret `RAC_OAUTH_REDIRECT_URI` = `https://raynercarvalho.com.br/` (o mesmo valor registrado nos dois consoles; sem ele nenhum provedor liga).
+- Aplicar a **migration 063** (SQL Editor; antes disso conferir 051 e 052) e **republicar a função `rac-inbox`** (`rac-inbox@i4.0`, `verify_jwt=true`). Sem a 063, `oauth_iniciar` responde erro controlado e nada é gravado; sem os Secrets, `oauth_nao_configurado`.
+- Cadastrar cada conta no Inbox (provedor Gmail ou Outlook, apelido e **o endereço exato**) e tocar em **Conectar com Google/Microsoft**; entrar com o mesmo endereço (o servidor recusa outra conta).
+- Conferir depois: `select inbox_cofre.conferir();` (zeros) e os privilégios da 063 (rodapé do arquivo).
+
+**Verificações e aprovações exigidas pelos provedores:** Google (verificação de app para `gmail.modify` fora do modo Teste); Microsoft (nenhuma verificação para uso pessoal em contas próprias; "verificação de publicador" só vale para apps de terceiros). **Como saber que funcionou:** cadastrar a conta, Conectar, aceitar as permissões, voltar ao RAC com "Conta conectada" e o estado "Conectada, sem leitura" no cartão do Início; `inbox_credenciais` com uma linha por conta e `inbox_cofre.conferir()` em zeros. Isto **não** prova leitura, envio nem gerenciamento (lotes seguintes).
+
 ## Testes
 
 Cinco arquivos (I1; os da I2 estão na seção acima e em "Evidências"): `tests/inbox_nucleo.test.mjs` (14: regras, contrato, cursor, credencial), `tests/inbox_tela.test.mjs` (7: estados, exemplo, fluxo da credencial, desenho), `tests/inbox_sql.test.mjs` (11, PGlite: modelo da 051 e isolamento), `tests/inbox_cofre_sql.test.mjs` (12, PGlite com Vault de mentira: ciclo da credencial, isolamento, privilégios, substituição sem órfão, exclusão, falha do Vault sem alternativa, trava MFA, catálogo) e `tests/inbox_cofre_servico.test.mjs` (12: serviço da função com cofre e Worker de mentira: nada vaza em resposta, erro ou registro; conta sem credencial não chega ao Worker; credencial inválida vira erro controlado; falha do cofre não tem alternativa; MFA; sem estado global).

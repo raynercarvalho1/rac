@@ -346,3 +346,8 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - O cartão E-mail do Início consome as tabelas do Inbox e sincroniza pela mesma função do Inbox; não há segundo sistema de e-mail no cartão. A leitura direta do Gmail no cartão foi removida a pedido do dono.
 - As duas contas Gmail continuam identificadas como "Fora do Inbox" (sem número inventado) até o Gmail ter conexão no Inbox. O Gmail no Inbox depende de OAuth no servidor, projeto Google Cloud e secret (pendência do dono).
 - Compras, Carreira e alertas de vagas ainda leem o Gmail pelo navegador (`gmApi`); migram junto com o Gmail no Inbox.
+
+## 20/11/2026 · RAC Inbox I4 — Gmail e Outlook por OAuth (decisões do lote 1)
+- Código do OAuth volta ao site e é entregue à função autenticada (JWT + MFA); nenhum endpoint público o recebe. Só o refresh token vai ao Vault; token de acesso nunca é guardado. A conta autorizada tem de ser a cadastrada (isolamento das duas contas Gmail).
+- Gmail/Outlook usarão o mesmo contrato e cache do iCloud: `uid` sintético por pasta no servidor, ID do provedor em `id_externo`. Escopos: `gmail.modify` e Graph `Mail.ReadWrite` + `Mail.Send` (sem exclusão definitiva).
+- Pendências do dono: apps no Google Cloud (modo Teste expira o refresh em 7 dias; produção exige verificação do escopo restrito) e no Entra, Secrets, migration 063, republicar a função.

@@ -62,7 +62,7 @@
   /* a conta cujas ações de conexão (Sincronizar, Testar conexão) aparecem: a selecionada ou, em "Todas as contas", a ÚNICA conta (antes não havia linha de conexão nesse caso) */
   function inboxContaAcoes(){return inboxContaAtual()||(INBX.conta==="todas"&&INBX.contas.length===1?INBX.contas[0]:null)}
   /* sincronizar: as contas conectadas (a atual, ou todas na caixa unificada); cada uma lista as pastas se ainda não tem e sincroniza a pasta mostrada (ou a de entrada) */
-  function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){return INBX.cred[c.id]==="ativa"})}
+  function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){var pv=NUCLEO.inbProvedor(c.provedor);return INBX.cred[c.id]==="ativa"&&!!(pv&&pv.leitura)})}
   /* selo do ícone do app com o total de não lidas da caixa de entrada (onde o navegador suporta; o servidor também o atualiza a cada aviso) */
   function inboxMarca(){try{var n=0;INBX.pastas.forEach(function(p){if(p.uso==="entrada"&&p.nao_lidas>0)n+=p.nao_lidas});var f=n>0?navigator.setAppBadge:navigator.clearAppBadge;if(f)Promise.resolve(f.call(navigator,n)).catch(function(){})}catch(e){}}
   /* preferências por conta (migration 054): sincronizar sozinho a cada 10 min e avisar por notificação; o dono edita só as dele (RLS) */
@@ -216,7 +216,30 @@
     return col}
   function inboxMensagensSemFiltro(){var f=INBX.filtro;INBX.filtro="todas";var l=inboxMensagens();INBX.filtro=f;return l}
   /* ---- conexão da conta: a credencial no cofre (estado, conectar, substituir, desconectar) ---- */
+  /* Gmail e Outlook (I4): conexão por OAuth 2.0. O navegador só recebe a URL do provedor; o código volta ao site (OAUTH_RETORNO, app.js) e vai à função, que troca pelo token e guarda só o refresh token no cofre. Nada de senha, token ou segredo aqui. */
+  function inboxOAuthIniciar(c){
+    if(INBX.credOcupado)return;INBX.credOcupado=true;INBX.aviso=null;inboxDesenhar();
+    inboxChamar("oauth_iniciar",{conta_id:c.id}).then(function(r){
+      if(r.ok){window.location.assign(r.url);return}   /* sai do RAC para o Google/Microsoft; ao voltar, inboxOAuthConcluir */
+      INBX.credOcupado=false;INBX.aviso={tipo:"erro",t:NUCLEO.inbErroTexto(r.erro)};inboxDesenhar()})}
+  function inboxOAuthConcluir(){
+    var ret=typeof OAUTH_RETORNO!=="undefined"?OAUTH_RETORNO:null;if(!ret)return Promise.resolve();
+    OAUTH_RETORNO=null;   /* uso único: o código não fica na memória */
+    if(ret.erro||!ret.code){INBX.aviso={tipo:"erro",t:"A autorização foi cancelada ou recusada no provedor. Nada foi conectado."};inboxDesenhar();return Promise.resolve()}
+    INBX.aviso={tipo:"info",t:"Concluindo a conexão…"};inboxDesenhar();
+    return inboxChamar("oauth_concluir",{state:ret.state,code:ret.code}).then(function(r){
+      INBX.aviso=r.ok?{tipo:"ok",t:"Conta conectada. A autorização ficou guardada no cofre do servidor."}:{tipo:"erro",t:NUCLEO.inbErroTexto(r.erro)};return r.ok?inboxLer():null}).then(inboxDesenhar)}
+  function inboxConexaoOAuth(c){
+    var est=INBX.cred[c.id]||"ausente",marca=c.provedor==="outlook"?"Microsoft":"Google",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),
+      txt={ausente:"Conecte a conta com o "+marca+" para o RAC poder acessá-la. O RAC nunca vê a sua senha: guarda só uma autorização que você pode revogar, cifrada no cofre do servidor.",
+        ativa:"Autorizada. A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",invalida:"A autorização foi recusada ou revogada. Conecte de novo."}[est];
+    box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:est==="ativa"?"Autorização guardada":est==="invalida"?"Autorização recusada":"Sem conexão"}),h("span",{text:txt})),inboxSelo(c.estado)));
+    if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado."}));return box}
+    var acoes=h("div",{class:"inb-conexao-acoes"}),b=rkBtn(est==="ausente"?"pri":"sec",(est==="ausente"?"Conectar com ":"Reconectar com ")+marca);if(INBX.credOcupado)b.setAttribute("disabled","disabled");b.onclick=function(){inboxOAuthIniciar(c)};acoes.appendChild(b);
+    if(est!=="ausente"){var rem=rkBtn("ter","Desconectar");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
+    box.appendChild(acoes);return box}
   function inboxConexao(c){
+    var pv=NUCLEO.inbProvedor(c.provedor);if(pv&&pv.oauth&&!INBX.demo)return inboxConexaoOAuth(c);
     var est=INBX.cred[c.id]||"ausente",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),txt={ausente:"Conecte a conta para o RAC poder ler esta caixa. A senha fica cifrada no cofre do servidor e não volta ao navegador.",
       ativa:"Guardada no cofre do servidor. O navegador não a recebe de volta.",invalida:"O provedor recusou a credencial. Gere uma nova senha de app e substitua."}[est];
     if(est==="ativa"&&INBS.publicado&&!INBX.demo)return inboxConexaoCompacta(c);   /* conectada: só uma linha discreta; as ações raras ficam em "Opções" */
@@ -523,7 +546,7 @@
     if(refresh){if(conta&&!INBX.msg){INBX.conta=conta;INBX.pasta=pasta||null}return inboxCarregar().then(function(){if(abrir&&INBX.msg!==abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
     INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
-    return inboxCarregar().then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
+    return inboxCarregar().then(function(){if(isOwner()&&!INBX.demo)return inboxOAuthConcluir()}).then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
   /* ===== Cartão "E-mail" da tela Início (docs/inbox.md, "Início"). O Início só abre este cartão (app.js, wEmail); TUDO o que ele mostra e faz é do Inbox: lê as mesmas tabelas (inbox_contas, inbox_pastas,
      inbox_sincronizacao, credencial, cache de cabeçalhos), sincroniza pela MESMA função (inboxSincronizarConta → serviço rac-inbox) e abre o Inbox na conta. Não há autenticação, armazenamento nem regra de e-mail própria.
      "gmail" = as identidades antigas do Início (PESSOAL.emails): enquanto o Gmail não tem conexão no Inbox, aparecem como "Fora do Inbox", sem número inventado e com um link para o Gmail. ===== */

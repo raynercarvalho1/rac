@@ -70,7 +70,7 @@ test("núcleo: conta Gmail que já está no Inbox não aparece duas vezes; sem c
   const gmInbox = { id: "33333333-3333-4333-8333-333333333333", apelido: "Gmail 1", endereco: "Rayner@Gmail.example", estado: "nova", provedor: "gmail" };
   const v = N.inbCartao({ contas: [gmInbox], pastas: [], cred: {}, sincs: {}, msgs: [], gmail: GMAIL });
   assert.deepEqual(v.linhas.map((l) => l.chave), [gmInbox.id, "gmail:1"], "a identidade já cadastrada no Inbox some da lista antiga");
-  assert.match(v.linhas[0].problema, /ainda não pode ser conectado pelo Inbox/); assert.equal(v.linhas[0].naoLidas, null); assert.equal(v.linhas[0].podeAtualizar, false);
+  assert.match(v.linhas[0].problema, /Sem conexão: conecte a conta no Inbox/); assert.equal(v.linhas[0].naoLidas, null); assert.equal(v.linhas[0].podeAtualizar, false);
   assert.deepEqual(N.inbCartao({}).linhas, []); assert.equal(N.inbCartao({}).resumo.naoLidas, null);
   assert.equal(N.inbCartao({ gmail: [{ n: "X", u: "https://evil.example/mail.google.com/" }] }).linhas[0].url, null);
 });

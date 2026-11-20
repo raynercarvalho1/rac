@@ -366,7 +366,7 @@ test("index.ts: a rotina só entra com a senha da rotina conferida no banco e s�
   assert.ok(t.indexOf("rotinaAutorizada") < t.indexOf("rodarRotina("), "autoriza antes de rodar"); assert.ok(t.indexOf('"x-rac-rotina"') < t.indexOf("auth.getUser"), "a rota da rotina vem antes do JWT e não o dispensa para as demais");
   assert.ok(!/service_role|SERVICE_ROLE/.test(t)); assert.match(t, /resumo }\), \{ status: 200/);
   for (const f of ["rotina.ts", "push.ts"]) { const s = semComent(ler("supabase/functions/rac-inbox/" + f)); assert.ok(!/Deno|service_role|console\./.test(s), f + " é puro"); assert.ok(!/senha|SENHA/.test(s.replace(/credencial|senha: string/g, "")) || f === "rotina.ts", f); }
-  const contrato = ler("supabase/functions/rac-inbox/contrato.ts"); assert.match(contrato, /VERSAO_FUNCAO = "rac-inbox@i3\.2"/);
+  const contrato = ler("supabase/functions/rac-inbox/contrato.ts"); assert.match(contrato, /VERSAO_FUNCAO = "rac-inbox@i4\.0"/);
   assert.ok(!/rotina_sync/.test(contrato.replace(/\/\/.*$/gm, "")), "a rotina não é uma operação do navegador: validarPedido a recusa");
 });
 

@@ -24,6 +24,8 @@
     if(operacao==="enviar_mensagem")return NUCLEO.inbRespostaEnvio(d);
     if(operacao==="smtp_prova")return NUCLEO.inbRespostaProva(d);
     if(operacao==="organizar_mensagem")return NUCLEO.inbRespostaOrganizacao(d);
+    if(operacao==="oauth_iniciar")return typeof d.url==="string"&&/^https:\/\/(accounts\.google\.com|login\.microsoftonline\.com)\//.test(d.url)?{ok:true,url:d.url,provedor:d.provedor==="outlook"?"outlook":"gmail"}:{ok:false,erro:"resposta_invalida"};   /* só a URL do provedor: nunca outro destino */
+    if(operacao==="oauth_concluir")return d.conectada===true?{ok:true,conectada:true,provedor:d.provedor==="outlook"?"outlook":"gmail"}:{ok:false,erro:"resposta_invalida"};
     if(operacao==="credencial_estado")return {ok:true,credencial:d.credencial==="ativa"||d.credencial==="invalida"?d.credencial:"ausente"};
     if(operacao==="credencial_guardar")return {ok:true,credencial:"guardada"};
     if(operacao==="credencial_remover")return {ok:true,removida:d.removida===true};

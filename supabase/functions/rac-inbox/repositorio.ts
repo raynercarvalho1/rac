@@ -144,6 +144,10 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
       const r = await sessao.exec("select endereco from public.inbox_contas where id = $1 and dono = $2", [conta, dono]);
       return r[0] ? String(r[0].endereco) : null;
     },
+    async contaProvedor(dono, conta) {
+      const r = await sessao.exec("select provedor, endereco from public.inbox_contas where id = $1 and dono = $2", [conta, dono]);
+      return r[0] ? { provedor: String(r[0].provedor), endereco: String(r[0].endereco) } : null;
+    },
     async pastaPorUso(dono, conta, uso) {
       const r = await sessao.exec("select id, nome_externo from public.inbox_pastas where conta_id = $1 and dono = $2 and uso = $3 and ativa order by nome_externo limit 1", [conta, dono, uso]);
       return r[0] ? { id: String(r[0].id), nome_externo: String(r[0].nome_externo) } : null;

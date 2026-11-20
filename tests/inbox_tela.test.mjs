@@ -161,7 +161,7 @@ test("cadastrar conta: valida antes (sem senha em lugar nenhum), só 'inbox_cont
   const sel = todos(a.raiz).find((n) => n.tag === "select"); sel.value = "icloud";
   botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /endereço de e-mail válido/); assert.deepEqual(a.gravacoes, [], "endereço inválido não chega ao banco");
   vals["inb-endereco"] = "pessoa@icloud.example";
-  const sel2 = todos(a.raiz).find((n) => n.tag === "select"); sel2.value = "gmail"; botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /fase futura/); assert.deepEqual(a.gravacoes, []);
+  const sel2 = todos(a.raiz).find((n) => n.tag === "select"); sel2.value = "xyz"; botao(a.raiz, "Cadastrar conta").onclick(); assert.match(texto(a.raiz), /Escolha um provedor/); assert.deepEqual(a.gravacoes, [], "provedor desconhecido não chega ao banco");
   todos(a.raiz).find((n) => n.tag === "select").value = "icloud"; botao(a.raiz, "Cadastrar conta").onclick(); await esperar();
   assert.deepEqual(a.gravacoes, [["inbox_contas", "insert", { provedor: "icloud", apelido: "Pessoal", endereco: "pessoa@icloud.example", estado: "nova" }]], "só o cadastro, sem dono (o banco preenche com auth.uid()) e sem credencial");
   assert.match(texto(a.raiz), /Conta cadastrada\. Conecte-a com a senha específica de app para poder sincronizar/);

@@ -63,9 +63,9 @@ async function cenario(db, repo, dono = R) {
 const linhas = async (db, pasta) => (await db.query("select id, uid, uidvalidity, lida, id_externo, assunto, message_id, notificada_em from public.inbox_mensagens_ref where pasta_id = $1 order by uid", [pasta])).rows;
 const contagem = async (db, pasta) => (await db.query("select total, nao_lidas from public.inbox_pastas where id = $1", [pasta])).rows[0];
 
-test("PGlite · sem migration nova: o gerenciamento usa só as tabelas 051/053/054 (a última migration continua a 056 do envio)", () => {
+test("PGlite · sem migration nova: o gerenciamento usa só as tabelas 051/053/054 (a 063 é só do OAuth)", () => {
   const arqs = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((f) => /^\d{3}_inbox/.test(f)).sort();
-  assert.deepEqual(arqs, ["051_inbox_fundacao.sql", "052_inbox_cofre.sql", "053_inbox_cabecalhos.sql", "054_inbox_automatico.sql", "056_inbox_envios.sql"]);
+  assert.deepEqual(arqs, ["051_inbox_fundacao.sql", "052_inbox_cofre.sql", "053_inbox_cabecalhos.sql", "054_inbox_automatico.sql", "056_inbox_envios.sql", "063_inbox_oauth.sql"]);   // a 063 (OAuth) é da conexão Gmail/Outlook, não do gerenciamento
 });
 
 test("PGlite · pastaDetalhe e mensagemRef: só do dono e da conta; pasta inativa (não selecionável) e mensagem de outra conta não aparecem", { skip: pular }, async () => {

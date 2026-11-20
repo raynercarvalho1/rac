@@ -1345,3 +1345,16 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: mesclar e conferir no iPhone; decidir o Gmail no Inbox (projeto Google Cloud/OAuth, secret, publicação, migration) e a validação real da I3.2. Depois: Gmail no Inbox e migração de Compras/Carreira/alertas de vagas, que ainda leem o Gmail pelo navegador.
 
+## 20/11/2026 · RAC Inbox I4: Gmail e Outlook por OAuth, lote 1 (conexão e custódia; versão `2026-11-20.5`)
+
+### 1. O que fizemos
+- Novo escopo do dono: Inbox só concluído com iCloud, as duas contas Gmail e uma Outlook conectadas e em uso real, validação final no iPhone. Auditoria da arquitetura (`Worker` do serviço, cofre, contrato, cache por `uid`) e decisão de reaproveitar tudo.
+- **Lote 1 (fundação):** OAuth 2.0 com PKCE e state de uso único (`oauth.ts`, migration 063 pendente, operações `oauth_iniciar`/`oauth_concluir`), troca do código só na função autenticada, conferência da conta autorizada, só o refresh token no Vault, renovação a cada operação, desconexão com revogação no Google, tela Conectar/Reconectar/Desconectar, retorno do provedor em memória e cartão do Início com as contas dos três provedores. Testes novos: `inbox_oauth` (18) e `inbox_oauth_tela` (7); suíte completa verde.
+- Instruções exatas dos consoles Google Cloud e Microsoft Entra, Secrets e URI de redirecionamento em `docs/inbox.md` (I4).
+
+### 2. O que estamos fazendo
+- PR #56 (branch `claude/bold-franklin-51d7uv`) acumula o cartão do Início e este lote. Nada publicado, nenhum SQL aplicado, nenhum secret criado, nenhuma chamada ao Google ou à Microsoft.
+
+### 3. O que vamos fazer
+- Lotes 2 a 5 (nada implementado ainda): Gmail leitura/sincronização, Outlook leitura/sincronização (uid sintético por pasta, mesmo funil), envio/resposta/encaminhamento, gerenciamento, automático/notificações, migração de Compras/Carreira/vagas e remoção do `gmApi`. Dono: criar os apps no Google Cloud e no Entra, cadastrar os Secrets, aplicar a 063 e republicar a função; depois validar no iPhone.
+

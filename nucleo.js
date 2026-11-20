@@ -3895,10 +3895,10 @@
   var INB_RECURSOS=[["pastas","Listar pastas"],["estado","Estado da pasta (sincronização)"],["ler","Ler mensagens"],["organizar","Mover, arquivar, excluir e marcar"],["enviar","Enviar e responder"],["filtros","Filtros e regras"]];
   var INB_RECURSO_ROTULOS={comprovado:"Comprovado",nao_comprovado:"Não comprovado",rac:"Feito pelo RAC",indisponivel:"Indisponível no provedor",planejado:"Planejado"};
   var INB_PROVEDORES=[
-    {id:"icloud",nome:"iCloud Mail",ativo:true,via:"IMAP/SMTP (Worker isolado)",rec:{pastas:"comprovado",estado:"comprovado",ler:"comprovado",organizar:"nao_comprovado",enviar:"nao_comprovado",filtros:"rac"},
+    {id:"icloud",nome:"iCloud Mail",ativo:true,leitura:true,via:"IMAP/SMTP (Worker isolado)",rec:{pastas:"comprovado",estado:"comprovado",ler:"comprovado",organizar:"nao_comprovado",enviar:"nao_comprovado",filtros:"rac"},
       nota:"A Apple não tem API de filtros: as regras serão do RAC. O servidor respondeu READ-WRITE ao EXAMINE; a garantia de somente leitura é do Worker (lista fechada de comandos), não do servidor."},
-    {id:"gmail",nome:"Gmail",ativo:false,via:"Gmail API (OAuth)",rec:{pastas:"planejado",estado:"planejado",ler:"planejado",organizar:"planejado",enviar:"planejado",filtros:"planejado"},nota:"Fase futura."},
-    {id:"outlook",nome:"Outlook / Microsoft",ativo:false,via:"Microsoft Graph (OAuth)",rec:{pastas:"planejado",estado:"planejado",ler:"planejado",organizar:"planejado",enviar:"planejado",filtros:"planejado"},nota:"Fase futura."}];
+    {id:"gmail",nome:"Gmail",ativo:true,oauth:true,leitura:false,via:"Gmail API (OAuth 2.0)",rec:{pastas:"planejado",estado:"planejado",ler:"planejado",organizar:"planejado",enviar:"planejado",filtros:"planejado"},nota:"Conexão OAuth pronta no código (a ativação depende das credenciais do Google Cloud); leitura, envio e gerenciamento ainda não foram implementados."},
+    {id:"outlook",nome:"Outlook / Microsoft",ativo:true,oauth:true,leitura:false,via:"Microsoft Graph (OAuth 2.0)",rec:{pastas:"planejado",estado:"planejado",ler:"planejado",organizar:"planejado",enviar:"planejado",filtros:"planejado"},nota:"Conexão OAuth pronta no código (a ativação depende do registro no Microsoft Entra); leitura, envio e gerenciamento ainda não foram implementados."}];
   function inbProvedor(id){for(var i=0;i<INB_PROVEDORES.length;i++)if(INB_PROVEDORES[i].id===id)return INB_PROVEDORES[i];return null}
   /* estado da conta: nunca só a cor (o kit mostra ícone + palavra). "nova" = cadastrada e nunca conectada; sem conexão nunca parece "vazia" */
   var INB_ESTADOS=[{id:"nova",rotulo:"Nova",tipo:"neutro"},{id:"conectada",rotulo:"Conectada",tipo:"ok"},{id:"sincronizando",rotulo:"Sincronizando",tipo:"info"},{id:"atrasada",rotulo:"Atrasada",tipo:"aviso"},
@@ -3915,7 +3915,7 @@
   /* formulário "adicionar conta": só provedor, apelido e endereço; só provedor ativo; credencial no formulário é recusada */
   function inbContaValida(f){f=f||{};var e={},prov=inbProvedor(f.provedor),ap=String(f.apelido==null?"":f.apelido).trim(),en=String(f.endereco==null?"":f.endereco).trim();
     if(inbCredenciais(f).length)e.credencial="O Inbox não pede nem guarda senha, token ou usuário de acesso.";
-    if(!prov)e.provedor="Escolha um provedor.";else if(!prov.ativo)e.provedor=prov.nome+" entra em uma fase futura; nesta etapa só o iCloud.";
+    if(!prov)e.provedor="Escolha um provedor.";else if(!prov.ativo)e.provedor=prov.nome+" entra em uma fase futura.";
     if(!ap||ap.length>60)e.apelido="Dê um nome de 1 a 60 caracteres.";
     if(!INB_RE_EMAIL.test(en)||en.length>254)e.endereco="Informe um endereço de e-mail válido.";
     return Object.keys(e).length?{ok:false,erros:e}:{ok:true,linha:{provedor:prov.id,apelido:ap,endereco:en,estado:"nova"}}}
@@ -3930,7 +3930,9 @@
     baixar_anexo:{escreve:false,campos:["conta_id","pasta_id","uid","parte"],requer:["conta_id","pasta_id","uid","parte"]},
     /* custódia da credencial (Vault; docs/inbox.md): a ÚNICA operação que aceita credencial é guardar (que também substitui); remover e estado levam só o ID da conta */
     credencial_guardar:{escreve:false,credencial:true,campos:["conta_id","usuario","senha_app"],requer:["conta_id","usuario","senha_app"]},
-    credencial_remover:{escreve:false,campos:["conta_id"],requer:["conta_id"]},credencial_estado:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
+    credencial_remover:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
+    /* I4: conexão OAuth do Gmail/Outlook: iniciar devolve só a URL do provedor; concluir entrega o código que o provedor devolveu ao site (o token nunca passa pelo navegador) */
+    oauth_iniciar:{escreve:false,campos:["conta_id"],requer:["conta_id"]},oauth_concluir:{escreve:false,campos:["state","code"],requer:["state","code"]},credencial_estado:{escreve:false,campos:["conta_id"],requer:["conta_id"]},
     /* I3 (envio): "smtp_prova" só diagnostica (com enviar_teste manda UMA mensagem curta ao próprio endereço); "enviar_mensagem" é a ÚNICA operação que escreve no mundo e só sai de um clique explícito em Enviar */
     smtp_prova:{escreve:false,campos:["conta_id","enviar_teste"],requer:["conta_id"]},
     enviar_mensagem:{escreve:true,campos:["conta_id","envio_id","modo","pasta_id","uid","para","cc","cco","assunto","texto"],requer:["conta_id","envio_id","modo","para","assunto","texto"]},
@@ -3953,6 +3955,8 @@
       if(v===undefined){if(d.requer.indexOf(k)>=0)return {ok:false,erro:"campo_ausente"};continue}
       if(k==="usuario"){if(typeof v!=="string"||v.length>254||!INB_RE_EMAIL.test(v))return {ok:false,erro:"usuario_invalido"}}
       else if(k==="senha_app"){if(typeof v!=="string"||!INB_RE_SENHA_APP.test(v))return {ok:false,erro:"senha_formato_invalido"}}
+      else if(k==="state"){if(typeof v!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(v))return {ok:false,erro:"campo_ausente"}}
+      else if(k==="code"){if(typeof v!=="string"||!/^[\x21-\x7e]{10,4096}$/.test(v))return {ok:false,erro:"campo_ausente"}}
       else if(k==="uid"){if(!inbUidOk(v))return {ok:false,erro:"id_invalido"}}
       else if(k==="parte"){if(typeof v!=="string"||!INB_RE_PARTE.test(v))return {ok:false,erro:"id_invalido"}}
       else if(k==="acao"){if(typeof v!=="string"||!inbAcaoOk(v))return {ok:false,erro:"acao_invalida"}}
@@ -4034,7 +4038,7 @@
   function inbDataCompleta(quando){var d=new Date(quando);if(isNaN(d.getTime()))return "";return d.getDate()+" de "+INB_MESES[d.getMonth()]+" de "+d.getFullYear()+", "+inbDois(d.getHours())+":"+inbDois(d.getMinutes())}
   function inbNaoLidas(msgs){return (msgs||[]).filter(function(m){return !m.lida}).length}
   /* código de falha do serviço → frase para o dono (nunca o texto do servidor) */
-  var INB_ERROS={servico_nao_publicado:"O serviço de e-mail não está publicado.",sem_login:"Entre de novo para usar o Inbox.",rede:"Sem conexão com o serviço.",servico_indisponivel:"O serviço de e-mail está indisponível agora.",
+  var INB_ERROS={oauth_nao_configurado:"A conexão com este provedor ainda não foi configurada no servidor (credenciais do Google ou da Microsoft).",oauth_estado_invalido:"A autorização expirou ou já foi usada. Toque em Conectar de novo.",oauth_recusado:"O provedor recusou a autorização. Toque em Conectar e aceite as permissões.",oauth_conta_divergente:"A conta autorizada não é a cadastrada nesta conta do Inbox. Entre com o endereço certo e tente de novo.",oauth_indisponivel:"O provedor não respondeu agora. Tente de novo em instantes.",provedor_invalido:"Esta ação não vale para este provedor.",provedor_sem_leitura:"A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",servico_nao_publicado:"O serviço de e-mail não está publicado.",sem_login:"Entre de novo para usar o Inbox.",rede:"Sem conexão com o serviço.",servico_indisponivel:"O serviço de e-mail está indisponível agora.",
     limite:"Muitos pedidos seguidos; tente daqui a pouco.",resposta_invalida:"O serviço respondeu algo que o RAC não reconhece.",credencial_proibida:"O Inbox não aceita credencial no navegador.",escrita_fora_do_escopo:"Esta ação não existe no Inbox; use os botões da mensagem.",
     operacao_invalida:"Operação desconhecida.",entrada_invalida:"Pedido inválido.",campos_inesperados:"Pedido inválido.",campo_ausente:"Pedido incompleto.",id_invalido:"Pedido inválido.",
     usuario_invalido:"O e-mail do ID Apple não parece válido.",senha_formato_invalido:"Use uma senha específica de app (abcd-efgh-ijkl-mnop); a senha principal não é aceita.",mfa_requerido:"Confirme o código da 2ª etapa e tente de novo.",
@@ -4115,12 +4119,13 @@
     e=e||{};var contas=e.contas||[],pastas=e.pastas||[],cred=e.cred||{},sincs=e.sincs||{},msgs=e.msgs||[],gm=e.gmail||[],linhas=[],noInbox={};
     contas.forEach(function(c){
       var ps=pastas.filter(function(p){return p.conta_id===c.id}),ent=ps.filter(function(p){return p.uso==="entrada"})[0]||null,sy=ent&&sincs[ent.id]||null,prov=inbProvedor(c.provedor),est=inbEstado(c.estado),cr=cred[c.id]||"ausente",
-        tom=est.tipo,rot=est.rotulo,problema=null,pode=!!(prov&&prov.ativo&&cr==="ativa");
+        tom=est.tipo,rot=est.rotulo,problema=null,pode=!!(prov&&prov.ativo&&prov.leitura&&cr==="ativa");
       if(String(c.endereco||"")&&c.provedor==="gmail")noInbox[String(c.endereco).toLowerCase()]=1;
       if(!prov||!prov.ativo){problema="Este provedor ainda não pode ser conectado pelo Inbox.";tom="aviso";rot="Sem conexão"}
-      else if(cr==="invalida"||c.estado==="erro_autenticacao"){problema="O provedor recusou a credencial. Substitua a senha no Inbox.";tom="erro";rot="Erro de autenticação"}
+      else if(cr==="invalida"||c.estado==="erro_autenticacao"){problema=prov.oauth?"A autorização do provedor foi recusada ou revogada. Reconecte a conta no Inbox.":"O provedor recusou a credencial. Substitua a senha no Inbox.";tom="erro";rot="Erro de autenticação"}
       else if(cr!=="ativa"){problema="Sem conexão: conecte a conta no Inbox.";tom="aviso";rot="Sem conexão"}
       else if(sy&&sy.erro){problema=inbErroTexto(sy.erro);tom=(sy.falhas_seguidas||0)>=3?"erro":"aviso";rot="Falha ao sincronizar"}
+      else if(!prov.leitura){problema="Conta conectada ("+prov.nome+"). A leitura de mensagens ainda não foi liberada no Inbox.";tom="aviso";rot="Conectada, sem leitura"}
       else if(c.estado==="atrasada"){problema="A sincronização está atrasada.";tom="aviso";rot="Atrasada"}
       var rec=msgs.filter(function(m){return m.conta_id===c.id&&(!ent||m.pasta_id===ent.id)}).sort(function(a,b){return String(b.recebida_em||"")<String(a.recebida_em||"")?-1:1}).slice(0,3).map(function(m){
         return {id:m.id,assunto:String(m.assunto||"").trim()||"(Sem assunto)",de:String(m.remetente_nome||m.remetente_endereco||"").trim(),lida:m.lida===true,quando:inbHora(m.recebida_em,agora),hash:"#inbox/"+c.id+"/"+m.pasta_id+"/"+m.id}});

@@ -142,6 +142,9 @@ img.ico{background:#fff;object-fit:contain;padding:2px;box-shadow:0 0 0 1px var(
 .sidebtn{display:none;background:var(--glass);color:var(--ink);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:10px;padding:8px;text-shadow:none}
 .sidebtn svg{width:20px;height:20px;display:block}
 .scrimbg{display:none}
+/* Inbox: véu que escurece a tela de mensagens com o painel lateral aberto (iPhone e tablet); o mesmo véu do menu do app. Fica aqui, junto do .scrimbg, porque css/rac.css do Inbox só usa tokens. */
+.inb-fundo{display:none}
+@media(max-width:1180px){.inb-janela[data-painel="caixas"]>.inb-fundo{display:block;position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.45);touch-action:none}}
 @media(max-width:860px){
   .app{grid-template-columns:minmax(0,1fr);padding-left:max(16px,env(safe-area-inset-left,0px))}
   .side{position:fixed;left:max(8px,env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));bottom:8px;height:auto;width:min(300px,86vw);transform:translateX(-112%);transition:transform .25s ease}
@@ -1177,7 +1180,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-20.8">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-20.9">
 </head>
 <body>
 

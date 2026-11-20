@@ -191,3 +191,12 @@ test("CSS e código do menu: só tokens, alvos de 44 px, sem estado por conta (u
   assert.ok(!/contasAbertas|secContas|inboxContaAberta/.test(js), "não existe estado de expansão por conta: só INBX.conta decide qual árvore aparece"); assert.ok((lat.match(/"inb-subtit inb-subtit--pastas"/g) || []).length === 1, "um único bloco de pastas no menu"); assert.ok(!/localStorage|sessionStorage/.test(lat));
   assert.match(js, /function inboxBtnConta\(icone,rotulo,fn,opc\)\{[^]*?"aria-label":rotulo/, "botões de ícone têm rótulo acessível");
 });
+
+test("painel lateral sobreposto: o véu só existe com o menu aberto, tocar nele fecha, a barra azul reúne menu, Sincronizar e Nova mensagem, e o menu abre também a partir de Gerenciar contas", async () => {
+  const a = amb(); await a.abrir(); await assentar();
+  assert.equal(comClasse(a.raiz, "inb-fundo").length, 0, "sem o menu aberto não há véu"); const barra = comClasse(a.raiz, "inb-barra")[0]; assert.ok(barra, "barra azul"); assert.ok(todos(barra).includes(sincHeader(a)), "Sincronizar dentro da barra"); assert.ok(todos(barra).includes(btAria(a, "Caixas")) && todos(barra).includes(btAria(a, "Nova mensagem")));
+  btAria(a, "Caixas").onclick(); const j = () => comClasse(a.raiz, "inb-janela")[0]; assert.equal(j().attrs["data-painel"], "caixas"); assert.equal(comClasse(a.raiz, "inb-fundo").length, 1, "véu com o painel aberto"); assert.ok(comClasse(a.raiz, "inb-lateral").length === 1 && comClasse(a.raiz, "inb-mensagens").length === 1, "o painel e a tela de mensagens coexistem");
+  comClasse(a.raiz, "inb-fundo")[0].onclick(); assert.equal(j().attrs["data-painel"], "lista", "tocar no véu fecha"); assert.equal(comClasse(a.raiz, "inb-fundo").length, 0);
+  btAria(a, "Caixas").onclick(); contaBtn(a, G2).onclick(); assert.equal(j().attrs["data-painel"], "lista", "escolher uma conta fecha o painel (comportamento de sempre)");
+  ger(a); btAria(a, "Caixas").onclick(); assert.equal(j().attrs["data-painel"], "caixas", "o menu abre também em Gerenciar contas"); assert.equal(comClasse(a.raiz, "inb-fundo").length, 1); assert.ok(todos(comClasse(a.raiz, "inb-barra")[0]).includes(btAria(a, "Voltar às mensagens")));
+});

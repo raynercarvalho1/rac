@@ -224,12 +224,13 @@
     if(!oauth&&INBX.credForm===c.id&&INBS.publicado)el.appendChild(inboxFormCredencial(c));
     return el}
   function inboxGerenciar(){
-    var col=h("section",{class:"inb-mensagens inb-gerenciar","aria-label":"Gerenciar contas"}),cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));
-    menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};topo.appendChild(menu);
+    var col=h("section",{class:"inb-mensagens inb-gerenciar","aria-label":"Gerenciar contas"}),cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),barra=h("div",{class:"inb-barra"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));
+    menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};topo.appendChild(barra);barra.appendChild(menu);
+    var voltar=h("button",{type:"button",class:"inb-topo-btn inb-gc-voltar","aria-label":"Voltar às mensagens",title:"Voltar às mensagens"},inboxIco("voltar"));voltar.onclick=function(){INBX.gerenciar=false;inboxDesenhar()};barra.appendChild(voltar);
     topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:"Gerenciar contas"}),h("span",{class:"inb-sub",text:INBX.contas.length+(INBX.contas.length===1?" conta":" contas")})));
     var tudo=INBS.publicado&&!INBX.demo&&inboxContasSincronizaveis(true).length?h("button",{type:"button",class:"inb-topo-sinc inb-topo-sinc--tudo","aria-label":INBX.sinc?"Sincronizando":"Sincronizar tudo",title:"Sincronizar todas as contas que leem e-mail"},inboxIco("atualizar"),h("span",{class:"inb-topo-sinc-txt",text:INBX.sinc?"Sincronizando…":"Sincronizar tudo"})):null;
-    if(tudo){if(INBX.sinc){tudo.setAttribute("disabled","disabled");tudo.setAttribute("aria-busy","true")}tudo.onclick=inboxSincronizarTudo;topo.appendChild(tudo)}
-    var voltar=h("button",{type:"button",class:"inb-topo-btn inb-gc-voltar","aria-label":"Voltar às mensagens",title:"Voltar às mensagens"},inboxIco("voltar"));voltar.onclick=function(){INBX.gerenciar=false;inboxDesenhar()};topo.appendChild(voltar);cab.appendChild(topo);col.appendChild(cab);
+    if(tudo){if(INBX.sinc){tudo.setAttribute("disabled","disabled");tudo.setAttribute("aria-busy","true")}tudo.onclick=inboxSincronizarTudo;barra.appendChild(tudo)}
+    cab.appendChild(topo);col.appendChild(cab);
     var corpo=h("div",{class:"inb-gc-lista"});
     if(!INBX.contas.length)corpo.appendChild(inboxVazio("caixa","Nenhuma conta cadastrada","Use Adicionar conta no menu para cadastrar o iCloud, o Gmail ou o Outlook."));
     NUCLEO.inbArvore(INBX.contas,INBX.pastas).forEach(function(g){corpo.appendChild(inboxContaGerenciar(g.conta))});
@@ -250,8 +251,8 @@
   function inboxVazio(icone,titulo,texto,acoes){return h("div",{class:"inb-vazio"},inboxIco(icone,"inb-vazio-ico"),h("b",{text:titulo}),h("p",{text:texto}),acoes||null)}
   function inboxLista(){
     var col=h("section",{class:"inb-mensagens","aria-label":"Mensagens"}),cont=inboxContaAtual(),tit=INBX.conta==="todas"?"Caixa de entrada":(cont?cont.apelido:"Conta"),ms=inboxMensagens();
-    var cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};
-    topo.appendChild(menu);
+    var cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),barra=h("div",{class:"inb-barra"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};
+    topo.appendChild(barra);barra.appendChild(menu);
     topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:tit}),h("div",{class:"inb-sub-linha"},h("span",{class:"inb-sub",text:INBX.demo||ms.length?ms.length+(ms.length===1?" mensagem":" mensagens")+" · "+NUCLEO.inbNaoLidas(ms)+" não lidas":(cont?cont.endereco:"Todas as contas")}),cont&&!INBX.demo?inboxProvTag(cont):null)));
     /* Sincronizar fica SEMPRE no cabeçalho (com o serviço publicado e alguma conta cadastrada): na Caixa unificada sincroniza todas as contas que leem; numa conta, a conta aberta. Sem conta que leia (Outlook, sem conexão), o botão
        continua à vista, inativo, e o toque explica por quê. */
@@ -260,8 +261,8 @@
       if(INBX.sinc){sinc.setAttribute("disabled","disabled");sinc.setAttribute("aria-busy","true")}
       if(alvoS.length)sinc.onclick=inboxSincronizar;
       else{sinc.setAttribute("aria-disabled","true");sinc.onclick=function(){var pv=cont&&NUCLEO.inbProvedor(cont.provedor);INBX.aviso={tipo:"info",t:pv&&!pv.leitura?"A leitura de e-mails do "+pv.nome+" ainda não foi liberada no Inbox.":"Conecte a conta em Gerenciar contas para sincronizar."};inboxDesenhar()}}
-      topo.appendChild(sinc)}
-    var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");topo.appendChild(novaTopo);cab.appendChild(topo);
+      barra.appendChild(sinc)}
+    var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");barra.appendChild(novaTopo);cab.appendChild(topo);
     cab.appendChild(h("div",{class:"inb-busca","aria-disabled":"true",title:INBX_FUTURO},inboxIco("buscar"),h("span",{text:"Buscar mensagens"})));
     cab.appendChild(inboxFiltros());col.appendChild(cab);
     if(ms.length){var l=h("div",{class:"inb-linhas",role:"list"});
@@ -530,7 +531,10 @@
     if(st.tipo==="estrutura_pendente")pg.appendChild(rkEstado("aviso","A estrutura do Inbox ainda não foi criada no banco (migration 051 pendente). Quando o dono aplicar, as contas aparecem aqui."));
     else if(st.tipo==="erro"){var re=rkBtn("sec","Tentar de novo");re.onclick=function(){inboxCarregar()};pg.appendChild(rkEstado("erro","Não consegui carregar o Inbox agora.",re))}
     if(INBX.form||(st.tipo==="vazio"&&!INBX.demo))pg.appendChild(inboxForm());
-    if(st.tipo!=="erro")pg.appendChild(INBX.gerenciar&&!INBX.demo?h("div",{class:"inb-janela inb-janela--gerenciar","data-painel":"lista"},inboxLateral(),inboxGerenciar()):h("div",{class:"inb-janela","data-painel":INBX.painel},inboxLateral(),inboxLista(),inboxLeitura()));
+    var janela=null;
+    if(st.tipo!=="erro")janela=INBX.gerenciar&&!INBX.demo?h("div",{class:"inb-janela inb-janela--gerenciar","data-painel":INBX.painel==="caixas"?"caixas":"lista"},inboxLateral(),inboxGerenciar()):h("div",{class:"inb-janela","data-painel":INBX.painel},inboxLateral(),inboxLista(),inboxLeitura());
+    if(janela&&INBX.painel==="caixas"){var fundo=h("div",{class:"inb-fundo",role:"presentation","aria-hidden":"true"});fundo.onclick=function(){INBX.painel="lista";inboxDesenhar()};janela.appendChild(fundo)}   /* tocar fora do painel o fecha */
+    if(janela)pg.appendChild(janela);
     pg.appendChild(inboxMatriz())}
   function inboxCarregar(){if(!isOwner()){INBX.carregando=false;inboxDesenhar();return Promise.resolve()}   /* a casa (Fernanda) não vê o Inbox: nem consulta as tabelas */
     INBX.carregando=true;inboxDesenhar();return inboxLer().then(inboxDesenhar)}

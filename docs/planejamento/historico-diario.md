@@ -1392,3 +1392,14 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: validar as capturas e o iPhone; depois mesclar. Próximos lotes do Inbox: envio/gerenciamento do Gmail, sincronização automática, Outlook.
 
+## 20/11/2026 · RAC Inbox: fidelidade visual ao protótipo (PR #59, versão `2026-11-20.9`)
+
+### 1. O que fizemos
+- Menu lateral do iPhone/tablet como painel à esquerda sobreposto às mensagens, com véu escurecido, fechamento ao tocar fora, acima da barra inferior e das áreas seguras; barra azul no cabeçalho com Sincronizar integrado (contraste conferido). Sem mudança de lógica, hierarquia, OAuth, banco, função ou Worker. Testes de navegador atualizados (390/820/1440 px) e novas capturas.
+
+### 2. O que estamos fazendo
+- PR #59 atualizado para a validação visual do dono (autorizado o merge após a correção).
+
+### 3. O que vamos fazer
+- Merge após CI verde; dono confere no iPhone. Depois: envio/gerenciamento do Gmail, sincronização automática, Outlook.
+

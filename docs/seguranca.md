@@ -200,7 +200,7 @@ Central Fiscal). Antes, o Radar de Preços, os alertas de preço, a junção de 
 
 | Parte | Antes | Agora |
 |---|---|---|
-| `pessoal` | só o dono | a casa lê e grava **6 chaves** na linha do dono (política "casa compartilha"): `radar-config`, `radar-pagos`, `radar-vinculos`, `mercado-equivalencias`, `mercado-alertas`, `mercado-canais`. Qualquer outra chave continua invisível para ela |
+| `pessoal` | só o dono | a casa lê e grava **6 chaves** na linha do dono (política "casa compartilha"): `radar-config`, `radar-pagos`, `radar-vinculos`, `mercado-equivalencias`, `mercado-alertas`, `mercado-canais`. A chave `mercado-areas` (áreas de consumo e categorias, 20/11/2026) fica **fora** dessa lista: é só do dono (RLS, MFA, backup da `pessoal`); a Fernanda não a lê nem a grava. Qualquer outra chave continua invisível para ela |
 | Radar (9 tabelas) | política "so o dono" (`dono = auth.uid()` e fora de `membros`) | política "casa" (`dono = dono_da_casa()`); linhas novas nascem do dono da casa; a trava "mfa" continua |
 | Função `radar` | 403 `sem_permissao` para membro | a casa usa na conta do dono; a rotina e o push seguem só para o dono |
 | Central Fiscal (foto/PDF, situação, entrada no Mercado) | as 3 funções recusavam quem não era o dono da casa; políticas restritivas "foto so dono"; tentativas e histórico só do dono | sem a linha "só o dono da casa" (editada dentro da definição existente: **não ativa a 039/040 se ainda não aplicadas**; rodar a 057 de novo depois de aplicá-las); sem as políticas "foto so dono"; a casa lê tentativas e histórico |

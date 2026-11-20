@@ -351,3 +351,10 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - Código do OAuth volta ao site e é entregue à função autenticada (JWT + MFA); nenhum endpoint público o recebe. Só o refresh token vai ao Vault; token de acesso nunca é guardado. A conta autorizada tem de ser a cadastrada (isolamento das duas contas Gmail).
 - Gmail/Outlook usarão o mesmo contrato e cache do iCloud: `uid` sintético por pasta no servidor, ID do provedor em `id_externo`. Escopos: `gmail.modify` e Graph `Mail.ReadWrite` + `Mail.Send` (sem exclusão definitiva).
 - Pendências do dono: apps no Google Cloud (modo Teste expira o refresh em 7 dias; produção exige verificação do escopo restrito) e no Entra, Secrets, migration 063, republicar a função.
+
+## 20/11/2026 · Central de Compras — áreas de consumo (decisões do lote)
+- **Decisão técnica:** cada item pertence a uma única área, pela categoria; a Central soma todas as áreas, os não classificados e os ajustes de pedidos (frete, taxas, desconto geral), que **não** são rateados entre áreas. Categorias fora da lista inicial **não** foram atribuídas por palpite: ficam "sem área" até o dono associar.
+- **Persistência:** `PESSOAL["mercado-areas"]` (tabela `pessoal` existente: só o dono, MFA, backup, igual entre aparelhos), em vez de tabela nova: sem migration.
+- **Fernanda:** as áreas e a gestão são só do dono; o Painel do Mercado dela não mudou. **Pendência do dono:** decidir se ela também deve ver as áreas (exigiria incluir a chave na política da casa por migration).
+- **Pendência:** Preços, Consumo, Comparar e Produtos ainda mostram todas as categorias.
+Detalhes: `docs/central-areas.md`.

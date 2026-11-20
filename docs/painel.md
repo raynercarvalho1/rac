@@ -1,6 +1,7 @@
 # Painel de Produtividade
 
 Página `#painel` (menu → Produtividade), código em `js/painel.js`, contas em `nucleo.js` (`NUCLEO.pn*`, com testes).
+Não confundir com os **painéis de consumo** da Central de Compras (`#mercado`: Central, Mercado, Automotivo, Farmácia, Bebê/Infantil; `docs/central-areas.md`): este é o painel geral de produtividade do RAC.
 Feita em 31/10/2026. Só para o dono (dados pessoais). Não há SQL novo, Edge Function nova, IA nem API de fora.
 
 ## Como funciona

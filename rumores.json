@@ -1,12 +1,12 @@
 {
- "coletado": "2026-11-20T02:17:43.882695+00:00",
+ "coletado": "2026-11-20T11:29:54.990268+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
    "t": "White Sox Trade Davis Martin, Luis Castillo To Rockies",
    "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-trade-davis-martin-luis-castillo-to-rockies.html",
-   "data": "2026-11-20T02:10:48+00:00",
+   "data": "2026-11-20T05:59:48+00:00",
    "resumo": "The White Sox and Rockies announced a surprise trade on Thursday. Colorado acquires a pair of veteran starters, Davis Martin and Luis Castillo, in exchange for rookie left-hander Sean Sullivan and minor league catcher Douglas Veliz. The Rockies assume Castillo’s $22.75MM salary…",
    "tags": [
     "Chicago White Sox",
@@ -20,13 +20,46 @@
   {
    "t": "Mets, Darwinzon Hernández Agree To Three-Year Deal",
    "link": "https://www.mlbtraderumors.com/2026/11/mets-darwinzon-hernandez-agree-to-three-year-deal.html",
-   "data": "2026-11-20T01:41:32+00:00",
-   "resumo": "The Mets are signing free agent reliever Darwinzon Hernández to a three-year, $12MM contract, reports José F. Rivera. The signing is still pending a physical. Hernández returns to the majors after pitching four seasons in Japan. More to come.",
+   "data": "2026-11-20T05:41:32+00:00",
+   "resumo": "The Mets are signing lefty reliever Darwinzon Hernández to a three-year, $12MM contract, reports José F. Rivera. The signing is still pending a physical. New York opened a spot on the 40-man roster by dropping Chayce McDermott on waivers this afternoon. It’s a surprising…",
    "tags": [
     "New York Mets",
     "Newsstand",
     "Transactions",
     "Darwinzon Hernandez"
+   ]
+  },
+  {
+   "t": "Royals Re-Sign Vince Velasquez To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/royals-re-sign-vince-velasquez-to-minor-league-deal.html",
+   "data": "2026-11-20T05:22:26+00:00",
+   "resumo": "The Royals are in agreement with veteran righty Vince Velasquez on a new minor league contract, reports Robert Murray of FanSided. He’ll be back in MLB camp as a non-roster invitee. Velasquez spent the second half of the 2026 season in the K.C. system. He signed a minor league…",
+   "tags": [
+    "Kansas City Royals",
+    "Transactions",
+    "Vincent Velasquez"
+   ]
+  },
+  {
+   "t": "Orioles Notes: May, Goodman, Rotation",
+   "link": "https://www.mlbtraderumors.com/2026/11/orioles-notes-may-goodman-rotation.html",
+   "data": "2026-11-20T04:12:23+00:00",
+   "resumo": "The Orioles made a run at Dustin May before the right-hander signed a three-year contract with the White Sox, writes Jeff Passan of ESPN. Chicago gave May a $52.5MM guarantee that was a little surprising given his inconsistency, yet Passan writes that Baltimore was “in the…",
+   "tags": [
+    "Baltimore Orioles",
+    "Colorado Rockies",
+    "Dustin May",
+    "Hunter Goodman"
+   ]
+  },
+  {
+   "t": "Hunter Goodman Underwent Shoulder Surgery, Expected To Be Ready For Spring Training",
+   "link": "https://www.mlbtraderumors.com/2026/11/hunter-goodman-underwent-shoulder-surgery-expected-to-be-ready-for-spring.html",
+   "data": "2026-11-20T03:14:14+00:00",
+   "resumo": "Rockies catcher Hunter Goodman underwent left shoulder surgery at the beginning of the offseason, reports Ken Rosenthal of The Athletic. It was a cleanup procedure that is not expected to impact his readiness for the start of Spring Training. Goodman missed a week and a half in…",
+   "tags": [
+    "Colorado Rockies",
+    "Hunter Goodman"
    ]
   },
   {
@@ -144,38 +177,6 @@
     "Transactions",
     "Braden Nett",
     "Carter Baumler"
-   ]
-  },
-  {
-   "t": "Reds To Sign Dominic Fletcher To Minors Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/reds-to-sign-dominic-fletcher-to-minors-deal.html",
-   "data": "2026-11-19T18:31:43+00:00",
-   "resumo": "Veteran outfielder Dominic Fletcher is sticking with the Reds on a minor league deal, per Mark Sheldon of MLB.com. The agreement includes an invitation to MLB Spring Training. Fletcher spent the final month of last season at Triple-A Louisville. The 29-year-old Fletcher began…",
-   "tags": [
-    "Cincinnati Reds",
-    "Transactions",
-    "Dominic Fletcher"
-   ]
-  },
-  {
-   "t": "White Sox Hire Kyle Wilson As Assistant Hitting Coach",
-   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-hire-kyle-wilson-as-assistant-hitting-coach.html",
-   "data": "2026-11-19T17:55:40+00:00",
-   "resumo": "The White Sox are hiring Kyle Wilson as an assistant hitting coach, reports James Fegan of The Chicago Sun-Times. He’d been a hitting coordinator with the Rays. Wilson replaces Joel McKeithan, who held the assistant HC role on the South Side for the last two seasons. McKeithan…",
-   "tags": [
-    "Chicago White Sox",
-    "Kyle Wilson"
-   ]
-  },
-  {
-   "t": "Cubs Interested In Teruaki Sato, Jarren Duran",
-   "link": "https://www.mlbtraderumors.com/2026/11/cubs-interested-in-teruaki-sato-jarren-duran.html",
-   "data": "2026-11-19T17:28:21+00:00",
-   "resumo": "The league’s top offense is in the market for more bats this winter. Patrick Mooney of The Athletic reports that the Cubs have extensively scouted NPB import Teruaki Sato. The club has also evaluated Red Sox outfielder Jarren Duran, a popular trade candidate. While the Cubs…",
-   "tags": [
-    "Chicago Cubs",
-    "Jarren Duran",
-    "Teruaki Sato"
    ]
   }
  ],

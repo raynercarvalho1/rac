@@ -10,7 +10,7 @@
    nunca entra no estado da tela (INBX), nunca é guardada no aparelho e nunca volta do servidor. A senha principal da conta Apple não é pedida nem aceita. O formulário só aparece com o serviço publicado (INBS.publicado).
    Regras no núcleo (NUCLEO.inb*), componentes do kit (js/kit.js). */
   var INBX={contas:[],pastas:[],cred:{},erro:null,carregando:false,conta:"todas",pasta:null,filtro:"todas",painel:"lista",msg:null,demo:false,form:false,erros:{},valores:{provedor:"icloud",apelido:"",endereco:""},aviso:null,
-    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null,acao:null,menuMais:null,menuPasta:false,semMover:{},gerenciar:false,secContas:true,contasAbertas:{}};
+    credForm:null,credErros:{},credOcupado:false,msgs:[],sincs:{},sinc:null,leit:null,baixando:null,testando:null,opcoes:null,salvandoPref:false,compor:null,testandoSmtp:null,acao:null,menuMais:null,menuPasta:false,semMover:{},gerenciar:false};
   var INBX_FUTURO="Disponível nas próximas etapas";
   /* ícones (traço de 1.8, herdam a cor do texto) */
   var INBX_ICO={caixa:'<path d="M3 13l2.5-7.5A2 2 0 0 1 7.4 4h9.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-5a3 3 0 0 1-6 0z"/>',
@@ -22,7 +22,9 @@
     responder:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>',todos:'<path d="M7 14L2 9l5-5"/><path d="M12 14L7 9l5-5"/><path d="M7 9h8a6 6 0 0 1 6 6v3"/>',encaminhar:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v3"/>',
     mais:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',voltar:'<path d="M15 5l-7 7 7 7"/>',buscar:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
     nova:'<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',cadeado:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',atualizar:'<path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/>',
-    lida:'<path d="M3 9l9 6 9-6"/><path d="M3 9l9-6 9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',naolida:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',mover:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5L12 11l2.5 2.5"/>'};
+    lida:'<path d="M3 9l9 6 9-6"/><path d="M3 9l9-6 9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',naolida:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',mover:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5L12 11l2.5 2.5"/>',
+    elo:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',pulso:'<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>',nuvem:'<path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.6 4.7 4.7 0 0 1 17.5 18z"/>',
+    engrenagem:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'};
   function inboxIco(nome,cls){var s=h("span",{class:"inb-ico"+(cls?" "+cls:""),"aria-hidden":"true"});s.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(INBX_ICO[nome]||INBX_ICO.outra)+'</svg>';return s}
   function inboxLer(){
     INBX.carregando=true;INBX.erro=null;
@@ -30,7 +32,7 @@
     /* o cache de cabeçalhos (053) e o estado da sincronização: sem a 053 aplicada a lista fica vazia, sem erro */
     var msgs=Promise.resolve(SB.from("inbox_mensagens_ref").select("id,conta_id,pasta_id,uid,uidvalidity,recebida_em,assunto,remetente_nome,remetente_endereco,destinatarios,lida,sinalizada,respondida,tamanho,anexo_provavel").order("recebida_em",{ascending:false}).limit(1000)).then(sbOk).then(function(l){return l||[]},function(){return []});
     var sincs=Promise.resolve(SB.from("inbox_sincronizacao").select("*")).then(sbOk).then(function(l){var m={};(l||[]).forEach(function(x){m[x.pasta_id]=x});return m},function(){return {}});
-    return Promise.all([SB.from("inbox_contas").select("*").order("apelido"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,msgs,sincs]).then(function(r){
+    return Promise.all([SB.from("inbox_contas").select("*").order("criado_em"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,msgs,sincs]).then(function(r){
       INBX.contas=sbOk(r[0])||[];INBX.pastas=sbOk(r[1])||[];INBX.cred=r[2]||{};INBX.msgs=r[3]||[];INBX.sincs=r[4]||{};INBX.carregando=false;inboxMarca()}).then(null,function(e){INBX.carregando=false;INBX.erro=e;INBX.contas=[];INBX.pastas=[];INBX.cred={};INBX.msgs=[];INBX.sincs={}})}
   function inboxSelo(estado){var e=NUCLEO.inbEstado(estado);return h("span",{class:"inb-estado inb-estado--"+e.tipo,title:e.rotulo},h("i",{"aria-hidden":"true"}),e.rotulo)}
   /* a pasta mostrada: a escolhida na lateral ou, numa conta, a caixa de entrada */
@@ -59,10 +61,8 @@
       INBX.leit=r.ok?{id:m.id,estado:"ok",dados:r}:{id:m.id,estado:"erro",erro:r.erro};inboxDesenhar()})}
   function inboxIr(conta,pasta){INBX.gerenciar=false;INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.conta=conta||"todas";INBX.pasta=pasta||null;INBX.msg=null;INBX.leit=null;INBX.opcoes=null;INBX.painel="lista";INBX.credForm=null;INBX.credErros={};inboxDesenhar()}
   function inboxContaAtual(){return INBX.contas.filter(function(c){return c.id===INBX.conta})[0]||null}
-  /* a conta cujas ações de conexão (Sincronizar, Testar conexão) aparecem: a selecionada ou, em "Todas as contas", a ÚNICA conta (antes não havia linha de conexão nesse caso) */
-  function inboxContaAcoes(){return inboxContaAtual()||(INBX.conta==="todas"&&INBX.contas.length===1?INBX.contas[0]:null)}
   /* sincronizar: as contas conectadas (a atual, ou todas na caixa unificada); cada uma lista as pastas se ainda não tem e sincroniza a pasta mostrada (ou a de entrada) */
-  function inboxContasSincronizaveis(){var cont=inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){var pv=NUCLEO.inbProvedor(c.provedor);return INBX.cred[c.id]==="ativa"&&!!(pv&&pv.leitura)})}
+  function inboxContasSincronizaveis(todas){var cont=todas?null:inboxContaAtual(),l=cont?[cont]:INBX.contas;return l.filter(function(c){var pv=NUCLEO.inbProvedor(c.provedor);return INBX.cred[c.id]==="ativa"&&!!(pv&&pv.leitura)})}
   /* selo do ícone do app com o total de não lidas da caixa de entrada (onde o navegador suporta; o servidor também o atualiza a cada aviso) */
   function inboxMarca(){try{var n=0;INBX.pastas.forEach(function(p){if(p.uso==="entrada"&&p.nao_lidas>0)n+=p.nao_lidas});var f=n>0?navigator.setAppBadge:navigator.clearAppBadge;if(f)Promise.resolve(f.call(navigator,n)).catch(function(){})}catch(e){}}
   /* preferências por conta (migration 054): sincronizar sozinho a cada 10 min e avisar por notificação; o dono edita só as dele (RLS) */
@@ -78,10 +78,11 @@
         var ps=INBX.pastas.filter(function(p){return p.conta_id===c.id}),sel=(INBX.conta===c.id&&INBX.pasta?ps.filter(function(p){return p.id===INBX.pasta})[0]:null)||ps.filter(function(p){return p.uso==="entrada"})[0]||ps[0];
         if(!sel)return {ok:false,erro:"pasta_inexistente"};
         return inboxChamar("sincronizar_pasta",{conta_id:c.id,pasta_id:sel.id}).then(function(s){return s.ok?{ok:true,frase:NUCLEO.inbFraseSincronizacao(s)}:s})})})}
-  function inboxSincronizar(){inboxSincronizarAlvo(null)}   /* o botão do cabeçalho: a conta aberta ou todas as conectadas (comportamento de sempre) */
-  function inboxSincronizarAlvo(uma){
+  function inboxSincronizar(){inboxSincronizarAlvo(null)}
+  function inboxSincronizarTudo(){inboxSincronizarAlvo(null,true)}   /* Gerenciar contas → Sincronizar tudo: todas as contas que leem, sem depender da conta aberta */   /* o botão do cabeçalho: a conta aberta ou todas as conectadas (comportamento de sempre) */
+  function inboxSincronizarAlvo(uma,todas){
     if(INBX.sinc||!INBS.publicado||INBX.demo)return;
-    var alvo=uma?inboxContasSincronizaveis().filter(function(c){return c.id===uma.id}):inboxContasSincronizaveis(),erro=null,frases=[];
+    var alvo=uma?inboxContasSincronizaveis(true).filter(function(c){return c.id===uma.id}):inboxContasSincronizaveis(!!todas),erro=null,frases=[];
     if(!alvo.length){INBX.aviso={tipo:"erro",t:"Conecte a conta com a senha específica de app para poder sincronizar."};inboxDesenhar();return}
     INBX.sinc=true;INBX.aviso=null;inboxDesenhar();
     alvo.reduce(function(p,c){return p.then(function(){
@@ -163,50 +164,72 @@
     if(ocupado)box.appendChild(h("p",{class:"inb-nota",role:"status",text:"Aguardando a confirmação do iCloud…"}));
     return box}
   /* ---- lateral: nova mensagem (desligada), caixas com contas e pastas, categorias ---- */
-  /* ---- menu lateral: Caixa unificada; uma seção "Contas" (recolhível) com cada conta e, ao expandir, as pastas dela; Categorias; Gerenciar contas ---- */
+  /* ---- menu lateral (protótipo aprovado): Caixa unificada; "Contas" com todas as contas compactas (avatar, nome, endereço, não lidas, estado); "Pastas (conta)" SÓ da conta selecionada, logo uma conta por vez
+     (a árvore de pastas de duas contas nunca coexiste: não há estado por conta, só INBX.conta); no rodapé, Gerenciar contas separado da lista ---- */
   function inboxAbrirGerenciar(){INBX.gerenciar=true;INBX.menuMais=null;INBX.menuPasta=false;INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;inboxDesenhar()}
-  function inboxContaAberta(c){return c.id in INBX.contasAbertas?INBX.contasAbertas[c.id]:INBX.conta===c.id}
+  function inboxBadge(n){return n>0?h("span",{class:"inb-badge",title:"Não lidas",text:String(n)}):null}
   function inboxLateral(){
     var u=NUCLEO.inbUnificada(INBX.contas,INBX.pastas),arv=NUCLEO.inbArvore(INBX.contas,INBX.pastas),box=h("aside",{class:"inb-lateral","aria-label":"Caixas de e-mail"});
     var fechar=h("button",{type:"button",class:"inb-voltar",text:"Mensagens"});fechar.onclick=function(){INBX.painel="lista";inboxDesenhar()};box.appendChild(fechar);
     var nova=h("button",{type:"button",class:"inb-novo",title:inboxPodeEnviar()?"Escrever uma nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"),"Nova mensagem");nova.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())nova.setAttribute("aria-disabled","true");box.appendChild(nova);
-    var un=h("button",{type:"button",class:"inb-item inb-unificada"+(INBX.conta==="todas"&&!INBX.gerenciar?" inb-item--ativo":"")},inboxIco("caixa"),h("span",{class:"inb-item-nome",text:"Caixa unificada"}),
-      h("span",{class:"inb-item-n",text:u.contas&&u.naoLidas!=null?String(u.naoLidas):""}));
+    var un=h("button",{type:"button",class:"inb-item inb-unificada"+(INBX.conta==="todas"&&!INBX.gerenciar?" inb-item--ativo":"")},inboxIco("caixa"),h("span",{class:"inb-item-nome",text:"Caixa unificada"}),inboxBadge(u.naoLidas||0));
     un.onclick=function(){inboxIr("todas")};box.appendChild(un);
     if(u.parcial)box.appendChild(h("p",{class:"inb-nota",text:"Contagem parcial: há conta sem conexão."}));
-    var sec=h("button",{type:"button",class:"inb-secao","aria-expanded":INBX.secContas?"true":"false","aria-controls":"inb-contas"},h("span",{class:"inb-seta","aria-hidden":"true",text:INBX.secContas?"▾":"▸"}),h("span",{text:"Contas"}),h("span",{class:"inb-item-n",text:String(arv.length)}));
-    sec.onclick=function(){INBX.secContas=!INBX.secContas;inboxDesenhar()};box.appendChild(sec);
-    var lista=h("div",{id:"inb-contas",class:"inb-contas",hidden:INBX.secContas?null:""});if(!INBX.secContas)lista.setAttribute("hidden","");
+    box.appendChild(h("p",{class:"inb-subtit",text:"Contas"}));
+    var lista=h("div",{class:"inb-contas",role:"list","aria-label":"Contas"});
     arv.forEach(function(g){
-      var c=g.conta,sel=INBX.conta===c.id&&!INBX.gerenciar,aberta=inboxContaAberta(c),ent=g.pastas.filter(function(p){return p.uso==="entrada"})[0],
-        t=h("button",{type:"button",class:"inb-conta"+(sel&&!INBX.pasta?" inb-item--ativo":"")},h("span",{class:"inb-avatar inb-avatar--p","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),
-          h("span",{class:"inb-conta-txt"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),ent&&ent.nao_lidas>0?h("span",{class:"inb-item-n",title:"Não lidas na caixa de entrada",text:String(ent.nao_lidas)}):null,
-          h("span",{class:"inb-ponto inb-ponto--"+g.estado.tipo,title:g.estado.rotulo,"aria-label":g.estado.rotulo})),
-        exp=h("button",{type:"button",class:"inb-exp","aria-expanded":aberta?"true":"false","aria-label":(aberta?"Recolher as pastas de ":"Mostrar as pastas de ")+c.apelido,title:aberta?"Recolher as pastas":"Mostrar as pastas"},h("span",{"aria-hidden":"true",text:aberta?"▾":"▸"}));
-      t.onclick=function(){INBX.contasAbertas[c.id]=true;inboxIr(c.id)};exp.onclick=function(){INBX.contasAbertas[c.id]=!aberta;inboxDesenhar()};
-      lista.appendChild(h("div",{class:"inb-conta-linha","data-conta":c.id},t,exp));
-      if(aberta){g.pastas.forEach(function(p){var b=h("button",{type:"button",class:"inb-pasta"+(sel&&INBX.pasta===p.id?" inb-item--ativo":"")},inboxIco(p.uso),h("span",{class:"inb-item-nome",text:p.nome_exibicao||p.nome_externo}),h("span",{class:"inb-item-n",text:p.nao_lidas==null?"":String(p.nao_lidas)}));
-        b.onclick=function(){inboxIr(c.id,p.id)};lista.appendChild(b)});
-        if(!g.pastas.length)lista.appendChild(h("p",{class:"inb-nota",text:INBX.cred[c.id]==="ativa"?"As pastas aparecem na primeira sincronização.":"Conecte a conta em Gerenciar contas para ver as pastas."}))}});
+      var c=g.conta,sel=INBX.conta===c.id&&!INBX.gerenciar,ent=g.pastas.filter(function(p){return p.uso==="entrada"})[0],
+        t=h("button",{type:"button",role:"listitem",class:"inb-conta"+(sel?" inb-item--ativo inb-conta--sel":""),"aria-current":sel?"true":null,"data-conta":c.id},h("span",{class:"inb-avatar inb-avatar--p","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),
+          h("span",{class:"inb-conta-txt"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),inboxBadge(ent&&ent.nao_lidas>0?ent.nao_lidas:0),
+          h("span",{class:"inb-ponto inb-ponto--"+g.estado.tipo,title:g.estado.rotulo,"aria-label":g.estado.rotulo}));
+      t.onclick=function(){inboxIr(c.id)};lista.appendChild(t)});
     box.appendChild(lista);
-    box.appendChild(h("p",{class:"inb-grupo"},"Categorias",h("span",{class:"inb-etiqueta",text:"Etapa I4"})));
-    NUCLEO.INB_CATEGORIAS.forEach(function(k){box.appendChild(h("button",{type:"button",class:"inb-pasta inb-item--off","aria-disabled":"true",title:"Categorias inteligentes chegam na etapa I4"},inboxIco("tag"),h("span",{class:"inb-item-nome",text:k[1]})))});
-    var rod=h("div",{class:"inb-lateral-rod"}),ger=h("button",{type:"button",class:"inb-link inb-ger"+(INBX.gerenciar?" inb-item--ativo":""),"aria-current":INBX.gerenciar?"page":null,text:"Gerenciar contas"});ger.onclick=inboxAbrirGerenciar;rod.appendChild(ger);
-    var add=h("button",{type:"button",class:"inb-link","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=inboxAlternarForm;rod.appendChild(add);
-    var ex=h("button",{type:"button",class:"inb-link",text:INBX.demo?"Sair do exemplo":"Ver exemplo da interface"});ex.onclick=inboxAlternarDemo;rod.appendChild(ex);box.appendChild(rod);
+    var add=h("button",{type:"button",class:"inb-link inb-add","aria-expanded":INBX.form?"true":"false",text:"Adicionar conta"});add.onclick=inboxAlternarForm;box.appendChild(add);
+    var cs=INBX.gerenciar?null:inboxContaAtual();
+    if(cs){var g=arv.filter(function(x){return x.conta.id===cs.id})[0];
+      box.appendChild(h("p",{class:"inb-subtit inb-subtit--pastas",text:"Pastas ("+cs.apelido+")"}));
+      g.pastas.forEach(function(p){var b=h("button",{type:"button",class:"inb-pasta"+(INBX.pasta===p.id?" inb-item--ativo":"")},inboxIco(p.uso),h("span",{class:"inb-item-nome",text:p.nome_exibicao||p.nome_externo}),h("span",{class:"inb-item-n",text:p.nao_lidas==null?"":String(p.nao_lidas)}));
+        b.onclick=function(){inboxIr(cs.id,p.id)};box.appendChild(b)});
+      if(!g.pastas.length)box.appendChild(h("p",{class:"inb-nota",text:INBX.cred[cs.id]==="ativa"?"As pastas aparecem na primeira sincronização.":"Conecte a conta em Gerenciar contas para ver as pastas."}))}
+    var ex=h("button",{type:"button",class:"inb-link inb-exemplo",text:INBX.demo?"Sair do exemplo":"Ver exemplo da interface"});ex.onclick=inboxAlternarDemo;box.appendChild(ex);
+    var rod=h("div",{class:"inb-lateral-rod"}),ger=h("button",{type:"button",class:"inb-ger"+(INBX.gerenciar?" inb-item--ativo":""),"aria-current":INBX.gerenciar?"page":null},inboxIco("engrenagem"),h("span",{text:"Gerenciar contas"}));ger.onclick=inboxAbrirGerenciar;rod.appendChild(ger);box.appendChild(rod);
     return box}
   /* ---- Gerenciar contas: cada conta individualmente (nome, endereço, provedor, estado, última sincronização) e só as ações que o provedor implementa (NUCLEO.inbAcoesConta); reutiliza a conexão que já existia ---- */
+  var INBX_LOGO={gmail:'<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>',
+    outlook:'<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="#F25022" d="M2 2h9.5v9.5H2z"/><path fill="#7FBA00" d="M12.5 2H22v9.5h-9.5z"/><path fill="#00A4EF" d="M2 12.5h9.5V22H2z"/><path fill="#FFB900" d="M12.5 12.5H22V22h-9.5z"/></svg>'};
+  function inboxLogo(prov){var l=h("span",{class:"inb-logo","aria-hidden":"true"});if(INBX_LOGO[prov])l.innerHTML=INBX_LOGO[prov];else l.appendChild(inboxIco("nuvem"));return l}
+  /* botão de ícone do cartão: o rótulo fica no leitor de tela e no title, o mesmo em toda a interface */
+  function inboxBtnConta(icone,rotulo,fn,opc){opc=opc||{};var b=h("button",{type:"button",class:"inb-gc-btn"+(opc.perigo?" inb-gc-btn--perigo":""),title:rotulo,"aria-label":rotulo},inboxIco(icone),h("span",{class:"inb-sr",text:rotulo}));
+    if(opc.ocupado)b.setAttribute("aria-busy","true");if(opc.off)b.setAttribute("disabled","disabled");if(opc.aberto!==undefined)b.setAttribute("aria-expanded",opc.aberto?"true":"false");b.onclick=fn;return b}
+  /* Gerenciar contas (protótipo aprovado): uma linha por conta (provedor, nome, endereço, estado, última sincronização) e só os botões que o provedor implementa (NUCLEO.inbAcoesConta). Reutiliza as funções de sempre. */
   function inboxContaGerenciar(c){
-    var pv=NUCLEO.inbProvedor(c.provedor),est=INBX.cred[c.id]||"ausente",ac=NUCLEO.inbAcoesConta(c,est),us=NUCLEO.inbUltimaSync(c,INBX.pastas,INBX.sincs),
-      el=h("section",{class:"inb-gc","data-conta":c.id,"aria-label":"Conta "+c.apelido},
-        h("div",{class:"inb-gc-cab"},h("span",{class:"inb-avatar","aria-hidden":"true",text:NUCLEO.inbIniciais(c.apelido)}),h("div",{class:"inb-gc-id"},h("b",{text:c.apelido}),h("span",{text:c.endereco})),h("span",{class:"inb-chip",text:pv?pv.nome:c.provedor})));
-    el.appendChild(h("p",{class:"inb-gc-sinc",text:pv&&pv.leitura?(est==="ativa"?"Última sincronização: "+us.frase.replace(/^Sincronizada /,"").replace(/\.$/,"").replace(/^Ainda não sincronizada$/,"ainda não houve")+(us.erro?". Última tentativa falhou: "+us.erro:"."):"Sem conexão: sem sincronização."):"Leitura de mensagens ainda não liberada para este provedor."}));
-    el.appendChild(inboxConexao(c));return el}
+    var pv=NUCLEO.inbProvedor(c.provedor),est=INBX.cred[c.id]||"ausente",ac=NUCLEO.inbAcoesConta(c,est),ec=NUCLEO.inbEstadoConta(c,est),us=NUCLEO.inbUltimaSync(c,INBX.pastas,INBX.sincs),oauth=!!(pv&&pv.oauth),marca=c.provedor==="outlook"?"Microsoft":"Google",
+      frase=!pv||!pv.leitura?"Leitura de e-mails em breve":est==="ativa"?"Última sincronização: "+us.frase.replace(/^Sincronizada /,"").replace(/\.$/,"").replace(/^Ainda não sincronizada$/,"ainda não houve")+(us.erro?" · última tentativa falhou: "+us.erro:""):est==="invalida"?"A autorização precisa ser refeita.":"Conecte a conta para sincronizar.",
+      el=h("section",{class:"inb-gc","data-conta":c.id,"aria-label":"Conta "+c.apelido}),lin=h("div",{class:"inb-gc-linha"}),acoes=h("div",{class:"inb-gc-acoes",role:"group","aria-label":"Ações de "+c.apelido});
+    lin.appendChild(inboxLogo(c.provedor));
+    lin.appendChild(h("div",{class:"inb-gc-id"},h("span",{class:"inb-gc-nome"},h("b",{text:c.apelido}),h("span",{class:"inb-chip",text:pv?pv.nome.split(" ")[0]:c.provedor})),h("span",{text:c.endereco})));
+    lin.appendChild(h("div",{class:"inb-gc-est"},h("span",{class:"inb-estado inb-estado--"+ec.tipo},h("i",{"aria-hidden":"true"}),ec.rotulo),h("span",{class:"inb-gc-sinc",text:frase})));
+    if(INBS.publicado&&!INBX.demo){
+      if(ac.sincronizar)acoes.appendChild(inboxBtnConta("atualizar",INBX.sinc?"Sincronizando…":"Sincronizar",function(){inboxSincronizarAlvo(c)},{ocupado:!!INBX.sinc,off:!!INBX.sinc}));
+      if(ac.testar)acoes.appendChild(inboxBtnConta("pulso",INBX.testando===c.id?"Testando…":"Testar conexão",function(){inboxTestarConexao(c)},{ocupado:INBX.testando===c.id,off:!!INBX.testando}));
+      if(ac.conectar||ac.reconectar){var rot=oauth?(ac.conectar?"Conectar com ":"Reconectar com ")+marca:(ac.conectar?"Conectar":"Substituir senha");
+        acoes.appendChild(inboxBtnConta("elo",rot,function(){if(oauth)inboxOAuthIniciar(c);else{INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()}},{off:oauth&&!!INBX.credOcupado}))}
+      if(ac.desconectar)acoes.appendChild(inboxBtnConta("lixo",oauth?"Desconectar":"Desconectar e remover a credencial",function(){inboxRemoverCredencial(c)},{perigo:true}));
+      if(!oauth&&est==="ativa"){var aberto=INBX.opcoes===c.id,mais=inboxBtnConta("mais","Opções da conexão",function(){INBX.opcoes=aberto?null:c.id;inboxDesenhar()},{aberto:aberto});mais.className+=" inb-conexao-mais";acoes.appendChild(mais)}
+    }
+    lin.appendChild(acoes);el.appendChild(lin);
+    if(!INBS.publicado)el.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado. Nada foi pedido nem guardado."}));
+    else if(est==="ausente"&&oauth)el.appendChild(h("p",{class:"inb-nota",text:"O RAC nunca vê a sua senha: guarda só uma autorização que você pode revogar, cifrada no cofre do servidor."}));
+    if(!oauth&&INBX.opcoes===c.id&&est==="ativa")el.appendChild(inboxOpcoesIcloud(c));
+    if(!oauth&&INBX.credForm===c.id&&INBS.publicado)el.appendChild(inboxFormCredencial(c));
+    return el}
   function inboxGerenciar(){
     var col=h("section",{class:"inb-mensagens inb-gerenciar","aria-label":"Gerenciar contas"}),cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));
     menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};topo.appendChild(menu);
     topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:"Gerenciar contas"}),h("span",{class:"inb-sub",text:INBX.contas.length+(INBX.contas.length===1?" conta":" contas")})));
-    var voltar=h("button",{type:"button",class:"inb-topo-btn","aria-label":"Voltar às mensagens",title:"Voltar às mensagens"},inboxIco("voltar"));voltar.onclick=function(){INBX.gerenciar=false;inboxDesenhar()};topo.appendChild(voltar);cab.appendChild(topo);col.appendChild(cab);
+    var tudo=INBS.publicado&&!INBX.demo&&inboxContasSincronizaveis(true).length?h("button",{type:"button",class:"inb-topo-sinc inb-topo-sinc--tudo","aria-label":INBX.sinc?"Sincronizando":"Sincronizar tudo",title:"Sincronizar todas as contas que leem e-mail"},inboxIco("atualizar"),h("span",{class:"inb-topo-sinc-txt",text:INBX.sinc?"Sincronizando…":"Sincronizar tudo"})):null;
+    if(tudo){if(INBX.sinc){tudo.setAttribute("disabled","disabled");tudo.setAttribute("aria-busy","true")}tudo.onclick=inboxSincronizarTudo;topo.appendChild(tudo)}
+    var voltar=h("button",{type:"button",class:"inb-topo-btn inb-gc-voltar","aria-label":"Voltar às mensagens",title:"Voltar às mensagens"},inboxIco("voltar"));voltar.onclick=function(){INBX.gerenciar=false;inboxDesenhar()};topo.appendChild(voltar);cab.appendChild(topo);col.appendChild(cab);
     var corpo=h("div",{class:"inb-gc-lista"});
     if(!INBX.contas.length)corpo.appendChild(inboxVazio("caixa","Nenhuma conta cadastrada","Use Adicionar conta no menu para cadastrar o iCloud, o Gmail ou o Outlook."));
     NUCLEO.inbArvore(INBX.contas,INBX.pastas).forEach(function(g){corpo.appendChild(inboxContaGerenciar(g.conta))});
@@ -229,9 +252,15 @@
     var col=h("section",{class:"inb-mensagens","aria-label":"Mensagens"}),cont=inboxContaAtual(),tit=INBX.conta==="todas"?"Caixa de entrada":(cont?cont.apelido:"Conta"),ms=inboxMensagens();
     var cab=h("div",{class:"inb-cabeca"}),topo=h("div",{class:"inb-lista-topo"}),menu=h("button",{type:"button",class:"inb-topo-btn inb-so-movel","aria-label":"Caixas"},inboxIco("menu"));menu.onclick=function(){INBX.painel="caixas";inboxDesenhar()};
     topo.appendChild(menu);
-    topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:tit}),h("span",{class:"inb-sub",text:INBX.demo||ms.length?ms.length+(ms.length===1?" mensagem":" mensagens")+" · "+NUCLEO.inbNaoLidas(ms)+" não lidas":(cont?cont.endereco:"Todas as contas")})));
-    if(!INBX.demo&&INBS.publicado&&inboxContasSincronizaveis().length){var sinc=h("button",{type:"button",class:"inb-topo-btn inb-topo-sinc","aria-label":INBX.sinc?"Sincronizando":"Sincronizar",title:"Sincronizar agora"},inboxIco("atualizar"));
-      if(INBX.sinc){sinc.setAttribute("disabled","disabled");sinc.setAttribute("aria-busy","true")}sinc.onclick=inboxSincronizar;topo.appendChild(sinc)}
+    topo.appendChild(h("div",{class:"inb-lista-tit"},h("h2",{class:"inb-titulo",text:tit}),h("div",{class:"inb-sub-linha"},h("span",{class:"inb-sub",text:INBX.demo||ms.length?ms.length+(ms.length===1?" mensagem":" mensagens")+" · "+NUCLEO.inbNaoLidas(ms)+" não lidas":(cont?cont.endereco:"Todas as contas")}),cont&&!INBX.demo?inboxProvTag(cont):null)));
+    /* Sincronizar fica SEMPRE no cabeçalho (com o serviço publicado e alguma conta cadastrada): na Caixa unificada sincroniza todas as contas que leem; numa conta, a conta aberta. Sem conta que leia (Outlook, sem conexão), o botão
+       continua à vista, inativo, e o toque explica por quê. */
+    if(!INBX.demo&&INBS.publicado&&INBX.contas.length){
+      var alvoS=inboxContasSincronizaveis(),sinc=h("button",{type:"button",class:"inb-topo-btn inb-topo-sinc","aria-label":INBX.sinc?"Sincronizando":"Sincronizar",title:alvoS.length?"Sincronizar agora":"Nada para sincronizar nesta caixa"},inboxIco("atualizar"),h("span",{class:"inb-topo-sinc-txt",text:INBX.sinc?"Sincronizando…":"Sincronizar"}));
+      if(INBX.sinc){sinc.setAttribute("disabled","disabled");sinc.setAttribute("aria-busy","true")}
+      if(alvoS.length)sinc.onclick=inboxSincronizar;
+      else{sinc.setAttribute("aria-disabled","true");sinc.onclick=function(){var pv=cont&&NUCLEO.inbProvedor(cont.provedor);INBX.aviso={tipo:"info",t:pv&&!pv.leitura?"A leitura de e-mails do "+pv.nome+" ainda não foi liberada no Inbox.":"Conecte a conta em Gerenciar contas para sincronizar."};inboxDesenhar()}}
+      topo.appendChild(sinc)}
     var novaTopo=h("button",{type:"button",class:"inb-topo-btn inb-so-movel inb-topo-nova","aria-label":"Nova mensagem",title:inboxPodeEnviar()?"Nova mensagem":"Conecte uma conta para escrever"},inboxIco("nova"));novaTopo.onclick=function(){inboxCompor("novo")};if(!inboxPodeEnviar())novaTopo.setAttribute("aria-disabled","true");topo.appendChild(novaTopo);cab.appendChild(topo);
     cab.appendChild(h("div",{class:"inb-busca","aria-disabled":"true",title:INBX_FUTURO},inboxIco("buscar"),h("span",{text:"Buscar mensagens"})));
     cab.appendChild(inboxFiltros());col.appendChild(cab);
@@ -245,6 +274,8 @@
       if(sy){sy.onclick=inboxSincronizar;if(INBX.sinc){sy.setAttribute("disabled","disabled");sy.setAttribute("aria-busy","true")}}
       col.appendChild(inboxVazio("caixa","Nenhuma mensagem sincronizada ainda",cont?"Toque em Sincronizar para trazer as mensagens mais recentes. O RAC guarda só o cabeçalho; o texto e os anexos são lidos na hora de abrir.":"Escolha uma conta conectada e sincronize. Nada aqui é exemplo nem simulação.",sy))}
     return col}
+  /* "● Gmail": o provedor e o estado da conta aberta, à direita do subtítulo */
+  function inboxProvTag(c){var pv=NUCLEO.inbProvedor(c.provedor),ec=NUCLEO.inbEstadoConta(c,INBX.cred[c.id]||"ausente");return h("span",{class:"inb-prov-tag",title:ec.rotulo},h("i",{class:"inb-ponto inb-ponto--"+ec.tipo,"aria-hidden":"true"}),pv?pv.nome.split(" ")[0]:c.provedor)}
   function inboxMensagensSemFiltro(){var f=INBX.filtro;INBX.filtro="todas";var l=inboxMensagens();INBX.filtro=f;return l}
   /* ---- conexão da conta: a credencial no cofre (estado, conectar, substituir, desconectar) ---- */
   /* Gmail e Outlook (I4): conexão por OAuth 2.0. O navegador só recebe a URL do provedor; o código volta ao site (OAUTH_RETORNO, app.js) e vai à função, que troca pelo token e guarda só o refresh token no cofre. Nada de senha, token ou segredo aqui. */
@@ -260,57 +291,18 @@
     INBX.aviso={tipo:"info",t:"Concluindo a conexão…"};inboxDesenhar();
     return inboxChamar("oauth_concluir",{state:ret.state,code:ret.code}).then(function(r){
       INBX.aviso=r.ok?{tipo:"ok",t:"Conta conectada. A autorização ficou guardada no cofre do servidor."}:{tipo:"erro",t:NUCLEO.inbErroTexto(r.erro)};return r.ok?inboxLer():null}).then(inboxDesenhar)}
-  function inboxConexaoOAuth(c){
-    var est=INBX.cred[c.id]||"ausente",marca=c.provedor==="outlook"?"Microsoft":"Google",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),
-      txt={ausente:"Conecte a conta com o "+marca+" para o RAC poder acessá-la. O RAC nunca vê a sua senha: guarda só uma autorização que você pode revogar, cifrada no cofre do servidor.",
-        ativa:NUCLEO.inbProvedor(c.provedor).leitura?"Autorizada. Toque em Sincronizar para trazer as mensagens. Enviar e organizar ainda não estão disponíveis para este provedor.":"Autorizada. A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",invalida:"A autorização foi recusada ou revogada. Conecte de novo."}[est];
-    box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:est==="ativa"?"Autorização guardada":est==="invalida"?"Autorização recusada":"Sem conexão"}),h("span",{text:txt})),inboxSelo(c.estado)));
-    if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado."}));return box}
-    var ac=NUCLEO.inbAcoesConta(c,est),acoes=h("div",{class:"inb-conexao-acoes"});
-    if(ac.sincronizar){var bs=rkBtn("sec",INBX.sinc?"Sincronizando…":"Sincronizar");bs.onclick=function(){inboxSincronizarAlvo(c)};if(INBX.sinc){bs.setAttribute("disabled","disabled");bs.setAttribute("aria-busy","true")}acoes.appendChild(bs)}
-    if(ac.testar){var bt=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");bt.onclick=function(){inboxTestarConexao(c)};if(INBX.testando)bt.setAttribute("disabled","disabled");acoes.appendChild(bt)}
-    var b=rkBtn(est==="ausente"?"pri":"sec",(est==="ausente"?"Conectar com ":"Reconectar com ")+marca);if(INBX.credOcupado)b.setAttribute("disabled","disabled");b.onclick=function(){inboxOAuthIniciar(c)};acoes.appendChild(b);
-    if(est!=="ausente"){var rem=rkBtn("ter","Desconectar");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
-    box.appendChild(acoes);return box}
-  function inboxConexao(c){
-    var pv=NUCLEO.inbProvedor(c.provedor);if(pv&&pv.oauth&&!INBX.demo)return inboxConexaoOAuth(c);
-    var est=INBX.cred[c.id]||"ausente",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),txt={ausente:"Conecte a conta para o RAC poder ler esta caixa. A senha fica cifrada no cofre do servidor e não volta ao navegador.",
-      ativa:"Guardada no cofre do servidor. O navegador não a recebe de volta.",invalida:"O provedor recusou a credencial. Gere uma nova senha de app e substitua."}[est];
-    if(est==="ativa"&&INBS.publicado&&!INBX.demo)return inboxConexaoCompacta(c);   /* conectada: só uma linha discreta; as ações raras ficam em "Opções" */
-    box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:NUCLEO.INB_CRED_ROTULOS[est]||NUCLEO.INB_CRED_ROTULOS.ausente}),h("span",{text:txt})),inboxSelo(c.estado)));
-    if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado. Nada foi pedido nem guardado."}));return box}
-    if(INBX.credForm===c.id){box.appendChild(inboxFormCredencial(c));return box}
-    var acoes=h("div",{class:"inb-conexao-acoes"}),conectar=rkBtn(est==="ausente"?"pri":"sec",est==="ausente"?"Conectar":"Substituir senha");conectar.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};
-    acoes.appendChild(conectar);
-    if(est!=="ausente"){var rem=rkBtn("ter","Desconectar e remover a credencial");rem.onclick=function(){inboxRemoverCredencial(c)};acoes.appendChild(rem)}
-    box.appendChild(acoes);return box}
-  /* conexão em ordem (credencial guardada): UMA linha pequena com a última sincronização e um botão "Opções" que mostra, só quando pedido, testar a conexão, substituir a senha e desconectar. Sincronizar fica no ícone do topo da lista. */
-  function inboxConexaoCompacta(c){
-    var ent=INBX.pastas.filter(function(p){return p.conta_id===c.id&&p.uso==="entrada"})[0],sy=ent&&INBX.sincs[ent.id],aberto=INBX.opcoes===c.id,box=h("div",{class:"inb-conexao inb-conexao--compacta"}),
-      info=NUCLEO.inbFraseSync(sy&&sy.ultima_ok_em);
-    if(sy&&sy.erro)info+=" Última tentativa falhou: "+NUCLEO.inbErroTexto(sy.erro);
-    var mais=h("button",{type:"button",class:"inb-conexao-mais","aria-label":"Opções da conexão","aria-expanded":aberto?"true":"false",title:"Opções da conexão"},inboxIco("mais"));
-    mais.onclick=function(){INBX.opcoes=aberto?null:c.id;inboxDesenhar()};
-    box.appendChild(h("div",{class:"inb-conexao-linha"},inboxIco("cadeado","inb-conexao-ico"),h("span",{class:"inb-conexao-info",text:info}),mais));
-    /* as duas ações do dia a dia ficam À VISTA (não escondidas em "Opções") */
-    var bSinc=rkBtn("sec",INBX.sinc?"Sincronizando…":"Sincronizar"),teste=rkBtn("sec",INBX.testando===c.id?"Testando…":"Testar conexão");
-    bSinc.onclick=function(){inboxSincronizarAlvo(c)};if(INBX.sinc){bSinc.setAttribute("disabled","disabled");bSinc.setAttribute("aria-busy","true")}
-    teste.onclick=function(){inboxTestarConexao(c)};if(INBX.testando){teste.setAttribute("disabled","disabled");teste.setAttribute("aria-busy","true")}
-    box.appendChild(h("div",{class:"inb-conexao-botoes"},bSinc,teste));
-    if(aberto){
-      var op=h("div",{class:"inb-conexao-opcoes",role:"group","aria-label":"Opções da conexão"}),
-        subst=h("button",{type:"button",class:"inb-link",text:"Substituir senha"}),rem=h("button",{type:"button",class:"inb-link inb-link--perigo",text:"Desconectar e remover a credencial"});
-      subst.onclick=function(){INBX.credForm=c.id;INBX.credErros={};inboxDesenhar()};rem.onclick=function(){inboxRemoverCredencial(c)};
-      var bProva=h("button",{type:"button",class:"inb-link",text:INBX.testandoSmtp===c.id?"Testando envio…":"Testar envio (SMTP)"}),bProvaMail=h("button",{type:"button",class:"inb-link",text:"Testar envio com e-mail de teste"});
-      bProva.onclick=function(){inboxProvaSmtp(c,false)};bProvaMail.onclick=function(){inboxProvaSmtp(c,true)};if(INBX.testandoSmtp){bProva.setAttribute("disabled","disabled");bProvaMail.setAttribute("disabled","disabled")}
-      op.appendChild(bProva);op.appendChild(bProvaMail);op.appendChild(subst);op.appendChild(rem);box.appendChild(op);
-      if("sync_auto" in c){   /* só com a 054 aplicada */
-        box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
-        box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
-        box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra o assunto e o remetente (nunca o texto do e-mail) e abre a mensagem; chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
-      box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}))}
-    if(INBX.credForm===c.id)box.appendChild(inboxFormCredencial(c));
-    return box}
+  /* Opções da conexão do iCloud (provas do envio e preferências da rotina), abertas pelo ⋯ do cartão em Gerenciar contas. Substituir a senha e desconectar são os botões do próprio cartão (sem duplicar). */
+  function inboxOpcoesIcloud(c){
+    var ent=INBX.pastas.filter(function(p){return p.conta_id===c.id&&p.uso==="entrada"})[0],sy=ent&&INBX.sincs[ent.id],box=h("div",{class:"inb-conexao inb-conexao--compacta"}),
+      op=h("div",{class:"inb-conexao-opcoes",role:"group","aria-label":"Opções da conexão"}),
+      bProva=h("button",{type:"button",class:"inb-link",text:INBX.testandoSmtp===c.id?"Testando envio…":"Testar envio (SMTP)"}),bProvaMail=h("button",{type:"button",class:"inb-link",text:"Testar envio com e-mail de teste"});
+    bProva.onclick=function(){inboxProvaSmtp(c,false)};bProvaMail.onclick=function(){inboxProvaSmtp(c,true)};if(INBX.testandoSmtp){bProva.setAttribute("disabled","disabled");bProvaMail.setAttribute("disabled","disabled")}
+    op.appendChild(bProva);op.appendChild(bProvaMail);box.appendChild(op);
+    if("sync_auto" in c){   /* só com a 054 aplicada */
+      box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
+      box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
+      box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra o assunto e o remetente (nunca o texto do e-mail) e abre a mensagem; chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
+    box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}));return box}
   function inboxFormCredencial(c){
     var E=INBX.credErros,usu=h("input",{class:"rac-campo-entrada",id:"inb-cred-usuario",type:"email",autocomplete:"off",autocapitalize:"off",spellcheck:"false","aria-label":"E-mail do ID Apple","aria-invalid":E.usuario?"true":null}),
       sen=h("input",{class:"rac-campo-entrada",id:"inb-cred-senha",type:"password",autocomplete:"off",autocapitalize:"off",spellcheck:"false",placeholder:"abcd-efgh-ijkl-mnop","aria-label":"Senha específica de app","aria-invalid":E.senha_app?"true":null});
@@ -590,7 +582,7 @@
     var cred=ler("inbox_credenciais","conta_id,estado",null,[]).then(function(l){var m={};l.forEach(function(x){m[x.conta_id]=x.estado});return m}),
       sincs=ler("inbox_sincronizacao","*",null,[]).then(function(l){var m={};l.forEach(function(x){m[x.pasta_id]=x});return m}),
       msgs=ler("inbox_mensagens_ref","id,conta_id,pasta_id,recebida_em,assunto,remetente_nome,remetente_endereco,lida",function(q){return q.order("recebida_em",{ascending:false}).limit(60)},[]);
-    return Promise.all([SB.from("inbox_contas").select("*").order("apelido"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,sincs,msgs]).then(function(r){
+    return Promise.all([SB.from("inbox_contas").select("*").order("criado_em"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,sincs,msgs]).then(function(r){
       var d={contas:sbOk(r[0])||[],pastas:sbOk(r[1])||[],cred:r[2]||{},sincs:r[3]||{},msgs:r[4]||[]};
       INBX.contas=d.contas;INBX.pastas=d.pastas;INBX.cred=d.cred;INBX.sincs=d.sincs;   /* o MESMO estado do Inbox: a sincronização do cartão usa exatamente a do Inbox */
       return d})}

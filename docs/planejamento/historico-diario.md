@@ -1381,3 +1381,14 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: mesclar, conferir no iPhone. Depois: envio/gerenciamento do Gmail, sincronização automática, Outlook, migração de Compras/Carreira/vagas.
 
+## 20/11/2026 · RAC Inbox: menu e Gerenciar contas conforme o protótipo (versão `2026-11-20.8`)
+
+### 1. O que fizemos
+- Causa do defeito do #58: estado de expansão por conta no menu (várias árvores abertas). Removido: só a conta selecionada mostra "Pastas (conta)". Menu reorganizado como no protótipo (Caixa unificada, Contas compactas na ordem da conexão, Pastas da conta, Gerenciar contas no rodapé fixo). Sincronizar permanece no cabeçalho com a palavra (inativo e explicado quando não há conta que leia). Gerenciar contas com um cartão por conta, ícones por ação e Sincronizar tudo. Sem mudança em OAuth, credenciais, sincronização, função, banco ou Worker. Testes e capturas no PR.
+
+### 2. O que estamos fazendo
+- PR para revisão visual; sem merge nem publicação até a validação do dono.
+
+### 3. O que vamos fazer
+- Dono: validar as capturas e o iPhone; depois mesclar. Próximos lotes do Inbox: envio/gerenciamento do Gmail, sincronização automática, Outlook.
+

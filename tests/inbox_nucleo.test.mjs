@@ -102,11 +102,11 @@ test("resposta do serviço → linha de sincronização: o formato real da P6 (r
   assert.equal(N.inbRespostaEstado({ ok: false, erro: "Texto livre do servidor: senha errada!" }).erro, "resposta_invalida", "texto livre do servidor nunca passa");
 });
 
-test("árvore e caixa unificada: contas por apelido, pastas por uso; sem conexão a contagem é 'parcial' e nunca parece zero", () => {
-  const contas = [{ id: "b", apelido: "Trabalho", estado: "nova" }, { id: "a", apelido: "Pessoal", estado: "conectada" }];
+test("árvore e caixa unificada: contas na ordem da conexão (criado_em; sem data, a recebida), pastas por uso; sem conexão a contagem é 'parcial' e nunca parece zero", () => {
+  const contas = [{ id: "b", apelido: "Trabalho", estado: "nova", criado_em: "2026-11-02T10:00:00Z" }, { id: "a", apelido: "Pessoal", estado: "conectada", criado_em: "2026-11-01T10:00:00Z" }];
   const pastas = [{ id: "p1", conta_id: "a", nome_externo: "Lixo", uso: "lixo", nao_lidas: 0 }, { id: "p2", conta_id: "a", nome_externo: "INBOX", uso: "entrada", nao_lidas: 3 }, { id: "p3", conta_id: "a", nome_externo: "Arquivos", uso: "outra", nao_lidas: null }];
   const arv = N.inbArvore(contas, pastas);
-  assert.deepEqual(arv.map((g) => g.conta.apelido), ["Pessoal", "Trabalho"]); assert.deepEqual(arv[0].pastas.map((p) => p.nome_externo), ["INBOX", "Lixo", "Arquivos"]); assert.deepEqual(arv[1].pastas, []);
+  assert.deepEqual(arv.map((g) => g.conta.apelido), ["Pessoal", "Trabalho"], "a mais antiga primeiro"); assert.deepEqual(N.inbArvore([{ id: "z", apelido: "Zeta", estado: "nova" }, { id: "y", apelido: "Alfa", estado: "nova" }], []).map((g) => g.conta.apelido), ["Zeta", "Alfa"], "sem data, a ordem recebida (não a alfabética)"); assert.deepEqual(arv[0].pastas.map((p) => p.nome_externo), ["INBOX", "Lixo", "Arquivos"]); assert.deepEqual(arv[1].pastas, []);
   assert.equal(arv[0].estado.id, "conectada");
   assert.deepEqual(N.inbUnificada(contas, pastas), { contas: 2, naoLidas: 3, parcial: true }, "a conta nova não entra na soma, e o total avisa que é parcial");
   assert.deepEqual(N.inbUnificada([contas[1]], pastas), { contas: 1, naoLidas: 3, parcial: false });

@@ -574,21 +574,65 @@ html.logado:not(.casa) #barra,.voltarbtn,.topobtn,.capbtn{-webkit-transform:tran
 .inbc-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2)}
 .inbc-acoes .ghostbtn{min-height:var(--rac-alvo,44px);display:inline-flex;align-items:center;justify-content:center}
 
-/* ---------- RAC Inbox · menu com seção "Contas" e Gerenciar contas (docs/inbox.md, "Menu e contas"); só tokens ---------- */
-.inb-secao{display:flex;align-items:center;gap:var(--rac-esp-2);width:100%;min-height:38px;margin-top:var(--rac-esp-3);padding:var(--rac-esp-1) var(--rac-esp-3);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto-2);font:inherit;font-size:var(--rac-fs-legenda);font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:left;cursor:pointer}
-.inb-secao .inb-item-n{margin-left:auto}.inb-seta{width:1em;text-align:center}
-.inb-secao:hover,.inb-exp:hover{background:var(--rac-azul-suave)}
-.inb-contas{display:flex;flex-direction:column;gap:2px}.inb-contas[hidden]{display:none}
-.inb-conta-linha{display:flex;align-items:center;gap:2px;min-width:0}.inb-conta-linha>.inb-conta{flex:1;min-width:0;width:auto}
-.inb-exp{flex:none;display:grid;place-items:center;width:var(--rac-alvo,44px);min-height:var(--rac-alvo,44px);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto-2);font:inherit;cursor:pointer}
-.inb-ger.inb-item--ativo{font-weight:700;color:var(--rac-info)}
+/* ---------- RAC Inbox · menu do protótipo (Contas, Pastas da conta selecionada, Gerenciar contas) e cartões de Gerenciar contas; só tokens ---------- */
+.inb-subtit{margin:var(--rac-esp-4) var(--rac-esp-2) var(--rac-esp-1);color:var(--rac-texto-2);font-size:var(--rac-fs-texto)}
+.inb-subtit--pastas{margin-top:var(--rac-esp-5);padding-top:var(--rac-esp-3);border-top:1px solid var(--rac-borda)}
+.inb-contas{display:flex;flex-direction:column;gap:2px}
+.inb-unificada .inb-item-nome{font-weight:600}
+.inb-badge{flex:none;min-width:28px;padding:2px var(--rac-esp-2);border-radius:var(--rac-raio-pilula);background:var(--rac-dodger);color:var(--rac-sobre-fill);font-size:var(--rac-fs-legenda);font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+.inb-conta--sel{box-shadow:inset 3px 0 0 var(--rac-ok-fill)}
+.inb-conta .inb-badge{margin-left:auto}
+.inb-lateral-rod{border-top:1px solid var(--rac-borda)}
+.inb-ger{display:flex;align-items:center;gap:var(--rac-esp-3);width:100%;min-height:var(--rac-alvo,44px);padding:0 var(--rac-esp-3);border:0;border-radius:var(--rac-raio-1);background:transparent;color:var(--rac-texto);font:inherit;font-size:var(--rac-fs-texto);text-align:left;cursor:pointer}
+.inb-ger:hover{background:var(--rac-azul-suave)}.inb-ger.inb-item--ativo{background:var(--rac-azul-suave);color:var(--rac-info);font-weight:600}
+.inb-sub-linha{display:flex;align-items:center;justify-content:space-between;gap:var(--rac-esp-3);min-width:0}
+.inb-prov-tag{display:inline-flex;align-items:center;gap:6px;flex:none;color:var(--rac-texto-2);font-size:var(--rac-fs-sec);font-weight:600}
+.inb-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* Sincronizar no cabeçalho: ícone + palavra, como no protótipo */
+.inb-topo-sinc{display:inline-flex;align-items:center;gap:var(--rac-esp-2);width:auto;height:var(--rac-alvo,44px);padding:0 var(--rac-esp-4);border-radius:var(--rac-raio-pilula);font:inherit;font-size:var(--rac-fs-sec);font-weight:600;white-space:nowrap}
+.inb-topo-sinc[aria-disabled="true"]{opacity:.6}
+.inb-lista-topo>.inb-topo-sinc{width:auto;height:var(--rac-alvo,44px)}
+/* Gerenciar contas */
 .inb-gerenciar{overflow-y:auto}
-.inb-gc-lista{display:grid;gap:var(--rac-esp-4);padding:var(--rac-esp-3) var(--rac-esp-5) var(--rac-esp-6)}
-.inb-gc{display:grid;gap:var(--rac-esp-2);min-width:0;padding:var(--rac-esp-3);border-radius:var(--rac-raio-2);background:var(--rac-papel-2)}
-.inb-gc-cab{display:flex;align-items:center;gap:var(--rac-esp-3);min-width:0}
-.inb-gc-id{display:flex;flex-direction:column;flex:1;min-width:0}.inb-gc-id b,.inb-gc-id span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inb-gc-id span{color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
-.inb-chip{flex:none;padding:2px var(--rac-esp-2);border-radius:var(--rac-raio-pilula);background:var(--rac-azul-suave);color:var(--rac-info);font-size:var(--rac-fs-legenda);font-weight:600}
-.inb-gc-sinc{margin:0;color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
+.inb-gc-lista{display:grid;gap:var(--rac-esp-3);padding:var(--rac-esp-3) var(--rac-esp-5) var(--rac-esp-6)}
+.inb-gc{display:grid;gap:var(--rac-esp-2);min-width:0;padding:var(--rac-esp-3) var(--rac-esp-4);border-radius:var(--rac-raio-2);background:var(--rac-papel-2)}
+.inb-gc-linha{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"logo id est acoes";align-items:center;gap:var(--rac-esp-3)}
+.inb-logo{grid-area:logo;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--rac-papel);box-shadow:var(--rac-sombra-1,0 0 0 1px var(--rac-borda));color:var(--rac-info)}
+.inb-gc-id{grid-area:id;display:flex;flex-direction:column;min-width:0}.inb-gc-id b,.inb-gc-id span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inb-gc-id span{color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
+.inb-gc-est{grid-area:est;display:flex;flex-direction:column;gap:2px;min-width:0}.inb-gc-sinc{color:var(--rac-texto-2);font-size:var(--rac-fs-sec)}
+.inb-gc-acoes{grid-area:acoes;display:flex;align-items:center;gap:var(--rac-esp-2)}
+.inb-gc-btn{display:inline-grid;place-items:center;position:relative;width:var(--rac-alvo,44px);height:var(--rac-alvo,44px);border:0;border-radius:50%;background:var(--rac-azul-suave);color:var(--rac-info);cursor:pointer}
+.inb-gc-btn--perigo{color:var(--rac-erro)}.inb-gc-btn[disabled]{opacity:.55;cursor:default}.inb-gc-btn[aria-busy="true"] .inb-ico{animation:inb-gira 1s linear infinite}
+.inb-gc-btn:focus-visible,.inb-ger:focus-visible,.inb-topo-sinc:focus-visible{outline:2px solid var(--rac-foco);outline-offset:2px}
+.inb-gc-nome{display:flex;align-items:center;gap:var(--rac-esp-2);min-width:0}.inb-gc-nome b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inb-chip{flex:none;padding:1px var(--rac-esp-2);border-radius:var(--rac-raio-pilula);background:var(--rac-azul-suave);color:var(--rac-info);font-size:var(--rac-fs-legenda);font-weight:600}
 .inb-gc>.inb-conexao{margin:0}
+@media(prefers-reduced-motion:reduce){.inb-gc-btn[aria-busy="true"] .inb-ico{animation:none}}
+@media (max-width:640px){
+  .inb-gc-lista{padding-left:var(--rac-esp-3);padding-right:var(--rac-esp-3)}
+  .inb-gc-linha{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"logo id" "est est" "acoes acoes"}
+  .inb-gc-acoes{justify-content:flex-end;flex-wrap:wrap}
+}
 @media (min-width:861px){.inb-janela--gerenciar>.inb-gerenciar{grid-column:2 / -1}}
-.inb-gc .inb-conexao-mais{min-width:var(--rac-alvo,44px);min-height:var(--rac-alvo,44px)}
+.inb-add{display:block;width:100%;min-height:var(--rac-alvo,44px);margin-top:var(--rac-esp-1);text-align:left}
+.inb-exemplo{margin-top:var(--rac-esp-4)}
+.inb-lateral-rod{position:sticky;bottom:0;margin-top:auto;padding:var(--rac-esp-2) 0 var(--rac-esp-1);background:var(--rac-papel-2);z-index:1}
+.inb-prov-tag{padding-right:var(--rac-esp-3)}
+@media (max-width:860px){.inb-lateral .inb-novo{display:none}}
+.inb-add::before{content:"＋ "}
+/* painel lateral (iPhone e tablet): à esquerda, sobre a tela de mensagens, sem ocupar a largura toda e acima da barra inferior e da área segura */
+@media (max-width:1180px){
+  .inb-janela[data-painel="caixas"]>.inb-lateral{display:flex;position:fixed;top:env(safe-area-inset-top,0px);left:0;right:auto;bottom:env(safe-area-inset-bottom,0px);width:min(86vw,340px);height:auto;z-index:var(--rac-z-janela);border-radius:0 var(--rac-raio-3) var(--rac-raio-3) 0;box-shadow:var(--rac-sombra-3);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+}
+@media (max-width:860px){
+  .inb-janela[data-painel="caixas"]>.inb-lateral{bottom:calc(var(--rac-barra-h) + env(safe-area-inset-bottom,0px))}
+  .inb-janela[data-painel="caixas"]>.inb-mensagens{display:flex}
+}
+/* barra azul do cabeçalho: menu, Sincronizar e Nova mensagem integrados a ela (protótipo) */
+.inb-lista-topo{display:block;padding:0}
+.inb-barra{display:flex;align-items:center;gap:var(--rac-esp-2);padding:var(--rac-esp-2) var(--rac-esp-3);background:var(--rac-azul-grad);color:var(--rac-sobre-fill);border-radius:var(--rac-raio-3) var(--rac-raio-3) 0 0}
+.inb-barra .inb-topo-btn{background:var(--rac-papel);color:var(--rac-info)}
+.inb-barra .inb-topo-sinc{margin-left:auto;background:var(--rac-papel);color:var(--rac-info);border:0}
+.inb-barra .inb-topo-sinc[disabled],.inb-barra .inb-topo-sinc[aria-disabled="true"]{opacity:.75}
+.inb-barra .inb-topo-sinc+.inb-topo-btn{margin-left:0}
+.inb-lista-tit{padding:var(--rac-esp-4) var(--rac-esp-3) var(--rac-esp-2)}

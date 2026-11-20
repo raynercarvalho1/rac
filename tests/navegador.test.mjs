@@ -1062,8 +1062,9 @@ test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas cont
   }
 });
 
-// Inbox · menu com a seção "Contas" e "Gerenciar contas" (390, 820 e 1440 px): a tela de mensagens não tem cartões de conexão; o menu agrupa as três contas; Gerenciar contas mostra cada conta com suas ações.
-test("Inbox: menu com seção Contas e Gerenciar contas (390, 820 e 1440 px), sem cartões de conexão nas mensagens e sem estouro horizontal", { skip: pular, timeout: 120000 }, async () => {
+// Inbox · menu do protótipo aprovado (390, 820 e 1440 px): Caixa unificada, título Contas com as três contas compactas, "Pastas (conta)" só da conta selecionada (UMA por vez), Sincronizar sempre no cabeçalho e Gerenciar contas
+// com Sincronizar tudo. Sem cartões de conexão na tela de mensagens e sem estouro horizontal.
+test("Inbox: menu do protótipo (390, 820 e 1440 px): uma conta expandida por vez, Sincronizar no cabeçalho e Gerenciar contas", { skip: pular, timeout: 120000 }, async () => {
   const servidor = http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (p.endsWith("/")) p += "index.html";
@@ -1084,9 +1085,10 @@ test("Inbox: menu com seção Contas e Gerenciar contas (390, 820 e 1440 px), se
         return rota.fulfill({ status: 200, headers: cors, contentType: t === "script" ? "application/javascript" : t === "stylesheet" ? "text/css" : "application/json", body: t === "script" || t === "stylesheet" ? "" : "{}" }); });
       await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
       await pag.evaluate(() => {
-        const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003", PA = "bbbbbbbb-0000-4000-8000-000000000001", PB = "bbbbbbbb-0000-4000-8000-000000000002", PC = "bbbbbbbb-0000-4000-8000-000000000003";
+        const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003", PA = "bbbbbbbb-0000-4000-8000-000000000001", PA2 = "bbbbbbbb-0000-4000-8000-000000000004", PB = "bbbbbbbb-0000-4000-8000-000000000002", PC = "bbbbbbbb-0000-4000-8000-000000000003";
+        const pt = (id, conta, nome, uso, n) => ({ id, conta_id: conta, nome_externo: nome, nome_exibicao: nome, uso, total: 9, nao_lidas: n });
         const dados = { inbox_contas: [{ id: A, apelido: "iCloud", endereco: "eu@icloud.example", estado: "conectada", provedor: "icloud" }, { id: B, apelido: "Rayner Carvalho com um nome bem comprido", endereco: "rayner.com.endereco.bem.comprido@gmail.example", estado: "conectada", provedor: "gmail" }, { id: C, apelido: "Raynim", endereco: "raynim@gmail.example", estado: "conectada", provedor: "gmail" }],
-          inbox_pastas: [{ id: PA, conta_id: A, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 9, nao_lidas: 4 }, { id: PB, conta_id: B, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 9, nao_lidas: 2 }, { id: PC, conta_id: C, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 0, nao_lidas: 0 }],
+          inbox_pastas: [pt(PA, A, "Caixa de entrada", "entrada", 4), pt(PA2, A, "Enviados", "enviados", 0), pt(PB, B, "Caixa de entrada", "entrada", 2), pt(PC, C, "Caixa de entrada", "entrada", 0)],
           inbox_credenciais: [A, B, C].map((c) => ({ conta_id: c, estado: "ativa" })), inbox_sincronizacao: [], inbox_mensagens_ref: [] };
         const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
         SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) }, functions: { invoke: () => Promise.resolve({ data: { ok: true }, error: null }) } };
@@ -1094,17 +1096,37 @@ test("Inbox: menu com seção Contas e Gerenciar contas (390, 820 e 1440 px), se
         document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inbox"; route();
       });
       await pag.waitForSelector(".inb-janela", { timeout: 10000 });
-      const estreito = viewport.width < 900;
+      const estreito = viewport.width < 900, abrirMenu = async () => { if (estreito && !(await pag.locator(".inb-lateral").isVisible())) await pag.click('button[aria-label="Caixas"]'); };
       assert.equal(await pag.locator(".inb-conexao").count(), 0, rotulo + ": a tela de mensagens não tem cartão de conexão");
-      if (estreito) await pag.click('button[aria-label="Caixas"]');
-      assert.equal(await pag.locator(".inb-secao").count(), 1, rotulo + ": uma seção Contas"); assert.equal(await pag.locator(".inb-secao").getAttribute("aria-expanded"), "true");
-      assert.equal(await pag.locator(".inb-conta-linha").count(), 3, rotulo + ": as três contas dentro da seção"); assert.equal(await pag.locator(".inb-lateral").getByText("Gerenciar contas").isVisible(), true, rotulo + ": Gerenciar contas à vista no menu");
-      await pag.locator(".inb-secao").click(); assert.equal(await pag.locator(".inb-contas").isVisible(), false, rotulo + ": recolhe"); await pag.locator(".inb-secao").click(); assert.equal(await pag.locator(".inb-contas").isVisible(), true, rotulo + ": reabre");
-      await pag.locator(".inb-conta-linha .inb-conta").nth(1).click(); if (estreito) await pag.click('button[aria-label="Caixas"]');   /* escolhe uma conta e (no celular) reabre o menu */
-      assert.ok((await pag.locator(".inb-lateral .inb-pasta:not(.inb-item--off)").count()) >= 1, rotulo + ": a conta escolhida mostra as pastas");
+      assert.equal(await pag.locator(".inb-topo-sinc").first().isVisible(), true, rotulo + ": Sincronizar à vista no cabeçalho"); assert.match(await pag.locator(".inb-topo-sinc").first().innerText(), /Sincronizar/, rotulo);
+      /* Sincronizar integrado à barra azul do cabeçalho: dentro de .inb-barra, fundo azul (gradiente), botão com contraste ≥ 4,5:1 */
+      const barra = await pag.evaluate(() => { const b = document.querySelector(".inb-barra"), s = b.querySelector(".inb-topo-sinc"), cb = getComputedStyle(b), cs = getComputedStyle(s), lum = (c) => { const m = c.match(/[\d.]+/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * m[0] + .7152 * m[1] + .0722 * m[2]; }, a = lum(cs.backgroundColor), c = lum(cs.color), r = (Math.max(a, c) + .05) / (Math.min(a, c) + .05), rb = b.getBoundingClientRect(), rs = s.getBoundingClientRect();
+        return { grad: /gradient/.test(cb.backgroundImage), contraste: r, dentro: rs.left >= rb.left && rs.right <= rb.right && rs.top >= rb.top && rs.bottom <= rb.bottom }; });
+      assert.equal(barra.grad, true, rotulo + ": a barra do cabeçalho é azul (gradiente)"); assert.equal(barra.dentro, true, rotulo + ": Sincronizar dentro da barra"); assert.ok(barra.contraste >= 4.5, rotulo + ": contraste do botão (" + barra.contraste.toFixed(2) + ")");
+      assert.equal(await pag.locator(".inb-fundo").count(), 0, rotulo + ": sem painel aberto não há véu");
+      if (estreito) {
+        /* painel lateral à esquerda, SOBRE as mensagens, com véu, fechando ao tocar fora, acima da barra inferior e da área segura */
+        await pag.click('button[aria-label="Caixas"]'); await pag.waitForSelector(".inb-lateral", { state: "visible" });
+        const pn = await pag.evaluate(() => { const l = document.querySelector(".inb-lateral").getBoundingClientRect(), m = document.querySelector(".inb-mensagens"), bar = document.querySelector("#barra"), rb = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect() : null, f = document.querySelector(".inb-fundo"); return { esq: l.left, larg: l.width, vw: innerWidth, fundo: !!f && getComputedStyle(f).display === "block" && getComputedStyle(f).backgroundColor, msgs: getComputedStyle(m).display !== "none", ateBarra: rb ? l.bottom <= rb.top + 1 : true, topo: l.top, rolagem: getComputedStyle(document.querySelector(".inb-lateral")).overflowY }; });
+        assert.equal(pn.esq, 0, rotulo + ": painel à esquerda"); assert.ok(pn.larg <= pn.vw * 0.87 && pn.larg >= 260, rotulo + ": largura adequada, sem ocupar a tela toda (" + pn.larg + " de " + pn.vw + ")"); assert.ok(pn.fundo && /rgba\(0, 0, 0, 0?\.4/.test(pn.fundo), rotulo + ": véu escurecendo (" + pn.fundo + ")");
+        assert.equal(pn.msgs, true, rotulo + ": a tela de mensagens continua por baixo"); assert.equal(pn.ateBarra, true, rotulo + ": o painel termina acima da barra inferior"); assert.ok(pn.topo >= 0, rotulo + ": dentro da área segura superior"); assert.equal(pn.rolagem, "auto", rotulo + ": rolagem interna do menu");
+        await pag.mouse.click(pn.vw - 8, 300); await pag.waitForTimeout(200); assert.equal(await pag.locator(".inb-lateral").isVisible(), false, rotulo + ": tocar fora fecha"); assert.equal(await pag.locator(".inb-fundo").count(), 0, rotulo + ": o véu some");
+      } else assert.equal(await pag.locator(".inb-lateral").isVisible(), true, rotulo + ": no desktop o menu é fixo, sem véu");
+      await abrirMenu();
+      assert.equal(await pag.locator(".inb-subtit").first().innerText(), "Contas", rotulo + ": título Contas"); assert.equal(await pag.locator(".inb-conta").count(), 3, rotulo + ": as três contas, uma abaixo da outra");
+      assert.equal(await pag.locator(".inb-subtit--pastas").count(), 0, rotulo + ": ao abrir o menu nenhuma árvore de pastas"); assert.equal(await pag.locator(".inb-lateral").getByText("Gerenciar contas").isVisible(), true, rotulo + ": Gerenciar contas no rodapé");
+      const ys = await pag.locator(".inb-conta").evaluateAll((l) => l.map((e) => Math.round(e.getBoundingClientRect().top))); assert.ok(ys[0] < ys[1] && ys[1] < ys[2], rotulo + ": uma abaixo da outra (" + ys + ")");
+      const ordem = ["Rayner Carvalho com um nome bem comprido", "Raynim"];   /* só UMA árvore por vez, qualquer que seja a ordem dos cliques */
+      for (const nome of [ordem[0], ordem[1], "iCloud", ordem[0]]) {
+        await pag.locator(".inb-conta", { hasText: nome }).first().click(); await abrirMenu();
+        assert.equal(await pag.locator(".inb-subtit--pastas").count(), 1, rotulo + ": uma única árvore de pastas (" + nome + ")"); assert.equal(await pag.locator(".inb-conta--sel").count(), 1, rotulo + ": uma única conta selecionada");
+        assert.match(await pag.locator(".inb-subtit--pastas").innerText(), new RegExp("Pastas \\(" + nome.slice(0, 6)), rotulo);
+      }
+      await pag.locator(".inb-unificada").click(); await abrirMenu(); assert.equal(await pag.locator(".inb-subtit--pastas").count(), 0, rotulo + ": a Caixa unificada fecha a árvore");
       await pag.locator(".inb-lateral").getByText("Gerenciar contas").click();
       await pag.waitForSelector(".inb-gerenciar", { timeout: 5000 }); assert.equal(await pag.locator(".inb-gc").count(), 3, rotulo + ": cada conta individualmente");
-      const t = await pag.locator(".inb-gerenciar").innerText(); assert.ok(/Sincronizar/.test(t) && /Testar conexão/.test(t) && /Reconectar com Google/.test(t) && /Desconectar/.test(t), rotulo + ": ações do provedor");
+      const t = await pag.locator(".inb-gerenciar").innerText(); assert.ok(/Sincronizar tudo/.test(t), rotulo + ": Sincronizar tudo");
+      const rotulos = await pag.locator(".inb-gc-btn").evaluateAll((l) => l.map((b) => b.getAttribute("aria-label"))); for (const r of ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar", "Substituir senha"]) assert.ok(rotulos.includes(r), rotulo + ": ação " + r);
       const med = await pag.evaluate(() => { const g = document.querySelector(".inb-gerenciar").getBoundingClientRect(), vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }; return { pag: document.documentElement.scrollWidth - innerWidth, dentro: [...document.querySelectorAll(".inb-gc")].every((c) => { const r = c.getBoundingClientRect(); return r.right <= g.right + 1 && r.left >= g.left - 1; }), alvos: [...document.querySelectorAll(".inb-gc button")].filter(vis).map((b) => Math.round(b.getBoundingClientRect().height)) }; });
       assert.ok(med.pag <= 0, rotulo + ": sem rolagem horizontal (" + med.pag + ")"); assert.equal(med.dentro, true, rotulo + ": os cartões ficam dentro da área"); assert.ok(med.alvos.length >= 8 && med.alvos.every((a) => a >= 40), rotulo + ": alvos de toque (" + med.alvos + ")");
       /* no celular e no tablet o cabeçalho tem o ← ; no desktop largo a saída é escolher uma caixa no menu (que já está à vista) */

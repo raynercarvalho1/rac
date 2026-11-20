@@ -67,11 +67,11 @@ test("sem contas: estado vazio com o formulário de cadastro; com contas sem con
   let t = texto(d.raiz);
   assert.match(t, /Nenhuma mensagem sincronizada ainda\s+Escolha uma conta conectada e sincronize\. Nada aqui é exemplo nem simulação/);
   assert.equal(comClasse(d.raiz, "inb-linha").length, 0, "nenhuma linha de mensagem sem o exemplo"); assert.ok(!/DEMONSTRAÇÃO/.test(t), "e nada rotulado como exemplo sem o pedido");
-  assert.match(t, /Caixa unificada/); assert.match(t, /Pessoal/); assert.match(t, /Trabalho/); assert.match(t, /Categorias/); assert.match(t, /Pessoal[\s\S]*Trabalho[\s\S]*Financeiro[\s\S]*Compras[\s\S]*Entregas[\s\S]*Newsletters[\s\S]*Notificações[\s\S]*Promoções/);
+  assert.match(t, /Caixa unificada/); assert.match(t, /Pessoal/); assert.match(t, /Trabalho/); assert.match(t, /Contas/); assert.ok(!/Categorias/.test(t), "o menu do protótipo aprovado não tem Categorias"); assert.match(t, /Pessoal[\s\S]*Trabalho/);
   assert.match(t, /Contagem parcial/, "a unificada avisa que a conta sem conexão não entra na soma");
   assert.ok(comClasse(d.raiz, "inb-ponto").every((p) => p.attrs["aria-label"] && p.attrs.title), "o estado da conta nunca é só a cor: tem rótulo");
   comClasse(d.raiz, "inb-conta")[0].onclick(); t = texto(d.raiz);
-  assert.match(t, /Esta caixa ainda não foi lida/); assert.match(t, /não está vazia, está sem leitura/); assert.ok(!/Sem credencial/.test(t), "a conexão não fica mais na tela de mensagens"); ger(d); t = texto(d.raiz); assert.match(t, /Sem credencial/); assert.match(t, /Nova/, "o estado da conta aparece por extenso");
+  assert.match(t, /Esta caixa ainda não foi lida/); assert.match(t, /não está vazia, está sem leitura/); assert.ok(!/Sem credencial/.test(t), "a conexão não fica mais na tela de mensagens"); ger(d); t = texto(d.raiz); assert.match(t, /Sem conexão/); assert.match(t, /Nova/, "o estado da conta aparece por extenso");
   assert.ok(!/A conexão será liberada quando o serviço de e-mail for publicado/.test(t), "com a função publicada, o aviso de espera some");
   assert.ok(botao(d.raiz, "Conectar"), "com o serviço publicado a conta oferece Conectar");
   assert.equal(todos(d.raiz).filter((n) => n.tag === "input" && n.attrs.type === "password").length, 0, "o campo de senha só aparece depois de pedir Conectar");
@@ -122,7 +122,7 @@ test("o 'exemplo da interface': isolado no módulo próprio, rotulado, com lista
 
 test("credencial: o formulário só existe com o serviço publicado; a senha vai UMA vez, o campo é limpo antes do envio, e ela nunca aparece na tela nem no estado; remover pede confirmação", async () => {
   const a = ambiente({ contas: [CONTA], publicado: true }); await a.abrir();
-  comClasse(a.raiz, "inb-conta")[0].onclick(); ger(a); assert.match(texto(a.raiz), /Sem credencial/); botao(a.raiz, "Conectar").onclick();
+  comClasse(a.raiz, "inb-conta")[0].onclick(); ger(a); assert.match(texto(a.raiz), /Sem conexão/); botao(a.raiz, "Conectar").onclick();
   const senhaCampo = () => todos(a.raiz).find((n) => n.attrs.id === "inb-cred-senha"), usuCampo = () => todos(a.raiz).find((n) => n.attrs.id === "inb-cred-usuario");
   assert.equal(senhaCampo().attrs.type, "password"); assert.equal(senhaCampo().attrs.autocomplete, "off"); assert.equal(usuCampo().value, "pessoa@icloud.example", "o login vem preenchido com o endereço da conta");
   assert.match(texto(a.raiz), /Nunca use a senha principal da conta Apple/);
@@ -145,11 +145,11 @@ test("credencial: o formulário só existe com o serviço publicado; a senha vai
   assert.match(texto(b.raiz), /O provedor recusou a credencial/); assert.ok(!texto(b.raiz).includes(SENHA_APP) && !texto(b.raiz).includes("erro cru"), "nada do servidor vaza para a tela");
   /* conta com credencial: estado por extenso, substituir e desconectar (com confirmação), sem nunca mostrar a credencial */
   const c = ambiente({ contas: [CONTA], credenciais: [{ conta_id: UUID, estado: "ativa" }], publicado: true, invoke: () => ({ data: { ok: true, removida: true }, error: null }) });
-  await c.abrir(); comClasse(c.raiz, "inb-conta")[0].onclick(); ger(c); assert.match(texto(c.raiz), /Ainda não sincronizada/); assert.ok(!botao(c.raiz, "Substituir senha") && !botao(c.raiz, "Desconectar e remover a credencial"), "conexão em ordem: as ações raras ficam escondidas"); opcoes(c.raiz); assert.ok(botao(c.raiz, "Substituir senha")); assert.ok(!botao(c.raiz, "Conectar"));
+  await c.abrir(); comClasse(c.raiz, "inb-conta")[0].onclick(); ger(c); assert.match(texto(c.raiz), /ainda não houve/); assert.ok(botao(c.raiz, "Substituir senha") && botao(c.raiz, "Desconectar e remover a credencial"), "substituir e desconectar são botões do cartão"); assert.ok(!botao(c.raiz, "Testar envio (SMTP)"), "a prova do envio fica nas Opções"); opcoes(c.raiz); assert.ok(botao(c.raiz, "Testar envio (SMTP)")); assert.ok(!botao(c.raiz, "Conectar"));
   botao(c.raiz, "Desconectar e remover a credencial").onclick(); await esperar(); await esperar();
   assert.deepEqual(c.chamadas[0], ["rac-inbox", { body: { operacao: "credencial_remover", conta_id: UUID } }]); assert.match(texto(c.raiz), /Credencial removida do cofre/);
   const d = ambiente({ contas: [CONTA], credenciais: [{ conta_id: UUID, estado: "invalida" }], publicado: true }); await d.abrir(); comClasse(d.raiz, "inb-conta")[0].onclick(); ger(d);
-  assert.match(texto(d.raiz), /Credencial recusada pelo provedor/); assert.match(texto(d.raiz), /Gere uma nova senha de app e substitua/);
+  assert.match(texto(d.raiz), /Erro de autenticação/); assert.ok(botao(d.raiz, "Substituir senha"), "recusada: o cartão oferece refazer a conexão");
   const e = ambiente({ contas: [CONTA], credenciais: [{ conta_id: UUID, estado: "ativa" }], publicado: true }); e.ctx.confirm = () => false; await e.abrir(); comClasse(e.raiz, "inb-conta")[0].onclick(); opcoes(e.raiz);
   botao(e.raiz, "Desconectar e remover a credencial").onclick(); await esperar(); assert.equal(e.chamadas.length, 0, "sem confirmar, nada é removido");
 });
@@ -219,7 +219,7 @@ test("lista REAL: as mensagens do cache da pasta de entrada, sem prévia (o corp
   assert.ok(!t0.includes("Enviada") && !t0.includes("DEMONSTRAÇÃO"), "nada de outra pasta nem do exemplo");
   assert.equal(comClasse(a.raiz, "inb-previa").length, 0, "não há prévia: o corpo não é guardado");
   assert.equal(linhas().filter((l) => (" " + l.className + " ").includes(" inb-linha--nova ")).length, 1, "uma não lida, destacada");
-  assert.match(t0, /3 mensagens · 1 não lidas/); assert.ok(!/Testar conexão/.test(t0), "a tela de mensagens não tem mais o cartão de conexão"); assert.ok(sincBtn(a.raiz), "sincronizar é o ícone do topo"); ger(a); assert.match(texto(a.raiz), /Sincronizada (hoje|ontem|em \d{2}\/\d{2}) às \d{2}:\d{2}\./); assert.ok(botao(a.raiz, "Testar conexão") && botao(a.raiz, "Sincronizar"), "Sincronizar e Testar conexão ficam em Gerenciar contas em ordem"); assert.ok(!botao(a.raiz, "Substituir senha") && !botao(a.raiz, "Sincronizar agora"), "senha e desconectar seguem em Opções"); assert.equal(comClasse(a.raiz, "inb-conexao--compacta").length, 1); deGer(a);
+  assert.match(t0, /3 mensagens · 1 não lidas/); assert.ok(!/Testar conexão/.test(t0), "a tela de mensagens não tem mais o cartão de conexão"); assert.ok(sincBtn(a.raiz), "sincronizar é o ícone do topo"); ger(a); assert.match(texto(a.raiz), /Última sincronização: (hoje|ontem|em \d{2}\/\d{2}) às \d{2}:\d{2}/); assert.ok(botao(a.raiz, "Testar conexão") && botao(a.raiz, "Sincronizar"), "Sincronizar e Testar conexão ficam em Gerenciar contas em ordem"); assert.ok(!botao(a.raiz, "Sincronizar agora") && !botao(a.raiz, "Testar envio (SMTP)"), "a prova do envio segue escondida em Opções"); assert.equal(comClasse(a.raiz, "inb-conexao--compacta").length, 0); deGer(a);
   assert.ok(linhas().every((l) => /^(Não lida\. )?Ana \d\. Assunto \d$/.test(l.attrs["aria-label"])), "rótulo de acessibilidade em cada linha");
   botao(a.raiz, "Não lidas").onclick(); assert.equal(linhas().length, 1); botao(a.raiz, "Com anexo").onclick(); assert.equal(linhas().length, 1, "o anexo provável da mensagem 2"); assert.ok(texto(linhas()[0]).includes("Assunto 2"));
   botao(a.raiz, "Todas").onclick();
@@ -303,11 +303,11 @@ test("sem a 053, sem credencial ou sem o serviço publicado: a tela degrada com 
   const a = ambiente(REAL({ erroMsgs: true })); await a.abrir(UUID); await assentar();
   assert.ok(!/Não consegui carregar o Inbox/.test(texto(a.raiz)), "sem a 053 a lista fica vazia, sem erro"); assert.match(texto(a.raiz), /Nenhuma mensagem sincronizada ainda/); assert.equal(comClasse(a.raiz, "inb-linha").length, 0);
   const b = ambiente(REAL({ credenciais: [], mensagens: [] })); await b.abrir(UUID); await assentar();
-  assert.match(texto(b.raiz), /Esta caixa ainda não foi lida\s+Conecte a conta em Gerenciar contas/); assert.ok(!botao(b.raiz, "Sincronizar agora") && comClasse(b.raiz, "inb-topo-sinc").length === 0, "sem credencial não há sincronizar");
+  assert.match(texto(b.raiz), /Esta caixa ainda não foi lida\s+Conecte a conta em Gerenciar contas/); assert.ok(!botao(b.raiz, "Sincronizar agora") && comClasse(b.raiz, "inb-topo-sinc").length === 1 && comClasse(b.raiz, "inb-topo-sinc")[0].attrs["aria-disabled"] === "true", "sem credencial o Sincronizar continua à vista, inativo");
   const c = ambiente(REAL({ publicado: false })); await c.abrir(UUID); await assentar();
   assert.ok(!botao(c.raiz, "Sincronizar agora") && comClasse(c.raiz, "inb-topo-sinc").length === 0, "com o serviço desligado não há sincronizar"); ger(c); assert.match(texto(c.raiz), /A conexão será liberada quando o serviço de e-mail for publicado/);
-  const d = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await d.abrir(UUID); await assentar(); ger(d); assert.match(texto(d.raiz), /O provedor recusou a credencial/);
-  const e = ambiente(REAL({ sincs: [{ pasta_id: P_IN, ultima_ok_em: null, erro: "servico_indisponivel", falhas_seguidas: 2 }] })); await e.abrir(UUID); await assentar(); ger(e); assert.match(texto(e.raiz), /Ainda não sincronizada\. Última tentativa falhou: O serviço de e-mail está indisponível agora\./);
+  const d = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await d.abrir(UUID); await assentar(); ger(d); assert.match(texto(d.raiz), /Erro de autenticação/); assert.match(texto(d.raiz), /A autorização precisa ser refeita/);
+  const e = ambiente(REAL({ sincs: [{ pasta_id: P_IN, ultima_ok_em: null, erro: "servico_indisponivel", falhas_seguidas: 2 }] })); await e.abrir(UUID); await assentar(); ger(e); assert.match(texto(e.raiz), /ainda não houve · última tentativa falhou: O serviço de e-mail está indisponível agora\./);
   for (const x of [a, b, c, d, e]) { assert.deepEqual(x.gravacoes, []); assert.equal(x.chamadas.length, 0); }
   const f = ambiente({ dono: false, ...REAL() }); await f.abrir(UUID); assert.equal(comClasse(f.raiz, "inb-linha").length, 0, "a casa (Fernanda) não vê nada do Inbox"); assert.equal(f.lidas.length, 0, "nem consulta as tabelas");
 });
@@ -336,24 +336,23 @@ test("o estado da captura de produção (conta com credencial guardada e a pasta
   const a = ambiente(REAL({ pastas, mensagens: [], sincs: [], invoke: () => ok({ sincronizacao: { tipo: "primeira_leitura", novas: 1, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: 1, mais: false }) })); await a.abrir(UUID); await assentar();
   comClasse(a.raiz, "inb-pasta").find((b) => texto(b).includes("RAC-TESTE")).onclick();
   assert.equal(comClasse(a.raiz, "inb-topo-sinc").length, 1, "o botão do topo (inb-topo-sinc) é desenhado");
-  ger(a); assert.match(texto(comClasse(a.raiz, "inb-conexao")[0]), /Ainda não sincronizada/, "no estado da captura: conexão em ordem, em uma linha (em Gerenciar contas)"); deGer(a);
+  ger(a); assert.match(texto(comClasse(a.raiz, "inb-gc")[0]), /ainda não houve/, "no estado da captura: cartão da conta em Gerenciar contas"); deGer(a);
   sincBtn(a.raiz).onclick(); await assentar();
   assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.pasta_id]), [["sincronizar_pasta", P_TESTE]], "sincroniza a pasta selecionada (RAC-TESTE), sem listar pastas de novo");
 });
 
-test("conexão em ordem: uma linha com a última sincronização, os botões Sincronizar e Testar conexão À VISTA e o botão Opções (prova do envio, substituir, desconectar só quando pedido); credencial ausente ou recusada continua com os botões grandes", async () => {
+test("Gerenciar contas (iCloud): uma linha com a última sincronização e os botões Sincronizar, Testar conexão, Substituir senha, Desconectar e Opções (prova do envio, preferências); sem credencial ou recusada o cartão pede ação", async () => {
   const a = ambiente(REAL()); await a.abrir(UUID); await assentar(); ger(a);
-  const caixa = comClasse(a.raiz, "inb-conexao")[0]; assert.ok((" " + caixa.className + " ").includes(" inb-conexao--compacta "));
-  assert.deepEqual(todos(caixa).filter((n) => n.tag === "button").map((n) => texto(n).trim()).filter(Boolean), ["Sincronizar", "Testar conexão"], "à vista: Sincronizar e Testar conexão (o botão Opções é só o ícone)"); assert.equal(todos(caixa).filter((n) => n.tag === "button").length, 3);
+  const caixa = comClasse(a.raiz, "inb-gc")[0]; const botoesDe = (n) => todos(n).filter((x) => x.tag === "button").map((x) => x.attrs["aria-label"]);
+  assert.deepEqual(botoesDe(caixa), ["Sincronizar", "Testar conexão", "Substituir senha", "Desconectar e remover a credencial", "Opções da conexão"], "ações do iCloud, na ordem do protótipo");
   const mais = comClasse(a.raiz, "inb-conexao-mais")[0]; assert.deepEqual([mais.attrs["aria-label"], mais.attrs["aria-expanded"]], ["Opções da conexão", "false"]);
-  mais.onclick(); const aberto = comClasse(a.raiz, "inb-conexao")[0]; assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "true");
-  assert.deepEqual(todos(aberto).filter((n) => n.tag === "button" && !(" " + n.className + " ").includes(" inb-conexao-mais ")).map((n) => texto(n).trim()), ["Sincronizar", "Testar conexão", "Testar envio (SMTP)", "Testar envio com e-mail de teste", "Substituir senha", "Desconectar e remover a credencial"], "à vista Sincronizar e Testar conexão; em Opções a prova do envio, a senha e desconectar");
-  assert.match(texto(aberto), /cifrada no cofre do servidor e não volta ao navegador/);
+  mais.onclick(); const aberto = comClasse(a.raiz, "inb-gc")[0]; assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "true");
+  assert.ok(texto(aberto).includes("Testar envio (SMTP)") && texto(aberto).includes("Testar envio com e-mail de teste")); assert.match(texto(aberto), /cifrada no cofre do servidor e não volta ao navegador/);
+  assert.equal(todos(aberto).filter((n) => n.tag === "button" && /Substituir senha|Desconectar/.test(n.attrs["aria-label"] || "")).length, 2, "sem duplicar: substituir e desconectar são só os botões do cartão");
   comClasse(a.raiz, "inb-conexao-mais")[0].onclick(); assert.equal(comClasse(a.raiz, "inb-conexao-mais")[0].attrs["aria-expanded"], "false", "toca de novo e recolhe");
-  // substituir senha abre o formulário dentro da conexão; a senha segue as regras de sempre
-  opcoes(a.raiz); botao(a.raiz, "Substituir senha").onclick(); assert.ok(todos(a.raiz).some((n) => n.tag === "input" && n.attrs.type === "password"), "o formulário de credencial abre");
-  const sem = ambiente(REAL({ credenciais: [], mensagens: [] })); await sem.abrir(UUID); await assentar(); ger(sem); assert.ok(botao(sem.raiz, "Conectar"), "sem credencial: botão grande Conectar"); assert.equal(comClasse(sem.raiz, "inb-conexao--compacta").length, 0);
-  const inv = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await inv.abrir(UUID); await assentar(); ger(inv); assert.ok(botao(inv.raiz, "Substituir senha") && botao(inv.raiz, "Desconectar e remover a credencial"), "recusada: as ações ficam à vista (precisa agir)"); assert.equal(comClasse(inv.raiz, "inb-conexao--compacta").length, 0);
+  botao(a.raiz, "Substituir senha").onclick(); assert.ok(todos(a.raiz).some((n) => n.tag === "input" && n.attrs.type === "password"), "o formulário de credencial abre");
+  const sem = ambiente(REAL({ credenciais: [], mensagens: [] })); await sem.abrir(UUID); await assentar(); ger(sem); assert.deepEqual(botoesDe(comClasse(sem.raiz, "inb-gc")[0]), ["Conectar"], "sem credencial: só Conectar"); assert.match(texto(sem.raiz), /Sem conexão/);
+  const inv = ambiente(REAL({ credenciais: [{ conta_id: UUID, estado: "invalida" }] })); await inv.abrir(UUID); await assentar(); ger(inv); assert.deepEqual(botoesDe(comClasse(inv.raiz, "inb-gc")[0]), ["Substituir senha", "Desconectar e remover a credencial"], "recusada: refazer ou desconectar"); assert.match(texto(inv.raiz), /Erro de autenticação/);
   assert.deepEqual(a.gravacoes, []);
 });
 

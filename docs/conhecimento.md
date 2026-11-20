@@ -106,9 +106,9 @@ Conteúdo.
 ## Prevenção     (erro)
 ```
 
-O `.claude/settings.json` não libera `node scripts/conhecimento.mjs` (a política do projeto exige autorização do dono para editar `.claude/`): o agente pode pedir a aprovação pontual na
-nuvem, ou o dono pode acrescentar `Bash(node scripts/conhecimento.mjs *)` à lista (o teste `permissoes.test.mjs` pede revisão de qualquer mudança ali). Enquanto isso, ler e editar os
-`.md` pelas ferramentas de arquivo funciona sem aprovação; só o `indice` precisa do script, e o teste do CI reprova um índice desatualizado dizendo o comando.
+O `.claude/settings.json` libera, sem pedir a cada vez, só estes subcomandos: `antes`, `buscar`, `listar`, `ver`, `novo`, `indice` e `verificar` (decisão do dono em 20/11/2026; `tests/permissoes.test.mjs` cobre). O script só lê e escreve arquivos em `docs/conhecimento/` (o nome do arquivo novo não aceita barra nem `..`). Qualquer outro comando ou argumento continua pedindo aprovação.
+
+**Lembrete e conferência.** O `CLAUDE.md` começa com "Antes de qualquer trabalho": consultar (`antes`) é a primeira ação e registrar + `verificar` a última, e o relatório final diz "RAC Knowledge: registrado …" ou "nada novo, porque …". O que o CI fiscaliza é a forma (registros válidos, índice em dia, lembrete e permissão presentes); decidir **o que** vale registrar é do agente e é conferido na revisão do PR, não por automação.
 
 ## Aplicar em produção (já feito em 20/11/2026; o roteiro serve para outro ambiente)
 

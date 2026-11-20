@@ -140,3 +140,15 @@ test("integração: protocolo no CLAUDE.md, documentação própria, mapa, backu
   assert.match(ler("sw.js"), /"\.\/js\/conhecimento\.js"/); assert.match(ler("index.html"), /<section id="conhecimento" hidden><div id="conhecimento-view" class="stack"><\/div><\/section>/);
   const fonte = ler("scripts/conhecimento.mjs").replace(/^\/\/.*$/gm, ""); assert.ok(!/fetch\(|https?:\/\/|child_process|supabase|process\.env/.test(fonte), "a ferramenta só lê e escreve arquivos");
 });
+
+test("reforço do protocolo: lembrete no topo do CLAUDE.md, checklist de conclusão, relatório com a linha do conhecimento e permissão fechada ao script (sem escrever fora da pasta)", () => {
+  const c = ler("CLAUDE.md"), topo = c.split("\n").slice(0, 14).join("\n");
+  assert.match(topo, /ANTES DE QUALQUER TRABALHO/); assert.match(topo, /conhecimento\.mjs antes/); assert.match(topo, /conhecimento\.mjs verificar/); assert.match(topo, /RAC Knowledge: registrado/);
+  const dep = c.slice(c.indexOf("**DEPOIS de implementar**"), c.indexOf("Não registrar detalhe trivial"));
+  for (const t of ["decisão nova", "erro relevante", "procedimento que mudou", "estado do projeto", "indice", "verificar", "commit do lote"]) assert.ok(dep.includes(t), "checklist de conclusão cita: " + t);
+  const allow = JSON.parse(ler(".claude/settings.json")).permissions.allow.filter((r) => r.includes("conhecimento.mjs"));
+  assert.deepEqual(allow.map((r) => r.replace(/^Bash\(node scripts\/conhecimento\.mjs |\)$/g, "")).sort(), ["antes *", "buscar *", "indice", "listar *", "novo *", "verificar", "ver *"].sort(), "só os subcomandos combinados; nada de curinga no script");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "rac-kn-")), dir = path.join(tmp, "registros"), arq = path.join(tmp, "indice.json");
+  try { for (const nome of ["../fora", "a/b/c", "..", "x..y", "ABC", "ab"]) assert.ok(!criar({ tipo: "regra", titulo: "Titulo valido", nome }, dir, arq).ok, "nome recusado: " + nome); assert.ok(!fs.existsSync(path.join(tmp, "fora.md")) && !fs.existsSync(dir), "nada escrito"); assert.ok(criar({ tipo: "regra", titulo: "Titulo valido", nome: "nome-bom" }, dir, arq).ok); }
+  finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});

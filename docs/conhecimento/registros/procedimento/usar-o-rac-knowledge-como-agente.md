@@ -9,4 +9,4 @@ data: 2026-11-20
 relacionados: regra/documentar-ao-concluir-o-lote
 ---
 
-Antes: `node scripts/conhecimento.mjs antes "a tarefa"` (ou Grep em `docs/conhecimento/registros`). Depois: registrar só o que é novo e reutilizável (`novo` ou editar o `.md`), rodar `indice`, commitar com o lote. O dono importa para o site em RAC Knowledge → Sincronizar.
+Antes de qualquer trabalho: `node scripts/conhecimento.mjs antes "a tarefa"` (ou Grep em `docs/conhecimento/registros`). Ao concluir, antes do commit: registrar decisão nova (com motivo), erro relevante (causa-raiz, solução, prevenção), procedimento alterado e estado atualizado (`novo` ou editar o `.md`), rodar `indice` e `verificar`, e commitar tudo com o lote. O relatório final diz "RAC Knowledge: registrado …" ou "nada novo, porque …". O dono importa para o site em RAC Knowledge → ⇄ Repositório.

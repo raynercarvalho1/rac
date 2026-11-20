@@ -51,6 +51,7 @@ export function criar(a, dir = DIR, arq = INDICE) {
   const reg = { tipo: a.tipo, titulo: a.titulo, categoria: a.categoria || "", tags: N.knTags(a.tags), estado: a.estado || "ativo", origem: a.origem || "", data_ref: a.data || new Date().toISOString().slice(0, 10),
     relacionados: String(a.relacionados || "").split(",").map((x) => x.trim()).filter(Boolean), conteudo: a.conteudo || "", motivo: a.motivo || "", causa: a.causa || "", solucao: a.solucao || "", prevencao: a.prevencao || "" };
   const slug = a.nome || N.knSlug(reg.titulo || ""), p = N.knValidar(reg);
+  if (!/^[a-z0-9][a-z0-9._-]{2,100}$/.test(slug) || slug.includes("..")) p.push("nome do arquivo inválido (minúsculas, números, ponto, hífen e sublinhado; sem barra)");   // o comando é liberado em .claude/settings.json: nunca escreve fora de docs/conhecimento
   if (p.length) return { ok: false, msg: "Não criei: " + p.join("; ") };
   const f = path.join(dir, String(reg.tipo), slug + ".md");
   if (fs.existsSync(f)) return { ok: false, msg: `Já existe ${reg.tipo}/${slug}: edite o arquivo (e rode "indice") ou use --nome` };

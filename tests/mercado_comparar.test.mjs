@@ -94,7 +94,7 @@ test("período sem compras: sem variação inventada (denominador zero) e indica
   assert.equal(N.mkcMetric(5, 0).pct, null); assert.equal(N.mkcMetric(5, 4).pct, 0.25);
 });
 
-test("categorias: as 11 oficiais, Limpeza unificada, categoria sem compras em um dos períodos e participação", () => {
+test("categorias: as 12 oficiais, Limpeza unificada, categoria sem compras em um dos períodos e participação", () => {
   const r = N.mkcComparar(ROWS, A, B), c = (n) => r.categorias.find((x) => x.categoria === n);
   assert.ok(N.MK_CATEGORIAS.every((n) => c(n)), "todas as oficiais aparecem"); assert.ok(!r.categorias.some((x) => /descart/i.test(x.categoria)));
   assert.deepEqual([c("Limpeza").m.a, c("Limpeza").m.b, c("Limpeza").m.estado, arred(c("Limpeza").m.pct)], [3, 6, "caiu", -0.5], "Limpeza/Descartáveis + Limpeza são uma categoria só");

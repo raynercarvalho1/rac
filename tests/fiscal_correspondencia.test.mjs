@@ -56,7 +56,7 @@ test("mkCasarProduto: apelido → nome igual → parecido (≥ 70, mesma unidade
   const nv = N.mkCasarProduto("REFRIG COCA COLA 200ML", "un", prods, {}); assert.deepEqual([nv.tipo, nv.produto_id, nv.ambigua], ["nova", null, false]); assert.equal(nv.nome, "Refrigerante Coca Cola 200ml"); assert.equal(nv.categoria, "Bebidas", "categoria pelas regras do Mercado");
   const un = N.mkCasarProduto("QJO MUSSARELA FATIADO", "un", prods, {}); assert.equal(un.tipo, "exata", "nome igual vale para a unidade que for");
   const un2 = N.mkCasarProduto("QUEIJO MUSSARELA FATIADO FRESCO", "un", prods, {}); assert.equal(un2.tipo, "nova", "parecido mas de OUTRA unidade (kg × un): não reaproveita");
-  const rev = N.mkCasarProduto("XYZW QQ 17", "un", prods, {}); assert.deepEqual([rev.tipo, rev.categoria, rev.revisar], ["nova", "Mercearia", true], "sem regra de categoria: Mercearia marcada para revisar, sem bloquear");
+  const rev = N.mkCasarProduto("XYZW QQ 17", "un", prods, {}); assert.deepEqual([rev.tipo, rev.categoria, rev.revisar], ["nova", "Outros", true], "sem regra de categoria: etiqueta neutra 'Outros' marcada para revisar (nunca Mercearia por palpite), sem bloquear");
   assert.deepEqual(N.mkCasarProduto("QUALQUER COISA", "un", [], {}).tipo, "nova", "sem produtos cadastrados");
 });
 test("mkCasarEstabelecimento: CNPJ → nome parecido (contido vale 80; empate não escolhe) → novo sem LTDA/S.A.", () => {

@@ -10,8 +10,9 @@ const N = globalThis.RACnucleo || globalThis.window.RACnucleo;
 const ler = (f) => fs.readFileSync(new URL("../" + f, import.meta.url), "utf8");
 const cat = (d, nome, ctx) => N.mkClassificar(d, nome, ctx).categoria;
 
-test("categorias oficiais: as 11, na ordem, e Limpeza/Descartáveis não existe mais", () => {
-  assert.deepEqual(N.MK_CATEGORIAS, ["Mercearia", "Padaria", "Açougue/Frios", "Hortifruti", "Chocolates/Doces", "Bebidas", "Limpeza", "Higiene Pessoal", "Peixaria", "Casa/Utilidades", "Bebê/Infantil"]);
+test("categorias oficiais: as 12 (Farmácia entrou em 20/11/2026), na ordem, e Limpeza/Descartáveis não existe mais", () => {
+  assert.deepEqual(N.MK_CATEGORIAS, ["Mercearia", "Padaria", "Açougue/Frios", "Hortifruti", "Chocolates/Doces", "Bebidas", "Limpeza", "Higiene Pessoal", "Peixaria", "Casa/Utilidades", "Bebê/Infantil", "Farmácia"]);
+  assert.ok(N.mkOpcoesCategoria([]).includes("Farmácia"), "aparece entre as opções dos seletores"); assert.equal(N.mkCatOficial("farmacia"), "Farmácia"); assert.equal(N.mkCatOficial("FARMÁCIA"), "Farmácia");
   assert.ok(!N.MK_CATEGORIAS.some((c) => /descart/i.test(c)));
 });
 
@@ -161,4 +162,51 @@ test("a proposta 041 só unifica categorias: nada apaga produto, nota ou item, n
   assert.ok((sem.match(/delete from public\.\w+/gi) || []).every((d) => /orcamentos/.test(d)), "o único delete é a linha de orçamento da categoria antiga, já somada");
   assert.ok(/^begin;[\s\S]*commit;\s*$/m.test(sem.trim().replace(/\n/g, "\n")));
   const c = ler("supabase/conferencias/041_conferir_producao.sql"); assert.ok(!/\b(insert|update|delete|drop|alter|truncate|create)\b/i.test(c.replace(/^--.*$/gm, "")), "a conferência só lê");
+});
+
+/* ===== Farmácia (20/11/2026): a nota real da Raia Drogasil (2 medicamentos) saiu como Mercearia ===== */
+test("Farmácia: medicamento por princípio ativo, marca e dose é Farmácia (ondansetrona, dipirona, losartana, dose em mg, forma farmacêutica clara)", () => {
+  for (const d of ["ONDANSETRONA 8MG 10 COMP", "ONDANSETRON 4 MG CP ORODISP", "Ondansetron 8mg", "DIPIRONA SODICA 500MG 10 COMP", "LOSARTANA POTASSICA 50MG", "AMOXICILINA 500MG CAPS", "OMEPRAZOL 20MG 28 CAPS", "PARACETAMOL GOTAS 200MG/ML", "DIPIRONA GOTAS INFANTIL", "TYLENOL 750MG", "DORFLEX 36 COMP", "SORO FISIOLOGICO 0,9% 500ML", "COLIRIO LUBRIFICANTE", "POMADA CICATRIZANTE 30G", "XAROPE PARA TOSSE 120ML", "SOLUCAO OFTALMICA 5ML", "VITAMINA D COLECALCIFEROL 2000UI", "INSULINA NPH 100UI/ML"])
+    assert.equal(N.mkClassificar(d).categoria, "Farmácia", d);
+  const r = N.mkClassificar("ONDANSETRONA 8MG 10 COMP"); assert.deepEqual([r.origem, r.revisar], ["regra", false]);
+});
+test("Farmácia não engole o resto: higiene pessoal continua Higiene Pessoal e comida continua com a sua categoria", () => {
+  for (const [d, c] of [["SHAMPOO ANTICASPA 400ML", "Higiene Pessoal"], ["SABONETE DOVE 90G", "Higiene Pessoal"], ["DESODORANTE REXONA AEROSOL", "Higiene Pessoal"], ["CREME DENTAL COLGATE 90G", "Higiene Pessoal"], ["PROTETOR SOLAR FPS 50 200ML", "Higiene Pessoal"],
+    ["ENXAGUANTE BUCAL LISTERINE", "Higiene Pessoal"], ["FIO DENTAL 50M", "Higiene Pessoal"], ["HIDRATANTE CORPORAL 200ML", "Higiene Pessoal"],
+    ["ARROZ TIPO 1 5KG", "Mercearia"], ["LEITE INTEGRAL 1L", "Mercearia"], ["BISCOITO RECHEADO 140G", "Mercearia"], ["REFRIGERANTE COCA COLA 2L", "Bebidas"], ["GOTAS DE CHOCOLATE 100G", "Chocolates/Doces"], ["CAPSULAS DE CAFE 10UN", "Mercearia"],
+    ["DETERGENTE YPE 500ML", "Limpeza"], ["FRALDA PAMPERS G", "Bebê/Infantil"], ["PAO FRANCES", "Padaria"], ["FRANGO CONGELADO", "Açougue/Frios"], ["BANANA PRATA", "Hortifruti"]])
+    assert.equal(N.mkClassificar(d).categoria, c, d);
+  assert.notEqual(N.mkClassificar("POMADA CAPILAR MODELADORA").categoria, "Farmácia", "pomada de cabelo não é remédio");
+  for (const d of ["PRODUTO 500G", "ITEM 10UN", "COMBO 2 X 100ML", "KIT 3 PECAS 200 ML"]) assert.notEqual(N.mkClassificar(d).categoria, "Farmácia", "número ou unidade soltos não bastam: " + d);
+});
+test("o estabelecimento nunca classifica: a descrição manda, no mesmo cupom da Drogasil há remédio, higiene e produto sem regra", () => {
+  assert.equal(N.mkClassificar("SHAMPOO ANTICASPA 400ML", "", {}).categoria, "Higiene Pessoal");
+  assert.equal(N.mkClassificar("ONDANSETRONA 8MG", "", {}).categoria, "Farmácia");
+  assert.deepEqual(N.mkClassificar("PRODUTO XYZ DA MARCA ABC", "", {}).categoria, null);
+  assert.ok(!/drogasil|raia|farmacia|drogaria/.test(String(N.mkClassificar).toLowerCase() + ""), "sem nome de loja na regra");
+  const src = fs.readFileSync(new URL("../nucleo.js", import.meta.url), "utf8"), a = src.indexOf("var MK_REGRAS="), b = src.indexOf("function mkClassificar"); assert.ok(!/drogasil|raia|drogaria/i.test(src.slice(a, b)), "nenhuma regra usa o nome do estabelecimento");
+});
+test("produto sem classificação segura NÃO vira Mercearia: fica para revisão (categoria neutra 'Outros' no banco, revisar:true); ambíguo também", () => {
+  for (const d of ["NOVALGINEX XPTO 20 UN", "PRODUTO DESCONHECIDO ABC", "SAB LIQ 500", "ALCOOL 70"]) {
+    const c = N.mkClassificar(d); assert.deepEqual([c.categoria, c.revisar], [null, true], d);
+    const m = N.mkCasarProduto(d, "un", [], {}); assert.deepEqual([m.categoria, m.revisar], ["Outros", true], d); assert.notEqual(m.categoria, "Mercearia");
+  }
+  assert.equal(N.MK_CAT_REVISAR, "Outros"); assert.ok(!N.MK_CATEGORIAS.includes("Outros"), "'Outros' é etiqueta de revisão, não categoria oficial");
+  const pl = N.nfEntradaPayload({ mercado: {}, itens: [{ ordem: 0, tipo: "nova", nome: "X", categoria: "", unidade: "un" }] }); assert.equal(pl.itens[0].novo.categoria, "Outros", "o que vai ao banco nunca é Mercearia por omissão");
+});
+test("precedência: produto já cadastrado e correção manual vencem a regra; nada existente é reclassificado em silêncio", () => {
+  const PRODS2 = [{ id: "p1", nome: "Ondansetrona 8mg", categoria: "Mercearia" }, { id: "p2", nome: "Dipirona 500mg", categoria: "Higiene Pessoal" }];
+  const a = N.mkClassificar("ONDANSETRONA 8MG", "", { produtos: PRODS2 }); assert.deepEqual([a.categoria, a.origem, a.produto_id], ["Mercearia", "produto", "p1"], "a categoria já gravada (mesmo errada) só muda por correção manual");
+  assert.equal(N.mkCasarProduto("Dipirona 500mg", "un", PRODS2, {}).categoria, "Higiene Pessoal");
+  assert.equal(N.mkCategoriaEfetiva({ categoria_item: "Higiene Pessoal", categoria: "Mercearia" }, { categoria: "Mercearia" }), "Higiene Pessoal", "a do item vence a do produto");
+  assert.equal(N.mkCategoriaEfetiva({ categoria: "Mercearia" }, { categoria: "Farmácia" }), "Farmácia", "a do produto vence a gravada no item");
+  const sql = ["supabase/059_central_fiscal_entrada_unica.sql", "supabase/060_central_fiscal_rotinas.sql"].map((f) => fs.readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n");
+  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /^06[1-9]_.*\.sql$/.test(f)), "nenhuma migration nova: nada é reclassificado em massa");
+  assert.ok(!/update public\.(produtos|itens) set categoria/i.test(sql), "nenhuma migration reclassifica");
+});
+test("orçamento, filtros e gráficos: Farmácia fica fora de Alimentação, entra nos seletores e nos quadros por categoria", () => {
+  assert.equal(N.alCatMercado("Farmácia", "Ondansetrona"), "", "despesa de Farmácia não soma em Alimentação"); assert.notEqual(N.alCatMercado("Farmácia", "x"), null);
+  assert.equal(N.cuCat("Farmácia"), "Farmácia"); assert.equal(N.cuCat("farmacia"), "Farmácia");
+  assert.ok(N.mkOpcoesCategoria([]).includes("Farmácia"));
+  const ng = N.alMercadoDespesas([{ data: "2026-11-19", categoria: "Farmácia", produto: "Ondansetrona", valor_total: 100 }, { data: "2026-11-19", categoria: "Outros", produto: "X", valor_total: 5 }]); assert.deepEqual([ng.linhas.length, ng.fora, ng.sem.Outros], [0, 100, 5], "Outros aparece como sem classificação, não vira Mercearia");
 });

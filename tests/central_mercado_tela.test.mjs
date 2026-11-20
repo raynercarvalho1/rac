@@ -189,7 +189,7 @@ test("código: a navegação nova só lê (nenhuma escrita, RPC, IA ou função)
   const b = m.slice(i0, i1); assert.ok(!/\.(insert|update|delete|upsert|rpc)\(|functions\.invoke|racIA|pessoalGravar/.test(b), "só leitura");
   assert.ok(!/sb\.from\(/.test(b.replace(/sb\.from\("radar_candidatos"\)\.select\(/, "")), "a única consulta nova é a de ofertas que já existia (radar_candidatos)");
   assert.match(m, /x\[0\] === sub && \(x\[0\] !== "radar" \|\| ehDono\(\)\)/, "pelo endereço a casa abre categoria, produto e estabelecimento; o Radar também é da casa desde 16/11/2026 (ehDono = dono ou casa)");
-  assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento" \? loadOnline\(\)/, "as páginas carregam as compras online junto");
+  assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento"( \|\| sub === "area" \|\| sub === "categorias")? \? loadOnline\(\)/, "as páginas carregam as compras online junto");
   assert.match(ler("index.html"), /\.cmvbars\{[^}]*overflow-x:auto[^}]*\}\.cmvbars \.vb\{flex:1 0 36px\}/, "colunas com largura mínima: rolam para o lado em vez de espremer ou vazar do quadro");
 });
 

@@ -37,3 +37,6 @@ Não há reclassificação automática nem sugestão por IA; a lista de categori
 **Sem classificação segura:** não recebe categoria arbitrária (ver item 4 acima). Remédio de nome comercial desconhecido cai aqui, para revisão.
 **Dados existentes:** nada é reclassificado (nenhuma migration, nenhum `update`); produto já cadastrado e a categoria do item/produto corrigida à mão sempre vencem a regra. A compra da Drogasil já registrada continua como está: corrige-se pela interface (Mercado → Notas → Editar item, ou Produtos), sem duplicar nota nem compra. Limitação: a função `nota_fiscal_confirmar` (059) ainda usa 'Mercearia' quando o site não manda categoria para o produto novo (não acontece no fluxo normal, que sempre manda); corrigi-la exigiria uma migration nova e não foi necessário.
 Testes: `tests/mercado_classificacao.test.mjs` (Farmácia, higiene, supermercado, sem regra → revisão, precedência manual, orçamento).
+
+## Áreas de consumo (20/11/2026)
+Cada categoria pertence a uma área (Mercado, Automotivo, Farmácia, Bebê/Infantil ou criada pelo dono) e o painel de cada área soma só os itens dela; categorias sem área ficam "não classificadas" para o dono associar. Modelo, regras de contabilização e gestão: `docs/central-areas.md`. A classificação do produto (acima) não mudou.

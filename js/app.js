@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-20.9",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-20.10",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -458,7 +458,7 @@
   /* Finanças e compras é igual para o dono e para a casa (Fernanda), desde 16/11/2026 (pedido do dono; docs/seguranca.md, "Casa e Finanças e compras") */
   function isDonoOuCasa(){return PAPEL==="dono"||PAPEL==="casa"}
   /* as únicas chaves de "pessoal" que a casa lê e grava, SEMPRE na linha do dono (política "casa compartilha" da 057): Mercado e Radar */
-  var PESSOAL_CASA=["radar-config","radar-pagos","radar-vinculos","mercado-equivalencias","mercado-alertas","mercado-canais"];
+  var PESSOAL_CASA=["radar-config","radar-pagos","radar-vinculos","mercado-equivalencias","mercado-alertas","mercado-canais","mercado-areas"];
   function pessoalDaCasa(chave){return PESSOAL_CASA.indexOf(chave)>=0}
   function podePessoal(chave){return isOwner()||(PAPEL==="casa"&&pessoalDaCasa(chave))}
   function pessoalDono(){return isOwner()?EU.id:DONO}
@@ -487,7 +487,7 @@
      - a conta mudou depois da base da alteração daqui e os valores são diferentes: vira conflito, e você escolhe na página Sistema. */
   function pessoalCarregar(){
     var q=SB.from("pessoal").select("chave,valor,atualizado");
-    if(!isOwner())q=q.eq("user_id",DONO).in("chave",PESSOAL_CASA);   /* a casa lê só as 6 chaves do dono; o banco também só devolve essas */
+    if(!isOwner())q=q.eq("user_id",DONO).in("chave",PESSOAL_CASA);   /* a casa lê só as 7 chaves do dono; o banco também só devolve essas */
     return q.then(function(r){
       if(r.error)throw new Error(r.error.message);
       var locais={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf("rac-p-")===0&&podePessoal(k.slice(6)))locais[k.slice(6)]=copiaLer(k.slice(6))}

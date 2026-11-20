@@ -1403,3 +1403,18 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Merge após CI verde; dono confere no iPhone. Depois: envio/gerenciamento do Gmail, sincronização automática, Outlook.
 
+
+## 20/11/2026 · Central de Compras: painéis por área de consumo e gestão de categorias (versão `2026-11-20.10`, em PR)
+
+### 1. O que fizemos
+- Modelo de áreas de consumo no núcleo (`ar*`): cada item pertence a uma categoria e cada categoria a uma área; Mercado, Automotivo, Farmácia e Bebê/Infantil de fábrica, com as 13 associações iniciais pedidas; áreas e categorias novas criadas pelo dono, sem mudar código. Nenhuma outra categoria foi atribuída sozinha (Tecnologia, Saúde, Vestuário, Pet, Alimentação, Outros e as personalizadas ficam "sem área").
+- Painel de cada área (mesma tela da Central, reduzida aos itens da área), "Por área de consumo" na Central (Σ áreas + não classificados + ajustes = total) e **Gestão de categorias** (`#mercado/categorias`). Painel do Mercado do dono só soma a área Mercado. Frete, taxas e descontos gerais não são rateados.
+- Configuração em `PESSOAL["mercado-areas"]` (tabela `pessoal`, MFA, backup).
+- **Correção de regra do dono (mesmo dia):** a Fernanda tem acesso integral e igual dentro da Central de Compras (áreas, painéis, Gestão de categorias, criar/editar/excluir, associações), com a configuração compartilhada. Implementado: chave em `PESSOAL_CASA`, telas liberadas para a casa, migration **064** (depois aplicada e conferida em produção pelo ChatGPT, informado pelo dono) e testes dono × casa (`areas_consumo`, `banco_casa_areas` em PGlite).
+- Testes: `tests/areas_consumo.test.mjs` (19 testes cobrindo os 14 pontos pedidos); dois testes antigos ajustados de propósito (Painel agora testado como casa; regex de rota). Documentação: `docs/central-areas.md`, `docs/mapa.md`, `docs/central-compras.md`, `docs/mercado-classificacao.md`, `docs/painel.md`, `docs/seguranca.md`.
+
+### 2. O que estamos fazendo
+- PR #60 atualizado com a `main` (merge limpo, só `newsletter.json` mudou), CI do `05758a5` verde; 064 aplicada e conferida pelo ChatGPT; aguardando revisão final. Sem merge e sem publicação do site.
+
+### 3. O que vamos fazer
+- Dono: revisar, mesclar e publicar o site (a 064 já está aplicada), conferir no iPhone e associar as categorias sem área. Depois, se quiser: filtrar Preços, Consumo, Comparar e Produtos por área.

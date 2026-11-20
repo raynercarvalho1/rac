@@ -3,6 +3,7 @@
 Rota `#mercado` (menu "Central de Compras"; a rota antiga continua). Código: `mercado.js` (aba **Central**, `viewCentral`) e `nucleo.js` (`NUCLEO.cu*`, funções puras).
 Testes: `tests/central_compras.test.mjs` (conciliação financeira, filtros, duplicidade) e `tests/central_compras_tela.test.mjs` (a tela). Sem IA, sem chamada paga, **sem migration** e sem tabela nova.
 Navegação de mercado (categoria → produto, estabelecimento, evolução e oportunidades): seção "Navegação de mercado" abaixo.
+**Áreas de consumo** (painéis Mercado, Automotivo, Farmácia, Bebê/Infantil e gestão de categorias, 20/11/2026): `docs/central-areas.md`. A Central continua consolidada e soma todas as áreas, os não classificados e os ajustes dos pedidos, sem duplicar valores.
 
 ## Diagnóstico das fontes (conferido no código)
 | Fonte | Onde está | Valor da compra | Itens/categoria |

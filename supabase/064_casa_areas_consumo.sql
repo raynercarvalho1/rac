@@ -1,6 +1,6 @@
--- PROPOSTA 064 · NÃO APLICADA EM PRODUÇÃO (correção de regra do dono em 20/11/2026: a Fernanda tem acesso integral à Central de Compras,
+-- 064 · APLICADA EM PRODUÇÃO em 20/11/2026 e conferida pelo ChatGPT (informado pelo dono) (correção de regra do dono em 20/11/2026: a Fernanda tem acesso integral à Central de Compras,
 -- inclusive às áreas de consumo e à Gestão de categorias, e a configuração é a MESMA para os dois).
--- O dono roda no SQL Editor do Supabase ANTES de o site 2026-11-20.10 ir ao ar. Pode rodar de novo sem erro. Requer a 003 (pessoal) e a 002 (dono_da_casa()).
+-- Foi rodada no SQL Editor do Supabase antes de o site 2026-11-20.10 ir ao ar. Pode rodar de novo sem erro. Requer a 003 (pessoal) e a 002 (dono_da_casa()).
 -- O que muda: só a política "casa compartilha" da tabela pessoal ganha UMA chave a mais, 'mercado-areas' (as 6 da 057 continuam). A Fernanda passa a ler e
 --   gravar a MESMA linha do dono (user_id = dono_da_casa()); nenhuma outra chave pessoal fica visível para ela.
 -- Não muda: RLS ligado, a trava restritiva "mfa", nada para anon, o backup (a tabela pessoal já entra nele), módulos só do dono (Gmail, custos de IA, Sistema,

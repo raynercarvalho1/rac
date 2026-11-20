@@ -2,7 +2,7 @@
 
 Código: `nucleo.js` (bloco "Áreas de consumo": `AR_*`, `arConfig`, `arRaw`, `arAreaDe`, `arAssociar`, `arAreaCriar`, `arAreaRemover`, `arCategoriaCriar`, `arCategoriaRemover`, `arCompras`, `arResumo`, `arCategorias`; puras)
 e `mercado.js` (`navAreas`, `painelAreas`, `viewCategorias`, `areaCfg`, `areaContexto`, `rowsP`; o painel de uma área é a própria `viewCentral` com `CU.area`).
-Testes: `tests/areas_consumo.test.mjs`, `tests/banco_casa_areas.test.mjs` (PGlite). Sem IA e sem Edge Function. **Dono e casa (Fernanda) têm os mesmos poderes** (correção de regra do dono em 20/11/2026); exige a **migration 064** (proposta, não aplicada).
+Testes: `tests/areas_consumo.test.mjs`, `tests/banco_casa_areas.test.mjs` (PGlite). Sem IA e sem Edge Function. **Dono e casa (Fernanda) têm os mesmos poderes** (correção de regra do dono em 20/11/2026); exige a **migration 064** (aplicada em produção em 20/11/2026 e conferida pelo ChatGPT (informado pelo dono; não reconferida por este agente, Supabase MCP indisponível)).
 
 ## Modelo
 - **Item → categoria → área.** Cada item tem uma categoria (a que a Central já usa, `cuCat`) e cada categoria pertence a **uma** área (ou a nenhuma). Logo cada item está em uma só área.
@@ -31,7 +31,7 @@ O painel de uma área é a Central **reduzida aos itens da área** (`arCompras(c
 
 ## Acesso (correção de regra de 20/11/2026)
 A Fernanda tem acesso integral à Central de Compras: vê a Central e todos os painéis de área, abre a Gestão de categorias, cria, edita e exclui áreas e categorias, altera associações e vê os mesmos indicadores, gráficos, filtros e históricos, sobre a mesma configuração do dono. **Não amplia nenhum módulo exclusivo do dono** (Gmail, custos de IA, Sistema, RAC Hoje, Inbox, restauração continuam fechados).
-**Depende da migration 064** (`supabase/064_casa_areas_consumo.sql`, **proposta, não aplicada**; conferência só leitura `supabase/conferencias/064_conferir_producao.sql`): sem ela o site da Fernanda não lê a chave (o banco filtra) e ela veria as áreas de fábrica, sem as mudanças do dono, e não conseguiria gravar. Ordem: 1) SQL 064, 2) site. Se a 057 for executada depois da 064, rode a 064 de novo.
+**Depende da migration 064** (`supabase/064_casa_areas_consumo.sql`, **aplicada em produção em 20/11/2026 e conferida pelo ChatGPT (informado pelo dono; não reconferida por este agente, Supabase MCP indisponível)**; conferência só leitura `supabase/conferencias/064_conferir_producao.sql`): sem ela o site da Fernanda não lê a chave (o banco filtra) e ela veria as áreas de fábrica, sem as mudanças do dono, e não conseguiria gravar. Ordem: 1) SQL 064, 2) site. Se a 057 for executada depois da 064, rode a 064 de novo.
 
 ## Limites e pendências
 - Preços, Consumo, Comparar e Produtos ainda listam todas as categorias; filtrar por área neles é um próximo lote, se o dono quiser.

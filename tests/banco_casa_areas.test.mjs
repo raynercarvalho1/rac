@@ -44,9 +44,9 @@ async function admin(db, sql, params = []) { await db.query("select set_config('
 const falha = async (p) => { try { await p; } catch (e) { return e; } assert.fail("era para dar erro"); };
 const CFG = '{"v":1,"areas":[{"id":"pet-shop","nome":"Pet shop"}],"associacoes":{"Pet":"pet-shop"},"categorias":[]}';
 
-test("texto da 064: proposta, só a política da pessoal, sem tocar dado nem RLS, mfa nem anon", () => {
+test("texto da 064: aplicada (20/11/2026), só a política da pessoal, sem tocar dado nem RLS, mfa nem anon", () => {
   const t = ler("supabase/064_casa_areas_consumo.sql"), s = t.replace(/--.*$/gm, "");
-  assert.match(t, /^-- PROPOSTA 064 · NÃO APLICADA EM PRODUÇÃO/); assert.match(s, /^\s*begin;/); assert.match(s, /commit;\s*notify pgrst, 'reload schema';\s*$/);
+  assert.match(t, /^-- 064 · APLICADA EM PRODUÇÃO em 20\/11\/2026/); assert.match(s, /^\s*begin;/); assert.match(s, /commit;\s*notify pgrst, 'reload schema';\s*$/);
   assert.doesNotMatch(s, /disable row level security|"mfa"|grant .* to anon|insert into|delete from|update |truncate|drop table|drop function|create table/i);
   for (const k of ["radar-config", "radar-pagos", "radar-vinculos", "mercado-equivalencias", "mercado-alertas", "mercado-canais", "mercado-areas"]) assert.ok(s.includes("'" + k + "'"), k);
   assert.ok(!s.includes("'x-amigos'") && !/garmin/i.test(s));

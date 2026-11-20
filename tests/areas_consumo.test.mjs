@@ -313,9 +313,9 @@ test("13c · a configuração é a MESMA para dono e casa, em qualquer aparelho 
   const c4 = montar({ papel: "casa", linhas: [LINHA_AREAS({ v: 1 }), { user_id: D, chave: "x-amigos", valor: ["segredo"], atualizado: T0 }] }); await c4.ctx.pessoalCarregar();
   assert.deepEqual(Object.keys(c4.ctx.__t.P()), ["mercado-areas"]);
 });
-test("código: áreas e gestão são de dono e casa; sem tabela nova; só a política da pessoal muda (064, proposta)", () => {
+test("código: áreas e gestão são de dono e casa; sem tabela nova; só a política da pessoal muda (064, aplicada)", () => {
   assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /(^|_)(areas?|consumo)(_|\.)/i.test(f) && !/^064_casa_areas_consumo/.test(f)), "nenhuma tabela nem migration de dados para as áreas");
-  const sql = ler("supabase/064_casa_areas_consumo.sql"); assert.match(sql, /^-- PROPOSTA 064 · NÃO APLICADA EM PRODUÇÃO/);
+  const sql = ler("supabase/064_casa_areas_consumo.sql"); assert.match(sql, /^-- 064 · APLICADA EM PRODUÇÃO em 20\/11\/2026/);
   const n = ler("nucleo.js"), i0 = n.indexOf("/* ===== Áreas de consumo"), i1 = n.indexOf("/* ===== Central de Compras como um mercado"); assert.ok(i0 > 0 && i1 > i0);
   assert.ok(!/document|window\.|sb\.|fetch\(/.test(n.slice(i0, i1)), "o núcleo das áreas é puro: sem tela nem banco");
   assert.match(ler("index.html"), /#mercado \.mk-areas\{/);

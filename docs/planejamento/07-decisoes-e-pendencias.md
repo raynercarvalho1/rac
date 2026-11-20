@@ -355,6 +355,6 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 ## 20/11/2026 · Central de Compras — áreas de consumo (decisões do lote)
 - **Decisão técnica:** cada item pertence a uma única área, pela categoria; a Central soma todas as áreas, os não classificados e os ajustes de pedidos (frete, taxas, desconto geral), que **não** são rateados entre áreas. Categorias fora da lista inicial **não** foram atribuídas por palpite: ficam "sem área" até o dono associar.
 - **Persistência:** `PESSOAL["mercado-areas"]` (tabela `pessoal`, linha do dono, MFA, backup, igual entre aparelhos e entre dono e casa), em vez de tabela nova; só muda a política da `pessoal` (064).
-- **Fernanda (corrigido pelo dono no mesmo dia):** acesso integral e igual ao do dono dentro da Central de Compras (ver, criar, editar, excluir áreas e categorias, alterar associações), com a configuração compartilhada. Não amplia módulos só do dono. **Pendência do dono:** rodar a migration 064 (proposta, não aplicada) antes do site.
+- **Fernanda (corrigido pelo dono no mesmo dia):** acesso integral e igual ao do dono dentro da Central de Compras (ver, criar, editar, excluir áreas e categorias, alterar associações), com a configuração compartilhada. Não amplia módulos só do dono. A migration 064 foi aplicada e conferida em produção (ChatGPT, informado pelo dono); falta mesclar e publicar o site.
 - **Pendência:** Preços, Consumo, Comparar e Produtos ainda mostram todas as categorias.
 Detalhes: `docs/central-areas.md`.

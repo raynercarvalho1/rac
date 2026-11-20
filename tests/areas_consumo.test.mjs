@@ -255,7 +255,7 @@ function telaDe(papel) {   // a mesma sequência de operações na tela, para o 
   const grav = []; globalThis.pessoalGravar = (k, v, cb) => { grav.push([k, JSON.parse(JSON.stringify(v))]); globalThis.PESSOAL[k] = v; cb && cb(""); };
   try {
     ambiente({ dono: papel === "dono", pessoal: {} }); const vistas = {};
-    T.drawApp("central"); vistas.central = texto(RAIZ); vistas.nav = achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === "Áreas de consumo").length;
+    T.drawApp("central"); vistas.central = texto(RAIZ); vistas.nav = achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === "Análises e gestão de categorias").length;
     const b = new El("div"); T.viewCentral(b); vistas.porArea = /Por área de consumo/.test(texto(b)) && /Total da Central no período/.test(texto(b));
     for (const a of ["mercado", "automotivo", "farmacia", "bebe", "nao-classificados"]) { Object.assign(T.CU, { area: a, per: "2026-11" }); const x = new El("div"); T.viewCentral(x); vistas[a] = texto(x); }
     T.CU.area = ""; T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; const p = new El("div"); T.viewPainel(p); vistas.painel = texto(p); vistas.linhasPainel = T.rowsP().length;
@@ -275,7 +275,7 @@ function telaDe(papel) {   // a mesma sequência de operações na tela, para o 
 test("13 · dono e casa executam as mesmas operações e veem as mesmas telas, indicadores e gráficos", () => {
   const d = telaDe("dono"), c = telaDe("casa");
   assert.deepEqual(c.vistas, d.vistas, "mesmo texto em todas as telas e painéis (Central, 4 áreas, não classificados, Painel do Mercado, Gestão)");
-  assert.ok(d.vistas.nav === 1 && d.vistas.porArea && /Gestão de categorias/.test(d.vistas.gestao) && /Áreas de consumo/.test(d.vistas.central) && /Central \(todas\)/.test(d.vistas.central));
+  assert.ok(d.vistas.nav === 1 && d.vistas.porArea && /Gestão de categorias/.test(d.vistas.gestao));
   assert.ok(/Raia Drogasil/.test(d.vistas.farmacia) && /Cortina/.test(d.vistas.automotivo) === false, "o painel da área mostra a área");
   assert.ok(!/Dipirona|Cortina|Drogasil/.test(d.vistas.painel) && d.vistas.linhasPainel === 4, "o Painel do Mercado da casa também só soma a área Mercado");
   assert.deepEqual(c.grav, d.grav, "as mesmas gravações: alterar associação, criar área, criar categoria, excluir categoria e excluir área");
@@ -319,4 +319,17 @@ test("código: áreas e gestão são de dono e casa; sem tabela nova; só a pol�
   const n = ler("nucleo.js"), i0 = n.indexOf("/* ===== Áreas de consumo"), i1 = n.indexOf("/* ===== Central de Compras como um mercado"); assert.ok(i0 > 0 && i1 > i0);
   assert.ok(!/document|window\.|sb\.|fetch\(/.test(n.slice(i0, i1)), "o núcleo das áreas é puro: sem tela nem banco");
   assert.match(ler("index.html"), /#mercado \.mk-areas\{/);
+});
+
+test("navegação: a caixa grande tem Central e as áreas; Painel do Mercado, Preços, Consumo, Comparar, Não classificados e Gestão ficam na faixa de baixo (dono e casa)", () => {
+  for (const dono of [true, false]) {
+    ambiente({ dono }); T.drawApp("area", "farmacia");
+    const nav = (rot) => achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === rot)[0], links = (n) => achar(n, (e) => e.tag === "a").map(texto);
+    const grande = nav("Central de Compras"), baixo = nav("Análises e gestão de categorias");
+    assert.deepEqual(links(grande), ["Central", "Mercado", "Automotivo", "Farmácia", "Bebê/Infantil"], "Central aparece uma vez só");
+    assert.deepEqual(links(baixo).map((t) => t.replace(/\(\d+\)/, "(n)")), ["Painel do Mercado", "Preços", "Consumo", "Comparar", "Não classificados (n)", "⚙ Gestão de categorias"]);
+    assert.deepEqual(achar(grande, (e) => e.attrs["aria-current"] === "page").map(texto), ["Farmácia"], "a área ativa fica marcada");
+    assert.ok(!/Central \(todas\)/.test(texto(RAIZ)));
+    T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; T.drawApp("painel"); assert.deepEqual(achar(nav("Análises e gestão de categorias"), (e) => e.attrs["aria-current"] === "page").map(texto), ["Painel do Mercado"]);
+  }
 });

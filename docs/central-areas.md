@@ -24,7 +24,7 @@ O painel de uma área é a Central **reduzida aos itens da área** (`arCompras(c
 
 ## Telas e navegação (dono e casa)
 - `#mercado/central` (consolidada), `#mercado/area/<id>` (painel de uma área; `nao-classificados` para os sem área), `#mercado/categorias` (Gestão de categorias).
-- Faixa "Áreas de consumo" sob as abas (quebra de linha, sem rolagem lateral): Central (todas) · cada área · Não classificados (n) · ⚙ Gestão de categorias. A área ativa fica marcada (`aria-current`) e o painel abre com o cartão "Área de consumo: <nome>" e as categorias dela.
+- **Navegação (ajuste de 20/11/2026, pedido do dono):** na caixa grande das abas ficam **Central** (tudo, uma vez só) e **cada área** (Mercado, Automotivo, Farmácia, Bebê/Infantil e as criadas); a faixa de baixo (quebra de linha, sem rolagem lateral) tem **Painel do Mercado, Preços, Consumo, Comparar, Não classificados (n)** e **⚙ Gestão de categorias**. A área ativa fica marcada (`aria-current`) e o painel abre com o cartão "Área de consumo: <nome>" e as categorias dela.
 - **Gestão de categorias:** cada categoria com área (seletor), itens e valor, "Sem área" primeiro, explicação de onde será contabilizada, nova categoria, nova área, remover só o que foi criado. Remover área ou categoria criada não apaga nada: o item continua na Central como não classificado. O editor de item (Notas → Editar) passa a oferecer as categorias criadas.
 - Nova área = só dado (criar na Gestão): nenhuma mudança de código por área.
 - A distinção com o Painel de produtividade (`#painel`, `docs/painel.md`) é mantida: os painéis de consumo moram em `#mercado`.

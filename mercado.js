@@ -134,12 +134,12 @@
     var y = window.scrollY, r = root(); r.innerHTML = "";
     /* cabeçalho em 3 faixas: 1) título e ações gerais; 2) navegação principal em largura total (os 5 itens sempre visíveis, sem rolagem);
        3) navegação secundária com as demais áreas. Os destinos, os links e o estado ativo (aria-current) são os de sempre; "Adicionar nota" segue fora das abas. */
-    var PRINCIPAIS = { central: 1, painel: 1, precos: 1, consumo: 1, comparar: 1 };
+    var PRINCIPAIS = { central: 1 };   /* a caixa grande: Central e as áreas de consumo; Painel do Mercado, Preços, Consumo e Comparar ficam na faixa de baixo (navAreas) */
     var nav1 = h("nav", { class: "mk-nav", "aria-label": "Central de Compras" }), nav2 = h("nav", { class: "mk-nav2", "aria-label": "Outras áreas da Central de Compras" });
     var nSec = 0;
     nav2.appendChild(h("span", { class: "mk-nav2-rot", text: "Outras áreas" }));
     VIEWS.forEach(function (x) {
-      if (x[0] === "importar" || x[0] === "categoria" || x[0] === "produto" || x[0] === "estabelecimento" || x[0] === "area" || x[0] === "categorias" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
+      if (x[0] === "importar" || x[0] === "categoria" || x[0] === "produto" || x[0] === "estabelecimento" || x[0] === "area" || x[0] === "categorias" || x[0] === "painel" || x[0] === "precos" || x[0] === "consumo" || x[0] === "comparar" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
       var n = x[0] === "alertas" ? alContar() : 0;
       if (!PRINCIPAIS[x[0]]) nSec++;
       (PRINCIPAIS[x[0]] ? nav1 : nav2).appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
@@ -148,9 +148,10 @@
     var out = h("button", { type: "button", class: "ghostbtn", text: "Sair" });
     out.onclick = function () { sb.auth.signOut().then(function () { location.reload(); }); };
     var cab = h("div", { class: "mk-cab" }, h("div", { class: "mk-tit" }, h("h1", { text: "Central de Compras" }), h("span", { class: "sub", text: user.email })), h("div", { class: "mk-acoes" }, add, out));
+    /* caixa grande: Central (tudo) + cada área de consumo (dono e casa); faixa de baixo: Painel do Mercado, Preços, Consumo, Comparar, Não classificados e Gestão de categorias */
+    if (ehProprietario()) areasNoNav1(nav1, v, arg);
     r.appendChild(cab); r.appendChild(nav1);
-    /* áreas de consumo (só o dono): alternar entre a Central consolidada e o painel de cada área; a Gestão de categorias fica na mesma faixa */
-    if (ehProprietario() && (v === "central" || v === "area" || v === "categorias")) r.appendChild(navAreas(v, arg));
+    if (ehProprietario()) r.appendChild(navAreas(v, arg));
     if (nSec) r.appendChild(nav2);
     var body = h("div", { class: "stack" }); r.appendChild(body);
     if (v === "central" || v === "area") { var na = v === "area" && ehProprietario() ? String(arg || "") : ""; if (na !== CU.area) { CU.area = na; CU.estab = ""; CU.cat = ""; CU.sel = null; CU.aberta = null; } }
@@ -2591,12 +2592,14 @@
     body.appendChild(painelExplorar(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal })))); body.appendChild(painelOportunidades(all));
     body.appendChild(h("p", { class: "sub" }, "Detalhes de cada loja online: ", h("a", { class: "link", href: "#compras", text: "Compras online" }), " · cada nota: ", h("a", { class: "link", href: "#mercado/notas", text: "Notas" }), "."));
   }
-  /* faixa de navegação das áreas (quebra de linha, sem rolagem lateral): Central · cada área · Não classificados (se houver) · Gestão de categorias */
+  /* caixa grande: depois de "Central" (consolidada, tudo), um botão por área de consumo */
+  function areasNoNav1(nav1, v, arg) {
+    areaCfg().areas.forEach(function (a) { nav1.appendChild(h("a", { href: "#mercado/area/" + a.id, "aria-current": v === "area" && arg === a.id ? "page" : null, text: a.nome })); });
+  }
+  /* faixa de baixo (quebra de linha, sem rolagem lateral): Painel do Mercado · Preços · Consumo · Comparar · Não classificados (se houver) · Gestão de categorias */
   function navAreas(v, arg) {
-    var N = NU(), cfg = areaCfg(), R = N.arResumo(centralDados().compras, cfg, {}), nav = h("nav", { class: "mk-nav2 mk-areas", "aria-label": "Áreas de consumo" });
-    nav.appendChild(h("span", { class: "mk-nav2-rot", text: "Áreas de consumo" }));
-    nav.appendChild(h("a", { href: "#mercado/central", "aria-current": v === "central" ? "page" : null, text: "Central (todas)" }));
-    cfg.areas.forEach(function (a) { nav.appendChild(h("a", { href: "#mercado/area/" + a.id, "aria-current": v === "area" && arg === a.id ? "page" : null, text: a.nome })); });
+    var N = NU(), cfg = areaCfg(), R = N.arResumo(centralDados().compras, cfg, {}), nav = h("nav", { class: "mk-nav2 mk-areas", "aria-label": "Análises e gestão de categorias" });
+    [["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"]].forEach(function (x) { nav.appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] })); });
     if (R.semArea.itens) nav.appendChild(h("a", { href: "#mercado/area/nao-classificados", "aria-current": v === "area" && arg === "nao-classificados" ? "page" : null, text: "Não classificados (" + R.semArea.itens + ")" }));
     nav.appendChild(h("a", { href: "#mercado/categorias", "aria-current": v === "categorias" ? "page" : null, text: "⚙ Gestão de categorias" }));
     return nav;

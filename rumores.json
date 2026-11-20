@@ -1,8 +1,112 @@
 {
- "coletado": "2026-11-19T20:30:46.415619+00:00",
+ "coletado": "2026-11-20T02:17:43.882695+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "White Sox Trade Davis Martin, Luis Castillo To Rockies",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-trade-davis-martin-luis-castillo-to-rockies.html",
+   "data": "2026-11-20T02:10:48+00:00",
+   "resumo": "The White Sox and Rockies announced a surprise trade on Thursday. Colorado acquires a pair of veteran starters, Davis Martin and Luis Castillo, in exchange for rookie left-hander Sean Sullivan and minor league catcher Douglas Veliz. The Rockies assume Castillo’s $22.75MM salary…",
+   "tags": [
+    "Chicago White Sox",
+    "Colorado Rockies",
+    "Newsstand",
+    "Transactions",
+    "Davis Martin",
+    "Luis Castillo"
+   ]
+  },
+  {
+   "t": "Mets, Darwinzon Hernández Agree To Three-Year Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-darwinzon-hernandez-agree-to-three-year-deal.html",
+   "data": "2026-11-20T01:41:32+00:00",
+   "resumo": "The Mets are signing free agent reliever Darwinzon Hernández to a three-year, $12MM contract, reports José F. Rivera. The signing is still pending a physical. Hernández returns to the majors after pitching four seasons in Japan. More to come.",
+   "tags": [
+    "New York Mets",
+    "Newsstand",
+    "Transactions",
+    "Darwinzon Hernandez"
+   ]
+  },
+  {
+   "t": "Brewers Sign Braden Shewmake To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/brewers-sign-braden-shewmake-to-minor-league-deal.html",
+   "data": "2026-11-19T23:26:25+00:00",
+   "resumo": "The Brewers have signed infielder Braden Shewmake to a minor league deal, per Todd Rosiak of the Milwaukee Journal Sentinel. Shewmake also receives an invite to big league camp in spring training. It’s a birthday present for Shewmake, who turns 29 today. He has become a…",
+   "tags": [
+    "Milwaukee Brewers",
+    "Transactions",
+    "Braden Shewmake"
+   ]
+  },
+  {
+   "t": "MLB Mailbag: Mets, Holliday, Pirates, Braves, Guardians",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlb-mailbag-mets-holliday-pirates-braves-guardians.html",
+   "data": "2026-11-19T23:00:48+00:00",
+   "resumo": "Mets fans showed up big in this week’s Mailbag inbox, so we’ll tackle multiple questions on the Amazins before looking at trade values for Baltimore’s Jackson Holliday and Pittsburgh’s Carmen Mlodzinski, as well as the Atlanta bullpen and Cleveland’s first base outlook. (Note:…",
+   "tags": [
+    "Front Office Originals",
+    "Steve Adams' MLB Mailbag"
+   ]
+  },
+  {
+   "t": "Rays Release Jesse Scholtens To Pursue KBO Opportunity",
+   "link": "https://www.mlbtraderumors.com/2026/11/rays-release-jesse-scholtens-to-pursue-kbo-opportunity.html",
+   "data": "2026-11-19T22:35:13+00:00",
+   "resumo": "The Rays announced that right-hander Jesse Scholtens has been released to pursue an opportunity in the KBO League in South Korea. It’s unclear which KBO team is interested in Scholtens. Tampa’s 40-man roster count drops from 39 to 38. Scholtens, 33 in April, was in an…",
+   "tags": [
+    "Korea Baseball Organization",
+    "Tampa Bay Rays",
+    "Transactions",
+    "Jesse Scholtens"
+   ]
+  },
+  {
+   "t": "Twins Looking To Add To Bullpen, Lineup",
+   "link": "https://www.mlbtraderumors.com/2026/11/twins-looking-to-add-to-bullpen-lineup.html",
+   "data": "2026-11-19T22:12:21+00:00",
+   "resumo": "The Twins made two big signings this week but they’re not done. Catcher Ryan Jeffers accepted the qualifying offer and right-hander Sonny Gray signed a two-year deal. Gray and general manager Jeremy Zoll met with reporters via Zoom today to re-introduce Gray to the media. Per…",
+   "tags": [
+    "Minnesota Twins"
+   ]
+  },
+  {
+   "t": "Cubs Claim Chayce McDermott",
+   "link": "https://www.mlbtraderumors.com/2026/11/cubs-claim-chayce-mcdermott.html",
+   "data": "2026-11-19T22:00:08+00:00",
+   "resumo": "The Cubs announced they have claimed right-hander Chayce McDermott off waivers from the Mets. Jon Heyman of The New York Post reported the claim prior to the official announcement. There wasn’t any previous indication that McDermott lost his roster spot with New York but they…",
+   "tags": [
+    "Chicago Cubs",
+    "New York Mets",
+    "Transactions",
+    "Chayce McDermott"
+   ]
+  },
+  {
+   "t": "Blue Jays Claim Christian Cairo, Designate Chase Lee For Assignment",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-claim-christian-cairo-designate-chase-lee-for-assignment.html",
+   "data": "2026-11-19T21:45:59+00:00",
+   "resumo": "The Blue Jays announced that they have claimed infielder Christian Cairo off waivers from the Dodgers. Right-hander Chase Lee has been designated for assignment in a corresponding 40-man move. The Dodgers designated Cairo for assignment earlier this week when they added several…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Toronto Blue Jays",
+    "Transactions",
+    "Chase Lee",
+    "Christian Cairo"
+   ]
+  },
+  {
+   "t": "Royals, Randy Dobnak Avoid Arbitration",
+   "link": "https://www.mlbtraderumors.com/2026/11/royals-randy-dobnak-avoid-arbitration.html",
+   "data": "2026-11-19T21:15:13+00:00",
+   "resumo": "The Royals and right-hander Randy Dobnak have agreed to a $1.35MM salary for next year, thus avoiding arbitration, reports Jeff Passan of ESPN. Tomorrow is the deadline for teams to decide whether or not to tender contracts to their arbitration-eligible players. Dobnak, 32 in…",
+   "tags": [
+    "Kansas City Royals",
+    "Transactions",
+    "Randy Dobnak"
+   ]
+  },
   {
    "t": "Astros To Hire Bobby Wilson As Bench Coach",
    "link": "https://www.mlbtraderumors.com/2026/11/astros-to-hire-bobby-wilson-as-bench-coach.html",
@@ -73,113 +177,22 @@
     "Jarren Duran",
     "Teruaki Sato"
    ]
-  },
-  {
-   "t": "Nationals Prefer Short-Term Deals In Search For Rotation Help",
-   "link": "https://www.mlbtraderumors.com/2026/11/nationals-rumors-kris-bubic-brady-singer-kona-takahashi.html",
-   "data": "2026-11-19T17:25:16+00:00",
-   "resumo": "The Nationals are in the market for rotation help, but it doesn’t sound as though a particularly big free agent splash is in the cards. Spencer Nusbaum of The Athletic reports that while Washington has explored the trade market for controllable starting pitching, the team…",
-   "tags": [
-    "Washington Nationals",
-    "Brady Singer",
-    "Kona Takahashi",
-    "Kris Bubic"
-   ]
-  },
-  {
-   "t": "Alex Vesia Seeking Three-Year Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/alex-vesia-seeking-three-year-deal.html",
-   "data": "2026-11-19T17:22:52+00:00",
-   "resumo": "Free agent reliever Alex Vesia is looking for a three-year guarantee, writes Jeff Passan of ESPN. The southpaw is hoping to follow in the footsteps of former teammate Evan Phillips, who commanded three years and $35MM from the Braves last week. Vesia is the second-best lefty…",
-   "tags": [
-    "2026-27 MLB Free Agents",
-    "Alex Vesia"
-   ]
-  },
-  {
-   "t": "Astros To Hire Matt Bayer As Assistant GM",
-   "link": "https://www.mlbtraderumors.com/2026/11/astros-to-hire-matt-bayer-as-assistant-gm.html",
-   "data": "2026-11-19T15:45:21+00:00",
-   "resumo": "The Astros are making another addition in the front office. Matt Bayer is expected to join general manager Randy Flores’ staff, reports Brian McTaggart of MLB.com. Bayer will serve as an assistant general manager, replacing Connor Huff. Bayer has worked in baseball for nearly…",
-   "tags": [
-    "Houston Astros",
-    "Matt Bayer"
-   ]
-  },
-  {
-   "t": "MLBTR Podcast: Jake Bauers, Ryan Jeffers, Dustin May, Reliever Deals, And More",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-jake-bauers-ryan-jeffers-dustin-may-reliever-deals-and-more.html",
-   "data": "2026-11-19T15:35:25+00:00",
-   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
-   "tags": [
-    "Atlanta Braves",
-    "Boston Red Sox",
-    "Chicago White Sox",
-    "Detroit Tigers",
-    "Kansas City Royals",
-    "MLB Trade Rumors Podcast"
-   ]
-  },
-  {
-   "t": "A’s Agree To Minor League Deals With Joey Wiemer, Luke Little",
-   "link": "https://www.mlbtraderumors.com/2026/11/athletics-sign-joey-wiemer-luke-little.html",
-   "data": "2026-11-19T15:29:19+00:00",
-   "resumo": "The Athletics and outfielder Joey Wiemer are in agreement on a minor league contract, reports Martin Gallegos of MLB.com. The team’s transaction log also indicates that they’ve added left-handed reliever Luke Little on a minor league pact. Presumably, both players will be in…",
-   "tags": [
-    "Athletics",
-    "Transactions",
-    "Joey Wiemer",
-    "Luke Little"
-   ]
-  },
-  {
-   "t": "The Opener: Skubal Meetings, Mariners/Royals Trade, Gray",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-skubal-meetings-mariners-royals-trade-gray.html",
-   "data": "2026-11-19T14:42:09+00:00",
-   "resumo": "The offseason is starting to pick up. We could see a sprint to the finish line with a potential lockout looming in December. 1. Skubal sit-downs continue The Padres were scheduled to meet with Tarik Skubal yesterday (h/t Jon Heyman of the New York Post). That means four teams…",
-   "tags": [
-    "The Opener"
-   ]
-  },
-  {
-   "t": "Royals, Mariners Swap Maikel Garcia For Bryce Miller In Six-Player Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mariners-to-acquire-maikel-garcia.html",
-   "data": "2026-11-19T05:59:22+00:00",
-   "resumo": "The Mariners and Royals have lined up on a six-player blockbuster, announcing Wednesday that infielder Maikel Garcia, reliever James McArthur and left-handed pitching prospect L.P. Langevin are going from Kansas City to Seattle in exchange for right-handed starters Bryce Miller…",
-   "tags": [
-    "Kansas City Royals",
-    "Newsstand",
-    "Seattle Mariners",
-    "Transactions",
-    "Bryce Miller",
-    "James McArthur"
-   ]
-  },
-  {
-   "t": "Twins Sign Sonny Gray",
-   "link": "https://www.mlbtraderumors.com/2026/11/twins-sign-sonny-gray.html",
-   "data": "2026-11-19T05:58:30+00:00",
-   "resumo": "Sonny Gray is headed back to Minnesota. The Twins announced Wednesday that they’ve signed the free-agent righty to a two-year contract that’ll reportedly guarantee him $55MM and contains both full no-trade protection and an opt-out opportunity following the 2027 season. Gray, a…",
-   "tags": [
-    "Minnesota Twins",
-    "Newsstand",
-    "Transactions",
-    "Sonny Gray"
-   ]
-  },
-  {
-   "t": "Mets To Meet With Kaima Taira",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-meet-with-kaima-taira.html",
-   "data": "2026-11-19T05:49:07+00:00",
-   "resumo": "The Mets have scheduled an upcoming Zoom meeting with free agent right-hander Kaima Taira, reports Jon Heyman of The New York Post. They join the Padres, Blue Jays, and both Chicago clubs as teams known to be in the market for the 27-year-old. Taira will almost certainly sign…",
-   "tags": [
-    "New York Mets",
-    "Nippon Professional Baseball",
-    "Kaima Taira"
-   ]
   }
  ],
  "dodgers": [
+  {
+   "t": "Blue Jays Claim Christian Cairo, Designate Chase Lee For Assignment",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-claim-christian-cairo-designate-chase-lee-for-assignment.html",
+   "data": "2026-11-19T21:45:59+00:00",
+   "resumo": "The Blue Jays announced that they have claimed infielder Christian Cairo off waivers from the Dodgers. Right-hander Chase Lee has been designated for assignment in a corresponding 40-man move. The Dodgers designated Cairo for assignment earlier this week when they added several…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Toronto Blue Jays",
+    "Transactions",
+    "Chase Lee",
+    "Christian Cairo"
+   ]
+  },
   {
    "t": "Seth Halvorsen Undergoes Tommy John Surgery",
    "link": "https://www.mlbtraderumors.com/2026/11/seth-halvorsen-undergoes-tommy-john-surgery.html",

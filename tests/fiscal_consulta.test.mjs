@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { envelopeConsulta, interpretarRetorno, consultarNota, consultarLote } from "../supabase/functions/fiscal-consulta/consulta.ts";
+import { consultaHabilitada, envelopeConsulta, interpretarRetorno, consultarNota, consultarLote } from "../supabase/functions/fiscal-consulta/consulta.ts";
 
 const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const K = "31261112345678000195650010000000011234567890".slice(0, 43) + "0";
@@ -54,8 +54,19 @@ test("função e agendamento: porta só pela senha da rotina, sem JWT de usuári
   const f = ler("supabase/functions/fiscal-consulta/index.ts"), sem = f.replace(/\/\/.*$/gm, "");
   assert.match(sem, /rac_rotina_ok/); assert.match(sem, /x-rac-rotina/); assert.ok(!/Authorization/i.test(sem) && !/anthropic|api\.openai/i.test(sem)); assert.match(sem, /nf_validacao_pendentes/); assert.match(sem, /nf_validacao_registrar/);
   assert.ok(!/(sk-|eyJ|BEGIN (RSA |PRIVATE )?KEY)/.test(f), "nenhum segredo no código"); assert.match(f, /NÃO FOI PUBLICADA/);
-  const s = ler("supabase/061_fiscal_consulta_agendamento.sql"), q = s.replace(/^--.*$/gm, "");
-  assert.match(s.split("\n")[0], /^-- status: pendente/); assert.match(s, /NÃO APLICADA EM PRODUÇÃO/); assert.match(q, /begin;[\s\S]*commit;/); assert.match(q, /cron\.unschedule\('fiscal-validacao'\) where exists/); assert.match(q, /cron\.schedule\('fiscal-validacao', '40 8 \* \* \*'/);
+  const s = ler("supabase/propostas/061_fiscal_consulta_agendamento.sql"), q = s.replace(/^--.*$/gm, "");
+  assert.match(s.split("\n")[0], /^-- status: pendente/); assert.match(s, /NÃO APLICADA EM PRODUÇÃO/); assert.match(s, /RESERVADA PARA UM LOTE FUTURO/); assert.ok(!fs.existsSync(new URL("../supabase/061_fiscal_consulta_agendamento.sql", import.meta.url)), "fora da sequência aplicável de migrations"); assert.match(q, /begin;[\s\S]*commit;/); assert.match(q, /cron\.unschedule\('fiscal-validacao'\) where exists/); assert.match(q, /cron\.schedule\('fiscal-validacao', '40 8 \* \* \*'/);
   assert.match(q, /functions\/v1\/fiscal-consulta/); assert.match(q, /decrypted_secret from vault\.decrypted_secrets where name = 'rac_rotina'/); assert.ok(!/radar-rotina|garmin|newsletter|drop |delete |alter table/i.test(q));
   assert.ok(!/(sk-|eyJ)/.test(s));
+});
+
+test("desligada por padrão: sem FISCAL_CONSULTA_ATIVA=1 e certificado a função não consulta nem grava, e nenhum Secret SEFAZ é exigido para o resto da Central Fiscal", () => {
+  const env = (o) => (n) => o[n];
+  assert.deepEqual(consultaHabilitada(env({})), { ativa: false, motivo: "validação oficial automática não habilitada" });
+  assert.equal(consultaHabilitada(env({ SEFAZ_CERT_PEM: "x", SEFAZ_KEY_PEM: "y" })).ativa, false, "certificado sem o interruptor não liga");
+  assert.equal(consultaHabilitada(env({ FISCAL_CONSULTA_ATIVA: "1" })).ativa, false); assert.match(consultaHabilitada(env({ FISCAL_CONSULTA_ATIVA: "1" })).motivo, /sem certificado/);
+  assert.equal(consultaHabilitada(env({ FISCAL_CONSULTA_ATIVA: "1", SEFAZ_CERT_PEM: "x", SEFAZ_KEY_PEM: "y" })).ativa, true);
+  const f = ler("supabase/functions/fiscal-consulta/index.ts"), i = f.indexOf("consultaHabilitada(ambiente)"); assert.ok(i > 0); assert.ok(i < f.indexOf('rpc("nf_validacao_pendentes"'), "o gate vem antes de ler pendentes ou consultar");
+  for (const a of ["supabase/060_central_fiscal_rotinas.sql", "js/fiscal.js", "nucleo.js"]) assert.ok(!/SEFAZ_(CERT|KEY|URL)/.test(ler(a)), a + " não depende de Secrets da SEFAZ");
+  assert.ok(!/captcha|recaptcha|hcaptcha/i.test(ler("supabase/functions/fiscal-consulta/consulta.ts").replace(/\/\/.*$/gm, "")), "nada de contornar proteção");
 });

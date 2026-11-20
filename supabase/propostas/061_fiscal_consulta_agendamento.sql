@@ -1,8 +1,8 @@
 -- status: pendente
--- PROPOSTA 061 · NÃO APLICADA EM PRODUÇÃO · Agendamento diário da validação fiscal (Central Fiscal). Pode rodar de novo sem erro. Não altera a 059 nem a 060.
+-- PROPOSTA 061 · NÃO APLICADA EM PRODUÇÃO · RESERVADA PARA UM LOTE FUTURO (consulta oficial à SEFAZ, ainda não habilitada; fica em supabase/propostas/, fora da sequência aplicável) · Agendamento diário da validação fiscal (Central Fiscal). Pode rodar de novo sem erro. Não altera a 059 nem a 060.
 -- Chama a função fiscal-consulta (supabase/functions/fiscal-consulta) uma vez por dia, às 5h40 de Brasília (8h40 UTC; o pg_cron conta em UTC e o Brasil está em UTC−3 sem horário de verão),
 -- longe das rotinas da Garmin, da Newsletter e do Radar. Usa a mesma senha da rotina (Vault: rac_rotina): nenhum segredo novo no banco.
--- Ordem de publicação: 060 (SQL) → função fiscal-consulta (o dono publica) → 061 (SQL) → site. Sem certificado e endereços oficiais nos Secrets da função, a rodada só registra "indisponível" e nada muda.
+-- SÓ APLIQUE quando o dono decidir habilitar a consulta oficial: publicar a função fiscal-consulta, configurar certificado A1 + endereços + FISCAL_CONSULTA_ATIVA=1 nos Secrets da função, e então mover este arquivo para supabase/061_... e aplicar. Enquanto a função não estiver habilitada ela não consulta nem grava nada.
 -- Para DESLIGAR: select cron.unschedule('fiscal-validacao');
 begin;
 

@@ -93,7 +93,7 @@ test("nfEstadosNota: leitura, confirmação, situação fiscal e Mercado são qu
   assert.deepEqual([mer({ situacao: "cancelada" }, null).lancar, mer({ situacao: "rejeitada" }, null).lancar], [false, false], "cancelada/rejeitada não entram");
   /* texto da validação oficial: honesto, nunca afirma autorização sem o resultado registrado */
   const T = N.nfConsultaTexto, base = { chave: "1".repeat(44), situacao: "pendente" };
-  assert.match(T(null, false, base), /migration 060 pendente/); assert.match(T(null, true, base), /Ainda não consultada.*não depende dela/); assert.match(T(null, true, { situacao: "pendente", chave: null }), /Sem chave de acesso/); assert.match(T(null, true, { situacao: "cancelada" }), /não há mais o que consultar/);
+  for (const x of [T(null, false, base), T(null, true, base), T(null, true, { situacao: "pendente", chave: null })]) { assert.match(x, /Validação oficial automática ainda não habilitada.*A entrada no Mercado não depende dela/); assert.doesNotMatch(x, /autorizad|validad/i); } assert.match(T(null, true, { situacao: "cancelada" }), /não há mais o que consultar/);
   assert.match(T({ resultado: "indisponivel", consultado_em: "2026-11-20T10:00:00Z", mudou: false, motivo: "sem certificado digital configurado nos Secrets", proxima_em: "2026-11-27T10:00:00Z" }, true, base), /indisponível: nada foi alterado.*sem certificado.*Próxima/);
   assert.doesNotMatch(T({ resultado: "indisponivel", consultado_em: "2026-11-20T10:00:00Z", mudou: false }, true, base), /autoriza/i);
   assert.match(T({ resultado: "autorizada", consultado_em: "2026-11-20T10:00:00Z", mudou: true, encerrada: false }, true, base), /autorização confirmada pela fonte oficial.*situação fiscal foi atualizada/);

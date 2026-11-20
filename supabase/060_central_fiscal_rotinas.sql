@@ -11,7 +11,7 @@
 --   4) nota_fiscal_confirmar passa a recusar foto/PDF com confiança abaixo de 60% (a tela já bloqueia; o banco repete a regra). O resto da função é igual à da 059.
 -- Não faz: não cria despesa (gera_despesa continua false), não cria compra nem confirmação, não altera dado existente (só colunas novas, e a reconciliação só ACRESCENTA linhas de ligação), não toca em 034/037/039/057/059
 --   além das funções recriadas aqui (nf_entrada_processar, nota_fiscal_confirmar), não afrouxa RLS/MFA. A consulta à SEFAZ em si NÃO está aqui (é a Edge Function fiscal-consulta, não publicada).
--- Agendamento: o job SQL "fiscal-entradas" (a cada 6 h: reconciliar + retomar entradas) é criado aqui se o pg_cron existir. O job da consulta oficial (Edge Function) fica em 061_fiscal_consulta_agendamento.sql, para ser aplicado só depois de publicar a função.
+-- Agendamento: o job SQL "fiscal-entradas" (a cada 6 h: reconciliar + retomar entradas) é criado aqui se o pg_cron existir. O job da consulta oficial (Edge Function) fica reservado em supabase/propostas/061_fiscal_consulta_agendamento.sql (lote futuro; a SEFAZ não está habilitada), para ser aplicado só depois de publicar a função.
 -- Ordem: 034 → 037 → 039 → 057 → 059 → 060 → site. Conferência depois: supabase/conferencias/060_conferir_producao.sql; diagnóstico das notas: supabase/conferencias/060_diagnostico_notas.sql (só leitura).
 begin;
 

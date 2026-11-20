@@ -6,6 +6,13 @@ export type Nota = { nota_id: string; chave: string; uf_codigo: string; modelo: 
 export type Resultado = { resultado: "autorizada" | "cancelada" | "denegada" | "pendente" | "nao_encontrada" | "indisponivel" | "erro"; origem: "sefaz_ws" | "indisponivel"; chave: string; cstat?: number; protocolo?: string; motivo?: string; evidencia?: string };
 export type Busca = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
 
+/* A consulta oficial NÃO está habilitada por padrão (decisão do dono, 20/11/2026: a SEFAZ fica para um lote futuro). Só liga com FISCAL_CONSULTA_ATIVA=1 E certificado + endereço da UF.
+   Desligada, a função não consulta, não registra nada e não altera nenhuma nota; o resto da Central Fiscal não depende dela. */
+export function consultaHabilitada(ler: (nome: string) => string | undefined): { ativa: boolean; motivo: string } {
+  if (ler("FISCAL_CONSULTA_ATIVA") !== "1") return { ativa: false, motivo: "validação oficial automática não habilitada" };
+  if (!ler("SEFAZ_CERT_PEM") || !ler("SEFAZ_KEY_PEM")) return { ativa: false, motivo: "habilitada, mas sem certificado digital nos Secrets" };
+  return { ativa: true, motivo: "" };
+}
 export const CHAVE_OK = /^\d{44}$/;
 const limpar = (t: string, n = 120) => t.replace(/[<>&"\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
 const tag = (xml: string, nome: string): string | null => { const m = new RegExp("<(?:\\w+:)?" + nome + "(?:\\s[^>]*)?>([^<]*)</(?:\\w+:)?" + nome + ">").exec(xml); return m ? m[1].trim() : null; };

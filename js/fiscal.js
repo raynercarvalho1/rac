@@ -518,7 +518,7 @@
       if(dono){corpo.appendChild(h("h4",{text:"Histórico da situação fiscal"}));
         if(!hist||!hist.length)corpo.appendChild(h("p",{class:"sub",text:hist?"Sem mudanças registradas (nota de XML não guarda o histórico da gravação).":"Não consegui ler o histórico."}));
         else hist.forEach(function(x){corpo.appendChild(h("div",{class:"sub",text:fxFmtDH(x.criado_em)+" · "+(x.de?(NUCLEO.NF_SITUACOES[x.de]||x.de)+" → ":"gravada como ")+(NUCLEO.NF_SITUACOES[x.para]||x.para)+(x.protocolo?" · protocolo "+x.protocolo:"")+" · "+x.origem+" ("+x.fonte+")"+(x.evidencia?" · "+x.evidencia:"")}))});
-        corpo.appendChild(h("h4",{text:"Validação fiscal oficial (rotina diária)"}));
+        corpo.appendChild(h("h4",{text:"Validação fiscal oficial"}));
         corpo.appendChild(h("p",{class:"sub",text:NUCLEO.nfConsultaTexto(cons&&cons[0]||null,cons!==null&&cons!==undefined,n)}));
         var mine=(tent||[]).filter(function(t){return t.nota_id===n.id});
         if(mine.length){corpo.appendChild(h("h4",{text:"Tentativas de leitura"}));mine.forEach(function(t){corpo.appendChild(fxLinhaTentativa(t,st))})}

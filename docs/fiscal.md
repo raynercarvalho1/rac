@@ -73,7 +73,7 @@ Lote 2: o núcleo, em `nucleo.js` (`NUCLEO.nf*`), testado em `tests/fiscal.test.
 A nota fiscal é uma entidade **independente** de Compras e **nunca gera despesa**: o vínculo com Compras online, Mercado, Alimentação ou
 Veículos/Abastecimento serve só para conferência e documentação (`gera_despesa: false`).
 
-## Correção definitiva e validação funcional (20/11/2026, 2º lote; migrations 060 e 061 PROPOSTAS, função `fiscal-consulta` NÃO publicada, site NÃO publicado)
+## Correção definitiva e validação funcional (20/11/2026, 2º lote; migration 060 PROPOSTA; consulta SEFAZ **fora deste lote**: função `fiscal-consulta` desligada e não publicada, 061 reservada em `supabase/propostas/`; site NÃO publicado)
 
 Substitui o que o primeiro lote de 20/11 deixou em aberto. **Nada disto foi aplicado, publicado nem testado em produção;** os testes abaixo são de código e de banco em PGlite (Postgres em memória).
 
@@ -88,14 +88,15 @@ Situação fiscal (Autorizada, Pendente, Contingência, Cancelada, Rejeitada) e 
 ### 3. Validação fiscal automática diária
 - **Banco (060):** `nf_validacao_pendentes(limite)` escolhe as notas a consultar (pendentes e em contingência com chave de 44 dígitos; autorizadas recentes, para acompanhar cancelamento posterior, por 30 dias da emissão; fora as encerradas); `nf_validacao_registrar(nota, resultado)` grava a consulta em `notas_fiscais_consultas` (data, origem, resultado, cStat, motivo, evidência, intervalo da próxima, encerrada) e **só muda a situação com evidência oficial**: autorizada exige origem `sefaz_ws`, mesma chave, cStat 100/150, protocolo de 15 dígitos e evidência; cancelada exige cStat 101/151/155; denegada exige 110/301/302/303. Qualquer outra coisa vira `invalida` e **nada muda**. O histórico usa a fonte `consulta_oficial`; repetir o mesmo resultado não duplica histórico. Intervalos: 1, 1, 2, 4, 7 dias; "indisponível" espera 7 dias; sem resultado em 90 dias a consulta encerra com o motivo. Só o `service_role` executa as funções; a casa só lê o registro das consultas (RLS + trava MFA).
 - **Função `fiscal-consulta` (Edge Function, NÃO publicada):** pela senha da rotina (`rac_rotina_ok`), pede as pendentes, consulta e devolve cada resultado ao banco. A lógica (`consulta.ts`) monta o pedido `consSitNFe` do web service `NFeConsultaProtocolo4` e interpreta o retorno (cStat → resultado; autorizada só com a mesma chave e protocolo válido).
-- **Agendamento (061):** `fiscal-validacao`, 5h40 de Brasília (8h40 UTC), uma vez por dia. O `fiscal-entradas` (060) roda a cada 6 h. Ambos aparecem no Monitor.
+- **Agendamento:** só o `fiscal-entradas` (060, a cada 6 h) está ativo e aparece no Monitor. O `fiscal-validacao` (5h40 de Brasília) está reservado em `supabase/propostas/061_...` e só será aplicado quando a SEFAZ for habilitada.
+- **DECISÃO DO DONO (20/11/2026): a consulta oficial à SEFAZ fica para um lote futuro.** A função só consulta com `FISCAL_CONSULTA_ATIVA=1` e certificado; sem isso responde `habilitada: false` e não lê, consulta nem grava nada. Nenhum Secret da SEFAZ é necessário para a Central Fiscal; nota sem consulta oficial continua pendente/contingência conforme o documento, e a tela diz "Validação oficial automática ainda não habilitada". A estrutura (tabela, funções do banco, função, 061) fica pronta para o lote futuro. Nada contorna captcha ou autenticação.
 - **LIMITE REAL (bloqueio externo, não simulado):** o web service da SEFAZ exige **certificado digital (A1)** e tem um endereço por UF; o portal público tem proteção contra robô e **não é raspado**. Sem os Secrets `SEFAZ_CERT_PEM`, `SEFAZ_KEY_PEM` e `SEFAZ_URL_<código da UF>` (e `SEFAZ_AMBIENTE`), a rodada registra "indisponível" (motivo "sem certificado…") e **nada muda**: nenhuma autorização é inventada e a entrada no Mercado nunca depende da consulta. O formato do pedido/retorno e os endereços por UF **não foram verificados contra a SEFAZ real** (não há credencial): precisam de um teste real do dono depois de configurar.
 
 ### 4. Notas antigas
 Reprocessadas pela mesma rotina, sem duplicar compra, sem sobrescrever dado fiscal válido e sem tocar confirmações anteriores: (a) a reconciliação liga notas cuja compra já existe; (b) as pendentes com chave entram na fila de validação; (c) as sem chave não têm consulta possível (ficam pendentes; a atualização manual continua); (d) nota antiga **sem compra** continua pedindo o "Estou de acordo" individual dela (decisão do dono de 16/11: a compra nunca é criada sem confirmação humana).
 
 ### 5. Ordem de publicação (o dono)
-SQL 060 → publicar a função `fiscal-consulta` → SQL 061 → site. Conferência: `supabase/conferencias/060_conferir_producao.sql`. Para a consulta oficial funcionar de verdade: configurar os Secrets da função (decisão e credencial do dono).
+SQL 060 → site (a função `fiscal-consulta` e a 061 ficam para o lote da SEFAZ). Conferência: `supabase/conferencias/060_conferir_producao.sql`. Para a consulta oficial funcionar de verdade: configurar os Secrets da função (decisão e credencial do dono).
 
 ## Modelos e formatos
 

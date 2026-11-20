@@ -1268,3 +1268,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: autorizar commit/push/PR; aplicar a 060, publicar a função `fiscal-consulta`, aplicar a 061 e publicar o site (nessa ordem); rodar `060_diagnostico_notas.sql`; decidir sobre o certificado digital e os endereços da SEFAZ (sem eles a consulta oficial fica "indisponível").
+
+## 20/11/2026 · Central Fiscal: preparação para revisão, SEFAZ fora do escopo (mesma branch)
+
+### 1. O que fizemos
+- Por decisão do dono, a consulta oficial à SEFAZ ficou para um lote futuro: a função `fiscal-consulta` só age com `FISCAL_CONSULTA_ATIVA=1` e certificado (padrão: desligada, não lê nem grava nada); a 061 saiu da sequência e ficou em `supabase/propostas/`; o Monitor perdeu a rotina `fiscal-validacao`; a tela diz "Validação oficial automática ainda não habilitada". Nenhum Secret da SEFAZ é necessário. Entrada automática, recuperação, reconciliação, QR e regra de 60/70% não foram tocados.
+
+### 2. O que estamos fazendo
+- Nada em produção: a branch aguarda a revisão do dono (sem PR, merge, SQL, função ou site).
+
+### 3. O que vamos fazer
+- Dono: revisar; aplicar a 060 e publicar o site quando autorizar. Lote futuro: certificado A1, endereços por UF, função, 061.

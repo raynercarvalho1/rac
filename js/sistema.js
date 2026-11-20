@@ -337,28 +337,26 @@
       atuLer(function(){return SB.from("rotina_log").select("quando,ok,resumo").order("quando",{ascending:false}).limit(40).then(sbOk)}),
       atuLer(function(){return SB.from("newsletter_edicoes").select("data,turno,origem,criado_em,atualizado_em").order("atualizado_em",{ascending:false}).limit(6).then(sbOk)}),
       atuLer(function(){return SB.from("radar_coletas").select("iniciada_em,terminada_em,status,ofertas_lidas,precos_gravados,falhas,erro_mensagem").eq("origem","rotina").order("iniciada_em",{ascending:false}).limit(80).then(sbOk)}),
-      atuLer(function(){return SB.from("notas_fiscais_consultas").select("consultado_em,mudou").order("consultado_em",{ascending:false}).limit(60).then(sbOk)}),
       atuLer(function(){return SB.from("notas_fiscais_entradas").select("atualizado_em").order("atualizado_em",{ascending:false}).limit(60).then(sbOk)}),
       atuLer(function(){return SB.from("garmin_dia").select("atualizado").order("atualizado",{ascending:false}).limit(1).then(sbOk)}),
       atuLer(sisGithub),
       Promise.all(["noticias.json","tecdados.json","rumores.json","newsletter.json","vagas.json"].map(json))]).then(function(r){
-      var gh=r[6].ok?r[6].v:null,js=r[7],dados={};
+      var gh=r[5].ok?r[5].v:null,js=r[6],dados={};
       dados.rotina=r[0].ok?NUCLEO.monDeRotina(r[0].v,agora):{erroLeitura:r[0].erro};
       dados.newsletter=r[1].ok?NUCLEO.monDeNewsletter(r[1].v):{erroLeitura:r[1].erro};
       dados.radar=r[2].ok?NUCLEO.monDeRadar(r[2].v,agora):{erroLeitura:r[2].erro};
-      dados.fiscal_validacao=r[3].ok?NUCLEO.monDeFiscal(r[3].v.map(function(x){return {t:x.consultado_em,mudou:x.mudou}}),agora,"notas_fiscais_consultas"):{erroLeitura:r[3].erro};
-      dados.fiscal_entradas=r[4].ok?NUCLEO.monDeFiscal(r[4].v.map(function(x){return {t:x.atualizado_em}}),agora,"notas_fiscais_entradas"):{erroLeitura:r[4].erro};
+      dados.fiscal_entradas=r[3].ok?NUCLEO.monDeFiscal(r[3].v.map(function(x){return {t:x.atualizado_em}}),agora,"notas_fiscais_entradas"):{erroLeitura:r[3].erro};
       var robos={noticias:NUCLEO.monRobos([{nome:"Sorocaba",d:js[0],campo:"noticias",idadeMax:8},{nome:"tecnologia",d:js[1],campo:"noticias",idadeMax:8},{nome:"rumores da MLB",d:js[2],campo:"liga",idadeMax:8},{nome:"Newsletter",d:js[3],campo:"grupos",idadeMax:14}],agora),
         vagas:NUCLEO.monRobos([{nome:"vagas",d:js[4],campo:"vagas",idadeMax:30}],agora)};
       PROC.filter(function(pr){return pr.onde==="github"}).forEach(function(pr){var rb=robos[pr.id],runs=gh&&gh.runs[pr.workflow],d;
         if(runs&&runs.length)d=NUCLEO.monDeGithub(runs,pr.crons,agora,gh.estados[pr.workflow]);
         else if(rb&&rb.ultimo)d={ultima_execucao:rb.ultimo,ultimo_sucesso:rb.ultimo,ultima_ok:true,origem:"arquivo"};
-        else d={erroLeitura:"execuções do GitHub indisponíveis"+(r[6].erro?": "+r[6].erro:"")};
+        else d={erroLeitura:"execuções do GitHub indisponíveis"+(r[5].erro?": "+r[5].erro:"")};
         if(rb){d.registros=rb.texto;d.avisos=rb.avisos}dados[pr.id]=d});
       var lista=PROC.map(function(pr){return NUCLEO.monAvaliar(pr,dados[pr.id],agora)}),s=NUCLEO.monResumo(lista).contagem;
       var ICO={ok:"✓",atrasado:"⚠",falhou:"✗",desligado:"○",desconhecido:"?"},NOME={ok:"ok",atrasado:"atrasado",falhou:"falhou",desligado:"desligado",desconhecido:"sem informação"};
       res.textContent=lista.length+" rotinas agendadas: "+["falhou","atrasado","desligado","desconhecido","ok"].filter(function(k){return s[k]}).map(function(k){return s[k]+" "+NOME[k]}).join(", ")+".";
-      lista.forEach(function(x){var li=lis[x.processo],g=li.querySelector(".grow"),t=[],gd=r[5].ok&&r[5].v[0]&&r[5].v[0].atualizado,b=x.processo==="rotina"&&dados.rotina.backup;
+      lista.forEach(function(x){var li=lis[x.processo],g=li.querySelector(".grow"),t=[],gd=r[4].ok&&r[4].v[0]&&r[4].v[0].atualizado,b=x.processo==="rotina"&&dados.rotina.backup;
         li.className=x.estado==="ok"?null:"alerta";li.querySelector(".sisdot").textContent=ICO[x.estado];g.innerHTML="";
         g.appendChild(h("b",{text:x.nome+" · "+NOME[x.estado]+(x.rodando?" (rodando agora)":"")}));
         if(x.motivo)t.push(x.motivo+(x.esperada?" (previsto para "+sisQuando(x.esperada)+")":""));

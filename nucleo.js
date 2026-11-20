@@ -1341,8 +1341,6 @@
       fonte:"execuções do GitHub e vagas.json",rotulo:"Última execução",oque:"Vagas de Dados e BI e o \"oi\" diário no banco"},
     {id:"testes",nome:"Testes automáticos",area:"Sistema",onde:"github",workflow:"testes.yml",arquivo:".github/workflows/testes.yml",crons:["30 10 * * 1"],limite:8*24*60,
       fonte:"execuções do GitHub",rotulo:"Última execução",oque:"Toda segunda e a cada mudança publicada ou PR: os testes do site"},
-    {id:"fiscal_validacao",nome:"Central Fiscal (validação diária)",area:"Compras",onde:"banco",job:"fiscal-validacao",arquivo:"supabase/061_fiscal_consulta_agendamento.sql",crons:["40 8 * * *"],limite:"cron",tolerancia:90,semRegistro:true,
-      fonte:"notas_fiscais_consultas",rotulo:"Última consulta",oque:"Consulta a fonte oficial das notas pendentes, em contingência ou recentes; sem certificado e endereço oficiais só registra \"indisponível\" e nada muda"},
     {id:"fiscal_entradas",nome:"Central Fiscal (entrada no Mercado)",area:"Compras",onde:"banco",job:"fiscal-entradas",arquivo:"supabase/060_central_fiscal_rotinas.sql",crons:["10 */6 * * *"],limite:"cron",tolerancia:90,semRegistro:true,
       fonte:"notas_fiscais_entradas",rotulo:"Última retomada",oque:"Retoma sozinha a entrada no Mercado das notas confirmadas que falharam e liga notas antigas a compras que já existem; só registra quando há o que fazer"}];
   function monMs(x){if(x==null||x==="")return null;var t=typeof x==="number"?x:Date.parse(x);return isFinite(t)?t:null}
@@ -2962,10 +2960,10 @@
     else m={chave:"mercado",rotulo:s==="cancelada"||s==="rejeitada"?"Não lançada ("+(NF_SITUACOES[s]||s).toLowerCase()+")":"Não lançada no Mercado",tom:s==="cancelada"||s==="rejeitada"?"fxruim":"fxpend",lancar:!(s==="cancelada"||s==="rejeitada")};
     if(m.revisar)m.rotulo+=" · revisar: nota "+(m.revisar==="nota_rejeitada"?"rejeitada":"cancelada")+" depois da entrada";
     out.push(m);return out}
-  /* a última consulta oficial de uma nota (notas_fiscais_consultas) em uma frase honesta: nunca afirma autorização sem o resultado "autorizada" registrado; "indisponível" nunca vira autorização; lida = false quando a tabela não está no banco (060 pendente) */
+  /* a última consulta oficial de uma nota (notas_fiscais_consultas) em uma frase honesta: sem consulta registrada, diz que a validação oficial ainda não está habilitada; nunca afirma autorização sem o resultado "autorizada" registrado */
   function nfConsultaTexto(c,lida,n){
-    if(lida===false)return "A validação oficial automática ainda não está disponível no banco (migration 060 pendente) ou não consegui ler agora.";
-    if(!c)return n&&(n.situacao==="cancelada"||n.situacao==="rejeitada")?"Nota "+(NF_SITUACOES[n.situacao]||n.situacao).toLowerCase()+": não há mais o que consultar.":!n||!n.chave?"Sem chave de acesso: a consulta oficial não é possível. A entrada no Mercado não depende dela.":"Ainda não consultada pela rotina diária. A entrada no Mercado não depende dela.";
+    var SEM="Validação oficial automática ainda não habilitada: a situação fiscal vem do documento e só muda por atualização manual ou ao reler o documento. A entrada no Mercado não depende dela.";
+    if(!c)return n&&(n.situacao==="cancelada"||n.situacao==="rejeitada")?"Nota "+(NF_SITUACOES[n.situacao]||n.situacao).toLowerCase()+": não há mais o que consultar.":SEM;
     var q=function(x){if(!x)return "";var d=new Date(x);return isFinite(d)?d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""};
     var R={autorizada:"autorização confirmada pela fonte oficial",cancelada:"cancelamento confirmado pela fonte oficial",denegada:"uso denegado pela fonte oficial",pendente:"a fonte oficial ainda não concluiu",nao_encontrada:"a nota não consta na fonte oficial (ainda)",indisponivel:"consulta oficial indisponível: nada foi alterado",erro:"resposta inesperada da fonte oficial: nada foi alterado",invalida:"resposta sem evidência suficiente: nada foi alterado"};
     return "Última consulta em "+q(c.consultado_em)+": "+(R[c.resultado]||c.resultado)+(c.mudou?" · a situação fiscal foi atualizada":"")+(c.motivo?" ("+c.motivo+")":"")+". "+(c.encerrada?"Consulta encerrada.":c.proxima_em?"Próxima por volta de "+q(c.proxima_em)+".":"")+" A entrada no Mercado não depende da consulta."}

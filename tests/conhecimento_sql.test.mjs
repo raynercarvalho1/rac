@@ -15,9 +15,9 @@ const S62 = ler("supabase/062_conhecimento.sql");
 const R = "11111111-1111-4111-8111-111111111111", F = "22222222-2222-4222-8222-222222222222", X = "33333333-3333-4333-8333-333333333333";
 const trecho = (arq, ini, fim) => { const t = ler(arq), i = t.indexOf(ini); assert.ok(i >= 0, ini); return t.slice(i, t.indexOf(fim, i) + fim.length); };
 
-test("062 (texto): pendente, uma transação, reexecutável, só cria (não apaga nem altera o que existe), RLS e mfa nas duas tabelas, nada para anon, sem DELETE e sem escrita no histórico", () => {
+test("062 (texto): aplicada, uma transação, reexecutável, só cria (não apaga nem altera o que existe), RLS e mfa nas duas tabelas, nada para anon, sem DELETE e sem escrita no histórico", () => {
   const sem = S62.replace(/^--.*$/gm, "");
-  assert.equal(S62.split("\n")[0], "-- status: pendente"); assert.match(S62, /NÃO APLICADA/); assert.match(sem, /\nbegin;[\s\S]*\ncommit;/);
+  assert.match(S62.split("\n")[0], /^-- Aplicado em produção em 20\/11\/2026/); assert.ok(!/-- status: pendente/.test(S62), "aplicada: o banco real tem as tabelas"); assert.match(sem, /\nbegin;[\s\S]*\ncommit;/);
   assert.ok(!/\b(drop\s+(table|policy\s+if\s+exists\s+"[^"]*"\s+on\s+public\.(?!%I)|function)|truncate|delete\s+from|alter\s+table\s+public\.(?!%I))/i.test(sem.replace(/drop policy if exists "[^"]+" on public\.%I/g, "")), "nada destrutivo fora das duas tabelas novas");
   assert.match(sem, /foreach t in array array\['conhecimento', 'conhecimento_historico'\] loop/);
   assert.match(sem, /enable row level security/); assert.match(sem, /create policy "mfa" on public\.%I as restrictive/); assert.match(sem, /revoke all on public\.%I from public, anon, authenticated, service_role/);

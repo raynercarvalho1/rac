@@ -3,7 +3,7 @@
 Memória técnica permanente do projeto, dentro do próprio site (`#conhecimento`, só do dono). Guarda o que um agente de IA (ou o próprio dono, meses depois) precisa saber
 para **não repetir erros, não desfazer decisões aprovadas e não executar procedimentos já identificados como errados**.
 
-Criado em 20/11/2026. Migration `supabase/062_conhecimento.sql` (**preparada; aplicação pelo dono**), tela `js/conhecimento.js`, regras puras `NUCLEO.kn*` (`nucleo.js`),
+Criado em 20/11/2026. Migration `supabase/062_conhecimento.sql` (**aplicada em produção em 20/11/2026**, conferida), tela `js/conhecimento.js`, regras puras `NUCLEO.kn*` (`nucleo.js`),
 ferramenta dos agentes `scripts/conhecimento.mjs`, registros iniciais em `docs/conhecimento/registros/`, testes `tests/conhecimento_*.test.mjs`.
 
 ## O que existe
@@ -110,7 +110,7 @@ O `.claude/settings.json` não libera `node scripts/conhecimento.mjs` (a políti
 nuvem, ou o dono pode acrescentar `Bash(node scripts/conhecimento.mjs *)` à lista (o teste `permissoes.test.mjs` pede revisão de qualquer mudança ali). Enquanto isso, ler e editar os
 `.md` pelas ferramentas de arquivo funciona sem aprovação; só o `indice` precisa do script, e o teste do CI reprova um índice desatualizado dizendo o comando.
 
-## Aplicar em produção (dono)
+## Aplicar em produção (já feito em 20/11/2026; o roteiro serve para outro ambiente)
 
 1. SQL Editor: `supabase/062_conhecimento.sql` (reexecutável; roda depois da 022). Se a 050 (catálogo) ainda não foi aplicada, ele só avisa; rode a 062 de novo depois da 050.
 2. Conferir: `supabase/conferencias/062_conferir_producao.sql` (só leitura; tudo "ok") e, se quiser, `tests/seguranca.test.mjs` (sem login não lê as duas tabelas).

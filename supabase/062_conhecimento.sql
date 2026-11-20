@@ -1,6 +1,6 @@
--- status: pendente
+-- Aplicado em produção em 20/11/2026 (conferido: RLS nas duas tabelas, anon e service_role sem privilégio, histórico só SELECT, sem DELETE pelo site, políticas "so o dono" e "mfa" RESTRICTIVE, gatilho ligado, funções fechadas, 0 registros).
 -- RAC Knowledge (docs/conhecimento.md): memória técnica permanente do projeto (regras, decisões, erros e soluções, procedimentos, estado e diário).
--- PREPARADA, NÃO APLICADA em produção (o dono roda no SQL Editor, com autorização própria). Pode rodar de novo sem estragar nada.
+-- Aplicada pelo Claude Code via Supabase MCP (apply_migration, sem as linhas begin/commit), por autorização do dono. Pode rodar de novo sem estragar nada.
 -- Ordem: depois da 022 (rac_aal_ok) e da 051 (membros já existe desde antes). Não depende da 050: se o catálogo de auditoria ainda não existir, só avisa.
 --
 -- O QUE CRIA

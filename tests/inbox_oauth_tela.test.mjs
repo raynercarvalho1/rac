@@ -53,45 +53,46 @@ function amb(o = {}) {
   const a = ambiente({ contas: CONTAS, credenciais: [], pastas: [], mensagens: [], sincs: [], ...o }), destinos = [];
   a.ctx.location = { assign: (u) => destinos.push(u) }; a.destinos = destinos; return a;
 }
+const ger = (a) => todos(a.raiz).find((n) => n.tag === "button" && texto(n).replace(/\s+/g, " ").trim() === "Gerenciar contas").onclick();   /* a conexão mora em Gerenciar contas */
 const rot = (a, t) => todos(a.raiz).filter((n) => n.tag === "button" && texto(n).replace(/\s+/g, " ").trim() === t);
 
 test("conta Gmail/Outlook: a conexão é por OAuth (Conectar com Google/Microsoft), sem campo de senha, e o cadastro aceita os dois provedores", async () => {
-  const a = amb(); await a.abrir(G1); await assentar();
+  const a = amb(); await a.abrir(G1); await assentar(); ger(a);
   assert.ok(rot(a, "Conectar com Google").length, "botão do Google"); assert.match(texto(a.raiz), /O RAC nunca vê a sua senha/); assert.ok(!todos(a.raiz).some((n) => n.tag === "input" && /senha/i.test(n.attrs.id || n.attrs.name || "")), "nenhum campo de senha");
-  const b = amb(); await b.abrir(O1); await assentar(); assert.ok(rot(b, "Conectar com Microsoft").length);
+  const b = amb(); await b.abrir(O1); await assentar(); ger(b); assert.ok(rot(b, "Conectar com Microsoft").length);
   assert.deepEqual(b.gravacoes, [], "abrir a tela não grava nada");
 });
 
 test("Conectar com Google: pede a URL ao serviço (só a conta_id), vai ao provedor e não grava nada; erro vira texto fixo; URL de outro destino é recusada", async () => {
-  const a = amb({ invoke: (n, o) => ({ data: { ok: true, provedor: "gmail", url: "https://accounts.google.com/o/oauth2/v2/auth?state=" + STATE }, error: null }) }); await a.abrir(G1); await assentar();
+  const a = amb({ invoke: (n, o) => ({ data: { ok: true, provedor: "gmail", url: "https://accounts.google.com/o/oauth2/v2/auth?state=" + STATE }, error: null }) }); await a.abrir(G1); await assentar(); ger(a);
   rot(a, "Conectar com Google")[0].onclick(); await assentar();
   assert.deepEqual(a.chamadas.map((c) => c[1].body), [{ operacao: "oauth_iniciar", conta_id: G1 }]); assert.deepEqual(a.destinos, ["https://accounts.google.com/o/oauth2/v2/auth?state=" + STATE]); assert.deepEqual(a.gravacoes, []);
-  const m = amb({ invoke: () => ({ data: { ok: true, provedor: "gmail", url: "https://evil.example/login" }, error: null }) }); await m.abrir(G1); await assentar(); rot(m, "Conectar com Google")[0].onclick(); await assentar();
+  const m = amb({ invoke: () => ({ data: { ok: true, provedor: "gmail", url: "https://evil.example/login" }, error: null }) }); await m.abrir(G1); await assentar(); ger(m); rot(m, "Conectar com Google")[0].onclick(); await assentar();
   assert.deepEqual(m.destinos, [], "só URLs do Google e da Microsoft"); assert.match(texto(m.raiz), /não reconhece/);
-  const e = amb({ invoke: () => ({ data: null, error: { context: { status: 503, json: () => Promise.resolve({ ok: false, erro: "oauth_nao_configurado" }) } } }) }); await e.abrir(G1); await assentar(); rot(e, "Conectar com Google")[0].onclick(); await assentar();
+  const e = amb({ invoke: () => ({ data: null, error: { context: { status: 503, json: () => Promise.resolve({ ok: false, erro: "oauth_nao_configurado" }) } } }) }); await e.abrir(G1); await assentar(); ger(e); rot(e, "Conectar com Google")[0].onclick(); await assentar();
   assert.match(texto(e.raiz), /ainda não foi configurada no servidor/); assert.deepEqual(e.destinos, []);
 });
 
 test("retorno do provedor: o código é entregue UMA vez ao serviço (state + code), a tela confirma e relê; cancelamento e erro viram aviso; o código não fica na memória", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true, conectada: true, provedor: "gmail" }, error: null }) });
-  a.ctx.OAUTH_RETORNO = { state: STATE, code: CODE, erro: "" }; await a.abrir(G1); await assentar();
+  a.ctx.OAUTH_RETORNO = { state: STATE, code: CODE, erro: "" }; await a.abrir(G1); await assentar(); ger(a);
   assert.deepEqual(a.chamadas.map((c) => c[1].body), [{ operacao: "oauth_concluir", state: STATE, code: CODE }]); assert.match(texto(a.raiz), /Conta conectada/); assert.equal(a.ctx.OAUTH_RETORNO, null, "uso único");
-  await a.abrir(G1); await assentar(); assert.equal(a.chamadas.length, 1, "entrar de novo não reenvia o código");
-  const c = amb(); c.ctx.OAUTH_RETORNO = { state: STATE, code: "", erro: "recusado" }; await c.abrir(G1); await assentar(); assert.match(texto(c.raiz), /cancelada ou recusada/); assert.equal(c.chamadas.length, 0, "cancelado: nada é enviado");
-  const f = amb({ invoke: () => ({ data: null, error: { context: { status: 409, json: () => Promise.resolve({ ok: false, erro: "oauth_conta_divergente" }) } } }) }); f.ctx.OAUTH_RETORNO = { state: STATE, code: CODE, erro: "" }; await f.abrir(G1); await assentar();
+  await a.abrir(G1); await assentar(); ger(a); assert.equal(a.chamadas.length, 1, "entrar de novo não reenvia o código");
+  const c = amb(); c.ctx.OAUTH_RETORNO = { state: STATE, code: "", erro: "recusado" }; await c.abrir(G1); await assentar(); ger(c); assert.match(texto(c.raiz), /cancelada ou recusada/); assert.equal(c.chamadas.length, 0, "cancelado: nada é enviado");
+  const f = amb({ invoke: () => ({ data: null, error: { context: { status: 409, json: () => Promise.resolve({ ok: false, erro: "oauth_conta_divergente" }) } } }) }); f.ctx.OAUTH_RETORNO = { state: STATE, code: CODE, erro: "" }; await f.abrir(G1); await assentar(); ger(f);
   assert.match(texto(f.raiz), /não é a cadastrada/); assert.ok(!texto(f.raiz).includes(CODE), "o código nunca aparece na tela");
 });
 
 test("conta Gmail conectada: a tela oferece Sincronizar, Reconectar e Desconectar e avisa que enviar/organizar ainda não existem; Outlook conectado continua sem leitura e sem Sincronizar", async () => {
-  const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }] }); await a.abrir(G1); await assentar();
-  assert.match(texto(a.raiz), /Toque em Sincronizar para trazer as mensagens/); assert.ok(rot(a, "Reconectar com Google").length && rot(a, "Desconectar").length); assert.ok(sincBtnOuNada(a), "Gmail sincroniza");
-  const o = amb({ credenciais: [{ conta_id: O1, estado: "ativa" }] }); await o.abrir(O1); await assentar();
-  assert.match(texto(o.raiz), /leitura de mensagens deste provedor ainda não foi liberada/); assert.ok(!sincBtnOuNada(o), "sem botão de sincronizar para provedor sem leitura");
+  const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }] }); await a.abrir(G1); await assentar(); const sincA = sincBtnOuNada(a); ger(a);
+  assert.match(texto(a.raiz), /Toque em Sincronizar para trazer as mensagens/); assert.ok(rot(a, "Reconectar com Google").length && rot(a, "Desconectar").length); assert.ok(sincA, "Gmail sincroniza (ícone do topo da lista)");
+  const o = amb({ credenciais: [{ conta_id: O1, estado: "ativa" }] }); await o.abrir(O1); await assentar(); const sincO = sincBtnOuNada(o); ger(o);
+  assert.match(texto(o.raiz), /leitura de mensagens deste provedor ainda não foi liberada/); assert.ok(!sincO && !rot(o, "Sincronizar").length, "sem botão de sincronizar para provedor sem leitura");
 });
 const sincBtnOuNada = (a) => todos(a.raiz).some((n) => /inb-topo-sinc/.test(n.className || "") && !n.attrs.disabled);
 
 test("Gmail na tela: Nova mensagem e as ações de organizar ficam desligadas (o servidor responderia provedor_sem_operacao); nenhuma chamada de escrita sai", async () => {
-  const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true }, error: null }) }); await a.abrir(G1); await assentar();
+  const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true }, error: null }) }); await a.abrir(G1); await assentar(); ger(a);
   const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), false, "não envia a partir de conta Gmail"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), false);
   assert.deepEqual(a.chamadas, [], "abrir a conta não chama nada");
 });

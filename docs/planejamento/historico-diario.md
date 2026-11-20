@@ -1369,3 +1369,15 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Lotes seguintes: envio/resposta/encaminhamento e gerenciamento do Gmail; sincronização incremental e automática; Outlook (Graph) completo; migração de Compras/Carreira/vagas; validação no iPhone.
 
+## 20/11/2026 · RAC Inbox: menu com seção Contas e Gerenciar contas (versão `2026-11-20.7`)
+
+### 1. O que fizemos
+- Conferido: PRs #56 e #57 mesclados; lote do Gmail (função `i4.1`) fora do escopo desta interface. Branch nova `claude/inbox-menu-contas` a partir da `main`.
+- Tela de mensagens sem cartões de conexão; menu com Caixa unificada, seção **Contas** recolhível (contas e pastas por conta, não lidas) e **Gerenciar contas** (cartão por conta com provedor, estado, última sincronização e só as ações que o provedor implementa). Sem mudança em OAuth, credenciais, sincronização, função, banco ou Worker. Testes: `inbox_menu_contas` (10) e Chromium a 390/820/1440 px; suíte completa verde.
+
+### 2. O que estamos fazendo
+- PR para revisão; sem publicação.
+
+### 3. O que vamos fazer
+- Dono: mesclar, conferir no iPhone. Depois: envio/gerenciamento do Gmail, sincronização automática, Outlook, migração de Compras/Carreira/vagas.
+

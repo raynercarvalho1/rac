@@ -1061,3 +1061,60 @@ test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas cont
     servidor.close();
   }
 });
+
+// Inbox · menu com a seção "Contas" e "Gerenciar contas" (390, 820 e 1440 px): a tela de mensagens não tem cartões de conexão; o menu agrupa as três contas; Gerenciar contas mostra cada conta com suas ações.
+test("Inbox: menu com seção Contas e Gerenciar contas (390, 820 e 1440 px), sem cartões de conexão nas mensagens e sem estouro horizontal", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    for (const [rotulo, viewport] of [["iPhone 390", { width: 390, height: 844 }], ["tablet 820", { width: 820, height: 1180 }], ["desktop 1440", { width: 1440, height: 900 }]]) {
+      const pag = await nav.newPage({ viewport }), erros = [];
+      pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+      pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+      await pag.route((u) => !u.href.startsWith(base), (rota) => { const rq = rota.request(), t = rq.resourceType(), cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*" };   /* nada externo é alcançado (ver o teste do cartão E-mail) */
+        if (rq.method() === "OPTIONS" || t === "image" || t === "font" || t === "media") return rota.fulfill({ status: 204, headers: cors });
+        return rota.fulfill({ status: 200, headers: cors, contentType: t === "script" ? "application/javascript" : t === "stylesheet" ? "text/css" : "application/json", body: t === "script" || t === "stylesheet" ? "" : "{}" }); });
+      await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+      await pag.evaluate(() => {
+        const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003", PA = "bbbbbbbb-0000-4000-8000-000000000001", PB = "bbbbbbbb-0000-4000-8000-000000000002", PC = "bbbbbbbb-0000-4000-8000-000000000003";
+        const dados = { inbox_contas: [{ id: A, apelido: "iCloud", endereco: "eu@icloud.example", estado: "conectada", provedor: "icloud" }, { id: B, apelido: "Rayner Carvalho com um nome bem comprido", endereco: "rayner.com.endereco.bem.comprido@gmail.example", estado: "conectada", provedor: "gmail" }, { id: C, apelido: "Raynim", endereco: "raynim@gmail.example", estado: "conectada", provedor: "gmail" }],
+          inbox_pastas: [{ id: PA, conta_id: A, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 9, nao_lidas: 4 }, { id: PB, conta_id: B, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 9, nao_lidas: 2 }, { id: PC, conta_id: C, nome_externo: "INBOX", nome_exibicao: "Caixa de entrada", uso: "entrada", total: 0, nao_lidas: 0 }],
+          inbox_credenciais: [A, B, C].map((c) => ({ conta_id: c, estado: "ativa" })), inbox_sincronizacao: [], inbox_mensagens_ref: [] };
+        const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+        SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) }, functions: { invoke: () => Promise.resolve({ data: { ok: true }, error: null }) } };
+        PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+        document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inbox"; route();
+      });
+      await pag.waitForSelector(".inb-janela", { timeout: 10000 });
+      const estreito = viewport.width < 900;
+      assert.equal(await pag.locator(".inb-conexao").count(), 0, rotulo + ": a tela de mensagens não tem cartão de conexão");
+      if (estreito) await pag.click('button[aria-label="Caixas"]');
+      assert.equal(await pag.locator(".inb-secao").count(), 1, rotulo + ": uma seção Contas"); assert.equal(await pag.locator(".inb-secao").getAttribute("aria-expanded"), "true");
+      assert.equal(await pag.locator(".inb-conta-linha").count(), 3, rotulo + ": as três contas dentro da seção"); assert.equal(await pag.locator(".inb-lateral").getByText("Gerenciar contas").isVisible(), true, rotulo + ": Gerenciar contas à vista no menu");
+      await pag.locator(".inb-secao").click(); assert.equal(await pag.locator(".inb-contas").isVisible(), false, rotulo + ": recolhe"); await pag.locator(".inb-secao").click(); assert.equal(await pag.locator(".inb-contas").isVisible(), true, rotulo + ": reabre");
+      await pag.locator(".inb-conta-linha .inb-conta").nth(1).click(); if (estreito) await pag.click('button[aria-label="Caixas"]');   /* escolhe uma conta e (no celular) reabre o menu */
+      assert.ok((await pag.locator(".inb-lateral .inb-pasta:not(.inb-item--off)").count()) >= 1, rotulo + ": a conta escolhida mostra as pastas");
+      await pag.locator(".inb-lateral").getByText("Gerenciar contas").click();
+      await pag.waitForSelector(".inb-gerenciar", { timeout: 5000 }); assert.equal(await pag.locator(".inb-gc").count(), 3, rotulo + ": cada conta individualmente");
+      const t = await pag.locator(".inb-gerenciar").innerText(); assert.ok(/Sincronizar/.test(t) && /Testar conexão/.test(t) && /Reconectar com Google/.test(t) && /Desconectar/.test(t), rotulo + ": ações do provedor");
+      const med = await pag.evaluate(() => { const g = document.querySelector(".inb-gerenciar").getBoundingClientRect(), vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }; return { pag: document.documentElement.scrollWidth - innerWidth, dentro: [...document.querySelectorAll(".inb-gc")].every((c) => { const r = c.getBoundingClientRect(); return r.right <= g.right + 1 && r.left >= g.left - 1; }), alvos: [...document.querySelectorAll(".inb-gc button")].filter(vis).map((b) => Math.round(b.getBoundingClientRect().height)) }; });
+      assert.ok(med.pag <= 0, rotulo + ": sem rolagem horizontal (" + med.pag + ")"); assert.equal(med.dentro, true, rotulo + ": os cartões ficam dentro da área"); assert.ok(med.alvos.length >= 8 && med.alvos.every((a) => a >= 40), rotulo + ": alvos de toque (" + med.alvos + ")");
+      /* no celular e no tablet o cabeçalho tem o ← ; no desktop largo a saída é escolher uma caixa no menu (que já está à vista) */
+      if (estreito) await pag.locator('button[aria-label="Voltar às mensagens"]').click(); else await pag.locator(".inb-unificada").click();
+      assert.equal(await pag.locator(".inb-gerenciar").count(), 0, rotulo + ": volta às mensagens");
+      assert.deepEqual(erros, [], rotulo + ": nenhum erro de JavaScript");
+      await pag.close();
+    }
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

@@ -1238,3 +1238,44 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono, na ordem: (1) conferir o relatório; (2) a `057` já está aplicada: não reaplicar; (3) rodar a `059` no SQL Editor e a conferência `059`; (4) autorizar commit/PR/publicação do site; (5) teste real com uma nota (XML e foto) e, se quiser, calibrar os 70% com `scripts/calibrar_correspondencia.mjs` usando os produtos reais. Depois: decidir sobre estudo de viabilidade da consulta à SEFAZ (continua fora do escopo).
+
+## 20/11/2026 · Central Fiscal: correção após o teste real da versão 2026-11-16.6 (branch `claude/central-fiscal-rac-redesign-r9r578`, versão `2026-11-20.1`)
+
+### 1. O que fizemos
+- O teste real mostrou que o fluxo não correspondia ao aprovado: a confiança da IA (mínimo de 90%, com teto de 85% quando a IA marcava campo incerto) e a caixa "Conferi" ainda impediam a confirmação. Correção em um lote, **sem migration nova** (a 059 aplicada fica como está; as funções 037/039/059 não mudaram).
+- **Confiança só informa**; removidos o mínimo de 90%, o teto de 85% e a caixa "Conferi" (editor e lista). O clique em "Estou de acordo" vai ao banco como `revisada = true` com a confiança real. Bloqueia só impedimento real, sempre com o motivo: dado essencial ausente, conta que não fecha, cancelada/rejeitada, conflito de chave, duplicidade.
+- **Campo não impresso não é erro** (subtotal, descontos, frete, outras, valor pago, número, série, CNPJ, protocolo e chave): nada é inventado; cartão separa não impresso × ilegível × divergência real. Foto/PDF sem chave legível entra como pendente fiscal.
+- **QR Code da NFC-e** lido no aparelho (jsQR 1.4.0 por CDN, versão exata): chave validada (DV) complementa a IA; divergência vira conflito mostrado e decidido no formulário; sem QR/ilegível/leitor indisponível segue só com a IA. **Consulta à SEFAZ-SP avaliada e não implementada** (proteção antirobô; nada contornado); QR e consulta nunca mudam a situação fiscal nem bloqueiam o Mercado.
+- Testes: novo `fiscal_qr` (12); `fiscal`, `fiscal_ia`, `fiscal_foto_gravar`, `fiscal_validacao`, `fiscal_tela` ajustados e ampliados; `banco_entrada_unica` ganhou o teste do banco real com confiança baixa e campos não impressos. Documentação em `docs/fiscal.md`.
+
+### 2. O que estamos fazendo
+- Aguardando a autorização do dono para commit, push, PR e publicação (nada foi publicado desta correção).
+
+### 3. O que vamos fazer
+- Dono: autorizar a publicação; testar com notas reais (foto com QR, foto sem QR, PDF) e informar se o QR foi lido; decidir sobre estudo de canal oficial para a consulta (continua fora).
+
+## 20/11/2026 · Central Fiscal: lote integrado definitivo (2º comando do dono; branch `claude/central-fiscal-rac-redesign-r9r578`, versão `2026-11-20.1`)
+
+### 1. O que fizemos
+- **Regra de confiança corrigida pelo dono:** mínimo de **60%** para permitir a confirmação humana; **60–69%** confirma com aviso de baixa confiança; **70% ou mais** normal (substitui a regra "só informa" do lote anterior do mesmo dia). O banco repete o piso de 60% (migration 060, dentro de `nota_fiscal_confirmar`).
+- **Entrada no Mercado sem segunda ação:** a 060 (proposta) retoma sozinha as entradas confirmadas que falharam (job SQL `fiscal-entradas`, a cada 6 h, intervalo crescente, até 6 tentativas), pelas decisões guardadas, sem nova confirmação, sem duplicar compra; reconciliação liga notas antigas a compras que já existem (mesma chave) sem criar compra nem inventar confirmação. Estados de Mercado na tela: Não lançada, Lançada, Falha na entrada, Aguardando nova tentativa, separados da situação fiscal.
+- **Validação fiscal diária (código pronto, sem acesso oficial):** funções do banco `nf_validacao_pendentes`/`nf_validacao_registrar` (situação só muda com evidência oficial; histórico sem duplicar; cancelamento posterior marca a compra para revisão), tabela `notas_fiscais_consultas`, Edge Function `fiscal-consulta` (não publicada) e agendamento diário 061 (proposta). **Limite real:** o web service da SEFAZ exige certificado digital e endereço por UF; sem eles a rodada registra "indisponível" e nada muda. Não foi possível verificar o formato contra a SEFAZ real.
+- Monitor: duas rotinas novas; Documento 05, `mapa`, `seguranca`, `fiscal.md` atualizados; conferências só leitura `060_conferir_producao.sql` e `060_diagnostico_notas.sql`.
+- Testes: `banco_fiscal_rotinas` (7, PGlite) e `fiscal_consulta` (6) novos; `fiscal`, `fiscal_ia`, `fiscal_foto_gravar`, `fiscal_correspondencia`, `banco_foto_pdf_site`, `monitor` e os guardas (`central`, `seguranca`, `seguranca_catalogo`, `banco_lote3`) ajustados. A causa exata da nota "sem entrada" em produção não pôde ser provada sem ler o banco de produção (não autorizado): ver o diagnóstico só leitura.
+
+### 2. O que estamos fazendo
+- Validação final (suíte completa, `git diff --check`) e relatório. Nada foi commitado, enviado, aplicado em produção nem publicado; aguardando a autorização do dono.
+
+### 3. O que vamos fazer
+- Dono: autorizar commit/push/PR; aplicar a 060, publicar a função `fiscal-consulta`, aplicar a 061 e publicar o site (nessa ordem); rodar `060_diagnostico_notas.sql`; decidir sobre o certificado digital e os endereços da SEFAZ (sem eles a consulta oficial fica "indisponível").
+
+## 20/11/2026 · Central Fiscal: preparação para revisão, SEFAZ fora do escopo (mesma branch)
+
+### 1. O que fizemos
+- Por decisão do dono, a consulta oficial à SEFAZ ficou para um lote futuro: a função `fiscal-consulta` só age com `FISCAL_CONSULTA_ATIVA=1` e certificado (padrão: desligada, não lê nem grava nada); a 061 saiu da sequência e ficou em `supabase/propostas/`; o Monitor perdeu a rotina `fiscal-validacao`; a tela diz "Validação oficial automática ainda não habilitada". Nenhum Secret da SEFAZ é necessário. Entrada automática, recuperação, reconciliação, QR e regra de 60/70% não foram tocados.
+
+### 2. O que estamos fazendo
+- Nada em produção: a branch aguarda a revisão do dono (sem PR, merge, SQL, função ou site).
+
+### 3. O que vamos fazer
+- Dono: revisar; aplicar a 060 e publicar o site quando autorizar. Lote futuro: certificado A1, endereços por UF, função, 061.

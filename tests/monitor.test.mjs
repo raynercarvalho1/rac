@@ -60,7 +60,7 @@ test("divergência: todo processo agendado (pg_cron e GitHub) aparece no monitor
   const real = agendamentosReais();
   assert.ok(Object.keys(real.jobs).length >= 3 && Object.keys(real.workflows).length >= 3, "achou os agendamentos");
   assert.deepEqual(divergencias(N.MON_PROCESSOS, real), []);
-  assert.deepEqual(Object.keys(real.jobs).sort(), ["rac-newsletter", "rac-rotina", "radar-rotina"]);
+  assert.deepEqual(Object.keys(real.jobs).sort(), ["fiscal-entradas", "rac-newsletter", "rac-rotina", "radar-rotina"]);
   assert.deepEqual(Object.keys(real.workflows).sort(), ["noticias.yml", "testes.yml", "vagas.yml"]);
 });
 
@@ -270,6 +270,7 @@ function dadosBons() {
     newsletter_edicoes: [{ data: iso(agora).slice(0, 10), turno: "manha", origem: "regras", criado_em: iso(agora - 2 * H), atualizado_em: iso(agora - 2 * H) }],
     radar_coletas: [{ iniciada_em: iso(rad), terminada_em: iso(rad + 30e3), status: "ok", ofertas_lidas: 3, precos_gravados: 1, falhas: 0 }],
     garmin_dia: [{ atualizado: iso(agora - 3 * H) }],
+    notas_fiscais_entradas: [{ atualizado_em: iso(N.monCronAnterior("10 */6 * * *", agora - 90 * MIN) + MIN) }],
     "json:noticias.json": { coletado: iso(agora - H), noticias: [1, 2] }, "json:tecdados.json": { coletado: iso(agora - H), noticias: [1] },
     "json:rumores.json": { coletado: iso(agora - H), liga: [1] }, "json:newsletter.json": { coletado: iso(agora - H), grupos: [1], fontes: [{ n: "A", ok: true }] },
     "json:vagas.json": { coletado: iso(agora - 5 * H), vagas: [1, 2, 3] },
@@ -278,12 +279,12 @@ function dadosBons() {
   };
 }
 
-test("tela: os 6 processos agendados aparecem com estado, última execução, último sucesso, falhas, próxima prevista e o agendamento real", async () => {
+test("tela: os 7 processos agendados aparecem com estado, última execução, último sucesso, falhas, próxima prevista e o agendamento real", async () => {
   const t = tela({ resp: dadosBons() });
   await espera();
-  assert.match(t.p.children[2].textContent, /^6 rotinas agendadas: 6 ok\.$/);
+  assert.match(t.p.children[2].textContent, /^7 rotinas agendadas: 7 ok\.$/);
   const l = t.linhas();
-  assert.deepEqual(l.map((x) => x.txt[0]), ["Rotina das 6h · ok", "Newsletter (edições) · ok", "Radar de Preços (coleta) · ok", "Robô de notícias · ok", "Robô de vagas · ok", "Testes automáticos · ok"]);
+  assert.deepEqual(l.map((x) => x.txt[0]), ["Rotina das 6h · ok", "Newsletter (edições) · ok", "Radar de Preços (coleta) · ok", "Robô de notícias · ok", "Robô de vagas · ok", "Testes automáticos · ok", "Central Fiscal (entrada no Mercado) · ok"]);
   for (const x of l) {
     assert.equal(x.dot, "✓");
     const tudo = x.txt.join("\n");
@@ -304,7 +305,7 @@ test("tela: só lê (nenhuma gravação no banco), a API do GitHub é a pública
   const d = dadosBons(), t = tela({ resp: d });
   await espera();
   const tabelas = t.ops.map((o) => o.t).sort();
-  assert.deepEqual(tabelas, ["garmin_dia", "newsletter_edicoes", "radar_coletas", "rotina_log"]);
+  assert.deepEqual(tabelas, ["garmin_dia", "newsletter_edicoes", "notas_fiscais_entradas", "radar_coletas", "rotina_log"]);
   for (const o of t.ops) for (const k of o.ops) assert.ok(["select", "order", "limit", "eq"].includes(k), o.t + ": " + k);
   assert.equal(t.buscas.length, 4, "workflows + 3 listas de execuções");
   assert.equal(t.buscas.filter((b) => /\/runs\?branch=main&per_page=30$/.test(b.u)).length, 3, "só as execuções da main: um PR com teste falhando não vira falha do processo");
@@ -340,7 +341,7 @@ test("tela: rotina com falha, Radar sem registro, robô parado e tabela ilegíve
   assert.equal(l[2].txt[0], "Radar de Preços (coleta) · sem informação"); assert.match(l[2].txt[1], /só registra quando há o que ler/);
   assert.equal(l[3].txt[0], "Robô de notícias · atrasado"); assert.match(l[3].txt[1], /rumores da MLB parado/);
   assert.equal(l[4].txt[0], "Robô de vagas · ok");
-  assert.match(t.p.children[2].textContent, /6 rotinas agendadas: 1 falhou, 1 atrasado, 2 sem informação, 2 ok\./);
+  assert.match(t.p.children[2].textContent, /7 rotinas agendadas: 1 falhou, 1 atrasado, 2 sem informação, 3 ok\./);
 });
 
 test("ligações: o Sistema mostra o monitor logo depois da Saúde do RAC; o painel antigo dos robôs saiu (sem duplicar); ES5", () => {

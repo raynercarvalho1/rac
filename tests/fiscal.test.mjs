@@ -265,17 +265,33 @@ test("baixa confiança: falta quantidade/valor do item, total ausente, nota sem 
   assert.equal(chave.classe, "baixa_confianca"); assert.deepEqual(cods(chave), ["chave_invalida"]);
   assert.equal(N.nfVeredito(null).classe, "baixa_confianca", "entrada vazia nunca vira consistente");
 });
-test("foto ou PDF: só vale com a confiança da leitura informada e no mínimo 0,9; baixa confiança vem antes da divergência", () => {
-  const foto = (v) => NOTA([it("A", 2, "UN", "5.00", "10.00")], v || { produtos: 10, total: 10 }, { formato: "imagem" });
-  assert.equal(N.nfVeredito(foto()).classe, "baixa_confianca"); assert.deepEqual(cods(N.nfVeredito(foto())), ["confianca_ausente"]);
-  const b = N.nfVeredito(foto(), { confianca: 0.62 }); assert.deepEqual(cods(b), ["confianca_baixa"]); assert.match(b.motivos[0].texto, /62%.*90%/);
-  assert.equal(N.nfVeredito(foto(), { confianca: 0.95 }).classe, "consistente");
-  assert.equal(N.nfVeredito(foto(), { confianca: 0.9 }).classe, "consistente", "o mínimo é inclusivo");
-  assert.equal(N.nfVeredito(foto(), { confianca: 0.85, minimo: 0.8 }).classe, "consistente");
-  const ambos = N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.5 });
-  assert.equal(ambos.classe, "baixa_confianca"); assert.deepEqual(cods(ambos), ["confianca_baixa", "total"]);
-  assert.equal(N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.97 }).classe, "divergente", "leitura confiável que não fecha é divergência real");
+test("foto ou PDF: confiança mínima de 60% (abaixo bloqueia), 60–69% confirma com aviso de baixa confiança, 70% ou mais normal; dados essenciais ausentes e conta que não fecha continuam bloqueando, com o motivo", () => {
+  const foto = (v, x, itens) => NOTA(itens || [it("A", 2, "UN", "5.00", "10.00")], v || { produtos: 10, total: 10 }, { formato: "imagem", ...(x || {}) });
+  for (const c of [undefined, 0.6, 0.62, 0.69, 0.7, 0.8, 0.89, 0.9, 0.95]) { const v = N.nfVeredito(foto(), { confianca: c }); assert.equal(v.classe, "consistente", "confiança " + c); assert.equal(v.acao, "gravar"); }
+  for (const c of [0, 0.3, 0.59]) { const v = N.nfVeredito(foto(), { confianca: c }); assert.equal(v.classe, "baixa_confianca", "confiança " + c); assert.notEqual(v.acao, "gravar"); assert.equal(v.confianca_info.nivel, "bloqueia"); }
+  assert.deepEqual(N.nfVeredito(foto(), { confianca: 0.62 }).avisos.filter((a) => /Baixa confiança/.test(a)).length, 1, "60–69%: aviso");
+  assert.equal(N.nfVeredito(foto(), { confianca: 0.7 }).avisos.filter((a) => /Baixa confiança/.test(a)).length, 0, "70%: sem aviso");
+  assert.match(N.nfVeredito(foto(), { confianca: 0.62 }).confianca_info.texto, /62%.*baixa confiança/); assert.match(N.nfVeredito(foto(), { confianca: 0.8 }).confianca_info.texto, /80% \(informação\)/); assert.equal(N.nfVeredito(foto()).confianca_info, null, "sem confiança informada: nada a mostrar, nada bloqueado");
+  /* conta que não fecha: divergência real, com o valor, mesmo com confiança alta */
+  const div = N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.97 }); assert.equal(div.classe, "divergente"); assert.deepEqual(cods(div), ["total"]); assert.match(div.motivos[0].texto, /R\$ 15,00 a menos|a menos/); assert.match(div.motivos[0].texto, /frete, taxa ou outro acréscimo/);
+  { const b = N.nfVeredito(foto({ produtos: 10, total: 25 }), { confianca: 0.1 }); assert.notEqual(b.acao, "gravar", "abaixo de 60% bloqueia"); assert.ok(cods(b).includes("total") || b.classe === "divergente", "e a conta que não fecha continua aparecendo: " + JSON.stringify(cods(b))); }
+  /* dados essenciais: o Mercado precisa de estabelecimento, data, total e itens com descrição, quantidade e valor */
+  const sem = (x) => N.nfVeredito(NOTA([it("A", 2, "UN", "5.00", "10.00")], { produtos: 10, total: 10 }, { formato: "imagem", ...x }), { confianca: 0.99 });
+  assert.deepEqual(cods(sem({ data_emissao: null })), ["sem_data"]); assert.deepEqual(cods(sem({ emitente: { nome: "" } })), ["sem_emitente"]);
+  assert.deepEqual(cods(N.nfVeredito(NOTA([it("", 2, "UN", "5.00", "10.00")], { produtos: 10, total: 10 }, { formato: "imagem" }))), ["item_sem_descricao"]);
+  assert.deepEqual(cods(N.nfVeredito(NOTA([it("A", 0, "UN", "5.00", "10.00")], { total: 10 }, { formato: "imagem" }))), ["item_incompleto"], "quantidade inválida");
+  assert.equal(N.nfVeredito(NOTA([it("A", 2, "UN", "5.00", "10.00")], { produtos: 10 }, { formato: "imagem" })).classe, "baixa_confianca", "sem total da nota");
+  assert.equal(N.nfVeredito(NOTA([it("A", 2, "UN", "5.00", "10.00")], { produtos: 10, total: 10 }, { formato: "imagem" })).rotulo, "Consistente"); assert.equal(sem({ data_emissao: null }).rotulo, "Dados incompletos");
   assert.equal(N.nfVeredito(normXML(xmlNFCe()), { confianca: 0.1 }).classe, "consistente", "XML não depende de confiança de leitura");
+});
+test("campo não impresso NÃO é erro: foto sem total dos produtos, sem descontos, sem frete e sem outras despesas fecha pela conta possível (itens × total da nota); nada é inventado", () => {
+  const n = NOTA([it("A", 2, "UN", "5.00", "10.00"), it("B", 1, "UN", "3.00", "3.00", "1.00")], { total: 12 }, { formato: "imagem" });      // só o total da nota e os itens; o desconto de 1,00 está no item
+  const v = N.nfVeredito(n, { confianca: 0.8 }); assert.equal(v.classe, "consistente", JSON.stringify(v.motivos)); assert.equal(v.soma.total_calculado, 12); assert.equal(n.valores.produtos, null, "total dos produtos não foi inventado"); assert.equal(n.valores.frete, null);
+  const info = N.nfCamposInfo({ valores: { total: 12 }, chave: null }, []).map((x) => x.campo + ":" + x.estado); assert.deepEqual(info, ["Total dos produtos:ausente", "Descontos:ausente", "Frete:ausente", "Outras despesas:ausente", "Valor pago:ausente", "Chave de acesso:ausente"]);
+  const il = N.nfCamposInfo({ valores: { total: 12, descontos: 1 }, chave: null }, [{ campo: "descontos", motivo: "cortado" }, { campo: "total_produtos", motivo: "borrado" }, { campo: "chave", motivo: "manchada" }]);
+  const por = Object.fromEntries(il.map((x) => [x.campo, x])); assert.equal(por["Descontos"].estado, "ilegivel"); assert.match(por["Descontos"].texto, /confira o valor lido/); assert.equal(por["Total dos produtos"].estado, "ilegivel"); assert.match(por["Total dos produtos"].texto, /não entrou na conta/); assert.equal(por["Chave de acesso"].estado, "ilegivel"); assert.equal(por["Frete"].estado, "ausente");
+  /* divergência real continua aparecendo, com o valor: faltou ler um acréscimo e a nota não fecha */
+  const real = N.nfVeredito(NOTA([it("A", 2, "UN", "5.00", "10.00")], { total: 12 }, { formato: "imagem" })); assert.equal(real.classe, "divergente"); assert.match(real.diferenca_texto, /R\$ 2,00 a menos/);
 });
 test("nfValidarSoma não altera a nota, usa só centavos inteiros e devolve a conta item a item", () => {
   const n = NOTA([it("A", 3, "UN", "0.10", "0.30"), it("B", 3, "UN", "0.20", "0.60")], { produtos: 0.9, total: 0.9 }), copia = JSON.stringify(n);
@@ -376,7 +392,7 @@ test("nenhum veredito deixa a nota alimentar o Financeiro sem ser consistente E 
   const itens = [it("A", 1, "UN", "10.00", "10.00")];
   const casos = [[{ total: 10 }, {}, true], [{ total: 10 }, { cancelada: true }, false], [{ total: 10 }, { cStat: 204 }, false], [{ total: 10 }, { cStat: null, protocolo: null }, false], [{ total: 11 }, {}, false], [{}, {}, false], [{ total: 10 }, { chave: "123" }, false]];
   for (const [val, extra, esperado] of casos) { const v = N.nfVeredito(NOTA(itens, val, extra)); assert.equal(v.pode_alimentar_financeiro, esperado, JSON.stringify([val, extra])); assert.equal(v.pode_alimentar_financeiro, v.gravar_validada); }
-  assert.equal(N.nfVeredito(NOTA(itens, { total: 10 }, { formato: "imagem" })).pode_alimentar_financeiro, false, "foto sem confiança informada");
+  assert.equal(N.nfVeredito(NOTA(itens, { total: 10 }, { formato: "imagem" })).pode_alimentar_financeiro, true, "foto autorizada, com chave válida e conta certa: a confiança da IA não é critério"); assert.equal(N.nfVeredito(NOTA(itens, { total: 10 }, { formato: "imagem", chave: null })).pode_alimentar_financeiro, false, "foto sem chave nunca é validada");
 });
 test("desconto não é subtraído duas vezes: total do item é bruto; item já líquido não fecha e é apontado", () => {
   const bruto = N.nfVeredito(NOTA([it("A", 2, "UN", "10.00", "20.00", "5.00")], { produtos: 20, descontos: 5, total: 15 }));

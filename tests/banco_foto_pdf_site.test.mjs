@@ -147,9 +147,9 @@ test("PGlite · PDF e quatro imagens montados pelo site", { skip: pular }, async
 });
 test("PGlite · o site e o banco decidem IGUAL em cada caso (validada, pendente fiscal, bloqueada) — divergente, baixa confiança, cancelada, rejeitada, sem chave, componentes", { skip: pular }, async () => {
   const db = await banco();
-  const casos = [[10, {}, "validada", true], [11, { res: { situacao: "contingencia", protocolo: null, chave: chaveDe(11, "9") } }, "pendente_fiscal", true], [12, { res: { total: 60 } }, "bloqueada", false], [13, { confianca: 0.62 }, "bloqueada", false],
-    [14, { res: { situacao: "cancelada" } }, "bloqueada", false], [15, { res: { situacao: "rejeitada", protocolo: null } }, "bloqueada", false], [16, { res: { chave: null } }, "bloqueada", false], [17, { confianca: 0.62, revisada: true }, "validada", true],
-    [18, { confianca: 0.9 }, "validada", true], [19, { confianca: 0.89 }, "bloqueada", false],
+  const casos = [[10, {}, "validada", true], [11, { res: { situacao: "contingencia", protocolo: null, chave: chaveDe(11, "9") } }, "pendente_fiscal", true], [12, { res: { total: 60 } }, "bloqueada", false], [13, { confianca: 0.62, revisada: true }, "validada", true],
+    [14, { res: { situacao: "cancelada" } }, "bloqueada", false], [15, { res: { situacao: "rejeitada", protocolo: null } }, "bloqueada", false], [17, { confianca: 0.62, revisada: true }, "validada", true],
+    [18, { confianca: 0.9 }, "validada", true],
     [20, { res: { total_produtos: 56.13, descontos: 2.13, total: 64, valor_pago: 64, componentes: { st: 8, ipi: 2 }, itens: [{ descricao: "X", qtd: 1, unidade: "UN", unitario: 56.13, total: 56.13, desconto: 2.13 }] } }, "validada", true],
     [21, { res: { total_produtos: 25.5, total: 21.5, valor_pago: 21.5, componentes: { deson: 4 } } }, "validada", true],
     [22, { res: { itens: [{ descricao: "X", qtd: 3, unidade: "UN", unitario: 10, total: 25, desconto: 0 }], total_produtos: 25, total: 25, valor_pago: 25 } }, "bloqueada", false]];
@@ -256,15 +256,15 @@ test("a 039 é a função da 037 com UMA diferença (chave ausente + revisada de
 test("PGlite · com a 039: sem chave + revisão do dono vira PENDENTE fiscal (situação 'pendente'), sem conferir; sem revisão continua bloqueada; cancelada e conta errada continuam bloqueando", { skip: pular }, async () => {
   const db = await banco(); await db.exec(ler(P39)); await db.exec(ler(P39));     // idempotente
   const sem = (n, o = {}) => gravar(db, n, { ...o, res: { chave: null, ...(o.res || {}) } });
-  const a = await sem(70, { revisada: true, confianca: 0.45 });
+  const a = await sem(70, { revisada: true, confianca: 0.62 });
   assert.equal(a.g.modo, "pendente_fiscal", "o site previu o mesmo"); assert.deepEqual([a.r.criado, a.r.resultado, a.r.classe], [true, "pendente_fiscal", "consistente"], JSON.stringify(a.r)); assert.match((a.r.avisos || []).join(" "), /sem chave.*revisão do dono/i);
   const n = (await admin(db, "select chave, situacao, requer_conferencia, conferida_em, formato_origem from public.notas_fiscais where id = $1", [a.id]))[0]; assert.deepEqual([n.chave, n.situacao, n.requer_conferencia, n.conferida_em, n.formato_origem], [null, "pendente", true, null, "imagem"]);
   assert.equal(await contar(db, "notas_fiscais_itens", `nota_id = '${a.id}'`), 2, "os itens ficam para o balanço"); assert.equal(await contar(db, "notas_fiscais_docs", `nota_id = '${a.id}'`), 1);
   assert.deepEqual((await admin(db, "select de, para from public.notas_fiscais_situacoes where nota_id = $1", [a.id])).map((x) => [x.de, x.para]), [[null, "pendente"]]);
-  const b = await sem(71); assert.deepEqual([b.g.modo, b.r.resultado, b.r.criado], ["bloqueada", "bloqueada", false]);
+  const b = await sem(71); assert.deepEqual([b.g.modo, b.r.resultado, b.r.criado], ["pendente_fiscal", "bloqueada", false], "o site não depende mais da 'revisão' para prever pendente, mas ele SEMPRE envia a confirmação humana (revisada); chamada sem ela o banco antigo ainda bloqueia");
   for (const [n2, res] of [[72, { situacao: "cancelada" }], [73, { total: 60 }]]) { const c = await sem(n2, { revisada: true, res }); assert.deepEqual([c.g.modo, c.r.resultado], ["bloqueada", "bloqueada"], String(n2)); }
-  const d = await sem(74, { revisada: true, confianca: 0.45, arqs: [a.arqs[0]], idem: idem(740), id: uuid(740) }); assert.deepEqual([d.r.criado, d.r.duplicada, d.r.motivo], [false, true, "arquivo"], "sem chave a duplicidade pelo arquivo continua valendo");
-  const e = await sem(75, { revisada: true, confianca: 0.45, res: { situacao: "contingencia", protocolo: null } }); assert.equal(e.r.resultado, "pendente_fiscal"); assert.equal((await admin(db, "select situacao as s from public.notas_fiscais where id = $1", [e.id]))[0].s, "contingencia");
+  const d = await sem(74, { revisada: true, confianca: 0.62, arqs: [a.arqs[0]], idem: idem(740), id: uuid(740) }); assert.deepEqual([d.r.criado, d.r.duplicada, d.r.motivo], [false, true, "arquivo"], "sem chave a duplicidade pelo arquivo continua valendo");
+  const e = await sem(75, { revisada: true, confianca: 0.62, res: { situacao: "contingencia", protocolo: null } }); assert.equal(e.r.resultado, "pendente_fiscal"); assert.equal((await admin(db, "select situacao as s from public.notas_fiscais where id = $1", [e.id]))[0].s, "contingencia");
   /* depois dá para autorizar com o protocolo (histórico preservado) e a nota continua sem conferência automática */
   const v = N.nfAtualizarSituacao({ id: a.id, situacao: "pendente" }, { para: "autorizada", protocolo: "131260000000007", fonte: "manual" }); assert.equal(v.ok, true); assert.equal((await atualizarSit(db, R, v.args)).para, "autorizada");
   assert.equal((await admin(db, "select conferida_em as c from public.notas_fiscais where id = $1", [a.id]))[0].c, null);
@@ -272,7 +272,7 @@ test("PGlite · com a 039: sem chave + revisão do dono vira PENDENTE fiscal (si
   await db.close();
 });
 test("PGlite · SEM a 039 (como em produção hoje) o banco bloqueia nota sem chave mesmo revisada: o site prevê pendente, mas vale a resposta do banco", { skip: pular }, async () => {
-  const db = await banco(); const a = await gravar(db, 80, { revisada: true, confianca: 0.45, res: { chave: null } });
+  const db = await banco(); const a = await gravar(db, 80, { revisada: true, confianca: 0.62, res: { chave: null } });
   assert.equal(a.g.modo, "pendente_fiscal", "o site prevê pendente"); assert.deepEqual([a.r.criado, a.r.resultado], [false, "bloqueada"], "o banco sem a 039 não deixa"); assert.equal(await contar(db, "notas_fiscais"), 0);
   await db.close();
 });

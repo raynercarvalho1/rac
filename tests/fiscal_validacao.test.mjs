@@ -61,7 +61,7 @@ test("decisão: autorizada e consistente = validada; pendente/contingência cons
   for (const k of ["pendente", "contingencia"]) { const d = dec(k); assert.deepEqual([d.pode, d.modo, d.conferir_permitido, d.veredito.classe, d.veredito.pode_alimentar_financeiro], [true, "pendente_fiscal", false, "consistente", false], k); assert.match(d.avisos.join(" "), /pendente de validação fiscal/); }
   assert.equal(dec("pendente").veredito.fiscal.situacao, "pendente"); assert.equal(dec("contingencia").veredito.fiscal.situacao, "contingencia");
   const div = dec("divergente"); assert.deepEqual([div.pode, div.modo, div.veredito.classe], [false, "bloqueada", "divergente"]); assert.match(div.bloqueios.join(" "), /A conta não fecha.*R\$ 4,75 a menos/);
-  const baixa = dec("baixa"); assert.deepEqual([baixa.pode, baixa.modo, baixa.veredito.classe], [false, "bloqueada", "baixa_confianca"]); assert.match(baixa.bloqueios.join(" "), /Baixa confiança.*Item 1.*quantidade/);
+  const baixa = dec("baixa"); assert.deepEqual([baixa.pode, baixa.modo, baixa.veredito.classe], [false, "bloqueada", "baixa_confianca"]); assert.match(baixa.bloqueios.join(" "), /Dados incompletos.*Item 1.*quantidade/);
   for (const k of ["cancelada", "rejeitada"]) { const d = dec(k); assert.deepEqual([d.pode, d.modo, d.veredito.fiscal.bloqueada], [false, "bloqueada", true], k); assert.match(d.bloqueios.join(" "), new RegExp(k)); assert.equal(d.veredito.pode_alimentar_financeiro, false); }
   for (const k of Object.keys(CASOS)) assert.equal(dec(k).gera_despesa, false, k);
 });
@@ -154,7 +154,7 @@ test("interface: cada situação mostra a conta, a diferença em reais e a situa
   assert.match(pend, /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim/); assert.match(pend, /Conta dos itens.*Consistente/, "a conta certa não torna a nota autorizada"); assert.match(pend, /Só como pendente fiscal \(sem validação\); a entrada no Mercado não espera a SEFAZ/);
   const div = await cartao("divergente");
   assert.match(div, /Conta dos itens.*Divergente/); assert.match(div, /Total calculado pelos itens.*R\$ 25,25/); assert.match(div, /Total fiscal.*R\$ 30,00/); assert.match(div, /R\$ 4,75 a menos que o total fiscal/); assert.match(div, /Situação fiscal.*Autorizada/, "autorizada com conta errada"); assert.match(div, /Gravação.*Bloqueada/);
-  const baixa = await cartao("baixa"); assert.match(baixa, /Conta dos itens.*Baixa confiança/); assert.match(baixa, /Baixa confiança: Item 1.*falta a quantidade/);
+  const baixa = await cartao("baixa"); assert.match(baixa, /Conta dos itens.*Dados incompletos/); assert.match(baixa, /Dados incompletos: Item 1.*falta a quantidade/);
   for (const k of ["cancelada", "rejeitada"]) { const t = await cartao(k); assert.match(t, new RegExp("Situação fiscal.*" + (k === "cancelada" ? "Cancelada" : "Rejeitada") + " — não vale como compra"), k); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /não vale como compra fiscal validada/); assert.match(t, /Gravação.*Bloqueada/); }
 });
 test("interface: o botão 'Estou de acordo' existe só quando a nota pode ser confirmada; sem botão de recusa; cancelada, rejeitada, divergente e sem quantidade mostram o motivo", async () => {

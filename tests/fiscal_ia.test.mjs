@@ -46,27 +46,30 @@ test("foto legível, confiança alta, conta fechada, autorizada: atende às regr
   assert.equal(nota.itens[3].unitario, 5.899, "o unitário não é arredondado em centavos");
   assert.equal(dec.gera_despesa, false); assert.equal(dec.veredito.pode_alimentar_financeiro, true, "a regra existe; nenhum código cria despesa");
 });
-test("a IA não aprova sozinha: sem confiança informada a leitura de foto é baixa confiança, e a confiança vem de nfConfiancaIA", () => {
+test("a confiança da IA é só informação: nfConfiancaIA devolve o valor real (sem 'revisão' que o transforme em 100%) e a ausência de confiança não bloqueia", () => {
   const ia = lerIA(resposta()), nota = N.nfNormalizar(ia.lido);
-  const sem = N.nfDecisaoGravacao(nota, null); assert.equal(sem.pode, false); assert.match(sem.bloqueios.join(" "), /sem medida de confiança/);
-  assert.equal(N.nfConfiancaIA({ confianca: 0.7 }), 0.7); assert.equal(N.nfConfiancaIA({ confianca: 0.7, revisada: true }), 1); assert.equal(N.nfConfiancaIA({ confianca: "x" }), 0); assert.equal(N.nfConfiancaIA(null), 0);
+  const sem = N.nfDecisaoGravacao(nota, null); assert.equal(sem.pode, true, "sem confiança informada: nada bloqueia"); assert.equal(sem.veredito.confianca_info, null);
+  assert.equal(N.nfConfiancaIA({ confianca: 0.7 }), 0.7); assert.equal(N.nfConfiancaIA({ confianca: 0.7, revisada: true }), 0.7, "não existe mais revisão que vire 100%"); assert.equal(N.nfConfiancaIA({ confianca: "x" }), 0); assert.equal(N.nfConfiancaIA(null), 0);
 });
-test("confiança inferior a 0,90 (foto de baixa qualidade) bloqueia a validação; exatamente 0,90 passa", () => {
-  const baixa = decidir(resposta({ confianca: 0.62 })); assert.equal(baixa.dec.pode, false); assert.equal(baixa.dec.modo, "bloqueada"); assert.match(baixa.dec.bloqueios.join(" "), /62%.*90%/);
-  const limite = decidir(resposta({ confianca: 0.9 })); assert.equal(limite.dec.pode, true); assert.equal(decidir(resposta({ confianca: 0.89 })).dec.pode, false);
+test("confiança: de 60% a 69% a confirmação é possível com aviso de baixa confiança; de 70% em diante normal; abaixo de 60% não confirma", () => {
+  for (const c of [0.6, 0.62, 0.69, 0.7, 0.8, 0.9]) { const x = decidir(resposta({ confianca: c })); assert.equal(x.dec.pode, true, "confiança " + c); assert.equal(x.dec.modo, "validada"); assert.match(x.dec.veredito.confianca_info.texto, new RegExp(Math.round(c * 100) + "%.*" + (c < 0.7 ? "baixa confiança" : "informação"))); }
+  for (const c of [0.3, 0.5, 0.59]) { const x = decidir(resposta({ confianca: c })); assert.equal(x.dec.pode, false, "abaixo de 60% bloqueia: " + c); assert.equal(x.dec.modo, "bloqueada"); assert.match(x.dec.veredito.confianca_info.texto, /abaixo do mínimo de 60%/); }
+  assert.equal(decidir(resposta({ confianca: 0.62 })).ia.confianca, 0.62, "o valor real é preservado (vai ao banco como está)");
 });
-test("foto parcialmente cortada: item sem total, total ausente e campos incertos viram baixa confiança, com a confiança limitada a 85%", () => {
+test("foto parcialmente cortada: item sem total e total da nota ausente bloqueiam com o motivo; a chave não legível NÃO bloqueia; a confiança não é alterada", () => {
   const cortada = resposta({ total: null, total_produtos: null, valor_pago: null, chave: null, incertos: [{ campo: "total", motivo: "cortado na dobra" }, { campo: "chave", motivo: "borrada" }],
     itens: [{ descricao: "BANANA PRATA", codigo: null, qtd: 0.734, unidade: "KG", unitario: 6.99, total: 5.13, desconto: 0, incerto: false }, { descricao: "AZEI", codigo: null, qtd: 2, unidade: "UN", unitario: 10, total: null, desconto: 0, incerto: true }] });
   const { ia, dec } = decidir(cortada);
-  assert.equal(ia.confianca, 0.85); assert.match(ia.avisos.join(" "), /limitada a 85%/); assert.deepEqual(ia.itens_incertos, [2]);
-  assert.equal(dec.pode, false); assert.equal(dec.veredito.classe, "baixa_confianca"); assert.match(dec.bloqueios.join(" "), /Item 2.*falta o valor total|sem valor total|total/i);
-  assert.match(dec.bloqueios.join(" "), /chave de acesso/);
+  assert.equal(ia.confianca, 0.96, "sem teto de 85%: a confiança é a que a IA informou"); assert.match(ia.avisos.join(" "), /marcou item ou campo importante como incerto: confira/); assert.deepEqual(ia.itens_incertos, [2]);
+  assert.equal(dec.pode, false); assert.equal(dec.veredito.classe, "baixa_confianca"); assert.match(dec.bloqueios.join(" "), /Dados incompletos: Item 2.*falta o valor total/); assert.match(dec.bloqueios.join(" "), /não tem valor total para comparar|valor total/i);
+  assert.doesNotMatch(dec.bloqueios.join(" "), /chave de acesso/, "chave ilegível não impede registrar a compra");
 });
-test("campos ausentes não são inventados: data, número, emitente e chave ficam ausentes e a nota não é validada", () => {
-  const { nota, dec } = decidir(resposta({ data_emissao: null, numero: null, serie: null, emitente_nome: null, emitente_cnpj: null, chave: null, protocolo: null, situacao: null }));
-  assert.equal(nota.data_emissao, null); assert.equal(nota.emitente.cnpj, null); assert.equal(nota.emitente.nome, null); assert.equal(nota.chave, null);
-  assert.equal(dec.pode, false); assert.match(dec.bloqueios.join(" "), /chave de acesso/); assert.equal(nota.situacao, "pendente", "sem evidência de autorização");
+test("campos ausentes não são inventados: sem número, série, CNPJ, chave e protocolo a nota entra como pendente fiscal; sem data ou emitente (essenciais) bloqueia com o motivo", () => {
+  const leve = decidir(resposta({ numero: null, serie: null, emitente_cnpj: null, chave: null, protocolo: null, situacao: null }));
+  assert.equal(leve.nota.emitente.cnpj, null); assert.equal(leve.nota.chave, null); assert.equal(leve.nota.numero, null);
+  assert.deepEqual([leve.dec.pode, leve.dec.modo], [true, "pendente_fiscal"]); assert.equal(leve.nota.situacao, "pendente", "sem evidência de autorização"); assert.match(leve.dec.avisos.join(" "), /chave de acesso não está impressa ou legível.*pendente fiscal/); assert.equal(leve.dec.veredito.sem_chave, true);
+  const essencial = decidir(resposta({ data_emissao: null, emitente_nome: null, chave: null, protocolo: null, situacao: null }));
+  assert.equal(essencial.nota.data_emissao, null); assert.equal(essencial.nota.emitente.nome, null); assert.equal(essencial.dec.pode, false); assert.match(essencial.dec.bloqueios.join(" "), /Falta a data da nota/); assert.match(essencial.dec.bloqueios.join(" "), /Falta o nome do estabelecimento/);
 });
 test("vários itens com desconto, frete, seguro, ST e IPI: a conta fecha e a diferença aparece quando não fecha", () => {
   const val = { total_produtos: 100, descontos: 10, frete: 5, outras: 2, total: 105 + 3 + 4.5 + 1.25 - 0 + 0, componentes: { seguro: 3, st: 4.5, fcp_st: null, ipi: 1.25, ii: null, ipi_devol: null, deson: null }, valor_pago: null, impostos: null,
@@ -86,22 +89,20 @@ test("situação fiscal pela evidência: pendente e contingência consistentes s
   const rej = decidir(resposta({ situacao: "rejeitada", protocolo: null })).dec; assert.deepEqual([rej.pode, rej.modo], [false, "bloqueada"]); assert.match(rej.bloqueios.join(" "), /rejeitada/);
   const semProt = decidir(resposta({ protocolo: null })); assert.equal(semProt.nota.situacao, "pendente"); assert.match(semProt.ia.avisos.join(" "), /sem um protocolo legível/); assert.equal(semProt.dec.modo, "pendente_fiscal");
 });
-test("PDF usa o mesmo caminho: formato pdf, mesma confiança mínima e mesma conta", () => {
+test("PDF usa o mesmo caminho: formato pdf, mesma regra de confiança (mínimo de 60%) e mesma conta", () => {
   const { nota, dec } = decidir(resposta(), "pdf"); assert.equal(nota.formato, "pdf"); assert.equal(dec.modo, "validada");
-  assert.equal(decidir(resposta({ confianca: 0.5 }), "pdf").dec.pode, false);
+  assert.equal(decidir(resposta({ confianca: 0.62 }), "pdf").dec.pode, true); assert.equal(decidir(resposta({ confianca: 0.5 }), "pdf").dec.pode, false); assert.equal(decidir(resposta({ total: 60, valor_pago: 60 }), "pdf").dec.pode, false);
 });
-test("correção manual e revalidação: corrigir o total e conferir com o documento libera a confiança, mas a conta continua valendo", () => {
+test("correção manual e revalidação: corrigir o total refaz a conta; a confiança não é critério; a conta errada continua bloqueando", () => {
   const ruim = resposta({ confianca: 0.7, total: 60, valor_pago: 60 }), ia = lerIA(ruim); let nota = N.nfNormalizar(ia.lido);
-  assert.equal(N.nfDecisaoGravacao(nota, null, { confianca: 0.7 }).pode, false);
+  assert.equal(N.nfDecisaoGravacao(nota, null, { confianca: 0.7 }).pode, false, "a conta não fecha");
   const l2 = N.nfCorrigir(ia.lido, { valores: { total: "54,00" }, emitente_nome: "Mercado Corrigido", itens: ia.lido.itens.map((i) => ({ ...i, qtd: String(i.qtd).replace(".", ","), unitario: String(i.unitario).replace(".", ","), total: String(i.total).replace(".", ","), desconto: String(i.desconto || "").replace(".", ",") })) });
   nota = N.nfNormalizar(l2); assert.equal(nota.valores.total, 54); assert.equal(nota.emitente.nome, "Mercado Corrigido"); assert.equal(nota.itens[3].unitario, 5.899, "vírgula decimal e 4 casas");
-  assert.equal(N.nfDecisaoGravacao(nota, null, { confianca: 0.7 }).pode, false, "sem revisão a confiança da IA continua baixa");
-  const rev = N.nfDecisaoGravacao(nota, null, { confianca: N.nfConfiancaIA({ confianca: 0.7, revisada: true }) }); assert.deepEqual([rev.pode, rev.modo], [true, "validada"]);
-  const errada = N.nfNormalizar(N.nfCorrigir(l2, { valores: { total: "99" } })); const d2 = N.nfDecisaoGravacao(errada, null, { confianca: 1 }); assert.equal(d2.pode, false); assert.equal(d2.veredito.classe, "divergente", "revisão humana não relaxa a conta");
-  const vazio = N.nfCorrigir(l2, { chave: "", data_emissao: " " }); assert.equal(vazio.chave, null); assert.equal(vazio.data_emissao, null);
+  const ok = N.nfDecisaoGravacao(nota, null, { confianca: 0.7 }); assert.deepEqual([ok.pode, ok.modo], [true, "validada"], "corrigida a conta, a confiança de 70% não impede");
+  const errada = N.nfNormalizar(N.nfCorrigir(l2, { valores: { total: "99" } })); const d2 = N.nfDecisaoGravacao(errada, null, { confianca: 1 }); assert.equal(d2.pode, false); assert.equal(d2.veredito.classe, "divergente", "a conta errada continua bloqueando");
+  const vazio = N.nfCorrigir(l2, { chave: "", data_emissao: " " }); assert.equal(vazio.chave, null); assert.equal(vazio.data_emissao, null, "campo vazio vira ausente; nada é presumido");
   assert.equal(JSON.stringify(ia.lido.valores.total), "60", "a correção não altera o original");
 });
-
 // ================= o arquivo: conteúdo real, tamanho, mascaramento =================
 const bytes = (...b) => b.concat(Array(16).fill(0)).slice(0, 16);
 const JPG = bytes(0xFF, 0xD8, 0xFF, 0xE0), PNG = bytes(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A), PDFB = bytes(...Array.from("%PDF-1.7").map((c) => c.charCodeAt(0)));
@@ -216,7 +217,7 @@ function ambiente(o = {}) {
     getTextContent: () => Promise.resolve({ items: [{ str: `Página ${i} CONSUMIDOR CPF ${CPF}` }, { str: "TOTAL 54,00" }] }), getViewport: ({ scale }) => ({ width: 600 * scale, height: 1200 * scale }),
     render: () => ({ promise: Promise.resolve() }) }) }) }) };
   const c = vm.createContext({ NUCLEO: N, SB: sb, DONO, crypto: globalThis.crypto, Blob, TextEncoder, Uint8Array, ArrayBuffer, Math, String, Array, JSON, setTimeout: (f) => { f(); return 0; }, h: stub, isOwner: () => true,
-    brl: (v) => "R$ " + Number(v).toFixed(2).replace(".", ","), dataBR: (d) => d, carregarScript: () => { ch.pdf++; return Promise.resolve(); }, window: { pdfjsLib },
+    brl: (v) => "R$ " + Number(v).toFixed(2).replace(".", ","), dataBR: (d) => d, carregarScript: (u) => { if (/pdf\.js/.test(u)) ch.pdf++; else (ch.libs = ch.libs || []).push(u); return Promise.resolve(); }, window: { pdfjsLib },
     document: { createElement: () => ({ width: 0, height: 0, getContext: () => ({}), toDataURL: () => "data:image/jpeg;base64,QUJD" }) }, iaFoto: () => Promise.resolve(IMG),
     racIA: (modulo, acao, entrada, contexto) => { ch.ia.push({ modulo, acao, entrada, contexto }); return typeof o.ia === "function" ? Promise.resolve(o.ia(ch.ia.length)) : Promise.resolve("ia" in o ? o.ia : { ok: true, versao: 1, modo: "REAL", estado: "concluido", resultado: resposta(), avisos: [], id: "uso-9", consumo: { mes: { alerta: 0, percentual: 3 } } }); } });
   vm.runInContext(ler("js/fiscal.js"), c);
@@ -232,7 +233,7 @@ test("foto legível: um envio à IA com a foto reduzida, nota lida e validada, n
   assert.equal(x.r.nota.formato, "imagem"); assert.equal(x.r.ia.confianca, 0.96); assert.equal(x.r.arquivo, null, "nada do arquivo vira gravável");
   assert.deepEqual([ch.rpc, ch.upload], [0, 0], "nenhuma gravação nem envio ao cofre");
   const t = texto(c.fxCartao(x.r, false));
-  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Mínimo para validar.*90%/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Pode ser gravada como validada e lançada no Mercado/);
+  assert.match(t, /Leitura por IA \(foto\)/); assert.match(t, /Confiança da leitura.*96%/); assert.match(t, /Confiança da leitura \(informação\).*96%/); assert.match(t, /confiança mínima de 60%|Confiança da leitura \(informação\)/); assert.doesNotMatch(t, /Mínimo para validar|Conferi/); assert.match(t, /Conta dos itens.*Consistente/); assert.match(t, /Pode ser gravada como validada e lançada no Mercado/);
   assert.doesNotMatch(t, /ainda não disponível/); assert.match(t, /Corrigir os dados lidos/);
   assert.equal(achar(c.fxCartao(x.r, false), (n) => n.tag === "button" && /^Estou de acordo$/.test(n.attrs.text || "")).length, 1, "a foto lida tem o botão 'Estou de acordo'; só o clique grava");
 });
@@ -292,29 +293,35 @@ test("duplicidade da leitura: nota já gravada é bloqueada; compra ou Mercado p
   const pend = ambiente({ tab: { notas_fiscais: [{ id: "n9", chave: CHAVE, situacao: "contingencia" }] } }); const z = await pend.c.fxIA([arq("n.jpg", JPG, "c", "image/jpeg")]);
   assert.deepEqual({ ...z.r.dup.atualizar_situacao }, { id: "n9", de: "contingencia", para: "autorizada" }); assert.match(texto(pend.c.fxCartao(z.r, false)), /atualização da situação ainda não é feita por esta tela/);
 });
-test("a tela mostra cada caso: baixa confiança, divergência, pendente e cancelada, com o motivo", async () => {
+test("a tela mostra cada caso: confiança baixa (só informa), divergência, pendente, cancelada e dado essencial ausente, com o motivo", async () => {
   const mostrar = async (res) => { const { c } = ambiente({ ia: { ok: true, versao: 1, modo: "REAL", resultado: res, avisos: [], id: "u" } }); const x = await c.fxIA([arq("n.jpg", JPG, "z" + JSON.stringify(res).length, "image/jpeg")]); return texto(c.fxCartao(x.r, false)); };
   const b60 = await mostrar(resposta({ confianca: 0.6 }));
-  assert.match(b60, /Conta dos itens Baixa confiança/); assert.match(b60, /Baixa confiança: Confiança da leitura \(60%\) abaixo do mínimo \(90%\)/); assert.match(b60, /Confiança da leitura 60%/); assert.match(b60, /Gravação Bloqueada/);
-  assert.match(await mostrar(resposta({ total: 60 })), /Conta dos itens.*Divergente[\s\S]*R\$ 6,00 a menos que o total fiscal/);
+  assert.match(b60, /Conta dos itens Consistente/); assert.match(b60, /Confiança da leitura \(informação\) 60%/); assert.doesNotMatch(b60, /abaixo do mínimo|Mínimo para validar/); assert.match(b60, /Gravação Pode ser gravada como validada e lançada no Mercado/);
+  assert.match(await mostrar(resposta({ total: 60 })), /Conta dos itens.*Divergente[\s\S]*R\$ 6,00 a menos que o total fiscal[\s\S]*frete, taxa ou outro acréscimo/);
   assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim[\s\S]*Só como pendente fiscal/);
   assert.match(await mostrar(resposta({ situacao: "cancelada" })), /Situação fiscal.*Cancelada — não vale como compra[\s\S]*não vale como compra fiscal validada[\s\S]*Gravação.*Bloqueada/);
   assert.match(await mostrar(resposta({ incertos: [{ campo: "total", motivo: "cortado" }] })), /Incerto — total: cortado/);
+  const sem = await mostrar(resposta({ data_emissao: null })); assert.match(sem, /Conta dos itens Dados incompletos/); assert.match(sem, /Dados incompletos: Falta a data da nota/); assert.match(sem, /Gravação Bloqueada/);
+  const nao = await mostrar(resposta({ total_produtos: null, descontos: null, frete: null, outras: null, chave: null, situacao: null, protocolo: null, itens: resposta().itens.map((i) => ({ ...i, desconto: 0 })), total: 54, valor_pago: null, incertos: [{ campo: "frete", motivo: "mancha" }] }));
+  assert.match(nao, /Total dos produtos: não impresso na nota \(não é erro; nada foi presumido\)/); assert.match(nao, /Descontos: não impresso/); assert.match(nao, /Frete: ilegível na leitura \(mancha\)/); assert.match(nao, /Chave de acesso: não impressa ou não lida \(não impede registrar a compra\)/);
 });
-test("correção manual na tela: o formulário refaz a nota, roda tudo de novo e a revisão humana vale como confiança 100%", async () => {
+test("correção manual na tela: o editor NÃO tem caixa de conferência; aplicar refaz a nota, roda tudo de novo e atualiza o cartão; a confiança segue só informativa", async () => {
   const { c } = ambiente({ ia: { ok: true, versao: 1, modo: "REAL", resultado: resposta({ confianca: 0.7, total: 60 }), avisos: [], id: "u" } }); const x = await c.fxIA([arq("n.jpg", JPG, "corrigir", "image/jpeg")]);
-  const cartao = c.fxCartao(x.r, false), antes = texto(cartao); assert.match(antes, /Conta dos itens Baixa confiança/); assert.match(antes, /Divergência: A conta dos itens/); assert.match(antes, /Baixa confiança: Confiança da leitura \(70%\)/);
+  const cartao = c.fxCartao(x.r, false), antes = texto(cartao); assert.match(antes, /Conta dos itens Divergente/); assert.match(antes, /Divergência: A conta dos itens/); assert.match(antes, /Confiança da leitura \(informação\) 70%/); assert.match(antes, /Gravação\s+Bloqueada: não pode ser confirmada/, "a conta errada impede; a confiança de 70% não");
   const campo = (rotulo) => achar(cartao, (n) => n.tag === "input" && n.attrs["aria-label"] === rotulo)[0];
-  campo("Total da nota").value = "54,00"; const chk = achar(cartao, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0]; chk.checked = true;
-  const btn = achar(cartao, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0]; btn.onclick();
+  assert.equal(achar(cartao, (n) => n.tag === "input" && n.attrs.type === "checkbox").length, 0, "sem a caixa 'Conferi'"); assert.doesNotMatch(antes, /Conferi todos os campos|confiança passa a 100%/);
+  assert.match(antes, /Não há outra confirmação além do botão “Estou de acordo”/);
+  campo("Total da nota").value = "54,00"; const btn = achar(cartao, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0]; btn.onclick();
   for (let i = 0; i < 30 && !x.r.ultimoCartao; i++) await new Promise((r) => setImmediate(r));
+  for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 3));
   const depois = texto(x.r.ultimoCartao);
-  assert.equal(x.r.nota.valores.total, 54); assert.equal(x.r.ia.revisada, true); assert.match(depois, /Confiança da leitura.*100% \(você conferiu com o documento; a IA tinha 70%\)/); assert.match(depois, /Conta dos itens.*Consistente/); assert.match(depois, /Pode ser gravada como validada/);
-  // revisar sem corrigir um erro de conta NÃO libera
+  assert.equal(x.r.nota.valores.total, 54); assert.equal(x.r.ia.revisada, undefined, "não existe mais 'revisada'"); assert.match(depois, /Confiança da leitura \(informação\) 70%/, "a confiança não vira 100%"); assert.match(depois, /Conta dos itens Consistente/); assert.match(depois, /Gravação\s+Pode ser gravada como validada/);
+  assert.equal(achar(x.r.ultimoCartao, (n) => n.tag === "button" && /^Estou de acordo$/.test(n.attrs.text || "")).length, 1, "com os dados válidos aparece o único botão");
+  // erro de conta que continua não libera
   const { c: c2 } = ambiente({ ia: { ok: true, versao: 1, modo: "REAL", resultado: resposta({ total: 60 }), avisos: [], id: "u" } }); const y = await c2.fxIA([arq("n.jpg", JPG, "corrigir2", "image/jpeg")]);
-  const cart2 = c2.fxCartao(y.r, false); achar(cart2, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(cart2, (n) => n.tag === "button" && /Aplicar/.test(n.attrs.text || ""))[0].onclick();
+  const cart2 = c2.fxCartao(y.r, false); achar(cart2, (n) => n.tag === "button" && /Aplicar/.test(n.attrs.text || ""))[0].onclick();
   for (let i = 0; i < 30 && !y.r.ultimoCartao; i++) await new Promise((r) => setImmediate(r));
-  assert.match(texto(y.r.ultimoCartao), /Conta dos itens.*Divergente[\s\S]*Gravação.*Bloqueada/);
+  assert.match(texto(y.r.ultimoCartao), /Conta dos itens.*Divergente[\s\S]*Gravação.*Bloqueada/); assert.doesNotMatch(texto(y.r.ultimoCartao), /Ao clicar, o RAC grava/);
 });
 test("a tela oferece a leitura por IA ao dono e à casa (Fernanda, desde 16/11/2026); quem manda é o banco (acoes_casa) e a função", () => {
   const js = ler("js/fiscal.js");

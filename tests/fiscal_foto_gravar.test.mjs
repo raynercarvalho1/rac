@@ -126,15 +126,17 @@ test("nfParaGravarDoc: PDF (1 arquivo, application/pdf, .pdf) e quatro fotos (jp
   for (const [o, re] of ruins) { const g = montar(o); assert.equal(g.ok, false, JSON.stringify(o).slice(0, 60)); assert.match(g.erros.join(" "), re); }
   assert.equal(montar({ tipo: "pdf", arquivos: [ARQ(1), { ...ARQ(2), mime: "application/pdf" }] }, resposta(), "pdf").ok, false, "PDF é um arquivo só");
 });
-test("nfParaGravarDoc: o modo prevê o que o banco decide (validada, pendente fiscal, bloqueada) sem nunca marcar conferida", () => {
+test("nfParaGravarDoc: o modo prevê o que o banco decide (validada, pendente fiscal, bloqueada) sem nunca marcar conferida; a confiança da IA nunca muda o modo", () => {
   assert.equal(montar().modo, "validada");
   const pend = montar({}, resposta({ situacao: "contingencia", protocolo: null })); assert.equal(pend.modo, "pendente_fiscal"); assert.match(pend.avisos.join(" "), /pendente fiscal/); assert.equal(pend.args.p_nota.requer_conferencia, true);
-  for (const [res, o, re] of [[resposta({ total: 60 }), {}, /conta/i], [resposta({ confianca: 0.62 }), {}, /Confiança/], [resposta({ situacao: "cancelada" }), {}, /cancelada/i], [resposta({ situacao: "rejeitada", protocolo: null }), {}, /rejeitada/i], [resposta({ chave: null }), {}, /chave/i]]) {
+  for (const [res, o, re] of [[resposta({ total: 60 }), {}, /conta/i], [resposta({ situacao: "cancelada" }), {}, /cancelada/i], [resposta({ situacao: "rejeitada", protocolo: null }), {}, /rejeitada/i], [resposta({ data_emissao: null }), {}, /data da nota/i]]) {
     const g = montar(o, res); assert.equal(g.modo, "bloqueada", JSON.stringify(Object.keys(res)).slice(0, 20)); assert.equal(g.pode_nota, false); assert.equal(g.ok, true, "a tentativa bloqueada ainda pode ser registrada: " + g.erros.join("|")); assert.match(g.args.p_proc.motivos.join(" "), re);
   }
-  const rev = montar({ revisada: true }, resposta({ confianca: 0.7 })); assert.equal(rev.modo, "validada", "a revisão humana vale"); assert.deepEqual([rev.args.p_proc.confianca, rev.args.p_proc.revisada], [0.7, true], "o banco recebe a confiança real e a marca de revisão");
-  assert.equal(montar({ confianca: 0.9 }).modo, "validada"); assert.equal(montar({ confianca: 0.89 }).modo, "bloqueada");
-  assert.equal(montar({ confianca: undefined }).modo, "bloqueada", "sem confiança não há validação");
+  const rev = montar({ revisada: true }, resposta({ confianca: 0.7 })); assert.equal(rev.modo, "validada"); assert.deepEqual([rev.args.p_proc.confianca, rev.args.p_proc.revisada], [0.7, true], "o banco recebe a confiança real e a marca da confirmação humana");
+  for (const c of [0.6, 0.62, 0.69, 0.7, 0.8, 0.9]) assert.equal(montar({ confianca: c }).modo, "validada", "confiança " + c);
+  for (const c of [0.3, 0.59, undefined]) { const g = montar({ confianca: c }); assert.equal(g.modo, "bloqueada", "abaixo de 60% bloqueia: " + c); assert.equal(g.pode_nota, false); }
+  assert.equal(montar({ confianca: undefined }).args.p_proc.confianca, 0, "sem confiança informada vai 0");
+  const chave = montar({}, resposta({ chave: null })); assert.equal(chave.modo, "pendente_fiscal", "sem chave legível não bloqueia: vira pendente fiscal");
 });
 test("nfParaGravarDoc: a IA não aprova; conta com componentes (IPI, ST, desonerado) vai para o banco refazer; data absurda e CPF em texto não seguem", () => {
   const comp = montar({}, resposta({ total_produtos: 56.13, descontos: 2.13, total: 64, componentes: { seguro: null, st: 8, fcp_st: null, ipi: 2, ii: null, ipi_devol: null, deson: 0 }, valor_pago: 64 }));
@@ -193,30 +195,40 @@ test("nota pendente fiscal (contingência): 'Estou de acordo' grava como pendent
   const x = await a.c.fxSalvarDoc(r, ENT); assert.equal(x.estado, "concluida", x.mensagem); assert.match(x.mensagem, /Nota gravada na Central Fiscal \(contingência\) e lançada no Mercado: 4 itens, total R\$ 54,00\. 3 produtos novos\./);
   assert.equal(a.ch.rpc[0].nome, "nota_fiscal_confirmar"); assert.equal(a.ch.rpc[0].args.p_formato, "doc"); assert.equal(a.ch.rpc[0].args.p_nota.situacao, "contingencia"); assert.equal(a.ch.rpc[0].args.p_conferir, false, "foto nunca é conferida na gravação"); assert.deepEqual(J(a.ch.rpc[0].args.p_decisoes), J(ENT));
 });
-test("nota que não pode ser confirmada (conta divergente, cancelada, confiança abaixo de 90%): sem botão, só o motivo e o caminho (outra foto ou o editor); não existe 'Registrar tentativa bloqueada'; nada é enviado nem gravado", async () => {
-  for (const res of [resposta({ total: 60 }), resposta({ situacao: "cancelada" }), resposta({ confianca: 0.62 })]) {
+test("nota que não pode ser confirmada (conta divergente, cancelada, dado essencial ausente): sem botão, só o motivo e o caminho (outra foto ou o editor); não existe 'Registrar tentativa bloqueada'; nada é enviado nem gravado", async () => {
+  for (const res of [resposta({ total: 60 }), resposta({ situacao: "cancelada" }), resposta({ data_emissao: null })]) {
     const a = ambiente({ res }), r = await lerFoto(a), bloco = a.c.fxBlocoConfirmar(r); await tick();
     assert.equal(acordo(bloco).length, 0, "sem 'Estou de acordo'"); assert.equal(achar(bloco, (n) => n.tag === "button").length, 0, "nenhum botão: nem de recusa, nem de registrar tentativa"); assert.match(texto(bloco), /Ainda não dá para confirmar.*Leia de novo com outra foto ou corrija os dados lidos no formulário acima.*Nada foi enviado nem gravado/);
     assert.deepEqual([a.ch.up.length, a.ch.rpc.length], [0, 0]);
   }
-  const b = ambiente({ res: resposta({ confianca: 0.62 }) }), rb = await lerFoto(b); assert.match(texto(b.c.fxCartao(rb, false)), /Baixa confiança: Confiança da leitura \(62%\) abaixo do mínimo \(90%\)/); assert.match(texto(b.c.fxCartao(rb, false)), /Gravação\s+Bloqueada: não pode ser confirmada/);
+  const b = ambiente({ res: resposta({ data_emissao: null }) }), rb = await lerFoto(b); assert.match(texto(b.c.fxCartao(rb, false)), /Dados incompletos: Falta a data da nota/); assert.match(texto(b.c.fxCartao(rb, false)), /Gravação\s+Bloqueada: não pode ser confirmada/);
 });
-test("limite de confiança: 0,89 oculta o 'Estou de acordo' (e o clique não existe); 0,90 mostra; nada é enviado antes do botão", async () => {
-  for (const [conf, aparece] of [[0.5, false], [0.89, false], [0.9, true], [0.96, true]]) {
+test("confiança mínima de 60%: de 60% a 96% o 'Estou de acordo' aparece (60–69% com aviso de baixa confiança); abaixo de 60% não aparece; nada é enviado antes do botão", async () => {
+  for (const conf of [0.6, 0.62, 0.69, 0.7, 0.8, 0.9, 0.96]) {
     const a = ambiente({ res: resposta({ confianca: conf }) }), r = await lerFoto(a), bloco = a.c.fxBlocoConfirmar(r); await tick();
-    assert.equal(acordo(bloco).length, aparece ? 1 : 0, "confiança " + conf); if (!aparece) assert.match(texto(bloco), /Ainda não dá para confirmar: Baixa confiança.*abaixo do mínimo \(90%\)/);
-    assert.deepEqual([a.ch.up.length, a.ch.rpc.length], [0, 0], "antes do clique nada vai ao banco nem ao cofre");
+    assert.equal(acordo(bloco).length, 1, "confiança " + conf); assert.equal(acordo(bloco)[0].disabled, false); assert.doesNotMatch(texto(bloco), /Ainda não dá para confirmar/);
+    assert.match(texto(a.c.fxCartao(r, false)), new RegExp("Confiança da leitura[^%]*" + Math.round(conf * 100) + "%")); assert.deepEqual([a.ch.up.length, a.ch.rpc.length], [0, 0], "antes do clique nada vai ao banco nem ao cofre");
+    assert.equal(/confira todos os valores com o documento/i.test(texto(a.c.fxCartao(r, false))), conf < 0.7, "aviso só entre 60% e 69%: " + conf);
+  }
+  for (const conf of [0.59, 0.5, 0.3]) {
+    const a = ambiente({ res: resposta({ confianca: conf }) }), r = await lerFoto(a), bloco = a.c.fxBlocoConfirmar(r); await tick();
+    assert.equal(acordo(bloco).length, 0, "abaixo de 60% não confirma: " + conf); assert.match(texto(bloco) + texto(a.c.fxCartao(r, false)), /abaixo do mínimo de 60%/); assert.deepEqual([a.ch.up.length, a.ch.rpc.length], [0, 0]);
   }
 });
-test("confiança abaixo de 90%: o botão só aparece depois de a pessoa corrigir/conferir no editor existente; então 'Estou de acordo' envia a confiança real e a revisão; corrigir gera identificador novo", async () => {
-  const a = ambiente({ res: resposta({ confianca: 0.7 }) }), r = await lerFoto(a);
-  const b0 = a.c.fxBlocoConfirmar(r); await tick(); assert.equal(acordo(b0).length, 0, "70% não passa do mínimo");
-  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0], campo = (t) => achar(ed, (n) => n.tag === "input" && n.attrs["aria-label"] === t)[0], idem0 = r.idem;
-  campo("Total da nota").value = "54,00"; achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true;
-  achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
-  assert.equal(r.idem, null, "correção = identificador novo na próxima gravação"); assert.equal(r.ia.revisada, true); await tick(); void idem0;
-  assert.match(texto(r.ultimoCartao), /Confiança da leitura.*100% \(você conferiu com o documento; a IA tinha 70%\)/); const bt = acordo(r.ultimoCartao); assert.equal(bt.length, 1, "com os dados válidos aparece o único botão");
-  bt[0].onclick(); await tick(25); const args = a.ch.rpc[0].args; assert.deepEqual([args.p_proc.revisada, args.p_proc.confianca], [true, 0.7], "o banco recebe a confiança real e a marca de revisão"); assert.equal(r.confirmado.conf.ok, true);
+test("foto com 80% de confiança e dados consistentes: um clique em 'Estou de acordo' grava e lança, enviando a confiança REAL (0,8) e a marca da confirmação humana; sem caixa 'Conferi'", async () => {
+  const a = ambiente({ res: resposta({ confianca: 0.8 }) }), r = await lerFoto(a);
+  const bloco = a.c.fxBlocoConfirmar(r); await tick(); assert.equal(acordo(bloco).length, 1); acordo(bloco)[0].onclick(); await tick(25);
+  const args = a.ch.rpc[0].args; assert.equal(a.ch.rpc[0].nome, "nota_fiscal_confirmar"); assert.deepEqual([args.p_proc.revisada, args.p_proc.confianca], [true, 0.8], "o banco recebe a confiança real e a marca da confirmação humana"); assert.equal(r.confirmado.conf.ok, true);
+  assert.equal(achar(a.c.fxCartao(r, false), (n) => n.tag === "input" && n.attrs.type === "checkbox").length, 0, "nenhuma caixa de conferência em lugar nenhum do cartão");
+});
+test("correção manual seguida de confirmação única: o editor corrige o total, o cartão é atualizado (conta passa a fechar), corrigir gera identificador novo e UM clique em 'Estou de acordo' grava e lança", async () => {
+  const a = ambiente({ res: resposta({ total: 60, valor_pago: 60 }) }), r = await lerFoto(a);
+  const b0 = a.c.fxBlocoConfirmar(r); await tick(); assert.equal(acordo(b0).length, 0, "a conta não fecha: sem botão");
+  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0], campo = (t) => achar(ed, (n) => n.tag === "input" && n.attrs["aria-label"] === t)[0];
+  assert.equal(achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox").length, 0, "o editor não tem caixa 'Conferi'");
+  campo("Total da nota").value = "54,00"; campo("Total dos produtos").value = "56,13"; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
+  assert.equal(r.idem, null, "correção = identificador novo na próxima gravação"); await tick(); assert.match(texto(r.ultimoCartao), /Conta dos itens\s+Consistente/); const bt = acordo(r.ultimoCartao); assert.equal(bt.length, 1, "com os dados válidos aparece o único botão");
+  bt[0].onclick(); await tick(25); assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_confirmar"]); assert.equal(a.ch.rpc[0].args.p_nota.valor_total, 54); assert.equal(r.confirmado.conf.ok, true);
 });
 test("idempotência: perda da resposta (rede caiu depois do commit) e nova tentativa NÃO grava duas vezes; o arquivo repetido é descartado só se não estiver registrado", async () => {
   let caiu = false; const a = ambiente({ rpc: (nome, args, n, padrao) => { const r = padrao(nome, args); if (!caiu) { caiu = true; return { error: { message: "Failed to fetch" } }; } return r; } }), r = await lerFoto(a);
@@ -306,11 +318,11 @@ test("lista de notas: quatro estados separados por nota (leitura, confirmação,
   assert.deepEqual(a.ch.assinados, [[DONO + "/notas-fiscais/a2/" + "d".repeat(64) + ".pdf", 300]], "link assinado de 5 minutos, nunca público"); assert.match(a.ch.abertos[0], /^https:\/\/exemplo\.test\/assinado/);
   det[0].open = true; det[0].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); const d1 = texto(det[0]); assert.match(d1, /Tentativas de leitura/); assert.match(d1, /validada · conta consistente · confiança 96%/); assert.match(d1, /Conferência/);
 });
-test("conferir uma nota autorizada de foto: só com a marca 'conferi', pela função existente; nota pendente não tem conferência; a atualização de situação lista só as transições permitidas", async () => {
+test("conferir uma nota autorizada de foto: botão simples (sem caixa 'Conferi'), pela função existente; nota pendente não tem conferência; a atualização de situação lista só as transições permitidas", async () => {
   const a = ambiente({ tab: { notas_fiscais: NOTAS, notas_fiscais_tentativas: TENT, notas_fiscais_situacoes: HIST, notas_fiscais_docs: [] } }); const { det } = await aberta(a);
   det[0].open = true; det[0].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q));
-  const cb = achar(det[0], (n) => n.tag === "button" && /Marcar como conferida/.test(n.attrs.text || ""))[0], chk = achar(det[0], (n) => n.tag === "input" && n.attrs.type === "checkbox")[0];
-  cb.onclick(); assert.equal(a.ch.rpc.length, 0, "sem a marca não chama"); chk.checked = true; cb.onclick(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_conferir"]);
+  const cb = achar(det[0], (n) => n.tag === "button" && /Marcar como conferida/.test(n.attrs.text || ""))[0];
+  assert.equal(achar(det[0], (n) => n.tag === "input" && n.attrs.type === "checkbox").length, 0, "nenhuma caixa 'Conferi'"); assert.match(texto(det[0]), /A nota já foi confirmada com “Estou de acordo”/); cb.onclick(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_conferir"]);
   const opts = (d) => achar(d, (n) => n.tag === "option").map((o) => o.attrs.value);
   assert.deepEqual(opts(det[0]), ["cancelada"], "autorizada só pode ser cancelada");
   det[1].open = true; det[1].ontoggle(); for (let i = 0; i < 8; i++) await new Promise((q) => setImmediate(q)); assert.deepEqual(opts(det[1]), ["autorizada", "cancelada", "rejeitada"]); assert.equal(achar(det[1], (n) => n.tag === "button" && /Marcar como conferida/.test(n.attrs.text || "")).length, 0, "pendente fiscal não se confere");
@@ -358,27 +370,26 @@ test("hora das tentativas e do histórico: o banco guarda em UTC e a tela mostra
 });
 
 // ================= Lote 1.6 · gravar sem chave (pedido do dono, migration 039) =================
-test("sem chave: só com a revisão do dono; então vira SEMPRE pendente fiscal (situação gravada 'pendente'), nunca validada; sem revisão continua bloqueando", () => {
+test("sem chave legível: não bloqueia (a chave não é indispensável para registrar a compra); entra SEMPRE como pendente fiscal (situação gravada 'pendente'), nunca validada, sem precisar de 'revisão'", () => {
   const sem = resposta({ chave: null });
-  const bloq = montar({}, sem); assert.equal(bloq.modo, "bloqueada"); assert.match(bloq.args.p_proc.motivos.join(" "), /chave/i);
-  const rev = montar({ revisada: true, confianca: 0.45 }, sem);
-  assert.equal(rev.ok, true, rev.erros.join("|")); assert.equal(rev.modo, "pendente_fiscal"); assert.equal(rev.pode_nota, true); assert.equal(rev.veredito.sem_chave_revisada, true); assert.equal(rev.veredito.gravar_validada, false);
-  assert.equal(rev.args.p_nota.chave, null); assert.equal(rev.args.p_nota.situacao, "pendente", "autorizada sem chave não se prova: grava pendente"); assert.equal(rev.args.p_nota.requer_conferencia, true);
-  assert.match(rev.veredito.avisos.join(" "), /sem chave.*revisão do dono.*pendente fiscal/i); assert.deepEqual([rev.args.p_proc.revisada, rev.args.p_proc.classe], [true, "consistente"]);
-  assert.equal(montar({ revisada: true }, resposta({ chave: null, situacao: "contingencia", protocolo: null })).args.p_nota.situacao, "contingencia", "contingência continua contingência");
-  for (const res of [resposta({ chave: null, situacao: "cancelada" }), resposta({ chave: null, total: 60 })]) assert.equal(montar({ revisada: true }, res).modo, "bloqueada", "cancelada e conta errada continuam bloqueando mesmo com a revisão");
-  assert.equal(montar({ revisada: true }, resposta()).modo, "validada", "com chave nada mudou");
-  const xml = N.nfDecisaoGravacao({ ...dados().nota, formato: "xml", chave: null, chave_valida: false }, null, { revisada: true });
-  assert.equal(xml.modo, "bloqueada", "a regra nova não vale para XML");
+  for (const o of [{}, { revisada: true, confianca: 0.62 }, { confianca: 0.62 }]) {
+    const g = montar(o, sem);
+    assert.equal(g.ok, true, g.erros.join("|")); assert.equal(g.modo, "pendente_fiscal"); assert.equal(g.pode_nota, true); assert.equal(g.veredito.sem_chave, true); assert.equal(g.veredito.gravar_validada, false);
+    assert.equal(g.args.p_nota.chave, null); assert.equal(g.args.p_nota.situacao, "pendente", "autorizada sem chave não se prova: grava pendente"); assert.equal(g.args.p_nota.requer_conferencia, true);
+    assert.match(g.veredito.avisos.join(" "), /chave de acesso não está impressa ou legível.*pendente fiscal/i); assert.equal(g.args.p_proc.classe, "consistente");
+  }
+  assert.equal(montar({}, resposta({ chave: null, situacao: "contingencia", protocolo: null })).args.p_nota.situacao, "contingencia", "contingência continua contingência");
+  for (const res of [resposta({ chave: null, situacao: "cancelada" }), resposta({ chave: null, total: 60 }), resposta({ chave: null, data_emissao: null })]) assert.equal(montar({}, res).modo, "bloqueada", "cancelada, conta errada e dado essencial ausente continuam bloqueando");
+  const inval = montar({}, resposta({ chave: CHAVE.slice(0, 43) + ((+CHAVE[43] + 1) % 10) })); assert.equal(inval.modo, "pendente_fiscal"); assert.equal(inval.args.p_nota.chave, null, "chave lida que não passa na validação não é enviada"); assert.match(inval.veredito.avisos.join(" "), /não passou na validação e não será usada/);
+  assert.equal(montar({}, resposta()).modo, "validada", "com chave válida nada mudou");
+  const xml = N.nfDecisaoGravacao({ ...dados().nota, formato: "xml", chave: null, chave_valida: false }, null, {});
+  assert.equal(xml.modo, "bloqueada", "XML sem chave válida continua inválido");
 });
-test("sem chave na tela: a IA com chave ilegível e 45% de confiança fica bloqueada até a revisão no editor; então 'Estou de acordo' entra como pendente fiscal, sem conferir", async () => {
-  const a = ambiente({ res: resposta({ chave: null, confianca: 0.45 }) }), r = await lerFoto(a);
-  const b0 = a.c.fxBlocoConfirmar(r); await tick(); assert.equal(acordo(b0).length, 0, "antes da revisão: sem botão");
-  const cartao = a.c.fxCartao(r, false), ed = achar(cartao, (n) => n.tag === "details")[0];
-  achar(ed, (n) => n.tag === "input" && n.attrs.type === "checkbox")[0].checked = true; achar(ed, (n) => n.tag === "button" && /Aplicar correção/.test(n.attrs.text || ""))[0].onclick(); for (let i = 0; i < 30 && !r.ultimoCartao; i++) await new Promise((q) => setImmediate(q));
-  await tick(); const t = texto(r.ultimoCartao); assert.match(t, /Gravação\s+Só como pendente fiscal \(sem validação\); a entrada no Mercado não espera a SEFAZ/); assert.match(t, /sem chave de acesso válida.*revisão do dono/i);
-  const bt = acordo(r.ultimoCartao); assert.equal(bt.length, 1); bt[0].onclick(); await tick(25);
-  const args = a.ch.rpc[0].args; assert.equal(a.ch.rpc[0].nome, "nota_fiscal_confirmar"); assert.equal(args.p_nota.chave, null); assert.equal(args.p_nota.situacao, "pendente"); assert.equal(args.p_proc.revisada, true); assert.equal(args.p_conferir, false);
+test("sem chave na tela: a IA com chave ilegível e 62% de confiança NÃO fica bloqueada (acima do mínimo de 60%); um clique em 'Estou de acordo' grava como pendente fiscal (sem conferir) e lança no Mercado", async () => {
+  const a = ambiente({ res: resposta({ chave: null, confianca: 0.62, incertos: [{ campo: "chave", motivo: "borrada" }] }) }), r = await lerFoto(a);
+  const t = texto(a.c.fxCartao(r, false)); assert.match(t, /Gravação\s+Só como pendente fiscal \(sem validação\); a entrada no Mercado não espera a SEFAZ/); assert.match(t, /Chave de acesso: ilegível na leitura \(borrada\)/); assert.match(t, /chave de acesso não está impressa ou legível/); assert.doesNotMatch(t, /Dados incompletos/);
+  const bloco = a.c.fxBlocoConfirmar(r); await tick(); const bt = acordo(bloco); assert.equal(bt.length, 1, "sem revisão e sem caixa: o botão aparece"); bt[0].onclick(); await tick(25);
+  const args = a.ch.rpc[0].args; assert.equal(a.ch.rpc[0].nome, "nota_fiscal_confirmar"); assert.equal(args.p_nota.chave, null); assert.equal(args.p_nota.situacao, "pendente"); assert.deepEqual([args.p_proc.revisada, args.p_proc.confianca], [true, 0.62]); assert.equal(args.p_conferir, false);
   assert.equal(r.confirmado.conf.estado, "concluida");
 });
 // ================= Confirmação única (migration 059): "Estou de acordo" grava a nota e lança no Mercado =================
@@ -406,7 +417,7 @@ test("Estou de acordo na tela (foto): UM clique grava e lança; a compra mostrad
   const b = acordo(bloco)[0]; assert.ok(b && b.disabled === false); assert.deepEqual([a.ch.rpc.length, a.ch.up.length], [0, 0], "antes do clique nada é enviado nem gravado");
   b.onclick(); b.onclick(); await tick(25);
   assert.deepEqual(a.ch.rpc.map((q) => q.nome), ["nota_fiscal_confirmar"], "um clique, uma chamada (o segundo clique é ignorado)"); assert.equal(a.ch.up.length, 1);
-  const args = a.ch.rpc[0].args; assert.equal(args.p_decisoes.itens.length, 4); assert.ok(args.p_decisoes.itens.every((x) => x.novo && x.novo.nome && x.tipo === "nova")); assert.equal(args.p_decisoes.mercado.nome, "Mercado Exemplo"); assert.deepEqual([args.p_proc.revisada, args.p_proc.confianca], [false, 0.96], "confiança acima do mínimo: segue com a leitura real, sem revisão");
+  const args = a.ch.rpc[0].args; assert.equal(args.p_decisoes.itens.length, 4); assert.ok(args.p_decisoes.itens.every((x) => x.novo && x.novo.nome && x.tipo === "nova")); assert.equal(args.p_decisoes.mercado.nome, "Mercado Exemplo"); assert.deepEqual([args.p_proc.revisada, args.p_proc.confianca], [true, 0.96], "o banco recebe a confiança real e a marca da confirmação humana");
   assert.equal(r.confirmado.conf.estado, "concluida"); const res = r.confirmado; assert.match(res.texto, /^Nota gravada na Central Fiscal \(autorizada\) e lançada no Mercado: 4 itens, total R\$ 54,00\. 3 produtos novos\..*Conferido no banco: a nota e 1 documento foram lidos de volta/);
   const novo = a.c.fxBlocoConfirmar(r); assert.match(texto(novo), /✓ Nota gravada na Central Fiscal/); assert.equal(achar(novo, (n) => n.tag === "a" && n.attrs.href === "#mercado" && n.attrs.text === "Abrir o Mercado").length, 1); assert.equal(acordo(novo).length, 0, "depois de confirmar não há mais botão");
   assert.ok(!a.ch.rpc.some((q) => /despesa|atualizar_situacao/.test(q.nome)), "não cria despesa nem muda a situação fiscal");
@@ -439,15 +450,15 @@ test("Estou de acordo no XML: a mesma tela e a mesma chamada; a confirmação ta
   const g = a.c.fxArgsConfirmar("xml", { p_nota: {}, p_itens: [], p_docs: [], p_conferir: true }, ENT); assert.deepEqual(Object.keys(g).sort(), ["p_conferir", "p_decisoes", "p_docs", "p_formato", "p_itens", "p_nota", "p_proc"]); assert.deepEqual([g.p_formato, g.p_proc, g.p_conferir], ["xml", null, true]);
   const d = a.c.fxArgsConfirmar("doc", { p_nota: {}, p_itens: [], p_docs: [], p_proc: { idem: "x" }, p_conferir: true }, ENT); assert.deepEqual([d.p_formato, d.p_proc.idem, d.p_conferir], ["doc", "x", false], "foto/PDF nunca confere");
 });
-test("lista de notas: lançada (com a revisão), falta concluir (Tentar de novo), nota antiga (Estou de acordo individual) e cancelada (sem entrada)", async () => {
+test("lista de notas: lançada (com a revisão), aguardando nova tentativa (retomada automática e Tentar de novo), nota antiga (Estou de acordo individual) e cancelada (sem entrada)", async () => {
   const ids = ["7a7a7a7a-0000-4000-8000-00000000000" + 1, "7a7a7a7a-0000-4000-8000-00000000000" + 2, "7a7a7a7a-0000-4000-8000-00000000000" + 3, "7a7a7a7a-0000-4000-8000-00000000000" + 4];
   const a = ambiente({ tab: { notas_fiscais: [{ ...NP, id: ids[0], emitente_nome: "A LANCADA" }, { ...NP, id: ids[1], emitente_nome: "B FALHOU" }, { ...NP, id: ids[2], emitente_nome: "C ANTIGA" }, { ...NP, id: ids[3], emitente_nome: "D CANCELADA", situacao: "cancelada" }],
     notas_fiscais_tentativas: [], notas_fiscais_situacoes: [], notas_fiscais_docs: [], notas_fiscais_itens: [{ nota_id: ids[2], ordem: 0, descricao: "ARROZ TIPO 1 5KG", unidade: "un" }, { nota_id: ids[2], ordem: 1, descricao: "QUEIJO", unidade: "g" }],
-    notas_fiscais_entradas: [{ nota_id: ids[0], estado: "concluida", confirmado_em: "2026-11-16T12:00:00Z", mercado_nota_id: "m1", revisar: "nota_cancelada" }, { nota_id: ids[1], estado: "falhou", erro: "motivo X", confirmado_em: "2026-11-16T12:00:00Z" }] } });
-  const { det } = await aberta(a), t = texto(det[0]); assert.match(t, /Estou de acordo.*Contingência.*Lançada no Mercado · revisar: nota cancelada depois da entrada/); assert.match(texto(det[1]), /Falta concluir no Mercado/); assert.match(texto(det[3]), /Não lançada \(cancelada\)/);
+    notas_fiscais_entradas: [{ nota_id: ids[0], estado: "concluida", confirmado_em: "2026-11-16T12:00:00Z", mercado_nota_id: "m1", revisar: "nota_cancelada" }, { nota_id: ids[1], estado: "falhou", erro: "motivo X", tentativas: 1, proxima_em: "2099-11-21T12:00:00Z", confirmado_em: "2026-11-16T12:00:00Z" }] } });
+  const { det } = await aberta(a), t = texto(det[0]); assert.match(t, /Estou de acordo.*Contingência.*Lançada no Mercado · revisar: nota cancelada depois da entrada/); assert.match(texto(det[1]), /Aguardando nova tentativa/); assert.match(texto(det[3]), /Não lançada \(cancelada\)/);
   const abrir = async (d) => { d.open = true; d.ontoggle(); await tick(14); return d; };
   await abrir(det[0]); assert.match(texto(det[0]), /✓ Lançada no Mercado · “Estou de acordo” em.*Revisar: a nota fiscal foi cancelada depois da entrada\. A compra foi mantida/); assert.equal(achar(det[0], (n) => n.tag === "a" && n.attrs.href === "#mercado").length, 1);
-  await abrir(det[1]); assert.match(texto(det[1]), /⚠ A nota está gravada e confirmada.*motivo X/); const tentar = achar(det[1], (n) => n.tag === "button" && n.attrs.text === "Tentar de novo")[0]; assert.ok(tentar); assert.equal(acordo(det[1]).length, 0);
+  await abrir(det[1]); assert.match(texto(det[1]), /⚠ Aguardando nova tentativa.*gravada e confirmada.*motivo X.*tenta de novo sozinho.*não precisa confirmar outra vez/); assert.match(texto(det[1]), /Validação fiscal oficial.*ainda não habilitada/); const tentar = achar(det[1], (n) => n.tag === "button" && n.attrs.text === "Tentar de novo")[0]; assert.ok(tentar); assert.equal(acordo(det[1]).length, 0);
   tentar.onclick(); await tick(20); assert.deepEqual(J(a.ch.rpc.at(-1)), { nome: "nota_fiscal_entrada_mercado", args: { p_nota_id: ids[1] } }); assert.match(texto(det[1]), /✓ Nota gravada na Central Fiscal \(contingência\) e lançada no Mercado/);
   await abrir(det[2]); assert.match(texto(det[2]), /gravada antes da entrada automática.*Compra no Mercado.*Estabelecimento.*1\. ARROZ TIPO 1 5KG → produto novo.*2\. QUEIJO → produto novo/); const ok = acordo(det[2])[0]; assert.ok(ok && ok.disabled === false);
   const antes = a.ch.rpc.length; ok.onclick(); await tick(20); const ch = a.ch.rpc.at(-1); assert.equal(a.ch.rpc.length, antes + 1); assert.equal(ch.nome, "nota_fiscal_entrada_mercado"); assert.equal(ch.args.p_nota_id, ids[2]); assert.equal(ch.args.p_concordo, true); assert.equal(ch.args.p_decisoes.itens.length, 2); assert.equal(ch.args.p_decisoes.itens[1].novo.unidade, "kg", "g vira kg");

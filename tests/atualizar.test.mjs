@@ -121,7 +121,8 @@ test("tela: um botão no topo ao lado de Voltar e Início, aviso com a hora, uma
 
 test("Garmin, Gmail e IA ficam fora: o Início não lê o Gmail sozinho, o treino não chama o relógio, a IA em andamento faz esperar", () => {
   const js = ler("js/app.js"), saude = ler("js/saude.js");
-  assert.match(js, /if\(tk&&!ATU\.semExternos\)carregar\(tk\);else cabecalho/);
+  assert.ok(!/function gmailBloco/.test(js), "o Início não lê o Gmail: o cartão E-mail é do Inbox e só lê o banco (a sincronização é por toque em Atualizar)");
+  assert.ok(!/inboxSincronizarConta/.test(js.slice(js.indexOf("function wEmail()"), js.indexOf("function wEmail()") + 1800)), "abrir ou atualizar o Início não sincroniza e-mail sozinho");
   assert.match(saude, /TREINO_DET\[id\]\?Promise\.resolve\(TREINO_DET\[id\]\):ATU\.semExternos\?Promise\.reject\(/);
   assert.match(js, /var fim=atuTarefa\("leitura com IA"\);\n\s+return SB\.functions\.invoke\("rac-ia",\{body:corpo\}\)\.then\(function\(r\)\{fim\(\);return r\},function\(e\)\{fim\(\);throw e\}\)/);
   const f = js.slice(js.indexOf("/* ===== Botão de atualizar"), js.indexOf("/* ===== Captura rápida"));

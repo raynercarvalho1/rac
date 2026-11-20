@@ -524,3 +524,48 @@
     INBX.form=false;INBX.painel="lista";INBX.msg=null;INBX.leit=null;INBX.credForm=null;INBX.credErros={};   /* entrar no Inbox de novo começa sem formulário aberto */
     if(conta){INBX.conta=conta;INBX.pasta=pasta||null}
     return inboxCarregar().then(function(){if(abrir&&isOwner()&&!INBX.demo)return inboxAbrirDoAviso(abrir)})}
+  /* ===== Cartão "E-mail" da tela Início (docs/inbox.md, "Início"). O Início só abre este cartão (app.js, wEmail); TUDO o que ele mostra e faz é do Inbox: lê as mesmas tabelas (inbox_contas, inbox_pastas,
+     inbox_sincronizacao, credencial, cache de cabeçalhos), sincroniza pela MESMA função (inboxSincronizarConta → serviço rac-inbox) e abre o Inbox na conta. Não há autenticação, armazenamento nem regra de e-mail própria.
+     "gmail" = as identidades antigas do Início (PESSOAL.emails): enquanto o Gmail não tem conexão no Inbox, aparecem como "Fora do Inbox", sem número inventado e com um link para o Gmail. ===== */
+  function inboxCartaoLer(){
+    function ler(t,sel,ajuste,vazio){var q=SB.from(t).select(sel);if(ajuste)q=ajuste(q);return Promise.resolve(q).then(sbOk).then(function(l){return l||vazio},function(){return vazio})}
+    var cred=ler("inbox_credenciais","conta_id,estado",null,[]).then(function(l){var m={};l.forEach(function(x){m[x.conta_id]=x.estado});return m}),
+      sincs=ler("inbox_sincronizacao","*",null,[]).then(function(l){var m={};l.forEach(function(x){m[x.pasta_id]=x});return m}),
+      msgs=ler("inbox_mensagens_ref","id,conta_id,pasta_id,recebida_em,assunto,remetente_nome,remetente_endereco,lida",function(q){return q.order("recebida_em",{ascending:false}).limit(60)},[]);
+    return Promise.all([SB.from("inbox_contas").select("*").order("apelido"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,sincs,msgs]).then(function(r){
+      var d={contas:sbOk(r[0])||[],pastas:sbOk(r[1])||[],cred:r[2]||{},sincs:r[3]||{},msgs:r[4]||[]};
+      INBX.contas=d.contas;INBX.pastas=d.pastas;INBX.cred=d.cred;INBX.sincs=d.sincs;   /* o MESMO estado do Inbox: a sincronização do cartão usa exatamente a do Inbox */
+      return d})}
+  function inboxCartao(alvo,gmail){
+    var corpo=h("div",{class:"inbc"}),dados=null,ocupado={},avisos={};alvo.appendChild(corpo);
+    function linha(l){
+      var ocup=!!ocupado[l.chave],nl=l.naoLidas,
+        cab=h("div",{class:"inbc-cab"},h("span",{class:"inb-avatar inb-avatar--p","aria-hidden":"true",text:NUCLEO.inbIniciais(l.nome)}),
+          h("span",{class:"grow"},h("b",{text:l.nome}),h("span",{class:"sub",text:l.endereco||"endereço não informado"})),
+          nl===null?h("span",{class:"inbc-nl sub",text:"—"}):h("span",{class:"inbc-nl"+(nl>0?" inbc-nl--tem":""),title:"Não lidas na caixa de entrada (mensagens sincronizadas)",text:nl+(nl===1?" não lida":" não lidas")})),
+        est=h("div",{class:"inbc-est"},h("span",{class:"inb-estado inb-estado--"+(ocup?"info":l.tom)},h("i",{"aria-hidden":"true"}),ocup?"Sincronizando":l.estadoRotulo),
+          l.origem==="inbox"&&l.frase&&!l.problema?h("span",{class:"sub",text:l.frase}):null),
+        el=h("div",{class:"inbc-conta","data-conta":l.chave,"data-origem":l.origem},cab,est);
+      var av=avisos[l.chave];
+      if(av)el.appendChild(h("p",{class:"inbc-problema",role:"alert",text:av}));
+      else if(l.problema)el.appendChild(h("p",{class:"inbc-problema",role:"status",text:l.problema}));
+      if(l.recentes.length){var ul=h("ul",{class:"wl inbc-msgs"});l.recentes.forEach(function(m){
+        ul.appendChild(h("li",{class:m.lida?null:"inbc-nova"},h("span",{class:"grow"},h("a",{href:m.hash,text:m.assunto}),h("span",{class:"sub",text:m.de})),h("span",{class:"end sub",text:m.quando})))});el.appendChild(ul)}
+      var ac=h("div",{class:"inbc-acoes"});
+      if(l.podeAtualizar&&INBS.publicado){var at=h("button",{type:"button",class:"ghostbtn",text:ocup?"Sincronizando…":"Atualizar","aria-label":"Atualizar "+l.nome});if(ocup)at.disabled=true;at.onclick=function(){atualizar(l)};ac.appendChild(at)}
+      if(l.hash)ac.appendChild(h("a",{class:"ghostbtn pri",href:l.hash,"aria-label":"Abrir "+l.nome+" no Inbox",text:"Abrir"}));
+      else if(l.url)ac.appendChild(h("a",{class:"ghostbtn",href:l.url,target:"_blank",rel:"noopener","aria-label":"Abrir "+l.nome+" no Gmail",text:"Abrir no Gmail"}));
+      el.appendChild(ac);return el}
+    function desenhar(){
+      corpo.innerHTML="";
+      var v=NUCLEO.inbCartao({contas:dados.contas,pastas:dados.pastas,cred:dados.cred,sincs:dados.sincs,msgs:dados.msgs,gmail:gmail||[]});
+      if(!v.linhas.length){corpo.appendChild(h("p",{class:"sub",text:"Nenhuma conta de e-mail ainda."}));corpo.appendChild(h("a",{class:"ghostbtn pri",href:"#inbox",text:"Abrir o Inbox para adicionar uma conta"}));return}
+      v.linhas.forEach(function(l){corpo.appendChild(linha(l))})}
+    /* atualizar UMA conta: só ela é sincronizada e só o estado dela muda; as outras continuam como estavam */
+    function atualizar(l){
+      var c=dados.contas.filter(function(x){return x.id===l.chave})[0];if(!c||ocupado[l.chave])return;
+      ocupado[l.chave]=true;delete avisos[l.chave];desenhar();
+      function fim(){ocupado[l.chave]=false;return inboxCartaoLer().then(function(d){dados=d},function(){}).then(desenhar)}
+      inboxSincronizarConta(c).then(function(r){if(!r.ok)avisos[l.chave]=NUCLEO.inbErroTexto(r.erro);return fim()},function(){avisos[l.chave]=NUCLEO.inbErroTexto("rede");return fim()})}
+    corpo.appendChild(h("p",{class:"sub",text:"Carregando as contas…"}));
+    inboxCartaoLer().then(function(d){dados=d;desenhar()},function(){corpo.innerHTML="";corpo.appendChild(h("p",{class:"sub",text:"Não consegui ler as contas do Inbox agora."}));corpo.appendChild(h("a",{class:"ghostbtn",href:"#inbox",text:"Abrir o Inbox"}))})}

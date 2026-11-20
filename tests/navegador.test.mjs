@@ -994,3 +994,57 @@ test("Inbox: os ← do app voltam DENTRO do Inbox (leitura → lista, caixas →
     servidor.close();
   }
 });
+
+// Início · cartão E-mail do RAC Inbox (390 px, tablet e desktop): as duas contas do iCloud do Inbox e as duas contas Gmail antigas aparecem, cada uma identificada; nada estoura na horizontal;
+// Abrir leva ao Inbox da conta; Atualizar chama o serviço só para a conta tocada; o fluxo antigo de leitura do Gmail não existe mais no cartão.
+test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas contas Gmail identificadas, Atualizar só da conta tocada, Abrir no Inbox certo", { skip: pular, timeout: 120000 }, async () => {
+  const servidor = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const f = path.join(raiz, p);
+    if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": TIPOS[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador();
+  try {
+    for (const [rotulo, viewport] of [["iPhone 390", { width: 390, height: 844 }], ["tablet 820", { width: 820, height: 1180 }], ["desktop 1440", { width: 1440, height: 900 }]]) {
+      const pag = await nav.newPage({ viewport }), erros = [];
+      pag.on("pageerror", (e) => erros.push("erro: " + e.message));
+      pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+      await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
+      await pag.evaluate(() => {
+        const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", PA = "bbbbbbbb-0000-4000-8000-000000000001", PB = "bbbbbbbb-0000-4000-8000-000000000002", chamadas = [];
+        const dados = { inbox_contas: [{ id: A, apelido: "Pessoal com um nome bem comprido para testar o corte", endereco: "pessoa.com.endereco.bem.comprido@icloud.example", estado: "conectada", provedor: "icloud" }, { id: B, apelido: "Trabalho", endereco: "trab@icloud.example", estado: "conectada", provedor: "icloud" }],
+          inbox_pastas: [{ id: PA, conta_id: A, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 9, nao_lidas: 3 }, { id: PB, conta_id: B, nome_externo: "INBOX", nome_exibicao: "INBOX", uso: "entrada", total: 2, nao_lidas: 0 }],
+          inbox_credenciais: [{ conta_id: A, estado: "ativa" }, { conta_id: B, estado: "ativa" }], inbox_sincronizacao: [{ pasta_id: PA, ultima_ok_em: new Date().toISOString(), erro: null }], inbox_mensagens_ref: [] };
+        const tabela = (t) => { const q = { select: () => q, order: () => q, limit: () => q, eq: () => q, then: (ok, no) => Promise.resolve({ data: dados[t] || [], error: null }).then(ok, no) }; return q; };
+        window.__chamadas = chamadas;
+        SB = { auth: { getSession: () => Promise.resolve({ data: { session: null } }), mfa: {} }, from: tabela, rpc: () => Promise.resolve({ data: null, error: { message: "x" } }), storage: { from: () => ({ list: () => Promise.resolve({ data: [], error: null }) }) },
+          functions: { invoke: (n, o) => { chamadas.push(o.body); return Promise.resolve({ data: { ok: true, sincronizacao: { tipo: "sem_mudanca", novas: 0, atualizadas: 0, removidas: 0 }, mensagens_na_pasta: 9, mais: false }, error: null }); } } };
+        PAPEL = "dono"; EU = { id: "u1", email: "dono@exemplo.invalid" }; PESSOAL = {};
+        document.documentElement.classList.add("logado"); document.getElementById("gate").hidden = true; location.hash = "#inicio"; route();
+      });
+      await pag.waitForSelector(".inbc-conta", { timeout: 10000 }); await pag.waitForTimeout(300);
+      assert.equal(await pag.locator(".inbc-conta").count(), 4, rotulo + ": duas contas do Inbox + as duas do Gmail");
+      const nomes = await pag.locator(".inbc-conta").evaluateAll((l) => l.map((e) => [e.dataset.origem, e.querySelector("b").textContent.slice(0, 16)]));
+      assert.deepEqual(nomes.map((n) => n[0]), ["inbox", "inbox", "externa", "externa"], rotulo); assert.deepEqual(nomes.slice(2).map((n) => n[1]), ["Rayner Carvalho", "Raynim Carvalho"], rotulo + ": as duas contas Gmail continuam identificadas");
+      assert.equal(await pag.locator('.inbc-conta[data-origem="externa"] .inb-estado').first().innerText(), "Fora do Inbox", rotulo);
+      /* nada estoura na horizontal (nem a página nem o cartão) e os botões têm alvo de 44 px */
+      const med = await pag.evaluate(() => { const c = document.querySelector(".inbc").getBoundingClientRect(), pn = document.querySelector(".inbc").closest(".panel").getBoundingClientRect(); return { pag: document.documentElement.scrollWidth - innerWidth, dentro: c.right <= pn.right + 1 && c.left >= pn.left - 1, alvos: [...document.querySelectorAll(".inbc-acoes .ghostbtn")].map((b) => Math.round(b.getBoundingClientRect().height)) }; });
+      assert.ok(med.pag <= 0, rotulo + ": sem rolagem horizontal da página (" + med.pag + ")"); assert.equal(med.dentro, true, rotulo + ": o cartão fica dentro do painel"); assert.ok(med.alvos.length >= 4 && med.alvos.every((a) => a >= 44), rotulo + ": alvos de 44 px (" + med.alvos + ")");
+      /* Abrir leva ao Inbox da conta certa (a segunda) e Atualizar chama o serviço só para a conta tocada */
+      assert.equal(await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] a:has-text("Abrir")').getAttribute("href"), "#inbox/aaaaaaaa-0000-4000-8000-000000000002", rotulo);
+      await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] button:has-text("Atualizar")').click(); await pag.waitForTimeout(400);
+      assert.deepEqual(await pag.evaluate(() => __chamadas.map((c) => [c.operacao, c.conta_id])), [["sincronizar_pasta", "aaaaaaaa-0000-4000-8000-000000000002"]], rotulo + ": só a conta tocada foi sincronizada");
+      assert.equal(await pag.evaluate(() => typeof gmailBloco), "undefined", rotulo + ": o leitor antigo do Gmail no cartão não existe mais");
+      assert.equal(await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] a:has-text("Abrir")').count(), 1, rotulo + ": a conta tocada continua inteira depois de atualizar");
+      assert.deepEqual(erros, [], rotulo + ": nenhum erro de JavaScript");
+      await pag.close();
+    }
+  } finally {
+    await nav.close();
+    servidor.close();
+  }
+});

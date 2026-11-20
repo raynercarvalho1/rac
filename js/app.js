@@ -24,7 +24,7 @@
     n.id="pico";$("#pico").replaceWith(n);
     $("#ptitle").textContent=hit?hit.querySelector(".t").textContent:"Dia a Dia RAC"}
   /* ===== Módulos: cada seção grande fica em js/<seção>.js e só carrega quando é aberta ===== */
-  var MOD_VERSAO="2026-11-20.3",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-20.4",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -1049,24 +1049,24 @@
       var c=NUCLEO.chuvaAviso(d.hourly,d.current.time);if(!c)return;
       var g=root.querySelector(".hgrid");if(g)g.parentNode.insertBefore(h("div",{class:"chuva",role:"status"},h("b",{text:"☔ "+c.texto}),h("span",{class:"sub",text:c.agora?"Se for sair, leve o guarda-chuva.":"Bom saber antes de sair."})),g)}).catch(function(){})}
 
-  /* E-mail: as duas contas do Gmail, com a caixa de entrada aqui dentro */
+  /* E-mail: o cartão é do RAC Inbox (js/inbox.js, inboxCartao): contas, não lidas, estado, Atualizar e Abrir vêm do Inbox. As duas contas do Gmail (identidades abaixo) continuam
+     identificadas, como "Fora do Inbox", até o Gmail ter conexão no Inbox; a leitura direta do Gmail neste cartão foi removida (não há dois sistemas de e-mail em paralelo). */
   var EMAILS_PADRAO=[{n:"Rayner Carvalho",u:"https://mail.google.com/mail/u/0/#inbox"},{n:"Raynim Carvalho",u:"https://mail.google.com/mail/u/1/#inbox"}];
+  function emailGmailIdentidades(){return (PESSOAL.emails||EMAILS_PADRAO).filter(function(c){return /mail\.google\.com/.test(c.u)}).map(function(c){var n={"Gmail 1":"Rayner Carvalho","Gmail 2":"Raynim Carvalho"}[c.n];return n?Object.assign({},c,{n:n}):c})}
   function wEmail(){
-    var p=wCard("E-mail","mail","#D93F2F"),contas=(PESSOAL.emails||EMAILS_PADRAO).filter(function(c){return /mail\.google\.com/.test(c.u)}).map(function(c){var n={"Gmail 1":"Rayner Carvalho","Gmail 2":"Raynim Carvalho"}[c.n];return n?Object.assign({},c,{n:n}):c});
-    var ul=h("div");
-    contas.forEach(function(c,i){
-      if(/mail\.google\.com/.test(c.u)){ul.appendChild(gmailBloco(contas,i));return}
-      ul.appendChild(h("ul",{class:"wl"},h("li",null,h("span",{class:"grow"},h("b",{text:c.n}),h("span",{class:"sub",text:c.e||"caixa de entrada"})),ext(c.u,"Abrir","ghostbtn"))))});
+    var p=wCard("E-mail","mail","#D93F2F",["#inbox","abrir o Inbox"]),contas=emailGmailIdentidades(),ul=h("div");
     p.appendChild(ul);
-    var ed=h("button",{type:"button",class:"ghostbtn",text:"Dar nomes às contas"});
-    ed.onclick=function(){
-      var f=h("div",{class:"wform"});
-      var ins=contas.map(function(c){var a=h("input",{type:"text",value:c.n,"aria-label":"Nome da conta"}),b=h("input",{type:"text",value:c.e||"",placeholder:"endereço (opcional)","aria-label":"Endereço"});f.appendChild(h("div",{class:"two"},a,b));return [a,b]});
-      var ok=h("button",{type:"button",text:"Salvar"});
-      ok.onclick=function(){pessoalGravar("emails",contas.map(function(c,i){return {n:ins[i][0].value.trim()||c.n,e:ins[i][1].value.trim(),u:c.u}}));renderInicio()};
-      f.appendChild(ok);ul.replaceWith(f);ed.remove()};
-    p.appendChild(h("p",{class:"note",text:"Gmail: conecte cada conta uma vez; depois é só tocar em Atualizar (o Google pede de novo a cada hora)."}));
-    p.appendChild(ed);
+    precisa(["inbox"]).then(function(){inboxCartao(ul,contas)})
+      .catch(function(e){ul.innerHTML="";ul.appendChild(h("p",{class:"sub",text:"Não consegui carregar o Inbox agora ("+e.message+")."}));ul.appendChild(h("a",{class:"ghostbtn",href:"#inbox",text:"Abrir o Inbox"}));logErro("módulo",e)});
+    if(contas.length){
+      var ed=h("button",{type:"button",class:"ghostbtn",text:"Dar nomes às contas do Gmail"});
+      ed.onclick=function(){
+        var f=h("div",{class:"wform"});
+        var ins=contas.map(function(c){var a=h("input",{type:"text",value:c.n,"aria-label":"Nome da conta"}),b=h("input",{type:"text",value:c.e||"",placeholder:"endereço (opcional)","aria-label":"Endereço"});f.appendChild(h("div",{class:"two"},a,b));return [a,b]});
+        var ok=h("button",{type:"button",text:"Salvar"});
+        ok.onclick=function(){pessoalGravar("emails",contas.map(function(c,i){return {n:ins[i][0].value.trim()||c.n,e:ins[i][1].value.trim(),u:c.u}}));renderInicio()};
+        f.appendChild(ok);ul.replaceWith(f);ed.remove()};
+      p.appendChild(ed)}
     return p}
 
   /* ===== Gmail: lê a caixa de entrada direto do navegador (Google Identity Services + Gmail API, só leitura).
@@ -1102,47 +1102,6 @@
   /* botões "Conectar" para as contas sem acesso agora (o Google pede um toque) */
   function gmBotoesConectar(res,depois){return res.filter(function(r){return r.semAcesso}).map(function(r){
     var b=h("button",{type:"button",class:"ghostbtn",text:"Conectar "+r.conta});b.onclick=function(){b.disabled=true;gmConectar(r.slot,r.email).then(depois,function(e){b.disabled=false;b.textContent="Não conectou ("+e.message+")"})};return b})}
-  function remetente(v){var m=/^\s*"?([^"<]+?)"?\s*<.*>\s*$/.exec(v);return (m?m[1]:v).trim()}
-  function gmailBloco(contas,i){
-    var c=contas[i],slot="g"+i,box=h("div",{class:"gmbox"});
-    var head=h("div",{class:"gmhead"}),corpo=h("ul",{class:"wl"});
-    box.appendChild(head);box.appendChild(corpo);
-    /* encolher: esconde a lista e deixa só o nome e os não lidos (lembra neste aparelho) */
-    var chMin="rac-gm-min-"+slot,min=false;try{min=localStorage.getItem(chMin)==="1"}catch(e){}
-    function aplicarMin(){box.classList.toggle("min",min);tg.setAttribute("aria-expanded",String(!min));tg.title=min?"Mostrar os e-mails":"Encolher"}
-    var tg=h("button",{type:"button",class:"gmtg"});
-    tg.onclick=function(){min=!min;try{localStorage.setItem(chMin,min?"1":"0")}catch(e){}aplicarMin()};
-    aplicarMin();
-    function cabecalho(txt,botao){head.innerHTML="";head.appendChild(tg);head.appendChild(h("span",{class:"grow"},h("b",{text:c.n}),h("span",{class:"sub",text:txt})));if(botao)head.appendChild(botao);head.appendChild(ext(c.u,"Abrir","ghostbtn"))}
-    function botao(rot){var b=h("button",{type:"button",class:"ghostbtn pri",text:rot});
-      b.onclick=function(){b.disabled=true;gmConectar(slot,c.e).then(function(tk){return carregar(tk)}).catch(function(e){b.disabled=false;cabecalho("Não conectou ("+e.message+")",b)})};return b}
-    function carregar(tk){
-      cabecalho("Carregando…");
-      return Promise.all([gmApi(tk,"profile"),gmApi(tk,"labels/INBOX"),gmApi(tk,"messages?labelIds=INBOX&maxResults=6")]).then(function(r){
-        var email=r[0].emailAddress,naoLidos=r[1].messagesUnread||0;
-        /* guarda o endereço para o Google já sugerir a conta certa da próxima vez */
-        if(email&&c.e!==email){var l=contas.map(function(x,k){return k===i?Object.assign({},x,{e:email}):x});pessoalGravar("emails",l);c.e=email}
-        var link="https://mail.google.com/mail/?authuser="+encodeURIComponent(email);
-        c.u=link+"#inbox";
-        var at=h("button",{type:"button",class:"ghostbtn",text:"Atualizar"});at.onclick=function(){var t=gmToken(slot);if(t)carregar(t);else botao("Atualizar").click()};
-        cabecalho(email+" · "+naoLidos+(naoLidos===1?" não lido":" não lidos"),at);
-        return Promise.all((r[2].messages||[]).map(function(m){return gmApi(tk,"messages/"+m.id+"?format=metadata&metadataHeaders=From&metadataHeaders=Subject")})).then(function(ms){
-          corpo.innerHTML="";
-          ms.forEach(function(m){var nl=(m.labelIds||[]).indexOf("UNREAD")>=0,d=new Date(+m.internalDate);
-            var hojeMsg=d.toDateString()===new Date().toDateString();
-            corpo.appendChild(h("li",{class:nl?"gmnl":null},h("span",{class:"grow"},
-              h("a",{href:link+"#inbox/"+m.threadId,target:"_blank",rel:"noopener",text:cab(m,"subject")||"(sem assunto)"}),
-              h("span",{class:"sub",text:remetente(cab(m,"from"))})),
-              h("span",{class:"end sub",text:hojeMsg?d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})})))});
-          if(!ms.length)corpo.appendChild(h("li",null,h("span",{class:"sub",text:"Caixa de entrada vazia."})))})
-      }).catch(function(e){
-        if(e.message==="expirou"){try{localStorage.removeItem("rac-gm-"+slot)}catch(x){}cabecalho("O acesso expirou",botao("Atualizar"))}
-        else cabecalho("Não consegui ler ("+e.message+")",botao("Tentar de novo"))})}
-    if(!GOOGLE_CLIENT_ID){cabecalho(c.e||"falta configurar o acesso do Google");return box}
-    var tk=gmToken(slot);
-    /* o botão de atualizar não lê o Gmail sozinho: fica o "toque para ver" */
-    if(tk&&!ATU.semExternos)carregar(tk);else cabecalho(c.e?c.e+" · toque para ver os e-mails":"ainda não conectado",botao(c.e?"Atualizar":"Conectar"));
-    return box}
 
   /* Esportes: os times em temporada primeiro (último resultado, campanha e próximo jogo); a MLB mostra jogos só quando há jogo
      nos próximos 10 dias, e fora disso o mercado de inverno dos Dodgers; no fim, as últimas notícias de Lakers e Packers */

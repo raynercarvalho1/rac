@@ -55,6 +55,15 @@ Não pedir aprovação para escolhas técnicas rotineiras, organização interna
 - Se o contexto de um chat acabar, o próximo agente deve retomar pela documentação e pelo estado real do GitHub, sem pedir ao dono para reconstruir o histórico já registrado.
 
 
+## RAC Knowledge (memória técnica do projeto, `docs/conhecimento.md`) — protocolo obrigatório
+Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs/conhecimento/registros/<tipo>/<nome>.md` (índice `docs/conhecimento/indice.json`; o dono importa para o site em RAC Knowledge → ⇄ Repositório).
+- **ANTES de implementar** (todo lote que mexe em código, banco, testes, publicação ou segurança): `node scripts/conhecimento.mjs antes "a tarefa"` — ou Grep/Read em `docs/conhecimento/registros/` se o script não puder rodar. Ler as regras permanentes,
+  as decisões e os **erros** relacionados (repetir erro registrado ou desfazer decisão aprovada é falha), os procedimentos aplicáveis e o estado atual do projeto. Se um registro contradiz o que o dono pediu, parar e consultar o dono.
+- **DEPOIS de implementar**: registrar só o que é novo e reutilizável: decisão nova (com o motivo); erro relevante (com causa-raiz, solução e prevenção); procedimento que mudou; estado do projeto atualizado; resultado de testes, commits, PR e publicação
+  (`diario`). `node scripts/conhecimento.mjs novo ...` ou editar o `.md`, depois `node scripts/conhecimento.mjs indice`, tudo no commit do lote (o teste reprova índice desatualizado). Corrigir o registro existente em vez de duplicar; decisão que substitui outra a cita em `relacionados`.
+- Não registrar detalhe trivial. **Nunca** registrar senha, chave, token, CPF, endereço, telefone, placa, foto ou exame: o repositório é público e o banco e o script recusam. Registro de decisão ou regra do dono só com o que o dono realmente decidiu; o resto é hipótese e vai como tal.
+- Isto complementa, não substitui, `docs/planejamento/` (histórico diário e decisões) e o restante deste arquivo; em conflito valem as autorizações do dono.
+
 ## Planejamento e histórico diário
 - Planejamento oficial (visão, arquitetura, roadmap, decisões e pendências): `docs/planejamento/` (Documento 1).
 - Ao fim de cada dia de trabalho, registrar em `docs/planejamento/historico-diario.md` (datado, sem apagar o passado) em três partes:

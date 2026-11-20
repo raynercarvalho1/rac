@@ -64,6 +64,7 @@
 :root[data-sec="newsletter"]{--accent:var(--c-inicio)}
 :root[data-sec="rachoje"]{--accent:var(--c-inicio)}
 :root[data-sec="iacustos"]{--accent:var(--c-saude)}
+:root[data-sec="conhecimento"]{--accent:var(--c-inicio)}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -1038,6 +1039,26 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 .hjaviso{margin:10px 0 6px;font-weight:600;overflow-wrap:anywhere}.hjpago{margin-top:12px}.hjperg textarea{width:100%;min-height:72px;resize:vertical}
 #rachoje-view .ghostbtn,#iacustos-view .ghostbtn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 #iacustos-view select,#iacustos-view input[type=date]{min-height:44px;max-width:100%}.icdata{display:flex;align-items:center;gap:6px;font-size:calc(13px + var(--fz));color:var(--muted)}
+/* RAC Knowledge (#conhecimento, só do dono): celular primeiro. Alvos de toque de 44 px, campos de 16 px (o iPhone não dá zoom), texto sempre quebra. */
+#conhecimento-view input,#conhecimento-view select,#conhecimento-view textarea{font-size:16px;min-height:44px;width:100%;box-sizing:border-box;max-width:100%}
+#conhecimento-view textarea{resize:vertical;line-height:1.45;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:9px 10px}
+#conhecimento-view .ghostbtn,#conhecimento-view button{min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box}
+#conhecimento-view a.kn-item{text-decoration:none;box-sizing:border-box;min-height:44px}
+#conhecimento-view .kn-primario{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.kn-acoes{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.kn-acoes>*{flex:1 1 auto}.kn-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0 12px}
+.kn-pills{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+#conhecimento-view .kn-pill{flex:none;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:99px;padding:6px 14px;font-weight:600}
+#conhecimento-view .kn-pill.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.kn-lista{display:flex;flex-direction:column;gap:8px}
+#conhecimento-view .kn-item{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;text-align:left;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-left-width:5px;border-radius:12px;padding:10px 12px;font-weight:400}
+.kn-item b,.kn-tit{font-weight:700;overflow-wrap:anywhere}.kn-res{overflow-wrap:anywhere}.kn-atual{border-left-color:var(--good)}
+details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;width:100%}
+.kn-bloco{margin:12px 0}.kn-bloco h3{margin:0 0 4px;font-size:calc(14px + var(--fz));color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.kn-texto{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;margin:0}
+.kn-rel{display:block;padding:10px 0;overflow-wrap:anywhere;color:var(--accent)}
+.kn-campo{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}.kn-rot{font-weight:600;font-size:calc(14px + var(--fz))}
+#conhecimento-view .kn-chip{background:transparent;color:var(--ink);min-height:36px}#conhecimento-view .kn-opcao{justify-content:flex-start;text-align:left;white-space:normal}
+#conhecimento-view .kn-copia{font:13px/1.4 var(--f-mono,monospace)}
 .icfiltros{align-items:center}.icaj{display:block;font-size:calc(12px + var(--fz));color:var(--muted);white-space:normal;margin-top:3px}
 .icclasses td,.ichist td{white-space:normal;vertical-align:top}.ichist tr.icl{cursor:pointer}.ichist tr.icl:hover td{background:var(--hover)}.ichist tr.dicaon td{background:var(--hover)}
 .icpag{justify-content:center;gap:14px}
@@ -1156,7 +1177,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-20.2">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-20.3">
 </head>
 <body>
 
@@ -1239,6 +1260,7 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
   <section id="newsletter" hidden><div id="newsletter-view"></div></section>
   <section id="rachoje" hidden><div id="rachoje-view" class="stack"></div></section>
   <section id="iacustos" hidden><div id="iacustos-view" class="stack"></div></section>
+  <section id="conhecimento" hidden><div id="conhecimento-view" class="stack"></div></section>
   <section id="componentes" hidden><div id="componentes-view" class="stack"></div></section>
   <section id="saude" hidden><div id="saude-view" class="stack"></div></section>
   <section id="eddie" hidden><div id="eddie-view" class="stack"></div></section>

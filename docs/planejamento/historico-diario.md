@@ -1409,11 +1409,12 @@ Família e da Casa.
 ### 1. O que fizemos
 - Modelo de áreas de consumo no núcleo (`ar*`): cada item pertence a uma categoria e cada categoria a uma área; Mercado, Automotivo, Farmácia e Bebê/Infantil de fábrica, com as 13 associações iniciais pedidas; áreas e categorias novas criadas pelo dono, sem mudar código. Nenhuma outra categoria foi atribuída sozinha (Tecnologia, Saúde, Vestuário, Pet, Alimentação, Outros e as personalizadas ficam "sem área").
 - Painel de cada área (mesma tela da Central, reduzida aos itens da área), "Por área de consumo" na Central (Σ áreas + não classificados + ajustes = total) e **Gestão de categorias** (`#mercado/categorias`). Painel do Mercado do dono só soma a área Mercado. Frete, taxas e descontos gerais não são rateados.
-- Configuração em `PESSOAL["mercado-areas"]` (tabela `pessoal`, só o dono, MFA, backup): sem migration, sem SQL, sem função. Fernanda: nada mudou (nem a lista de chaves da casa).
+- Configuração em `PESSOAL["mercado-areas"]` (tabela `pessoal`, MFA, backup).
+- **Correção de regra do dono (mesmo dia):** a Fernanda tem acesso integral e igual dentro da Central de Compras (áreas, painéis, Gestão de categorias, criar/editar/excluir, associações), com a configuração compartilhada. Implementado: chave em `PESSOAL_CASA`, telas liberadas para a casa, migration **064** preparada (proposta, não aplicada) e testes dono × casa (`areas_consumo`, `banco_casa_areas` em PGlite).
 - Testes: `tests/areas_consumo.test.mjs` (19 testes cobrindo os 14 pontos pedidos); dois testes antigos ajustados de propósito (Painel agora testado como casa; regex de rota). Documentação: `docs/central-areas.md`, `docs/mapa.md`, `docs/central-compras.md`, `docs/mercado-classificacao.md`, `docs/painel.md`, `docs/seguranca.md`.
 
 ### 2. O que estamos fazendo
-- PR para revisão; sem merge, sem publicação do site e sem qualquer SQL em produção.
+- PR #60 para revisão; sem merge, sem publicação do site e sem SQL em produção.
 
 ### 3. O que vamos fazer
-- Dono: revisar, conferir no iPhone, associar as categorias sem área e decidir se a Fernanda também recebe as áreas (exigiria migration). Depois, se quiser: filtrar Preços, Consumo, Comparar e Produtos por área.
+- Dono: rodar a 064 no SQL Editor (antes do site) e a conferência, revisar, conferir no iPhone e associar as categorias sem área. Depois, se quiser: filtrar Preços, Consumo, Comparar e Produtos por área.

@@ -249,30 +249,74 @@ test("12 · a configuração persiste: gravada numa sessão, lida igual por outr
   assert.match(ler("mercado.js"), /pessoalGravar\("mercado-areas"/); assert.ok(!/localStorage/.test(ler("mercado.js").slice(ler("mercado.js").indexOf("function areaCfg"), ler("mercado.js").indexOf("function areaContexto"))), "nada só no aparelho");
 });
 
-// ---------- 13: a Fernanda e as permissões ----------
-test("13 · a Fernanda (casa) não vê nem grava as áreas: o banco, o app e a tela continuam como eram", async () => {
-  assert.ok(!/mercado-areas/.test(ler("supabase/057_casa_radar_fiscal.sql")), "a política da casa (057) não inclui a chave nova");
-  assert.match(app, /var PESSOAL_CASA=\["radar-config","radar-pagos","radar-vinculos","mercado-equivalencias","mercado-alertas","mercado-canais"\]/); assert.ok(!/PESSOAL_CASA=[^\]]*mercado-areas/.test(app));
-  const c = montar({ papel: "casa", linhas: [{ user_id: D, chave: "mercado-areas", valor: { v: 1, areas: [], associacoes: { Pet: "mercado" }, categorias: [] }, atualizado: T0 }, { user_id: D, chave: "mercado-canais", valor: {}, atualizado: T0 }] });
-  await c.ctx.pessoalCarregar(); assert.deepEqual(Object.keys(c.ctx.__t.P()), ["mercado-canais"], "a casa não recebe a configuração das áreas");
-  c.ctx.pessoalGravar("mercado-areas", { v: 1 }, c.pronto); await ESPERA(); await ESPERA(); assert.equal(c.upserts.length, 0, "a casa não grava"); assert.match(c.msgs[0], /só neste aparelho/);
-  // tela da casa: sem faixa de áreas, sem painel por área, rota de área/gestão cai na Central, Painel completo como sempre
-  ambiente({ dono: false, pessoal: {} }); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null;
-  assert.equal(T.rowsP().length, ROWS.length, "o Painel da Fernanda soma tudo, como antes");
-  const p = new El("div"); T.viewPainel(p); const tp = texto(p); assert.ok(/Dipirona|Drogasil/.test(tp) && !/Este painel mostra só a área Mercado/.test(tp));
-  T.drawApp("area", "farmacia"); const r = texto(RAIZ); assert.ok(!/Áreas de consumo|Gestão de categorias|Área de consumo/.test(r), "a casa não vê nada de áreas");
-  assert.ok(/Central de Compras/.test(r) && /Tauste/.test(r), "a rota de área cai na Central da casa");
-  T.drawApp("categorias"); assert.ok(!/Gestão de categorias/.test(texto(RAIZ)));
-  const b = new El("div"); T.viewCentral(b); assert.ok(!/Por área de consumo/.test(texto(b)), "a Central da casa não ganha painel novo");
-  // o dono vê a faixa de áreas e a gestão
-  ambiente(); T.drawApp("central"); const rd = texto(RAIZ); assert.ok(/Áreas de consumo/.test(rd) && /Gestão de categorias/.test(rd) && /Central \(todas\)/.test(rd) && /Farmácia/.test(rd) && /Não classificados \(/.test(rd));
-  const nav = achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === "Áreas de consumo")[0]; assert.ok(achar(nav, (e) => e.tag === "a").length >= 6);
-  T.drawApp("area", "automotivo"); const ra = RAIZ; const cur = achar(ra, (e) => e.tag === "a" && e.attrs["aria-current"] === "page").map(texto); assert.ok(cur.includes("Automotivo"), "a área ativa fica identificada"); assert.ok(/Área de consumo/.test(texto(ra)));
+// ---------- 13: a Fernanda (casa) tem as mesmas operações e a mesma configuração do dono (correção de regra de 20/11/2026) ----------
+const LINHA_AREAS = (valor) => ({ user_id: D, chave: "mercado-areas", valor, atualizado: T0 });
+function telaDe(papel) {   // a mesma sequência de operações na tela, para o papel dado; devolve o que foi visto e o que foi gravado
+  const grav = []; globalThis.pessoalGravar = (k, v, cb) => { grav.push([k, JSON.parse(JSON.stringify(v))]); globalThis.PESSOAL[k] = v; cb && cb(""); };
+  try {
+    ambiente({ dono: papel === "dono", pessoal: {} }); const vistas = {};
+    T.drawApp("central"); vistas.central = texto(RAIZ); vistas.nav = achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === "Áreas de consumo").length;
+    const b = new El("div"); T.viewCentral(b); vistas.porArea = /Por área de consumo/.test(texto(b)) && /Total da Central no período/.test(texto(b));
+    for (const a of ["mercado", "automotivo", "farmacia", "bebe", "nao-classificados"]) { Object.assign(T.CU, { area: a, per: "2026-11" }); const x = new El("div"); T.viewCentral(x); vistas[a] = texto(x); }
+    T.CU.area = ""; T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; const p = new El("div"); T.viewPainel(p); vistas.painel = texto(p); vistas.linhasPainel = T.rowsP().length;
+    const g = new El("div"); T.viewCategorias(g); vistas.gestao = texto(g);
+    const sel = (rot) => achar(g, (e) => e.tag === "select" && e.attrs["aria-label"] === rot)[0];
+    const s1 = sel("Área de Tecnologia"); s1.value = "mercado"; s1.onchange();                       // alterar associação
+    const g2 = new El("div"); T.viewCategorias(g2);
+    const entrada = (e, ph) => achar(e, (x) => x.tag === "input" && x.attrs.placeholder === ph)[0], botao = (e, t) => achar(e, (x) => x.tag === "button" && texto(x) === t)[0];
+    entrada(g2, "Nome da nova área").value = "Pet shop"; botao(g2, "Criar área").onclick();                 // criar área
+    const g3 = new El("div"); T.viewCategorias(g3); achar(g3, (e) => e.tag === "select" && e.attrs["aria-label"] === "Área de Pet")[0];
+    entrada(g3, "Nome da categoria").value = "Brinquedos"; achar(g3, (x) => x.tag === "select" && x.attrs["aria-label"] === "Área da nova categoria")[0].value = "bebe"; botao(g3, "Criar categoria").onclick();   // criar categoria
+    const g4 = new El("div"); T.viewCategorias(g4); botao(g4, "Remover da lista").onclick();                // excluir categoria criada
+    const g5 = new El("div"); T.viewCategorias(g5); botao(g5, "Remover a área").onclick();                  // excluir área criada
+    return { vistas, grav };
+  } finally { delete globalThis.pessoalGravar; }
+}
+test("13 · dono e casa executam as mesmas operações e veem as mesmas telas, indicadores e gráficos", () => {
+  const d = telaDe("dono"), c = telaDe("casa");
+  assert.deepEqual(c.vistas, d.vistas, "mesmo texto em todas as telas e painéis (Central, 4 áreas, não classificados, Painel do Mercado, Gestão)");
+  assert.ok(d.vistas.nav === 1 && d.vistas.porArea && /Gestão de categorias/.test(d.vistas.gestao) && /Áreas de consumo/.test(d.vistas.central) && /Central \(todas\)/.test(d.vistas.central));
+  assert.ok(/Raia Drogasil/.test(d.vistas.farmacia) && /Cortina/.test(d.vistas.automotivo) === false, "o painel da área mostra a área");
+  assert.ok(!/Dipirona|Cortina|Drogasil/.test(d.vistas.painel) && d.vistas.linhasPainel === 4, "o Painel do Mercado da casa também só soma a área Mercado");
+  assert.deepEqual(c.grav, d.grav, "as mesmas gravações: alterar associação, criar área, criar categoria, excluir categoria e excluir área");
+  assert.equal(d.grav.length, 5); assert.ok(d.grav.every(([k]) => k === "mercado-areas"), "só a chave das áreas é gravada");
+  const cfg = N.arConfig(d.grav[2][1]); assert.equal(N.arAreaDe(cfg, "Tecnologia"), "mercado"); assert.equal(N.arAreaDe(cfg, "Brinquedos"), "bebe");
 });
-test("código: áreas e gestão só abrem para o dono; sem migration; nada novo no catálogo do banco", () => {
-  const m = ler("mercado.js"); assert.match(m, /\(x\[0\] !== "area" && x\[0\] !== "categorias"\) \|\| ehProprietario\(\)/);
-  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /(^|_)(areas?|consumo)(_|\.)/i.test(f)), "nenhuma migration para as áreas (usa a tabela pessoal)");
+test("13b · a rota de área e a Gestão abrem para a casa; módulos só do dono continuam fechados", () => {
+  const m = ler("mercado.js"); assert.match(m, /function ehProprietario\(\) \{ return ehDono\(\); \}/); assert.match(m, /\(x\[0\] !== "area" && x\[0\] !== "categorias"\) \|\| ehProprietario\(\)/);
+  ambiente({ dono: false }); T.drawApp("area", "farmacia"); assert.ok(/Área de consumo/.test(texto(RAIZ)) && /Drogasil/.test(texto(RAIZ)));
+  T.drawApp("categorias"); assert.ok(/Gestão de categorias/.test(texto(RAIZ)));
+  ambiente({ dono: false }); T.drawApp("alertas"); assert.ok(/Central de Compras/.test(texto(RAIZ)));
+  const app2 = ler("js/app.js"); assert.match(app2, /function pessoalDaCasa/); assert.match(app2, /function isOwner\(\)\{return PAPEL==="dono"\}/);
+});
+test("13c · a configuração é a MESMA para dono e casa, em qualquer aparelho (mesma linha do dono; sem divergência)", async () => {
+  assert.match(app, /var PESSOAL_CASA=\["radar-config","radar-pagos","radar-vinculos","mercado-equivalencias","mercado-alertas","mercado-canais","mercado-areas"\]/);
+  // 1) a Fernanda grava; o dono, em outro aparelho, lê a mesma coisa
+  const casa = montar({ papel: "casa", linhas: [] }); await casa.ctx.pessoalCarregar();
+  let cfg = N.arAssociar(N.arAreaCriar(N.arConfig(null), "Pet shop").cfg, "Pet", "pet-shop").cfg;
+  casa.ctx.pessoalGravar("mercado-areas", N.arRaw(cfg), casa.pronto); for (let i = 0; i < 5; i++) await ESPERA();
+  assert.equal(casa.upserts.length, 1); assert.equal(casa.upserts[0].user_id, D, "na linha do DONO, não numa linha dela"); assert.equal(casa.upserts[0].chave, "mercado-areas"); assert.deepEqual(casa.msgs, [""]);
+  const dono = montar({ papel: "dono", linhas: casa.linhas }); await dono.ctx.pessoalCarregar();
+  assert.deepEqual(N.arRaw(N.arConfig(dono.ctx.__t.P()["mercado-areas"])), N.arRaw(cfg), "o dono vê o que a Fernanda configurou");
+  // 2) o dono muda; a Fernanda, em outro aparelho, lê a mesma coisa
+  const cfg2 = N.arAssociar(cfg, "Tecnologia", "mercado").cfg;
+  dono.ctx.pessoalGravar("mercado-areas", N.arRaw(cfg2), dono.pronto); for (let i = 0; i < 5; i++) await ESPERA();
+  const casa2 = montar({ papel: "casa", linhas: dono.linhas.filter((l, i, a) => a.map((x) => x.chave).lastIndexOf(l.chave) === i) }); await casa2.ctx.pessoalCarregar();
+  assert.deepEqual(N.arRaw(N.arConfig(casa2.ctx.__t.P()["mercado-areas"])), N.arRaw(cfg2));
+  assert.ok(casa2.filtros.some(([k, c, v]) => k === "in" && c === "chave" && v.includes("mercado-areas")), "a casa pede a chave nova");
+  // 3) edição concorrente: a casa não sobrescreve às cegas (vale a versão da conta, como nas outras chaves compartilhadas)
+  const c3 = montar({ papel: "casa", linhas: [LINHA_AREAS({ v: 1, areas: [], associacoes: {}, categorias: [] })] }); await c3.ctx.pessoalCarregar();
+  const l = c3.linhas[0]; l.valor = N.arRaw(cfg2); l.atualizado = "2026-11-20T11:00:00.000Z";
+  c3.ctx.pessoalGravar("mercado-areas", { v: 1, areas: [], associacoes: { Pet: "mercado" }, categorias: [] }, c3.pronto); for (let i = 0; i < 5; i++) await ESPERA();
+  assert.equal(c3.upserts.length, 0); assert.match(c3.msgs[0], /outra pessoa da casa/); assert.deepEqual(c3.ctx.__t.P()["mercado-areas"], N.arRaw(cfg2));
+  // 4) outra chave pessoal continua invisível para a casa
+  const c4 = montar({ papel: "casa", linhas: [LINHA_AREAS({ v: 1 }), { user_id: D, chave: "x-amigos", valor: ["segredo"], atualizado: T0 }] }); await c4.ctx.pessoalCarregar();
+  assert.deepEqual(Object.keys(c4.ctx.__t.P()), ["mercado-areas"]);
+});
+test("código: áreas e gestão são de dono e casa; sem tabela nova; só a política da pessoal muda (064, proposta)", () => {
+  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /(^|_)(areas?|consumo)(_|\.)/i.test(f) && !/^064_casa_areas_consumo/.test(f)), "nenhuma tabela nem migration de dados para as áreas");
+  const sql = ler("supabase/064_casa_areas_consumo.sql"); assert.match(sql, /^-- PROPOSTA 064 · NÃO APLICADA EM PRODUÇÃO/);
   const n = ler("nucleo.js"), i0 = n.indexOf("/* ===== Áreas de consumo"), i1 = n.indexOf("/* ===== Central de Compras como um mercado"); assert.ok(i0 > 0 && i1 > i0);
   assert.ok(!/document|window\.|sb\.|fetch\(/.test(n.slice(i0, i1)), "o núcleo das áreas é puro: sem tela nem banco");
-  const css = ler("index.html"); assert.match(css, /#mercado \.mk-areas\{/);
+  assert.match(ler("index.html"), /#mercado \.mk-areas\{/);
 });

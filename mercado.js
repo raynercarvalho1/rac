@@ -2361,8 +2361,8 @@
   var onl = null, onlAviso = "", cuMemo = null;
   var CU = { per: "", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, alvo: false, area: "" };
   function recentral() { drawApp(CU.area ? "area" : "central", CU.area); }
-  /* Áreas de consumo (docs/central-areas.md): só o dono. A configuração mora em PESSOAL["mercado-areas"] (tabela pessoal: outras sessões e aparelhos leem a mesma; a casa não tem acesso). */
-  function ehProprietario() { return typeof isOwner === "function" && isOwner(); }
+  /* Áreas de consumo (docs/central-areas.md): dono e casa, com os mesmos poderes. A configuração mora em PESSOAL["mercado-areas"] (tabela pessoal, linha do dono; a Fernanda lê e grava a mesma, política da migration 064). */
+  function ehProprietario() { return ehDono(); }   /* áreas e gestão: dono e casa, a mesma configuração (PESSOAL_CASA, migration 064) */
   var arMemo = { raw: undefined, cfg: null };
   function areaCfg() { var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-areas"]) || null; if (!arMemo.cfg || arMemo.raw !== raw) arMemo = { raw: raw, cfg: NU().arConfig(raw) }; return arMemo.cfg; }
   function areaSalvar(cfg, aviso) {

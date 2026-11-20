@@ -34,14 +34,14 @@ const LINHAS = [
   { user_id: D, chave: "x-amigos", valor: ["segredo"], atualizado: T0 }, { user_id: D, chave: "aniversarios", valor: [1], atualizado: T0 },
 ];
 
-test("casa: carrega só as 6 chaves, da linha do dono (filtro user_id e chave no pedido); o resto de pessoal não entra", async () => {
+test("casa: carrega só as 7 chaves, da linha do dono (filtro user_id e chave no pedido); o resto de pessoal não entra", async () => {
   const m = montar({ papel: "casa", linhas: LINHAS });
   await m.ctx.pessoalCarregar();
   const P = m.ctx.__t.P();
   assert.deepEqual(Object.keys(P).sort(), ["mercado-canais", "radar-vinculos"]);
   assert.deepEqual(P["radar-vinculos"], { a: 1 });
   assert.ok(m.filtros.some(([k, c, v]) => k === "eq" && c === "user_id" && v === D), "pede a linha do dono");
-  assert.ok(m.filtros.some(([k, c, v]) => k === "in" && c === "chave" && ["radar-config", "radar-pagos", "radar-vinculos", "mercado-equivalencias", "mercado-alertas", "mercado-canais"].every((x) => v.includes(x)) && v.length === 6), "só as 6 chaves");
+  assert.ok(m.filtros.some(([k, c, v]) => k === "in" && c === "chave" && ["radar-config", "radar-pagos", "radar-vinculos", "mercado-equivalencias", "mercado-alertas", "mercado-canais", "mercado-areas"].every((x) => v.includes(x)) && v.length === 7), "só as 7 chaves");
 });
 test("casa: grava chave compartilhada na linha do DONO (user_id do dono, não o dela); sem escrever chave fora da lista", async () => {
   const m = montar({ papel: "casa", linhas: LINHAS });

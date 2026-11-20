@@ -101,16 +101,22 @@
   /* ---------- tela ---------- */
   function fxLinha(r,v){return h("div",{class:"row"},h("span",{class:"grow",text:r}),h("b",{text:v}))}
   /* validação à vista: a conta (consistente / divergente / baixa confiança), o total calculado contra o fiscal, a diferença em reais e o que a gravação pode fazer. A situação fiscal tem linha própria no cartão. */
+  /* conflito de chave com o QR Code: impede confirmar até a pessoa decidir no formulário (aplicar a correção); depois vale a chave que ela deixou, desde que seja uma das duas */
+  function fxQrConflitos(r){var q=r&&r.qr;if(!q||q.estado!=="conflito")return [];
+    if(!q.decidida)return (q.conflitos||[]).slice();
+    var ch=String(r.nota&&r.nota.chave||"").replace(/\D/g,"");
+    return ch&&(q.chaves||[]).indexOf(ch)<0?["a chave informada ("+ch+") não é nenhuma das chaves lidas (QR Code ou IA): use uma delas ou deixe o campo vazio."]:[]}
   function fxValidacao(n,r){
-    var ia=r&&r.ia,d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,ia?{confianca:NUCLEO.nfConfiancaIA(ia),revisada:ia.revisada===true}:undefined),dc=d,v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
+    var ia=r&&r.ia,d=NUCLEO.nfDecisaoGravacao(n,r&&r.dup||null,ia?{confianca:ia.confianca,qr_conflitos:fxQrConflitos(r)}:undefined),dc=d,v=d.veredito,s=v.soma,box=h("div",{class:"fxvalid"});
     box.appendChild(h("h4",{text:"Validação da nota"}));
     box.appendChild(fxLinha("Conta dos itens",v.rotulo));
     if(s.total_calculado!=null&&s.total_fiscal!=null){box.appendChild(fxLinha("Total calculado pelos itens",fxMoeda(s.total_calculado)));box.appendChild(fxLinha("Total fiscal",fxMoeda(s.total_fiscal)));box.appendChild(fxLinha("Diferença",v.diferenca_texto||"—"))}
-    v.motivos.forEach(function(m){box.appendChild(h("div",{class:"fxaviso fxbloq",text:(m.tipo==="divergencia"?"Divergência: ":"Baixa confiança: ")+m.texto}))});
+    v.motivos.forEach(function(m){box.appendChild(h("div",{class:"fxaviso fxbloq",text:(m.tipo==="divergencia"?"Divergência: ":m.codigo==="confianca_baixa"?"Baixa confiança: ":"Dados incompletos: ")+m.texto}))});
     v.bloqueios.forEach(function(b){box.appendChild(h("div",{class:"fxaviso fxbloq",text:b.texto}))});
+    fxQrConflitos(r).forEach(function(t){box.appendChild(h("div",{class:"fxaviso fxbloq",text:"Conflito com o QR Code: "+t}))});
     v.avisos.forEach(function(a){if((n.avisos||[]).indexOf(a)<0)box.appendChild(h("div",{class:"fxaviso",text:a}))});
     d.bloqueios_dup.forEach(function(b){box.appendChild(h("div",{class:"fxaviso fxbloq",text:b}))});d.avisos_dup.forEach(function(a){box.appendChild(h("div",{class:"fxaviso",text:a}))});
-    /* a linha "Gravação" diz se o "Estou de acordo" vai existir: leitura completa, conta, confiança mínima, situação fiscal e duplicidade */
+    /* a linha "Gravação" diz se o "Estou de acordo" vai existir: dados essenciais, conta, situação fiscal, conflito de chave e duplicidade (a confiança da IA só informa) */
     box.appendChild(fxLinha("Gravação",dc.modo==="validada"?"Pode ser gravada como validada e lançada no Mercado":dc.modo==="pendente_fiscal"?"Só como pendente fiscal (sem validação); a entrada no Mercado não espera a SEFAZ":"Bloqueada: não pode ser confirmada"));
     return box}
   function fxCartao(r,repetida){
@@ -151,34 +157,53 @@
      quem valida é o núcleo (conta, situação fiscal, confiança mínima de 0,90, duplicidade). A leitura em si não grava nada; a gravação (Lote 1.6) só acontece no clique em salvar e nunca lança despesa. */
   var FX_PDF="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",FX_PDF_W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   var FX_IA={cache:{},lendo:false};
+  /* ---------- QR Code da NFC-e, lido NO APARELHO (nada sai daqui): fotos e páginas de PDF. Se o leitor não carregar, ou não houver QR, ou ele estiver ilegível, o fluxo segue só com a IA. ---------- */
+  var FX_QR_URL="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js";
+  function fxQrCarregar(){return Promise.resolve().then(function(){return window.jsQR||carregarScript(FX_QR_URL).then(function(){return window.jsQR})}).then(function(f){return typeof f==="function"?f:null},function(){return null})}
+  function fxQrCanvas(L,cv){try{var id=cv.getContext("2d").getImageData(0,0,cv.width,cv.height),q=L(id.data,id.width,id.height,{inversionAttempts:"attemptBoth"});return q&&q.data?String(q.data).slice(0,2000):null}catch(e){return null}}
+  function fxImgCanvas(f,max){
+    return Promise.resolve().then(function(){if(typeof createImageBitmap==="function")return createImageBitmap(f);
+      return new Promise(function(ok,no){var u=URL.createObjectURL(f),i=new Image();i.onload=function(){URL.revokeObjectURL(u);ok(i)};i.onerror=function(){URL.revokeObjectURL(u);no(new Error("imagem"))};i.src=u})}).then(function(im){
+      var w=im.width||im.naturalWidth,hh=im.height||im.naturalHeight,k=Math.min(1,max/Math.max(w,hh)),cv=document.createElement("canvas");cv.width=Math.max(1,Math.round(w*k));cv.height=Math.max(1,Math.round(hh*k));
+      cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);if(im.close)im.close();return cv})}
+  /* uma foto, em dois tamanhos (o QR é pequeno na foto); devolve o texto do primeiro QR achado */
+  function fxQrFoto(L,f){return [2600,1400].reduce(function(p,max){return p.then(function(ach){return ach||fxImgCanvas(f,max).then(function(cv){return fxQrCanvas(L,cv)},function(){return null})})},Promise.resolve(null))}
+  function fxQrFotos(lista){return fxQrCarregar().then(function(L){if(!L)return {textos:[],leitor:"indisponivel"};
+    return lista.reduce(function(p,f){return p.then(function(acc){return fxQrFoto(L,f).then(function(t){if(t&&acc.indexOf(t)<0)acc.push(t);return acc})})},Promise.resolve([])).then(function(t){return {textos:t,leitor:"ok"}})}).then(null,function(){return {textos:[],leitor:"indisponivel"}})}
   function fxCabecalho(f){return f.slice(0,16).arrayBuffer().then(function(b){return Array.prototype.slice.call(new Uint8Array(b))})}
   function fxLatin1(buf){var u=new Uint8Array(buf),s="",i,p=8192;for(i=0;i<u.length;i+=p)s+=String.fromCharCode.apply(null,u.subarray(i,Math.min(u.length,p+i)));return s}
   /* identidade do documento = SHA-256 dos SHA-256 dos arquivos (a mesma foto ou PDF lida de novo não é enviada de novo na mesma tela) */
   function fxIdDoc(bufs){return Promise.all(bufs.map(function(b){return crypto.subtle.digest("SHA-256",b).then(fxHex)})).then(function(hs){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(hs.join(":"))).then(fxHex)})}
   /* PDF → texto (CPF mascarado) e imagens JPEG das páginas (até 1568 px); no máximo NF_IA_MAX_PAG páginas */
   function fxPdfParaImagens(buf){
-    return carregarScript(FX_PDF).then(function(){var L=window.pdfjsLib;L.GlobalWorkerOptions.workerSrc=FX_PDF_W;return L.getDocument({data:new Uint8Array(buf.slice(0)),isEvalSupported:false}).promise}).then(function(doc){
+    var qrs=[],LQ=null;
+    return fxQrCarregar().then(function(Lq){LQ=Lq;return carregarScript(FX_PDF)}).then(function(){var L=window.pdfjsLib;L.GlobalWorkerOptions.workerSrc=FX_PDF_W;return L.getDocument({data:new Uint8Array(buf.slice(0)),isEvalSupported:false}).promise}).then(function(doc){
       if(doc.numPages>NUCLEO.NF_IA_MAX_PAG)throw new Error("O PDF tem "+doc.numPages+" páginas; o limite é "+NUCLEO.NF_IA_MAX_PAG+". Envie só as páginas da nota.");
       var txt=[],imgs=[],p=Promise.resolve();
       for(var i=1;i<=doc.numPages;i++)(function(i){p=p.then(function(){return doc.getPage(i).then(function(pg){
         return pg.getTextContent().then(function(tc){txt.push(tc.items.map(function(x){return x.str}).join(" "))}).then(function(){
           var v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:Math.min(3,1568/Math.max(v0.width,v0.height))}),cv=document.createElement("canvas");cv.width=Math.max(1,Math.round(v.width));cv.height=Math.max(1,Math.round(v.height));
-          return pg.render({canvasContext:cv.getContext("2d"),viewport:v}).promise.then(function(){var d=cv.toDataURL("image/jpeg",0.85);imgs.push({tipo:"image/jpeg",base64:d.slice(d.indexOf(",")+1)})})})})})})(i);
-      return p.then(function(){return {texto:txt.join("\n"),imagens:imgs,paginas:doc.numPages}})})}
+          return pg.render({canvasContext:cv.getContext("2d"),viewport:v}).promise.then(function(){var q=LQ?fxQrCanvas(LQ,cv):null;if(q&&qrs.indexOf(q)<0)qrs.push(q);var d=cv.toDataURL("image/jpeg",0.85);imgs.push({tipo:"image/jpeg",base64:d.slice(d.indexOf(",")+1)})})})})})})(i);
+      return p.then(function(){return {texto:txt.join("\n"),imagens:imgs,paginas:doc.numPages,qr:{textos:qrs,leitor:LQ?"ok":"indisponivel"}}})})}
   /* o que vai à IA: fotos reduzidas (iaFoto) ou páginas do PDF + o texto do PDF sem CPF */
   function fxPreparar(lote,lista,bufs){
-    if(lote.tipo==="pdf")return fxPdfParaImagens(bufs[0]).then(function(r){return {texto:NUCLEO.nfMascararCpf(r.texto).replace(/\s+/g," ").trim().slice(0,5800),imagens:r.imagens.slice(0,4)}});
-    return Promise.all(lista.map(function(f){return iaFoto(f)})).then(function(imgs){return {texto:"",imagens:imgs}})}
+    if(lote.tipo==="pdf")return fxPdfParaImagens(bufs[0]).then(function(r){return {texto:NUCLEO.nfMascararCpf(r.texto).replace(/\s+/g," ").trim().slice(0,5800),imagens:r.imagens.slice(0,4),qr:r.qr}});
+    return Promise.all([Promise.all(lista.map(function(f){return iaFoto(f)})),fxQrFotos(lista)]).then(function(x){return {texto:"",imagens:x[0],qr:x[1]}})}
   var FX_NAO_LIBERADO={sem_real:1,acao_em_demo:1,modo_demo:1,papel_em_demo:1};
-  function fxResultadoIA(resp,lote,lista,id){
+  function fxResultadoIA(resp,lote,lista,id,qrAch){
     var nao="A leitura de foto e PDF por IA ainda não está liberada no servidor. Nada foi lido, cobrado nem gravado.";
     if(!resp||!resp.ok){var c=resp&&resp.erro&&resp.erro.codigo,m=resp&&resp.erro&&resp.erro.mensagem;
       if(FX_NAO_LIBERADO[c]||(c==="entrada_invalida"&&/Ação desconhecida/i.test(m||"")))return {estado:"nao_liberado",mensagem:nao};
       return {estado:"erro",mensagem:"A IA não leu o documento: "+(resp&&resp.mensagem||m||"sem resposta")+(resp&&resp.estado==="incerto"&&resp.id?" Id da chamada: "+resp.id+".":"")+" Nada foi gravado."}}
     if(resp.modo!=="REAL"||!resp.resultado||resp.resultado._demo)return {estado:"nao_liberado",mensagem:nao};
-    var ia=NUCLEO.nfLerIA(resp.resultado,lote.tipo),nota=NUCLEO.nfNormalizar(ia.lido);
+    var ia=NUCLEO.nfLerIA(resp.resultado,lote.tipo);
+    /* QR Code: a chave validada complementa a leitura da IA; se divergir da chave da IA, vira conflito mostrado (nunca escolhe em silêncio) */
+    var ach=((qrAch&&qrAch.textos)||[]).map(NUCLEO.nfQrChave),vq=ach.filter(function(x){return x.ok}),chs=[];vq.forEach(function(x){if(chs.indexOf(x.chave)<0)chs.push(x.chave)});
+    var cq=chs.length>1?{estado:"conflito",lido:ia.lido,chave_qr:null,chave_ia:null,avisos:[],conflitos:["há mais de um QR Code com chaves de acesso diferentes ("+chs.join(" e ")+"): confira qual é a nota e deixe a chave correta no formulário “Corrigir os dados lidos”."]}:NUCLEO.nfQrConferir(ia.lido,vq[0]||ach[0]||null);
+    ia.lido=cq.lido;var nota=NUCLEO.nfNormalizar(ia.lido);
     var r={nome:lista.map(function(f){return f.name||"arquivo"}).join(", ").slice(0,160),nota:nota,lido:ia.lido,arquivo:null,fotos:lista,tipoDoc:lote.tipo,
-      ia:{confianca:ia.confianca,incertos:ia.incertos,itens_incertos:ia.itens_incertos,avisos:ia.avisos.concat(resp.avisos||[]),revisada:false,formato:ia.formato,idChamada:resp.id||null,modelo:resp.modelo||null,consumo:resp.consumo||null}};
+      ia:{confianca:ia.confianca,incertos:ia.incertos,itens_incertos:ia.itens_incertos,avisos:ia.avisos.concat(resp.avisos||[]),formato:ia.formato,idChamada:resp.id||null,modelo:resp.modelo||null,consumo:resp.consumo||null},
+      qr:{estado:cq.estado,leitor:(qrAch&&qrAch.leitor)||"indisponivel",chave_qr:cq.chave_qr,chave_ia:cq.chave_ia,chaves:chs.length>1?chs:[cq.chave_qr,cq.chave_ia].filter(Boolean),avisos:cq.avisos,conflitos:cq.conflitos,decidida:false,consulta:NUCLEO.nfConsultaSefaz(vq[0]||null)}};
     FX_IA.cache[id]=r;return {estado:"lido",r:r}}
   /* a conferência de duplicidade da leitura (só leitura no banco; sem arquivo, sem SHA) */
   function fxDuplicarIA(r){return fxExistentes(r.nota,"").then(function(ex){r.dup=NUCLEO.nfDuplicidade(r.nota,ex.dados,{});r.dupAvisos=ex.avisos;return r},function(){r.dup=null;r.dupAvisos=["Não consegui conferir duplicidade agora; ela será conferida de novo."];return r})}
@@ -194,16 +219,26 @@
         if(lote.tipo==="pdf"&&NUCLEO.nfPdfAtivo(fxLatin1(bufs[0])))return fim({estado:"invalido",mensagem:"O PDF tem conteúdo ativo (script ou arquivo embutido) e não foi aberto. Use o PDF original da nota ou uma foto."});
         return fxIdDoc(bufs).then(function(id){
           if(FX_IA.cache[id])return fim({estado:"cache",mensagem:"Este documento já foi lido nesta tela: nada foi enviado de novo à IA.",r:FX_IA.cache[id]});
-          return fxPreparar(lote,lista,bufs).then(function(ent){return racIA("fiscal","fiscal.nota",{texto:ent.texto,imagens:ent.imagens},{})}).then(function(resp){
-            var x=fxResultadoIA(resp,lote,lista,id);return x.r?fxDuplicarIA(x.r).then(function(){return fim(x)}):fim(x)})})})
+          var qrAch=null;
+          return fxPreparar(lote,lista,bufs).then(function(ent){qrAch=ent.qr;return racIA("fiscal","fiscal.nota",{texto:ent.texto,imagens:ent.imagens},{})}).then(function(resp){
+            var x=fxResultadoIA(resp,lote,lista,id,qrAch);return x.r?fxDuplicarIA(x.r).then(function(){return fim(x)}):fim(x)})})})
     }).catch(function(e){return fim({estado:"erro",mensagem:"Não consegui ler o documento: "+(e&&e.message||e)+" Nada foi gravado."})})}
   /* ---------- tela da leitura por IA: confiança, campos incertos, correção manual e revalidação ---------- */
   function fxPct(x){return Math.round(x*100)+"%"}
+  function fxBlocoQr(r,box){
+    var q=r.qr;if(!q)return;
+    var t={sem_qr:q.leitor==="indisponivel"?"QR Code: o leitor não está disponível neste aparelho; segui só com a leitura da IA.":"QR Code: não encontrei QR Code na imagem; segui só com a leitura da IA.",
+      invalido:"QR Code: lido, mas sem chave de acesso válida; segui só com a leitura da IA.",confere:"QR Code: a chave de acesso confere com a da leitura da IA.",complementou:"QR Code: a chave de acesso veio do QR Code (validada pelo dígito verificador).",conflito:"QR Code: CONFLITO de chave de acesso (detalhes na validação)."}[q.estado];
+    box.appendChild(h("div",{class:q.estado==="conflito"?"fxaviso fxbloq":q.estado==="complementou"||q.estado==="confere"?"sub":"fxaviso",text:t}));
+    (q.avisos||[]).forEach(function(a){box.appendChild(h("div",{class:"sub",text:a}))});
+    var cs=q.consulta;if(cs)box.appendChild(h("div",{class:"sub"},"Consulta pública oficial: não é feita automaticamente. "+cs.motivo+" ",cs.link?h("a",{href:cs.link,target:"_blank",rel:"noopener noreferrer",text:"Abrir a consulta no site oficial"}):null))}
   function fxBlocoIA(r,c){
-    var ia=r.ia,box=h("div",{class:"fxvalid fxia"}),ef=NUCLEO.nfConfiancaIA(ia);
+    var ia=r.ia,box=h("div",{class:"fxvalid fxia"});
     box.appendChild(h("h4",{text:"Leitura por IA ("+(ia.formato==="pdf"?"PDF":"foto")+")"}));
-    box.appendChild(fxLinha("Confiança da leitura",ia.revisada?"100% (você conferiu com o documento; a IA tinha "+fxPct(ia.confianca)+")":fxPct(ia.confianca)));
-    box.appendChild(fxLinha("Mínimo para validar",fxPct(0.9)));
+    box.appendChild(fxLinha("Confiança da leitura (informação)",fxPct(ia.confianca)));
+    box.appendChild(h("p",{class:"sub",text:"Confiança abaixo de 60%: não confirma (leia de novo). De 60% a 69%: confirma com aviso de baixa confiança. A partir de 70%: segue normal. Além dela, impedem a confirmação dado essencial faltando, conta que não fecha, nota cancelada ou rejeitada, conflito de chave e duplicidade."}));
+    fxBlocoQr(r,box);
+    NUCLEO.nfCamposInfo(r.lido,ia.incertos).forEach(function(x){box.appendChild(h("div",{class:x.estado==="ilegivel"?"fxaviso":"sub",text:x.texto}))});
     (ia.incertos||[]).forEach(function(x){box.appendChild(h("div",{class:"fxaviso",text:"Incerto — "+x.campo+(x.motivo?": "+x.motivo:"")}))});
     (ia.itens_incertos||[]).forEach(function(k){box.appendChild(h("div",{class:"fxaviso",text:"Item "+k+" marcado pela IA como incerto."}))});
     (ia.avisos||[]).forEach(function(a){box.appendChild(h("div",{class:"fxaviso",text:a}))});
@@ -214,7 +249,7 @@
     box.appendChild(fxBlocoConfirmar(r));
     return box}
   function fxCampo(rotulo,valor,inp){var i=h("input",{type:"text","aria-label":rotulo});i.value=valor==null?"":String(valor);inp[rotulo]=i;return h("label",{class:"fxcampo"},rotulo+": ",i)}
-  /* correção manual: o que a pessoa digita volta pelo núcleo (nfCorrigir → nfNormalizar) e TODAS as regras rodam de novo; "Conferi" é o que vale como revisão humana (confiança 100%) */
+  /* correção manual: o que a pessoa digita volta pelo núcleo (nfCorrigir → nfNormalizar) e TODAS as regras rodam de novo e o cartão é atualizado. Não há caixa de "conferi": a única confirmação humana é o botão "Estou de acordo". */
   function fxEditor(r,c){
     var d=h("details",{class:"fxeditor"}),l=r.lido||{},V=l.valores||{},E=l.emitente||{},inp={},itIn=[];
     d.appendChild(h("summary",{text:"Corrigir os dados lidos"}));
@@ -224,8 +259,8 @@
       [["descricao","Descrição",i.descricao],["qtd","Quantidade",i.qtd],["unitario","Unitário",i.unitario],["total","Total do item",i.total],["desconto","Desconto do item",i.desconto]].forEach(function(x){
         var e=h("input",{type:"text","aria-label":x[1]+" do item "+(k+1)});e.value=x[2]==null?"":String(x[2]);o[x[0]]=e;linha.appendChild(h("label",{class:"fxcampo"},x[1]+": ",e))});
       o.unidade=i.unidade;o.codigo=i.codigo;itIn.push(o);d.appendChild(linha)});
-    var chk=h("input",{type:"checkbox"}),btn=h("button",{type:"button",class:"ghostbtn pri",text:"Aplicar correção e revalidar"}),st=h("p",{class:"sub",role:"status"});
-    d.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi todos os campos com o documento original (vale como revisão: a confiança passa a 100%; a conta, a situação fiscal e a duplicidade continuam valendo). Com os dados válidos aparece o botão “Estou de acordo”."})));
+    var btn=h("button",{type:"button",class:"ghostbtn pri",text:"Aplicar correção e revalidar"}),st=h("p",{class:"sub",role:"status"});
+    d.appendChild(h("p",{class:"sub",text:"Corrija o que estiver errado e aplique: a conta, a situação fiscal, o QR Code e a duplicidade são conferidos de novo e o cartão é atualizado. Campo que a nota não traz pode ficar vazio. Não há outra confirmação além do botão “Estou de acordo”."}));
     d.appendChild(h("div",{class:"vfil"},btn));d.appendChild(st);
     btn.onclick=function(){
       var val=function(k){return inp[k].value};
@@ -233,7 +268,7 @@
         valores:{produtos:val("Total dos produtos"),descontos:val("Descontos"),frete:val("Frete"),outras:val("Outras despesas"),total:val("Total da nota")},
         itens:itIn.map(function(o){return {descricao:o.descricao.value,codigo:o.codigo,unidade:o.unidade,qtd:o.qtd.value,unitario:o.unitario.value,total:o.total.value,desconto:o.desconto.value}})};
       btn.disabled=true;st.textContent="Revalidando…";
-      r.lido=NUCLEO.nfCorrigir(r.lido,corr);r.nota=NUCLEO.nfNormalizar(r.lido);r.ia.revisada=!!chk.checked;r.idem=null;if(!(r.gravado&&r.gravado.gravada))r.gravado=null;     /* correção = gravação nova: identificador de idempotência novo */
+      r.lido=NUCLEO.nfCorrigir(r.lido,corr);r.nota=NUCLEO.nfNormalizar(r.lido);if(r.qr)r.qr.decidida=true;r.idem=null;if(!(r.gravado&&r.gravado.gravada))r.gravado=null;     /* correção = gravação nova: identificador de idempotência novo */
       fxDuplicarIA(r).then(function(){var novo=fxCartao(r,false);r.ultimoCartao=novo;if(c&&c.parentNode&&c.parentNode.replaceChild)c.parentNode.replaceChild(novo,c)})};
     return d}
   /* ---------- Lote 1.6: gravar nota de FOTO ou PDF (função do banco nota_fiscal_salvar_doc, migration 037) ----------
@@ -272,10 +307,10 @@
         return Promise.all(fs.map(function(f){return f.arrayBuffer()})).then(function(bufs){
           return Promise.all(bufs.map(function(b){return crypto.subtle.digest("SHA-256",b).then(fxHex)})).then(function(shas){
             var arqs=fs.map(function(f,i){return {nome:f.name,mime:infos[i].mime,tamanho:bufs[i].byteLength,sha256:shas[i]}}),
-              g=NUCLEO.nfParaGravarDoc(r.lido,r.nota,{id:id,dono:DONO,idem:idem,tipo:r.tipoDoc,arquivos:arqs,confianca:r.ia.confianca,revisada:r.ia.revisada===true,incertos:r.ia.incertos,modelo_ia:r.ia.modelo,ia_uso_id:r.ia.idChamada});
+              g=NUCLEO.nfParaGravarDoc(r.lido,r.nota,{id:id,dono:DONO,idem:idem,tipo:r.tipoDoc,arquivos:arqs,confianca:r.ia.confianca,revisada:true,qr_conflitos:fxQrConflitos(r),incertos:r.ia.incertos,modelo_ia:r.ia.modelo,ia_uso_id:r.ia.idChamada});
             if(!g.ok)return fim("invalido","Não dá para gravar: "+g.erros.join(" ")+" Nada foi enviado nem gravado.",{erros:g.erros});
             return fxDuplicidadeDoc(r.nota,shas).then(function(dx){
-              var dec=NUCLEO.nfDecisaoGravacao(r.nota,dx.dup,{confianca:NUCLEO.nfConfiancaIA(r.ia),revisada:r.ia.revisada===true});
+              var dec=NUCLEO.nfDecisaoGravacao(r.nota,dx.dup,{confianca:r.ia.confianca,qr_conflitos:fxQrConflitos(r)});
               r.dup=dx.dup;
               var a0=dx.dup.achados.filter(function(x){return x.origem==="nota"&&x.nivel==="confirmada"})[0];
               if(dec.bloqueios_dup.length&&!(entrada&&a0&&a0.id===id)){      /* com a confirmação única, a nota que já existe sendo desta mesma leitura não é duplicidade: o banco devolve o estado e conclui a entrada */
@@ -360,11 +395,11 @@
     return r.arquivo.arrayBuffer().then(function(buf){return crypto.subtle.digest("SHA-256",buf)}).then(function(dg){var sha=fxHex(dg);
       return fxExistentes(r.nota,sha).then(function(ex){r.dup=NUCLEO.nfDuplicidade(r.nota,ex.dados,{sha256:sha});r.dupAvisos=ex.avisos;return r})}).then(null,function(){
       r.dup=null;r.dupAvisos=["Não consegui conferir duplicidade agora; ela será conferida de novo ao confirmar."];return r})}
-  /* o único botão de confirmação humana. Só existe quando a nota pode ser gravada: leitura completa, conta que fecha, confiança mínima (a revisão feita no editor, "Conferi", vale como antes) e sem duplicidade. */
+  /* o único botão de confirmação humana. Só existe quando há condição real para registrar: dados essenciais, conta que fecha, nota não cancelada/rejeitada, sem conflito de chave e sem duplicidade. A confiança da IA só informa. */
   function fxBlocoConfirmar(r){
     var n=r.nota,ia=r.ia,box=h("div",{class:"fxsalvar"}),st=h("p",{class:"sub",role:"status"}),av=h("div"),pv=h("div"),
       btn=h("button",{type:"button",class:"ghostbtn pri",text:"Estou de acordo"}),bw=h("div",{class:"vfil"},btn),
-      opc=ia?{confianca:NUCLEO.nfConfiancaIA(ia),revisada:ia.revisada===true}:undefined,dec0=NUCLEO.nfDecisaoGravacao(n,r.dup||null,opc);
+      opc=ia?{confianca:ia.confianca,qr_conflitos:fxQrConflitos(r)}:undefined,dec0=NUCLEO.nfDecisaoGravacao(n,r.dup||null,opc);
     if(r.confirmado)return fxResultadoBloco(r.confirmado);
     if(!dec0.pode&&dec0.bloqueios_dup.length<dec0.bloqueios.length)return h("div",{class:"fxsalvar"},h("div",{class:"fxaviso fxbloq",role:"status",text:"Ainda não dá para confirmar: "+dec0.bloqueios.join(" ")+" Leia de novo com outra foto"+(ia?" ou corrija os dados lidos no formulário acima":"")+". Nada foi enviado nem gravado."}));
     box.appendChild(av);box.appendChild(pv);
@@ -403,7 +438,8 @@
       if(ent.revisar)box.appendChild(h("div",{class:"fxaviso fxbloq",text:"Revisar: a nota fiscal foi "+(ent.revisar==="nota_rejeitada"?"rejeitada":"cancelada")+" depois da entrada. A compra foi mantida no Mercado."}));
       box.appendChild(fxLinkMercado());return box}
     if(e==="pendente"||e==="falhou"){
-      box.appendChild(h("p",{class:"qrwarn",role:"status",text:"⚠ A nota está gravada e confirmada, mas o lançamento no Mercado não foi concluído"+(ent.erro?": "+ent.erro:".")}));
+      var est=NUCLEO.nfEstadosNota(n,ent).filter(function(x){return x.chave==="mercado"})[0]||{};
+      box.appendChild(h("p",{class:"qrwarn",role:"status",text:"⚠ "+(est.automatica?"Aguardando nova tentativa: a nota está gravada e confirmada, o lançamento no Mercado não foi concluído"+(ent.erro?" ("+ent.erro+")":"")+". O RAC tenta de novo sozinho"+(est.proxima_em?" (próxima por volta de "+fxFmtDH(est.proxima_em)+")":"")+"; você não precisa confirmar outra vez.":"Falha na entrada: a nota está gravada e confirmada, mas o lançamento no Mercado não foi concluído"+(ent.erro?": "+ent.erro:".")+" As tentativas automáticas se esgotaram: use “Tentar de novo” (não precisa ler nem confirmar outra vez).")}));
       box.appendChild(h("div",{class:"vfil"},fxBotaoTentar(n.id,n,st,function(){if(FX.recarregar)FX.recarregar()})));box.appendChild(st);return box}
     if(n.situacao==="cancelada"||n.situacao==="rejeitada"){box.appendChild(h("p",{class:"sub",text:"Nota "+(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao).toLowerCase()+": não vale como compra e não entra no Mercado."}));return box}
     /* nota gravada antes da confirmação única: cada nota pede o seu "Estou de acordo" */
@@ -454,11 +490,11 @@
   function fxAcoesNota(n,foto,corpo,st){
     var trans=NUCLEO.NF_TRANSICOES[n.situacao]||[];
     if(foto&&n.situacao==="autorizada"&&!n.conferida_em){
-      var chk=h("input",{type:"checkbox"}),cb=h("button",{type:"button",class:"ghostbtn pri",text:"Marcar como conferida"});
+      var cb=h("button",{type:"button",class:"ghostbtn pri",text:"Marcar como conferida"});
       corpo.appendChild(h("h4",{text:"Conferência"}));
-      corpo.appendChild(h("label",{class:"fxconf"},chk,h("span",{text:" Conferi os dados com o documento original (fica registrado com o seu nome e a data; depois a nota não muda)."})));
+      corpo.appendChild(h("p",{class:"sub",text:"A nota já foi confirmada com “Estou de acordo”. Esta marca só registra, com o seu nome e a data, que a nota autorizada foi conferida; depois dela a nota não muda."}));
       corpo.appendChild(h("div",{class:"vfil"},cb));
-      cb.onclick=function(){if(!chk.checked){st.textContent="Marque que conferiu com o documento.";return}cb.disabled=true;st.textContent="Conferindo…";
+      cb.onclick=function(){cb.disabled=true;st.textContent="Conferindo…";
         fxConferir(n.id).then(function(x){st.textContent=x.mensagem;cb.disabled=x.estado==="conferida";if(x.estado==="conferida"&&FX.recarregar)FX.recarregar()})}}
     if(trans.length){
       var sel=h("select",{"aria-label":"Nova situação"}),prot=h("input",{type:"text",inputmode:"numeric","aria-label":"Protocolo de autorização (15 dígitos)",placeholder:"Protocolo (15 dígitos, para autorizar)"}),
@@ -473,14 +509,17 @@
     var st=h("p",{class:"sub",role:"status"}),foto=!!n.formato_origem&&n.formato_origem!=="xml";
     corpo.appendChild(h("p",{class:"sub",text:(n.chave?"Chave: "+fxGrupos(n.chave,4)+". ":"Sem chave. ")+(n.protocolo?"Protocolo "+n.protocolo+". ":"")+"Origem: "+(n.formato_origem==="xml"?"XML":n.formato_origem==="pdf"?"PDF":n.formato_origem==="imagem"?"foto":"?")+"."}));
     corpo.appendChild(st);
-    Promise.all([fxLer("notas_fiscais_docs","id,tipo,nome,path,tamanho,mime","nota_id",n.id),dono?fxLer("notas_fiscais_vinculos","id,modulo,registro_id,valido,criado_em","nota_id",n.id).then(null,function(){return null}):Promise.resolve(null),dono?fxLer("notas_fiscais_situacoes","de,para,protocolo,evidencia,origem,fonte,criado_em","nota_id",n.id,{col:"criado_em",asc:true,lim:100}).then(null,function(){return null}):Promise.resolve(null)]).then(function(l){
-      var docs=l[0],vincs=l[1],hist=l[2];
+    Promise.all([fxLer("notas_fiscais_docs","id,tipo,nome,path,tamanho,mime","nota_id",n.id),dono?fxLer("notas_fiscais_vinculos","id,modulo,registro_id,valido,criado_em","nota_id",n.id).then(null,function(){return null}):Promise.resolve(null),dono?fxLer("notas_fiscais_situacoes","de,para,protocolo,evidencia,origem,fonte,criado_em","nota_id",n.id,{col:"criado_em",asc:true,lim:100}).then(null,function(){return null}):Promise.resolve(null),
+      dono?fxLer("notas_fiscais_consultas","resultado,origem,cstat,motivo,mudou,consultado_em,proxima_em,encerrada","nota_id",n.id,{col:"consultado_em",asc:false,lim:5}).then(null,function(){return null}):Promise.resolve(null)]).then(function(l){
+      var docs=l[0],vincs=l[1],hist=l[2],cons=l[3];
       corpo.appendChild(h("h4",{text:"Documento original"}));
       if(!docs.length)corpo.appendChild(h("p",{class:"sub",text:"Nenhum documento registrado."}));
       docs.forEach(function(d){corpo.appendChild(h("div",null,fxLinkOriginal(d,st)))});
       if(dono){corpo.appendChild(h("h4",{text:"Histórico da situação fiscal"}));
         if(!hist||!hist.length)corpo.appendChild(h("p",{class:"sub",text:hist?"Sem mudanças registradas (nota de XML não guarda o histórico da gravação).":"Não consegui ler o histórico."}));
         else hist.forEach(function(x){corpo.appendChild(h("div",{class:"sub",text:fxFmtDH(x.criado_em)+" · "+(x.de?(NUCLEO.NF_SITUACOES[x.de]||x.de)+" → ":"gravada como ")+(NUCLEO.NF_SITUACOES[x.para]||x.para)+(x.protocolo?" · protocolo "+x.protocolo:"")+" · "+x.origem+" ("+x.fonte+")"+(x.evidencia?" · "+x.evidencia:"")}))});
+        corpo.appendChild(h("h4",{text:"Validação fiscal oficial (rotina diária)"}));
+        corpo.appendChild(h("p",{class:"sub",text:NUCLEO.nfConsultaTexto(cons&&cons[0]||null,cons!==null&&cons!==undefined,n)}));
         var mine=(tent||[]).filter(function(t){return t.nota_id===n.id});
         if(mine.length){corpo.appendChild(h("h4",{text:"Tentativas de leitura"}));mine.forEach(function(t){corpo.appendChild(fxLinhaTentativa(t,st))})}
         fxAcoesNota(n,foto,corpo,st);
@@ -502,7 +541,7 @@
       st.textContent="Carregando as notas…";
       return Promise.all([fxLer("notas_fiscais",FX_NOTA_COLS,null,null,{col:"data_emissao",asc:false,lim:60}),
         dono?fxLer("notas_fiscais_tentativas","id,nota_id,origem,resultado,classe,situacao_fiscal,confianca,revisada,motivos,docs,criado_em",null,null,{col:"criado_em",asc:false,lim:60}).then(null,function(){return null}):Promise.resolve([]),
-        fxLer("notas_fiscais_entradas","nota_id,estado,confirmado_em,mercado_nota_id,erro,revisar,tentativas",null,null,{col:"criado_em",asc:false,lim:500}).then(null,function(){return null})]).then(function(r){
+        fxLer("notas_fiscais_entradas","nota_id,estado,confirmado_em,mercado_nota_id,erro,revisar,tentativas,proxima_em,origem",null,null,{col:"criado_em",asc:false,lim:500}).then(null,function(){return fxLer("notas_fiscais_entradas","nota_id,estado,confirmado_em,mercado_nota_id,erro,revisar,tentativas",null,null,{col:"criado_em",asc:false,lim:500}).then(null,function(){return null})})]).then(function(r){
         var notas=r[0]||[],tent=r[1],ents=null,sem=(tent||[]).filter(function(t){return !t.nota_id&&(t.resultado==="bloqueada"||t.resultado==="duplicada")});
         corpo.innerHTML="";st.textContent=notas.length?"":"Nenhuma nota gravada ainda.";
         if(r[2]){ents={};r[2].forEach(function(x){ents[x.nota_id]=x})}

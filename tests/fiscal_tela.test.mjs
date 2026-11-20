@@ -92,7 +92,7 @@ test("a leitura não toca em banco nem Storage; a gravação só usa o cofre pri
   assert.deepEqual([...js.matchAll(/racIA\(([^)]*)\)/g)].map((m) => m[1].split(",").slice(0, 2).join(",")), ['"fiscal","fiscal.nota"'], "a única chamada de IA da tela é a ação fiscal.nota, pela porta racIA (Lote 1.4)");
   assert.deepEqual([...new Set([...js.matchAll(/fxRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["nota_fiscal_atualizar_situacao", "nota_fiscal_confirmar", "nota_fiscal_conferir", "nota_fiscal_entrada_mercado", "nota_fiscal_salvar", "nota_fiscal_salvar_doc"].sort());
   assert.equal([...js.matchAll(/SB\.from\(/g)].length, 1, "uma única porta de leitura (fxLer), só com select");
-  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "itens", "mercados", "notas", "notas_fiscais", "notas_fiscais_docs", "notas_fiscais_entradas", "notas_fiscais_itens", "notas_fiscais_situacoes", "notas_fiscais_tentativas", "notas_fiscais_vinculos", "pedidos", "produtos"], "as leituras da conferência de duplicidade, todas só leitura");
+  assert.deepEqual([...new Set([...js.matchAll(/fxLer\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_online", "itens", "mercados", "notas", "notas_fiscais", "notas_fiscais_consultas", "notas_fiscais_docs", "notas_fiscais_entradas", "notas_fiscais_itens", "notas_fiscais_situacoes", "notas_fiscais_tentativas", "notas_fiscais_vinculos", "pedidos", "produtos"], "as leituras da conferência de duplicidade, todas só leitura");
   assert.equal([...js.matchAll(/SB\.storage\.from\("([a-z]+)"\)/g)].every((m) => m[1] === "familia"), true, "só o cofre familia");
   assert.match(js, /NUCLEO\.nfLerXML/); assert.match(js, /NUCLEO\.nfNormalizar/); assert.match(js, /NUCLEO\.nfParaGravar/); assert.match(js, /NUCLEO\.nfRetentar/);
   assert.match(js, /upsert:false,contentType:mime/, "o envio nunca sobrescreve e leva o tipo do XML"); assert.match(js, /mime="text\/xml"/); const envio = js.slice(js.indexOf("function fxSalvar"), js.indexOf("function fxConferir"));
@@ -198,7 +198,7 @@ test("nota sem chave válida é baixa confiança: não grava nem envia nada (Lot
   const { c, ch } = sbFalso({ rpc: [OK("x")] }); const r = await lerNota(c, sem);
   assert.equal(r.nota.chave_valida, false);
   const x = await c.fxSalvar(r, true);
-  assert.equal(x.estado, "bloqueada"); assert.match(x.mensagem, /Baixa confiança.*chave de acesso/); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.remove.length, ch.select.length], [0, 0, 0, 0]);
+  assert.equal(x.estado, "bloqueada"); assert.match(x.mensagem, /Dados incompletos.*chave de acesso/); assert.deepEqual([ch.upload.length, ch.rpc.length, ch.remove.length, ch.select.length], [0, 0, 0, 0]);
   const conf = sbFalso({ rpc: [{ data: { ja_conferida: false } }] }), y = await conf.c.fxConferir("id-1");
   assert.equal(y.estado, "conferida"); assert.equal(JSON.stringify(conf.ch.rpc[0]), JSON.stringify(["nota_fiscal_conferir", { p_id: "id-1" }]));
 });

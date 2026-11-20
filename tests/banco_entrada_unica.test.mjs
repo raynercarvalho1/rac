@@ -381,3 +381,16 @@ test("PGlite · casa (Fernanda) com a parte fiscal da 057: confirma nota de FOTO
   assert.match((await falha(confirmar(db, F, q, await decidir(db, q.nota), "aal1"))).message, /MFA/, "o MFA continua valendo para ela"); assert.equal((await confirmar(db, F, q, await decidir(db, q.nota), "aal2")).entrada.estado, "concluida");
   await semDespesa(db); await db.close();
 });
+
+test("PGlite · confiança baixa e campos não impressos (o que a tela agora permite): o banco de produção (037/039/059) aceita a confirmação humana (revisada = true, confiança real) e a compra entra; sem chave legível vira pendente fiscal; cancelada continua barrada", { skip: pular }, async () => {
+  const db = await banco();
+  const a = await fluxo(db, 50, { revisada: true, confianca: 0.62 });          // 62%, com chave: validada
+  assert.deepEqual([a.r.gravada, a.r.entrada.estado], [true, "concluida"], JSON.stringify(a.r));
+  const tent = (await admin(db, "select confianca, revisada, classe, resultado from public.notas_fiscais_tentativas where nota_id = $1", [a.id]))[0]; assert.deepEqual([+tent.confianca, tent.revisada, tent.classe, tent.resultado], [0.62, true, "consistente", "validada"], "o banco guarda a confiança REAL");
+  const b = await fluxo(db, 51, { revisada: true, confianca: 0.45, res: { chave: null, total_produtos: null, descontos: null, frete: null, outras: null, protocolo: null, situacao: "pendente", itens: resposta(51).itens.map((i) => ({ ...i, desconto: 0 })) } });   // 45%, sem chave, nada de subtotal/desconto/frete impresso
+  assert.deepEqual([b.r.gravada, b.r.entrada.estado], [true, "concluida"], JSON.stringify(b.r)); assert.equal(b.r.fiscal.resultado, "pendente_fiscal");
+  const nb = (await admin(db, "select chave, situacao, valor_produtos, valor_descontos, valor_frete, valor_outras, valor_total from public.notas_fiscais where id = $1", [b.id]))[0]; assert.deepEqual([nb.chave, nb.situacao, nb.valor_produtos, nb.valor_descontos, nb.valor_frete, nb.valor_outras, +nb.valor_total], [null, "pendente", null, null, null, null, 25.5], "campos não impressos ficam nulos: nada inventado");
+  assert.equal(+(await admin(db, "select n.total from public.notas n where n.id = $1", [b.r.entrada.mercado_nota_id]))[0].total, 25.5); assert.equal(await contar(db, "notas"), 2);
+  const p = await subir(db, pelo_site(52, { revisada: true, confianca: 0.9, res: { situacao: "cancelada", protocolo: null } })); assert.match((await falha(confirmar(db, R, p, await decidir(db, p.nota)))).message, /cancelada não vale como compra/); assert.equal(await contar(db, "notas"), 2, "cancelada continua barrada");
+  await semDespesa(db); await db.close();
+});

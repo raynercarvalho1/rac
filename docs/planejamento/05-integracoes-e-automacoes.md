@@ -58,6 +58,8 @@ Supabase limita arquivos a 50 MB.
 | `rac-rotina` | pg_cron (`008`) → função `garmin` | `0 9 * * *` | 6h | Garmin (dias, até 13 blocos de 28 dias, e treinos), tempo, resumo da semana (domingo), "deve estar acabando", aviso da Agenda (push e Telegram), resumo de alertas de preço (domingo), backup semanal (domingo); grava `rotina_log` |
 | `rac-newsletter` | pg_cron (`023`) → função `rac-newsletter` | `50 0-2,9-23 * * *` | de hora em hora | Edição base de cada turno (6h, 12h, 18h), resumo com IA (só REAL validado), no máximo um aviso por dia |
 | `radar-rotina` | pg_cron (`045`) → função `radar` | `20 9,21 * * *` | 6h20 e 18h20 | Coleta de ofertas, descoberta (se ligada), aviso de oportunidade |
+| `fiscal-entradas` | pg_cron (`060`) → função SQL `nf_rotina_fiscal_sql` | `10 */6 * * *` | a cada 6 h | Central Fiscal: retoma sozinha a entrada no Mercado das notas confirmadas que falharam (intervalo crescente, até 6 tentativas) e liga notas antigas a compras que já existem (proposta, não aplicada) |
+| `fiscal-validacao` | pg_cron (`061`) → função `fiscal-consulta` | `40 8 * * *` | 5h40 | Central Fiscal: consulta oficial diária das notas pendentes, em contingência ou recentes; sem certificado e endereços oficiais só registra "indisponível" (proposta, não aplicada) |
 | Atualizar notícias | GitHub (`noticias.yml`) | `15 */3 * * *` e `40 * * * *` | a cada 3 h (+ Newsletter de hora em hora, só se preciso) | Notícias, tecnologia, rumores e Newsletter; commit na `main` |
 | Atualizar vagas | GitHub (`vagas.yml`) | `0 10 * * *` | 7h | `vagas.json`; commit na `main` |
 | Testes | GitHub (`testes.yml`) | push e PR na `main` (exceto os `.json` dos robôs) e `30 10 * * 1` | segunda, 7h30 | Grupo 1 e Grupo 2 |

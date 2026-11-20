@@ -123,6 +123,13 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
 - Nada de repetição paga automática, de troca de modelo na recusa nem de liberar reserva incerta por prazo.
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
 
+## Supabase MCP (acesso ao banco do RAC pelo Claude Code)
+- Servidor remoto oficial, só do projeto `hofnhbxnfebfnncwxrds` (`.mcp.json`, sem segredo; `features=docs,database,debugging,development,branching`: sem `functions` nem `storage`, sem ferramentas de conta). Autenticação **OAuth no navegador**, feita pelo dono (`/mcp` → supabase → Authenticate, ou conectar o Supabase em claude.ai → Connectors e abrir sessão nova). Nunca pedir nem guardar senha do banco, `service_role`, PAT ou token; nada disso vai para arquivo, commit ou chat.
+- Os servidores MCP são lidos no início da sessão; sem a autenticação feita, as ferramentas `mcp__supabase__*` não aparecem. Não simular resultado nem usar `psql`/CLI/API de gerenciamento (continuam negados).
+- Leitura (`list_tables`, `list_migrations`, `list_extensions`, `get_advisors`, `get_logs`, `execute_sql` só com `select`) vale para conferir o estado real antes de qualquer lote com banco. Escrita (`apply_migration`, `execute_sql` que altera, branches) mantém a **confirmação manual a cada chamada** (não liberar em `.claude/settings.json`) e continua sujeita às Autorizações do proprietário: só com pedido explícito do dono para aquela migration, naquela sessão.
+- Antes de alterar produção: ler a migration inteira; conferir o impacto (tabelas, políticas, funções, dados); a sequência (`list_migrations` × arquivos de `supabase/`, status `-- status: pendente`); rodar a conferência só leitura de `supabase/conferencias/`; preferir testar a mudança estrutural num branch de desenvolvimento (`create_branch`, se o plano permitir) ou em PGlite (`tests/*_sql.test.mjs`) antes de produção. Depois de aplicar: rodar a conferência, trocar o cabeçalho da migration para aplicada (com a data) e registrar no histórico diário.
+- `apply_migration` grava no histórico do Supabase com número próprio: o arquivo `supabase/NNN_*.sql` do repositório continua sendo a fonte; usar o mesmo texto, sem editar na hora.
+
 ## Segurança (o repositório é público)
 - Nunca escrever senhas, chaves secretas, tokens, CPF, documentos, endereço, telefone, placas, chassi, fotos ou exames no repositório.
 - A única chave no código é a pública (publishable) do Supabase; a segurança vem do RLS.

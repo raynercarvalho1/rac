@@ -83,8 +83,8 @@ test("o módulo se chama Central de Compras no menu e na casca, e as telas exist
   for (const k of ["notas", "produtos", "importar", "alertas", "radar"]) assert.match(src, new RegExp('\\["' + k + '"'));
 });
 
-test("Painel do Mercado e Notas mostram a compra marcada como online sob a plataforma, com o emissor ao lado e os totais iguais", () => {
-  globalThis.isOwner = () => true; globalThis.isDonoOuCasa = () => true;
+test("Painel do Mercado e Notas mostram a compra marcada como online sob a plataforma, com o emissor ao lado e os totais iguais (visão da casa: o Painel da Fernanda não mudou; o do dono só soma a área Mercado, tests/areas_consumo.test.mjs)", () => {
+  globalThis.isOwner = () => false; globalThis.isDonoOuCasa = () => true;
   globalThis.PESSOAL = { "mercado-canais": { v: 1, notas: { "2026-11-08|WILLIAM DA COSTA FREITAS LTDA|300": { canal: "online", plataforma: "Mercado Livre" } } } };
   T.hoje("2026-11-10"); T.usar(ROWS, { id: "u1" }); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null;
   const p = new El("div"); T.viewPainel(p); const t = texto(p);

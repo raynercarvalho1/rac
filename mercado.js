@@ -64,7 +64,7 @@
       user = r.data && r.data.session && r.data.session.user;
       if (!user) { drawLogin(sub, arg); return; }
       ligarAtualizar();
-      return loadRows().then(function () { return sub === "" || sub === "central" || sub === "categoria" || sub === "produto" || sub === "estabelecimento" ? loadOnline() : null; }).then(function () { drawApp(sub, arg); reler(sub, arg); });
+      return loadRows().then(function () { return sub === "" || sub === "central" || sub === "categoria" || sub === "produto" || sub === "estabelecimento" || sub === "area" || sub === "categorias" ? loadOnline() : null; }).then(function () { drawApp(sub, arg); reler(sub, arg); });
     }).catch(function (e) { msg("Não consegui abrir o controle de mercado agora (" + (e.message || e) + ")."); });
   }
 
@@ -126,10 +126,10 @@
   }
 
   /* ---------- casca: abas internas e sair ---------- */
-  var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"], ["categoria", "Categoria"], ["produto", "Produto"], ["estabelecimento", "Estabelecimento"]];
+  var VIEWS = [["central", "Central"], ["painel", "Painel do Mercado"], ["precos", "Preços"], ["consumo", "Consumo"], ["comparar", "Comparar"], ["alertas", "Alertas"], ["radar", "Radar"], ["notas", "Notas"], ["produtos", "Produtos"], ["importar", "Adicionar nota"], ["categoria", "Categoria"], ["produto", "Produto"], ["estabelecimento", "Estabelecimento"], ["area", "Área de consumo"], ["categorias", "Gestão de categorias"]];
   function drawApp(sub, arg) {
     /* categoria, produto e estabelecimento são da casa também desde 12/11/2026 (pedido do dono); o Radar, desde 16/11/2026 */
-    var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
+    var v = VIEWS.some(function (x) { return x[0] === sub && (x[0] !== "radar" || ehDono()) && ((x[0] !== "area" && x[0] !== "categorias") || ehProprietario()); }) ? sub : (rows.length || (onl && onl.length) ? "central" : "importar");
     /* redesenhar não pode pular a rolagem: senão o 2º clique cai em outro quadro */
     var y = window.scrollY, r = root(); r.innerHTML = "";
     /* cabeçalho em 3 faixas: 1) título e ações gerais; 2) navegação principal em largura total (os 5 itens sempre visíveis, sem rolagem);
@@ -139,7 +139,7 @@
     var nSec = 0;
     nav2.appendChild(h("span", { class: "mk-nav2-rot", text: "Outras áreas" }));
     VIEWS.forEach(function (x) {
-      if (x[0] === "importar" || x[0] === "categoria" || x[0] === "produto" || x[0] === "estabelecimento" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
+      if (x[0] === "importar" || x[0] === "categoria" || x[0] === "produto" || x[0] === "estabelecimento" || x[0] === "area" || x[0] === "categorias" || ((x[0] === "alertas" || x[0] === "radar") && !ehDono())) return;
       var n = x[0] === "alertas" ? alContar() : 0;
       if (!PRINCIPAIS[x[0]]) nSec++;
       (PRINCIPAIS[x[0]] ? nav1 : nav2).appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
@@ -148,24 +148,39 @@
     var out = h("button", { type: "button", class: "ghostbtn", text: "Sair" });
     out.onclick = function () { sb.auth.signOut().then(function () { location.reload(); }); };
     var cab = h("div", { class: "mk-cab" }, h("div", { class: "mk-tit" }, h("h1", { text: "Central de Compras" }), h("span", { class: "sub", text: user.email })), h("div", { class: "mk-acoes" }, add, out));
-    r.appendChild(cab); r.appendChild(nav1); if (nSec) r.appendChild(nav2);
+    r.appendChild(cab); r.appendChild(nav1);
+    /* áreas de consumo (só o dono): alternar entre a Central consolidada e o painel de cada área; a Gestão de categorias fica na mesma faixa */
+    if (ehProprietario() && (v === "central" || v === "area" || v === "categorias")) r.appendChild(navAreas(v, arg));
+    if (nSec) r.appendChild(nav2);
     var body = h("div", { class: "stack" }); r.appendChild(body);
+    if (v === "central" || v === "area") { var na = v === "area" && ehProprietario() ? String(arg || "") : ""; if (na !== CU.area) { CU.area = na; CU.estab = ""; CU.cat = ""; CU.sel = null; CU.aberta = null; } }
     /* sem notas do Mercado, as páginas de mercado ainda abrem quando há pedidos online (elas usam as compras unificadas da Central) */
-    if (!rows.length && v !== "importar" && v !== "radar" && v !== "central" && !(onl && onl.length && (v === "categoria" || v === "produto" || v === "estabelecimento"))) {
+    if (!rows.length && v !== "importar" && v !== "radar" && v !== "central" && !(onl && onl.length && (v === "categoria" || v === "produto" || v === "estabelecimento" || v === "area" || v === "categorias"))) {
       body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras na sua conta. ", h("a", { class: "link", href: "#mercado/importar", text: "Importe o seu Excel" }), " para começar.")));
       return;
     }
     ({ central: viewCentral, painel: viewPainel, precos: viewPrecos, consumo: viewConsumo, comparar: viewComparar, alertas: viewAlertas, radar: viewRadar, notas: viewNotas, produtos: viewProdutos, importar: viewImportar,
+      area: function (b) { viewCentral(b); }, categorias: viewCategorias,
       categoria: function (b) { viewCategoria(b, arg); }, produto: function (b) { viewProduto(b, arg); }, estabelecimento: function (b) { viewEstabelecimento(b, arg); } })[v](body);
     window.scrollTo(0, y);
   }
 
   /* ---------- Painel ---------- */
   function semCidade(n) { return String(n || "").replace(/\s*\(.*\)$/, ""); }
+  /* Painel do Mercado: só os itens da área Mercado (o dono; a casa vê tudo, como antes). Farmácia, Automotivo e o que não tem área ficam nos outros painéis e na Central. */
+  var rowsPM = { rows: null, raw: undefined, out: null };
+  function rowsP() {
+    if (!ehProprietario()) return rows;
+    var cfg = areaCfg(), N = NU();
+    if (rowsPM.rows === rows && rowsPM.cfg === cfg) return rowsPM.out;
+    var out = rows.filter(function (x) { return N.arAreaDe(cfg, N.cuCat(x.categoria)) === "mercado"; });
+    rowsPM = { rows: rows, cfg: cfg, out: out }; return out;
+  }
   function viewPainel(body) {
-    var meses = Object.keys(groupBy(rows, function (x) { return x.mk; })).sort();
+    if (!rowsP().length) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Nenhum item da área Mercado ainda. Veja a ", h("a", { class: "link", href: "#mercado/central", text: "Central" }), " e a ", h("a", { class: "link", href: "#mercado/categorias", text: "Gestão de categorias" }), "."))); return; }
+    var meses = Object.keys(groupBy(rowsP(), function (x) { return x.mk; })).sort();
     if (!st.mes || meses.indexOf(st.mes) < 0) st.mes = meses[meses.length - 1];
-    var doMes = rows.filter(function (x) { return x.mk === st.mes; });
+    var doMes = rowsP().filter(function (x) { return x.mk === st.mes; });
     var i = meses.indexOf(st.mes);
     var total = sum(doMes, function (x) { return x.valor_total; });
     var notasMes = groupBy(doMes, function (x) { return x.nota; }), notas = Object.keys(notasMes).length;
@@ -173,7 +188,7 @@
     if (st.pick && st.pick.mes !== st.mes) st.pick = null;
     /* comparação com o MESMO PERÍODO do mês anterior (hoje dia 8 → dia 1 a 8 do mês passado), em R$, % e quantidades */
     var Nn = NU(), P = Nn.mkcMesmoDia(st.mes, hojeLocal()), nomeAnt = MESES[+P.mesAnterior.slice(5) - 1];
-    var rc = Nn.mkcResumo(Nn.mkcFiltrar(doMes, P.atual), []), rp = Nn.mkcResumo(Nn.mkcFiltrar(rows, P.anterior), []);
+    var rc = Nn.mkcResumo(Nn.mkcFiltrar(doMes, P.atual), []), rp = Nn.mkcResumo(Nn.mkcFiltrar(rowsP(), P.anterior), []);
     var rotAnt = P.anteriorInteiro ? "o mês inteiro de " + nomeAnt : "1 a " + P.diaAnterior + " de " + nomeAnt;
     function difTxt(a, b, fmt, pct) { var d = Math.round((a - b) * 100) / 100; return (d > 0 ? "▲ +" : d < 0 ? "▼ −" : "= ") + fmt(Math.abs(d)) + (pct && b > 0 && d !== 0 ? " (" + PCT.format(Math.abs(d) / b) + ")" : ""); }
 
@@ -184,7 +199,8 @@
       seg.appendChild(b);
     });
     body.appendChild(seg);
-    var exP = blocoExportar(function () { return Nn.mkxPainel(rows, st.mes, { hoje: hojeLocal() }); });
+    if (ehProprietario() && rowsP().length < rows.length) { var fo = rows.length - rowsP().length, vo = sum(rows, function (x) { return x.valor_total; }) - sum(rowsP(), function (x) { return x.valor_total; }); body.appendChild(h("p", { class: "sub", text: "Este painel mostra só a área Mercado. Fora dele (outras áreas ou sem área): " + fo + (fo === 1 ? " item" : " itens") + " · " + money(vo) + ". Veja a Central e os painéis de cada área." })); }
+    var exP = blocoExportar(function () { return Nn.mkxPainel(rowsP(), st.mes, { hoje: hojeLocal() }); });
     body.appendChild(exP.el); exP.atualizar();
 
     /* compras do mês por mercado (quantas e quanto), usadas no número de compras e no quadro "Por mercado" */
@@ -214,7 +230,7 @@
       kpi("Gasto em " + mesNome(st.mes), money(total), gNota, gCls, abrir("mes"), st.kpi === "mes"),
       kCompras,
       kItens,
-      kpi("Total desde " + mesNome(meses[0]).split(" ")[0], money(sum(rows, function (x) { return x.valor_total; })), meses.length + (meses.length === 1 ? " mês" : " meses"), "", abrir("total"), st.kpi === "total")));
+      kpi("Total desde " + mesNome(meses[0]).split(" ")[0], money(sum(rowsP(), function (x) { return x.valor_total; })), meses.length + (meses.length === 1 ? " mês" : " meses"), "", abrir("total"), st.kpi === "total")));
     body.querySelectorAll(".kbtn").forEach(function (b, n) { kbtns.push([b, n === 3 ? "total" : "mes"]); });
     body.appendChild(kdet); mostrarKpi();
 
@@ -226,7 +242,7 @@
     pmk.appendChild(hbars(porMercado.map(function (x) { return [x.m, x.t, semCidade(x.m), x.n + (x.n === 1 ? " compra" : " compras")]; }), total, "mercado"));
     /* o detalhe abre logo abaixo do quadro clicado, na mesma coluna */
     g1.appendChild(h("div", { class: "mkcol" }, pmk, st.pick && st.pick.tipo === "mercado" ? detalhe(doMes) : null));
-    var porMes = meses.map(function (k) { return [k, sum(rows.filter(function (x) { return x.mk === k; }), function (x) { return x.valor_total; })]; });
+    var porMes = meses.map(function (k) { return [k, sum(rowsP().filter(function (x) { return x.mk === k; }), function (x) { return x.valor_total; })]; });
     var pm = panel("Mês a mês", "Clique numa coluna para ver o mês");
     pm.appendChild(vbars(porMes.slice(-12), st.mes));
     g1.appendChild(pm);
@@ -267,7 +283,7 @@
   }
   /* Quadro com a compra mais recente: mercado, data, total e todos os itens do mais caro para o mais barato */
   function ultimaCompra() {
-    var porNota = groupBy(rows, function (x) { return x.nota; });
+    var porNota = groupBy(rowsP(), function (x) { return x.nota; });
     var ult = Object.values(porNota).sort(function (a, b) { return b[0].data.localeCompare(a[0].data) || (b[0].id < a[0].id ? -1 : 1); })[0];
     var p = h("div", { class: "panel" });
     if (!ult) return p;
@@ -358,7 +374,7 @@
     p.appendChild(h("div", { class: "ulhead" }, h("div", null, h("h2", { text: "Mês a mês desde " + mesNome(meses[0]) }), h("p", { class: "sub", text: "Clique num mês para ver as compras dele" })), fechar));
     var grade = h("div", { class: "kblocos" });
     meses.slice().reverse().forEach(function (k) {
-      var l = rows.filter(function (x) { return x.mk === k; }), n = Object.keys(groupBy(l, function (x) { return x.nota; })).length, t = sum(l, function (x) { return x.valor_total; });
+      var l = rowsP().filter(function (x) { return x.mk === k; }), n = Object.keys(groupBy(l, function (x) { return x.nota; })).length, t = sum(l, function (x) { return x.valor_total; });
       var b = h("button", { type: "button", class: "kbloco", "aria-pressed": String(k === st.mes) },
         h("b", { class: "kbm", text: mesNome(k) }),
         h("b", { class: "kbt", text: money(t) }),
@@ -1180,7 +1196,7 @@
     return Promise.resolve(q).then(function (r) { return r && r.error ? ok(r) : r; }).then(function () { return loadRows(true); });
   }
   function formClasse(item, depois) {
-    var N = NU(), opts = N.mkOpcoesCategoria(rows), atual = item.categoria;
+    var N = NU(), opts = N.mkOpcoesCategoria(rows, ehProprietario() ? areaCfg().personalizadas : []), atual = item.categoria;
     var selC = h("select", { "aria-label": "Categoria" }, opts.map(function (k) { return h("option", { value: k, text: k }); }), h("option", { value: "__outra", text: "Outra (digitar)…" }));
     selC.value = opts.indexOf(atual) >= 0 ? atual : "__outra";
     var outra = h("input", { type: "text", placeholder: "Nome da categoria", maxlength: "40", "aria-label": "Nova categoria", value: opts.indexOf(atual) >= 0 ? "" : atual });
@@ -1271,7 +1287,7 @@
   function aguardarOnline(body, sub, arg) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando as compras…" }))); loadOnline().then(function () { drawApp(sub, arg); }); }
   /* abre a COMPRA de uma linha: nota do Mercado → tela Notas com a nota aberta; pedido online → a Central com o pedido aberto (itens, frete, taxas e a conta) */
   function abrirCompraCentral(id, data) {
-    Object.assign(CU, { per: String(data).slice(0, 7), canal: "", estab: "", cat: "", aberta: id, todas: true, sel: null, alvo: true });
+    Object.assign(CU, { area: "", per: String(data).slice(0, 7), canal: "", estab: "", cat: "", aberta: id, todas: true, sel: null, alvo: true });
     if (location.hash !== "#mercado/central") location.hash = "#mercado/central"; else drawApp("central");
   }
   function abrirLinha(x) { if (x.abre) abrirNota(x.abre, x.item_id); else abrirCompraCentral(x.compra, x.data); }
@@ -1346,7 +1362,7 @@
   function painelEvolucao(all) {
     var N = NU(), per = cmPer(), E = N.cmPorMes(all, { canal: CU.canal, estab: CU.estab, categoria: CU.cat }, cmFim(per), 12);
     var p = panel("Evolução dos gastos", "Os 12 meses até " + mesNome(E.meses.length ? E.meses[E.meses.length - 1].mes : cmFim(per)) + ", com os filtros de canal, estabelecimento e categoria acima. Toque num mês para vê-lo." + (E.media != null ? " Média de " + money(E.media) + " por mês desde " + mesNome(E.desde) + "." : ""));
-    p.appendChild(cmVbars(E.meses, /^\d{4}-\d{2}$/.test(per) ? per : null, function (m) { CU.per = m; CU.aberta = null; CU.sel = null; drawApp("central"); }, "gastos"));
+    p.appendChild(cmVbars(E.meses, /^\d{4}-\d{2}$/.test(per) ? per : null, function (m) { CU.per = m; CU.aberta = null; CU.sel = null; recentral(); }, "gastos"));
     return p;
   }
   /* oportunidades de economia: o mesmo produto, na mesma unidade, saiu mais barato em outro estabelecimento nos últimos 12 meses */
@@ -1363,7 +1379,7 @@
         h("span", { class: "pln" }, h("b", { text: o.produto }), h("span", { class: "sub", text: "Mais barato em " + o.barato.nome + " (média " + money(o.barato.medio) + u + "); em " + c.nome + " você pagou " + money(c.medio) + u + " (+" + PCT.format(c.pct) + ")" + (o.caros.length > 1 ? " e em mais " + (o.caros.length - 1) + " lugar(es)" : "") })),
         h("span", { class: "plq", text: o.categoria }), h("span", { class: "plt", text: money(o.economia) }));
     })));
-    if (O.length > 6) { var b = h("button", { type: "button", class: "ghostbtn", text: CM.opoTodas ? "Mostrar só as 6 maiores" : "Ver todas (" + O.length + ")" }); b.onclick = function () { CM.opoTodas = !CM.opoTodas; drawApp("central"); }; p.appendChild(h("div", { class: "vfil" }, b)); }
+    if (O.length > 6) { var b = h("button", { type: "button", class: "ghostbtn", text: CM.opoTodas ? "Mostrar só as 6 maiores" : "Ver todas (" + O.length + ")" }); b.onclick = function () { CM.opoTodas = !CM.opoTodas; recentral(); }; p.appendChild(h("div", { class: "vfil" }, b)); }
     return p;
   }
   /* ---------- Categoria: os produtos da categoria (gasto, quantidade, preço médio, último, menor e maior pago), onde se comprou e a evolução ---------- */
@@ -2343,7 +2359,23 @@
      Junta as notas do Mercado (view compras) e os pedidos online (compras_online) SEM criar tabela nem regravar nada: as contas são as de NUCLEO.cu* (que usam
      a regra financeira de cada fonte). O canal de uma nota do Mercado informado pelo dono fica em PESSOAL["mercado-canais"] (tabela pessoal, sem migration). */
   var onl = null, onlAviso = "", cuMemo = null;
-  var CU = { per: "", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, alvo: false };
+  var CU = { per: "", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, alvo: false, area: "" };
+  function recentral() { drawApp(CU.area ? "area" : "central", CU.area); }
+  /* Áreas de consumo (docs/central-areas.md): só o dono. A configuração mora em PESSOAL["mercado-areas"] (tabela pessoal: outras sessões e aparelhos leem a mesma; a casa não tem acesso). */
+  function ehProprietario() { return typeof isOwner === "function" && isOwner(); }
+  var arMemo = { raw: undefined, cfg: null };
+  function areaCfg() { var raw = (typeof PESSOAL !== "undefined" && PESSOAL && PESSOAL["mercado-areas"]) || null; if (!arMemo.cfg || arMemo.raw !== raw) arMemo = { raw: raw, cfg: NU().arConfig(raw) }; return arMemo.cfg; }
+  function areaSalvar(cfg, aviso) {
+    if (typeof pessoalGravar !== "function") { if (aviso) aviso.textContent = "Não consegui guardar agora."; return; }
+    pessoalGravar("mercado-areas", NU().arRaw(cfg), function (erro) { if (erro && aviso) aviso.textContent = erro; });
+  }
+  /* o que o painel da área ativa soma: as compras reduzidas aos itens da área (nada é alterado nas compras) */
+  function areaContexto() {
+    if (!CU.area || !ehProprietario()) return null;
+    var N = NU(), cfg = areaCfg(), real = CU.area === "nao-classificados" ? "" : CU.area;
+    if (real && !cfg.ids[real]) return null;
+    return { cfg: cfg, id: real, rota: CU.area, nome: real ? N.arNomeArea(cfg, real) : "Não classificados", compras: N.arCompras(centralDados().compras, real, cfg) };
+  }
   /* pedidos online, só leitura, com os campos que a regra financeira precisa; se falhar, a Central segue só com o Mercado e avisa */
   function lerOnline() {
     var out = [], cols = "id,loja,numero,data,vendedor,status,subtotal,desconto,frete,taxas,total_pago,categoria,numero_nf,emitente,fora_das_contas,canal,natureza,historico,origem,compras_online_itens(ordem,descricao,qtd,unitario,total,desconto,categoria,natureza,total_linha,situacao)";
@@ -2367,7 +2399,7 @@
         e a tela só é redesenhada se algo mudou (mesma rolagem, mesmos filtros). Só nas telas de consulta: nunca em Adicionar nota, Notas ou Produtos (onde se edita).
      2) O botão ↻ do topo lê as duas fontes de novo na hora ("busca antes, troca depois": se uma leitura falhar, nada muda).
      3) Compras online avisa depois de gravar (esquecerOnline) e o Mercado relê as notas depois de salvar (loadRows(true)). */
-  var RELER_MS = { notas: 60000, online: 15000 }, VISTAS_CONSULTA = { central: 1, categoria: 1, produto: 1, estabelecimento: 1, painel: 1, precos: 1, consumo: 1, comparar: 1 }, VISTAS_UNIFICADAS = { central: 1, categoria: 1, produto: 1, estabelecimento: 1 };
+  var RELER_MS = { notas: 60000, online: 15000 }, VISTAS_CONSULTA = { area: 1, central: 1, categoria: 1, produto: 1, estabelecimento: 1, painel: 1, precos: 1, consumo: 1, comparar: 1 }, VISTAS_UNIFICADAS = { area: 1, categorias: 1, central: 1, categoria: 1, produto: 1, estabelecimento: 1 };
   var relendo = null, atuLigado = false;
   function reler(sub, arg, agora) {
     var v = sub || "central";
@@ -2458,9 +2490,16 @@
   function difTxt2(d) { return (d > 0 ? "▲ +" : d < 0 ? "▼ −" : "= ") + money(Math.abs(d)); }
   function viewCentral(body) {
     var N = NU(), hoje = hojeLocal();
-    if (onl === null) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando as compras online…" }))); loadOnline().then(function () { drawApp("central"); }); return; }
-    var D = centralDados(), all = D.compras;
+    if (onl === null) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Carregando as compras online…" }))); loadOnline().then(function () { recentral(); }); return; }
+    var D = centralDados(), all = D.compras, AR = null;
+    if (CU.area) { AR = areaContexto(); if (!AR) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Essa área não existe. Volte para a ", h("a", { class: "link", href: "#mercado/central", text: "Central" }), " ou veja a ", h("a", { class: "link", href: "#mercado/categorias", text: "Gestão de categorias" }), "."))); return; }
+      all = AR.compras;
+      var cats = AR.id ? Object.keys(AR.cfg.assoc).filter(function (k) { return AR.cfg.assoc[k] === AR.id; }).map(function (k) { return AR.cfg.nomes[k]; }) : [];
+      body.appendChild(h("div", { class: "panel mk-areacab" }, h("span", { class: "kl", text: "Área de consumo" }), h("h2", { text: AR.nome }),
+        h("p", { class: "sub", text: AR.id ? "Só os itens destas categorias: " + (cats.join(", ") || "nenhuma categoria associada") + ". Frete, taxas e descontos gerais de pedidos ficam só na Central." : "Itens cuja categoria ainda não tem área. Eles já entram no total da Central; associe cada categoria a uma área para vê-los num painel." }),
+        h("a", { class: "link", href: "#mercado/categorias", text: "Gerenciar categorias e áreas ›" }))); }
     if (onlAviso) body.appendChild(h("div", { class: "panel" }, h("p", { class: "sub", role: "status", text: onlAviso })));
+    if (AR && !all.length) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty", text: "Nenhuma compra nesta área ainda." }))); return; }
     if (!all.length) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, "Ainda não há compras. ", h("a", { class: "link", href: "#mercado/importar", text: "Adicione uma nota" }), " ou registre um pedido em ", h("a", { class: "link", href: "#compras", text: "Compras online" }), "."))); return; }
     var meses = Object.keys(groupBy(all, function (x) { return x.mes; })).sort();
     var seg0 = ["12m", "tudo"];
@@ -2468,7 +2507,7 @@
     var mesSel = /^\d{4}-\d{2}$/.test(CU.per);
     var f = Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal, estab: CU.estab, categoria: CU.cat });
     var lista = N.cuFiltrar(all, f), R = N.cuResumo(lista);
-    function refaz() { CU.aberta = null; CU.sel = null; drawApp("central"); }
+    function refaz() { CU.aberta = null; CU.sel = null; recentral(); }
 
     /* período */
     var seg = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Período" });
@@ -2506,6 +2545,7 @@
       kCanal));
     if (CU.cat) body.appendChild(h("p", { class: "sub", text: "Com categoria escolhida, valem só os itens dela: frete, taxas e descontos gerais do pedido não são divididos entre categorias." }));
     body.appendChild(painelEvolucao(all));
+    if (!AR && ehProprietario() && !CU.cat) body.appendChild(painelAreas(all, f));
     if (R.possiveisDuplicatas) body.appendChild(h("div", { class: "panel" }, h("p", { class: "sub", role: "status" }, "⚠ " + R.possiveisDuplicatas + (R.possiveisDuplicatas === 1 ? " pedido online tem" : " pedidos online têm") + " a mesma data e o mesmo valor de uma nota do Mercado. Os dois estão somados: se for a mesma compra, marque o pedido como “já contada em outro lugar” em ", h("a", { class: "link", href: "#compras", text: "Compras online" }), ".")));
 
     /* últimas compras */
@@ -2520,22 +2560,22 @@
         h("b", { class: "kbm" }, c.estabelecimento + " ", h("span", { class: "cubadge " + (c.canal === "online" ? "on" : "pr"), text: c.canal === "online" ? "Online" : "Presencial" })),
         h("b", { class: "kbt", text: money(c.valor_f) }),
         h("span", { class: "sub", text: c.n_f + (c.n_f === 1 ? " item" : " itens") + (N.cuCategoriasDe(c, 2).length ? " · " + N.cuCategoriasDe(c, 2).join(", ") : "") + (c.possivel_duplicata ? " · ⚠ possível duplicidade" : "") }));
-      b.onclick = function () { CU.aberta = on ? null : c.id; drawApp("central"); };
+      b.onclick = function () { CU.aberta = on ? null : c.id; recentral(); };
       pl.appendChild(b);
       if (on) { var dc = detalheCompra(c); pl.appendChild(dc); if (CU.alvo) { CU.alvo = false; setTimeout(function () { if (b.scrollIntoView) b.scrollIntoView({ block: "start" }); }, 30); } }
     });
-    if (lista.length > 10) { var mais = h("button", { type: "button", class: "ghostbtn", text: CU.todas ? "Mostrar só as 10 últimas" : "Ver todas (" + lista.length + ")" }); mais.onclick = function () { CU.todas = !CU.todas; drawApp("central"); }; pl.appendChild(h("div", { class: "vfil" }, mais)); }
+    if (lista.length > 10) { var mais = h("button", { type: "button", class: "ghostbtn", text: CU.todas ? "Mostrar só as 10 últimas" : "Ver todas (" + lista.length + ")" }); mais.onclick = function () { CU.todas = !CU.todas; recentral(); }; pl.appendChild(h("div", { class: "vfil" }, mais)); }
     body.appendChild(pl);
 
     /* por estabelecimento e por categoria */
     var g = h("div", { class: "mkgrid" });
     var pe = panel("Por estabelecimento", "Quanto foi gasto em cada loja. Clique para abrir os produtos.");
     pe.appendChild(cuBarras(R.porEstab.map(function (e) { return { nome: e.nome, total: e.total, sub: e.n + (e.n === 1 ? " compra" : " compras") }; }), R.total, "estab", CU.sel && CU.sel.tipo === "estab" ? CU.sel.valor : null,
-      function (v) { CU.sel = v ? { tipo: "estab", valor: v } : null; drawApp("central"); }));
+      function (v) { CU.sel = v ? { tipo: "estab", valor: v } : null; recentral(); }));
     g.appendChild(h("div", { class: "mkcol" }, pe, CU.sel && CU.sel.tipo === "estab" ? detalheGrupo(lista, "estab", CU.sel.valor) : null));
     var pc = panel("Por categoria", "O que foi comprado, em qualquer loja. Clique para abrir os itens.");
     pc.appendChild(cuBarras(R.porCategoria.map(function (c) { return { nome: c.cat, total: c.total, sub: c.compras + (c.compras === 1 ? " compra" : " compras") }; }), R.total - R.ajustes, "cat", CU.sel && CU.sel.tipo === "cat" ? CU.sel.valor : null,
-      function (v) { CU.sel = v ? { tipo: "cat", valor: v } : null; drawApp("central"); }));
+      function (v) { CU.sel = v ? { tipo: "cat", valor: v } : null; recentral(); }));
     if (!CU.cat && R.ajustes) pc.appendChild(h("p", { class: "sub", text: "Fora das categorias: " + sinalMoney(R.ajustes) + " de frete, taxas e descontos gerais dos pedidos (não são produtos e não são divididos entre as categorias)." }));
     g.appendChild(h("div", { class: "mkcol" }, pc, CU.sel && CU.sel.tipo === "cat" ? detalheGrupo(lista, "cat", CU.sel.valor) : null));
     body.appendChild(g);
@@ -2543,12 +2583,73 @@
     /* o que não entra na soma (transparência da conciliação) */
     var rot = { cancelada: "pedidos cancelados", fora_das_contas: "pedidos marcados como já contados em outro lugar", outro_modulo: "compras de supermercado ou combustível presenciais (ficam no Mercado e em Veículos)", pendente: "pedidos ainda pendentes (autorizados)", referencia_historica: "histórico físico da Amazon (só referência)", coberta_por_nota: "pedidos online já contados pela nota fiscal do Mercado (mesma compra)", sem_data: "sem data", sem_valor: "sem valor" };
     var fo = Object.keys(D.fora).filter(function (k) { return D.fora[k].n > 0; });
+    if (AR) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "sub", text: "Este painel soma só os itens da área " + AR.nome + ". A Central soma todas as áreas, os não classificados e os ajustes dos pedidos, sem contar nada duas vezes." }))); body.appendChild(painelExplorar(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal })))); body.appendChild(painelOportunidades(all)); return; }
     var tot = h("details", { class: "mknota" }, h("summary", null, h("span", { class: "mkn" }, h("b", { text: "Conferência dos totais" }), h("span", { class: "sub", text: " · todo o histórico: " + money(D.totais.total) + " = Mercado " + money(D.totais.notas) + " + online " + money(D.totais.online) })), h("span")));
     tot.appendChild(h("p", { class: "sub", text: "Cada fonte mantém o seu cálculo: o Mercado soma os itens das notas; o online usa o total pago do pedido (com desconto, frete e taxas). Nada é somado duas vezes." }));
     fo.forEach(function (k) { tot.appendChild(h("p", { class: "sub", text: "Fora da soma: " + D.fora[k].n + " " + (rot[k] || k) + " (" + money(D.fora[k].valor) + ")." })); });
     body.appendChild(tot);
     body.appendChild(painelExplorar(N.cuFiltrar(all, Object.assign({}, N.cuPeriodo(CU.per, hoje), { canal: CU.canal })))); body.appendChild(painelOportunidades(all));
     body.appendChild(h("p", { class: "sub" }, "Detalhes de cada loja online: ", h("a", { class: "link", href: "#compras", text: "Compras online" }), " · cada nota: ", h("a", { class: "link", href: "#mercado/notas", text: "Notas" }), "."));
+  }
+  /* faixa de navegação das áreas (quebra de linha, sem rolagem lateral): Central · cada área · Não classificados (se houver) · Gestão de categorias */
+  function navAreas(v, arg) {
+    var N = NU(), cfg = areaCfg(), R = N.arResumo(centralDados().compras, cfg, {}), nav = h("nav", { class: "mk-nav2 mk-areas", "aria-label": "Áreas de consumo" });
+    nav.appendChild(h("span", { class: "mk-nav2-rot", text: "Áreas de consumo" }));
+    nav.appendChild(h("a", { href: "#mercado/central", "aria-current": v === "central" ? "page" : null, text: "Central (todas)" }));
+    cfg.areas.forEach(function (a) { nav.appendChild(h("a", { href: "#mercado/area/" + a.id, "aria-current": v === "area" && arg === a.id ? "page" : null, text: a.nome })); });
+    if (R.semArea.itens) nav.appendChild(h("a", { href: "#mercado/area/nao-classificados", "aria-current": v === "area" && arg === "nao-classificados" ? "page" : null, text: "Não classificados (" + R.semArea.itens + ")" }));
+    nav.appendChild(h("a", { href: "#mercado/categorias", "aria-current": v === "categorias" ? "page" : null, text: "⚙ Gestão de categorias" }));
+    return nav;
+  }
+  /* Central: quanto cada área pesa no total. Σ áreas + não classificados + ajustes = total da Central (nada contado duas vezes) */
+  function painelAreas(all, f) {
+    var N = NU(), cfg = areaCfg(), R = N.arResumo(all, cfg, { de: f.de, ate: f.ate, canal: f.canal, estab: f.estab }), ids = {};
+    var linhas = R.areas.filter(function (a) { return a.itens; }).map(function (a) { ids[a.nome] = a.id; return { nome: a.nome, total: a.total, sub: a.itens + (a.itens === 1 ? " item" : " itens") }; });
+    if (R.semArea.itens) { ids["Não classificados"] = "nao-classificados"; linhas.push({ nome: "Não classificados", total: R.semArea.total, sub: R.semArea.itens + (R.semArea.itens === 1 ? " item" : " itens") }); }
+    linhas.sort(function (a, b) { return b.total - a.total; });
+    var p = panel("Por área de consumo", "A mesma compra pertence a uma só área, pela categoria do item. Toque numa área para abrir o painel dela.");
+    if (!linhas.length) { p.appendChild(h("p", { class: "empty", text: "Nenhum item no período." })); return p; }
+    p.appendChild(cuBarras(linhas, R.total, "area", null, function (v) { if (v) location.hash = "#mercado/area/" + ids[v]; }));
+    if (R.ajustes) p.appendChild(h("p", { class: "sub", text: "Fora das áreas: " + sinalMoney(R.ajustes) + " de frete, taxas e descontos gerais dos pedidos (não são divididos entre as áreas)." }));
+    p.appendChild(h("p", { class: "sub", text: "Total da Central no período: " + money(R.total) + " = áreas " + money(R.areas.reduce(function (s, a) { return s + a.total; }, 0)) + " + não classificados " + money(R.semArea.total) + (R.ajustes ? " + ajustes " + sinalMoney(R.ajustes) : "") + "." }));
+    if (R.semArea.itens) p.appendChild(h("p", { class: "sub", role: "status" }, "⚠ " + R.semArea.categorias.length + (R.semArea.categorias.length === 1 ? " categoria sem área" : " categorias sem área") + " (" + R.semArea.categorias.slice(0, 4).map(function (c) { return c.categoria; }).join(", ") + (R.semArea.categorias.length > 4 ? "…" : "") + "). ", h("a", { class: "link", href: "#mercado/categorias", text: "Associar em Gestão de categorias ›" })));
+    return p;
+  }
+  /* Gestão de categorias e áreas (só o dono). Grava só PESSOAL["mercado-areas"]: nota, pedido, item e valor nunca mudam. */
+  function viewCategorias(body) {
+    var N = NU(), cfg = areaCfg(), D = centralDados(), aviso = h("p", { class: "sub", role: "status" });
+    function salvar(r) { if (!r.ok) { aviso.textContent = r.erro; return; } areaSalvar(r.cfg, aviso); drawApp("categorias"); }
+    var lista = N.arCategorias(cfg, D.compras), sem = lista.filter(function (x) { return x.semArea && x.itens; });
+    var topo = panel("Gestão de categorias", "Cada categoria pertence a uma área de consumo; cada área tem o seu painel e a Central soma todas. Mudar a área só muda em qual painel os itens aparecem: notas, pedidos, itens e valores não são alterados.");
+    topo.appendChild(h("p", { class: "sub", text: "Categorias: " + lista.length + " · áreas: " + cfg.areas.length + " · categorias sem área (com itens): " + sem.length }));
+    if (sem.length) topo.appendChild(h("p", { class: "sub", role: "status", text: "⚠ Sem área: " + sem.map(function (x) { return x.categoria + " (" + money(x.total) + ")"; }).join(", ") + ". Esses itens estão preservados e já somam na Central como “não classificados”; escolha a área de cada uma abaixo." }));
+    topo.appendChild(aviso); body.appendChild(topo);
+    var pl = panel("Categorias e áreas", "Escolha a área de cada categoria. As sem área vêm primeiro.");
+    lista.forEach(function (x) {
+      var sel = h("select", { "aria-label": "Área de " + x.categoria, class: "cusel" }, h("option", { value: "", text: "Sem área (não classificada)" }), cfg.areas.map(function (a) { return h("option", { value: a.id, text: a.nome }); }));
+      sel.value = x.area; sel.onchange = function () { salvar(N.arAssociar(cfg, x.categoria, sel.value)); };
+      var linha = h("div", { class: "mk-catrow" + (x.semArea ? " sem" : "") },
+        h("div", { class: "mk-catnome" }, h("b", { text: x.categoria }), x.semArea ? h("span", { class: "cubadge on", text: "Sem área" }) : null, x.personalizada ? h("span", { class: "cubadge pr", text: "Sua categoria" }) : null,
+          h("span", { class: "sub", text: (x.itens ? x.itens + (x.itens === 1 ? " item" : " itens") + " · " + money(x.total) : "nenhum item ainda") })),
+        sel, h("span", { class: "sub", text: x.explicacao }));
+      if (x.personalizada) { var rm = h("button", { type: "button", class: "ghostbtn", text: "Remover da lista" }); rm.onclick = function () { salvar(N.arCategoriaRemover(cfg, x.categoria)); }; linha.appendChild(rm); }
+      pl.appendChild(linha);
+    });
+    body.appendChild(pl);
+    var pc = panel("Nova categoria", "Para um tipo de compra que as categorias acima não cobrem. Os itens que já usam esse nome passam a somar na área escolhida.");
+    var ic = h("input", { type: "text", maxlength: "40", placeholder: "Nome da categoria", "aria-label": "Nome da nova categoria" }), sc = h("select", { "aria-label": "Área da nova categoria", class: "cusel" }, h("option", { value: "", text: "Sem área (por enquanto)" }), cfg.areas.map(function (a) { return h("option", { value: a.id, text: a.nome }); }));
+    var bc = h("button", { type: "button", class: "mkadd", text: "Criar categoria" }); bc.onclick = function () { salvar(N.arCategoriaCriar(cfg, ic.value, sc.value)); };
+    pc.appendChild(h("div", { class: "mk-catform" }, ic, sc, bc)); body.appendChild(pc);
+    var pa = panel("Áreas de consumo", "Cada área ganha o seu painel. Mercado, Automotivo, Farmácia e Bebê/Infantil já existem; crie outras quando precisar (sem mudar o código).");
+    cfg.areas.forEach(function (a) {
+      var n = lista.filter(function (x) { return x.area === a.id; }).length, linha = h("div", { class: "mk-catrow" }, h("div", { class: "mk-catnome" }, h("b", { text: a.nome }), a.propria ? h("span", { class: "cubadge pr", text: "Sua área" }) : null, h("span", { class: "sub", text: n + (n === 1 ? " categoria" : " categorias") })), h("a", { class: "link", href: "#mercado/area/" + a.id, text: "Abrir o painel ›" }));
+      if (a.propria) { var rm = h("button", { type: "button", class: "ghostbtn", text: "Remover a área" }); rm.onclick = function () { salvar(N.arAreaRemover(cfg, a.id)); }; linha.appendChild(rm); }
+      pa.appendChild(linha);
+    });
+    var ia = h("input", { type: "text", maxlength: "40", placeholder: "Nome da nova área", "aria-label": "Nome da nova área" }), ba = h("button", { type: "button", class: "mkadd", text: "Criar área" });
+    ba.onclick = function () { salvar(N.arAreaCriar(cfg, ia.value)); }; pa.appendChild(h("div", { class: "mk-catform" }, ia, ba));
+    pa.appendChild(h("p", { class: "sub", text: "Remover uma área que você criou não apaga nada: as categorias dela ficam sem área e os itens continuam na Central como não classificados." }));
+    body.appendChild(pa);
   }
   function adc(pai, filho) { if (filho) pai.appendChild(filho); }
   function detalheCompra(c) {
@@ -2566,11 +2667,12 @@
     var linhas = [["Itens", soma]];
     if (a) { if (a.frete) linhas.push(["Frete", a.frete]); if (a.taxas) linhas.push(["Taxas", a.taxas]); if (a.desconto_geral) linhas.push(["Desconto do pedido", a.desconto_geral]); if (a.outros) linhas.push(["Outros ajustes", a.outros]); }
     linhas.forEach(function (x) { p.appendChild(h("p", { class: "cuconta" }, h("span", { text: x[0] }), h("span", { text: x[0] === "Itens" ? money(x[1]) : sinalMoney(x[1]) }))); });
-    p.appendChild(h("p", { class: "cuconta tot" }, h("b", { text: "Valor pago" }), h("b", { text: money(c.valor) })));
+    p.appendChild(h("p", { class: "cuconta tot" }, h("b", { text: c.parcial ? "Soma dos itens desta área" : "Valor pago" }), h("b", { text: money(c.valor) })));
+    if (c.parcial) p.appendChild(h("p", { class: "sub", text: "Esta compra tem itens de outras áreas (ou frete e taxas): o valor pago no total foi " + money(c.valor_compra) + ", somado na Central." }));
     if (!a && c.desconto) p.appendChild(h("p", { class: "sub", text: "Descontos já abatidos nos itens da nota: " + money(c.desconto) + "." }));
     if (c.possivel_duplicata) p.appendChild(h("p", { class: "sub", role: "status", text: "⚠ Mesma data e mesmo valor de uma nota do Mercado: confira se é a mesma compra (os dois estão somados)." }));
     if (c.fonte === "nota") {
-      p.appendChild(canalNota(c.chave, function () { drawApp("central"); }));
+      p.appendChild(canalNota(c.chave, function () { recentral(); }));
       var ab = h("button", { type: "button", class: "ghostbtn", text: "Abrir a nota em Notas (editar categorias)" }); ab.onclick = function () { st.notaAberta = c.chave; st.notaItem = null; location.hash = "#mercado/notas"; }; p.appendChild(h("div", { class: "vfil" }, ab));
     } else p.appendChild(h("div", { class: "vfil" }, h("a", { class: "link", href: "#compras", text: "Abrir em Compras online (pedido, documentos e lojas)" })));
     return p;
@@ -2579,7 +2681,7 @@
   function detalheGrupo(lista, tipo, valor) {
     var N = NU(), sub = tipo === "estab" ? lista.filter(function (c) { return c.estabelecimento === valor; }) : lista, its = N.cuItens(sub, tipo === "cat" ? { categoria: valor } : {});
     var p = h("div", { class: "panel mkdet" }), tot = its.reduce(function (s, i) { return s + i.valor; }, 0);
-    var fechar = h("button", { type: "button", class: "ghostbtn", text: "Fechar" }); fechar.onclick = function () { CU.sel = null; drawApp("central"); };
+    var fechar = h("button", { type: "button", class: "ghostbtn", text: "Fechar" }); fechar.onclick = function () { CU.sel = null; recentral(); };
     p.appendChild(h("div", { class: "ulhead" }, h("div", null, h("h2", { text: valor }), h("p", { class: "sub", text: its.length + (its.length === 1 ? " item" : " itens") + " · " + money(tot) })), fechar));
     p.appendChild(h("p", null, h("a", { class: "mkadd", href: tipo === "estab" ? linkEst(valor) : linkCat(valor), text: (tipo === "estab" ? "Abrir o estabelecimento" : "Abrir a categoria") + " (produtos, preços e comparação) ›" })));
     if (tipo === "estab") {
@@ -2623,7 +2725,7 @@
     /* Compras online chama depois de gravar, anexar, marcar ou apagar um pedido: a Central lê os pedidos de novo na próxima vez que abrir */
     esquecerOnline: function () { onl = null; cuMemo = null; lidoEm.online = 0; },
     /* só para os testes automáticos (tests/): leitura da resposta da nota pela foto */
-    _teste: { drawApp: drawApp, viewCentral: viewCentral, CU: CU, CM: CM, reler: reler, lidoEm: lidoEm, ligarAtualizar: ligarAtualizar, usarOnline: function (l) { onl = l; onlAviso = ""; cuMemo = null; lidoEm.assOnline = JSON.stringify(l); }, centralDados: centralDados, viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; lidoEm.assNotas = assinaturaNotas(r); if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
+    _teste: { drawApp: drawApp, viewCentral: viewCentral, viewCategorias: viewCategorias, areaCfg: areaCfg, rowsP: rowsP, navAreas: navAreas, CU: CU, CM: CM, reler: reler, lidoEm: lidoEm, ligarAtualizar: ligarAtualizar, usarOnline: function (l) { onl = l; onlAviso = ""; cuMemo = null; lidoEm.assOnline = JSON.stringify(l); }, centralDados: centralDados, viewNotas: viewNotas, trocarSb: function (x) { sb = x; }, salvarClasse: salvarClasse, formClasse: formClasse, mig: function (v) { mig046 = v; }, st: st, hoje: function (v) { hojeFixo = v; }, viewPainel: viewPainel, viewAlertas: viewAlertas, viewComparar: viewComparar, viewPrecos: viewPrecos, usar: function (r, u) { rows = r; lidoEm.assNotas = assinaturaNotas(r); if (u) user = u; }, viewConsumo: viewConsumo, salvar: function (f) { var a = salvarArquivo; if (f) salvarArquivo = f; return a; }, nomeBonito: nomeBonito, listaCats: listaCats, jsonTolerante: jsonTolerante, lerResposta: lerResposta, lerTextoLivre: lerTextoLivre } };
   /* apelidos de compatibilidade (Fase 2 · A1): RACmercado.url e .chave leem a camada de dados (js/dados.js) */
   ["url", "chave"].forEach(function (k) { Object.defineProperty(window.RACmercado, k, { enumerable: true, get: function () { return window.RACdados ? window.RACdados[k] : undefined; } }); });
 })();

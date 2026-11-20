@@ -1013,6 +1013,18 @@ test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas cont
       const pag = await nav.newPage({ viewport }), erros = [];
       pag.on("pageerror", (e) => erros.push("erro: " + e.message));
       pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
+      /* o Início também desenha Esportes, clima, notícias etc., que chamam serviços externos (ESPN, Open-Meteo…): no CI a ESPN responde sem CORS e o console acusa erro. Este teste é do cartão E-mail,
+         então TODA requisição fora do servidor local recebe uma resposta controlada (vazia, com CORS liberado) e nada externo é alcançado; o filtro do console acima continua valendo, sem silenciar nada. */
+      const externas = [];
+      await pag.route((u) => !u.href.startsWith(base), (rota) => {
+        const rq = rota.request(), tipo = rq.resourceType(); externas.push(new URL(rq.url()).host);
+        const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+        if (rq.method() === "OPTIONS") return rota.fulfill({ status: 204, headers: cors });
+        if (tipo === "script") return rota.fulfill({ status: 200, headers: cors, contentType: "application/javascript", body: "" });
+        if (tipo === "stylesheet") return rota.fulfill({ status: 200, headers: cors, contentType: "text/css", body: "" });
+        if (tipo === "image" || tipo === "font" || tipo === "media") return rota.fulfill({ status: 204, headers: cors });
+        return rota.fulfill({ status: 200, headers: cors, contentType: "application/json", body: "{}" });
+      });
       await pag.goto(base + "/#inicio"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
       await pag.evaluate(() => {
         const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", PA = "bbbbbbbb-0000-4000-8000-000000000001", PB = "bbbbbbbb-0000-4000-8000-000000000002", chamadas = [];
@@ -1040,6 +1052,7 @@ test("Início: cartão E-mail integrado ao Inbox (390, 820 e 1440 px), duas cont
       assert.deepEqual(await pag.evaluate(() => __chamadas.map((c) => [c.operacao, c.conta_id])), [["sincronizar_pasta", "aaaaaaaa-0000-4000-8000-000000000002"]], rotulo + ": só a conta tocada foi sincronizada");
       assert.equal(await pag.evaluate(() => typeof gmailBloco), "undefined", rotulo + ": o leitor antigo do Gmail no cartão não existe mais");
       assert.equal(await pag.locator('.inbc-conta[data-conta="aaaaaaaa-0000-4000-8000-000000000002"] a:has-text("Abrir")').count(), 1, rotulo + ": a conta tocada continua inteira depois de atualizar");
+      assert.ok(externas.every((h) => !/^(127\.0\.0\.1|localhost)/.test(h)), rotulo + ": só hosts externos foram interceptados");
       assert.deepEqual(erros, [], rotulo + ": nenhum erro de JavaScript");
       await pag.close();
     }

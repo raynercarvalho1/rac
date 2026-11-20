@@ -16,6 +16,7 @@ export interface Endereco { nome: string; endereco: string }
 export interface Resumo {
   uid: number; recebida: string | null; tamanho: number | null; lida: boolean; sinalizada: boolean; respondida: boolean;
   de: Endereco | null; para: Endereco[]; assunto: string; message_id: string | null; anexo_provavel: boolean;
+  ext?: string;   // identidade da mensagem no provedor quando não é IMAP (Gmail: o ID da mensagem); sem ela vale uidvalidity:uid
 }
 export interface AplicacaoSync {
   uidvalidity: number; cursor: number; tipo: TipoSinc; total: number; duracao_ms: number | null;
@@ -58,6 +59,7 @@ export function filtrarResumo(v: unknown): Resumo | null {
     uid: o.uid, recebida: typeof o.recebida === "string" && RE_ISO.test(o.recebida) ? o.recebida : null, tamanho: inteiroOuNulo(o.tamanho),
     lida: sempreBool(o.lida), sinalizada: sempreBool(o.sinalizada), respondida: sempreBool(o.respondida), de: endereco(o.de), para, assunto,
     message_id: texto(o.message_id ?? null, 255) === "" ? null : texto(o.message_id ?? null, 255), anexo_provavel: sempreBool(o.anexo_provavel),
+    ...(typeof o.ext === "string" && /^[0-9a-f]{8,32}$/.test(o.ext) ? { ext: o.ext } : {}),
   };
 }
 /* a lista inteira ou nada: um item fora do esquema invalida a resposta (o Worker não deveria mandá-lo) */
@@ -83,7 +85,7 @@ export function filtrarPastas(v: unknown): PastaWorker[] | null {
 }
 const RE_BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 export function filtrarLeitura(dados: Record<string, unknown>): Record<string, unknown> | null {
-  const m = dados.mensagem && typeof dados.mensagem === "object" ? (dados.mensagem as Record<string, unknown>) : null, r = m && filtrarResumo(m);
+  const m = dados.mensagem && typeof dados.mensagem === "object" ? (dados.mensagem as Record<string, unknown>) : null, r0 = m && filtrarResumo(m), r = r0 && (({ ext: _ext, ...resto }) => resto)(r0);   // a identidade do provedor (ext) nunca vai ao navegador
   if (!m || !r || typeof m.texto !== "string" || m.texto.length > 65536 || !["texto", "html_convertido", "sem_corpo"].includes(m.formato as string) || !Array.isArray(m.anexos) || m.anexos.length > 30) return null;
   const anexos = [];
   for (const a of m.anexos as unknown[]) {

@@ -3,7 +3,7 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const VERSAO_FUNCAO = "rac-inbox@i4.0";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const VERSAO_FUNCAO = "rac-inbox@i4.1";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
 export const OPERACOES_OAUTH = ["oauth_iniciar", "oauth_concluir"] as const;   // I4: conexão OAuth do Gmail/Outlook (oauth.ts); o token vai ao Vault, nunca ao navegador
 export const OAUTH_CORPO_MAX = 6144;   // o código do provedor pode ter mais de 2 KiB (Microsoft)
 export const OPERACOES_SAIDA = ["smtp_prova", "enviar_mensagem"] as const;   // SMTP (I3): as ÚNICAS operações que escrevem no mundo; só o dono, só com a ação explícita do navegador
@@ -26,7 +26,7 @@ export const ERROS: Record<string, number> = {
   /* I3.2 (gerenciamento): falha confirmada = 4xx; "acao_incerta" = 202 (a caixa PODE ter mudado: nunca se repete sozinho e se consulta o estado antes de decidir) */
   acao_invalida: 400, destino_invalido: 422, destino_ausente: 422, acao_indisponivel: 422, identidade_divergente: 409, acao_recusada: 422, acao_nao_aplicada: 422, acao_incerta: 202, acao_em_andamento: 409,
   pasta_somente_leitura: 422, confirmacao_ausente: 502,
-  /* I4 (OAuth) */ oauth_nao_configurado: 503, oauth_estado_invalido: 409, oauth_recusado: 422, oauth_conta_divergente: 409, oauth_indisponivel: 502, provedor_invalido: 422, provedor_sem_leitura: 422, limite: 429,
+  /* I4 (OAuth) */ oauth_nao_configurado: 503, oauth_estado_invalido: 409, oauth_recusado: 422, oauth_conta_divergente: 409, oauth_indisponivel: 502, provedor_invalido: 422, provedor_sem_leitura: 422, provedor_sem_operacao: 422, limite: 429,
   registro_envio_indisponivel: 503, origem_invalida: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413, modo_invalido: 400,
 };
 

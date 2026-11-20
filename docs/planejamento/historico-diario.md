@@ -1358,3 +1358,14 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Lotes 2 a 5 (nada implementado ainda): Gmail leitura/sincronização, Outlook leitura/sincronização (uid sintético por pasta, mesmo funil), envio/resposta/encaminhamento, gerenciamento, automático/notificações, migração de Compras/Carreira/vagas e remoção do `gmApi`. Dono: criar os apps no Google Cloud e no Entra, cadastrar os Secrets, aplicar a 063 e republicar a função; depois validar no iPhone.
 
+## 20/11/2026 · RAC Inbox I4 lote 2: leitura e sincronização do Gmail (versão `2026-11-20.6`, função `rac-inbox@i4.1`)
+
+### 1. O que fizemos
+- O dono validou em produção o lote 1: a conta Gmail conectou ("Conta conectada"), mas a tela dizia sem leitura e não havia Sincronizar (esperado). Implementada a leitura: adaptador `gmail.ts` com a forma do Worker do iCloud, uid sintético por pasta (ID do Gmail em `id_externo`), pastas, sincronização pelo mesmo algoritmo, leitura de mensagem e anexo, tratamento de token expirado. Tela e cartão do Início: Gmail conectado passa a ter Sincronizar/Atualizar; Nova mensagem e organizar ficam desligados para Gmail. Testes: `inbox_gmail` (9) e ajustes; suíte completa verde.
+
+### 2. O que estamos fazendo
+- PR #56 atualizado. Nada publicado: o dono precisa republicar a função e o site; sem SQL nem secret novos. Sem prova com mensagens reais.
+
+### 3. O que vamos fazer
+- Lotes seguintes: envio/resposta/encaminhamento e gerenciamento do Gmail; sincronização incremental e automática; Outlook (Graph) completo; migração de Compras/Carreira/vagas; validação no iPhone.
+

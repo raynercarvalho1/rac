@@ -124,6 +124,7 @@
      (relido do banco); se falhar, nada na tela muda e a frase diz o que aconteceu. Um toque por vez (INBX.acao); excluir pede confirmação; o exemplo e contas sem conexão nunca executam. ---- */
   function inboxOrganizar(m,acao,destino){
     if(INBX.acao||INBX.demo||!INBS.publicado||!m||INBX.cred[m.conta_id]!=="ativa")return;
+    if(!NUCLEO.inbProvedorEscreve((INBX.contas.filter(function(c){return c.id===m.conta_id})[0]||{}).provedor))return;
     if(acao==="excluir"&&!window.confirm("Mover esta mensagem para a Lixeira? Ela sai desta pasta. O RAC não faz exclusão definitiva."))return;
     var ped={conta_id:m.conta_id,pasta_id:m.pasta_id,uid:m.uid,acao:acao};if(acao==="mover"){if(!destino)return;ped.destino_pasta_id=destino.id}
     INBX.acao={id:m.id,acao:acao};INBX.aviso=null;INBX.menuMais=null;INBX.menuPasta=false;inboxDesenhar();
@@ -232,7 +233,7 @@
   function inboxConexaoOAuth(c){
     var est=INBX.cred[c.id]||"ausente",marca=c.provedor==="outlook"?"Microsoft":"Google",box=h("div",{class:"inb-conexao"+(est==="invalida"?" inb-conexao--erro":"")}),
       txt={ausente:"Conecte a conta com o "+marca+" para o RAC poder acessá-la. O RAC nunca vê a sua senha: guarda só uma autorização que você pode revogar, cifrada no cofre do servidor.",
-        ativa:"Autorizada. A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",invalida:"A autorização foi recusada ou revogada. Conecte de novo."}[est];
+        ativa:NUCLEO.inbProvedor(c.provedor).leitura?"Autorizada. Toque em Sincronizar para trazer as mensagens. Enviar e organizar ainda não estão disponíveis para este provedor.":"Autorizada. A leitura de mensagens deste provedor ainda não foi liberada no Inbox.",invalida:"A autorização foi recusada ou revogada. Conecte de novo."}[est];
     box.appendChild(h("div",{class:"inb-conexao-cab"},inboxIco("cadeado","inb-conexao-ico"),h("div",{class:"inb-conexao-txt"},h("b",{text:est==="ativa"?"Autorização guardada":est==="invalida"?"Autorização recusada":"Sem conexão"}),h("span",{text:txt})),inboxSelo(c.estado)));
     if(!INBS.publicado){box.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado."}));return box}
     var acoes=h("div",{class:"inb-conexao-acoes"}),b=rkBtn(est==="ausente"?"pri":"sec",(est==="ausente"?"Conectar com ":"Reconectar com ")+marca);if(INBX.credOcupado)b.setAttribute("disabled","disabled");b.onclick=function(){inboxOAuthIniciar(c)};acoes.appendChild(b);
@@ -311,7 +312,7 @@
     var acoes=h("div",{class:"inb-acoes",role:"toolbar","aria-label":"Ações da mensagem"});
     var pronta=!INBX.demo&&m&&INBX.leit&&INBX.leit.id===m.id&&INBX.leit.estado==="ok"&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado;
     [["responder","Responder","responder"],["todos","Responder a todos","responder_todos"],["encaminhar","Encaminhar","encaminhar"]].forEach(function(a){acoes.appendChild(inboxBtnAcao(a[0],a[1],pronta?function(){inboxCompor(a[2],m)}:null))});
-    var org=!INBX.demo&&m&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado?NUCLEO.inbAcoesDisponiveis(m,INBX.pastas,!!INBX.semMover[m.conta_id]):null;   /* I3.2: só mensagem real de conta conectada */
+    var org=!INBX.demo&&m&&INBX.cred[m.conta_id]==="ativa"&&INBS.publicado&&NUCLEO.inbProvedorEscreve((INBX.contas.filter(function(c){return c.id===m.conta_id})[0]||{}).provedor)?NUCLEO.inbAcoesDisponiveis(m,INBX.pastas,!!INBX.semMover[m.conta_id]):null;   /* I3.2: só mensagem real de conta conectada */
     var bArq=inboxBtnOrg("arquivo","Arquivar",org&&org.arquivar,function(){inboxOrganizar(m,"arquivar")}),bLix=inboxBtnOrg("lixo","Excluir",org&&org.excluir,function(){inboxOrganizar(m,"excluir")}),
       bMais=inboxBtnOrg("mais","Mais",org?{ok:true}:null,function(){INBX.menuMais=INBX.menuMais===m.id?null:m.id;INBX.menuPasta=false;inboxDesenhar()});
     bArq.setAttribute("data-acao","arquivar");bLix.setAttribute("data-acao","excluir");
@@ -355,7 +356,7 @@
     var b=[],i;for(i=0;i<16;i++)b.push(c&&c.getRandomValues?c.getRandomValues(new Uint8Array(1))[0]:Math.floor(Math.random()*256));
     b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var s=b.map(function(x){return (x+256).toString(16).slice(1)});
     return s.slice(0,4).join("")+"-"+s.slice(4,6).join("")+"-"+s.slice(6,8).join("")+"-"+s.slice(8,10).join("")+"-"+s.slice(10).join("")}
-  function inboxContaDeEnvio(){var a=inboxContaAtual();if(a&&INBX.cred[a.id]==="ativa")return a;return INBX.contas.filter(function(c){return INBX.cred[c.id]==="ativa"})[0]||null}
+  function inboxContaDeEnvio(){var a=inboxContaAtual();if(a)return INBX.cred[a.id]==="ativa"&&NUCLEO.inbProvedorEscreve(a.provedor)?a:null;return INBX.contas.filter(function(c){return INBX.cred[c.id]==="ativa"&&NUCLEO.inbProvedorEscreve(c.provedor)})[0]||null}   /* só contas que escrevem (iCloud); numa conta Gmail aberta não se envia por engano de outra conta */
   function inboxPodeEnviar(){return !INBX.demo&&INBS.publicado&&!!inboxContaDeEnvio()}
   /* quem escreve: "novo" (conta atual) ou uma resposta/encaminhamento da mensagem aberta (já lida, para citar o texto) */
   function inboxCompor(modo,m){

@@ -1548,3 +1548,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone (colar uma chave real, abrir o link, enviar o PDF). Se quiser lançar só pela chave no futuro, depende da consulta oficial à SEFAZ (certificado digital; lote futuro já decidido).
+
+## 21/11/2026 · Central Fiscal: links diretos da consulta oficial (versão `2026-11-21.10`, em PR)
+
+### 1. O que fizemos
+- O campo "Tenho só a chave" (PR #69, versão `2026-11-21.9`) foi mesclado e **confirmado no ar pelo dono**. A pedido do dono, os links do cartão passam a abrir direto a consulta pública: NF-e (consulta resumida do Portal Nacional) e NFC-e de SP (ConsultaPublica de produção). O endereço de homologação, que é de teste, foi recusado e há teste que o proíbe. Só `nfConsultaChave` e seu teste; nenhum SQL, função ou secret.
+
+### 2. O que estamos fazendo
+- PR da `.10` para revisão (CI a conferir); sem merge e sem publicação. Os links não foram abertos nesta máquina (sem rede).
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone que os dois links abrem a consulta. NFC-e de outros estados continuam sem link até o dono informar o endereço.

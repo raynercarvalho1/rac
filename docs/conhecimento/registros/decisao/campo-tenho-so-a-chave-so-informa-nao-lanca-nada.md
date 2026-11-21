@@ -8,7 +8,7 @@ origem: lote 21/11/2026
 data: 2026-11-21
 ---
 
-Cartão na Central Fiscal (fxCardChave) com NUCLEO.nfChaveColada. Não grava, não usa IA, não consulta a SEFAZ. Os links do portal levam à página inicial e não foram verificados contra a rede. Versão 2026-11-21.9, não publicada.
+Cartão na Central Fiscal (fxCardChave) com NUCLEO.nfChaveColada. Não grava, não usa IA, não consulta a SEFAZ. Versão 2026-11-21.9 mesclada (PR #69) e confirmada no ar pelo dono em 21/11/2026. Links da consulta oficial informados pelo dono (21/11/2026): NF-e = consulta resumida do Portal Nacional; NFC-e de SP = ConsultaPublica de PRODUÇÃO; nunca o ambiente homologacao. Links na versão 2026-11-21.10 (PR em revisão).
 
 ## Motivo
 

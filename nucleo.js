@@ -2821,8 +2821,8 @@
      Só informa o que a chave diz: não grava, não acessa a rede e não faz a nota valer (itens e valores só vêm do documento).
      Devolve {ok, chave, erros[], resumo:{uf, mes_emissao, cnpj, modelo, tipo, serie, numero}, consulta:{nome, link}|null} */
   function nfConsultaChave(c){c=c||{};
-    if(c.modelo==="55")return {nome:"Portal Nacional da NF-e",link:"https://www.nfe.fazenda.gov.br/portal/"};
-    if(c.modelo==="65"&&c.sigla_uf==="SP")return {nome:"consulta de NFC-e da Fazenda de São Paulo",link:"https://www.nfce.fazenda.sp.gov.br/"};
+    if(c.modelo==="55")return {nome:"Portal Nacional da NF-e",link:"https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g="};
+    if(c.modelo==="65"&&c.sigla_uf==="SP")return {nome:"consulta de NFC-e da Fazenda de São Paulo",link:"https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaPublica.aspx"};
     return null}
   function nfChaveColada(texto){var t=String(texto==null?"":texto).trim(),o={ok:false,chave:null,erros:[],resumo:null,consulta:null};
     if(!t){o.erros.push("Cole a chave de acesso (44 dígitos).");return o}

@@ -42,7 +42,9 @@ test("nfChaveColada: recusa com o motivo (vazia, tamanho errado, dígito errado,
 test("nfChaveColada: o link da consulta oficial só existe onde é conhecido (NF-e nacional, NFC-e de SP), sempre https e .gov.br", () => {
   const a = N.nfChaveColada(SP65).consulta, b = N.nfChaveColada(MG55).consulta, c = N.nfChaveColada(RJ65).consulta;
   assert.match(a.link, /^https:\/\/www\.nfce\.fazenda\.sp\.gov\.br\//); assert.match(b.link, /^https:\/\/www\.nfe\.fazenda\.gov\.br\//); assert.equal(c, null, "NFC-e de outro estado: sem link inventado");
-  for (const x of [a, b]) assert.match(x.link, /^https:\/\/[a-z0-9.-]+\.gov\.br\//);
+  assert.equal(a.link, "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaPublica.aspx", "NFC-e de SP: consulta pública de PRODUÇÃO");
+  assert.equal(b.link, "https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=resumo&tipoConteudo=7PhJ+gAVw2g=", "NF-e: consulta resumida do Portal Nacional");
+  for (const x of [a, b]) { assert.match(x.link, /^https:\/\/[a-z0-9.-]+\.gov\.br\//); assert.ok(!/homologacao/i.test(x.link), "nunca o ambiente de homologação (teste da Fazenda)"); }
 });
 
 // ---------- a tela (js/fiscal.js), com DOM e banco de teste ----------

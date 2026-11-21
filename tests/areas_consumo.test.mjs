@@ -49,8 +49,10 @@ globalThis.window.RACnucleo = N;
 function ambiente({ dono = true, pessoal = {} } = {}) {
   globalThis.isOwner = () => dono; globalThis.isDonoOuCasa = () => true; globalThis.PESSOAL = JSON.parse(JSON.stringify(pessoal));
   T.hoje("2026-11-10"); T.usar(JSON.parse(JSON.stringify(ROWS)), { id: "u1", email: "x@x" }); T.usarOnline(JSON.parse(JSON.stringify(ONL)));
-  Object.assign(T.CU, { per: "2026-11", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, area: "" });
+  Object.assign(T.CU, { per: "2026-11", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null, area: "" }); Object.assign(T.PN, { area: "mercado", cab: false, rota: "painel", arg: "" }); Object.assign(T.st, { mes: null, kpi: null, kpiNota: null, pick: null });
 }
+/* o painel de uma área (mesmo motor da Central; docs/central-areas.md, Lote A) */
+function painelArea(id) { Object.assign(T.PN, { area: id, cab: true, rota: "area", arg: id }); const b = new El("div"); T.viewPainel(b); return b; }
 const unif = () => T.centralDados().compras;
 const cfgPadrao = () => N.arConfig(null);
 const nomesItens = (cs) => cs.flatMap((c) => c.itens.map((i) => i.nome));
@@ -182,27 +184,27 @@ test("11 · categorias sem associação não desaparecem: ficam como não classi
 
 // ---------- telas ----------
 test("14 · os painéis, gráficos, filtros e a evolução respeitam a área selecionada", () => {
-  ambiente({ pessoal: {} }); T.CU.area = "farmacia";
-  const t = texto((() => { const b = new El("div"); T.viewCentral(b); return b; })());
+  ambiente({ pessoal: {} });
+  const t = texto(painelArea("farmacia"));
   assert.ok(/Área de consumo/.test(t) && /Farmácia/.test(t)); assert.ok(t.includes(BRL(22.9 + 547.09)), "gasto do mês só da Farmácia");
   assert.ok(/Raia Drogasil/.test(t) && !/Tauste/.test(t) && !/Cortina|Arroz|Amazon/.test(t), "estabelecimentos e produtos só da área");
   assert.ok(!/Automotivo|Mercearia/.test(t.replace(/Gerenciar categorias e áreas/, "")), "o painel não lista categorias de outras áreas");
-  const b2 = new El("div"); T.viewCentral(b2); const selects = achar(b2, (e) => e.tag === "select"), opcs = selects.flatMap((s) => achar(s, (e) => e.tag === "option").map(texto));
+  const b2 = painelArea("farmacia"); const selects = achar(b2, (e) => e.tag === "select"), opcs = selects.flatMap((s) => achar(s, (e) => e.tag === "option").map(texto));
   assert.ok(opcs.includes("Raia Drogasil") && !opcs.includes("Tauste") && opcs.includes("Farmácia") && !opcs.includes("Mercearia"), "filtros de estabelecimento e categoria só com o que é da área");
   const E = N.cmPorMes(AREA("farmacia"), {}, "2026-11", 12); assert.equal(E.total, r2(22.9 + 547.09 + 15)); assert.equal(E.meses.find((m) => m.mes === "2026-10").total, 15, "a evolução mensal da área");
   const cmp = N.cuComparar(AREA("farmacia"), {}, "2026-11", "2026-11-10"); assert.equal(cmp.atual.total, r2(22.9 + 547.09)); assert.equal(cmp.anterior.total, 15, "comparação com o período anterior na área");
-  T.CU.area = "mercado"; const bm = new El("div"); T.viewCentral(bm); const tm = texto(bm);
+  const tm = texto(painelArea("mercado"));
   assert.ok(!/Dipirona|Ondansetrona|Drogasil|Cortina/.test(tm), "o painel Mercado não mostra Farmácia nem Automotivo nos indicadores, categorias, estabelecimentos e produtos");
-  T.CU.area = "inexistente"; const bi = new El("div"); T.viewCentral(bi); assert.ok(/Essa área não existe/.test(texto(bi)));
-  T.CU.area = ""; ambiente(); const bc = new El("div"); T.viewCentral(bc); const tc = texto(bc);
+  assert.ok(/Essa área não existe/.test(texto(painelArea("inexistente"))));
+  ambiente(); const bc = new El("div"); T.viewCentral(bc); const tc = texto(bc);
   assert.ok(/Por área de consumo/.test(tc) && /Não classificados/.test(tc) && /Farmácia/.test(tc) && /Automotivo/.test(tc), "a Central mostra todas as áreas e a participação delas");
   assert.ok(tc.includes("Total da Central no período: " + BRL(40 + 12.5 + 55 + 30 + 22.9 + 547.09 + 19.9 + 30 + 100 + 115 + 30)), "a Central soma tudo, uma vez");
 });
-test("Painel do Mercado (dono) só soma a área Mercado e avisa o que ficou fora; a gestão mostra as sem área primeiro", () => {
+test("Painel do Mercado (motor único) só soma a área Mercado, notas e pedidos online; a gestão mostra as sem área primeiro", () => {
   ambiente(); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null;
   const p = new El("div"); T.viewPainel(p); const t = texto(p);
-  assert.ok(!/Dipirona|Ondansetrona|Cortina|Drogasil/.test(t), "sem Farmácia nem Automotivo no Painel do Mercado"); assert.ok(/Este painel mostra só a área Mercado/.test(t) && /Fora dele/.test(t));
-  assert.ok(T.rowsP().every((x) => ["Mercearia", "Limpeza"].includes(x.categoria)) && T.rowsP().length === 4);
+  assert.ok(!/Dipirona|Ondansetrona|Cortina|Drogasil/.test(t), "sem Farmácia nem Automotivo no Painel do Mercado"); assert.ok(/Gasto em novembro 2026/.test(t), "o painel abre no mês e mostra os indicadores do molde");
+  assert.ok(T.linhasPainel().every((x) => ["Mercearia", "Limpeza", "Casa/Utilidades"].includes(x.categoria)) && T.linhasPainel().length === 5, "4 itens de notas + 1 do pedido online (Casa → Mercado)");
   const g = new El("div"); T.viewCategorias(g); const tg = texto(g);
   assert.ok(/Gestão de categorias/.test(tg) && /Sem área/.test(tg) && /Tecnologia/.test(tg) && /Pet/.test(tg) && /notas, pedidos, itens e valores não são alterados/.test(tg));
   assert.ok(tg.indexOf("Tecnologia") < tg.indexOf("Mercearia"), "as sem área aparecem antes das classificadas");
@@ -257,8 +259,8 @@ function telaDe(papel) {   // a mesma sequência de operações na tela, para o 
     ambiente({ dono: papel === "dono", pessoal: {} }); const vistas = {};
     T.drawApp("central"); vistas.central = texto(RAIZ); vistas.nav = achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === "Análises e gestão de categorias").length;
     const b = new El("div"); T.viewCentral(b); vistas.porArea = /Por área de consumo/.test(texto(b)) && /Total da Central no período/.test(texto(b));
-    for (const a of ["mercado", "automotivo", "farmacia", "bebe", "nao-classificados"]) { Object.assign(T.CU, { area: a, per: "2026-11" }); const x = new El("div"); T.viewCentral(x); vistas[a] = texto(x); }
-    T.CU.area = ""; T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; const p = new El("div"); T.viewPainel(p); vistas.painel = texto(p); vistas.linhasPainel = T.rowsP().length;
+    for (const a of ["mercado", "automotivo", "farmacia", "bebe", "nao-classificados"]) { Object.assign(T.CU, { per: "2026-11" }); vistas[a] = texto(painelArea(a)); }
+    Object.assign(T.PN, { area: "mercado", cab: false, rota: "painel" }); T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; const p = new El("div"); T.viewPainel(p); vistas.painel = texto(p); vistas.linhasPainel = T.linhasPainel().length;
     const g = new El("div"); T.viewCategorias(g); vistas.gestao = texto(g);
     const sel = (rot) => achar(g, (e) => e.tag === "select" && e.attrs["aria-label"] === rot)[0];
     const s1 = sel("Área de Tecnologia"); s1.value = "mercado"; s1.onchange();                       // alterar associação
@@ -276,8 +278,8 @@ test("13 · dono e casa executam as mesmas operações e veem as mesmas telas, i
   const d = telaDe("dono"), c = telaDe("casa");
   assert.deepEqual(c.vistas, d.vistas, "mesmo texto em todas as telas e painéis (Central, 4 áreas, não classificados, Painel do Mercado, Gestão)");
   assert.ok(d.vistas.nav === 1 && d.vistas.porArea && /Gestão de categorias/.test(d.vistas.gestao));
-  assert.ok(/Raia Drogasil/.test(d.vistas.farmacia) && /Cortina/.test(d.vistas.automotivo) === false, "o painel da área mostra a área");
-  assert.ok(!/Dipirona|Cortina|Drogasil/.test(d.vistas.painel) && d.vistas.linhasPainel === 4, "o Painel do Mercado da casa também só soma a área Mercado");
+  assert.ok(/Raia Drogasil/.test(d.vistas.farmacia) && !/Cortina/.test(d.vistas.farmacia) && /Cortina/.test(d.vistas.automotivo) && !/Drogasil/.test(d.vistas.automotivo), "cada painel mostra só a sua área, com os produtos dela");
+  assert.ok(!/Dipirona|Cortina|Drogasil/.test(d.vistas.painel) && d.vistas.linhasPainel === 5, "o Painel do Mercado da casa também só soma a área Mercado");
   assert.deepEqual(c.grav, d.grav, "as mesmas gravações: alterar associação, criar área, criar categoria, excluir categoria e excluir área");
   assert.equal(d.grav.length, 5); assert.ok(d.grav.every(([k]) => k === "mercado-areas"), "só a chave das áreas é gravada");
   const cfg = N.arConfig(d.grav[2][1]); assert.equal(N.arAreaDe(cfg, "Tecnologia"), "mercado"); assert.equal(N.arAreaDe(cfg, "Brinquedos"), "bebe");
@@ -321,15 +323,15 @@ test("código: áreas e gestão são de dono e casa; sem tabela nova; só a pol�
   assert.match(ler("index.html"), /#mercado \.mk-areas\{/);
 });
 
-test("navegação: a caixa grande tem Central e as áreas; Painel do Mercado, Preços, Consumo, Comparar, Não classificados e Gestão ficam na faixa de baixo (dono e casa)", () => {
+test("navegação: a caixa grande tem Central e as áreas; Preços, Consumo, Comparar, Não classificados e Gestão ficam na faixa de baixo (dono e casa); o Painel do Mercado é a área Mercado", () => {
   for (const dono of [true, false]) {
     ambiente({ dono }); T.drawApp("area", "farmacia");
     const nav = (rot) => achar(RAIZ, (e) => e.tag === "nav" && e.attrs["aria-label"] === rot)[0], links = (n) => achar(n, (e) => e.tag === "a").map(texto);
     const grande = nav("Central de Compras"), baixo = nav("Análises e gestão de categorias");
     assert.deepEqual(links(grande), ["Central", "Mercado", "Automotivo", "Farmácia", "Bebê/Infantil"], "Central aparece uma vez só");
-    assert.deepEqual(links(baixo).map((t) => t.replace(/\(\d+\)/, "(n)")), ["Painel do Mercado", "Preços", "Consumo", "Comparar", "Não classificados (n)", "⚙ Gestão de categorias"]);
+    assert.deepEqual(links(baixo).map((t) => t.replace(/\(\d+\)/, "(n)")), ["Preços", "Consumo", "Comparar", "Não classificados (n)", "⚙ Gestão de categorias"]);
     assert.deepEqual(achar(grande, (e) => e.attrs["aria-current"] === "page").map(texto), ["Farmácia"], "a área ativa fica marcada");
     assert.ok(!/Central \(todas\)/.test(texto(RAIZ)));
-    T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; T.drawApp("painel"); assert.deepEqual(achar(nav("Análises e gestão de categorias"), (e) => e.attrs["aria-current"] === "page").map(texto), ["Painel do Mercado"]);
+    T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; T.drawApp("painel"); assert.deepEqual(achar(nav("Central de Compras"), (e) => e.attrs["aria-current"] === "page").map(texto), ["Mercado"], "o endereço antigo do Painel do Mercado abre a área Mercado");
   }
 });

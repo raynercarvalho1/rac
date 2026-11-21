@@ -34,7 +34,9 @@ function desenhar(estado = {}, dono = true) {
   globalThis.isOwner = () => dono; globalThis.isDonoOuCasa = () => true;
   globalThis.PESSOAL = { "mercado-canais": { v: 1, notas: { "2026-11-08|WILLIAM DA COSTA FREITAS LTDA|300": { canal: "online", plataforma: "Mercado Livre" } } } };
   T.hoje("2026-11-10"); T.usar(ROWS, { id: "u1" }); T.usarOnline(ONL);
-  Object.assign(T.CU, { per: "2026-11", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null }, estado);
+  const { aberta, ...cu } = estado;   /* "aberta" = a compra aberta na lista do mês do painel (motor único, Lote A) */
+  Object.assign(T.CU, { per: "2026-11", canal: "", estab: "", cat: "", aberta: null, todas: false, sel: null }, cu);
+  Object.assign(T.st, { mes: "2026-11", kpi: aberta ? "mes" : null, kpiNota: aberta || null, pick: null });
   const body = new El("div"); T.viewCentral(body); return body;
 }
 

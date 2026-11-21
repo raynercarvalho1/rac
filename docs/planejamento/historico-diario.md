@@ -1500,3 +1500,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, limpeza do código obsoleto (inclui a função da foto antiga), se quiser.
+
+## 21/11/2026 · Limpeza de código obsoleto (lote G, versão `2026-11-21.7`, em PR)
+
+### 1. O que fizemos
+- PR #66 (lote F) mesclado. Lote G, a pedido do dono: removido o código sem uso das telas que saíram (fluxo antigo "Nota pela foto" do Mercado, evolução antiga da Central, helpers da Compras online, CSS das listas antigas). Nenhuma tela, regra ou dado mudou; Edge Functions, banco e funções puras do núcleo intocados.
+
+### 2. O que estamos fazendo
+- PR do lote G para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Sem pendências técnicas planejadas.

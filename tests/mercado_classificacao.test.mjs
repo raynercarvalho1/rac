@@ -38,9 +38,7 @@ test("normalização: expande o conhecido, preserva marca e sabor, não inventa"
 test("a descrição original não é alterada pela normalização nem pela classificação", () => {
   const d = "BISC WAFER TUBIN CHOCO"; N.mkNome(d); N.mkClassificar(d);
   assert.equal(d, "BISC WAFER TUBIN CHOCO");
-  const mk = ler("mercado.js");
-  assert.match(mk, /descricao: it\.desc, categoria:/, "o item gravado leva a descrição original do cupom (auditoria)");
-  assert.match(mk, /itens\.insert|from\("itens"\)\.insert/);
+  /* o fluxo antigo "Nota pela foto" do Mercado (que gravava itens) saiu no lote G; a descrição original do cupom segue sendo guardada pela Central Fiscal (itens.descricao) */
 });
 
 test("chave de produto: ignora caixa, acento, abreviatura e pontuação, mas não mistura tamanhos", () => {
@@ -124,9 +122,8 @@ test("a correção de um produto não classifica outro sem evidência (só chave
 
 test("a tela do Mercado usa o núcleo, não chama IA e não deixa categoria ambígua passar sem escolha", () => {
   const mk = ler("mercado.js");
-  assert.match(mk, /mkClassificar\(/); assert.ok(!/CATS_PALAVRAS|categoriaPalpite/.test(mk), "o palpite antigo (padrão Mercearia) saiu");
+  assert.ok(!/CATS_PALAVRAS|categoriaPalpite/.test(mk), "o palpite antigo (padrão Mercearia) saiu");
   assert.ok(!/racIA\(|anthropic/i.test(mk), "classificação sem IA paga");
-  assert.match(mk, /Escolher categoria/); assert.match(mk, /semCat\.length/);
   assert.match(mk, /x\.categoria = catOf\(x\.categoria\)/, "as linhas lidas do banco saem com a categoria unificada");
   assert.match(mk, /update\(\{ categoria: cat\.value \}\)\.eq\("id", x\.id\)/, "a correção manual em Produtos continua simples e grava produtos.categoria");
   assert.ok(!/produtos"\)\.update\(\{ categoria: [^}]*mkClassificar/.test(mk), "classificação automática nunca sobrescreve produto existente");
@@ -146,9 +143,7 @@ test("filtros e consultas: a visão por categoria não separa Limpeza de Limpeza
 
 test("regressão: histórico de preços e notas ficam intactos (a lógica de gravação e de preço não mudou)", () => {
   const mk = ler("mercado.js");
-  assert.match(mk, /valor_unitario: it\.vu, valor_total: Math\.round\(\(it\.vt - \(it\.desc_rateio \|\| 0\)\) \* 100\) \/ 100, desconto: it\.desc_rateio/, "valores do item gravados como antes");
-  assert.match(mk, /categoria: pr \? pr\.categoria : it\.sel\.value/, "item de produto existente herda a categoria do produto");
-  assert.match(mk, /insert\(lista\)\.select\("id,nome,categoria,unidade"\)/, "produto novo continua sendo criado com a categoria escolhida");
+  /* a gravação do fluxo antigo de nota do Mercado saiu no lote G (a Central Fiscal grava pela função nota_fiscal_confirmar) */
   assert.match(mk, /valor_total, quantidade|c: e\[1\]\[0\]\.categoria/, "preços e visão por categoria seguem lendo categoria dos itens");
 });
 

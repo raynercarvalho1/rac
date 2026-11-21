@@ -102,3 +102,10 @@ Pedido do dono (a última compra ficava muito abaixo; o botão + Adicionar nota 
 - **Cabeçalho:** + Adicionar nota e + Adicionar pedido lado a lado no iPhone; Sair pequeno na linha do título; faixa "Outras áreas" sem o rótulo.
 - **+ Adicionar nota** abre a **Central Fiscal** (a leitura que funciona: XML, PDF ou foto, "Estou de acordo" lança no Mercado). A página antiga "Nota pela foto" (demonstração) deixou de ser aberta; `#mercado/importar` mostra só o atalho e a importação do Excel.
 - Testes: `tests/tela_central.test.mjs`; a referência `tests/fixtures/areas/painel_mercado_antes.json` foi regravada para a nova ordem (mesmo conteúdo; só mudaram a ordem, as últimas 3 compras no lugar da última e o título "O que mais pesou" agora no resumo do bloco recolhido).
+
+## Lote G · limpeza de código obsoleto (21/11/2026; versão `2026-11-21.7`)
+Pedido do dono, depois do lote F. Só remoção de código sem uso; **nenhuma tela, regra ou dado mudou**.
+- `mercado.js`: o fluxo antigo "Nota pela foto" (demonstração: `painelFoto`, `salvarNota`, `semelhanca`, `ratearDesconto`, `riscarDaLista`, `lerResposta`, `jsonTolerante`, `lerTextoLivre`, `nomeBonito`, `itensDaTabela`, o texto do pedido ao Claude), `painelEvolucao` e `difTxt2` (a Central usa o motor do painel); campos sem uso do estado da Central (`aberta`, `todas`, `sel`, `alvo`).
+- `js/compras.js`: `ccCent`, `ccDec`, `ccFonte`, `ccSinal`. CSS: regras das listas antigas de Alimentação (`alped`, `alli`, `alabas`, busca) e `ccrec`.
+- Testes: removido `tests/mercado.test.mjs` (só testava a leitura da resposta colada do fluxo antigo); ajustados os que descreviam esse fluxo (`ia`, `mercado_classificacao`, `mercado_consumo`, `central_mercado_tela`).
+- **Ficou de propósito:** as funções puras do núcleo (`co*`, `al*`, `iaNotaTexto`...) com seus testes, a ação `mercado.nota` da função `rac-ia` (Edge Function intocada) e todas as tabelas e colunas do banco.

@@ -582,6 +582,39 @@
         function(e){corpo.appendChild(fxCartao({nome:"documento",erro:"Não consegui ler: "+(e&&e.message||e)},false))})})},Promise.resolve()).then(function(){
       var ok=lista.filter(function(r){return r.nota}).length;FX.lote=lista;
       st.textContent=ok?ok+(ok===1?" nota lida":" notas lidas")+" de "+total+". Confira cada uma e clique em “Estou de acordo”: nada foi gravado ainda.":"Nenhuma nota foi lida. Veja os avisos abaixo.";return lista})}
+  /* "Tenho só a chave": confere a chave colada neste aparelho, mostra o que ela diz e se a nota já está na Central Fiscal (só leitura).
+     Não grava nada, não consulta a SEFAZ e não lança compra: a chave não traz itens nem valores, que só vêm do documento. */
+  function fxCardChave(){
+    var card=panel("Tenho só a chave da nota","Cole os 44 dígitos da chave de acesso. O RAC confere a chave, mostra o que ela informa e se a nota já está aqui. Nada é gravado."),
+      inp=h("input",{type:"text",inputmode:"numeric",autocomplete:"off",placeholder:"Cole aqui a chave de acesso (44 dígitos)","aria-label":"Chave de acesso da nota (44 dígitos)"}),
+      btn=h("button",{type:"button",class:"ghostbtn pri",text:"Conferir chave"}),res=h("div",{class:"stack",role:"status"});
+    function msg(cls,t){return h("div",{class:cls,text:t})}
+    function conferir(){
+      var r=NUCLEO.nfChaveColada(inp.value),s,dup,acoes;res.innerHTML="";
+      if(!r.ok){res.appendChild(msg("fxaviso",r.erros[0]+(inp.value.trim()?" Confira os números, principalmente se digitou à mão.":"")));return}
+      s=r.resumo;
+      res.appendChild(fxLinha("Chave de acesso",fxGrupos(r.chave,4)));
+      res.appendChild(fxLinha("Chave confere","Sim (dígito verificador, CNPJ, modelo e mês batem)"));
+      res.appendChild(fxLinha("Tipo",s.tipo+(s.modelo==="65"?" (nota de consumidor)":"")));
+      res.appendChild(fxLinha("Estado",s.uf));
+      res.appendChild(fxLinha("Mês de emissão",s.mes_emissao.slice(5)+"/"+s.mes_emissao.slice(0,4)));
+      res.appendChild(fxLinha("CNPJ do emitente",fxCnpj(s.cnpj)));
+      res.appendChild(fxLinha("Série e número",s.serie+" · "+s.numero));
+      dup=h("p",{class:"sub",text:"Conferindo se ela já está na Central Fiscal…"});res.appendChild(dup);
+      Promise.resolve().then(function(){return fxLer("notas_fiscais","id,emitente_nome,data_emissao,valor_total,situacao","chave",r.chave)}).then(function(l){
+        var n=l[0];
+        dup.textContent=n?"Esta nota JÁ está na Central Fiscal ("+(n.emitente_nome||"emitente não identificado")+" · "+fxMoeda(n.valor_total)+(n.data_emissao?" · "+dataBR(n.data_emissao):"")+"). Não precisa lançar de novo.":"Ainda não está na Central Fiscal."},
+        function(){dup.textContent="Não consegui conferir se a nota já existe; o banco confere de novo ao gravar."});
+      acoes=h("div",{class:"vfil"});
+      var cp=h("button",{type:"button",class:"ghostbtn",text:"Copiar chave"}),cm=h("span",{class:"sub",role:"status"});
+      cp.onclick=function(){try{navigator.clipboard.writeText(r.chave).then(function(){cm.textContent="Copiada ✓"},function(){cm.textContent="Não consegui copiar: selecione e copie os números acima."})}catch(e){cm.textContent="Não consegui copiar: selecione e copie os números acima."}};
+      acoes.appendChild(cp);
+      if(r.consulta)acoes.appendChild(h("a",{href:r.consulta.link,target:"_blank",rel:"noopener noreferrer",class:"ghostbtn",text:"Abrir "+r.consulta.nome}));
+      res.appendChild(acoes);res.appendChild(cm);
+      res.appendChild(h("p",{class:"sub",text:"A chave sozinha não traz itens nem valores, então o RAC não lança a compra só com ela. Para lançar: "+(r.consulta?"abra a consulta oficial (a verificação do site é feita por você), ":"procure “consulta de NFC-e” no site da Secretaria da Fazenda do seu estado, ")+"cole a chave, salve a nota em PDF ou tire um print inteiro dela e envie em “Notas”, acima. O RAC não consulta a SEFAZ por você."}))}
+    btn.onclick=conferir;inp.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();conferir()}};
+    card.appendChild(h("label",{class:"fxsel"},"Chave de acesso:",inp));card.appendChild(h("div",{class:"vfil"},btn));card.appendChild(res);
+    return card}
   function renderFiscal(){
     var root=$("#fiscal-view");root.innerHTML="";
     var casa=typeof isDonoOuCasa==="function"&&isDonoOuCasa(),
@@ -608,5 +641,5 @@
     /* a Central Fiscal é a ENTRADA de tudo (lote C, 21/11/2026): notas fiscais aqui; pedidos de lojas online e pedido de delivery pelos atalhos */
     var entradas=h("div",{class:"seg famseg",role:"group","aria-label":"Entradas"},h("a",{href:"#fiscal","aria-pressed":"true",text:"Notas fiscais"}),h("a",{href:"#compras/lista","aria-pressed":"false",text:"Pedidos online"}),h("a",{href:"#compras/importar","aria-pressed":"false",text:"Importar pedido online"}),h("a",{href:"#alimentacao/novo","aria-pressed":"false",text:"Pedido de delivery"}));
     topo.appendChild(entradas);
-    root.appendChild(topo);root.appendChild(corpo);
+    root.appendChild(topo);root.appendChild(fxCardChave());root.appendChild(corpo);
     if(casa)root.appendChild(fxListaPainel())}

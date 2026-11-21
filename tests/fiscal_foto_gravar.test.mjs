@@ -342,9 +342,9 @@ test("Fernanda (papel casa) recebe a MESMA tela do dono (16/11/2026): lista de n
   assert.match(fonte, /if\(casa\)root\.appendChild\(fxListaPainel\(\)\)/, "a lista de notas gravadas é do dono e da casa");
   const f = ambiente({ dono: false }); const raiz = { innerHTML: "", kids: [], appendChild(k) { this.kids.push(k); return k; } };
   f.c.$ = () => raiz; f.c.panel = (t) => f.c.h("div", { class: "panel" }); f.c.loading = () => f.c.h("div"); f.c.failed = () => f.c.h("div"); f.c.logErro = () => {};
-  vm.runInContext("renderFiscal()", f.c); assert.equal(raiz.kids.length, 3, "a Fernanda recebe o painel de envio, a área de resultado e a lista de notas gravadas");
+  vm.runInContext("renderFiscal()", f.c); assert.equal(raiz.kids.length, 4, "a Fernanda recebe o painel de envio, o cartão \"Tenho só a chave\" (21/11/2026), a área de resultado e a lista de notas gravadas");
   const o = ambiente({ dono: true }); const raizO = { innerHTML: "", kids: [], appendChild(k) { this.kids.push(k); return k; } }; o.c.$ = () => raizO; o.c.panel = (t) => o.c.h("div", { class: "panel" }); o.c.loading = () => o.c.h("div"); o.c.failed = () => o.c.h("div"); o.c.logErro = () => {};
-  vm.runInContext("renderFiscal()", o.c); assert.equal(raizO.kids.length, 3, "o dono recebe os mesmos três");
+  vm.runInContext("renderFiscal()", o.c); assert.equal(raizO.kids.length, 4, "o dono recebe os mesmos quatro blocos");
 });
 test("lista: erro ao ler as notas aparece como erro (não como lista vazia); tentativas ilegíveis avisam o dono", async () => {
   const a = ambiente({ erroLer: (t) => t === "notas_fiscais" }); const p = a.c.fxListaPainel(); for (let i = 0; i < 6; i++) await new Promise((q) => setImmediate(q)); assert.match(texto(p), /Não consegui ler as notas: leitura falhou em notas_fiscais/); assert.doesNotMatch(texto(p), /Nenhuma nota gravada/);

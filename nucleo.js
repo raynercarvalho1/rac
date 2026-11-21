@@ -2817,6 +2817,22 @@
      A consulta indisponível nunca bloqueia a entrada no Mercado e nunca transforma pendente em autorizada: a situação só muda com evidência (protocolo), pelo caminho que já existe. */
   function nfConsultaSefaz(qr){var u=qr&&qr.ok&&qr.url?String(qr.url):"",ok=/^https:\/\/[a-z0-9.-]+\.gov\.br(?:[\/?#:]|$)/i.test(u);
     return {automatica:false,disponivel:ok,link:ok?u:null,bloqueia:false,altera_situacao:false,motivo:ok?"A consulta oficial é aberta por você, no site da Fazenda; o RAC não a lê nem muda a situação fiscal sozinho.":"Sem endereço oficial de consulta nesta nota. Isso não impede a entrada no Mercado."}}
+  /* campo "Tenho só a chave" da Central Fiscal: aceita os 44 dígitos (com espaço, ponto ou traço) ou o endereço do QR Code.
+     Só informa o que a chave diz: não grava, não acessa a rede e não faz a nota valer (itens e valores só vêm do documento).
+     Devolve {ok, chave, erros[], resumo:{uf, mes_emissao, cnpj, modelo, tipo, serie, numero}, consulta:{nome, link}|null} */
+  function nfConsultaChave(c){c=c||{};
+    if(c.modelo==="55")return {nome:"Portal Nacional da NF-e",link:"https://www.nfe.fazenda.gov.br/portal/"};
+    if(c.modelo==="65"&&c.sigla_uf==="SP")return {nome:"consulta de NFC-e da Fazenda de São Paulo",link:"https://www.nfce.fazenda.sp.gov.br/"};
+    return null}
+  function nfChaveColada(texto){var t=String(texto==null?"":texto).trim(),o={ok:false,chave:null,erros:[],resumo:null,consulta:null};
+    if(!t){o.erros.push("Cole a chave de acesso (44 dígitos).");return o}
+    var d=nfDigitos(t),q,v,c;
+    if(d.length!==44){q=nfQrChave(t);if(q.ok)d=q.chave;else if(q.url){o.erros=q.erros;return o}}
+    v=nfValidarChave(d);
+    if(!v.ok){o.erros=v.erros.map(function(e){return e.texto});return o}
+    c=v.campos;o.ok=true;o.chave=v.chave;
+    o.resumo={uf:c.sigla_uf,mes_emissao:c.mes_emissao,cnpj:c.cnpj,modelo:c.modelo,tipo:NF_MODELOS[c.modelo],serie:c.serie,numero:c.numero};
+    o.consulta=nfConsultaChave(c);return o}
   /* o que a nota NÃO trouxe: campo ausente (não impresso: não é erro, nada é inventado) × campo ilegível (a IA marcou incerto) */
   function nfCamposInfo(lido,incertos){var l=lido||{},V=l.valores||{},inc={},out=[];(incertos||[]).forEach(function(x){if(x&&x.campo)inc[String(x.campo)]=x.motivo||""});
     [["produtos","Total dos produtos","total_produtos"],["descontos","Descontos","descontos"],["frete","Frete","frete"],["outras","Outras despesas","outras"],["a_pagar","Valor pago","valor_pago"]].forEach(function(c){
@@ -4476,5 +4492,5 @@
     AM_CAMPOS_SAIDA:AM_CAMPOS_SAIDA,amLerHistorico:amLerHistorico,amIndicadores:amIndicadores,amSelecionarArquivos:amSelecionarArquivos,amImportar:amImportar,amReconstruirCSV:amReconstruirCSV,amAuditarSanitizado:amAuditarSanitizado,
     CO_REEMB_ESTADOS:CO_REEMB_ESTADOS,coReembChave:coReembChave,coReembVincular:coReembVincular,coReembCreditos:coReembCreditos,
     NF_MODELOS:NF_MODELOS,NF_FORMATOS:NF_FORMATOS,NF_SITUACOES:NF_SITUACOES,NF_TRANSICOES:NF_TRANSICOES,NF_MODULOS:NF_MODULOS,nfDvChave:nfDvChave,nfCnpjValido:nfCnpjValido,nfValidarChave:nfValidarChave,nfSituacao:nfSituacao,nfUnidade:nfUnidade,nfQtdBase:nfQtdBase,
-    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravarDoc:nfParaGravarDoc,nfResultadoDoc:nfResultadoDoc,nfAtualizarSituacao:nfAtualizarSituacao,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao,nfTipoReal:nfTipoReal,nfArquivoIA:nfArquivoIA,nfLoteIA:nfLoteIA,nfPdfAtivo:nfPdfAtivo,nfMascararCpf:nfMascararCpf,nfLerIA:nfLerIA,nfCorrigir:nfCorrigir,nfConfiancaIA:nfConfiancaIA,NF_CONF_MIN:NF_CONF_MIN,NF_ENTRADA_MAX:NF_ENTRADA_MAX,NF_CONF_ALERTA:NF_CONF_ALERTA,nfQrChave:nfQrChave,nfQrConferir:nfQrConferir,nfConsultaSefaz:nfConsultaSefaz,nfCamposInfo:nfCamposInfo,NF_IA_MAX_PAG:NF_IA_MAX_PAG};
+    nfDec:nfDec,nfNormalizar:nfNormalizar,nfLerXML:nfLerXML,nfTemDadoPessoal:nfTemDadoPessoal,nfCpfDvOk:nfCpfDvOk,nfCpfsValidos:nfCpfsValidos,nfTemCpf:nfTemCpf,nfCaminhoDoc:nfCaminhoDoc,nfRetentar:nfRetentar,nfParaGravarDoc:nfParaGravarDoc,nfResultadoDoc:nfResultadoDoc,nfAtualizarSituacao:nfAtualizarSituacao,nfParaGravar:nfParaGravar,NF_MIMES_XML:NF_MIMES_XML,nfVincular:nfVincular,nfValidarSoma:nfValidarSoma,nfVeredito:nfVeredito,nfDuplicidade:nfDuplicidade,nfDecisaoGravacao:nfDecisaoGravacao,nfTipoReal:nfTipoReal,nfArquivoIA:nfArquivoIA,nfLoteIA:nfLoteIA,nfPdfAtivo:nfPdfAtivo,nfMascararCpf:nfMascararCpf,nfLerIA:nfLerIA,nfCorrigir:nfCorrigir,nfConfiancaIA:nfConfiancaIA,NF_CONF_MIN:NF_CONF_MIN,NF_ENTRADA_MAX:NF_ENTRADA_MAX,NF_CONF_ALERTA:NF_CONF_ALERTA,nfQrChave:nfQrChave,nfQrConferir:nfQrConferir,nfConsultaSefaz:nfConsultaSefaz,nfChaveColada:nfChaveColada,nfConsultaChave:nfConsultaChave,nfCamposInfo:nfCamposInfo,NF_IA_MAX_PAG:NF_IA_MAX_PAG};
 })(typeof window!=="undefined"?window:globalThis);

@@ -16,7 +16,7 @@ export interface Endereco { nome: string; endereco: string }
 export interface Resumo {
   uid: number; recebida: string | null; tamanho: number | null; lida: boolean; sinalizada: boolean; respondida: boolean;
   de: Endereco | null; para: Endereco[]; assunto: string; message_id: string | null; anexo_provavel: boolean;
-  ext?: string;   // identidade da mensagem no provedor quando não é IMAP (Gmail: o ID da mensagem); sem ela vale uidvalidity:uid
+  ext?: string;   // identidade da mensagem no provedor quando não é IMAP (Gmail: o ID da mensagem; Outlook: o ID imutável da Graph); sem ela vale uidvalidity:uid
 }
 export interface AplicacaoSync {
   uidvalidity: number; cursor: number; tipo: TipoSinc; total: number; duracao_ms: number | null;
@@ -59,7 +59,7 @@ export function filtrarResumo(v: unknown): Resumo | null {
     uid: o.uid, recebida: typeof o.recebida === "string" && RE_ISO.test(o.recebida) ? o.recebida : null, tamanho: inteiroOuNulo(o.tamanho),
     lida: sempreBool(o.lida), sinalizada: sempreBool(o.sinalizada), respondida: sempreBool(o.respondida), de: endereco(o.de), para, assunto,
     message_id: texto(o.message_id ?? null, 255) === "" ? null : texto(o.message_id ?? null, 255), anexo_provavel: sempreBool(o.anexo_provavel),
-    ...(typeof o.ext === "string" && /^[0-9a-f]{8,32}$/.test(o.ext) ? { ext: o.ext } : {}),
+    ...(typeof o.ext === "string" && /^[A-Za-z0-9_=+-]{8,200}$/.test(o.ext) ? { ext: o.ext } : {}),
   };
 }
 /* a lista inteira ou nada: um item fora do esquema invalida a resposta (o Worker não deveria mandá-lo) */

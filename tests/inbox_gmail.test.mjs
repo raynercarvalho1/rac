@@ -164,14 +164,14 @@ test("serviço: conta Gmail lista pastas, sincroniza, lê e baixa SEM Worker do 
   assert.ok(s.eventos.some((e) => e[0] === "conta" && e[1] === "conectada"));
   assert.equal(s.seg.size, 1, "o cofre continua só com o refresh original (o cofre de teste recusa guardar numa leitura)");
 });
-test("serviço: refresh recusado (invalid_grant) marca a credencial inválida e a conta em erro de autenticação (Reconectar); falha temporária do Google não invalida; envio/gerenciamento do Gmail e leitura do Outlook respondem honestamente", { skip: pular }, async () => {
+test("serviço: refresh recusado (invalid_grant) marca a credencial inválida e a conta em erro de autenticação (Reconectar); falha temporária do Google não invalida; envio/gerenciamento do Gmail respondem honestamente", { skip: pular }, async () => {
   const db = await banco(), repo = criarRepositorio(sessaoDe(db)), conta = await nova(db, R), cx = caixa();
   const ruim = ctxServico(db, repo, cx, conta, { tokenResp: { status: 400, corpo: { error: "invalid_grant" } } }); const r = await atender({ operacao: "testar_conta", conta_id: conta }, ruim.c);
   assert.deepEqual([r.status, r.corpo.erro], [ERRO_CRED, "credencial_invalida"].slice(0, 2).map((x, i) => (i === 0 ? 422 : x))); assert.ok(ruim.eventos.some((e) => e[0] === "marcar" && e[1] === "invalida")); assert.ok(ruim.eventos.some((e) => e[0] === "conta" && e[1] === "erro_autenticacao"));
   const fora = ctxServico(db, repo, cx, conta, { tokenResp: { status: 503, corpo: {} } }); const r2 = await atender({ operacao: "testar_conta", conta_id: conta }, fora.c); assert.equal(r2.corpo.erro, "servico_indisponivel"); assert.ok(!fora.eventos.some((e) => e[1] === "invalida"), "falha temporária não invalida");
   const ok = ctxServico(db, repo, cx, conta); const pasta = "bbbbbbbb-0000-4000-8000-000000000001", uuid = "aaaaaaaa-0000-4000-8000-000000000001";
   for (const o of [{ operacao: "organizar_mensagem", conta_id: conta, pasta_id: pasta, uid: 1, acao: "arquivar" }, { operacao: "smtp_prova", conta_id: conta, enviar_teste: false }, { operacao: "enviar_mensagem", conta_id: conta, envio_id: uuid, modo: "novo", para: ["a@example.com"], cc: [], cco: [], assunto: "x", texto: "y" }]) assert.equal((await atender(o, ok.c)).corpo.erro, "provedor_sem_operacao", o.operacao);
-  const out = await nova(db, R, "outlook", "eu@outlook.example"); assert.equal((await atender({ operacao: "testar_conta", conta_id: out }, ok.c)).corpo.erro, "provedor_sem_leitura");
+  const out = await nova(db, R, "outlook", "eu@outlook.example"); assert.equal((await atender({ operacao: "testar_conta", conta_id: out }, ok.c)).corpo.erro, "credencial_ausente", "o Outlook lê (lote 3): sem conexão guardada, pede a conexão");
   assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, { ...ok.c, oauth: {} })).corpo.erro, "oauth_nao_configurado");
 });
 const ERRO_CRED = 422;

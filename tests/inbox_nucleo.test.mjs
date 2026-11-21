@@ -13,11 +13,11 @@ const UUID_A = "11111111-1111-4111-8111-111111111111", UUID_B = "22222222-2222-4
 
 test("provedores: iCloud lê e escreve; Gmail lê (sem prova real) e não escreve; Outlook só conecta; a paridade é honesta (comprovado só o que teve prova; filtros do iCloud são do RAC; Gmail e Outlook só planejados)", () => {
   assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, p.ativo]), [["icloud", true], ["gmail", true], ["outlook", true]]);
-  assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, !!p.leitura, !!p.escrita, !!p.oauth]), [["icloud", true, true, false], ["gmail", true, false, true], ["outlook", false, false, true]], "só o iCloud escreve; o Gmail lê; o Outlook só conecta");
+  assert.deepEqual(N.INB_PROVEDORES.map((p) => [p.id, !!p.leitura, !!p.escrita, !!p.oauth]), [["icloud", true, true, false], ["gmail", true, false, true], ["outlook", true, false, true]], "só o iCloud escreve; Gmail e Outlook leem");
   assert.equal(N.inbProvedorEscreve("icloud"), true); assert.equal(N.inbProvedorEscreve("gmail"), false); assert.equal(N.inbProvedorEscreve("xyz"), false);
   const ic = N.inbProvedor("icloud");
   assert.deepEqual(ic.rec, { pastas: "comprovado", estado: "comprovado", ler: "comprovado", organizar: "nao_comprovado", enviar: "nao_comprovado", filtros: "rac" });
-  assert.ok(Object.values(N.inbProvedor("outlook").rec).every((v) => v === "planejado"), "outlook"); assert.deepEqual(N.inbProvedor("gmail").rec, { pastas: "nao_comprovado", estado: "nao_comprovado", ler: "nao_comprovado", organizar: "planejado", enviar: "planejado", filtros: "planejado" }, "gmail: implementado, nada comprovado com mensagens reais");
+  assert.deepEqual(N.inbProvedor("outlook").rec, { pastas: "nao_comprovado", estado: "nao_comprovado", ler: "nao_comprovado", organizar: "planejado", enviar: "planejado", filtros: "planejado" }, "outlook: implementado, nada comprovado com mensagens reais"); assert.deepEqual(N.inbProvedor("gmail").rec, { pastas: "nao_comprovado", estado: "nao_comprovado", ler: "nao_comprovado", organizar: "planejado", enviar: "planejado", filtros: "planejado" }, "gmail: implementado, nada comprovado com mensagens reais");
   for (const p of N.INB_PROVEDORES) for (const [r] of N.INB_RECURSOS) assert.ok(N.INB_RECURSO_ROTULOS[p.rec[r]], p.id + " " + r + " tem rótulo");
   assert.match(ic.nota, /READ-WRITE/, "o fato do EXAMINE real está registrado: a garantia de somente leitura é do Worker, não do servidor");
   assert.equal(N.inbProvedor("yahoo"), null);

@@ -1489,3 +1489,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, limpeza do código obsoleto das telas que saíram, se quiser.
+
+## 21/11/2026 · Inbox: endereço da conta Outlook corrigido e leitura do Outlook (I4 lote 3, versão `2026-11-21.6`, função `rac-inbox@i4.2`)
+
+### 1. O que fizemos
+- Endereço da conta Outlook corrigido em produção por `UPDATE` de uma linha em `inbox_contas` (de `.com` para `.com.br`), autorizado pelo dono; o dono reconectou e a Microsoft confirmou. Nenhum código tinha o endereço.
+- Leitura e sincronização do Outlook em código (`outlook.ts`, Microsoft Graph, só GET), mesmo funil do Gmail e do iCloud; `sync.ts` aceita o ID da Graph; o servidor regrava o refresh token novo da Microsoft; a tela libera Sincronizar e Testar conexão para o Outlook. Testes novos em `tests/inbox_outlook.test.mjs` e ajustes dos que diziam "Outlook não lê". Sem SQL.
+
+### 2. O que estamos fazendo
+- Lote pronto no branch, não publicado; a Graph real ainda não foi provada com mensagens reais.
+
+### 3. O que vamos fazer
+- Dono: republicar `rac-inbox` (`i4.2`) e o site, abrir a conta Outlook e tocar em Sincronizar; reportar o que aparecer. Depois: envio e gerenciamento (Gmail e Outlook), `delta`/`history` e sincronização automática.

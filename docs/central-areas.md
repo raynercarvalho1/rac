@@ -95,3 +95,17 @@ Desenho aprovado pelo dono em 21/11/2026; parte da navegação do PR #61 (já me
 
 ## Lote E · lista de notas da Central Fiscal silenciosa (21/11/2026; versão `2026-11-21.5`)
 Pedido do dono: não há problema nos itens lançados (nomes e valores estão certos) nem necessidade de validar na SEFAZ; só quer menos mensagem. Mudança só de exibição em `js/fiscal.js` (`linha`): a nota normal mostra emitente, data e valor, sem etiqueta; etiquetas só para cancelada/rejeitada e para o que não entrou no Mercado (não lançada, aguardando nova tentativa, falha, revisar). Os quatro estados continuam no detalhe. Sem SQL; a regra e a entrada no Mercado não mudaram. Teste: `tests/fiscal_foto_gravar.test.mjs` (lista silenciosa) e `tests/entrada_fiscal.test.mjs`.
+
+## Lote F · tela da Central mais direta (21/11/2026; versão `2026-11-21.6`)
+Pedido do dono (a última compra ficava muito abaixo; o botão + Adicionar nota abria um fluxo antigo em demonstração). Só exibição; sem SQL.
+- **Ordem da página** (Central e áreas): **Últimas compras** (as 3 mais recentes em linhas curtas, a mais recente em destaque; tocar abre os itens) → **números do mês** (gasto, compras, itens, canal) → período e filtros → Por área (Central) → Por mercado e Mês a mês → Por categoria → blocos **recolhidos** (O que mais pesou, Explorar, Oportunidades, Preços que mais mudaram, Comparar períodos, Conferência dos totais; tocar no título abre).
+- **Cabeçalho:** + Adicionar nota e + Adicionar pedido lado a lado no iPhone; Sair pequeno na linha do título; faixa "Outras áreas" sem o rótulo.
+- **+ Adicionar nota** abre a **Central Fiscal** (a leitura que funciona: XML, PDF ou foto, "Estou de acordo" lança no Mercado). A página antiga "Nota pela foto" (demonstração) deixou de ser aberta; `#mercado/importar` mostra só o atalho e a importação do Excel.
+- Testes: `tests/tela_central.test.mjs`; a referência `tests/fixtures/areas/painel_mercado_antes.json` foi regravada para a nova ordem (mesmo conteúdo; só mudaram a ordem, as últimas 3 compras no lugar da última e o título "O que mais pesou" agora no resumo do bloco recolhido).
+
+## Lote G · limpeza de código obsoleto (21/11/2026; versão `2026-11-21.7`)
+Pedido do dono, depois do lote F. Só remoção de código sem uso; **nenhuma tela, regra ou dado mudou**.
+- `mercado.js`: o fluxo antigo "Nota pela foto" (demonstração: `painelFoto`, `salvarNota`, `semelhanca`, `ratearDesconto`, `riscarDaLista`, `lerResposta`, `jsonTolerante`, `lerTextoLivre`, `nomeBonito`, `itensDaTabela`, o texto do pedido ao Claude), `painelEvolucao` e `difTxt2` (a Central usa o motor do painel); campos sem uso do estado da Central (`aberta`, `todas`, `sel`, `alvo`).
+- `js/compras.js`: `ccCent`, `ccDec`, `ccFonte`, `ccSinal`. CSS: regras das listas antigas de Alimentação (`alped`, `alli`, `alabas`, busca) e `ccrec`.
+- Testes: removido `tests/mercado.test.mjs` (só testava a leitura da resposta colada do fluxo antigo); ajustados os que descreviam esse fluxo (`ia`, `mercado_classificacao`, `mercado_consumo`, `central_mercado_tela`).
+- **Ficou de propósito:** as funções puras do núcleo (`co*`, `al*`, `iaNotaTexto`...) com seus testes, a ação `mercado.nota` da função `rac-ia` (Edge Function intocada) e todas as tabelas e colunas do banco.

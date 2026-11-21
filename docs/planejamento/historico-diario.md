@@ -1502,7 +1502,7 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: republicar `rac-inbox` (`i4.2`) e o site, abrir a conta Outlook e tocar em Sincronizar; reportar o que aparecer. Depois: envio e gerenciamento (Gmail e Outlook), `delta`/`history` e sincronização automática.
 
-## 21/11/2026 · Inbox I4 lote 4: central de e-mail completa para Gmail, Outlook e iCloud (versão `2026-11-21.7`, função `rac-inbox@i4.3`)
+## 21/11/2026 · Inbox I4 lote 4: central de e-mail completa para Gmail, Outlook e iCloud (versão `2026-11-21.8`, função `rac-inbox@i4.3`; a `.7` ficou com o lote G da Central, já na `main`)
 
 ### 1. O que fizemos
 - Desenho aprovado pelo dono (abordagem A, rotina mantida em 10 min, sem marcador do Gmail e sem SQL) e implementado em código na mesma branch: `gmail.ts` e `outlook.ts` respondem os mesmos verbos de Worker do iCloud (marcar lida/não lida, mover, verificar, enviar), então `organizar.ts` e `envio.ts` (trava anti-duplicação, incerto nunca repetido, conferência do estado real) valem para os três provedores. Apagar = Lixeira; nada apaga de vez.
@@ -1515,3 +1515,25 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: republicar `rac-inbox` (`i4.3`), publicar o site e testar no iPhone entre as próprias contas (sincronizar, lida, arquivar, apagar, enviar, responder, encaminhar; depois aguardar a rotina e o aviso).
 - Depois: anexos e rascunhos no envio, esvaziar lixeira, marcador de mudança do Gmail (migration 065) e push em tempo real, se o dono quiser.
+
+## 21/11/2026 · Central de Compras: lote F, tela mais direta (versão `2026-11-21.6`, em PR)
+
+### 1. O que fizemos
+- PR #65 (lotes D e E) mesclado. Lote F, a pedido do dono: Últimas compras (3) no topo, números do mês logo depois, filtros abaixo, análises longas recolhidas, cabeçalho curto e + Adicionar nota abrindo a Central Fiscal (a página antiga em demonstração deixou de ser aberta). Só exibição; sem SQL.
+
+### 2. O que estamos fazendo
+- PR do lote F para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, limpeza do código obsoleto (inclui a função da foto antiga), se quiser.
+
+## 21/11/2026 · Limpeza de código obsoleto (lote G, versão `2026-11-21.7`, em PR)
+
+### 1. O que fizemos
+- PR #66 (lote F) mesclado. Lote G, a pedido do dono: removido o código sem uso das telas que saíram (fluxo antigo "Nota pela foto" do Mercado, evolução antiga da Central, helpers da Compras online, CSS das listas antigas). Nenhuma tela, regra ou dado mudou; Edge Functions, banco e funções puras do núcleo intocados.
+
+### 2. O que estamos fazendo
+- PR do lote G para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Sem pendências técnicas planejadas.

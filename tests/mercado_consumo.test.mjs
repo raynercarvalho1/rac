@@ -172,7 +172,7 @@ test("regressão: Painel, Preços e gravação de notas continuam como eram; a n
   assert.ok(i0 > 0 && i1 > i0); const bloco = mk.slice(i0, i1);
   assert.ok(!/\.(insert|update|delete|upsert)\(|\.rpc\(|from\(/.test(bloco), "a tela Consumo não grava nem consulta o banco: usa as linhas já carregadas");
   assert.ok(!/racIA|anthropic/i.test(bloco));
-  for (const f of ["function viewPainel", "function viewPrecos", "function viewNotas", "function viewProdutos", "function lineChart", "Preços ao longo do tempo", "Onde saiu mais barato", "function salvarNota", "Por categoria"]) assert.ok(mk.includes(f), f);
+  for (const f of ["function viewPainel", "function viewPrecos", "function viewNotas", "function viewProdutos", "function lineChart", "Preços ao longo do tempo", "Onde saiu mais barato", "Por categoria"]) assert.ok(mk.includes(f), f);
   assert.match(mk, /\["central", "Central"\], \["painel", "Painel do Mercado"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\], \["alertas", "Alertas"\], \["radar", "Radar"\], \["notas", "Notas"\], \["produtos", "Produtos"\]/);
   assert.ok(!/supabase\/\d{3}/.test(bloco));
   assert.ok(!fs.existsSync(new URL("../supabase/propostas/042_mercado_consumo.sql", import.meta.url)), "este lote não precisa de migration");

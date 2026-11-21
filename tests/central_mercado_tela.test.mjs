@@ -94,7 +94,7 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
 
 test("a casa (Fernanda) vê as páginas de mercado (12/11/2026) e, desde 16/11/2026, o Radar e a junção de produtos igual ao dono; nada é gravado só por abrir", async () => {
   Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); let calls = await abrir("central", "", { dono: false, cu: { per: "tudo" } }); let t = tudo();
-  for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Última compra"]) assert.ok(t.includes(x), x);
+  for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Últimas compras"]) assert.ok(t.includes(x), x);
   assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length >= 1, "ela navega para as páginas");
   calls = calls.concat(await abrir("estabelecimento", "Amazon", { dono: false, cu: { per: "tudo" } })); t = tudo(); assert.ok(t.includes("Comparação com outros estabelecimentos") && t.includes("Produtos comprados aqui"));
   calls = calls.concat(await abrir("categoria", "Padaria", { dono: false, cu: { per: "tudo" } })); t = tudo();
@@ -112,7 +112,7 @@ test("categoria só online (Pet): produtos do pedido, gasto sem o frete, onde co
   assert.equal(links("#mercado/produto/" + encodeURIComponent("Ração Golden 10kg")).length, 1, "o nome leva ao produto (uma vez só)");
   assert.equal(links("#mercado/estabelecimento/Amazon").length, 1, "a barra do estabelecimento leva à página dele");
   const ult = achar(ROOT, (e) => e.tag === "a" && /mkpc-pago/.test(e.className))[0]; assert.equal(ult.attrs.href, "#mercado/central");
-  ult.onclick({ preventDefault() {} }); assert.equal(globalThis.location.hash, "#mercado/central"); assert.deepEqual([T.CU.aberta, T.CU.per, T.CU.todas, T.CU.alvo], ["online:o1", "2026-11", true, true]);
+  ult.onclick({ preventDefault() {} }); assert.equal(globalThis.location.hash, "#mercado/central"); assert.deepEqual([T.st.kpiNota, T.st.kpi, T.CU.per], ["online:o1", "mes", "2026-11"], "a compra abre na lista do painel (a Central é o motor único desde o lote A)");
   assert.equal(calls.filter((c) => c[1] === "radar_candidatos").length, 0, "sem vínculo, nem consulta ofertas"); assert.deepEqual(escritas(calls), []);
 });
 
@@ -146,7 +146,7 @@ test("produto comprado online: a linha do histórico abre o PEDIDO na Central; l
   for (const x of ["Pet", "Último pago", BRL(50) + "/un", "Inclui 2 compras online", "frete e taxas do pedido não entram", "Comprado só em", "Amazon · online"]) assert.ok(t.includes(x), x);
   const ver = achar(ROOT, (e) => e.tag === "a" && texto(e) === "Ver em Compras online")[0]; assert.match(ver.attrs.href, /^#compras\/produto\/[^/]+\/produtos$/);
   const linhas = achar(ROOT, (e) => e.tag === "a" && /plr/.test(e.className)); assert.equal(linhas[0].attrs.href, "#mercado/central");
-  linhas[1].onclick({ preventDefault() {} }); assert.deepEqual([T.CU.aberta, T.CU.per], ["online:o2", "2026-10"]); assert.equal(globalThis.location.hash, "#mercado/central");
+  linhas[1].onclick({ preventDefault() {} }); assert.deepEqual([T.st.kpiNota, T.CU.per], ["online:o2", "2026-10"]); assert.equal(globalThis.location.hash, "#mercado/central");
   T.drawApp("central"); await esperar(); assert.ok(tudo().includes("Valor pago") && tudo().includes(BRL(60)), "a Central abre o pedido com a conta");
 });
 
@@ -156,7 +156,7 @@ test("estabelecimento: total igual à barra, produtos + ajustes = total, compras
   assert.equal(links("#mercado/categoria/Pet").length, 1); assert.equal(links("#mercado/produto/" + encodeURIComponent("Ração Golden 10kg")).length, 1);
   const rk = achar(ROOT, (e) => e.tag === "a" && /^hb/.test(e.className) && e.attrs.href === "#mercado/estabelecimento/Amazon")[0]; assert.equal(rk.attrs["aria-current"], "page", "o ranking destaca este estabelecimento");
   assert.ok(achar(ROOT, (e) => e.tag === "a" && /^hb/.test(e.className)).every((a) => typeof a.dica === "function"), "barras com a dica padrão");
-  const compra = achar(ROOT, (e) => e.tag === "a" && /plr mk-linkcompra/.test(e.className))[0]; compra.onclick({ preventDefault() {} }); assert.deepEqual([T.CU.aberta, globalThis.location.hash], ["online:o1", "#mercado/central"]);
+  const compra = achar(ROOT, (e) => e.tag === "a" && /plr mk-linkcompra/.test(e.className))[0]; compra.onclick({ preventDefault() {} }); assert.deepEqual([T.st.kpiNota, globalThis.location.hash], ["online:o1", "#mercado/central"]);
   assert.deepEqual(escritas(calls), []);
   calls = await abrir("estabelecimento", "Tauste", { cu: { per: "tudo" } }); t = tudo();
   assert.ok(t.includes("2 mais caros aqui") && t.includes("menor médio em outro lugar"), "Leite e Pão Francês saíram mais baratos na Confiança");

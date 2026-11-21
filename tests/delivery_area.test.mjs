@@ -90,7 +90,7 @@ test("painel Delivery: mesmo motor do Mercado, só com os pedidos; compra aberta
   const c = new El("div"); T.viewCentral(c); const tc = texto(c); assert.ok(tc.includes(BRL(40 + 44 + 65 + 44 + 44)) && /Delivery/.test(tc) && /delivery/.test(tc), "a Central soma tudo");
 });
 test("a Fernanda (casa) vê e usa o painel Delivery e o botão + Adicionar pedido igual ao dono", () => {
-  const vistas = (dono) => { ambiente({ dono }); T.drawApp("area", "delivery"); const r = texto(RAIZ); return { r, add: achar(RAIZ, (e) => e.tag === "a" && e.attrs.href === "#alimentacao/novo").length, nota: achar(RAIZ, (e) => e.tag === "a" && e.attrs.href === "#mercado/importar").length }; };
+  const vistas = (dono) => { ambiente({ dono }); T.drawApp("area", "delivery"); const r = texto(RAIZ); return { r, add: achar(RAIZ, (e) => e.tag === "a" && e.attrs.href === "#alimentacao/novo").length, nota: achar(RAIZ, (e) => e.tag === "a" && e.attrs.href === "#fiscal").length }; };
   const d = vistas(true), c = vistas(false); assert.deepEqual(c, d); assert.equal(d.add, 1); assert.equal(d.nota, 1); assert.ok(/Adicionar pedido/.test(d.r) && /Adicionar nota/.test(d.r) && /Área de consumo/.test(d.r));
 });
 test("página Alimentação: só a entrada do pedido (novo, editar, ver); o resto abre o painel Delivery; menu, links e dados", () => {

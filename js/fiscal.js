@@ -529,11 +529,12 @@
   function fxListaPainel(){
     var p=h("div",{class:"panel"}),corpo=h("div"),st=h("p",{class:"sub",role:"status"}),dono=typeof isDonoOuCasa==="function"&&isDonoOuCasa();
     p.appendChild(h("h3",{text:"Notas já gravadas"}));
-    p.appendChild(h("p",{class:"sub",text:"Cada nota mostra quatro coisas separadas: a leitura, a sua confirmação, a situação fiscal (SEFAZ) e a entrada no Mercado. Abra uma nota para ver o documento original"+(dono?", o histórico da situação fiscal e as tentativas de leitura":"")+"."}));
+    p.appendChild(h("p",{class:"sub",text:"A nota normal aparece só com o nome do emitente, a data e o valor; uma etiqueta só surge quando algo precisa de você (cancelada, rejeitada ou ainda não lançada no Mercado). Abra uma nota para ver o documento original"+(dono?", o histórico da situação fiscal e as tentativas de leitura":"")+"."}));
     p.appendChild(st);p.appendChild(corpo);
     function linha(n,tent,ents){
       var est=NUCLEO.nfEstadosNota(n,ents?ents[n.id]:null).filter(function(x){return ents||x.chave!=="mercado"}),d=h("details",{class:"fxdet"}),cor=h("div"),aberto=false,sm=h("summary",null,h("span",{text:(n.emitente_nome||"Emitente não identificado")+" · "+(n.valor_total!=null?fxMoeda(n.valor_total):"—")+" · "+(n.data_emissao?dataBR(n.data_emissao):"sem data")+" "}));
-      est.forEach(function(x){if(x.chave==="fiscal"&&n.situacao==="pendente")return;sm.appendChild(h("span",{class:"fxchip "+x.tom,title:x.chave,text:x.rotulo}))});     /* leitura, conferência, situação fiscal e Mercado: quatro coisas separadas */
+      /* lista silenciosa (decisão do dono, 21/11/2026): a nota normal não mostra etiqueta; só aparece o que precisa de você (cancelada ou rejeitada; não lançada, aguardando nova tentativa ou falha na entrada no Mercado). Os quatro estados continuam no detalhe da nota. */
+      est.forEach(function(x){var fora=n.situacao==="cancelada"||n.situacao==="rejeitada",mostra=x.chave==="fiscal"?x.tom==="fxruim":x.chave==="mercado"?(x.tom!=="fxok"&&!fora):false;if(mostra)sm.appendChild(h("span",{class:"fxchip "+x.tom,title:x.chave,text:x.rotulo}))});
       d.appendChild(sm);d.appendChild(cor);
       d.ontoggle=function(){if(d.open&&!aberto){aberto=true;fxDetalheNota(n,tent,dono,cor,ents)}};
       return h("li",null,d)}

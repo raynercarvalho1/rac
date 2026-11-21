@@ -1478,3 +1478,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, o lote da SEFAZ (estados e consulta oficial) e a limpeza do código das telas que saíram, quando quiser.
+
+## 21/11/2026 · Central Fiscal: lista de notas silenciosa (lote E, versão `2026-11-21.5`, no PR do lote D)
+
+### 1. O que fizemos
+- A pedido do dono (itens e valores já estão certos; SEFAZ não é necessária): a lista "Notas já gravadas" mostra a nota normal sem etiquetas; só aparecem Cancelada/Rejeitada e o que não entrou no Mercado. Só exibição, sem SQL.
+
+### 2. O que estamos fazendo
+- Junto ao PR do lote D (mesma branch), para revisão; sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, limpeza do código obsoleto das telas que saíram, se quiser.

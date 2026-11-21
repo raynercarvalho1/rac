@@ -92,3 +92,6 @@ Desenho aprovado pelo dono em 21/11/2026; parte da navegação do PR #61 (já me
 - Todas passam a usar a **fonte unificada** (`rowsT()` = `cmLinhas` das compras unificadas, reduzidas à área): notas, pedidos online e delivery. Em "Todas as áreas" isso inclui o que antes não aparecia (pedidos online e delivery); o estabelecimento aparece sem a cidade.
 - Com uma área escolhida, as listas de categorias (Consumo e Comparar) trazem só as categorias da área; as contas (`mkc*`, `mkx*`) são as mesmas de antes. Só leitura.
 - Testes: `tests/analise_area.test.mjs`; os testes de Preços, Consumo, Comparar e exportação passaram sem alteração.
+
+## Lote E · lista de notas da Central Fiscal silenciosa (21/11/2026; versão `2026-11-21.5`)
+Pedido do dono: não há problema nos itens lançados (nomes e valores estão certos) nem necessidade de validar na SEFAZ; só quer menos mensagem. Mudança só de exibição em `js/fiscal.js` (`linha`): a nota normal mostra emitente, data e valor, sem etiqueta; etiquetas só para cancelada/rejeitada e para o que não entrou no Mercado (não lançada, aguardando nova tentativa, falha, revisar). Os quatro estados continuam no detalhe. Sem SQL; a regra e a entrada no Mercado não mudaram. Teste: `tests/fiscal_foto_gravar.test.mjs` (lista silenciosa) e `tests/entrada_fiscal.test.mjs`.

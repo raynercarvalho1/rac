@@ -12,7 +12,7 @@ const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").
 
 test("Central Fiscal: o chip, a linha, a frase e o aviso de 'pendente' saíram da tela; o estado e a regra continuam intactos no núcleo", () => {
   const js = ler("js/fiscal.js");
-  assert.match(js, /if\(x\.chave==="fiscal"&&n\.situacao==="pendente"\)return;/, "o chip da situação 'pendente' não é desenhado");
+  assert.match(js, /mostra=x\.chave==="fiscal"\?x\.tom==="fxruim":x\.chave==="mercado"\?\(x\.tom!=="fxok"&&!fora\):false/, "a lista é silenciosa: só cancelada/rejeitada e o que não entrou no Mercado desenham etiqueta (nunca a situação 'pendente')");
   assert.match(js, /if\(n\.situacao!=="pendente"\)c\.appendChild\(fxLinha\("Situação fiscal"/, "a linha 'Situação fiscal: Pendente' não é desenhada");
   assert.ok(!/pendente na SEFAZ|ainda não estão lançadas no Mercado|ainda não está lançada no Mercado|pendente fiscal/.test(js.replace(/\/\*[\s\S]*?\*\//g, "")), "nenhuma das frases antigas está no código da tela (só em comentários)");
   const e = N.nfEstadosNota({ situacao: "pendente", formato_origem: "pdf" }, null); assert.ok(e.some((x) => x.chave === "fiscal" && x.rotulo === "Pendente"), "o dado continua calculado (a tela é que não o mostra)");

@@ -404,59 +404,11 @@ test("coProdutoResumo: só soma o que coPrecos já calculou (12 meses do Resumo 
   assert.deepEqual(cabo.lojas.map((l) => [l.loja, l.ultimo]), [["Loja do Zé", 25], ["Shopee", 29.9], ["Mercado Livre", 90]], "mais barata primeiro, como 'Onde saiu mais barato'");
   assert.deepEqual(N.coProdutoResumo(null, ini), { periodo: { ini, gasto: 0, qtd: 0, media: null, compras: 0 }, lojas: [] }, "entrada vazia");
 });
-const tela = () => { const js = ler("js/compras.js"), a = js.indexOf("/* ---------- Detalhamento (Lote 5.2)"), b = js.indexOf("/* ---------- Lista e detalhe"); return { js, bloco: js.slice(a, b), a, b }; };
-test("Resumo: cada barra de loja e de categoria é um link para a tela própria (padrão do Mercado: tela, não modal)", () => {
-  const { js, bloco } = tela();
-  assert.ok(tela().a > 0 && tela().b > tela().a, "bloco do detalhamento existe");
-  assert.match(js, /href:"#compras\/"\+rota\+"\/"\+encodeURIComponent\(k\)/, "a barra leva a #compras/<loja|categoria>/<nome>");
-  assert.match(js, /barras\(cat,"em 12 meses","categoria"\)/); assert.match(js, /barras\(loja,"em 12 meses","loja"\)/);
-  assert.ok(!/class:"modal|showModal|alert\(|confirm\(|prompt\(/.test(bloco), "nada de modal improvisado");
-  assert.match(js, /function renderCompras\(sub,id,extra\)/); assert.match(js, /ccDetalheRota\(sub,id,extra\)/);
-  assert.match(js, /href:ccRotaProduto\(x\.chave,"produtos"\)/, "a aba Produtos também leva ao histórico do produto");
-  assert.match(rota("compras").abrirTexto, /renderCompras\(p\[1\],p\[2\],p\[3\]\)/, "a rota passa o 3º trecho (registro de rotas, Fase 2 · A3)");
-});
-test("as telas usam o núcleo e o gráfico do Mercado, sem regra financeira própria", () => {
-  const { bloco } = tela();
-  for (const f of ["NUCLEO.coDetalheLoja", "NUCLEO.coDetalheCategoria", "NUCLEO.coPrecos", "NUCLEO.coProdutoResumo", "NUCLEO.coResumo", "NUCLEO.coRotulo", "RACmercado.grafico"]) assert.ok(bloco.includes(f), f);
-  assert.ok(!/NUCLEO\.coRegra|coDescontos|coClassificar|coPrecoLiquido|coItemTotal|\.frete\b|\.taxas\b/.test(bloco.replace(/A\.frete|A\.taxas/g, "")), "nenhuma regra de despesa, desconto ou preço repetida na tela");
-  assert.ok(!/racIA|fetch\(|SB\./.test(bloco), "a tela só lê: sem IA, sem rede, sem banco");
-  assert.ok(!/=>|\blet\b|\bconst\b|`/.test(bloco), "ES5 puro, como o resto do site");
-});
-test("o produto mostra todas as lojas e destaca a de origem (★) sem restringir o histórico a ela", () => {
-  const { bloco } = tela();
-  assert.match(bloco, /NUCLEO\.coPrecos\(CC\.dados\)\.filter\(function\(y\)\{return y\.chave===chave\}\)/, "o histórico vem de coPrecos, de todas as lojas");
-  assert.match(bloco, /Preços em todas as lojas/); assert.match(bloco, /Datas das compras/); assert.match(bloco, /Evolução do preço/);
-  assert.match(bloco, /r\.loja_chave===oi\?" ★"/); assert.match(bloco, /Histórico = pedido importado/); assert.match(bloco, /Provisório \(amarelo\)/);
-  assert.match(bloco, /Total gasto \(12 meses\)/); assert.match(bloco, /Menor preço \(histórico\)/); assert.match(bloco, /"Último preço"/);
-});
-test("ccVoltarDe leva de volta à origem do clique; sem origem, ao Resumo", () => {
-  const { bloco } = tela(), a = bloco.indexOf("function ccVoltarDe"), b = bloco.indexOf("function ccVoltar(v)");
-  const dec = (s) => decodeURIComponent(s);
-  const f = new Function("encodeURIComponent", bloco.slice(a, b) + "; return ccVoltarDe")(encodeURIComponent);
-  assert.deepEqual(f("loja:Amazon"), { href: "#compras/loja/Amazon", texto: "← Voltar para Amazon", loja: "Amazon" });
-  assert.equal(dec(f("loja:Loja do Zé").href.split("/").pop()), "Loja do Zé");
-  assert.deepEqual(f("categoria:Pet"), { href: "#compras/categoria/Pet", texto: "← Voltar para Pet", loja: null });
-  assert.equal(f("produtos").href, "#compras/produtos");
-  for (const o of ["", undefined, "lixo", "loja:"]) assert.equal(f(o).href, "#compras/resumo", String(o));
-});
-test("ccNav: voltar à tela anterior devolve a rolagem de antes; abrir a mesma tela de novo não empilha", () => {
-  const { bloco } = tela(), a = bloco.indexOf("function ccNav"), b = bloco.indexOf("function ccDetalheRota");
-  const CCx = { nav: [] }, L = { hash: "#compras" };
-  const nav = new Function("CC", "location", bloco.slice(a, b) + "; return ccNav")(CCx, L);
-  assert.equal(nav(), 0); assert.deepEqual(CCx.nav.map((x) => x.h), ["#compras/resumo"], "'#compras' e '#compras/resumo' são a mesma tela");
-  CCx.nav[0].y = 540;                               // rolou até 540 e clicou numa barra
-  L.hash = "#compras/loja/Amazon"; assert.equal(nav(), 0, "ir adiante começa no topo");
-  CCx.nav[1].y = 200;
-  L.hash = "#compras/produto/x/loja%3AAmazon"; assert.equal(nav(), 0);
-  L.hash = "#compras/loja/Amazon"; assert.equal(nav(), 200, "voltar ao produto → loja: rolagem da loja de volta");
-  L.hash = "#compras/resumo"; assert.equal(nav(), 540, "voltar à loja → Resumo: rolagem do Resumo de volta");
-  L.hash = "#compras/resumo"; assert.equal(nav(), 0, "redesenhar a mesma tela não mexe na pilha");
-  assert.deepEqual(CCx.nav.map((x) => x.h), ["#compras/resumo"]);
-  for (let i = 0; i < 60; i++) { L.hash = "#compras/loja/L" + i; nav(); }
-  assert.ok(CCx.nav.length <= 40, "a pilha tem limite");
-});
-test("o Resumo mostra as categorias por produto mais a linha de ajustes, e a conta é conferida na tela", () => {
-  const { js } = tela();
-  assert.match(js, /Ajustes dos pedidos \(frete, taxas, descontos gerais e outros\)/);
-  assert.match(js, /P\.ajustesPedidos/); assert.match(js, /Categorias \+ ajustes = /);
+/* lote C (21/11/2026): as telas Resumo, Produtos, loja, categoria e produto saíram de Pedidos online (a Central de Compras mostra tudo isso). As contas continuam no núcleo e testadas acima. */
+test("Pedidos online é só a entrada: as telas de resumo, produto, loja e categoria saíram e os endereços antigos abrem a Central de Compras", () => {
+  const js = ler("js/compras.js");
+  for (const f of ["ccResumo", "ccProdutos", "ccTelaLista", "ccTelaProduto", "ccDetalheRota", "ccRotaProduto", "ccVoltarDe", "ccAjustes"]) assert.ok(!new RegExp("\\b" + f + "\\b").test(js), f + " saiu");
+  assert.match(js, /else if\(sub!=="importar"&&sub!=="nova"&&sub!=="editar"\)\{location\.replace\("#mercado\/central"\);return\}/);
+  assert.match(js, /function ccNav\(\)/); assert.match(rota("compras").abrirTexto, /renderCompras\(p\[1\],p\[2\],p\[3\]\)/);
+  for (const f of ["coDetalheLoja", "coDetalheCategoria", "coPrecos", "coProdutoResumo", "coResumo", "coRotulo"]) assert.equal(typeof N[f], "function", "a conta continua no núcleo: " + f);
 });

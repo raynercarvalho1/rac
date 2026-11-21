@@ -2518,7 +2518,7 @@
     var dec=nfDecisaoGravacao(n,null);dec.bloqueios.forEach(function(b){er.push("Gravação bloqueada: "+b)});
     var requer=chave==null?true:!!n.requer_conferencia,conferir=o.conferir===true&&chave!=null&&dec.conferir_permitido;
     if(dec.modo==="pendente_fiscal")requer=true;
-    if(o.conferir===true&&dec.modo==="pendente_fiscal")av.push("Nota em "+dec.veredito.fiscal.rotulo.toLowerCase()+": fica pendente fiscal, sem conferência nem validação até a autorização.");
+    if(o.conferir===true&&dec.modo==="pendente_fiscal")av.push("Nota em "+dec.veredito.fiscal.rotulo.toLowerCase()+": fica sem validação oficial e sem conferência.");
     if(o.conferir===true&&chave==null)av.push("Nota sem chave de acesso válida fica pendente: a conferência é feita depois, em ação separada.");
     var nota={id:o.id,modelo:n.modelo,chave:chave,numero:/^\d{1,9}$/.test(String(n.numero||""))?String(n.numero):null,serie:/^\d{1,3}$/.test(String(n.serie||""))?String(n.serie):null,
       data_emissao:n.data_emissao||null,emitente_nome:em.nome?String(em.nome).slice(0,120):null,emitente_cnpj:cnpj,emitente_uf:/^[A-Z]{2}$/.test(String(em.uf||""))?em.uf:null,
@@ -2577,15 +2577,15 @@
       mot=ve.motivos.map(function(m){return String(m.texto).slice(0,200)}).concat(ve.bloqueios.map(function(b){return String(b.texto).slice(0,200)})).slice(0,10);
     var proc={idem:o.idem,classe:ve.classe,confianca:nfArred(Math.min(1,Math.max(0,+o.confianca>=0?+o.confianca:0)),3),revisada:o.revisada===true,diferenca:s.diferenca!=null?nfArred(s.diferenca,2):null,componentes:comp,motivos:mot,incertos:inc,
       modelo_ia:o.modelo_ia?String(o.modelo_ia).slice(0,60):null,ia_uso_id:NF_UUID.test(String(o.ia_uso_id||""))?o.ia_uso_id:null};
-    if(dec.modo==="pendente_fiscal")av.push("Nota em "+ve.fiscal.rotulo.toLowerCase()+": será guardada como pendente fiscal, sem conferência nem validação até a autorização.");
+    if(dec.modo==="pendente_fiscal")av.push("Nota em "+ve.fiscal.rotulo.toLowerCase()+": será guardada sem validação oficial.");
     return {ok:!er.length,erros:er,avisos:av,modo:dec.modo,pode_nota:dec.pode,veredito:ve,decisao:dec,args:{p_nota:nota,p_itens:itens,p_docs:docs,p_proc:proc}}}
   function nfDataAmanha(){var d=new Date(Date.now()+86400000+(-3*3600000));return d.toISOString().slice(0,10)}
   /* o que a resposta do banco quer dizer (nota_fiscal_salvar_doc): estado para a tela, texto e se a nota foi realmente gravada */
   function nfResultadoDoc(d){d=d||{};var r=d.resultado;
-    if(d.criado===true&&(r==="validada"||r==="pendente_fiscal"))return {estado:r,gravada:true,id:d.id||null,texto:r==="validada"?"Nota gravada como validada (autorizada e consistente). Falta a sua conferência com o documento.":"Nota gravada como pendente fiscal: fica guardada sem conferência e sem validação até a autorização."};
+    if(d.criado===true&&(r==="validada"||r==="pendente_fiscal"))return {estado:r,gravada:true,id:d.id||null,texto:r==="validada"?"Nota gravada como validada (autorizada e consistente). Falta a sua conferência com o documento.":"Nota gravada sem validação oficial (a compra entra no Mercado normalmente)."};
     if(r==="bloqueada"||d.bloqueada===true)return {estado:"bloqueada",gravada:false,id:null,texto:"Bloqueada: a nota NÃO foi criada. O original e a tentativa ficaram registrados para auditoria."+((d.motivos||[]).length?" "+d.motivos.join(" "):"")};
     if(r==="duplicada"||d.duplicada===true)return {estado:"duplicada",gravada:false,id:d.id||null,texto:"Já existe uma nota igual na Central Fiscal ("+(d.motivo==="arquivo"?"o mesmo arquivo":d.motivo==="chave"?"a mesma chave de acesso":"o mesmo identificador")+"): nenhuma nota nova foi criada."};
-    if(d.ja_existia===true)return {estado:r||"ja_existia",gravada:r==="validada"||r==="pendente_fiscal",id:d.id||null,texto:"Esta leitura já tinha sido processada ("+(r==="validada"?"validada":r==="pendente_fiscal"?"pendente fiscal":r==="bloqueada"?"bloqueada":r==="duplicada"?"duplicada":"registrada")+"): nada mudou."};
+    if(d.ja_existia===true)return {estado:r||"ja_existia",gravada:r==="validada"||r==="pendente_fiscal",id:d.id||null,texto:"Esta leitura já tinha sido processada ("+(r==="validada"?"validada":r==="pendente_fiscal"?"sem validação oficial":r==="bloqueada"?"bloqueada":r==="duplicada"?"duplicada":"registrada")+"): nada mudou."};
     return {estado:"desconhecido",gravada:false,id:null,texto:"O banco respondeu algo inesperado: não considere a nota gravada."}}
   /* atualizar a situação fiscal (RPC nota_fiscal_atualizar_situacao): o banco decide; aqui só se impede o que ele recusaria. nota = {id, situacao}; o = {para, protocolo, evidencia, fonte} */
   function nfAtualizarSituacao(nota,o){nota=nota||{};o=o||{};var er=[],para=o.para,prot=nfDigitos(o.protocolo),ev=o.evidencia==null?"":String(o.evidencia).trim(),fonte=o.fonte||"manual";
@@ -2662,12 +2662,12 @@
       else if(cf<NF_CONF_ALERTA)av.push("Baixa confiança ("+pc+"%): confira todos os valores com o documento antes de dizer que está de acordo.")}
     /* foto/PDF sem chave legível NÃO bloqueia: a chave não é indispensável para registrar a compra. A nota entra como pendente fiscal (nunca validada) e sem a checagem de duplicidade pela chave. XML sem chave válida continua inválido. */
     var semChave=nota.formato!=="xml"&&!(nota.chave&&nota.chave_valida!==false);
-    if(semChave)av.push(!nota.chave?"A chave de acesso não está impressa ou legível nesta nota: ela entra como pendente fiscal, sem validação e sem checagem de duplicidade pela chave.":"A chave de acesso lida não passou na validação e não será usada: a nota entra como pendente fiscal, sem checagem de duplicidade pela chave.");
+    if(semChave)av.push(!nota.chave?"A chave de acesso não está impressa ou legível nesta nota: ela entra sem validação oficial e sem checagem de duplicidade pela chave.":"A chave de acesso lida não passou na validação e não será usada: a nota entra como pendente fiscal, sem checagem de duplicidade pela chave.");
     else if(!nota.chave||nota.chave_valida===false)baixa.push({codigo:"chave_invalida",texto:"A chave de acesso está ausente ou não passou na validação.",item:null});
     /* situação fiscal é independente da conta: valores certos não tornam a nota autorizada, e nota autorizada pode ter a conta errada */
     var sit=NF_SITUACOES[nota.situacao]?nota.situacao:"pendente",fiscal={situacao:sit,rotulo:NF_SITUACOES[sit],definitiva:sit==="autorizada",pendente:sit==="contingencia"||sit==="pendente",bloqueada:sit==="cancelada"||sit==="rejeitada"},bloqueios=[];
     if(fiscal.bloqueada)bloqueios.push({codigo:"situacao_"+sit,texto:"Nota "+(sit==="cancelada"?"cancelada":"rejeitada")+": não vale como compra fiscal validada e não alimenta o Financeiro. Refaça a leitura ou trate a compra por outra via; o documento e a tentativa ficam registrados para auditoria."});
-    else if(fiscal.pendente)av.push("A nota está "+NF_SITUACOES[sit].toLowerCase()+": pode ser guardada como pendente de validação fiscal, mas não vale como validada até a autorização.");
+    else if(fiscal.pendente)av.push("A nota está "+NF_SITUACOES[sit].toLowerCase()+": pode ser guardada sem validação oficial.");
     if(nota.diferenca_pagamento!=null&&Math.abs(nfCent(nota.diferenca_pagamento))>NF_TOL_CENT)av.push("O valor a pagar difere do total da nota em "+nfReais(nfCent(nota.diferenca_pagamento))+".");
     var classe=baixa.length?"baixa_confianca":div.length?"divergente":"consistente",motivos=baixa.map(function(x){return {tipo:"baixa_confianca",codigo:x.codigo,texto:x.texto,item:x.item}}).concat(div.map(function(x){return {tipo:"divergencia",codigo:x.codigo,texto:x.texto,item:x.item}}));
     var validada=classe==="consistente"&&fiscal.definitiva&&!semChave,pendente=classe==="consistente"&&(fiscal.pendente||(fiscal.definitiva&&semChave));

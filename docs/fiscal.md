@@ -1,5 +1,7 @@
 # Central de Notas Fiscais
 
+> **Lote C (21/11/2026, pedido do dono): a Central Fiscal é a Entrada de tudo** (atalhos para notas fiscais, pedidos online e pedido de delivery) e **nada de "pendente" aparece na tela**: o chip da situação "Pendente", a linha "Situação fiscal: Pendente", a frase "pendente na SEFAZ", o aviso "N notas ainda não estão lançadas no Mercado" e os textos de gravação "pendente fiscal" saíram (agora "sem validação oficial"). É só exibição: a situação, as transições, o modo `pendente_fiscal` e a entrada no Mercado não mudaram; nenhuma nota foi alterada. Não criamos estados novos; as opções (Conferida, Aguardando conferência...) voltam quando a SEFAZ for tratada, lote futuro.
+
 ## Confirmação única: "Estou de acordo" (16/11/2026; migration 059 PROPOSTA, não aplicada; site pronto, não publicado)
 
 **Decisão do dono (16/11/2026), que supera o "congelamento" de 13/11/2026** (OCR, SEFAZ e evolução fiscal fora do planejamento; a 040 "não será implementada"): a Central Fiscal volta a evoluir, só neste escopo.

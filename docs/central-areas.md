@@ -78,3 +78,10 @@ Desenho aprovado pelo dono em 21/11/2026; parte da navegação do PR #61 (já me
 - **Saiu:** a página de consulta (Resumo, Pedidos, Pratos e preços) e o item do menu; o aviso "pedidos para conferir" da lista antiga (a conferência continua dentro do formulário e do detalhe). `#alimentacao` e abas antigas abrem `#mercado/area/delivery`; os links do Painel de Produtividade e do RAC Hoje também.
 - **Não mudou:** tabelas, view `alimentacao_gastos`, RPC `pedido_salvar`, backup, o Painel de Produtividade e o RAC Hoje (leem as mesmas tabelas), Fernanda com os mesmos poderes (menu sem o item, rota aberta para a casa).
 - **Testes:** `tests/delivery_area.test.mjs` (conta, áreas, Central, painel, casa, entrada, links); testes de menu/rotas e de atualização de módulos ajustados ao que saiu de propósito.
+
+## Lote C · Central Fiscal como Entrada, Pedidos online sem gráficos, sem "pendente" na tela (21/11/2026; versão `2026-11-21.3`)
+**Em PR, não mesclado e não publicado.** Sem migration, SQL ou Edge Function; nenhuma nota ou pedido alterado.
+- **Entrada de tudo:** a página Central Fiscal ganhou os atalhos *Notas fiscais · Pedidos online · Importar pedido online · Pedido de delivery*. Na Central de Compras continuam os botões + Adicionar nota e + Adicionar pedido.
+- **Compras online → Pedidos online:** só a entrada (lista, importar, manual, anexos, "já contada em outro lugar"), sem item no menu (rota aberta à Fernanda). Sem Resumo, Produtos, loja, categoria, produto (a Central de Compras mostra) e sem **recorrências** (Fernanda não usa; o dado gravado é preservado ao editar). Endereços antigos abrem `#mercado/central` ou a lista.
+- **Sem "pendente" na tela** (decisão do dono; opções de estados ficam para o lote da SEFAZ): chip, linha "Situação fiscal: Pendente", "pendente na SEFAZ", aviso de notas não lançadas e os textos "pendente fiscal" (agora "sem validação oficial"). Só exibição; a regra e os estados internos não mudam.
+- **Testes:** `tests/entrada_fiscal.test.mjs`; testes das telas removidas (Resumo/Produto/loja de Compras online, recorrência, menu) ajustados de propósito; as contas no núcleo continuam testadas.

@@ -87,7 +87,7 @@ test("shell do dono: toda regra nova vale só para html.logado:not(.casa) (ou es
 
 test("menu por área: o registro de rotas tem a área de cada item, a ordem do registro NÃO mudou e a barra inferior sai do mesmo registro", () => {
   const R = registro(), com = R.rotas.filter((r) => r.grupo);
-  assert.equal(com.length, 30);   // 29 de antes + o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) − Alimentação (saiu do menu no lote B, 21/11/2026) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
+  assert.equal(com.length, 29);   // 29 de antes + o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) − Alimentação (saiu do menu no lote B, 21/11/2026) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
   const areas = [...R.menu.matchAll(/<h4 class="areat" data-area="([a-z]+)"[^>]*>([^<]+)<\/h4>/g)].map((m) => m[1]);
   assert.deepEqual(areas, ["hoje", "vida", "fin", "carreira", "info", "sis"]);
   for (const r of com) assert.ok(areas.includes(r.area), r.id);

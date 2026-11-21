@@ -234,7 +234,7 @@ test("coRotulo: só estados que já existem, mais o tratamento financeiro à par
 test("Compras, Painel e Hoje usam a função central e leem os campos da 030; nenhuma regra financeira duplicada", () => {
   const cc = ler("js/compras.js"), pn = ler("js/painel.js"), hj = ler("js/hoje.js"), nu = ler("nucleo.js");
   for (const f of [cc, pn, hj]) for (const campo of ["canal", "natureza", "historico", "impostos_info"]) assert.match(f, new RegExp("[,\"]" + campo + "[,\"]"), campo);
-  assert.match(cc, /NUCLEO\.coResumo\(CC\.dados,\{hoje:hojeISO\(\)\}\)/); assert.match(cc, /NUCLEO\.coResumo\(vis\)\.mensal/); assert.match(cc, /NUCLEO\.coRotulo\(c\)/); assert.match(cc, /NUCLEO\.coRegra\(c\)/);
+  assert.match(cc, /NUCLEO\.coRotulo\(c\)/); assert.match(cc, /NUCLEO\.coRegra\(c\)/);
   assert.doesNotMatch(cc, /fora_das_contas\?0:/, "o cabeçalho do mês não soma 'cru'"); assert.doesNotMatch(cc, /NUCLEO\.coDespesas\(CC\.dados\)/);
   assert.doesNotMatch(cc, /c\.fora_das_contas\|\|c\.data</, "'Por loja' não filtra por conta própria"); assert.doesNotMatch(cc, /reduce\(function\(s,c\)\{return s\+\(c\.desconto\|\|0\)\}/, "'Descontos' não soma por conta própria");
   assert.match(pn, /NUCLEO\.coResumo\(D\.online\?D\.online\.v:\[\]\)\.despesas/); assert.match(pn, /map\(NUCLEO\.coDeBanco\)/);
@@ -246,7 +246,7 @@ test("Lote 5.0 é só local: sem SQL novo, sem rede nova e sem tocar em Garmin, 
   const cc = ler("js/compras.js");
   assert.doesNotMatch(cc, /\.rpc\((?!nome,args\))|supabase\.co|fetch\(\s*["']http/, "só ccRpc chama SB.rpc(nome,args); nenhuma outra chamada nova (Lote 5.1)");
   assert.deepEqual([...new Set([...cc.matchAll(/ccRpc\("([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["compras_anexar", "compras_gravar_com_foto"], "as únicas RPCs são as de compras_gravar_com_foto e compras_anexar (035)");
-  assert.match(cc, /NUCLEO\.coRecorrencias\(CC\.dados\)\.filter\(function\(r\)\{return r\.informada&&r\.informada\.status==="a_confirmar"\}\)/, "recorrência intacta");
+  assert.doesNotMatch(cc, /coRecorrencias\(CC\.dados\)/, "a lista de recorrências saiu (lote C, 21/11/2026)");
   assert.doesNotMatch(cc, /compras_reembolsos|reembolso_confirmar/);
 });
 
@@ -346,9 +346,8 @@ test("item autorizado em pedido concluído do histórico: o valor do item fica p
 // ---------- os módulos usam as mesmas peças ----------
 test("revisão do Lote 5.0: Hoje traz a categoria (para deduzir o módulo), Compras mostra a economia sem duplicidade e o histórico de preços mostra a origem", () => {
   const cc = ler("js/compras.js"), hj = ler("js/hoje.js");
-  assert.match(hj, /impostos_info,categoria,compras_online_itens\(/); assert.match(cc, /categoria,recorrencia_texto/);
-  assert.match(cc, /\["Economia \(12 meses\)",brl\(P\.descontos\.economia\)\]/); assert.match(cc, /Economia sem duplicidade/); assert.doesNotMatch(cc, /descontos\.gerais\)\],\["Ticket/);
-  assert.match(cc, /x\.outros_modulos/); assert.match(cc, /o preço continua no histórico/);
+  assert.match(hj, /impostos_info,categoria,compras_online_itens\(/); assert.match(cc, /categoria,recorrencia_texto/);   /* a coluna continua sendo lida: o dado é preservado */
+  assert.doesNotMatch(cc, /Economia \(12 meses\)|Economia sem duplicidade/, "o Resumo saiu de Pedidos online (lote C); a economia é da Central de Compras");
   assert.doesNotMatch(cc, /\.rpc\((?!nome,args\))/, "só ccRpc chama a RPC (Lote 5.1)"); assert.doesNotMatch(cc, /compras_reembolsos/);
 });
 

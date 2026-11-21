@@ -58,7 +58,7 @@ const esperar = async (bloco) => { for (let i = 0; i < 600; i++) { await new Pro
 test("decisão: autorizada e consistente = validada; pendente/contingência consistente = pendente fiscal; o resto é bloqueado", () => {
   const dec = (k) => N.nfDecisaoGravacao(N.nfNormalizar(N.nfLerXML(CASOS[k])), null);
   const aut = dec("autorizada"); assert.deepEqual([aut.pode, aut.modo, aut.conferir_permitido, aut.veredito.classe, aut.veredito.fiscal.situacao], [true, "validada", true, "consistente", "autorizada"]);
-  for (const k of ["pendente", "contingencia"]) { const d = dec(k); assert.deepEqual([d.pode, d.modo, d.conferir_permitido, d.veredito.classe, d.veredito.pode_alimentar_financeiro], [true, "pendente_fiscal", false, "consistente", false], k); assert.match(d.avisos.join(" "), /pendente de validação fiscal/); }
+  for (const k of ["pendente", "contingencia"]) { const d = dec(k); assert.deepEqual([d.pode, d.modo, d.conferir_permitido, d.veredito.classe, d.veredito.pode_alimentar_financeiro], [true, "pendente_fiscal", false, "consistente", false], k); assert.match(d.avisos.join(" "), /sem validação oficial/); }
   assert.equal(dec("pendente").veredito.fiscal.situacao, "pendente"); assert.equal(dec("contingencia").veredito.fiscal.situacao, "contingencia");
   const div = dec("divergente"); assert.deepEqual([div.pode, div.modo, div.veredito.classe], [false, "bloqueada", "divergente"]); assert.match(div.bloqueios.join(" "), /A conta não fecha.*R\$ 4,75 a menos/);
   const baixa = dec("baixa"); assert.deepEqual([baixa.pode, baixa.modo, baixa.veredito.classe], [false, "bloqueada", "baixa_confianca"]); assert.match(baixa.bloqueios.join(" "), /Dados incompletos.*Item 1.*quantidade/);
@@ -68,7 +68,7 @@ test("decisão: autorizada e consistente = validada; pendente/contingência cons
 test("nfParaGravar aplica a mesma decisão: bloqueado não gera payload aceito; pendente fiscal nunca é conferida", () => {
   const para = (k, conferir = true) => { const l = N.nfLerXML(CASOS[k]), n = N.nfNormalizar(l); return N.nfParaGravar(l, n, { id: "5f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5", dono: DONO, nome: "n.xml", mime: "text/xml", tamanho: 500, sha256: "a".repeat(64), conferir }); };
   const aut = para("autorizada"); assert.equal(aut.ok, true, aut.erros.join(" ")); assert.equal(aut.modo, "validada"); assert.equal(aut.args.p_conferir, true); assert.equal(aut.args.p_nota.requer_conferencia, false);
-  for (const k of ["pendente", "contingencia"]) { const g = para(k); assert.equal(g.ok, true, g.erros.join(" ")); assert.equal(g.modo, "pendente_fiscal"); assert.equal(g.args.p_conferir, false, "pedir para conferir não vale"); assert.equal(g.args.p_nota.requer_conferencia, true); assert.equal(g.args.p_nota.situacao, k); assert.match(g.avisos.join(" "), /pendente fiscal/); }
+  for (const k of ["pendente", "contingencia"]) { const g = para(k); assert.equal(g.ok, true, g.erros.join(" ")); assert.equal(g.modo, "pendente_fiscal"); assert.equal(g.args.p_conferir, false, "pedir para conferir não vale"); assert.equal(g.args.p_nota.requer_conferencia, true); assert.equal(g.args.p_nota.situacao, k); assert.match(g.avisos.join(" "), /sem validação oficial/); }
   for (const k of ["divergente", "baixa", "cancelada", "rejeitada"]) { const g = para(k); assert.equal(g.ok, false, k); assert.equal(g.modo, "bloqueada"); assert.match(g.erros.join(" "), /Gravação bloqueada/, k); }
 });
 
@@ -83,9 +83,9 @@ test("nota autorizada e consistente: grava como validada (envia o XML, chama a f
 test("nota pendente ou em contingência, consistente: grava só como pendente fiscal, sem conferência e sem despesa", async () => {
   for (const k of ["pendente", "contingencia"]) {
     const { c, ch } = ambiente(); const r = await lerNota(c, CASOS[k]), x = await c.fxSalvar(r, true);
-    assert.equal(x.estado, "gravada", k); assert.equal(x.modo, "pendente_fiscal"); assert.match(x.mensagem, /pendente fiscal/); assert.ok(!/conferida\./.test(x.mensagem));
+    assert.equal(x.estado, "gravada", k); assert.equal(x.modo, "pendente_fiscal"); assert.match(x.mensagem, /sem validação oficial/); assert.ok(!/conferida\./.test(x.mensagem));
     const a = ch.rpc[0][1]; assert.equal(a.p_conferir, false); assert.equal(a.p_nota.requer_conferencia, true); assert.equal(a.p_nota.situacao, k); assert.equal(a.p_nota.protocolo, null);
-    assert.match((x.avisos || []).join(" "), /pendente de validação fiscal|pendente fiscal/);
+    assert.match((x.avisos || []).join(" "), /sem validação oficial/);
     assert.deepEqual(ch.rpc.map((q) => q[0]), ["nota_fiscal_salvar"], "nenhuma outra função: nada de despesa ou Financeiro");
   }
 });
@@ -151,7 +151,7 @@ test("interface: cada situação mostra a conta, a diferença em reais e a situa
   const aut = await cartao("autorizada");
   assert.match(aut, /Situação fiscal.*Autorizada/); assert.match(aut, /Conta dos itens.*Consistente/); assert.match(aut, /Total calculado pelos itens.*R\$ 25,25/); assert.match(aut, /Total fiscal.*R\$ 25,25/); assert.match(aut, /Os itens fecham com o total fiscal/); assert.match(aut, /Pode ser gravada como validada/);
   const pend = await cartao("contingencia");
-  assert.match(pend, /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim/); assert.match(pend, /Conta dos itens.*Consistente/, "a conta certa não torna a nota autorizada"); assert.match(pend, /Só como pendente fiscal \(sem validação\); a entrada no Mercado não espera a SEFAZ/);
+  assert.match(pend, /Situação fiscal\s+Contingência(?! —)/); assert.match(pend, /Conta dos itens.*Consistente/, "a conta certa não torna a nota autorizada"); assert.match(pend, /Pode ser gravada sem validação oficial; a compra entra no Mercado normalmente/);
   const div = await cartao("divergente");
   assert.match(div, /Conta dos itens.*Divergente/); assert.match(div, /Total calculado pelos itens.*R\$ 25,25/); assert.match(div, /Total fiscal.*R\$ 30,00/); assert.match(div, /R\$ 4,75 a menos que o total fiscal/); assert.match(div, /Situação fiscal.*Autorizada/, "autorizada com conta errada"); assert.match(div, /Gravação.*Bloqueada/);
   const baixa = await cartao("baixa"); assert.match(baixa, /Conta dos itens.*Dados incompletos/); assert.match(baixa, /Dados incompletos: Item 1.*falta a quantidade/);
@@ -161,7 +161,7 @@ test("interface: o botão 'Estou de acordo' existe só quando a nota pode ser co
   const { c } = ambiente(); const bloco = async (k) => { const b = c.fxBlocoConfirmar(await lerNota(c, CASOS[k])); await new Promise((r) => setTimeout(r, 30)); return b; };
   const botoes = (n) => achar(n, (x) => x.tag === "button"), caixas = (n) => achar(n, (x) => x.tag === "input");
   for (const k of ["autorizada", "pendente", "contingencia"]) { const b = await bloco(k); assert.equal(botoes(b).length, 1, k); assert.equal(botoes(b)[0].attrs.text, "Estou de acordo"); assert.equal(caixas(b).length, 0, "sem caixa 'Conferi'"); assert.equal(botoes(b)[0].disabled, false, k + ": habilitado depois de conferir a duplicidade"); }
-  assert.match(texto(await bloco("pendente")), /A situação fiscal pendente não impede a entrada/); assert.doesNotMatch(texto(await bloco("autorizada")), /não impede a entrada/);
+  assert.doesNotMatch(texto(await bloco("pendente")), /pendente/i, "nada de 'pendente' na tela (decisão do dono, 21/11/2026)"); assert.doesNotMatch(texto(await bloco("autorizada")), /não impede a entrada/);
   for (const k of ["divergente", "baixa", "cancelada", "rejeitada"]) { const b = await bloco(k); assert.equal(botoes(b).length, 0, k + ": sem botão (e não existe botão de recusa)"); assert.match(texto(b), /Ainda não dá para confirmar.*Leia de novo com outra foto.*Nada foi enviado nem gravado/, k); }
 });
 test("interface: 'Estou de acordo' mostra sucesso só se o banco confirmou gravada E lançada; duplicidade mostra o motivo; falha permite tentar de novo", async () => {

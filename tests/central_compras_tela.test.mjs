@@ -80,7 +80,7 @@ test("só leitura nas tabelas de compras: a Central não insere, atualiza nem ap
 });
 test("o módulo se chama Central de Compras no menu e na casca, e as telas existentes continuam", () => {
   const idx = ler("index.html"), src = ler("mercado.js");
-  const menu = registro().menu; assert.match(menu, /data-k="mercado"[^>]*>.*?<span class="t">Central de Compras<\/span>/s); assert.match(menu, /<span class="t">Compras online<\/span>/);
+  const menu = registro().menu; assert.match(menu, /data-k="mercado"[^>]*>.*?<span class="t">Central de Compras<\/span>/s); assert.doesNotMatch(menu, /<span class="t">Compras online<\/span>/, "Compras online saiu do menu no lote C (a entrada é a Central Fiscal)");
   assert.match(src, /\["central", "Central"\], \["painel", "Painel do Mercado"\], \["precos", "Preços"\], \["consumo", "Consumo"\], \["comparar", "Comparar"\]/);
   for (const k of ["notas", "produtos", "importar", "alertas", "radar"]) assert.match(src, new RegExp('\\["' + k + '"'));
 });

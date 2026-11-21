@@ -87,7 +87,7 @@
                 var d=entrada?(dd&&dd.fiscal)||{}:dd,apagar=(d&&d.docs_para_apagar)||[],conf=entrada?NUCLEO.nfResultadoConfirmar(dd,n):null;
                 function com(o){if(conf){o.confirmar=conf;o.entrada=dd.entrada||null}return o}
                 if(conf&&conf.gravada)return fxLimpar(apagar).then(function(){return fim("gravada",conf.texto,com({id:conf.id,conferida:!!g.args.p_conferir,modo:g.modo,avisos:(d.avisos||[]).concat(g.avisos,avisos0,conf.avisos||[]),semelhantes:d.semelhantes||[]}))});
-                if(d&&d.criado)return fim("gravada",g.args.p_conferir?"Nota gravada e conferida.":g.modo==="pendente_fiscal"?"Nota gravada como pendente fiscal (sem validação até a autorização).":"Nota gravada (pendente de conferência).",{id:d.id,conferida:!!d.conferida,modo:g.modo,avisos:(d.avisos||[]).concat(g.avisos,avisos0),semelhantes:d.semelhantes||[]});
+                if(d&&d.criado)return fim("gravada",g.args.p_conferir?"Nota gravada e conferida.":g.modo==="pendente_fiscal"?"Nota gravada sem validação oficial.":"Nota gravada (falta conferir).",{id:d.id,conferida:!!d.conferida,modo:g.modo,avisos:(d.avisos||[]).concat(g.avisos,avisos0),semelhantes:d.semelhantes||[]});
                 if(d&&d.ja_existia)return fxLimpar(apagar).then(function(){return fim("ja_existia","Esta nota já estava gravada.",com({id:d.id}))});
                 return fxLimpar(apagar).then(function(){return fim("duplicada",conf?conf.texto:"Já existe uma nota igual na Central Fiscal ("+(d&&d.motivo==="arquivo"?"o mesmo arquivo":"a mesma chave de acesso")+"). O arquivo enviado foi descartado.",com({id:d&&d.id}))})})})})})})
     }).catch(function(e){
@@ -117,7 +117,7 @@
     v.avisos.forEach(function(a){if((n.avisos||[]).indexOf(a)<0)box.appendChild(h("div",{class:"fxaviso",text:a}))});
     d.bloqueios_dup.forEach(function(b){box.appendChild(h("div",{class:"fxaviso fxbloq",text:b}))});d.avisos_dup.forEach(function(a){box.appendChild(h("div",{class:"fxaviso",text:a}))});
     /* a linha "Gravação" diz se o "Estou de acordo" vai existir: dados essenciais, conta, situação fiscal, conflito de chave e duplicidade (a confiança da IA só informa) */
-    box.appendChild(fxLinha("Gravação",dc.modo==="validada"?"Pode ser gravada como validada e lançada no Mercado":dc.modo==="pendente_fiscal"?"Só como pendente fiscal (sem validação); a entrada no Mercado não espera a SEFAZ":"Bloqueada: não pode ser confirmada"));
+    box.appendChild(fxLinha("Gravação",dc.modo==="validada"?"Pode ser gravada como validada e lançada no Mercado":dc.modo==="pendente_fiscal"?"Pode ser gravada sem validação oficial; a compra entra no Mercado normalmente":"Bloqueada: não pode ser confirmada"));
     return box}
   function fxCartao(r,repetida){
     var n=r.nota,c=h("div",{class:"panel fxnota"});
@@ -125,7 +125,7 @@
     if(r.erro){c.appendChild(h("div",{class:"fxaviso",text:r.erro}));return c}
     var em=n.emitente||{},V=n.valores||{};
     c.appendChild(h("p",{class:"sub",text:(n.tipo||"Nota")+" · nº "+(n.numero||"?")+" · série "+(n.serie||"?")+" · "+(n.data_emissao?dataBR(n.data_emissao):"data não identificada")}));
-    c.appendChild(fxLinha("Situação fiscal",(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao)+(n.situacao==="autorizada"?"":n.situacao==="cancelada"||n.situacao==="rejeitada"?" — não vale como compra":" — pendente na SEFAZ: a compra entra no Mercado mesmo assim")));
+    if(n.situacao!=="pendente")c.appendChild(fxLinha("Situação fiscal",(NUCLEO.NF_SITUACOES[n.situacao]||n.situacao)+(n.situacao==="autorizada"?"":n.situacao==="cancelada"||n.situacao==="rejeitada"?" — não vale como compra":"")));   /* "Pendente" não aparece na tela (decisão do dono, 21/11/2026) */
     c.appendChild(fxLinha("Emitente",(em.nome||"não identificado")+(em.cnpj?" · "+fxCnpj(em.cnpj):"")+(em.uf?" · "+em.uf:"")));
     c.appendChild(fxLinha("Chave de acesso",n.chave?fxGrupos(n.chave,4):"não identificada"));
     c.appendChild(fxLinha("Chave confere",n.chave_valida?"Sim (dígito verificador, CNPJ, modelo, série, número e mês batem)":"NÃO — veja os avisos"));
@@ -403,7 +403,7 @@
     if(r.confirmado)return fxResultadoBloco(r.confirmado);
     if(!dec0.pode&&dec0.bloqueios_dup.length<dec0.bloqueios.length)return h("div",{class:"fxsalvar"},h("div",{class:"fxaviso fxbloq",role:"status",text:"Ainda não dá para confirmar: "+dec0.bloqueios.join(" ")+" Leia de novo com outra foto"+(ia?" ou corrija os dados lidos no formulário acima":"")+". Nada foi enviado nem gravado."}));
     box.appendChild(av);box.appendChild(pv);
-    box.appendChild(h("p",{class:"sub",text:"Ao clicar, o RAC grava a nota na Central Fiscal (o original vai ao cofre privado) e lança a compra no Mercado"+(dec0.modo==="pendente_fiscal"?". A situação fiscal pendente não impede a entrada: ela continua pendente na Central Fiscal até a autorização":"")+". Não cria despesa."}));
+    box.appendChild(h("p",{class:"sub",text:"Ao clicar, o RAC grava a nota na Central Fiscal (o original vai ao cofre privado) e lança a compra no Mercado"+". Não cria despesa."}));
     btn.disabled=true;box.appendChild(bw);box.appendChild(st);
     function pronto(){
       var dec=NUCLEO.nfDecisaoGravacao(n,r.dup||null,opc);
@@ -533,7 +533,7 @@
     p.appendChild(st);p.appendChild(corpo);
     function linha(n,tent,ents){
       var est=NUCLEO.nfEstadosNota(n,ents?ents[n.id]:null).filter(function(x){return ents||x.chave!=="mercado"}),d=h("details",{class:"fxdet"}),cor=h("div"),aberto=false,sm=h("summary",null,h("span",{text:(n.emitente_nome||"Emitente não identificado")+" · "+(n.valor_total!=null?fxMoeda(n.valor_total):"—")+" · "+(n.data_emissao?dataBR(n.data_emissao):"sem data")+" "}));
-      est.forEach(function(x){sm.appendChild(h("span",{class:"fxchip "+x.tom,title:x.chave,text:x.rotulo}))});     /* leitura, conferência, situação fiscal e Mercado: quatro coisas separadas */
+      est.forEach(function(x){if(x.chave==="fiscal"&&n.situacao==="pendente")return;sm.appendChild(h("span",{class:"fxchip "+x.tom,title:x.chave,text:x.rotulo}))});     /* leitura, conferência, situação fiscal e Mercado: quatro coisas separadas */
       d.appendChild(sm);d.appendChild(cor);
       d.ontoggle=function(){if(d.open&&!aberto){aberto=true;fxDetalheNota(n,tent,dono,cor,ents)}};
       return h("li",null,d)}
@@ -546,8 +546,7 @@
         corpo.innerHTML="";st.textContent=notas.length?"":"Nenhuma nota gravada ainda.";
         if(r[2]){ents={};r[2].forEach(function(x){ents[x.nota_id]=x})}
         if(ents===null)corpo.appendChild(h("div",{class:"fxaviso",text:"A entrada no Mercado ainda não está disponível no banco (migration 059 pendente) ou não consegui ler agora."}));
-        else{var falta=notas.filter(function(n){var e=ents[n.id];return e?(e.estado==="pendente"||e.estado==="falhou"):(n.situacao!=="cancelada"&&n.situacao!=="rejeitada")});
-          if(falta.length)corpo.appendChild(h("div",{class:"fxaviso",role:"status",text:falta.length+(falta.length===1?" nota ainda não está lançada no Mercado":" notas ainda não estão lançadas no Mercado")+": abra a nota para concluir."}))}
+        /* o aviso "N notas ainda não estão lançadas no Mercado" saiu da tela (decisão do dono, 21/11/2026); cada nota continua mostrando o seu estado e o botão de tentar de novo */
         var ul=h("ul",{class:"fxlista"});notas.forEach(function(n){ul.appendChild(linha(n,tent||[],ents))});corpo.appendChild(ul);
         if(dono&&tent===null)corpo.appendChild(h("div",{class:"fxaviso",text:"Não consegui ler as tentativas de leitura agora (faça login de novo e confirme o código de segurança, se pedido)."}));
         if(sem.length){var s2=h("div",{class:"fxdet"}),sst=h("p",{class:"sub",role:"status"});s2.appendChild(h("h4",{text:"Tentativas sem nota (bloqueadas ou duplicadas): "+sem.length}));
@@ -605,5 +604,8 @@
     if(casa)topo.appendChild(h("label",{class:"fxconf"},sep,h("span",{text:" Cada foto é uma nota separada (por padrão, até 4 fotos formam uma nota só)."})));
     topo.appendChild(h("div",{class:"vfil"},lerb));topo.appendChild(st);
     topo.appendChild(h("p",{class:"sub",text:(casa?"O XML é lido neste aparelho. Foto e PDF são lidos pela IA (Claude Sonnet) com o orçamento de IA da casa, um documento por vez: nada é enviado antes do clique em ler. Um PDF vale uma nota; JPEG, PNG ou WebP, até 4 fotos por nota. O texto do PDF perde o CPF antes de sair do aparelho; numa foto não dá para apagar o CPF da imagem, então evite enquadrá-lo. ":"Fotos e PDF ainda não são lidos. ")+"O XML original, inclusive com CPF, fica no cofre privado como está; nenhum CPF vai para campo do banco. Se a leitura errar, tire outra foto e leia de novo; se continuar errando, faça a entrada manual dos itens no Mercado."}));
+    /* a Central Fiscal é a ENTRADA de tudo (lote C, 21/11/2026): notas fiscais aqui; pedidos de lojas online e pedido de delivery pelos atalhos */
+    var entradas=h("div",{class:"seg famseg",role:"group","aria-label":"Entradas"},h("a",{href:"#fiscal","aria-pressed":"true",text:"Notas fiscais"}),h("a",{href:"#compras/lista","aria-pressed":"false",text:"Pedidos online"}),h("a",{href:"#compras/importar","aria-pressed":"false",text:"Importar pedido online"}),h("a",{href:"#alimentacao/novo","aria-pressed":"false",text:"Pedido de delivery"}));
+    topo.appendChild(entradas);
     root.appendChild(topo);root.appendChild(corpo);
     if(casa)root.appendChild(fxListaPainel())}

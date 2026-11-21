@@ -596,10 +596,17 @@
         .catch(function(e){b.disabled=false;cod.value="";cod.focus();m.textContent=/invalid|expired/i.test(e.message||"")?"Código errado ou vencido. Espere o próximo e tente de novo.":"Não consegui conferir: "+(e.message||e)})};
     sair.onclick=function(){hojeLimparLocal();SB.auth.signOut().then(function(){location.reload()})};
     $("#gate").appendChild(f);setTimeout(function(){cod.focus()},50)}
+  /*BARRA-INBOX*/
+  /* o selo de não lidas do Inbox na barra de baixo (só o dono; a barra nem existe para a casa). Lê só inbox_pastas de ENTRADA (o RLS isola por dono); erro ou zero = selo escondido, nunca um 0 inventado. */
+  function inboxBarraMostrar(n){var el=$("#cntbarrainbox");if(!el)return;var ok=typeof n==="number"&&n>0,a=el.parentNode;el.hidden=!ok;el.textContent=ok?(n>99?"99+":String(n)):"";if(!a)return;if(ok)a.setAttribute("aria-label","Inbox, "+n+(n===1?" não lida":" não lidas"));else a.removeAttribute("aria-label")}
+  function inboxBarraAtualizar(){
+    if(PAPEL==="casa"||!$("#cntbarrainbox"))return Promise.resolve();
+    try{return Promise.resolve(SB.from("inbox_pastas").select("uso,nao_lidas").eq("uso","entrada")).then(sbOk).then(function(l){inboxBarraMostrar(NUCLEO.inbContadorBarra(l))},function(){inboxBarraMostrar(0)})}catch(e){inboxBarraMostrar(0);return Promise.resolve()}}
+  /*FIM-BARRA-INBOX*/
   function iniciar(){
     var html=document.documentElement;
     html.classList.add("logado");html.classList.toggle("casa",PAPEL==="casa");
-    $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();
+    $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();if(PAPEL!=="casa")inboxBarraAtualizar();
     if(!$(".capbtn")){var cb=h("button",{type:"button",class:"capbtn","aria-label":"Anotar rápido",title:"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)",text:"+"});cb.onclick=function(){abrirCaptura()};document.body.appendChild(cb)}
     /* voltar à página anterior: ← flutuante em cima do menu ☰ (celular), em todas as páginas; a regra de quando aparece e para onde vai é a do voltar da barra de título */
     if(!$(".voltarbtn")){var vb=h("button",{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"});vb.onclick=voltarPagina;vb.hidden=!(PROF>0||VOLTAR_PAI);document.body.appendChild(vb)}
@@ -1408,6 +1415,7 @@
   function voltaOlhar(ev){
     if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
     if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
+    inboxBarraAtualizar();
     var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);notifDiag();if(!saiu)return;
     var sec=document.documentElement.getAttribute("data-sec")||"inicio";
     if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}

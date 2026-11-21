@@ -221,6 +221,9 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
   html.logado:not(.casa) #barra .ico svg{width:20px;height:20px}
   html.logado:not(.casa) #barra [aria-current="page"]{color:var(--rac-info)}
   html.logado:not(.casa) #barra [aria-current="page"] .ico{background:var(--rac-azul-suave)}
+  html.logado:not(.casa) #barra a{position:relative}
+  html.logado:not(.casa) #barra .bcnt{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:var(--rac-raio-pilula);background:var(--rac-info);color:var(--rac-papel-2);font:700 11px/18px var(--f-ui);text-align:center;pointer-events:none}
+  html.logado:not(.casa) #barra .bcnt[hidden]{display:none}
   html.logado:not(.casa) #barra a:focus-visible,html.logado:not(.casa) #barra button:focus-visible{outline:2px solid var(--rac-foco);outline-offset:-2px}
   html.logado:not(.casa) .app{padding-bottom:calc(var(--rac-barra-h) + 36px + env(safe-area-inset-bottom,0px))}
   html.logado:not(.casa) .menuflut{display:none!important}

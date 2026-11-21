@@ -145,7 +145,7 @@
       if (!PRINCIPAIS[x[0]]) nSec++;
       (PRINCIPAIS[x[0]] ? nav1 : nav2).appendChild(h("a", { href: "#mercado/" + x[0], "aria-current": x[0] === v ? "page" : null, text: x[1] + (n ? " (" + n + ")" : "") }));
     });
-    var add = h("a", { class: "mkadd", href: "#mercado/importar", "aria-current": v === "importar" ? "page" : null }, h("span", { "aria-hidden": "true", text: "+" }), " Adicionar nota"),
+    var add = h("a", { class: "mkadd", href: "#fiscal" }, h("span", { "aria-hidden": "true", text: "+" }), " Adicionar nota"),   /* a leitura de nota que funciona é a da Central Fiscal (XML, PDF ou foto; "Estou de acordo" lança no Mercado) */
       addPed = h("a", { class: "mkadd", href: "#alimentacao/novo" }, h("span", { "aria-hidden": "true", text: "+" }), " Adicionar pedido");
     var out = h("button", { type: "button", class: "ghostbtn", text: "Sair" });
     out.onclick = function () { sb.auth.signOut().then(function () { location.reload(); }); };
@@ -218,7 +218,7 @@
       }
       if (onlAviso) body.appendChild(h("div", { class: "panel" }, h("p", { class: "sub", role: "status", text: onlAviso })));
     }
-    if (!linhasPainel().length && !(PN.cab && (CU.canal || CU.estab || CU.cat))) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, PN.cab ? (PN.area === "" ? "Ainda não há compras. " : "Nenhuma compra nesta área ainda. ") : "Nenhum item da área Mercado ainda. ", PN.cab && PN.area === "" ? h("a", { class: "link", href: "#mercado/importar", text: "Adicione uma nota" }) : h("a", { class: "link", href: "#mercado/categorias", text: "Veja a Gestão de categorias" })))); return; }
+    if (!linhasPainel().length && !(PN.cab && (CU.canal || CU.estab || CU.cat))) { body.appendChild(h("div", { class: "panel" }, h("p", { class: "empty" }, PN.cab ? (PN.area === "" ? "Ainda não há compras. " : "Nenhuma compra nesta área ainda. ") : "Nenhum item da área Mercado ainda. ", PN.cab && PN.area === "" ? h("a", { class: "link", href: "#fiscal", text: "Adicione uma nota" }) : h("a", { class: "link", href: "#mercado/categorias", text: "Veja a Gestão de categorias" })))); return; }
     var meses = Object.keys(groupBy(linhasPainel(), function (x) { return x.mk; })).sort();
     if (PN.cab && /^\d{4}-\d{2}$/.test(CU.per) && meses.indexOf(CU.per) >= 0) st.mes = CU.per;
     if (!st.mes || meses.indexOf(st.mes) < 0) st.mes = meses[meses.length - 1];
@@ -237,6 +237,7 @@
     var rotAnt = P.anteriorInteiro ? "o mês inteiro de " + nomeAnt : "1 a " + P.diaAnterior + " de " + nomeAnt;
     function difTxt(a, b, fmt, pct) { var d = Math.round((a - b) * 100) / 100; return (d > 0 ? "▲ +" : d < 0 ? "▼ −" : "= ") + fmt(Math.abs(d)) + (pct && b > 0 && d !== 0 ? " (" + PCT.format(Math.abs(d) / b) + ")" : ""); }
 
+    body.appendChild(ultimaCompra());   /* a última compra no topo (pedido do dono, 21/11/2026): acesso rápido, sem rolar a tela */
     var seg = h("div", { class: "seg mkmeses", role: "group", "aria-label": "Mês" });
     meses.slice(-12).forEach(function (k) {
       var b = h("button", { type: "button", "aria-pressed": k === st.mes ? "true" : "false", text: mesCurto(k) });
@@ -297,7 +298,6 @@
     if (PN.cab && CU.cat) body.appendChild(h("p", { class: "sub", text: "Com categoria escolhida, valem só os itens dela: frete, taxas e descontos gerais do pedido não são divididos entre categorias." }));
     if (PN.cab && PN.area === "" && !CU.cat) body.appendChild(painelAreas(pnDados().base, { de: fPer.de, ate: fPer.ate, canal: CU.canal, estab: CU.estab }));
 
-    body.appendChild(ultimaCompra());
 
     /* linha 1: onde foram as compras + mês a mês */
     var g1 = h("div", { class: "mkgrid" });
@@ -2359,7 +2359,7 @@
 
   /* ---------- Importar o Excel (aba "Compras") ---------- */
   function viewImportar(body) {
-    painelFoto(body);
+    body.appendChild(h("div", { class: "panel" }, h("h2", { text: "Lançar uma nota" }), h("p", { class: "sub", text: "A leitura de notas (XML, PDF ou foto) é feita na Central Fiscal: você confere e clica em “Estou de acordo”, e a compra é lançada no Mercado." }), h("div", { class: "vfil" }, h("a", { class: "mkadd", href: "#fiscal", text: "Abrir a Central Fiscal" }))));
     var p = panel("Importar planilha", "Use o seu controle_mercado.xlsx. Só a aba “Compras” é lida; notas que já estão na conta são puladas, então pode importar de novo sem duplicar.");
     var lab = h("label", { class: "filebtn", for: "mk-file", text: "Escolher o arquivo .xlsx" });
     var inp = h("input", { type: "file", id: "mk-file", accept: ".xlsx,.xls", hidden: "" });

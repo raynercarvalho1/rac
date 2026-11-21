@@ -86,10 +86,10 @@ function portao() { let abrir; const p = new Promise((r) => (abrir = r)); return
 const pedido = (id, est, total) => ({ id, data: "2026-10-30", estabelecimento: est, plataforma: "ifood", modo: "delivery", subtotal: total, taxa_entrega: 0, taxa_servico: 0, gorjeta: 0, desconto_loja: 0, desconto_plataforma: 0, total_pago: total, arquivos: [], pedido_itens: [{ id: "i" + id, ordem: 0, descricao: "Pizza", qtd: 1, total, desconto: 0 }] });
 
 /* ---------------------------------------------------------------- Alimentação */
-test("Alimentação: lê pedidos e Mercado de novo, a tela antiga fica durante a leitura, troca só no fim e guarda aba, busca e pedido aberto", async () => {
+test("Alimentação (entrada do pedido, lote B): lê os pedidos de novo, a tela antiga fica durante a leitura, troca só no fim e guarda o pedido aberto", async () => {
   const g = portao();
-  const s = montar({ sec: "alimentacao", modulos: ["alimentacao"], resp: { pedidos: () => g.p, alimentacao_gastos: [{ data: "2026-10-01", estabelecimento: "Mercado X", categoria: "comida", produto: "Arroz", valor: "10" }] } });
-  const A = s.ctx.ALI; A.pedidos = { ok: true, v: [{ id: "velho" }] }; A.mercado = { ok: true, v: [] }; A.aba = "pedidos"; A.aberto = "p2";
+  const s = montar({ sec: "alimentacao", modulos: ["alimentacao"], resp: { pedidos: () => g.p } });
+  const A = s.ctx.ALI; A.pedidos = { ok: true, v: [{ id: "velho" }] }; A.aberto = "p2";
   const velho = A.pedidos;
   const pr = s.mod().atualizar();
   await espera();
@@ -99,21 +99,18 @@ test("Alimentação: lê pedidos e Mercado de novo, a tela antiga fica durante a
   g.abrir([pedido("p1", "Pizzaria", 50), pedido("p2", "Sushi", 80)]);
   await pr;
   assert.deepEqual([...A.pedidos.v.map((x) => x.id)], ["p1", "p2"], "trocou pelos novos");
-  assert.equal(A.mercado.v[0].valor_total, 10);
   assert.equal(s.ctx.redesenhos, 1, "redesenha uma vez, depois da troca");
-  assert.equal(A.aba, "pedidos"); assert.equal(A.aberto, "p2", "o pedido aberto continua aberto");
-  assert.deepEqual([...(await A.carregando)[0].v.map((x) => x.id)], ["p1", "p2"], "o redesenho usa os dados novos, sem ler de novo");
+  assert.equal(A.aberto, "p2", "o pedido aberto continua aberto");
+  assert.deepEqual([...(await A.carregando).v.map((x) => x.id)], ["p1", "p2"], "o redesenho usa os dados novos, sem ler de novo");
 });
 
-test("Alimentação: falha inteira ou só de uma fonte não muda nada (nem pela metade)", async () => {
-  for (const [nome, resp] of [["tudo", { pedidos: { erro: "rede caiu" }, alimentacao_gastos: { erro: "rede caiu" } }], ["só o Mercado", { pedidos: [pedido("novo", "X", 1)], alimentacao_gastos: { erro: "timeout" } }], ["só os pedidos", { pedidos: { erro: "timeout" }, alimentacao_gastos: [] }]]) {
-    const s = montar({ sec: "alimentacao", modulos: ["alimentacao"], resp });
-    const A = s.ctx.ALI, P = { ok: true, v: [{ id: "velho" }] }, M = { ok: true, v: [{ valor_total: 5 }] };
-    A.pedidos = P; A.mercado = M; A.carregando = Promise.resolve([P, M]); const c0 = A.carregando;
-    await assert.rejects(s.mod().atualizar(), /não consegui ler/, nome);
-    assert.equal(A.pedidos, P, nome + ": pedidos de antes"); assert.equal(A.mercado, M, nome + ": Mercado de antes"); assert.equal(A.carregando, c0, nome);
-    assert.equal(s.ctx.redesenhos, 0, nome + ": a tela não é redesenhada");
-  }
+test("Alimentação (entrada do pedido): falha na leitura não muda nada (nem pela metade)", async () => {
+  const s = montar({ sec: "alimentacao", modulos: ["alimentacao"], resp: { pedidos: { erro: "rede caiu" } } });
+  const A = s.ctx.ALI, P = { ok: true, v: [{ id: "velho" }] };
+  A.pedidos = P; A.carregando = Promise.resolve(P); const c0 = A.carregando;
+  await assert.rejects(s.mod().atualizar(), /não consegui ler/);
+  assert.equal(A.pedidos, P, "pedidos de antes"); assert.equal(A.carregando, c0);
+  assert.equal(s.ctx.redesenhos, 0, "a tela não é redesenhada");
 });
 
 test("Alimentação: a gravação do pedido em andamento faz o botão esperar e libera ao terminar", () => {

@@ -87,7 +87,7 @@ test("shell do dono: toda regra nova vale só para html.logado:not(.casa) (ou es
 
 test("menu por área: o registro de rotas tem a área de cada item, a ordem do registro NÃO mudou e a barra inferior sai do mesmo registro", () => {
   const R = registro(), com = R.rotas.filter((r) => r.grupo);
-  assert.equal(com.length, 31);   // 29 de antes + o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
+  assert.equal(com.length, 30);   // 29 de antes + o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) − Alimentação (saiu do menu no lote B, 21/11/2026) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
   const areas = [...R.menu.matchAll(/<h4 class="areat" data-area="([a-z]+)"[^>]*>([^<]+)<\/h4>/g)].map((m) => m[1]);
   assert.deepEqual(areas, ["hoje", "vida", "fin", "carreira", "info", "sis"]);
   for (const r of com) assert.ok(areas.includes(r.area), r.id);
@@ -149,7 +149,7 @@ test("RAC Hoje (piloto): usa o kit e o kit de gráficos declarados no MOD_DEPS, 
   const app = lerArq("js/app.js"), hoje = lerArq("js/hoje.js"), R = registro();
   assert.match(app, /hoje:\["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"\]/); assert.match(app, /componentes:\["kit","graficos"\]/);
   const dest = JSON.parse(/var HJ_DESTINO=(\{[^;]*\});/.exec(hoje)[1].replace(/([{,])([a-z]+):/g, '$1"$2":'));
-  for (const [area, href] of Object.entries(dest)) assert.ok(R.tabs.includes(href.slice(1)), `${area} aponta para ${href}, que não é rota`);
+  for (const [area, href] of Object.entries(dest)) assert.ok(R.tabs.includes(href.slice(1).split("/")[0]), `${area} aponta para ${href}, que não é rota`);   /* o primeiro trecho é a rota (alimentacao aponta para #mercado/area/delivery desde o lote B) */
   for (const f of ["hjAnalisar", "hjBotaoPago", "hjAnalise", "hjErro", "hojeAnalisar", "hojeCoordenar", "hojeReenviar", "hojePendMarcar"]) assert.match(hoje, new RegExp("function " + f + "\\("), f + " continua no módulo");
   assert.ok(!/racIA\(/.test(hoje.slice(hoje.indexOf("function hjDesenhar"), hoje.indexOf("function hjPintarHist"))), "desenhar o painel não chama a IA");
   for (const f of ["rkKpi", "rkLista", "rkComparar", "rkMedidor", "rsColunas", "rsBarras", "rkRecolher", "rkEstado", "rkAlerta"]) assert.match(hoje, new RegExp("\\b" + f + "\\("), "o painel usa " + f);

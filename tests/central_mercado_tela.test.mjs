@@ -219,12 +219,12 @@ test("dados frescos: passado o prazo, a Central relê as fontes em segundo plano
   T.lidoEm.notas = T.lidoEm.online = Date.now(); assert.equal(T.reler("central", ""), null, "dentro do prazo: não lê nada"); assert.equal(calls.length, 0);
   T.lidoEm.notas = T.lidoEm.online = 0;
   assert.equal(await T.reler("central", ""), true, "o pedido novo mudou os dados"); assert.ok(tudo().includes("Shopee"), "e aparece sem recarregar o site");
-  assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online"], "uma leitura de cada fonte");
+  assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online", "pedidos"], "uma leitura de cada fonte (notas, pedidos online e pedidos de delivery)");
   const tela = ROOT.children; T.lidoEm.notas = T.lidoEm.online = 0; calls.length = 0;
   assert.equal(await T.reler("central", ""), false, "nada mudou"); assert.equal(ROOT.children, tela, "sem redesenhar à toa");
   T.lidoEm.notas = T.lidoEm.online = 0; calls.length = 0;
   for (const v of ["notas", "produtos", "importar"]) assert.equal(T.reler(v, ""), null, v + ": tela de edição não relê"); assert.equal(calls.length, 0);
-  assert.equal(T.reler("painel", "") !== null, true, "o Painel do Mercado relê as notas"); await esperar(); assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online"], "o Painel é o motor unificado (Lote A): relê notas e pedidos online");
+  assert.equal(T.reler("painel", "") !== null, true, "o Painel do Mercado relê as notas"); await esperar(); assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online", "pedidos"], "o Painel é o motor unificado (Lote A/B): relê notas, pedidos online e pedidos de delivery");
   T.lidoEm.notas = T.lidoEm.online = 0; T.trocarSb(fakeSb(banco(), calls = []));
   const p = T.reler("central", ""); globalThis.location.hash = "#mercado/precos"; assert.equal(await p, false, "trocou de tela durante a leitura: descarta");
   await esperar();

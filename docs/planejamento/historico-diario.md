@@ -1443,3 +1443,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, lote B (área Delivery e fim da página Alimentação) e lote C (Central Fiscal como Entrada, Compras online dentro dela; mensagens de "pendente" fora da tela).
+
+## 21/11/2026 · Central de Compras: lote B, área Delivery e fim da página Alimentação (versão `2026-11-21.2`, em PR)
+
+### 1. O que fizemos
+- PR #62 (lote A) mesclado a pedido do dono. Lote B: pedidos de delivery e restaurante viram compras da Central (área Delivery, categorias Delivery e Restaurante; taxas, gorjeta e descontos como ajustes, sem ratear); a Central passa a somar o delivery.
+- A página Alimentação deixou de ser tela de consulta: ficou só a entrada do pedido (novo, editar, ver), sem item no menu; botão + Adicionar pedido na Central; links antigos abrem o painel Delivery. Tabelas, RPC, view, backup e dados intocados.
+
+### 2. O que estamos fazendo
+- PR do lote B para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone (painel Delivery, botão + Adicionar pedido, a Central com o delivery somado). Depois, lote C (Central Fiscal como Entrada, Compras online dentro dela, mensagens de "pendente" fora da tela).

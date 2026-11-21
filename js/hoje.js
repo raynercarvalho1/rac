@@ -397,7 +397,7 @@
      inventado: cada bloco usa o que a coleta e o núcleo (NUCLEO.hoje*) já entregam, e some quando a fonte não trouxe dado. A IA, o cache, a cobrança e as
      chamadas sem resultado continuam exatamente nas funções de antes (hjAnalisar, hjBotaoPago, hjAnalise, hjErro, hjPint*). ===== */
   /* o módulo dono de cada área (os ids são os do registro de rotas, js/rotas.js): cada item do painel leva para onde o dado vive */
-  var HJ_DESTINO={agenda:"#agenda",tarefas:"#lista",mba:"#mba",compras:"#compras",saude:"#saude",vagas:"#vagas",mercado:"#mercado",alimentacao:"#alimentacao",financas:"#mercado",newsletter:"#newsletter",noticias:"#inicio"};
+  var HJ_DESTINO={agenda:"#agenda",tarefas:"#lista",mba:"#mba",compras:"#compras",saude:"#saude",vagas:"#vagas",mercado:"#mercado",alimentacao:"#mercado/area/delivery",financas:"#mercado",newsletter:"#newsletter",noticias:"#inicio"};
   var HJ_NOMES_FIN={mercado:"Mercado",alimentacao:"Pedidos de comida",compras:"Compras online"};
   function hjDestino(it){if(it.href&&String(it.href).charAt(0)==="#")return it.href;var f=(it.fontes||[]).filter(function(k){return HJ_DESTINO[k]})[0];return f?HJ_DESTINO[f]:null}
   function hjPrazoTxt(it){return it.dias==null?"":it.dias<0?"atrasado há "+(-it.dias)+(it.dias===-1?" dia":" dias"):it.dias===0?"hoje":it.dias===1?"amanhã":"em "+it.dias+" dias"}

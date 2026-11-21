@@ -1489,3 +1489,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, limpeza do código obsoleto das telas que saíram, se quiser.
+
+## 21/11/2026 · Central de Compras: lote F, tela mais direta (versão `2026-11-21.6`, em PR)
+
+### 1. O que fizemos
+- PR #65 (lotes D e E) mesclado. Lote F, a pedido do dono: Últimas compras (3) no topo, números do mês logo depois, filtros abaixo, análises longas recolhidas, cabeçalho curto e + Adicionar nota abrindo a Central Fiscal (a página antiga em demonstração deixou de ser aberta). Só exibição; sem SQL.
+
+### 2. O que estamos fazendo
+- PR do lote F para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, limpeza do código obsoleto (inclui a função da foto antiga), se quiser.

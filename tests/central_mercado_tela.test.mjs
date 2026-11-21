@@ -94,7 +94,7 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
 
 test("a casa (Fernanda) vê as páginas de mercado (12/11/2026) e, desde 16/11/2026, o Radar e a junção de produtos igual ao dono; nada é gravado só por abrir", async () => {
   Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); let calls = await abrir("central", "", { dono: false, cu: { per: "tudo" } }); let t = tudo();
-  for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Última compra"]) assert.ok(t.includes(x), x);
+  for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Últimas compras"]) assert.ok(t.includes(x), x);
   assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length >= 1, "ela navega para as páginas");
   calls = calls.concat(await abrir("estabelecimento", "Amazon", { dono: false, cu: { per: "tudo" } })); t = tudo(); assert.ok(t.includes("Comparação com outros estabelecimentos") && t.includes("Produtos comprados aqui"));
   calls = calls.concat(await abrir("categoria", "Padaria", { dono: false, cu: { per: "tudo" } })); t = tudo();

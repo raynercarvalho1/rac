@@ -357,7 +357,7 @@ test("Lote A · uma área criada depois ganha o painel do molde sozinha (mesmos 
   let cfg = N.arAssociar(N.arAreaCriar(N.arConfig(null), "Pet shop").cfg, "Pet", "pet-shop").cfg;
   ambiente({ pessoal: { "mercado-areas": N.arRaw(cfg) } }); T.CU.per = "2026-11"; T.st.mes = "2026-11";
   const t = texto(painelArea("pet-shop"));
-  for (const x of ["Área de consumo", "Pet shop", "Gasto em novembro 2026", "Compras no mês", "Itens comprados", "Por canal", "Última compra", "Por mercado", "Mês a mês", "Por categoria", "O que mais pesou", "Explorar por categoria", "Comparar períodos", "Preços que mais mudaram"]) assert.ok(t.includes(x), x);
+  for (const x of ["Área de consumo", "Pet shop", "Gasto em novembro 2026", "Compras no mês", "Itens comprados", "Por canal", "Últimas compras", "Por mercado", "Mês a mês", "Por categoria", "O que mais pesou", "Explorar por categoria", "Comparar períodos", "Preços que mais mudaram"]) assert.ok(t.includes(x), x);
   assert.ok(t.includes(BRL(102)) && /Ração Golden/.test(t) && !/Arroz|Dipirona/.test(t), "só os itens da área, no valor líquido do item");
   assert.ok(texto(RAIZ) !== undefined && N.arResumo(unif(), cfg, {}).total === N.arResumo(unif(), cfgPadrao(), {}).total, "a Central não muda");
 });

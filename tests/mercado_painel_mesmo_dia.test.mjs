@@ -95,9 +95,9 @@ test("mês fechado: compara o mês inteiro com o mês anterior inteiro", () => {
   T.hoje(null);
 });
 
-test("regressão: o resto do Painel continua (por mercado, por categoria, mês a mês, última compra) e nada é gravado", () => {
+test("regressão: o resto do Painel continua (por mercado, por categoria, mês a mês, últimas compras) e nada é gravado", () => {
   const t = texto(painel("2026-11-08"));
-  for (const f of ["Por mercado", "Por categoria", "Mês a mês", "Última compra", "O que mais pesou", "Total desde outubro"]) assert.ok(t.includes(f), f);
+  for (const f of ["Por mercado", "Por categoria", "Mês a mês", "Últimas compras", "O que mais pesou", "Total desde outubro"]) assert.ok(t.includes(f), f);
   const mk = ler("mercado.js"), a = mk.indexOf("function viewPainel"), b = mk.indexOf("function agruparProdutos");
   assert.ok(!/\.(insert|update|delete|upsert)\(|\.rpc\(/.test(mk.slice(a, b)));
   assert.ok(!fs.existsSync(new URL("../supabase/propostas/042_painel_mesmo_dia.sql", import.meta.url)), "sem migration");

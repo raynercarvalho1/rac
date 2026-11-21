@@ -7,7 +7,7 @@
 //  - O token de acesso vive só na closure desta chamada; nada é registrado. Toda falha vira código fechado ("autenticacao_recusada", "http_NNN", "canal_falhou", …).
 import type { Http } from "./oauth.ts";
 import type { ResultadoWorker, Worker } from "./servico.ts";
-import { htmlParaTexto, MAX_ANEXO_BYTES, type BancoGmail, type End } from "./gmail.ts";
+import { erroDeEnvio, htmlParaTexto, lerPedidoEnvio, MAX_ANEXO_BYTES, type BancoGmail, type End } from "./gmail.ts";
 
 const API = "https://graph.microsoft.com/v1.0/me/";
 export const UIDVALIDITY_OUTLOOK = 1;
@@ -165,7 +165,33 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
       const r = await escrever("POST", `messages/${enc(id)}/move`, { destinationId: destino }, "acao_recusada", "acao_incerta");
       return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r;
     }
-    return { ok: false, erro: "operacao_desconhecida" };   // envio é o passo seguinte desta entrega (enviar); nada mais escreve aqui
+
+    /* ---- ENVIAR (o mesmo verbo que envio.ts usa com o Worker do iCloud): UMA tentativa; sem confirmação clara = envio_incerto, que o envio.ts nunca repete.
+       Mensagem nova e encaminhar: sendMail (202 sem corpo = sucesso). Resposta: createReply → PATCH com o texto do dono → send (a conversa fica agrupada). A Graph não deixa definir o Message-ID. ---- */
+    if (operacao === "enviar") {
+      const p = lerPedidoEnvio(pedido); if (!p) return { ok: false, erro: "destinatario_invalido" };
+      const dest = (l: string[]) => l.map((a) => ({ emailAddress: { address: a } }));
+      const msg = { subject: p.assunto.replace(/[\r\n]+/g, " "), body: { contentType: "Text", content: p.texto }, toRecipients: dest(p.para), ccRecipients: dest(p.cc), bccRecipients: dest(p.cco) };
+      let origem = "";
+      if (p.em_resposta_a) {   // a mensagem original, pelo Message-ID; sem achar, envia como nova (não falha por causa da conversa)
+        const b = await api(`messages?$filter=${enc("internetMessageId eq '" + p.em_resposta_a + "'")}&$select=id&$top=1`);
+        const id = b.ok ? str(obj(arr(b.j.value)[0])?.id) : ""; if (RE_ID.test(id)) origem = id;
+      }
+      if (!origem) {
+        const r = await escrever("POST", "sendMail", { message: msg, saveToSentItems: true }, "envio_recusado", "envio_incerto");
+        return r.ok ? { ok: true, dados: { resultado: "enviado" } } : { ok: false, erro: erroDeEnvio(r.erro) };
+      }
+      const c = await escrever("POST", `messages/${enc(origem)}/createReply`, null, "envio_recusado", "envio_recusado");   // ainda nada saiu: qualquer falha aqui é confirmada
+      const rascunho = c.ok ? str(c.j.id) : ""; if (!c.ok || !RE_ID.test(rascunho)) return { ok: false, erro: erroDeEnvio(c.ok ? "envio_recusado" : c.erro) };
+      const limpar = async () => { await escrever("DELETE", `messages/${enc(rascunho)}`, null, "envio_recusado", "envio_recusado"); };   // só o rascunho que ESTE envio criou; melhor esforço
+      const u = await escrever("PATCH", `messages/${enc(rascunho)}`, msg, "envio_recusado", "envio_recusado");
+      if (!u.ok) { await limpar(); return { ok: false, erro: erroDeEnvio(u.erro) }; }
+      const e = await escrever("POST", `messages/${enc(rascunho)}/send`, null, "envio_recusado", "envio_incerto");
+      if (e.ok) return { ok: true, dados: { resultado: "enviado" } };
+      if (e.erro !== "envio_incerto") await limpar();   // recusa confirmada: não sobra rascunho; incerto: PODE ter saído, o rascunho fica
+      return { ok: false, erro: erroDeEnvio(e.erro) };
+    }
+    return { ok: false, erro: "operacao_desconhecida" };   // nada mais escreve aqui
   }
   return { executar: (op, ped) => executar(op, ped) };
 }

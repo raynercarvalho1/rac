@@ -98,6 +98,44 @@ export function corpoDaMensagem(ps: Parte[]): { texto: string; formato: "texto" 
   return { texto: "", formato: "sem_corpo", truncado: false };
 }
 
+/* ---------- montar a mensagem para ENVIAR (RFC 822): o Gmail recebe o MIME inteiro em base64url ---------- */
+export interface PedidoEnvio { de: string; para: string[]; cc: string[]; cco: string[]; assunto: string; texto: string; message_id: string; data: string; em_resposta_a?: string; referencias?: string[] }
+const utf8 = new TextEncoder();
+const base64 = (b: Uint8Array): string => { let s = ""; for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode(...b.subarray(i, i + 8192)); return btoa(s); };
+const base64url = (t: string): string => base64(utf8.encode(t)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const RE_ENDERECO = /^[^\s<>",;]+@[^\s<>",;]+$/;
+/* assunto: quebra de linha vira espaço (nada injeta cabeçalho); ASCII passa como está; o resto vai em palavras codificadas de até 36 bytes (linhas curtas, letras nunca partidas) */
+function assuntoMime(v: string): string {
+  const t = v.replace(/[\r\n]+/g, " ");
+  if (/^[\x20-\x7e]*$/.test(t)) return t;
+  const partes: string[] = []; let atual = "", bytes = 0;
+  for (const ch of t) { const n = utf8.encode(ch).length; if (bytes + n > 36) { partes.push(atual); atual = ""; bytes = 0; } atual += ch; bytes += n; }
+  if (atual) partes.push(atual);
+  return partes.map((p) => "=?UTF-8?B?" + base64(utf8.encode(p)) + "?=").join("\r\n ");
+}
+/* o pedido de envio do envio.ts, conferido (endereços, Message-ID, data); null = recusado ANTES de qualquer chamada. Compartilhado com o Outlook. */
+const RE_MSGID_ENVIO = /^<[^<>\s]{1,250}>$/;
+export function lerPedidoEnvio(p: Record<string, unknown>): PedidoEnvio | null {
+  const lista = (v: unknown): string[] | null => (Array.isArray(v) && v.length <= 60 && v.every((x) => typeof x === "string" && x.length <= 254 && RE_ENDERECO.test(x)) ? (v as string[]) : null);
+  const para = lista(p.para), cc = lista(p.cc ?? []), cco = lista(p.cco ?? []), de = str(p.de), id = str(p.message_id), orig = str(p.em_resposta_a);
+  if (!para || !para.length || !cc || !cco || !RE_ENDERECO.test(de) || !RE_MSGID_ENVIO.test(id) || !Number.isFinite(Date.parse(str(p.data)))) return null;
+  return { de, para, cc, cco, assunto: str(p.assunto), texto: str(p.texto), message_id: id, data: str(p.data),
+    ...(RE_MSGID_ENVIO.test(orig) ? { em_resposta_a: orig, referencias: arr(p.referencias).map(str).filter((x) => RE_MSGID_ENVIO.test(x)).slice(-10) } : {}) };
+}
+/* códigos de erro do envio que o envio.ts entende (falha confirmada x incerto) */
+export const erroDeEnvio = (e: string): string => (e === "autenticacao_recusada" ? "smtp_autenticacao_recusada" : e === "mensagem_inexistente" ? "envio_recusado" : e);
+
+export function montarMime(p: PedidoEnvio): string {
+  const l = [`From: ${p.de}`, `To: ${p.para.join(", ")}`];
+  if (p.cc.length) l.push(`Cc: ${p.cc.join(", ")}`);
+  if (p.cco.length) l.push(`Bcc: ${p.cco.join(", ")}`);
+  l.push(`Subject: ${assuntoMime(p.assunto)}`, `Date: ${new Date(p.data).toUTCString().replace("GMT", "+0000")}`, `Message-ID: ${p.message_id}`);
+  if (p.em_resposta_a) { l.push(`In-Reply-To: ${p.em_resposta_a}`); if (p.referencias?.length) l.push(`References: ${p.referencias.join(" ")}`); }
+  l.push("MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64");
+  const corpo = (base64(utf8.encode(p.texto.replace(/\r?\n/g, "\r\n"))).match(/.{1,76}/g) ?? []).join("\r\n");
+  return l.join("\r\n") + "\r\n\r\n" + corpo;
+}
+
 /* ---------- resumo (esquema de sync.ts) ---------- */
 const iso = (ms: unknown): string | null => { const n = Number(ms); return Number.isFinite(n) && n > 0 ? new Date(n).toISOString().replace(/\.\d{3}Z$/, ".000Z") : null; };
 function resumoDe(m: Obj, uid: number, ext: string): Obj {
@@ -238,7 +276,20 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
       const r = await escrever(`messages/${id}/modify`, { addLabelIds: rot.adicionar, removeLabelIds: rot.remover }, "acao_recusada", "acao_incerta");
       return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r;
     }
-    return { ok: false, erro: "operacao_desconhecida" };   // envio é o lote seguinte desta entrega (enviar); nada mais escreve aqui
+
+    /* ---- ENVIAR (o mesmo verbo que envio.ts usa com o Worker do iCloud): UMA tentativa; sem confirmação clara = envio_incerto, que o envio.ts nunca repete ---- */
+    if (operacao === "enviar") {
+      const p = lerPedidoEnvio(pedido); if (!p) return { ok: false, erro: "destinatario_invalido" };
+      let threadId = "";
+      if (p.em_resposta_a) {   // a conversa: achada pelo Message-ID; sem achar, o envio segue só com os cabeçalhos de resposta
+        const b = await api(`messages?maxResults=1&q=${enc("rfc822msgid:" + p.em_resposta_a.slice(1, -1))}`);
+        if (b.ok) threadId = str(obj(arr(b.j.messages)[0])?.threadId);
+      }
+      const r = await escrever("messages/send", { raw: base64url(montarMime(p)), ...(threadId ? { threadId } : {}) }, "envio_recusado", "envio_incerto");
+      if (!r.ok) return { ok: false, erro: erroDeEnvio(r.erro) };
+      return { ok: true, dados: { resultado: "enviado" } };
+    }
+    return { ok: false, erro: "operacao_desconhecida" };   // nada mais escreve aqui
   }
   return { executar: (op, ped) => executar(op, ped) };
 }

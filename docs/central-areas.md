@@ -37,8 +37,8 @@ A Fernanda tem acesso integral à Central de Compras: vê a Central e todos os p
 - Preços, Consumo, Comparar e Produtos ainda listam todas as categorias; filtrar por área neles é um próximo lote, se o dono quiser.
 - Categorias do pedido online ficam sem frete por área (decisão financeira acima); subcategoria online continua inexistente.
 
-## Lote A · desenho (21/11/2026) — PLANEJADO, NÃO IMPLEMENTADO
-Aguarda aprovação do dono. Parte da navegação do PR #61 (Central e áreas na caixa grande).
+## Lote A · motor único de painel (21/11/2026) — IMPLEMENTADO EM CÓDIGO, em PR, NÃO mesclado e NÃO publicado
+Desenho aprovado pelo dono em 21/11/2026; parte da navegação do PR #61 (já mesclado). O texto abaixo é o desenho; a seção "Como ficou" resume o que foi feito.
 
 **Intenção.** Eu e a Fernanda vermos todas as compras da casa. Cada área (Mercado, Automotivo, Farmácia, Bebê/Infantil e as futuras) tem um painel com a cara e as funções do Painel do Mercado; a Central é o mesmo painel sem filtro de área, somando tudo.
 **Metas.** (1) Um só motor de painel para todas as áreas e para a Central. (2) Fonte única: notas + pedidos online (`cuUnificar`), sem duplicar. (3) Área criada depois ganha o painel sozinha. (4) Comparação de dois períodos livres e variação de preço por produto. (5) A Central mostra a conta fechando: áreas + não classificados + ajustes = total.
@@ -60,3 +60,12 @@ Aguarda aprovação do dono. Parte da navegação do PR #61 (Central e áreas na
 **Passos, cada um com testes.** (1) Teste de regressão (fixture com a saída atual do Painel) e adaptador `cmLinhas` com `desconto`. (2) Motor parametrizado + Mercado, Automotivo, Farmácia, Bebê. (3) Central no motor + quadro "Por área" + remoção do código duplicado. (4) Comparação de períodos e variação de preço. Documentação, histórico e RAC Knowledge no fim.
 **Prova de que nada mudou:** Mercado só com notas e todas as categorias de Mercado = saída idêntica à do Painel de hoje; Σ áreas + não classificados + ajustes = Central; nenhum item duplicado.
 **Fica para quem constrói.** Layout fino no iPhone, textos de ajuda, nomes internos, divisão em commits.
+
+### Como ficou (Lote A, versão `2026-11-21.1`)
+- **Motor único:** `viewPainel` (era o Painel do Mercado) recebe `PN.area` (`mercado`, outra área, `nao-classificados` ou `""` = Central) e usa como fonte `cmLinhas(arCompras(compras unificadas, área))`. Mercado, Automotivo, Farmácia, Bebê/Infantil, as áreas criadas depois e a Central são **o mesmo painel**; `#mercado/painel` abre `#mercado/area/mercado`. A `viewCentral` antiga e `detalheGrupo` saíram; `viewCentral` é só `PN.area=""` + o motor.
+- **Fonte única:** notas + pedidos online (`cuUnificar`, sem duplicar). `cmLinhas` ganhou `desconto`, `forma_pagamento` e `emissor`; nenhum total mudou. Compra aberta no painel mostra o detalhe unificado (itens com categoria, a conta, o canal editável e "Abrir a nota em Notas"); o painel **não apaga** nota (a nota pode estar só em parte na área); apagar continua em Notas.
+- **Telas de área e Central** (`PN.cab`): cabeçalho da área, filtros de canal, estabelecimento e categoria, períodos mês, 12 meses e Tudo (`CU.per`), indicador "Por canal", Explorar por categoria/estabelecimento, Oportunidades de economia, **Preços que mais mudaram** (variação primeira → última compra, `mkcPrecos`) e **Comparar períodos** (o comparador de dois períodos livres `viewComparar`, agora parametrizado por linhas e estado, só com as categorias da área).
+- **Central:** gasto = valor pago das compras, **com os ajustes dos pedidos** (frete, taxas, desconto geral; dito no indicador); "Por área de consumo" com a conta Σ áreas + não classificados + ajustes = total; conferência dos totais e aviso de duplicidade possível; o "Mês a mês" da Central usa o valor das compras. Nas áreas o gasto é só a soma dos itens.
+- **Prova de que nada mudou:** `tests/painel_molde.test.mjs` compara 6 cenários do Painel do Mercado de antes (`tests/fixtures/areas/painel_mercado_antes.json`, gravada do código anterior) com o motor novo: texto idêntico. Mudanças de tela pedidas depois (e só elas): link "Abrir a categoria/o estabelecimento" no detalhe de barra e o detalhe unificado da compra aberta.
+- **Mudanças de comportamento conhecidas:** a lista de produtos abre a página do produto (`#mercado/produto/<nome>`, um bloco por unidade) em vez da aba Preços; Painel e áreas leem também os pedidos online; a navegação perdeu "Painel do Mercado" na faixa de baixo (virou a área Mercado). Preços, Consumo e Comparar (faixa de baixo) continuam sobre as notas, com todo o catálogo.
+- **Fora do lote:** Delivery e fim da Alimentação (lote B); Central Fiscal como Entrada e Compras online (lote C). Sem migration, SQL ou Edge Function.

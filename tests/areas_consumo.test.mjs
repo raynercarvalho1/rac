@@ -335,3 +335,37 @@ test("navegação: a caixa grande tem Central e as áreas; Preços, Consumo, Com
     T.st.mes = "2026-11"; T.st.kpi = "mes"; T.st.pick = null; T.drawApp("painel"); assert.deepEqual(achar(nav("Central de Compras"), (e) => e.attrs["aria-current"] === "page").map(texto), ["Mercado"], "o endereço antigo do Painel do Mercado abre a área Mercado");
   }
 });
+
+// ---------- Lote A: o motor único nas áreas e na Central ----------
+test("Lote A · Central: o gasto é o valor pago (com os ajustes dos pedidos), o mês a mês bate com o gasto e a conta das áreas fecha", () => {
+  ambiente(); Object.assign(T.st, { mes: "2026-11" });
+  const b = new El("div"); T.viewCentral(b); const t = texto(b), total = 40 + 12.5 + 55 + 30 + 22.9 + 547.09 + 19.9 + 30 + 100 + 115 + 30;
+  assert.ok(t.includes("Gasto em novembro 2026 " + BRL(total)), "o gasto da Central é o total da Central");
+  assert.ok(t.includes("inclui +" + BRL(13)) || /inclui \+R\$\s*13,00/.test(t), "diz quanto vem de frete, taxas e descontos gerais");
+  assert.ok(t.includes("Total da Central no período: " + BRL(total)), "a conta por área fecha com o mesmo total");
+  const col = achar(b, (e) => e.tag === "button" && /\bvb\b/.test(e.className || "") && /nov\/26/.test(texto(e)))[0]; assert.ok(texto(col).includes(Math.round(total).toLocaleString("pt-BR")), "a coluna de novembro é o gasto");
+  assert.ok(/Por canal/.test(t) && /Conferência dos totais/.test(t) && /Comparar períodos/.test(t) && /Preços que mais mudaram/.test(t));
+});
+test("Lote A · Central com 12 meses e Tudo: período novo no mesmo painel, sem comparação com o mês anterior", () => {
+  for (const per of ["12m", "tudo"]) {
+    ambiente(); T.CU.per = per; const b = new El("div"); T.viewCentral(b); const t = texto(b);
+    assert.ok(per === "12m" ? /Gasto nos últimos 12 meses/.test(t) : /Gasto em todo o histórico/.test(t), per); assert.ok(/Compras no período/.test(t) && !/Até o dia/.test(t), "sem comparação de mês");
+    assert.ok(/Total da Central no período/.test(t));
+  }
+});
+test("Lote A · uma área criada depois ganha o painel do molde sozinha (mesmos blocos do Mercado)", () => {
+  let cfg = N.arAssociar(N.arAreaCriar(N.arConfig(null), "Pet shop").cfg, "Pet", "pet-shop").cfg;
+  ambiente({ pessoal: { "mercado-areas": N.arRaw(cfg) } }); T.CU.per = "2026-11"; T.st.mes = "2026-11";
+  const t = texto(painelArea("pet-shop"));
+  for (const x of ["Área de consumo", "Pet shop", "Gasto em novembro 2026", "Compras no mês", "Itens comprados", "Por canal", "Última compra", "Por mercado", "Mês a mês", "Por categoria", "O que mais pesou", "Explorar por categoria", "Comparar períodos", "Preços que mais mudaram"]) assert.ok(t.includes(x), x);
+  assert.ok(t.includes(BRL(102)) && /Ração Golden/.test(t) && !/Arroz|Dipirona/.test(t), "só os itens da área, no valor líquido do item");
+  assert.ok(texto(RAIZ) !== undefined && N.arResumo(unif(), cfg, {}).total === N.arResumo(unif(), cfgPadrao(), {}).total, "a Central não muda");
+});
+test("Lote A · cada painel de área traz o comparador de períodos e o quadro de variação de preço só com os itens da área", () => {
+  ambiente(); T.CU.per = "tudo";
+  const m = texto(painelArea("mercado"));
+  assert.ok(/Comparar períodos/.test(m) && /Período A/.test(m) && /Período B/.test(m), "dois períodos livres");
+  assert.ok(/Arroz R\$ 38,00 → R\$ 40,00 · 2 compras · un ▲ \+5,3%/.test(m), "variação do preço do arroz entre outubro e novembro: " + (m.match(/Preços que mais mudaram.{0,260}/) || [""])[0]);
+  const f = texto(painelArea("farmacia")); assert.ok(!/Arroz/.test(f) && /Comparar períodos/.test(f), "a Farmácia não vê produtos do Mercado");
+  assert.ok(!/Mercearia|Automotivo/.test(f.replace(/Gerenciar categorias e áreas/, "")), "o comparador da área só lista as categorias da área");
+});

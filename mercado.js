@@ -202,7 +202,7 @@
     return fr;
   }
   /* o período do motor: no Painel e nas áreas, um mês (st.mes); nas telas de área e na Central também "12m" e "tudo" (CU.per, compartilhado com as páginas de categoria, produto e estabelecimento) */
-  function rotPer() { return PN.cab && (CU.per === "12m" || CU.per === "tudo") ? (CU.per === "12m" ? "os últimos 12 meses" : "todo o histórico") : MESES[+st.mes.slice(5) - 1]; }
+  function rotPer() { return PN.cab && (CU.per === "12m" || CU.per === "tudo") ? (CU.per === "12m" ? "12 meses" : "todo o histórico") : MESES[+st.mes.slice(5) - 1]; }
   function viewPainel(body) {
     if (PN.cab && onl === null) { aguardarOnline(body, PN.rota, PN.arg); return; }
     var N0 = NU();
@@ -279,7 +279,7 @@
     kCompras.appendChild(h("div", { class: "kmerc" }, porMercado.map(function (x) { return h("span", { text: semCidade(x.m).split(" ")[0] + " " + x.n }); })));
     var kItens = kpi("Itens comprados", String(doMes.length), desc ? money(desc) + " em descontos" : "sem descontos registrados", "", abrir("mes"), st.kpi === "mes");
     if (perMes) kItens.appendChild(h("span", { class: "kn", text: cmpLinha(rc.itens, rp.itens, "item", "itens") }));
-    var kCanal = null, kGasto = kpi(perMes ? "Gasto em " + mesNome(st.mes) : "Gasto em " + rotPer(), money(gastoTot), gNota, gCls, abrir("mes"), st.kpi === "mes");
+    var kCanal = null, kGasto = kpi(perMes ? "Gasto em " + mesNome(st.mes) : CU.per === "12m" ? "Gasto nos últimos 12 meses" : "Gasto em todo o histórico", money(gastoTot), gNota, gCls, abrir("mes"), st.kpi === "mes");
     if (ajCentral) kGasto.appendChild(h("span", { class: "kn", text: "inclui " + sinalMoney(ajCentral) + " de frete, taxas e descontos gerais dos pedidos" }));
     if (PN.cab) {
       var cn = { presencial: { n: 0, t: 0 }, online: { n: 0, t: 0 } };
@@ -323,6 +323,9 @@
     body.appendChild(g2);
     if (PN.cab) {   /* análises das telas de área e da Central: onde se compra e as oportunidades de economia */
       body.appendChild(painelExplorar(Nn.cuFiltrar(pnDados().base, { de: fPer.de, ate: fPer.ate, canal: CU.canal }))); body.appendChild(painelOportunidades(pnDados().base));
+      body.appendChild(painelVariacaoPreco(linhasPainel()));
+      var dcmp = h("details", { class: "mknota mk-cmpdet" }, h("summary", null, h("span", { class: "mkn" }, h("b", { text: "Comparar períodos" }), h("span", { class: "sub", text: " · dois períodos livres, nesta área" }))));
+      var cmpBox = h("div", { class: "stack" }); viewComparar(cmpBox, linhasPainel(), "cmp:" + PN.area, repinta); dcmp.appendChild(cmpBox); body.appendChild(dcmp);
       if (PN.area === "") blocosCentral(body, { de: fPer.de, ate: fPer.ate, canal: CU.canal, estab: CU.estab });
     }
     /* voltando do gráfico de um produto: volta para o mesmo ponto do painel */
@@ -364,6 +367,18 @@
     mostrar(false);
     p.appendChild(h("div", { class: "vfil" }, ver));
     p.appendChild(lista);
+    return p;
+  }
+  /* produtos cujo preço pago mais mudou (primeira → última compra, mesma unidade), só com 2 compras ou mais; cada um abre a página do produto */
+  function painelVariacaoPreco(linhas) {
+    var N = NU(), lista = N.mkcPrecos(linhas).filter(function (x) { return x.varTotal != null && x.compras.length > 1; }).sort(function (a, b) { return Math.abs(b.varTotal) - Math.abs(a.varTotal) || (a.nome < b.nome ? -1 : 1); }).slice(0, 8);
+    var p = panel("Preços que mais mudaram", "Preço unitário pago: primeira compra × última, na mesma unidade (kg, L, un). Toque num produto para ver o histórico e onde ficou mais barato.");
+    if (!lista.length) { p.appendChild(h("p", { class: "empty", text: "Ainda não há produto comprado mais de uma vez com preço diferente." })); return p; }
+    p.appendChild(h("div", { class: "plst" }, lista.map(function (x) {
+      return h("a", { class: "plr", href: linkProd(x.nome), title: "Ver " + x.nome },
+        h("span", { class: "pln" }, h("b", { text: x.nome }), h("span", { class: "sub", text: money(x.pri.valor_unitario) + " → " + money(x.ult.valor_unitario) + " · " + x.compras.length + " compras · " + unRot(x.unidade) })),
+        h("span", { class: "plt " + (x.varTotal > 0 ? "up" : x.varTotal < 0 ? "down" : ""), text: (x.varTotal > 0 ? "▲ +" : x.varTotal < 0 ? "▼ −" : "= ") + PCT.format(Math.abs(x.varTotal)) }));
+    })));
     return p;
   }
   /* Detalhe aberto ao clicar numa barra de mercado ou de categoria */
@@ -867,12 +882,13 @@
     });
     return tb;
   }
-  function viewComparar(body) {
+  function viewComparar(body, src, chave, refaz) {
+    var RW = src || rows, CH = chave || "cmp";   /* src/chave/refaz: o mesmo comparador dentro de um painel de área (Lote A) usa as linhas e o estado da área */
     var N = NU(), hoje = new Date().toISOString().slice(0, 10);
     function novo(id) { var a = N.mkcAtalho(id, hoje); return { atalho: id, a: a.a, b: a.b, categoria: "", mercado: "", produto: "", lista: "todos", prod: null, ordP: { k: -1, d: -1 }, ordM: { k: -1, d: -1 }, todos: false }; }
-    var c = st.cmp = st.cmp || novo("mes");
-    var mercs = Object.keys(groupBy(rows, function (x) { return x.mercado; })).sort();
-    var cats = N.MK_CATEGORIAS.slice(); rows.forEach(function (x) { var k = catOf(x.categoria); if (cats.indexOf(k) < 0) cats.push(k); });
+    var c = st[CH] = st[CH] || novo("mes");
+    var mercs = Object.keys(groupBy(RW, function (x) { return x.mercado; })).sort();
+    var cats = src ? [] : N.MK_CATEGORIAS.slice(); RW.forEach(function (x) { var k = catOf(x.categoria); if (cats.indexOf(k) < 0) cats.push(k); });
     var top = panel("Comparar períodos", "A é o período analisado e B é o de comparação (a base). Diferença = A − B; variação = (A − B) ÷ B. Os mesmos filtros valem para os dois.");
     var selA = h("select", { "aria-label": "Atalho de períodos" }, [["mes", "Este mês × mês anterior"], ["30d", "Últimos 30 dias × 30 dias anteriores"], ["3m", "Últimos 3 meses × 3 meses anteriores"], ["6m", "Últimos 6 meses × 6 meses anteriores"], ["custom", "Escolha personalizada"]]
       .map(function (o) { return h("option", { value: o[0], selected: c.atalho === o[0] ? "" : null, text: o[1] }); }));
@@ -893,13 +909,13 @@
     var busca = h("input", { type: "search", placeholder: "Buscar produto", "aria-label": "Buscar produto", value: c.produto, autocomplete: "off" });
     busca.addEventListener("input", function () { c.produto = busca.value; c.prod = null; draw(); });
     var limpar = h("button", { type: "button", class: "ghostbtn", text: "Limpar filtros" });
-    limpar.onclick = function () { st.cmp = null; drawApp("comparar"); };
+    limpar.onclick = function () { st[CH] = null; if (refaz) refaz(); else drawApp("comparar"); };
     top.appendChild(h("div", { class: "vfil" }, selA));
     top.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Período A" }), da[0], h("span", { class: "sub", text: "até" }), da[1]));
     top.appendChild(h("div", { class: "vfil" }, h("span", { class: "sub", text: "Período B" }), db[0], h("span", { class: "sub", text: "até" }), db[1]));
     top.appendChild(h("div", { class: "vfil" }, selCat, selMerc, busca, limpar));
     /* exporta os períodos A e B, os filtros e a lista de produtos escolhida abaixo */
-    var exCm = blocoExportar(function () { return N.mkxComparar(rows, c.a, c.b, { categoria: c.categoria, mercado: c.mercado, produto: c.produto }, { hoje: hojeLocal(), lista: c.lista }); });
+    var exCm = blocoExportar(function () { return N.mkxComparar(RW, c.a, c.b, { categoria: c.categoria, mercado: c.mercado, produto: c.produto }, { hoje: hojeLocal(), lista: c.lista }); });
     top.appendChild(exCm.el);
     body.appendChild(top);
     var out = h("div", { class: "stack" }); body.appendChild(out);
@@ -908,8 +924,8 @@
       selA.value = c.atalho; selCat.value = c.categoria; selMerc.value = c.mercado;
       da[0].value = c.a.de; da[1].value = c.a.ate; db[0].value = c.b.de; db[1].value = c.b.ate;
       out.innerHTML = ""; exCm.atualizar();
-      var f = { categoria: c.categoria, mercado: c.mercado, produto: c.produto };
-      var r = N.mkcComparar(rows, c.a, c.b, f);
+      var f = { categoria: c.categoria, mercado: c.mercado, produto: c.produto, soPresentes: !!src };   /* na área só as categorias que têm compras */
+      var r = N.mkcComparar(RW, c.a, c.b, f);
       if (!r.ok) { out.appendChild(h("div", { class: "panel" }, h("p", { class: "qrwarn", text: r.erro }))); return; }
       var G = r.geral, rotA = dataBR(r.a.de) + " a " + dataBR(r.a.ate) + " · " + r.a.dias + (r.a.dias === 1 ? " dia" : " dias"), rotB = dataBR(r.b.de) + " a " + dataBR(r.b.ate) + " · " + r.b.dias + (r.b.dias === 1 ? " dia" : " dias");
       var avisos = h("div");

@@ -3152,7 +3152,7 @@
     var geral={total:mkcMetric(sa.total,sb.total),porDia:mkcMetric(sa.porDia,sb.porDia),compras:mkcMetric(sa.compras,sb.compras),itens:mkcMetric(sa.itens,sb.itens),produtos:mkcMetric(sa.produtos,sb.produtos),
       ticket:mkcMetric(sa.ticket,sb.ticket),qtd:Object.keys(un).sort().map(function(u){return {unidade:u,m:mkcMetric(sa.qtd[u]||0,sb.qtd[u]||0)}})};
     /* categorias: as oficiais (mesmo sem compra) + qualquer outra com compra */
-    var ca=flt(A,{categoria:1}),cb=flt(B,{categoria:1}),ta=mkcSomaV(ca),tb=mkcSomaV(cb),cn=MK_CATEGORIAS.slice(),ga=mkcAgrupa(ca,function(x){return mkCatOficial(x.categoria)||"Outros"}),gb=mkcAgrupa(cb,function(x){return mkCatOficial(x.categoria)||"Outros"});
+    var ca=flt(A,{categoria:1}),cb=flt(B,{categoria:1}),ta=mkcSomaV(ca),tb=mkcSomaV(cb),cn=f.soPresentes?[]:MK_CATEGORIAS.slice(),ga=mkcAgrupa(ca,function(x){return mkCatOficial(x.categoria)||"Outros"}),gb=mkcAgrupa(cb,function(x){return mkCatOficial(x.categoria)||"Outros"});
     ga.o.concat(gb.o).forEach(function(c){if(cn.indexOf(c)<0)cn.push(c)});
     var categorias=cn.map(function(c){var a=mkcSomaV(ga.m[c]||[]),b=mkcSomaV(gb.m[c]||[]),pa=ta?a/ta:0,pb=tb?b/tb:0;
       return {categoria:c,m:mkcMetric(a,b),partA:pa,partB:pb,dPart:pa-pb,produtosA:mkcAgrupa(ga.m[c]||[],mkcChaveProd).o.length,produtosB:mkcAgrupa(gb.m[c]||[],mkcChaveProd).o.length}})

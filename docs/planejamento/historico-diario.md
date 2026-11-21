@@ -1430,3 +1430,16 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: revisar, mesclar e conferir no iPhone.
+
+## 21/11/2026 · Central de Compras: lote A, motor único de painel (versão `2026-11-21.1`, em PR)
+
+### 1. O que fizemos
+- PR #61 (navegação) mesclado em 21/11/2026 (decisão do dono). Corrigido o teste do Inbox `inbox_menu_contas`, que quebrava na virada do dia (relógio fixo).
+- Lote A (desenho aprovado pelo dono): o Painel do Mercado virou o motor único de painel, com área e fonte unificada (notas + pedidos online). Mercado, Automotivo, Farmácia, Bebê/Infantil, áreas novas e a Central usam o mesmo painel; Central com gasto incluindo ajustes de pedidos, "Por área", "Por canal" e conferência; períodos 12 meses e Tudo; comparação de dois períodos livres e variação de preço por produto em cada painel.
+- Teste de regressão com a saída do Painel de antes (6 cenários idênticos); testes de áreas, Central e comparação atualizados. Sem migration, SQL, função ou regra financeira alterada.
+
+### 2. O que estamos fazendo
+- PR do lote A para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, lote B (área Delivery e fim da página Alimentação) e lote C (Central Fiscal como Entrada, Compras online dentro dela; mensagens de "pendente" fora da tela).

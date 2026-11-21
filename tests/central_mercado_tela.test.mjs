@@ -85,7 +85,7 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
   for (const x of ["Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia"]) assert.ok(t.includes(x), x);
   for (const h of ["#mercado/categoria/Pet", "#mercado/categoria/Padaria", "#mercado/estabelecimento/Amazon", "#mercado/estabelecimento/Tauste", "#mercado/estabelecimento/Confian%C3%A7a"]) assert.equal(links(h).length, 1, h);
   assert.ok(t.includes("Mais barato em Confiança") && t.includes(BRL(r2((5 - 4.5) * 6))), "Leite: 6 un a R$ 0,50 a mais na Tauste");
-  assert.ok(links("#mercado/produto/Leite").length === 1, "a oportunidade leva ao produto");
+  assert.ok(links("#mercado/produto/Leite").length >= 1, "a oportunidade (e o quadro de preços) leva ao produto");
   Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); await abrir("central", "", { cu: { per: "tudo" } });
   const ab = links("#mercado/categoria/Pet").filter((a) => /Abrir a categoria/.test(texto(a))); assert.equal(ab.length, 1, "o detalhe da barra leva à página da categoria");
   Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "mercado", valor: "Amazon" }, kpi: null, kpiNota: null }); await abrir("central", "", { cu: { per: "tudo" } });
@@ -95,7 +95,7 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
 test("a casa (Fernanda) vê as páginas de mercado (12/11/2026) e, desde 16/11/2026, o Radar e a junção de produtos igual ao dono; nada é gravado só por abrir", async () => {
   Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); let calls = await abrir("central", "", { dono: false, cu: { per: "tudo" } }); let t = tudo();
   for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Última compra"]) assert.ok(t.includes(x), x);
-  assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length === 1, "ela navega para as páginas");
+  assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length >= 1, "ela navega para as páginas");
   calls = calls.concat(await abrir("estabelecimento", "Amazon", { dono: false, cu: { per: "tudo" } })); t = tudo(); assert.ok(t.includes("Comparação com outros estabelecimentos") && t.includes("Produtos comprados aqui"));
   calls = calls.concat(await abrir("categoria", "Padaria", { dono: false, cu: { per: "tudo" } })); t = tudo();
   assert.ok(t.includes("Onde você compra Padaria") && t.includes("Último preço pago") && t.includes("Maior pago")); { const casaCat = t; await abrir("categoria", "Padaria", { dono: true, cu: { per: "tudo" } }); assert.equal(casaCat, tudo(), "a categoria é idêntica para a casa e para o dono (inclusive o selo de ofertas)"); }

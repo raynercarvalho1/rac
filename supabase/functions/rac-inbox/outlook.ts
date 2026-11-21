@@ -55,12 +55,12 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
   /* ESCRITA: 4xx do pedido = `recusado` (nada mudou); rede, 5xx ou 429 = `incerto` (pode ter sido aplicado: quem chama confere o estado real, nunca repete). 202/204 sem corpo é sucesso. */
   async function escrever(metodo: "PATCH" | "POST" | "DELETE", caminho: string, corpo: Obj | null, recusado: string, incerto: string): Promise<Api> {
     let r;
-    try { r = await d.http(API + caminho, { method: metodo, headers: { Authorization: "Bearer " + d.acesso, Accept: "application/json", "Content-Type": "application/json", Prefer: PREFER }, ...(corpo ? { body: JSON.stringify(corpo) } : {}) }); } catch (_) { return { ok: false, erro: incerto }; }
+    try { r = await d.http(API + caminho, { method: metodo, headers: { Authorization: "Bearer " + d.acesso, Accept: "application/json", ...(corpo ? { "Content-Type": "application/json" } : {}), Prefer: PREFER }, ...(corpo ? { body: JSON.stringify(corpo) } : {}) }); } catch (_) { return { ok: false, erro: incerto }; }   // sem corpo, sem Content-Type: a Graph recusa "Empty Payload"
     let j: Obj | null = null; try { j = obj(await r.json()); } catch (_) { /* corpo vazio (202/204) */ }
     if (r.ok) return { ok: true, j: j ?? {} };
     const codigo = str(obj(j?.error)?.code);
     if (r.status === 404 || (r.status === 400 && /InvalidId|ItemNotFound/i.test(codigo))) return { ok: false, erro: "mensagem_inexistente" };
-    if (r.status === 401 || (r.status === 403 && !/throttl|limit|quota/i.test(codigo))) return { ok: false, erro: "autenticacao_recusada" };
+    if (r.status === 401) return { ok: false, erro: "autenticacao_recusada" };   // 403 numa ESCRITA é recusa daquela ação (ex.: pasta protegida), não da conta: só 401 invalida a credencial
     return { ok: false, erro: r.status >= 400 && r.status < 500 && r.status !== 429 ? recusado : incerto };
   }
   const enc = encodeURIComponent;
@@ -104,7 +104,8 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
 
     if (operacao === "estado_pasta" || operacao === "listar_mensagens") {
       const pid = await pastaId(nome); if (!pid) return { ok: false, erro: "pasta_inexistente" };
-      const limite = operacao === "listar_mensagens" ? Math.min(100, Math.max(1, Number(pedido.ultimas ?? pedido.limite ?? 50) || 50)) : 50;
+      /* com cursor (rotina) só vale a janela de 50 do estado_pasta: as das posições 51+ nunca receberam uid e NÃO são novidade (ver gmail.ts) */
+      const comCursor = typeof pedido.desde_uid === "number", limite = comCursor ? 50 : operacao === "listar_mensagens" ? Math.min(100, Math.max(1, Number(pedido.ultimas ?? pedido.limite ?? 50) || 50)) : 50;
       const l = await lista(nome, limite, operacao === "listar_mensagens" ? CAMPOS_RESUMO : "id,receivedDateTime"); if (!l.ok) return l;
       const ids = l.itens.map((x) => str(x.id)), mapa = await d.banco.idsExternos(d.dono, d.conta, pid, ids), maior = await d.banco.maiorUid(d.dono, d.conta, pid), novos = ids.filter((i) => !mapa.has(i));
       if (operacao === "estado_pasta") return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_OUTLOOK, uidnext: maior + novos.length + 1 }, mensagens_na_pasta: await total(nome, ids.length), duracao_ms: agora() - t0 } };
@@ -115,7 +116,7 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
       if (prox > 4294967295) return { ok: false, erro: "resposta_invalida" };
       let mensagens = ids.map((i) => resumoDe(porId.get(i)!, mapa.get(i)!, i));
       if (typeof pedido.desde_uid === "number") mensagens = mensagens.filter((m) => (m.uid as number) >= (pedido.desde_uid as number));
-      return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_OUTLOOK, uidnext: prox + 1 }, mensagens, mensagens_na_pasta: await total(nome, ids.length), mais: l.mais, duracao_ms: agora() - t0 } };
+      return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_OUTLOOK, uidnext: prox + 1 }, mensagens, mensagens_na_pasta: await total(nome, ids.length), mais: comCursor ? false : l.mais, duracao_ms: agora() - t0 } };
     }
 
     if (operacao === "ler_mensagem" || operacao === "baixar_anexo") {
@@ -174,7 +175,7 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
       const msg = { subject: p.assunto.replace(/[\r\n]+/g, " "), body: { contentType: "Text", content: p.texto }, toRecipients: dest(p.para), ccRecipients: dest(p.cc), bccRecipients: dest(p.cco) };
       let origem = "";
       if (p.em_resposta_a) {   // a mensagem original, pelo Message-ID; sem achar, envia como nova (não falha por causa da conversa)
-        const b = await api(`messages?$filter=${enc("internetMessageId eq '" + p.em_resposta_a + "'")}&$select=id&$top=1`);
+        const b = await api(`messages?$filter=${enc("internetMessageId eq '" + p.em_resposta_a.replace(/'/g, "''") + "'")}&$select=id&$top=1`);
         const id = b.ok ? str(obj(arr(b.j.value)[0])?.id) : ""; if (RE_ID.test(id)) origem = id;
       }
       if (!origem) {

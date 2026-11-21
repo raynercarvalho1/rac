@@ -43,7 +43,7 @@ function gmail() {
     if ((init.headers || {}).Authorization !== "Bearer " + ACESSO) return r(401, { error: {} });
     if (p === "labels") return r(200, { labels: ["INBOX", "SENT", "TRASH", "SPAM"].map((id) => ({ id, type: "system" })) });
     const lb = /^labels\/(.+)$/.exec(p); if (lb) return r(200, { messagesTotal: [...msgs.values()].filter((m) => m.rot.includes(lb[1])).length });
-    if (p === "messages" && metodo === "GET") { const rot = u.searchParams.get("labelIds"), l = [...msgs.values()].filter((m) => (rot ? m.rot.includes(rot) : false)).sort((a, b) => b.data - a.data); return r(200, { messages: l.map((m) => ({ id: m.id })), resultSizeEstimate: l.length }); }
+    if (p === "messages" && metodo === "GET") { const rot = u.searchParams.get("labelIds"), max = Number(u.searchParams.get("maxResults")) || 1000, l = [...msgs.values()].filter((m) => (rot ? m.rot.includes(rot) : false)).sort((a, b) => b.data - a.data), pag = l.slice(0, max); return r(200, { messages: pag.map((m) => ({ id: m.id })), resultSizeEstimate: l.length, ...(l.length > max ? { nextPageToken: "x" } : {}) }); }
     if (p === "messages/send") { if (falhaEnvio) return r(falhaEnvio, {}); envios.push(JSON.parse(init.body)); return r(200, { id: "x", labelIds: ["SENT"] }); }
     const m = /^messages\/([0-9a-f]+)(?:\/(modify|trash))?$/.exec(p), msg = m && msgs.get(m[1]); if (!msg) return r(404, {});
     if (m[2] === "modify") { const b = JSON.parse(init.body); msg.rot = msg.rot.filter((x) => !(b.removeLabelIds || []).includes(x)).concat((b.addLabelIds || []).filter((x) => !msg.rot.includes(x))); return r(200, { id: msg.id, labelIds: msg.rot }); }
@@ -62,7 +62,7 @@ function outlook() {
     const u = new URL(url), p = decodeURIComponent(u.pathname.replace("/v1.0/me/", "")), metodo = init.method ?? "GET";
     if ((init.headers || {}).Authorization !== "Bearer " + ACESSO) return r(401, { error: { code: "InvalidAuthenticationToken" } });
     if (p === "mailFolders") return r(200, { value: [] });
-    const pm = /^mailFolders\/([^/]+)\/messages$/.exec(p); if (pm) { const l = [...msgs.values()].filter((m) => m.pasta === (IDS[pm[1]] ?? pm[1])).sort((a, b) => b.data - a.data); return r(200, { value: l.map(res) }); }
+    const pm = /^mailFolders\/([^/]+)\/messages$/.exec(p); if (pm) { const max = Number(u.searchParams.get("$top")) || 1000, l = [...msgs.values()].filter((m) => m.pasta === (IDS[pm[1]] ?? pm[1])).sort((a, b) => b.data - a.data); return r(200, { value: l.slice(0, max).map(res), ...(l.length > max ? { "@odata.nextLink": "https://graph.microsoft.com/v1.0/x" } : {}) }); }
     const pf = /^mailFolders\/([^/]+)$/.exec(p); if (pf) return IDS[pf[1]] ? r(200, { id: IDS[pf[1]], totalItemCount: [...msgs.values()].filter((m) => m.pasta === IDS[pf[1]]).length }) : r(404, { error: { code: "ErrorItemNotFound" } });
     if (p === "sendMail") { if (falhaEnvio) return r(falhaEnvio, {}); envios.push(JSON.parse(init.body)); return r(202, null, true); }
     const mm = /^messages\/(.+?)(?:\/(move))?$/.exec(p), msg = mm && msgs.get(mm[1]); if (!msg) return r(404, { error: { code: "ErrorItemNotFound" } });
@@ -116,3 +116,15 @@ test("a rotina sem a configuração OAuth não chama o Worker do iCloud nem derr
   const res = await rodarRotina({ banco: { ...m.repo }, cofre: { async ler() { return empacotarOauth(REFRESH); }, async marcar() {}, async guardar() {}, async remover() { return true; }, async estado() { return "ativa"; } }, worker: { async executar() { throw new Error("não pode"); } }, aviso: null, registrar: (e) => logs.push(e) });
   assert.deepEqual([res.contas, res.falhas, res.sincronizadas], [1, 1, 0]); assert.ok(logs.some((e) => e.codigo === "oauth_nao_configurado"));
 });
+
+for (const fabrica of [gmail, outlook]) {
+  const nome = fabrica.name === "gmail" ? "Gmail" : "Outlook";
+  test(`${nome} · caixa com MAIS de 50 mensagens: a rotina avisa só da mensagem realmente nova, nunca de antigas das posições 51 a 100, e não repete o aviso depois da releitura da janela`, { skip: pular }, async () => {
+    const db = await banco(), m = await montar(db, fabrica); m.cx.cadastrar(Array.from({ length: 78 }, (_, i) => i + 3));   // 80 não lidas no total
+    const r1 = await m.rodada(); assert.deepEqual([r1.sincronizadas, r1.avisos], [1, 0], "primeira leitura: janela de 50, silenciosa"); assert.equal(await naCaixa(db, m.entrada), 50);
+    m.cx.cadastrar([81]); const r2 = await m.rodada(); assert.deepEqual([r2.novas, r2.avisos], [1, 1], "só a nova é novidade (as das posições 51 a 100 nunca viram aviso)"); assert.equal(m.avisos.length, 1); assert.match(JSON.stringify(m.avisos[0].m), /Assunto 81/);
+    await db.exec("update public.inbox_sincronizacao set reconciliada_em = now() - interval '2 hours'");   // a releitura de hora em hora
+    const r3 = await m.rodada(); assert.equal(r3.avisos, 0, "a releitura da janela não avisa"); m.cx.cadastrar([82]); const r4 = await m.rodada();
+    assert.deepEqual([r4.novas, r4.avisos], [1, 1]); assert.equal(m.avisos.length, 2); assert.match(JSON.stringify(m.avisos[1].m), /Assunto 82/); assert.ok(!m.avisos.some((a) => /Assunto (29|30)\b/.test(JSON.stringify(a.m))), "nenhuma antiga reaparece");
+  });
+}

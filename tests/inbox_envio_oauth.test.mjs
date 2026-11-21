@@ -71,7 +71,7 @@ function graphEnvio({ original = "AAMk-Orig=" } = {}) {
   const chamadas = []; let falha = null;
   const r = (status, corpo, vazio = false) => ({ ok: status >= 200 && status < 300, status, json: async () => { if (vazio) throw new Error("sem corpo"); return corpo; } });
   const http = async (url, init = {}) => {
-    const metodo = init.method ?? "GET", p = decodeURIComponent(new URL(url).pathname.replace("/v1.0/me/", "")); chamadas.push({ metodo, p, url: decodeURIComponent(url), corpo: init.body ? JSON.parse(init.body) : null });
+    const metodo = init.method ?? "GET", p = decodeURIComponent(new URL(url).pathname.replace("/v1.0/me/", "")); chamadas.push({ metodo, p, url: decodeURIComponent(url), corpo: init.body ? JSON.parse(init.body) : null, ct: (init.headers || {})["Content-Type"] });
     if (falha) { const f = falha(metodo, p); if (f instanceof Error) throw f; if (f) return r(f.status, f.corpo ?? {}); }
     if ((init.headers || {}).Authorization !== "Bearer " + ACESSO) return r(401, { error: { code: "InvalidAuthenticationToken" } });
     if (metodo === "POST" && p === "sendMail") return r(202, null, true);
@@ -114,4 +114,17 @@ test("Outlook · rede ou 5xx NO send/sendMail = envio_incerto (o rascunho NÃO �
   }
   const cx = graphEnvio(); cx.falha(() => ({ status: 401 })); assert.equal((await workerMs(cx).executar("enviar", PEDIDO)).erro, "smtp_autenticacao_recusada");
   const nada = graphEnvio(); assert.deepEqual([(await workerMs(nada).executar("enviar", { ...PEDIDO, para: ["lixo"] })).erro, nada.chamadas.length], ["destinatario_invalido", 0]);
+});
+
+test("Gmail · resposta sem lista de referências leva References = o Message-ID respondido; cabeçalhos To/Cc/Bcc longos são dobrados (cada linha ≤ 998) e desdobram para a mesma lista", () => {
+  const r = cabecalhos(montarMime({ ...PEDIDO, em_resposta_a: "<orig@mail.example>" })); assert.deepEqual([r["in-reply-to"], r.references], ["<orig@mail.example>", "<orig@mail.example>"]);
+  const muitos = Array.from({ length: 40 }, (_, i) => `pessoa-com-nome-bem-comprido-${i}@dominio-bem-comprido-${i}.example.com`), m = montarMime({ ...PEDIDO, para: muitos, cc: muitos.slice(0, 5) });
+  assert.ok(m.split("\r\n\r\n")[0].split("\r\n").every((l) => l.length <= 200), "linhas de cabeçalho curtas"); assert.equal(cabecalhos(m).to, muitos.join(", "), "desdobrado é a mesma lista");
+});
+test("Outlook · o Message-ID vai ao $filter com aspas dobradas; createReply e send não levam Content-Type quando não há corpo (a Graph recusa 'Empty Payload' nesse caso)", async () => {
+  const cx = graphEnvio(), r = await workerMs(cx).executar("enviar", { ...PEDIDO, em_resposta_a: "<o'rig@mail.example>" }); assert.equal(r.ok, true);
+  assert.ok(cx.chamadas[0].url.includes("internetMessageId eq '<o''rig@mail.example>'"), "aspa dobrada: nenhuma quebra do filtro");
+  const cy = graphEnvio(), ok = await workerMs(cy).executar("enviar", RESP); assert.equal(ok.ok, true);
+  for (const c of cy.chamadas.filter((c) => c.p.endsWith("/createReply") || c.p.endsWith("/send"))) assert.equal(c.ct, undefined, c.p + " sem corpo = sem Content-Type");
+  assert.equal(cy.chamadas.find((c) => c.metodo === "PATCH").ct, "application/json");
 });

@@ -600,8 +600,8 @@
   /* o selo de não lidas do Inbox na barra de baixo (só o dono; a barra nem existe para a casa). Lê só inbox_pastas de ENTRADA (o RLS isola por dono); erro ou zero = selo escondido, nunca um 0 inventado. */
   function inboxBarraMostrar(n){var el=$("#cntbarrainbox");if(!el)return;var ok=typeof n==="number"&&n>0,a=el.parentNode;el.hidden=!ok;el.textContent=ok?(n>99?"99+":String(n)):"";if(!a)return;if(ok)a.setAttribute("aria-label","Inbox, "+n+(n===1?" não lida":" não lidas"));else a.removeAttribute("aria-label")}
   function inboxBarraAtualizar(){
-    if(PAPEL==="casa"||!$("#cntbarrainbox"))return Promise.resolve();
-    try{return Promise.resolve(SB.from("inbox_pastas").select("uso,nao_lidas").eq("uso","entrada")).then(sbOk).then(function(l){inboxBarraMostrar(NUCLEO.inbContadorBarra(l))},function(){inboxBarraMostrar(0)})}catch(e){inboxBarraMostrar(0);return Promise.resolve()}}
+    if(!isOwner()||!$("#cntbarrainbox"))return Promise.resolve();   /* papel ainda desconhecido (login/MFA) ou a casa: nem consulta */
+    try{return Promise.resolve(SB.from("inbox_pastas").select("uso,nao_lidas").eq("uso","entrada").eq("ativa",true)).then(sbOk).then(function(l){inboxBarraMostrar(NUCLEO.inbContadorBarra(l))},function(){inboxBarraMostrar(0)})}catch(e){inboxBarraMostrar(0);return Promise.resolve()}}
   /*FIM-BARRA-INBOX*/
   function iniciar(){
     var html=document.documentElement;

@@ -124,3 +124,16 @@ test("Outlook · identidade conferida (internetMessageId); 401 = autenticação 
   }
   cx.falha(null); assert.ok(!cx.chamadas.some((c) => c.metodo === "DELETE"), "nenhum caminho apaga de vez");
 });
+
+test("Gmail · 403 numa AÇÃO de gerenciar é recusa da ação (acao_recusada), não 'autenticação recusada' (a conta não é invalidada); 401 continua sendo; sair da Lixeira com o modify recusado depois do untrash = acao_incerta (a mensagem já mudou)", async () => {
+  const cx = gmailFalso(); cx.add(1); cx.add(4, ["TRASH"]); const w = workerGmail(cx);
+  cx.falha((m) => (m === "POST" ? { status: 403, corpo: { error: { errors: [{ reason: "forbidden" }] } } } : null)); assert.equal((await w.executar("mover_mensagem", { ...base, pasta: "INBOX", destino: "ARQUIVO" })).erro, "acao_recusada");
+  cx.falha((m, url) => (m === "POST" && url.endsWith("/modify") ? { status: 400, corpo: {} } : null)); const r = await w.executar("mover_mensagem", { uid: 4, uidvalidity_esperado: 1, pasta: "TRASH", destino: "INBOX" });
+  assert.deepEqual([r.ok, r.erro], [false, "acao_incerta"], "o untrash passou: não é 'nada mudou'"); assert.deepEqual(cx.msgs.get(hex(4)).labelIds, ["INBOX"]);
+  cx.falha(() => ({ status: 401, corpo: {} })); assert.equal((await w.executar("mover_mensagem", { ...base, pasta: "INBOX", destino: "ARQUIVO" })).erro, "autenticacao_recusada");
+});
+test("Outlook · 403 numa AÇÃO de gerenciar é recusa da ação; 401 continua sendo autenticação recusada", async () => {
+  const cx = graphFalso(); cx.add(1); const w = workerMs(cx);
+  cx.falha((m) => (m === "POST" ? { status: 403, corpo: { error: { code: "ErrorAccessDenied" } } } : null)); assert.equal((await w.executar("mover_mensagem", { ...base, pasta: "inbox", destino: "archive" })).erro, "acao_recusada");
+  cx.falha(() => ({ status: 401, corpo: {} })); assert.equal((await w.executar("mover_mensagem", { ...base, pasta: "inbox", destino: "archive" })).erro, "autenticacao_recusada");
+});

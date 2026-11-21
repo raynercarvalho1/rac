@@ -126,11 +126,12 @@ export function lerPedidoEnvio(p: Record<string, unknown>): PedidoEnvio | null {
 export const erroDeEnvio = (e: string): string => (e === "autenticacao_recusada" ? "smtp_autenticacao_recusada" : e === "mensagem_inexistente" ? "envio_recusado" : e);
 
 export function montarMime(p: PedidoEnvio): string {
-  const l = [`From: ${p.de}`, `To: ${p.para.join(", ")}`];
-  if (p.cc.length) l.push(`Cc: ${p.cc.join(", ")}`);
-  if (p.cco.length) l.push(`Bcc: ${p.cco.join(", ")}`);
+  const dobra = (l: string[]) => l.join(",\r\n ");   // listas longas: linhas curtas (RFC 5322); desdobradas, é a mesma lista
+  const l = [`From: ${p.de}`, `To: ${dobra(p.para)}`];
+  if (p.cc.length) l.push(`Cc: ${dobra(p.cc)}`);
+  if (p.cco.length) l.push(`Bcc: ${dobra(p.cco)}`);
   l.push(`Subject: ${assuntoMime(p.assunto)}`, `Date: ${new Date(p.data).toUTCString().replace("GMT", "+0000")}`, `Message-ID: ${p.message_id}`);
-  if (p.em_resposta_a) { l.push(`In-Reply-To: ${p.em_resposta_a}`); if (p.referencias?.length) l.push(`References: ${p.referencias.join(" ")}`); }
+  if (p.em_resposta_a) { l.push(`In-Reply-To: ${p.em_resposta_a}`, `References: ${(p.referencias?.length ? p.referencias : [p.em_resposta_a]).join(" ")}`); }   // sem lista de referências, a cadeia começa na mensagem respondida
   l.push("MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64");
   const corpo = (base64(utf8.encode(p.texto.replace(/\r?\n/g, "\r\n"))).match(/.{1,76}/g) ?? []).join("\r\n");
   return l.join("\r\n") + "\r\n\r\n" + corpo;
@@ -165,8 +166,7 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
     let j: Obj | null = null; try { j = obj(await r.json()); } catch (_) { /* corpo vazio ou inválido */ }
     if (r.ok) return { ok: true, j: j ?? {} };
     if (r.status === 404) return { ok: false, erro: "mensagem_inexistente" };
-    const motivo = str(obj(arr(obj(j?.error)?.errors)[0])?.reason);
-    if (r.status === 401 || (r.status === 403 && !/ratelimit|quota|limit/i.test(motivo))) return { ok: false, erro: "autenticacao_recusada" };
+    if (r.status === 401) return { ok: false, erro: "autenticacao_recusada" };   // 403 numa ESCRITA é recusa daquela ação (mensagem ou pasta), não da conta: só 401 invalida a credencial
     return { ok: false, erro: r.status >= 400 && r.status < 500 && r.status !== 429 ? recusado : incerto };
   }
   const enc = encodeURIComponent;
@@ -208,7 +208,8 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
 
     if (operacao === "estado_pasta" || operacao === "listar_mensagens") {
       const pid = await pastaId(nome); if (!pid) return { ok: false, erro: "pasta_inexistente" };
-      const limite = operacao === "listar_mensagens" ? Math.min(100, Math.max(1, Number(pedido.ultimas ?? pedido.limite ?? 50) || 50)) : 50;
+      /* com cursor (rotina: "o que veio depois de desde_uid") só vale a janela de 50 do estado_pasta: as mensagens das posições 51+ nunca receberam uid e NÃO são novidade; sem isso a rotina avisava de e-mails antigos */
+      const comCursor = typeof pedido.desde_uid === "number", limite = comCursor ? 50 : operacao === "listar_mensagens" ? Math.min(100, Math.max(1, Number(pedido.ultimas ?? pedido.limite ?? 50) || 50)) : 50;
       const l = await ids(nome, limite); if (!l.ok) return l;
       const mapa = await d.banco.idsExternos(d.dono, d.conta, pid, l.ids), maior = await d.banco.maiorUid(d.dono, d.conta, pid), novos = l.ids.filter((i) => !mapa.has(i));
       if (operacao === "estado_pasta") return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_GMAIL, uidnext: maior + novos.length + 1 }, mensagens_na_pasta: await total(nome, l.ids.length), duracao_ms: agora() - t0 } };
@@ -221,7 +222,7 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
       if (prox > 4294967295) return { ok: false, erro: "resposta_invalida" };
       let mensagens = l.ids.map((i) => resumoDe(porId.get(i)!, mapa.get(i)!, i));
       if (typeof pedido.desde_uid === "number") mensagens = mensagens.filter((m) => (m.uid as number) >= (pedido.desde_uid as number));
-      return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_GMAIL, uidnext: prox + 1 }, mensagens, mensagens_na_pasta: await total(nome, l.ids.length), mais: l.mais, duracao_ms: agora() - t0 } };
+      return { ok: true, dados: { exame: { uidvalidity: UIDVALIDITY_GMAIL, uidnext: prox + 1 }, mensagens, mensagens_na_pasta: await total(nome, l.ids.length), mais: comCursor ? false : l.mais, duracao_ms: agora() - t0 } };
     }
 
     if (operacao === "ler_mensagem" || operacao === "baixar_anexo") {
@@ -273,7 +274,7 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
       if (destino === "TRASH") { const r = await escrever(`messages/${id}/trash`, null, "acao_recusada", "acao_incerta"); return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r; }
       if (nome === "TRASH") { const u = await escrever(`messages/${id}/untrash`, null, "acao_recusada", "acao_incerta"); if (!u.ok) return u; }   // sai da Lixeira; o untrash pode devolvê-la à entrada
       const rot = nome === "TRASH" ? { adicionar: destino === PASTA_ARQUIVO ? [] : [destino], remover: destino === "INBOX" ? [] : ["INBOX"] } : rotulosDaAcao(nome, destino);
-      const r = await escrever(`messages/${id}/modify`, { addLabelIds: rot.adicionar, removeLabelIds: rot.remover }, "acao_recusada", "acao_incerta");
+      const r = await escrever(`messages/${id}/modify`, { addLabelIds: rot.adicionar, removeLabelIds: rot.remover }, nome === "TRASH" ? "acao_incerta" : "acao_recusada", "acao_incerta");   // saindo da Lixeira o untrash JÁ mudou a mensagem: recusa do modify não é "nada mudou"
       return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r;
     }
 

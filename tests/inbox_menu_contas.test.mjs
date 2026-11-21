@@ -74,10 +74,10 @@ const acoesDe = (n) => todos(n).filter((x) => x.tag === "button").map((x) => x.a
 const tit = (a) => texto(comClasse(a.raiz, "inb-titulo")[0]).trim();
 const sincHeader = (a) => comClasse(a.raiz, "inb-topo-sinc").filter((n) => !/inb-topo-sinc--tudo/.test(n.className))[0];
 
-test("núcleo: ações por provedor, estado da conta e última sincronização — só o que está implementado (iCloud e Gmail leem e testam; Outlook só conecta e desconecta)", () => {
+test("núcleo: ações por provedor, estado da conta e última sincronização — só o que está implementado (iCloud e Gmail leem e testam; Gmail e Outlook leem e testam)", () => {
   const f = (prov, cred) => { const a = N.inbAcoesConta({ provedor: prov }, cred), r = {}; for (const k of ["sincronizar", "testar", "conectar", "reconectar", "desconectar"]) if (a[k]) r[k] = true; return Object.keys(r).join(","); };
   assert.equal(f("icloud", "ativa"), "sincronizar,testar,reconectar,desconectar"); assert.equal(f("gmail", "ativa"), "sincronizar,testar,reconectar,desconectar");
-  assert.equal(f("outlook", "ativa"), "reconectar,desconectar", "Outlook ainda não lê: nada de sincronizar nem testar");
+  assert.equal(f("outlook", "ativa"), "sincronizar,testar,reconectar,desconectar", "Outlook lê desde o lote 3");
   for (const p of ["icloud", "gmail", "outlook"]) { assert.equal(f(p, "ausente"), "conectar", p); assert.equal(f(p, "invalida"), "reconectar,desconectar", p); }
   assert.equal(f("xyz", "ativa"), "", "provedor desconhecido não oferece nada");
   assert.deepEqual([[{ estado: "nova" }, "ativa"], [{ estado: "conectada" }, "ativa"], [{ estado: "sincronizando" }, "ativa"], [{ estado: "atrasada" }, "ativa"], [{ estado: "conectada" }, "ausente"], [{ estado: "conectada" }, "invalida"], [{ estado: "erro_autenticacao" }, "ativa"]].map(([c, k]) => N.inbEstadoConta(c, k).rotulo),
@@ -118,17 +118,17 @@ test("pastas: navegam, marcam a ativa, mantêm ícone/nome/não lidas; conta sem
   ger(a); assert.deepEqual(pastasMenu(a), [], "em Gerenciar contas nenhuma conta está aberta no menu");
 });
 
-test("Sincronizar no cabeçalho: sempre à vista com a palavra; na Caixa unificada sincroniza as contas que leem; numa conta, só ela; ocupado trava o duplo toque; sucesso e erro dão feedback; Outlook inativo com explicação", async () => {
+test("Sincronizar no cabeçalho: sempre à vista com a palavra; na Caixa unificada sincroniza as contas que leem; numa conta, só ela; ocupado trava o duplo toque; sucesso e erro dão feedback; Outlook também sincroniza", async () => {
   const contas = [...CONTAS, OUTLOOK];
   let liberar; const lento = new Promise((r) => { liberar = r; });
   const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }], invoke: (n, o) => (o.body.operacao === "sincronizar_pasta" ? lento : ok({})) }); await a.abrir(); await assentar();
   const b = sincHeader(a); assert.ok(b && /Sincronizar/.test(texto(b)) && b.attrs["aria-label"] === "Sincronizar" && !b.attrs["aria-disabled"], "à vista, com o rótulo");
   b.onclick(); await esperar(); const ocup = sincHeader(a); assert.ok(ocup.attrs.disabled === "disabled" && ocup.attrs["aria-busy"] === "true" && /Sincronizando/.test(texto(ocup)), "estado visual de sincronização"); ocup.onclick && ocup.onclick(); await esperar();
   liberar(SYNC_OK()); await assentar();
-  assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.conta_id]).filter((x) => x[0] === "sincronizar_pasta").map((x) => x[1]).sort(), [IC, G1, G2].sort(), "unificada: todas as contas que leem, uma vez cada (sem Outlook, sem duplo toque)");
-  assert.ok(!a.chamadas.some((c) => c[1].body.conta_id === OU), "o Outlook nunca é chamado"); assert.match(texto(a.raiz), /Sincroniz|sem mudança|Nenhuma|atualizad/i, "feedback de sucesso"); assert.ok(!sincHeader(a).attrs.disabled);
+  assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.conta_id]).filter((x) => x[0] === "sincronizar_pasta").map((x) => x[1]).sort(), [IC, G1, G2, OU].sort(), "unificada: todas as contas que leem (inclui o Outlook), uma vez cada, sem duplo toque");
+  assert.match(texto(a.raiz), /Sincroniz|sem mudança|Nenhuma|atualizad/i, "feedback de sucesso"); assert.ok(!sincHeader(a).attrs.disabled);
   a.chamadas.length = 0; contaBtn(a, G2).onclick(); sincHeader(a).onclick(); await assentar(); assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.conta_id]).filter((x) => x[0] === "sincronizar_pasta"), [["sincronizar_pasta", G2]], "numa conta: só a selecionada");
-  a.chamadas.length = 0; contaBtn(a, OU).onclick(); const so = sincHeader(a); assert.equal(so.attrs["aria-disabled"], "true", "Outlook: à vista mas inativo"); so.onclick(); assert.match(texto(a.raiz), /leitura de e-mails do Outlook/); assert.equal(a.chamadas.length, 0, "não tenta sincronizar provedor sem leitura");
+  a.chamadas.length = 0; contaBtn(a, OU).onclick(); sincHeader(a).onclick(); await assentar(); assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.conta_id]).filter((x) => x[0] === "sincronizar_pasta"), [["sincronizar_pasta", OU]], "Outlook: sincroniza só a própria conta");
   const e = amb({ invoke: () => ({ data: null, error: { context: { status: 502, json: () => Promise.resolve({ ok: false, erro: "servico_indisponivel" }) } } }) }); await e.abrir(); await assentar(); sincHeader(e).onclick(); await assentar(); assert.match(texto(e.raiz), /indisponível/, "feedback de erro");
 });
 
@@ -150,10 +150,10 @@ test("Gerenciar contas (protótipo): uma linha por conta com logo, nome, endere�
   const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }] }); await a.abrir(); await assentar(); ger(a);
   assert.equal(comClasse(a.raiz, "inb-gc").length, 4); assert.equal(tit(a), "Gerenciar contas"); assert.ok(/inb-item--ativo/.test(todos(lateral(a)).find((n) => /inb-ger/.test(n.className || "")).className), "o item do menu fica marcado");
   const t = (id) => texto(card(a, id)).replace(/\s+/g, " ");
-  assert.match(t(IC), /iCloud iCloud eu@icloud\.example.*Conectada.*Última sincronização: hoje às/); assert.match(t(G1), /Rayner Carvalho Gmail rayner@gmail\.example.*Conectada.*Última sincronização: hoje às/); assert.match(t(G2), /Raynim Gmail raynim@gmail\.example.*Conectada.*Última sincronização: ainda não houve/); assert.match(t(OU), /Outlook Outlook eu@outlook\.example.*Conectada.*Leitura de e-mails em breve/);
-  assert.ok([IC, G1, G2, OU].every((c) => comClasse(card(a, c), "inb-logo").length === 1), "cada cartão tem o logo do provedor"); assert.ok(!/Última sincronização/.test(t(OU)));
-  assert.deepEqual([IC, G1, G2, OU].map((c) => acoesDe(card(a, c))), [["Sincronizar", "Testar conexão", "Substituir senha", "Desconectar e remover a credencial", "Opções da conexão"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Reconectar com Microsoft", "Desconectar"]], "só as ações compatíveis com cada provedor");
-  assert.ok(!acoesDe(card(a, OU)).some((x) => /Sincronizar|Testar/.test(x)), "Outlook sem sincronizar nem testar"); const tudo = comClasse(a.raiz, "inb-topo-sinc--tudo"); assert.equal(tudo.length, 1); assert.match(texto(tudo[0]), /Sincronizar tudo/);
+  assert.match(t(IC), /iCloud iCloud eu@icloud\.example.*Conectada.*Última sincronização: hoje às/); assert.match(t(G1), /Rayner Carvalho Gmail rayner@gmail\.example.*Conectada.*Última sincronização: hoje às/); assert.match(t(G2), /Raynim Gmail raynim@gmail\.example.*Conectada.*Última sincronização: ainda não houve/); assert.match(t(OU), /Outlook Outlook eu@outlook\.example.*Conectada.*Última sincronização: ainda não houve/);
+  assert.ok([IC, G1, G2, OU].every((c) => comClasse(card(a, c), "inb-logo").length === 1), "cada cartão tem o logo do provedor"); assert.ok(/Última sincronização/.test(t(OU)));
+  assert.deepEqual([IC, G1, G2, OU].map((c) => acoesDe(card(a, c))), [["Sincronizar", "Testar conexão", "Substituir senha", "Desconectar e remover a credencial", "Opções da conexão"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Sincronizar", "Testar conexão", "Reconectar com Microsoft", "Desconectar"]], "só as ações compatíveis com cada provedor");
+  const tudo = comClasse(a.raiz, "inb-topo-sinc--tudo"); assert.equal(tudo.length, 1); assert.match(texto(tudo[0]), /Sincronizar tudo/);
   } finally { globalThis.Date = DataReal; }
 });
 test("Gerenciar contas: sem credencial só Conectar; recusada Reconectar; Sincronizar tudo só aparece com conta que lê; nada é chamado ao abrir", async () => {
@@ -164,10 +164,10 @@ test("Gerenciar contas: sem credencial só Conectar; recusada Reconectar; Sincro
 
 test("Gerenciar contas: Sincronizar tudo (só as que leem), Sincronizar e Testar conexão agem SÓ na conta do cartão (Gmail: testar_conta sem Worker; iCloud: canal + login); Reconectar/Desconectar usam o fluxo existente", async () => {
   const contas = [...CONTAS, OUTLOOK];
-  const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }], invoke: (n, o) => { const op = o.body.operacao; if (op === "sincronizar_pasta") return SYNC_OK(); if (op === "testar_canal") return ok({ canal: "ok", funcao: "rac-inbox@i4.1", worker: "rac-inbox-worker@p9.0" }); if (op === "oauth_iniciar") return ok({ provedor: "gmail", url: "https://accounts.google.com/o/oauth2/v2/auth?state=x" }); if (op === "credencial_remover") return ok({ removida: true }); return ok({}); } });
+  const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }], invoke: (n, o) => { const op = o.body.operacao; if (op === "sincronizar_pasta") return SYNC_OK(); if (op === "testar_canal") return ok({ canal: "ok", funcao: "rac-inbox@i4.3", worker: "rac-inbox-worker@p9.0" }); if (op === "oauth_iniciar") return ok({ provedor: "gmail", url: "https://accounts.google.com/o/oauth2/v2/auth?state=x" }); if (op === "credencial_remover") return ok({ removida: true }); return ok({}); } });
   const destinos = []; a.ctx.location = { assign: (u) => destinos.push(u) }; await a.abrir(); await assentar(); ger(a);
   const em = (id, t) => todos(card(a, id)).find((n) => n.tag === "button" && n.attrs["aria-label"] === t), sy = () => a.chamadas.filter((c) => c[1].body.operacao === "sincronizar_pasta").map((c) => c[1].body.conta_id).sort();
-  todos(a.raiz).find((n) => /inb-topo-sinc--tudo/.test(n.className || "")).onclick(); await assentar(); assert.deepEqual(sy(), [IC, G1, G2].sort(), "Sincronizar tudo: iCloud e as duas Gmail, nunca o Outlook"); assert.ok(!a.chamadas.some((c) => c[1].body.conta_id === OU));
+  todos(a.raiz).find((n) => /inb-topo-sinc--tudo/.test(n.className || "")).onclick(); await assentar(); assert.deepEqual(sy(), [IC, G1, G2, OU].sort(), "Sincronizar tudo: iCloud, as duas Gmail e o Outlook");
   a.chamadas.length = 0; em(G2, "Sincronizar").onclick(); await assentar(); assert.deepEqual(sy(), [G2], "só a conta G2 (a outra Gmail e o iCloud não são tocados)");
   a.chamadas.length = 0; em(IC, "Sincronizar").onclick(); await assentar(); assert.deepEqual(sy(), [IC], "Sincronização individual do iCloud");
   a.chamadas.length = 0; em(G1, "Testar conexão").onclick(); await assentar(); assert.deepEqual(a.chamadas.map((c) => [c[1].body.operacao, c[1].body.conta_id]), [["testar_conta", G1]], "Gmail: sem testar_canal"); assert.match(texto(a.raiz), /O acesso ao Google está funcionando/);

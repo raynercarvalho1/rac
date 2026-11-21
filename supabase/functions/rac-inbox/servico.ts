@@ -6,6 +6,7 @@ import { envioPuro } from "./envio.ts";
 import { organizarPuro } from "./organizar.ts";
 import { desempacotarOauth, empacotarOauth, hashDoEstado, identidade, novoPkce, renovarAcesso as _renovar, revogar, trocarCodigo, urlAutorizacao, type AmbienteOauth, type Http, type ProvedorOauth } from "./oauth.ts";
 import { criarWorkerGmail, type BancoGmail } from "./gmail.ts";
+import { criarWorkerOutlook } from "./outlook.ts";
 import { filtrarAnexo, filtrarLeitura, filtrarPastas, sincronizarPasta, type AplicacaoSync } from "./sync.ts";
 
 export type EstadoCredencial = "ausente" | "ativa" | "invalida";
@@ -83,6 +84,32 @@ export function filtrarResposta(operacao: string, dados: Record<string, unknown>
   return {};   // testar_conta: só o "ok"
 }
 
+/* ---- I4: o Worker de uma conta Gmail/Outlook. Compartilhado por atender() e pela rotina automática (rotina.ts): o segredo (refresh token) é aberto, o token de ACESSO é pedido na hora
+   e vive só neste Worker; a Microsoft devolve um refresh token novo a cada renovação e ele é regravado (melhor esforço). Refresh recusado marca a credencial inválida e a conta em erro de autenticação. ---- */
+export type ResultadoOauth = { ok: true; worker: Worker } | { ok: false; erro: "credencial_corrompida" | "banco_indisponivel" | "oauth_nao_configurado" | "credencial_invalida" | "servico_indisponivel" };
+export async function abrirWorkerOauth(a: { cofre: Cofre; oauth?: AmbienteOauth; http?: Http; agora?: () => Date; banco: Banco | null; dono: string; conta: string; prov: ProvedorOauth; bruto: string }): Promise<ResultadoOauth> {
+  const { cofre, banco, dono, conta, prov } = a;
+  const o = desempacotarOauth(a.bruto);
+  if (!o) return { ok: false, erro: "credencial_corrompida" };
+  const cfg = a.oauth?.[prov], bg = banco?.pastaIdPorNome && banco.idsExternos && banco.maiorUid && banco.idExterno ? (banco as unknown as BancoGmail) : null;
+  if (!cfg || !a.http || !bg) return { ok: false, erro: !bg ? "banco_indisponivel" : "oauth_nao_configurado" };
+  const t = await _renovar(prov, cfg, o.refresh, a.http, (a.agora ?? (() => new Date()))().getTime());
+  if (!t.ok) {
+    if (t.erro === "autenticacao_recusada") {
+      try { await cofre.marcar(dono, conta, "invalida"); } catch (_) { /* o estado fica como está */ }
+      try { await banco!.estadoConta(dono, conta, "erro_autenticacao", "credencial_invalida"); } catch (_) { /* idem */ }
+      return { ok: false, erro: "credencial_invalida" };
+    }
+    return { ok: false, erro: "servico_indisponivel" };
+  }
+  if (t.refreshNovo) { try { await cofre.guardar(dono, conta, empacotarOauth(t.refreshNovo)); } catch (_) { /* a Microsoft renova o refresh token a cada uso; se não gravar, o anterior segue valendo e a próxima operação tenta de novo */ } }
+  const fabrica = prov === "outlook" ? criarWorkerOutlook : criarWorkerGmail;
+  return { ok: true, worker: fabrica({ acesso: t.acesso, http: a.http, banco: bg, dono, conta, agora: a.agora ? () => a.agora!().getTime() : undefined }) };
+}
+
+/* interruptor por provedor: false → enviar e gerenciar respondem "provedor_sem_operacao" (como antes do lote 4), sem mexer no resto */
+export const ESCRITA_OAUTH: Record<"gmail" | "outlook", boolean> = { gmail: true, outlook: true };
+
 export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> {
   let operacao = "desconhecida";
   const falha = (codigo: string, detalhe?: string): Resposta => {
@@ -147,8 +174,8 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       return sucesso({ conectada: true, provedor: prov });   // nunca devolve token
     }
 
-    /* contas Gmail/Outlook não aceitam senha de app. O Gmail LÊ (conta, pastas, sincronização, mensagem, anexo); envio e gerenciamento ainda não existem para ele e o Outlook ainda não lê:
-       respostas honestas, antes de ler o Vault ou chamar o Worker */
+    /* contas Gmail/Outlook não aceitam senha de app. Gmail e Outlook leem (conta, pastas, sincronização, mensagem, anexo) e, desde o lote 4, enviam e gerenciam pelos MESMOS verbos do iCloud
+       (ESCRITA_OAUTH é o interruptor); o teste SMTP não existe para eles. Respostas honestas, antes de ler o Vault ou chamar o Worker */
     let provedorConta = "icloud";
     const LEITURA_GMAIL = ["testar_conta", "listar_pastas", "estado_pasta", "sincronizar_pasta", "ler_mensagem", "baixar_anexo"];
     if (ctx.banco?.contaProvedor && p.operacao !== "credencial_estado" && p.operacao !== "credencial_remover") {
@@ -157,7 +184,9 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
       provedorConta = c.provedor;
       if (c.provedor !== "icloud") {
         if (p.operacao === "credencial_guardar") return falha("provedor_invalido");
-        if (c.provedor === "gmail" && LEITURA_GMAIL.includes(p.operacao)) { /* segue: adaptador do Gmail */ }
+        const oauthProv = c.provedor === "gmail" || c.provedor === "outlook";
+        if (oauthProv && LEITURA_GMAIL.includes(p.operacao)) { /* segue: adaptador do Gmail ou do Outlook */ }
+        else if (oauthProv && (p.operacao === "enviar_mensagem" || p.operacao === "organizar_mensagem") && ESCRITA_OAUTH[c.provedor as "gmail" | "outlook"]) { /* segue: mesmos verbos do Worker do iCloud (envio.ts e organizar.ts) */ }
         else if (["enviar_mensagem", "smtp_prova", "organizar_mensagem"].includes(p.operacao)) return falha("provedor_sem_operacao");
         else return falha("provedor_sem_leitura");
       }
@@ -182,7 +211,7 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     }
 
     /* ---- operações no provedor (leitura; e, desde a I3.2, o gerenciamento de UMA mensagem por vez): precisam do Worker, da credencial guardada e (as de pasta) do banco ---- */
-    const oauthLeitura = provedorConta === "gmail";
+    const oauthLeitura = provedorConta === "gmail" || provedorConta === "outlook";
     if (!ctx.worker && !oauthLeitura) return falha("worker_nao_configurado");   // antes de abrir o cofre: sem canal para o Worker, o segredo nem é lido
     let worker = ctx.worker as Worker, banco = ctx.banco ?? null, conta = p.conta_id;
     const precisaBanco = p.operacao !== "testar_conta" && p.operacao !== "smtp_prova";   // (a prova só precisa do endereço da conta quando manda o teste: o envio.ts pede ao banco)
@@ -196,22 +225,10 @@ export async function atender(corpo: unknown, ctx: Contexto): Promise<Resposta> 
     if (bruto === null) return falha("credencial_ausente");    // conta sem credencial não inicia operação
     let cred: { usuario: string; senha: string } | null;
     if (oauthLeitura) {
-      /* Gmail: o segredo é o refresh token; o token de ACESSO é pedido agora, vive só nesta chamada e nunca é guardado */
-      const o = desempacotarOauth(bruto); bruto = null;
-      if (!o) return falha("credencial_corrompida");
-      const cfg = ctx.oauth?.gmail;
-      const bg = banco?.pastaIdPorNome && banco.idsExternos && banco.maiorUid && banco.idExterno ? (banco as unknown as BancoGmail) : null;
-      if (!cfg || !ctx.http || !bg) return falha(!bg ? "banco_indisponivel" : "oauth_nao_configurado");
-      const t = await _renovar("gmail", cfg, o.refresh, ctx.http, (ctx.agora ?? (() => new Date()))().getTime());
-      if (!t.ok) {
-        if (t.erro === "autenticacao_recusada") {
-          try { await ctx.cofre.marcar(dono, conta, "invalida"); } catch (_) { /* o estado fica como está */ }
-          try { await banco.estadoConta(dono, conta, "erro_autenticacao", "credencial_invalida"); } catch (_) { /* idem */ }
-          return falha("credencial_invalida");
-        }
-        return falha("servico_indisponivel");
-      }
-      worker = criarWorkerGmail({ acesso: t.acesso, http: ctx.http, banco: bg, dono, conta, agora: ctx.agora ? () => ctx.agora!().getTime() : undefined });
+      /* Gmail e Outlook: o segredo é o refresh token; o token de ACESSO é pedido agora, vive só nesta chamada e nunca é guardado (abrirWorkerOauth) */
+      const o = await abrirWorkerOauth({ cofre: ctx.cofre, oauth: ctx.oauth, http: ctx.http, agora: ctx.agora, banco, dono, conta, prov: provedorConta as ProvedorOauth, bruto }); bruto = null;
+      if (!o.ok) return falha(o.erro);
+      worker = o.worker;
       cred = { usuario: "", senha: "" };   // o adaptador não usa login e senha
     } else {
       cred = desempacotar(bruto);

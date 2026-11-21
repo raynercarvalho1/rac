@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-21.7",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-21.8",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -596,10 +596,17 @@
         .catch(function(e){b.disabled=false;cod.value="";cod.focus();m.textContent=/invalid|expired/i.test(e.message||"")?"Código errado ou vencido. Espere o próximo e tente de novo.":"Não consegui conferir: "+(e.message||e)})};
     sair.onclick=function(){hojeLimparLocal();SB.auth.signOut().then(function(){location.reload()})};
     $("#gate").appendChild(f);setTimeout(function(){cod.focus()},50)}
+  /*BARRA-INBOX*/
+  /* o selo de não lidas do Inbox na barra de baixo (só o dono; a barra nem existe para a casa). Lê só inbox_pastas de ENTRADA (o RLS isola por dono); erro ou zero = selo escondido, nunca um 0 inventado. */
+  function inboxBarraMostrar(n){var el=$("#cntbarrainbox");if(!el)return;var ok=typeof n==="number"&&n>0,a=el.parentNode;el.hidden=!ok;el.textContent=ok?(n>99?"99+":String(n)):"";if(!a)return;if(ok)a.setAttribute("aria-label","Inbox, "+n+(n===1?" não lida":" não lidas"));else a.removeAttribute("aria-label")}
+  function inboxBarraAtualizar(){
+    if(!isOwner()||!$("#cntbarrainbox"))return Promise.resolve();   /* papel ainda desconhecido (login/MFA) ou a casa: nem consulta */
+    try{return Promise.resolve(SB.from("inbox_pastas").select("uso,nao_lidas").eq("uso","entrada").eq("ativa",true)).then(sbOk).then(function(l){inboxBarraMostrar(NUCLEO.inbContadorBarra(l))},function(){inboxBarraMostrar(0)})}catch(e){inboxBarraMostrar(0);return Promise.resolve()}}
+  /*FIM-BARRA-INBOX*/
   function iniciar(){
     var html=document.documentElement;
     html.classList.add("logado");html.classList.toggle("casa",PAPEL==="casa");
-    $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();
+    $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();if(PAPEL!=="casa")inboxBarraAtualizar();
     if(!$(".capbtn")){var cb=h("button",{type:"button",class:"capbtn","aria-label":"Anotar rápido",title:"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)",text:"+"});cb.onclick=function(){abrirCaptura()};document.body.appendChild(cb)}
     /* voltar à página anterior: ← flutuante em cima do menu ☰ (celular), em todas as páginas; a regra de quando aparece e para onde vai é a do voltar da barra de título */
     if(!$(".voltarbtn")){var vb=h("button",{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"});vb.onclick=voltarPagina;vb.hidden=!(PROF>0||VOLTAR_PAI);document.body.appendChild(vb)}
@@ -1408,6 +1415,7 @@
   function voltaOlhar(ev){
     if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
     if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
+    if(typeof inboxBarraAtualizar==="function")inboxBarraAtualizar();   /* o selo do Inbox na barra (só o dono) */
     var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);notifDiag();if(!saiu)return;
     var sec=document.documentElement.getAttribute("data-sec")||"inicio";
     if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}

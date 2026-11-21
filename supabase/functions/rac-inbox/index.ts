@@ -8,8 +8,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.4";
 import { aalOk, ENVIO_CORPO_MAX_CARACTERES, ERROS, OAUTH_CORPO_MAX } from "./contrato.ts";
-import { httpReal } from "./oauth.ts";
-import { atender, type Cofre, type EstadoCredencial } from "./servico.ts";
+import { httpReal, type ProvedorOauth } from "./oauth.ts";
+import { abrirWorkerOauth, atender, type Cofre, type EstadoCredencial } from "./servico.ts";
 import { criarBancoPush, criarRepositorio } from "./repositorio.ts";
 import { rodarRotina } from "./rotina.ts";
 import { entregar } from "./push.ts";
@@ -87,7 +87,9 @@ Deno.serve(async (req) => {
       let autorizada = false;
       try { autorizada = await banco.rotinaAutorizada(senhaRotina); } catch (_) { return erro("banco_indisponivel"); }
       if (!autorizada) { registrar({ operacao: "rotina_sync", codigo: "sem_login", status: 401 }); return erro("sem_login"); }
-      const resumo = await rodarRotina({ banco, cofre: cofrePostgres(sql), worker: wr, aviso: { enviar: (dono, msg) => entregar(criarBancoPush(sessao), dono, msg) }, registrar });
+      const cofreR = cofrePostgres(sql), ambienteOauth = oauthDoAmbiente();
+      const resumo = await rodarRotina({ banco, cofre: cofreR, worker: wr, aviso: { enviar: (dono, msg) => entregar(criarBancoPush(sessao), dono, msg) }, registrar,
+        workerDaConta: (c, bruto) => abrirWorkerOauth({ cofre: cofreR, oauth: ambienteOauth, http: httpReal, banco, dono: c.dono, conta: c.conta, prov: c.provedor as ProvedorOauth, bruto }) });
       return new Response(JSON.stringify({ ok: true, resumo }), { status: 200, headers: h });   // só contagens
     }
     /* quem é: o JWT é conferido no Supabase; sem sessão válida nada acontece */

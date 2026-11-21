@@ -74,7 +74,7 @@ test("contrato: o pedido de envio é fechado; endereços em minúsculas, sem dup
   assert.equal(v(PED({ texto: undefined })).erro, "campo_ausente"); assert.equal(v({ ...PED(), envio_id: undefined }).erro, "id_invalido");
   assert.deepEqual([v({ operacao: "smtp_prova", conta_id: C1 }).pedido, v({ operacao: "smtp_prova", conta_id: C1, enviar_teste: true }).pedido.enviar_teste, v({ operacao: "smtp_prova", conta_id: C1, enviar_teste: "sim" }).ok], [{ operacao: "smtp_prova", conta_id: C1, enviar_teste: false }, true, false]);
   for (const c of ["envio_recusado", "destinatario_recusado", "smtp_autenticacao_recusada", "registro_envio_indisponivel"]) assert.ok(ERROS[c] >= 400, c); assert.equal(ERROS.envio_incerto, 202, "incerto não é erro HTTP: o navegador lê o código");
-  assert.match(VERSAO_FUNCAO, /^rac-inbox@i4\.1$/);
+  assert.match(VERSAO_FUNCAO, /^rac-inbox@i4\.3$/);
 });
 
 test("ENVIADO: só depois do 'enviado' do Worker; o Worker recebe o endereço da CONTA (não o do navegador), Message-ID derivado do envio_id e o instante do servidor; Enviados é atualizada", async () => {

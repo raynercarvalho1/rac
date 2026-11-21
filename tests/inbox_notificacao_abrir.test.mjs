@@ -129,8 +129,8 @@ test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do ar
   const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
 });
 
-test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-21.7", () => {
-  assert.match(ler("sw.js"), /const VERSAO = "2026-11-21\.7"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-21\.7"/); assert.ok(ler("index.html").includes("2026-11-21.7"));
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-21.8", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-21\.8"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-21\.8"/); assert.ok(ler("index.html").includes("2026-11-21.8"));
 });
 
 /* ---------- aviso de e-mail: título = assunto, corpo = remetente, toque abre a MENSAGEM ---------- */
@@ -166,12 +166,12 @@ test("página: o aviso recebido leva ao hash da mensagem (notifIr) e o roteador 
 });
 
 
-test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-21.7", () => {
+test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-21.8", () => {
   const css = ler("css/rac.css");
   assert.match(css, /html\.logado:not\(\.casa\) #barra,\.voltarbtn,\.topobtn,\.capbtn\{-webkit-transform:translate3d\(0,0,0\);transform:translate3d\(0,0,0\)/);
   assert.match(css, /\.inb-linhas\{[^}]*overflow:hidden;overflow:clip/);
   assert.match(css, /html\.logado:not\(\.casa\) #barra\{display:flex;position:fixed;left:0;right:0;bottom:0/, "a barra continua fixa embaixo");
-  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-21.7"), f);
+  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-21.8"), f);
 });
 
 /* ---------- confirmação da página (rac-ack) e reserva do service worker ---------- */

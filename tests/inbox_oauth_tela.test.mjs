@@ -83,17 +83,17 @@ test("retorno do provedor: o código é entregue UMA vez ao serviço (state + co
   assert.match(texto(f.raiz), /não é a cadastrada/); assert.ok(!texto(f.raiz).includes(CODE), "o código nunca aparece na tela");
 });
 
-test("conta Gmail conectada: a tela oferece Sincronizar, Reconectar e Desconectar e avisa que enviar/organizar ainda não existem; Outlook conectado continua sem leitura e sem Sincronizar", async () => {
+test("conta Gmail conectada: a tela oferece Sincronizar, Reconectar e Desconectar e avisa que enviar/organizar ainda não existem; o Outlook conectado também sincroniza (lote 3)", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }] }); await a.abrir(G1); await assentar(); const sincA = sincBtnOuNada(a); ger(a);
   assert.ok(rot(a, "Sincronizar").length && rot(a, "Testar conexão").length && rot(a, "Reconectar com Google").length && rot(a, "Desconectar").length, "Gmail conectado: sincronizar, testar, reconectar e desconectar"); assert.ok(sincA, "Gmail sincroniza (botão do cabeçalho da lista)");
   const o = amb({ credenciais: [{ conta_id: O1, estado: "ativa" }] }); await o.abrir(O1); await assentar(); const sincO = sincBtnOuNada(o); ger(o);
-  assert.match(texto(o.raiz), /Leitura de e-mails em breve/); assert.ok(!rot(o, "Sincronizar").length && !rot(o, "Testar conexão").length, "Outlook: nenhum botão de sincronizar ou testar no cartão"); assert.ok(rot(o, "Reconectar com Microsoft").length && rot(o, "Desconectar").length); assert.ok(!sincO, "Outlook: o Sincronizar do cabeçalho fica à vista, mas inativo");
+  assert.ok(!/Leitura de e-mails em breve|ainda não foi liberada/.test(texto(o.raiz)), "sem aviso de leitura bloqueada"); assert.ok(rot(o, "Sincronizar").length && rot(o, "Testar conexão").length && rot(o, "Reconectar com Microsoft").length && rot(o, "Desconectar").length, "Outlook conectado: sincronizar, testar, reconectar e desconectar"); assert.ok(sincO, "Outlook sincroniza (botão do cabeçalho ativo)");
 });
 const sincBtnOuNada = (a) => todos(a.raiz).some((n) => /(^| )inb-topo-sinc( |$)/.test(n.className || "") && !n.attrs.disabled && n.attrs["aria-disabled"] !== "true");
 
-test("Gmail na tela: Nova mensagem e as ações de organizar ficam desligadas (o servidor responderia provedor_sem_operacao); nenhuma chamada de escrita sai", async () => {
+test("Gmail na tela: Nova mensagem e as ações de organizar ficam LIGADAS para a conta conectada (lote 4); abrir a conta não chama nada", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true }, error: null }) }); await a.abrir(G1); await assentar(); ger(a);
-  const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), false, "não envia a partir de conta Gmail"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), false);
+  const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), true, "envia a partir de conta Gmail conectada"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), true);
   assert.deepEqual(a.chamadas, [], "abrir a conta não chama nada");
 });
 

@@ -33,7 +33,7 @@
     var msgs=Promise.resolve(SB.from("inbox_mensagens_ref").select("id,conta_id,pasta_id,uid,uidvalidity,recebida_em,assunto,remetente_nome,remetente_endereco,destinatarios,lida,sinalizada,respondida,tamanho,anexo_provavel").order("recebida_em",{ascending:false}).limit(1000)).then(sbOk).then(function(l){return l||[]},function(){return []});
     var sincs=Promise.resolve(SB.from("inbox_sincronizacao").select("*")).then(sbOk).then(function(l){var m={};(l||[]).forEach(function(x){m[x.pasta_id]=x});return m},function(){return {}});
     return Promise.all([SB.from("inbox_contas").select("*").order("criado_em"),SB.from("inbox_pastas").select("*").order("nome_externo"),cred,msgs,sincs]).then(function(r){
-      INBX.contas=sbOk(r[0])||[];INBX.pastas=sbOk(r[1])||[];INBX.cred=r[2]||{};INBX.msgs=r[3]||[];INBX.sincs=r[4]||{};INBX.carregando=false;inboxMarca()}).then(null,function(e){INBX.carregando=false;INBX.erro=e;INBX.contas=[];INBX.pastas=[];INBX.cred={};INBX.msgs=[];INBX.sincs={}})}
+      INBX.contas=sbOk(r[0])||[];INBX.pastas=sbOk(r[1])||[];INBX.cred=r[2]||{};INBX.msgs=r[3]||[];INBX.sincs=r[4]||{};INBX.carregando=false;inboxMarca();if(typeof inboxBarraMostrar==="function")inboxBarraMostrar(NUCLEO.inbContadorBarra(INBX.pastas))}).then(null,function(e){INBX.carregando=false;INBX.erro=e;INBX.contas=[];INBX.pastas=[];INBX.cred={};INBX.msgs=[];INBX.sincs={}})}
   function inboxSelo(estado){var e=NUCLEO.inbEstado(estado);return h("span",{class:"inb-estado inb-estado--"+e.tipo,title:e.rotulo},h("i",{"aria-hidden":"true"}),e.rotulo)}
   /* a pasta mostrada: a escolhida na lateral ou, numa conta, a caixa de entrada */
   function inboxPastaAtual(){

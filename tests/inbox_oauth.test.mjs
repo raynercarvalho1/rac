@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ESCOPOS, ENDPOINTS, novoPkce, hashDoEstado, urlAutorizacao, trocarCodigo, renovarAcesso, identidade, revogar, empacotarOauth, desempacotarOauth, RE_STATE } from "../supabase/functions/rac-inbox/oauth.ts";
 import { validarPedido, ERROS, VERSAO_FUNCAO } from "../supabase/functions/rac-inbox/contrato.ts";
-import { atender } from "../supabase/functions/rac-inbox/servico.ts";
+import { atender, ESCRITA_OAUTH } from "../supabase/functions/rac-inbox/servico.ts";
 
 const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const U1 = "11111111-1111-4111-8111-111111111111", U2 = "33333333-3333-4333-8333-333333333333", G1 = "aaaaaaaa-0000-4000-8000-000000000001", G2 = "aaaaaaaa-0000-4000-8000-000000000002", O1 = "aaaaaaaa-0000-4000-8000-000000000003", I1 = "aaaaaaaa-0000-4000-8000-000000000004";
@@ -153,13 +153,17 @@ test("oauth_concluir: sem refresh token, provedor recusa, indisponível, identid
   assert.ok(!JSON.stringify([ro, o.logs]).includes(REFRESH_MS));
 });
 
-test("contas Gmail/Outlook: não aceitam senha de app; o Gmail e o Outlook ainda não escrevem — respostas honestas ANTES de ler o cofre ou chamar o Worker", async () => {
+test("contas Gmail/Outlook: não aceitam senha de app; o teste SMTP não existe e, com o interruptor desligado, enviar e gerenciar são recusados — respostas honestas ANTES de ler o cofre ou chamar o Worker", async () => {
   const c = cenario({ rotas: {} }); let leu = false; c.ctx.cofre.ler = async () => { leu = true; return null; }; c.ctx.worker = { async executar() { throw new Error("o Worker não pode ser chamado"); } };
   assert.equal((await atender({ operacao: "credencial_guardar", conta_id: G1, usuario: "a@icloud.example", senha_app: "aaaa-bbbb-cccc-dddd" }, c.ctx)).corpo.erro, "provedor_invalido");
   for (const op of ["testar_conta", "listar_pastas"]) assert.equal((await atender({ operacao: op, conta_id: O1 }, c.ctx)).corpo.erro, "credencial_ausente", "Outlook lê (lote 3): sem conexão, pede a conexão");
   leu = false;
   const pasta = "bbbbbbbb-0000-4000-8000-000000000001", envio = { operacao: "enviar_mensagem", conta_id: G1, envio_id: G2, modo: "novo", para: ["a@example.com"], cc: [], cco: [], assunto: "x", texto: "y" };
-  for (const o of [{ operacao: "organizar_mensagem", conta_id: G1, pasta_id: pasta, uid: 1, acao: "arquivar" }, { operacao: "smtp_prova", conta_id: G1, enviar_teste: false }, envio, { ...envio, conta_id: O1 }]) assert.equal((await atender(o, c.ctx)).corpo.erro, "provedor_sem_operacao", o.operacao);
+  for (const o of [{ operacao: "smtp_prova", conta_id: G1, enviar_teste: false }, { operacao: "smtp_prova", conta_id: O1, enviar_teste: false }]) assert.equal((await atender(o, c.ctx)).corpo.erro, "provedor_sem_operacao", "o teste SMTP não existe para contas OAuth");
+  for (const prov of ["gmail", "outlook"]) {   // o interruptor do servidor: desligado, enviar e gerenciar voltam a ser recusados, antes de ler o cofre
+    ESCRITA_OAUTH[prov] = false;
+    try { for (const o of [{ operacao: "organizar_mensagem", conta_id: prov === "gmail" ? G1 : O1, pasta_id: pasta, uid: 1, acao: "arquivar" }, { ...envio, conta_id: prov === "gmail" ? G1 : O1 }]) assert.equal((await atender(o, c.ctx)).corpo.erro, "provedor_sem_operacao", prov + " " + o.operacao); } finally { ESCRITA_OAUTH[prov] = true; }
+  }
   assert.equal(leu, false); assert.equal(c.seg.size, 0);
 });
 

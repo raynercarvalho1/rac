@@ -91,9 +91,9 @@ test("conta Gmail conectada: a tela oferece Sincronizar, Reconectar e Desconecta
 });
 const sincBtnOuNada = (a) => todos(a.raiz).some((n) => /(^| )inb-topo-sinc( |$)/.test(n.className || "") && !n.attrs.disabled && n.attrs["aria-disabled"] !== "true");
 
-test("Gmail na tela: Nova mensagem e as ações de organizar ficam desligadas (o servidor responderia provedor_sem_operacao); nenhuma chamada de escrita sai", async () => {
+test("Gmail na tela: Nova mensagem e as ações de organizar ficam LIGADAS para a conta conectada (lote 4); abrir a conta não chama nada", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "ativa" }], invoke: () => ({ data: { ok: true }, error: null }) }); await a.abrir(G1); await assentar(); ger(a);
-  const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), false, "não envia a partir de conta Gmail"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), false);
+  const c = a.ctx; assert.equal(vm.runInContext("inboxPodeEnviar()", c), true, "envia a partir de conta Gmail conectada"); assert.equal(vm.runInContext("!!inboxContaDeEnvio()", c), true);
   assert.deepEqual(a.chamadas, [], "abrir a conta não chama nada");
 });
 

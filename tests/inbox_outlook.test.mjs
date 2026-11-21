@@ -153,14 +153,14 @@ test("serviço: conta Outlook lista pastas, sincroniza, lê e baixa SEM Worker d
   const tudo = JSON.stringify([lp, sy, lm, s.logs]); for (const x of [ACESSO, REFRESH, REFRESH_NOVO, "SEGREDO-MS", mid(1)]) assert.ok(!tudo.includes(x), "vazou: " + x);
   assert.ok(s.eventos.some((e) => e[0] === "conta" && e[1] === "conectada"));
 });
-test("serviço: refresh recusado marca a credencial inválida e a conta em erro de autenticação; falha temporária da Microsoft não invalida; falha ao regravar o refresh novo não derruba a operação; envio/gerenciamento do Outlook respondem honestamente; sem a configuração Microsoft a resposta é honesta", { skip: pular }, async () => {
+test("serviço: refresh recusado marca a credencial inválida e a conta em erro de autenticação; falha temporária da Microsoft não invalida; falha ao regravar o refresh novo não derruba a operação; o teste SMTP responde honestamente; sem a configuração Microsoft a resposta é honesta", { skip: pular }, async () => {
   const db = await banco(), repo = criarRepositorio(sessaoDe(db)), conta = await nova(db, R), cx = caixa();
   const ruim = ctxServico(db, repo, cx, conta, { tokenResp: { status: 400, corpo: { error: "invalid_grant" } } }); const r = await atender({ operacao: "testar_conta", conta_id: conta }, ruim.c);
   assert.deepEqual([r.status, r.corpo.erro], [422, "credencial_invalida"]); assert.ok(ruim.eventos.some((e) => e[0] === "marcar" && e[1] === "invalida")); assert.ok(ruim.eventos.some((e) => e[0] === "conta" && e[1] === "erro_autenticacao"));
   const fora = ctxServico(db, repo, cx, conta, { tokenResp: { status: 503, corpo: {} } }); const r2 = await atender({ operacao: "testar_conta", conta_id: conta }, fora.c); assert.equal(r2.corpo.erro, "servico_indisponivel"); assert.ok(!fora.eventos.some((e) => e[1] === "invalida"));
   const mudo = ctxServico(db, repo, cx, conta); cx.add(1); mudo.c.cofre.guardar = async () => { throw new Error("cofre fora"); }; assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, mudo.c)).status, 200, "o refresh anterior segue valendo");
   const ok = ctxServico(db, repo, cx, conta); const pasta = "bbbbbbbb-0000-4000-8000-000000000001", uuid = "aaaaaaaa-0000-4000-8000-000000000001";
-  for (const o of [{ operacao: "organizar_mensagem", conta_id: conta, pasta_id: pasta, uid: 1, acao: "arquivar" }, { operacao: "smtp_prova", conta_id: conta, enviar_teste: false }, { operacao: "enviar_mensagem", conta_id: conta, envio_id: uuid, modo: "novo", para: ["a@example.com"], cc: [], cco: [], assunto: "x", texto: "y" }]) assert.equal((await atender(o, ok.c)).corpo.erro, "provedor_sem_operacao", o.operacao);
+  assert.equal((await atender({ operacao: "smtp_prova", conta_id: conta, enviar_teste: false }, ok.c)).corpo.erro, "provedor_sem_operacao", "o teste SMTP não existe para contas OAuth");
   assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, { ...ok.c, oauth: {} })).corpo.erro, "oauth_nao_configurado");
   assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, { ...ok.c, oauth: { gmail: CFG.outlook } })).corpo.erro, "oauth_nao_configurado", "a configuração do Google nunca serve ao Outlook");
 });

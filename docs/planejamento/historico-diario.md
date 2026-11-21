@@ -1467,3 +1467,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Depois, o lote da SEFAZ (estados e consulta oficial) quando quiser retomar; filtros por área em Preços/Consumo/Comparar, se desejado.
+
+## 21/11/2026 · Central de Compras: lote D, Preços, Consumo e Comparar por área (versão `2026-11-21.4`, em PR)
+
+### 1. O que fizemos
+- PR #64 (lote C) mesclado a pedido do dono. Lote D: as abas Preços, Consumo e Comparar ganharam o seletor de área e usam a fonte unificada (notas, pedidos online e delivery) reduzida à área; categorias das listas só da área escolhida. Sem SQL, função ou migration; contas e exportações inalteradas.
+
+### 2. O que estamos fazendo
+- PR do lote D para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, o lote da SEFAZ (estados e consulta oficial) e a limpeza do código das telas que saíram, quando quiser.

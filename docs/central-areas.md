@@ -85,3 +85,10 @@ Desenho aprovado pelo dono em 21/11/2026; parte da navegação do PR #61 (já me
 - **Compras online → Pedidos online:** só a entrada (lista, importar, manual, anexos, "já contada em outro lugar"), sem item no menu (rota aberta à Fernanda). Sem Resumo, Produtos, loja, categoria, produto (a Central de Compras mostra) e sem **recorrências** (Fernanda não usa; o dado gravado é preservado ao editar). Endereços antigos abrem `#mercado/central` ou a lista.
 - **Sem "pendente" na tela** (decisão do dono; opções de estados ficam para o lote da SEFAZ): chip, linha "Situação fiscal: Pendente", "pendente na SEFAZ", aviso de notas não lançadas e os textos "pendente fiscal" (agora "sem validação oficial"). Só exibição; a regra e os estados internos não mudam.
 - **Testes:** `tests/entrada_fiscal.test.mjs`; testes das telas removidas (Resumo/Produto/loja de Compras online, recorrência, menu) ajustados de propósito; as contas no núcleo continuam testadas.
+
+## Lote D · Preços, Consumo e Comparar por área (21/11/2026; versão `2026-11-21.4`)
+**Em PR, não mesclado e não publicado.** Sem migration, SQL ou Edge Function.
+- As três abas da faixa de baixo ganharam o **seletor de área** (Todas as áreas · cada área com dados; Delivery só com pedidos). Escolher uma área zera o que era da anterior (produto aberto, mês, filtros, comparação).
+- Todas passam a usar a **fonte unificada** (`rowsT()` = `cmLinhas` das compras unificadas, reduzidas à área): notas, pedidos online e delivery. Em "Todas as áreas" isso inclui o que antes não aparecia (pedidos online e delivery); o estabelecimento aparece sem a cidade.
+- Com uma área escolhida, as listas de categorias (Consumo e Comparar) trazem só as categorias da área; as contas (`mkc*`, `mkx*`) são as mesmas de antes. Só leitura.
+- Testes: `tests/analise_area.test.mjs`; os testes de Preços, Consumo, Comparar e exportação passaram sem alteração.

@@ -36,3 +36,27 @@ A Fernanda tem acesso integral à Central de Compras: vê a Central e todos os p
 ## Limites e pendências
 - Preços, Consumo, Comparar e Produtos ainda listam todas as categorias; filtrar por área neles é um próximo lote, se o dono quiser.
 - Categorias do pedido online ficam sem frete por área (decisão financeira acima); subcategoria online continua inexistente.
+
+## Lote A · desenho (21/11/2026) — PLANEJADO, NÃO IMPLEMENTADO
+Aguarda aprovação do dono. Parte da navegação do PR #61 (Central e áreas na caixa grande).
+
+**Intenção.** Eu e a Fernanda vermos todas as compras da casa. Cada área (Mercado, Automotivo, Farmácia, Bebê/Infantil e as futuras) tem um painel com a cara e as funções do Painel do Mercado; a Central é o mesmo painel sem filtro de área, somando tudo.
+**Metas.** (1) Um só motor de painel para todas as áreas e para a Central. (2) Fonte única: notas + pedidos online (`cuUnificar`), sem duplicar. (3) Área criada depois ganha o painel sozinha. (4) Comparação de dois períodos livres e variação de preço por produto. (5) A Central mostra a conta fechando: áreas + não classificados + ajustes = total.
+**Não metas (outros lotes).** Área Delivery e fim da página Alimentação (lote B); Central Fiscal como Entrada, Compras online e mensagens de "pendente" (lote C); qualquer SQL, Edge Function ou mudança de regra financeira.
+**Antimetas.** Número do Painel do Mercado mudar sem querer; perder algum recurso do Painel; ficar com dois motores de painel; a Fernanda ver algo diferente do dono.
+**Restrições.** ES5 puro; nomes globais únicos; gráfico novo com `racDica`; classificação por item pela categoria; Fernanda com os mesmos poderes; sem SQL em produção; versão trocada em `sw.js`, `js/app.js` e `index.html`.
+
+**Abordagens.** (1) **Escolhida:** o motor do Painel do Mercado (`viewPainel`) passa a receber área e linhas, vindas das compras unificadas pela `cmLinhas`; preserva o que está testado e usa o que já existe. (2) Painel novo do zero: mais risco de perder detalhes e de reescrever testes. (3) Acrescentar os recursos do Painel à tela da Central: reproduz recurso por recurso o que o dono pediu para seguir.
+
+**Desenho.**
+- **Fonte:** `linhas = cmLinhas(arCompras(compras, área, cfg))`; na Central, `cmLinhas(todas)`. `cmLinhas` ganha o campo `desconto` por item (e `cuDeNotas`, o do item); nenhum total muda.
+- **Motor:** `viewPainel(body, ctx)` com `ctx = {area, linhas}`; no lugar de `rowsP()`. O estado (mês, indicador aberto) é separado por área e zerado ao trocar de área. Mantém: seletor de mês, comparação com o mesmo dia do mês anterior, indicadores clicáveis, mês a mês, por estabelecimento e categoria, "O que mais pesou", CSV.
+- **Abrir uma compra:** nota abre em Notas, pedido abre na Central (`abrirLinha`, como hoje).
+- **Central:** o mesmo motor com os filtros de canal, estabelecimento e categoria, períodos 12 meses e Tudo, o quadro "Por área" e a conferência dos totais. A `viewCentral` antiga e o painel de área da versão atual saem (um motor só).
+- **Rotas:** `#mercado/central`, `#mercado/area/<id>` (sem mudança). `#mercado/painel` passa a redirecionar para `#mercado/area/mercado`. **Minha decisão:** como o Mercado já está na caixa grande, tiro "Painel do Mercado" da linha de baixo para não duplicar.
+- **Comparação (passo 3):** dois períodos livres (mês, 12 meses, intervalo) lado a lado por área, e variação de preço por produto, reaproveitando `mkcPrecos`/`mkcProduto` sobre as linhas da área.
+- **Fernanda:** mesmo código, mesma configuração, mesmos poderes.
+
+**Passos, cada um com testes.** (1) Teste de regressão (fixture com a saída atual do Painel) e adaptador `cmLinhas` com `desconto`. (2) Motor parametrizado + Mercado, Automotivo, Farmácia, Bebê. (3) Central no motor + quadro "Por área" + remoção do código duplicado. (4) Comparação de períodos e variação de preço. Documentação, histórico e RAC Knowledge no fim.
+**Prova de que nada mudou:** Mercado só com notas e todas as categorias de Mercado = saída idêntica à do Painel de hoje; Σ áreas + não classificados + ajustes = Central; nenhum item duplicado.
+**Fica para quem constrói.** Layout fino no iPhone, textos de ajuda, nomes internos, divisão em commits.

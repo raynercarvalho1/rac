@@ -131,9 +131,9 @@ test("tela Preços: filtro por mês, desde o início, busca e ordenação contin
   const un = linhas().map(cel).map((x) => x[1].trim()); assert.deepEqual(un, un.slice().sort((a, b) => a.localeCompare(b)), "dá para ordenar por unidade");
 });
 
-test("Painel: a lista de produtos também separa por unidade e abre o histórico certo", () => {
+test("Painel: a lista de produtos também separa por unidade e abre a página do produto", () => {
   const mk = ler("mercado.js");
-  assert.match(mk, /groupBy\(l, function \(x\) \{ return NU\(\)\.mkcChaveProd\(x\); \}\)/); assert.match(mk, /st\.prod = x\.k;/);
+  assert.match(mk, /groupBy\(l, function \(x\) \{ return NU\(\)\.mkcChaveProd\(x\); \}\)/); assert.match(mk, /location\.hash = linkProd\(x\.p\);/, "o produto abre a página do produto (Lote A), que tem um bloco por unidade (kg, L, un)");
   assert.ok(!/function produtos\(rs\) \{\s*return Object\.entries\(groupBy\(rs \|\| rows, function \(x\) \{ return x\.produto; \}\)\)/.test(mk), "o agrupamento só pelo nome saiu de Preços");
 });
 

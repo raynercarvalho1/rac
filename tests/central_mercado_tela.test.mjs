@@ -68,16 +68,15 @@ const links = (href) => achar(ROOT, (e) => e.tag === "a" && e.attrs.href === hre
 const botoes = (txt) => achar(ROOT, (e) => e.tag === "button" && texto(e).replace(NB, " ").includes(txt));
 const escritas = (calls) => calls.filter((c) => c[0] !== "select");
 
-test("Central (dono): evolução mês a mês com valor e mês fixos e a dica padrão; tocar num mês escolhe o mês; mês sem compra fica desligado", async () => {
+test("Central (dono): Mês a mês do motor do Painel com valor e mês fixos e a dica padrão; tocar num mês escolhe o mês (Lote A)", async () => {
   const calls = await abrir("central", "", { cu: { per: "12m" } }), t = tudo();
-  assert.ok(t.includes("Evolução dos gastos"));
-  const ev = achar(ROOT, (e) => e.tag === "div" && e.className === "vbars cmvbars")[0]; assert.ok(ev, "o gráfico de colunas existe");
-  const cols = ev.children; assert.equal(cols.length, 12, "12 meses até o mês atual");
+  assert.ok(t.includes("Mês a mês"));
+  const ev = achar(ROOT, (e) => e.tag === "div" && e.className === "vbars")[0]; assert.ok(ev, "o gráfico de colunas existe");
+  const cols = ev.children; assert.ok(cols.length >= 2, "um botão por mês com compras");
   for (const b of cols) { assert.ok(typeof b.dica === "function", "cada coluna usa racDica"); assert.ok(achar(b, (e) => e.className === "vbv").length === 1 && achar(b, (e) => e.className === "vbl").length === 1, "valor e mês fixos"); }
-  const nov = cols[11], ago = cols[8]; assert.equal(texto(achar(nov, (e) => e.className === "vbl")[0]), "nov/26"); assert.equal(texto(achar(nov, (e) => e.className === "vbv")[0]), Math.round(8 + 54 + 12 + 112.5).toLocaleString("pt-BR"));
-  assert.equal(ago.attrs.disabled, "", "agosto sem compra: desligado"); assert.equal(ago.onclick, undefined);
-  assert.deepEqual(nov.dica().map((x) => x.replace(NB, " ")), ["novembro 2026", BRL(186.5) + " gastos · 2 compras"], "a dica diz o mês, o valor e as compras");
-  cols[10].onclick(); await esperar(); assert.equal(T.CU.per, "2026-10", "tocar em outubro escolhe outubro na Central"); assert.ok(tudo().includes("Gasto em outubro 2026"));
+  const nov = cols[cols.length - 1]; assert.equal(texto(achar(nov, (e) => e.className === "vbl")[0]), "nov/26");
+  assert.deepEqual(nov.dica().map((x) => x.replace(NB, " ")), ["novembro 2026", BRL(186.5) + " gastos"], "a dica diz o mês e o valor");
+  cols[cols.length - 2].onclick(); await esperar(); assert.equal(T.CU.per, "2026-10", "tocar em outubro escolhe outubro na Central"); assert.ok(tudo().includes("Gasto em outubro 2026"));
   assert.deepEqual(escritas(calls), [], "só leitura");
 });
 
@@ -86,17 +85,17 @@ test("Central (dono): Explorar por categoria e por estabelecimento (as duas font
   for (const x of ["Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia"]) assert.ok(t.includes(x), x);
   for (const h of ["#mercado/categoria/Pet", "#mercado/categoria/Padaria", "#mercado/estabelecimento/Amazon", "#mercado/estabelecimento/Tauste", "#mercado/estabelecimento/Confian%C3%A7a"]) assert.equal(links(h).length, 1, h);
   assert.ok(t.includes("Mais barato em Confiança") && t.includes(BRL(r2((5 - 4.5) * 6))), "Leite: 6 un a R$ 0,50 a mais na Tauste");
-  assert.ok(links("#mercado/produto/Leite").length === 1, "a oportunidade leva ao produto");
-  await abrir("central", "", { cu: { per: "tudo", sel: { tipo: "cat", valor: "Pet" } } });
+  assert.ok(links("#mercado/produto/Leite").length >= 1, "a oportunidade (e o quadro de preços) leva ao produto");
+  Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); await abrir("central", "", { cu: { per: "tudo" } });
   const ab = links("#mercado/categoria/Pet").filter((a) => /Abrir a categoria/.test(texto(a))); assert.equal(ab.length, 1, "o detalhe da barra leva à página da categoria");
-  await abrir("central", "", { cu: { per: "tudo", sel: { tipo: "estab", valor: "Amazon" } } });
+  Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "mercado", valor: "Amazon" }, kpi: null, kpiNota: null }); await abrir("central", "", { cu: { per: "tudo" } });
   assert.equal(links("#mercado/estabelecimento/Amazon").filter((a) => /Abrir o estabelecimento/.test(texto(a))).length, 1);
 });
 
 test("a casa (Fernanda) vê as páginas de mercado (12/11/2026) e, desde 16/11/2026, o Radar e a junção de produtos igual ao dono; nada é gravado só por abrir", async () => {
-  let calls = await abrir("central", "", { dono: false, cu: { per: "tudo", sel: { tipo: "cat", valor: "Pet" } } }); let t = tudo();
-  for (const x of ["Evolução dos gastos", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Últimas compras"]) assert.ok(t.includes(x), x);
-  assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length === 1, "ela navega para as páginas");
+  Object.assign(T.st, { mes: "2026-11", pick: { mes: "2026-11", tipo: "categoria", valor: "Pet" }, kpi: null, kpiNota: null }); let calls = await abrir("central", "", { dono: false, cu: { per: "tudo" } }); let t = tudo();
+  for (const x of ["Mês a mês", "Explorar por categoria", "Explorar por estabelecimento", "Oportunidades de economia", "Abrir a categoria", "Por categoria", "Última compra"]) assert.ok(t.includes(x), x);
+  assert.ok(links("#mercado/categoria/Pet").length >= 1 && links("#mercado/estabelecimento/Amazon").length >= 1 && links("#mercado/produto/Leite").length >= 1, "ela navega para as páginas");
   calls = calls.concat(await abrir("estabelecimento", "Amazon", { dono: false, cu: { per: "tudo" } })); t = tudo(); assert.ok(t.includes("Comparação com outros estabelecimentos") && t.includes("Produtos comprados aqui"));
   calls = calls.concat(await abrir("categoria", "Padaria", { dono: false, cu: { per: "tudo" } })); t = tudo();
   assert.ok(t.includes("Onde você compra Padaria") && t.includes("Último preço pago") && t.includes("Maior pago")); { const casaCat = t; await abrir("categoria", "Padaria", { dono: true, cu: { per: "tudo" } }); assert.equal(casaCat, tudo(), "a categoria é idêntica para a casa e para o dono (inclusive o selo de ofertas)"); }
@@ -189,7 +188,7 @@ test("código: a navegação nova só lê (nenhuma escrita, RPC, IA ou função)
   const b = m.slice(i0, i1); assert.ok(!/\.(insert|update|delete|upsert|rpc)\(|functions\.invoke|racIA|pessoalGravar/.test(b), "só leitura");
   assert.ok(!/sb\.from\(/.test(b.replace(/sb\.from\("radar_candidatos"\)\.select\(/, "")), "a única consulta nova é a de ofertas que já existia (radar_candidatos)");
   assert.match(m, /x\[0\] === sub && \(x\[0\] !== "radar" \|\| ehDono\(\)\)/, "pelo endereço a casa abre categoria, produto e estabelecimento; o Radar também é da casa desde 16/11/2026 (ehDono = dono ou casa)");
-  assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento"( \|\| sub === "area" \|\| sub === "categorias")? \? loadOnline\(\)/, "as páginas carregam as compras online junto");
+  assert.match(m, /sub === "categoria" \|\| sub === "produto" \|\| sub === "estabelecimento"( \|\| sub === "area" \|\| sub === "painel" \|\| sub === "categorias")? \? loadOnline\(\)/, "as páginas carregam as compras online junto");
   assert.match(ler("index.html"), /\.cmvbars\{[^}]*overflow-x:auto[^}]*\}\.cmvbars \.vb\{flex:1 0 36px\}/, "colunas com largura mínima: rolam para o lado em vez de espremer ou vazar do quadro");
 });
 
@@ -207,7 +206,7 @@ test("abrir a compra por um item: a nota abre pelo TOPO, com o item em destaque 
   const marcados = achar(ROOT, (e) => /\bmkitem\b/.test(e.className) && /\bmkalvo\b/.test(e.className)); assert.equal(marcados.length, 1); assert.ok(texto(marcados[0]).includes("Leite"), "o item fica em destaque na lista");
   assert.match(ler("mercado.js"), /p\.querySelector\("details\[open\]"\); if \(ab && ab\.scrollIntoView\) ab\.scrollIntoView\(\{ block: "start" \}\)/, "rola até o topo da nota, não até o meio dos itens");
   /* abrir a nota pela Central (sem item) não deixa destaque velho */
-  await abrir("central", "", { cu: { per: "tudo", aberta: "nota:2026-11-02|Confiança (Sorocaba)|20" } }); botoes("Abrir a nota em Notas")[0].onclick(); assert.equal(T.st.notaItem, null);
+  Object.assign(T.st, { mes: "2026-11", kpi: "mes", kpiNota: "nota:2026-11-02|Confiança (Sorocaba)|20", pick: null }); await abrir("central", "", { cu: { per: "tudo" } }); botoes("Abrir a nota em Notas")[0].onclick(); assert.equal(T.st.notaItem, null);
   T.drawApp("notas"); await esperar(); assert.equal(achar(ROOT, (e) => e.className === "mkalvotopo").length, 0);
 });
 
@@ -225,7 +224,7 @@ test("dados frescos: passado o prazo, a Central relê as fontes em segundo plano
   assert.equal(await T.reler("central", ""), false, "nada mudou"); assert.equal(ROOT.children, tela, "sem redesenhar à toa");
   T.lidoEm.notas = T.lidoEm.online = 0; calls.length = 0;
   for (const v of ["notas", "produtos", "importar"]) assert.equal(T.reler(v, ""), null, v + ": tela de edição não relê"); assert.equal(calls.length, 0);
-  assert.equal(T.reler("painel", "") !== null, true, "o Painel do Mercado relê as notas"); await esperar(); assert.deepEqual(calls.map((c) => c[1]), ["compras"], "no Painel só as notas (ele não usa os pedidos online)");
+  assert.equal(T.reler("painel", "") !== null, true, "o Painel do Mercado relê as notas"); await esperar(); assert.deepEqual(calls.map((c) => c[1]).sort(), ["compras", "compras_online"], "o Painel é o motor unificado (Lote A): relê notas e pedidos online");
   T.lidoEm.notas = T.lidoEm.online = 0; T.trocarSb(fakeSb(banco(), calls = []));
   const p = T.reler("central", ""); globalThis.location.hash = "#mercado/precos"; assert.equal(await p, false, "trocou de tela durante a leitura: descarta");
   await esperar();
@@ -267,7 +266,7 @@ test("juntar pela página do produto (dono): o pedido online sugere o produto pa
 
 test("junção na Central e na aba Produtos: o pedido aberto mostra o nome do pedido; a aba Produtos lista sugestões e junções; a casa vê e faz o mesmo (16/11/2026)", async () => {
   const pessoal = { "mercado-equivalencias": { v: 1, itens: { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Golden Adulto 10kg" } } };
-  await abrir("central", "", { linhas: COM_PET, pessoal, cu: { per: "tudo", aberta: "online:o1" } }); let t = tudo();
+  Object.assign(T.st, { mes: "2026-11", kpi: "mes", kpiNota: "online:o1", pick: null }); await abrir("central", "", { linhas: COM_PET, pessoal, cu: { per: "tudo" } }); let t = tudo();
   assert.ok(t.includes("Ração Golden Adulto 10kg") && t.includes("no pedido: Ração Golden 10kg"), "o pedido mostra o produto juntado e o nome original");
   await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [] } }); await esperar(); t = tudo();
   assert.ok(t.includes("Pedidos online com nome diferente") && t.includes("1 sugestão") && t.includes("“Ração Golden 10kg”") && t.includes("Ração Golden Adulto 10kg (Mercado, 67%)"));

@@ -1537,3 +1537,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone. Sem pendências técnicas planejadas.
+
+## 21/11/2026 · Central Fiscal: campo "Tenho só a chave" (versão `2026-11-21.9`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono, cartão na Central Fiscal para colar a chave de acesso (44 dígitos ou endereço do QR Code): confere no aparelho, mostra o que a chave informa, diz se a nota já está na Central Fiscal e oferece copiar a chave e abrir a consulta oficial. Não grava, não consulta a SEFAZ e não lança compra (a chave não traz itens nem valores). `NUCLEO.nfChaveColada` e `nfConsultaChave` em `nucleo.js`; `tests/fiscal_chave.test.mjs`. Nenhum SQL, função ou secret.
+
+### 2. O que estamos fazendo
+- Código na branch `claude/amazing-brown-ssqn68`, **não publicado**. Os links da consulta oficial apontam para a página inicial dos portais e não foram abertos (sem rede aqui).
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone (colar uma chave real, abrir o link, enviar o PDF). Se quiser lançar só pela chave no futuro, depende da consulta oficial à SEFAZ (certificado digital; lote futuro já decidido).

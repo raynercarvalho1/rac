@@ -1,5 +1,7 @@
 # Central de Compras (compras online)
 
+> **Lote C (21/11/2026, pedido do dono): Compras online virou "Pedidos online", só a ENTRADA** (lista, importar, manual, anexos, "já contada em outro lugar"), dentro da Central Fiscal (atalho "Pedidos online" e "Importar pedido online" na página `#fiscal`), sem item no menu. Saíram da tela: Resumo, Produtos, páginas de loja, categoria e produto (a Central de Compras, `#mercado`, mostra tudo isso) e as **recorrências** (a Fernanda não usa; a coluna e o que já estava gravado ficam). `#compras/resumo`, `/produtos`, `/loja`, `/categoria` e `/produto` abrem `#mercado/central`; `#compras` abre a lista. As contas (`coResumo`, `coRegra`, `coDetalheLoja`...) continuam no núcleo. O texto abaixo descreve o desenho original.
+
 Página `#compras` (menu → Compras online), código em `js/compras.js`, contas em `nucleo.js` (`NUCLEO.co*`, testes em
 `tests/compras.test.mjs`), banco em `supabase/025_compras_online.sql`. No ar desde 01/11/2026 (versão `2026-11-01.9`). Os Lotes 5.0, 5.1 e 5.2 estão no `main` (o site publicado sai dele); a validação registrada em produção é a da etapa 3 do 5.1 (abaixo). As marcas "só no código local" de cada seção são da data em que foram escritas.
 Depois de gravar, anexar, marcar ou apagar um pedido, `ccEsquecer` também avisa a Central de Compras (`RACmercado.esquecerOnline()`), que lê os pedidos de novo na próxima vez que abrir (docs/central-compras.md, "Navegação de mercado").

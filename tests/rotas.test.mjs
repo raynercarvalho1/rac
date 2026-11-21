@@ -40,7 +40,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.equal(novoTodos.filter((a) => /data-k="inbox"/.test(a) && !/data-casa/.test(a)).length, 1, "o Inbox está no menu e fora do menu da casa");
   assert.equal(novoTodos.filter((a) => /data-k="conhecimento"/.test(a) && !/data-casa/.test(a)).length, 1, "o RAC Knowledge está no menu do dono e fora do menu da casa");
   const novo = novoTodos.filter((a) => !/data-k="inbox"/.test(a) && !/data-k="conhecimento"/.test(a));
-  assert.equal(velho.length, 28, "29 menos Alimentação, que saiu do menu no lote B (21/11/2026)"); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
+  assert.equal(velho.length, 27, "29 menos Alimentação (lote B) e Compras online (lote C), que saíram do menu em 21/11/2026"); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
   /* Fase 3: cada item ganhou data-area e --o (o menu do dono é agrupado por CSS); fora isso o HTML é o de antes */
   const semFase3 = (x) => x.replace(' data-casa="1"', "").replace(/ data-area="[a-z]+" style="--o:\d+"/, "");
   assert.deepEqual(novo.map(semFase3), velho, "mesmo HTML (ícone, cor, nome, contador), na mesma ordem");
@@ -53,7 +53,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.match(html, /<nav class="grp" id="navgrp" aria-label="Seções">\n      <h4>Painel<\/h4>/, "o título do grupo continua");
   assert.ok(!/<a class="it" href="#inicio"/.test(html), "o menu não é mais HTML fixo");
   assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "o grupo do registro continua um só (\"Painel\"); as áreas da Fase 3 são o campo area, aplicado por CSS só para o dono");
-  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes"], "só a Busca (como antes), a página de componentes (Fase 3) e o formulário do pedido (Alimentação, lote B) ficam sem item no menu");
+  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes", "compras"], "só a Busca (como antes), a página de componentes (Fase 3) e as entradas de pedido (Alimentação, lote B; Pedidos online, lote C) ficam sem item no menu");
   const idx = ["js/dados.js", "mercado.js", "js/rotas.js", "js/app.js"].map((s) => html.indexOf(`<script src="${s}"></script>`));
   assert.ok(idx.every((x, i) => x > 0 && (!i || x > idx[i - 1])), "o registro carrega antes do app (a busca lateral lê o menu ao abrir)");
   assert.match(lerArq("sw.js"), /"\.\/js\/rotas\.js"/);

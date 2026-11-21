@@ -4,7 +4,7 @@
    (<dono>/compras/<compra>/) e o que foi extraído na tabela (025_compras_online.sql). As contas ficam no núcleo (NUCLEO.co*).
    Nada é gravado antes do Salvar; nenhuma IA em REAL; nenhuma ação na conta da loja. */
   var CC={aba:"resumo",dados:null,carregando:null,aberto:null,lote:null,nav:[]};
-  var CC_ABAS=[["resumo","Resumo"],["lista","Compras"],["importar","Importar"],["produtos","Produtos e recorrências"],["nova","＋ Manual"]];
+  var CC_ABAS=[["lista","Pedidos"],["importar","Importar"],["nova","＋ Manual"]];   /* desde o lote C (21/11/2026) é só a ENTRADA dos pedidos online, dentro da Central Fiscal; resumo, produtos, lojas e categorias são da Central de Compras (#mercado) */
   /* bibliotecas do CDN, com versão exata, carregadas só quando precisam */
   var CC_PDF="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",CC_PDF_W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   var CC_ZIP="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",CC_OCR="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
@@ -55,133 +55,36 @@
     return SB.storage.from("familia").createSignedUrls(paths,3600).then(function(r){var o={};(r.data||[]).forEach(function(x){if(x.signedUrl)o[x.path]=x.signedUrl});return o},function(){return {}})}
 
   function renderCompras(sub,id,extra){
-    var det=sub==="loja"||sub==="categoria"||sub==="produto";
-    CC.aba=CC_ABAS.some(function(a){return a[0]===sub})||sub==="editar"?sub:det&&!(sub==="produto"&&/^produtos/.test(ccDec(extra)))?"resumo":det?"produtos":"resumo";
+    /* a página antiga: "#compras" abre a lista de pedidos; resumo, produtos, loja, categoria e produto abrem a Central de Compras (que tem tudo isso) */
+    if(!sub||sub==="lista"){}else if(sub!=="importar"&&sub!=="nova"&&sub!=="editar"){location.replace("#mercado/central");return}
+    CC.aba=sub==="importar"||sub==="nova"||sub==="editar"?sub:"lista";
     var root=$("#compras-view"),volta=ccNav();root.innerHTML="";
     if(!CC.navLigado){CC.navLigado=true;root.addEventListener("click",function(){var t=CC.nav[CC.nav.length-1];if(t)t.y=window.scrollY},true)}
-    var topo=panel("Central de Compras","Pedidos de lojas online, importados dos documentos da própria loja (PDF, nota fiscal, XML, CSV, e-mail ou print). O arquivo original fica guardado junto do pedido."),
+    var topo=panel("Pedidos online","Entrada dos pedidos de lojas online, importados dos documentos da própria loja (PDF, nota fiscal, XML, CSV, e-mail ou print). O arquivo original fica guardado junto do pedido. Gráficos e totais estão na Central de Compras."),
       abas=h("div",{class:"seg famseg ccabas",role:"group","aria-label":"Área"});
     CC_ABAS.forEach(function(a){abas.appendChild(h("a",{href:"#compras/"+a[0],"aria-pressed":String(CC.aba===a[0]),text:a[1]}))});
-    topo.appendChild(abas);root.appendChild(topo);
+    topo.appendChild(abas);topo.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#fiscal",text:"‹ Central Fiscal"}),h("a",{class:"ghostbtn",href:"#mercado/central",text:"Central de Compras ›"})));root.appendChild(topo);
     var corpo=h("div",{class:"stack"},h("div",{class:"panel"},loading()));root.appendChild(corpo);
     ccCarregar().then(function(){corpo.innerHTML="";
       if(CC.aba==="importar"){ccImportar(corpo);return}
       if(CC.aba==="nova"){corpo.appendChild(ccConferencia({cand:{loja:"amazon",itens:[{descricao:"",qtd:1,total:null}],docs:[],imagens:[],origem:"manual"},avulso:true}));return}
       if(CC.aba==="editar"){var c=CC.dados.filter(function(x){return x.id===id})[0];
         corpo.appendChild(c?ccConferencia({existente:c,cand:JSON.parse(JSON.stringify(c)),docs:[],avulso:true}):h("div",{class:"panel"},ccVazio("Essa compra não foi encontrada."),h("a",{class:"ghostbtn",href:"#compras/lista",text:"Ver as compras"})));return}
-      (det?ccDetalheRota(sub,id,extra):({resumo:ccResumo,lista:ccLista,produtos:ccProdutos}[CC.aba])()).forEach(function(x){if(x)corpo.appendChild(x)});
+      ccLista().forEach(function(x){if(x)corpo.appendChild(x)});
       if(volta>0)setTimeout(function(){window.scrollTo(0,volta)},0)})
     .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(function(){ccEsquecer();renderCompras(CC.aba)},e)));logErro("compras",e)})}
 
   /* ---------- Resumo ---------- */
-  function ccResumo(){
-    var L=[],R=NUCLEO.coResumo(CC.dados,{hoje:hojeISO()}),P=R.periodo,meses=P.meses;
-    var p=panel("Resumo","Pelo total efetivamente pago de cada pedido (com desconto, frete e taxas). Ficam fora dos totais: cancelados, pedidos pendentes, compras marcadas como já contadas em outro lugar, histórico físico da Amazon e registros de outro módulo.");
-    if(!CC.dados.length){p.appendChild(ccVazio("Nenhuma compra ainda. Use “Importar” para trazer o PDF, a nota fiscal, o CSV ou os e-mails da loja."));
-      p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#compras/importar",text:"Importar compras"})));L.push(p);return L}
-    p.appendChild(rsKpis([["Este mês",brl(P.doMes.total)],["Pedidos no mês",P.doMes.n],["Últimos 12 meses",brl(P.ano.total)],["Economia (12 meses)",brl(P.descontos.economia)],["Ticket médio",P.ano.ticket!=null?brl(P.ano.ticket):""]]));
-    var FN={cancelada:["cancelada","canceladas"],pendente:["pendente","pendentes"],fora_das_contas:["fora das contas","fora das contas"],referencia_historica:["de referência histórica","de referência histórica"],outro_modulo:["de outro módulo","de outro módulo"]},
-      nt=Object.keys(FN).filter(function(k){return R.fora[k].n}).map(function(k){return R.fora[k].n+" "+FN[k][R.fora[k].n===1?0:1]+" ("+brl(R.fora[k].valor)+")"});
-    if(nt.length)p.appendChild(h("p",{class:"sub",text:"Fora dos totais (todas as datas): "+nt.join(" · ")+"."}));
-    if(P.descontos.economia>0)p.appendChild(h("p",{class:"sub",text:"Economia sem duplicidade: desconto geral "+brl(P.descontos.gerais)+" + desconto nos itens "+brl(P.descontos.itens)+" = "+brl(P.descontos.economia)+(P.descontos.incertos?". Em "+P.descontos.incertos+(P.descontos.incertos===1?" pedido":" pedidos")+" não dá para provar se o desconto do pedido já inclui o dos itens: vale o maior dos dois, nunca a soma.":".")}));
-    var B=meses.map(function(m){return {k:m,cima:MES3[+m.slice(5,7)-1],baixo:m.slice(2,4),nome:ccMes(m)}}),pm=P.porMes;
-    p.appendChild(h("h3",{class:"mbag",text:"Por mês"}));
-    p.appendChild(rsColunas(B,meses.map(function(m){return pm[m].total}),function(v){return v>=1000?fmtN(Math.round(v/100)/10)+" mil":String(Math.round(v))},function(i,v){return [B[i].nome,v?brl(v)+" · "+pm[meses[i]].n+(pm[meses[i]].n===1?" pedido":" pedidos"):"sem compras"]}));
-    var cat=P.porCategoria,loja=P.porLoja;
-    /* cada barra leva à tela do detalhe (loja ou categoria), como o Mercado leva do painel ao produto */
-    var barras=function(o,suf,rota){return rsBarras(Object.keys(o).sort(function(a,b){return o[b]-o[a]}).slice(0,30).map(function(k){return {nome:k,v:o[k],txt:brl(o[k]),dica:brl(o[k])+" "+suf+" · toque para ver os produtos",href:"#compras/"+rota+"/"+encodeURIComponent(k)}}))};
-    if(Object.keys(cat).length){p.appendChild(h("h3",{class:"mbag",text:"Por categoria (12 meses)"}));p.appendChild(barras(cat,"em 12 meses","categoria"));
-      var ax=P.ajustesPedidos,sc=Object.keys(cat).reduce(function(s,k){return s+ccCent(cat[k])},0);
-      p.appendChild(h("p",{class:"sub",text:"Cada produto fica na categoria dele (a do próprio item). Ajustes dos pedidos (frete, taxas, descontos gerais e outros): "+ccSinal(ax.total)+", fora das categorias e contados uma vez. Categorias + ajustes = "+brl(P.ano.total)+" nos últimos 12 meses"+(sc+ccCent(ax.total)===ccCent(P.ano.total)?" ✓.":" ⚠ (não fecha: avise o responsável).")}))}
-    if(Object.keys(loja).length){p.appendChild(h("h3",{class:"mbag",text:"Por loja (12 meses)"}));p.appendChild(barras(loja,"em 12 meses","loja"))}
-    p.appendChild(ccFonte("Central de Compras · "+dataBR(meses[0]+"-01")+" a "+dataBR(hojeISO())));L.push(p);
-    var rec=NUCLEO.coRecorrencias(CC.dados).filter(function(r){return r.informada&&r.informada.status==="a_confirmar"});
-    if(rec.length){var pr=panel("Recorrências a confirmar","A loja informou uma entrega automática. Nada foi criado para o futuro: confirme ou descarte na compra.");
-      pr.appendChild(h("ul",{class:"wl"},rec.map(function(r){var c=r.compra,bx=h("div",{class:"vfil"});
-        if(c)[["confirmada","Confirmar"],["descartada","Descartar"]].forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
-          b.onclick=function(){b.disabled=true;SB.from("compras_online").update({recorrencia_status:o[0],atualizado_em:new Date().toISOString()}).eq("id",c.id).then(sbOk).then(function(){ccEsquecer();renderCompras("resumo")},function(){b.disabled=false})};bx.appendChild(b)});
-        return h("li",{class:"ccli"},h("span",{class:"grow"},h("b",{text:r.produto}),h("span",{class:"sub",text:r.informada.texto+(r.proximaEstimada?" · próxima prevista (estimativa): "+dataBR(r.proximaEstimada):"")+" · a compra de "+dataBR(r.ultima)+" continua confirmada"})),bx)})));L.push(pr)}
-    return L}
-
-  /* ---------- Detalhamento (Lote 5.2): loja ou categoria → produto → histórico de preços ----------
-     Telas próprias, no padrão do Mercado: #compras/loja/<nome>, #compras/categoria/<nome> e #compras/produto/<chave>/<origem>.
-     Nenhuma conta financeira aqui: os valores vêm de NUCLEO.coDetalheLoja/coDetalheCategoria (regra de coRegra) e do histórico de coPrecos
-     (NUCLEO.coProdutoResumo só soma o que coPrecos já calculou). "Voltar" leva à tela de onde se veio e devolve a rolagem. */
   function ccDec(s){try{return decodeURIComponent(s||"")}catch(e){return s||""}}
   function ccCent(x){return Math.round((+x||0)*100)}
   function ccSinal(v){return (v<0?"−":"")+brl(Math.abs(v))}
-  function ccRotaProduto(chave,origem){return "#compras/produto/"+encodeURIComponent(chave)+(origem?"/"+encodeURIComponent(origem):"")}
-  /* para onde "Voltar" leva: a origem do clique (loja, categoria, aba Produtos) ou o Resumo */
-  function ccVoltarDe(origem){var o=String(origem||""),i=o.indexOf(":"),t=i<0?o:o.slice(0,i),v=i<0?"":o.slice(i+1);
-    if(t==="loja"&&v)return {href:"#compras/loja/"+encodeURIComponent(v),texto:"← Voltar para "+v,loja:v};
-    if(t==="categoria"&&v)return {href:"#compras/categoria/"+encodeURIComponent(v),texto:"← Voltar para "+v,loja:null};
-    if(t==="produtos")return {href:"#compras/produtos",texto:"← Voltar para Produtos",loja:null};
-    return {href:"#compras/resumo",texto:"← Voltar ao Resumo",loja:null}}
-  function ccVoltar(v){return h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:v.href,text:v.texto}))}
   /* pilha das telas de Compras: ao voltar para a tela anterior, a rolagem de antes é devolvida (devolve o y, ou 0) */
-  function ccNav(){var k=location.hash==="#compras"?"#compras/resumo":location.hash,N=CC.nav;
+  function ccNav(){var k=location.hash==="#compras"?"#compras/lista":location.hash,N=CC.nav;
     if(N.length>=2&&N[N.length-2].h===k){N.pop();return N[N.length-1].y||0}
     if(!N.length||N[N.length-1].h!==k){N.push({h:k,y:0});if(N.length>40)N.shift()}
     return 0}
-  function ccDetalheRota(sub,id,extra){var nome=ccDec(id);
-    if(sub==="loja"||sub==="categoria")return ccTelaLista(sub,nome);return ccTelaProduto(nome,ccDec(extra))}
-  /* "Ajustes dos pedidos": o que os pedidos pagam fora dos produtos, numa linha à parte (nunca rateada entre categorias) */
-  function ccAjustes(A,nota){var d=A.detalhe,ul=h("ul",{class:"wl ccconta"}),li=function(n,v,sub){return h("li",sub?{class:"sub"}:null,h("span",{class:"grow",text:(sub?"· ":"")+n}),h("span",{text:ccSinal(v)}))};
-    [["Frete",A.frete],["Taxas",A.taxas],["Descontos gerais do pedido",A.desconto_geral]].forEach(function(l){if(l[1])ul.appendChild(li(l[0],l[1]))});
-    if(A.outros){ul.appendChild(li("Outros ajustes",A.outros));
-      [["Itens cancelados dentro do pedido",d.item_cancelado],["Itens sem identificação",d.item_sem_nome],["Pedidos sem itens listados",d.sem_itens],["Diferença não explicada",d.nao_explicado]].forEach(function(l){if(l[1])ul.appendChild(li(l[0],l[1],true))})}
-    if(!ul.childNodes.length)ul.appendChild(h("li",null,h("span",{class:"grow sub",text:"Nenhum ajuste nesses pedidos."})));
-    ul.appendChild(h("li",null,h("b",{class:"grow",text:"Total dos ajustes dos pedidos"}),h("b",{text:ccSinal(A.total)})));
-    return h("div",{class:"ccajustes"},h("h3",{class:"mbag",text:"Ajustes dos pedidos"}),h("p",{class:"sub",text:nota}),ul)}
-  /* tela de uma loja ou de uma categoria: os produtos (quantidade, total pago, preço médio) e, à parte, os ajustes */
-  function ccTelaLista(tipo,nome){var hoje=hojeISO(),ctx={hoje:hoje},R=NUCLEO.coResumo(CC.dados,ctx),P=R.periodo,loja=tipo==="loja",
-      D=loja?NUCLEO.coDetalheLoja(CC.dados,ctx,nome):NUCLEO.coDetalheCategoria(CC.dados,ctx,nome),barra=(loja?P.porLoja:P.porCategoria)[nome],v=ccVoltar(ccVoltarDe(""));
-    var p=panel(nome,(loja?"Produtos comprados nesta loja":"Produtos desta categoria")+" nos últimos 12 meses ("+dataBR(P.ini)+" a "+dataBR(hoje)+"), só dos pedidos que contam nas despesas. Toque num produto para ver o histórico de preços em todas as lojas.");
-    p.appendChild(v);
-    if(barra==null||!D){p.appendChild(ccVazio("Nada encontrado para “"+nome+"” nos últimos 12 meses."));return [p]}
-    var A=D.ajustes;
-    p.appendChild(rsKpis(loja?[["Total (12 meses)",brl(D.total)],["Pedidos",D.pedidos],["Produtos",D.produtos.length],["Ajustes dos pedidos",ccSinal(A.total)]]:[["Total da categoria (12 meses)",brl(D.total)],["Pedidos com produtos aqui",D.pedidos],["Produtos",D.produtos.length]]));
-    if(D.produtos.length){p.appendChild(h("h3",{class:"mbag",text:"Produtos"}));
-      p.appendChild(rsTabela(["Produto","Qtd","Total pago","Preço médio"],D.produtos.map(function(x){var onde=Object.keys(x.lojas);
-        return {href:ccRotaProduto(x.chave,tipo+":"+nome),c:[h("span",null,h("b",{text:x.nome}),h("small",{class:"sub",text:" · "+(loja?x.categoria:onde.join(", "))+" · "+x.compras+(x.compras===1?" compra":" compras")})),fmtN(x.qtd),brl(x.total),x.medio!=null?brl(x.medio):"–"]}})))}
-    else p.appendChild(ccVazio(loja?"Nenhum produto listado: os pedidos desta loja não têm itens.":"Nenhum produto nesta categoria."));
-    p.appendChild(ccAjustes(A,loja?"Frete, taxas, descontos gerais e outros valores dos pedidos desta loja. Ficam fora dos produtos e não são divididos entre eles.":"Frete, taxas, descontos gerais e outros valores pagos nos pedidos. Não pertencem a nenhuma categoria: valem para todos os pedidos do período, não são rateados e aparecem uma vez só."));
-    var sp=D.produtos.reduce(function(s,x){return s+ccCent(x.total)},0),tot=P.ano.total,
-      okBarra=ccCent(D.total)===ccCent(barra),fecha=loja?sp+ccCent(A.total)===ccCent(D.total)&&okBarra:okBarra&&sp===ccCent(D.total);
-    p.appendChild(h("p",{class:"ccok",text:loja?"Produtos "+brl(sp/100)+" + ajustes "+ccSinal(A.total)+" = "+brl(D.total)+" · valor da barra no Resumo: "+brl(barra)+(fecha?" ✓":" ⚠ não fecha: avise o responsável"):
-      "Produtos desta categoria: "+brl(D.total)+" · valor da barra no Resumo: "+brl(barra)+(fecha?" ✓":" ⚠ não fecha: avise o responsável")+". Com todas as categorias, mais os ajustes ("+ccSinal(A.total)+"), o total é "+brl(tot)+" nos últimos 12 meses."}));
-    p.appendChild(ccFonte("Central de Compras · "+dataBR(P.ini)+" a "+dataBR(hoje)));return [p]}
-  /* tela do produto: o histórico de preços (coPrecos) em TODAS as lojas, com a loja do clique destacada */
-  function ccTelaProduto(chave,origem){var hoje=hojeISO(),R=NUCLEO.coResumo(CC.dados,{hoje:hoje}),ini=R.periodo.ini,vb=ccVoltarDe(origem),
-      x=NUCLEO.coPrecos(CC.dados).filter(function(y){return y.chave===chave})[0],ped={};
-    CC.dados.forEach(function(c){ped[c.id]=c});
-    if(!x){var pv=panel("Produto não encontrado","Esse produto não está no histórico de preços (talvez só tenha pedidos cancelados ou pendentes).");pv.appendChild(ccVoltar(vb));return [pv]}
-    var S=NUCLEO.coProdutoResumo(x,ini),pe=S.periodo,oi=vb.loja,
-      p=panel(x.nome,"Histórico de preços em todas as lojas e origens (compras confirmadas, do histórico e de outros módulos), com o desconto do item já abatido. Pedidos cancelados e pendentes ficam de fora.");
-    p.appendChild(ccVoltar(vb));
-    if(oi)p.appendChild(h("p",{class:"sub",text:"Você veio de "+oi+". O histórico abaixo inclui todas as lojas; as compras de "+oi+" estão marcadas com ★."}));
-    p.appendChild(rsKpis([["Total gasto (12 meses)",brl(pe.gasto)],["Quantidade (12 meses)",fmtN(pe.qtd)],["Preço médio (12 meses)",pe.media!=null?brl(pe.media):"–"],["Último preço",brl(x.ultimo.u)+" · "+dataBR(x.ultimo.d)],["Menor preço (histórico)",brl(x.menor)],["Compras no histórico",x.vezes],
-      x.base?["Último por "+x.base.por,brl(x.base.ultimo)+"/"+x.base.por]:null]));
-    if(!pe.compras)p.appendChild(h("p",{class:"sub",text:"Nenhuma compra nos últimos 12 meses: o histórico abaixo é mais antigo."}));
-    var pts=x.historico.map(function(r){return {data:r.d,v:r.u,det:brl(r.u)+" · "+r.loja+(r.loja_chave===oi?" ★":"")+(r.origem.historico?" · histórico":"")+(r.reembolso?" · reembolso "+r.reembolso:"")}});
-    p.appendChild(h("h3",{class:"mbag",text:"Evolução do preço"}));
-    p.appendChild(window.RACmercado&&window.RACmercado.grafico?window.RACmercado.grafico(pts,{fmt:brl,aria:"Preço de "+x.nome+" ao longo do tempo"}):ccVazio("O gráfico não está disponível agora."));
-    if(pts.length===1)p.appendChild(h("p",{class:"sub",text:"Só uma compra até agora: o gráfico mostra um ponto e passa a mostrar a evolução a cada nova compra."}));
-    p.appendChild(h("h3",{class:"mbag",text:"Preços em todas as lojas"}));
-    p.appendChild(rsTabela(["Loja","Compras","Qtd","Preço médio","Menor","Último"],S.lojas.map(function(l){return {c:[h("span",null,(l.loja===oi?"★ ":"")+l.loja,l.loja===oi?h("small",{class:"sub",text:" · de onde você veio"}):null),String(l.compras),fmtN(l.qtd),l.media!=null?brl(l.media):"–",brl(l.menor),brl(l.ultimo)+" · "+dataBR(l.ultima)]}})));
-    p.appendChild(h("h3",{class:"mbag",text:"Datas das compras"}));
-    p.appendChild(rsTabela(["Data","Loja","Qtd","Preço unit.","Total","Situação"],x.historico.slice().reverse().map(function(r){var c=ped[r.compra_id],rot=c?NUCLEO.coRotulo(c):null,
-        chips=(rot?[rot.status].concat(rot.extras):[]).slice();
-      if(r.origem.historico&&!chips.some(function(k){return k.chave==="despesa_digital"||k.chave==="misto"||k.chave==="referencia_historica"}))chips.push({texto:"Histórico",tom:"info"});
-      if(r.reembolso==="recebido")chips.push({texto:"Reembolso recebido",tom:"info"});
-      var num=r.numero?h("a",{href:"#compras/lista",text:r.numero,title:"Abrir o pedido em Compras"}):null;if(num)num.onclick=function(){CC.aberto=r.compra_id};
-      return {c:[dataBR(r.d),h("span",null,(r.loja_chave===oi?"★ ":"")+r.loja,num?h("small",{class:"sub"}," · ",num):null),fmtN(r.qtd),brl(r.u),brl(r.total),h("span",{class:"cchips"},chips.map(function(k){return h("span",{class:"ccst ccst-"+k.tom,text:k.texto})}))]}})));
-    p.appendChild(h("p",{class:"sub",text:"Histórico = pedido importado do histórico da loja. Provisório (amarelo) = a loja informou cancelamento ou reembolso e você ainda não confirmou: o preço continua no histórico até haver confirmação. O preço é o pago por unidade, já com o desconto do item (o desconto geral do pedido não é dividido entre os itens)."}));
-    p.appendChild(ccFonte("Central de Compras (preço unitário de cada compra) · totais de 12 meses a partir de "+dataBR(ini)));return [p]}
-
-  /* ---------- Lista e detalhe ---------- */
   function ccLista(){
-    var p=panel("Compras","Toque numa compra para ver os produtos, os documentos originais, as divergências e a recorrência.");
+    var p=panel("Compras","Toque numa compra para ver os produtos, os documentos originais e as divergências.");
     if(!CC.dados.length){p.appendChild(ccVazio("Nenhuma compra ainda."));p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn pri",href:"#compras/importar",text:"Importar compras"})));return [p]}
     var q=h("input",{type:"search",placeholder:"Buscar (produto, loja ou número do pedido)","aria-label":"Buscar compras"}),lista=h("div");p.appendChild(q);p.appendChild(lista);
     function draw(){lista.innerHTML="";var nq=NUCLEO.norm(q.value.trim()),por={};
@@ -192,7 +95,7 @@
         lista.appendChild(h("ul",{class:"wl"},l.map(function(c){var rot=NUCLEO.coRotulo(c),chips=[rot.status].concat(rot.extras).map(function(x){return h("span",{class:"ccst ccst-"+x.tom,text:x.texto})});
           var b=h("button",{type:"button",class:"ccitem","aria-expanded":String(CC.aberto===c.id)},h("span",{class:"when",text:dataBR(c.data).slice(0,5)}),
             h("span",{class:"grow"},h("b",{text:c.itens.length?c.itens[0].descricao+(c.itens.length>1?" + "+(c.itens.length-1):""):"Pedido "+c.numero}),
-              h("span",{class:"sub",text:ccLoja(c)+" · "+c.numero+(c.docs.length?" · 📎 "+c.docs.length:"")+(c.recorrencia_status==="a_confirmar"?" · 🔁 a confirmar":c.recorrencia_status==="confirmada"?" · 🔁":"")+((c.divergencias||[]).length?" · ⚠":"")}),
+              h("span",{class:"sub",text:ccLoja(c)+" · "+c.numero+(c.docs.length?" · 📎 "+c.docs.length:"")+((c.divergencias||[]).length?" · ⚠":"")}),
               h("span",{class:"cchips"},chips)),
             h("b",{class:"mkt"+(rot.regra.conta?"":" ccfora"),text:brl(c.total_pago)}));var li=h("li",{class:"ccli"},b);
           b.onclick=function(){CC.aberto=CC.aberto===c.id?null:c.id;draw()};if(CC.aberto===c.id)li.appendChild(ccDetalhe(c));return li})))})}
@@ -212,10 +115,6 @@
     var info=[c.vendedor?"Vendido por "+c.vendedor:"",c.pagamento||"",c.numero_nf?"NF "+c.numero_nf+(c.emitente?" · "+c.emitente:""):"",c.chave_nfe?"chave "+c.chave_nfe.replace(/(\d{4})(?=\d)/g,"$1 "):"",(c.versoes||[]).length?"editada "+c.versoes.length+(c.versoes.length===1?" vez":" vezes"):""].filter(Boolean);
     if(info.length)d.appendChild(h("p",{class:"sub",text:info.join(" · ")}));
     if((c.divergencias||[]).length)d.appendChild(h("div",{class:"ccaviso"},h("b",{text:"⚠ Divergências entre os documentos"}),h("ul",{class:"clean"},c.divergencias.map(function(x){return h("li",{text:x.texto||String(x)})}))));
-    if(c.recorrencia_texto){var rb=h("div",{class:"vfil"});d.appendChild(h("div",{class:"ccrec"},h("h3",{class:"mbag",text:"Recorrência (separada da compra)"}),h("b",{text:"🔁 "+c.recorrencia_texto}),
-        h("p",{class:"sub",text:(c.recorrencia_status==="confirmada"?"Confirmada por você.":c.recorrencia_status==="descartada"?"Descartada por você.":"Informada pela loja, a confirmar.")+" É só uma informação: nenhuma compra nem despesa futura é criada."}),rb));
-      [["confirmada","Confirmar"],["descartada","Descartar"],["a_confirmar","Voltar para a confirmar"]].filter(function(o){return o[0]!==c.recorrencia_status}).forEach(function(o){var b=h("button",{type:"button",class:"ghostbtn",text:o[1]});
-        b.onclick=function(){b.disabled=true;SB.from("compras_online").update({recorrencia_status:o[0],atualizado_em:new Date().toISOString()}).eq("id",c.id).then(sbOk).then(function(){c.recorrencia_status=o[0];ccEsquecer();renderCompras("lista")},function(e){b.disabled=false;st.textContent="Não consegui salvar ("+e.message+")."})};rb.appendChild(b)})}
     if(c.observacoes)d.appendChild(h("p",{text:c.observacoes}));
     /* documentos originais */
     var docs=h("ul",{class:"wl ccdocs"});d.appendChild(h("h3",{class:"mbag",text:"Documentos ("+c.docs.length+")"}));
@@ -242,19 +141,6 @@
     /* compras_anexar (035): os documentos e o complemento (chave da nota, NF, emitente, CNPJ, aviso de cancelamento/reembolso e divergências) na mesma transação */
     ccAnexar(c,novos,NUCLEO.coComplementoAnexo(c,novos.map(function(x){return x.ext}),NUCLEO.coDivergenciasAnexo(c,novos)),function(t){st.textContent=t}).then(function(){ccEsquecer();CC.aberto=c.id;renderCompras("lista")},function(e){st.textContent=ccErroTela(e,"")})}
 
-  /* ---------- Produtos e recorrências ---------- */
-  function ccProdutos(){var L=[],P=NUCLEO.coPrecos(CC.dados),imgs={};
-    var p=panel("Produtos","Cada produto comprado (pelo nome padronizado): quantas vezes, o último preço, o menor e a variação. O preço é o pago por unidade, já com o desconto do item (o desconto geral do pedido não é rateado); pedidos cancelados e pendentes ficam de fora; entram as compras fora das contas, do histórico (físico e digital) e de outro módulo, identificadas na linha. O preço por kg ou litro só aparece quando o nome do produto traz o tamanho.");
-    if(!P.length){p.appendChild(ccVazio("Nenhum produto ainda."));L.push(p);return L}
-    p.appendChild(h("ul",{class:"wl"},P.slice(0,200).map(function(x){var im=h("span",{class:"ccthumb"});if(x.img)imgs[x.img]=im;
-      return h("li",null,im,h("span",{class:"grow"},h("b",null,h("a",{class:"mkprod",href:ccRotaProduto(x.chave,"produtos"),text:x.nome})),h("span",{class:"sub",text:x.vezes+(x.vezes===1?" compra":" compras")+" · último "+brl(x.ultimo.u)+" em "+dataBR(x.ultimo.d)+(x.vezes>1?" · menor "+brl(x.menor)+(x.variacao!=null?" · "+(x.variacao>0?"+":"")+Math.round(x.variacao)+"% desde a 1ª":""):"")+(x.base?" · "+brl(x.base.ultimo)+"/"+x.base.por+(x.base.menor<x.base.ultimo?" (menor "+brl(x.base.menor)+"/"+x.base.por+")":""):"")+(x.outros_modulos?" · inclui "+x.outros_modulos+(x.outros_modulos===1?" compra":" compras")+" de outro módulo ("+Object.keys(x.origens).filter(function(m){return m!=="compras"}).map(function(m){return m==="mercado"?"Mercado":"Veículos"}).join(", ")+")":"")+(x.historico.some(function(z){return z.reembolso})?" · há reembolso informado ou recebido (o preço continua no histórico)":"")})))})));
-    ccUrls(Object.keys(imgs)).then(function(u){Object.keys(imgs).forEach(function(k){if(u[k])imgs[k].appendChild(h("img",{src:u[k],alt:"",loading:"lazy"}))})});
-    p.appendChild(ccFonte("Central de Compras (preço unitário de cada compra)"));L.push(p);
-    var R=NUCLEO.coRecorrencias(CC.dados);var pr=panel("Recorrências","Informadas pela loja (entrega automática, assinatura) ou percebidas (o mesmo produto comprado mais de uma vez). A próxima data é só uma estimativa: nenhuma compra é criada.");
-    pr.appendChild(R.length?h("ul",{class:"wl"},R.map(function(r){return h("li",null,h("span",{class:"grow"},h("b",{text:r.produto}),h("span",{class:"sub",text:(r.informada?r.informada.texto+" ("+(r.informada.status==="confirmada"?"confirmada":r.informada.status==="descartada"?"descartada":"a confirmar")+")":"comprado "+r.vezes+" vezes"+(r.intervaloDias?", a cada ~"+r.intervaloDias+" dias":""))+
-      " · última "+dataBR(r.ultima)+(r.proximaEstimada?" · próxima prevista: "+dataBR(r.proximaEstimada):"")})))})):ccVazio("Nenhuma recorrência informada ou percebida ainda."));L.push(pr);return L}
-
-  /* ---------- Importação: lê os arquivos no aparelho, junta os documentos do mesmo pedido e mostra a conferência ---------- */
   function ccExt(nome,tipo){var e=(/\.([a-z0-9]+)$/i.exec(nome||"")||[])[1];e=e?e.toLowerCase():"";if(!e&&tipo)e=({"application/pdf":"pdf","text/xml":"xml","application/xml":"xml","text/csv":"csv","application/zip":"zip","message/rfc822":"eml","text/plain":"txt"})[tipo]||(/^image\//.test(tipo)?"jpg":"");return e}
   function ccSha(buf){return crypto.subtle.digest("SHA-256",buf).then(function(d){return [].map.call(new Uint8Array(d),function(b){return ("0"+b.toString(16)).slice(-2)}).join("")})}
   function ccTexto(buf,cs){try{return new TextDecoder(cs||"utf-8").decode(buf)}catch(e){return new TextDecoder("utf-8").decode(buf)}}
@@ -442,7 +328,7 @@
     var pag=h("input",{type:"text",maxlength:"60",placeholder:"Ex.: Mastercard final 1234 (nunca o número inteiro)",value:c.pagamento||""});
     var V={subtotal:num(c.subtotal),desconto:num(c.desconto),frete:num(c.frete),taxas:num(c.taxas),total_pago:num(c.total_pago)};
     var cat=h("select",null,[h("option",{value:"",text:"Pela categoria dos produtos"})].concat(NUCLEO.CO_CATEGORIAS.map(function(k){return h("option",{value:k,selected:c.categoria===k?"":null,text:k})})));
-    var rec=c.recorrencia||(c.recorrencia_texto?{texto:c.recorrencia_texto,meses:c.recorrencia_meses}:null),recEl=h("input",{type:"text",maxlength:"120",placeholder:"Ex.: Entrega automática a cada 4 meses",value:rec?rec.texto:""});
+    var rec=c.recorrencia||(c.recorrencia_texto?{texto:c.recorrencia_texto,meses:c.recorrencia_meses}:null);
     var obs=h("textarea",{rows:"2",maxlength:"1000"},c.observacoes||""),itensBox=h("div"),regs=[];
     function linha(i){i=i||{};var r={i:i,d:h("input",{type:"text",maxlength:"200",value:i.descricao||"",placeholder:"Produto"}),q:h("input",{type:"text",inputmode:"decimal",value:i.qtd!=null?String(i.qtd).replace(".",","):"1"}),
         t:num(i.total),ds:num(i.desconto||null),c:h("select",null,NUCLEO.CO_CATEGORIAS.map(function(k){return h("option",{value:k,selected:(i.categoria||NUCLEO.coCategoria(i.descricao||""))===k?"":null,text:k})}))};
@@ -454,7 +340,7 @@
     if(editavel){f.appendChild(h("div",{class:"two"},campo("Loja",loja),campo("Número do pedido",numero),campo("Data do pedido",data),campo("Vendido por",vend)));
       f.appendChild(h("h3",{class:"mbag",text:"Produtos"}));f.appendChild(itensBox);f.appendChild(h("div",{class:"vfil"},mais));
       f.appendChild(h("h3",{class:"mbag",text:"Valores"}));f.appendChild(h("div",{class:"two"},campo("Subtotal",V.subtotal),campo("Desconto",V.desconto),campo("Frete",V.frete),campo("Taxas",V.taxas),campo("Total pago (despesa)",V.total_pago)));
-      f.appendChild(h("div",{class:"two"},campo("Pagamento",pag),campo("Categoria da compra",cat)));f.appendChild(campo("Recorrência informada (fica a confirmar)",recEl));f.appendChild(campo("Observações",obs))}
+      f.appendChild(h("div",{class:"two"},campo("Pagamento",pag),campo("Categoria da compra",cat)));f.appendChild(campo("Observações",obs))}
     else f.appendChild(h("p",{class:"sub",text:"Registrado: "+brl(ex.total_pago)+" em "+dataBR(ex.data)+" · "+ex.itens.length+(ex.itens.length===1?" produto":" produtos")}));
     var divs=(c.divergencias||[]).slice();if(ex&&!o.avulso)divs=divs.concat(NUCLEO.coMesclar({subtotal:ex.subtotal,desconto:ex.desconto,frete:ex.frete,total_pago:ex.total_pago,divergencias:[]},Object.assign({tipo:"resumo"},c)).divergencias);
     if(divs.length)f.appendChild(h("div",{class:"ccaviso"},h("b",{text:"⚠ Divergências"}),h("ul",{class:"clean"},divs.map(function(x){return h("li",{text:x.texto})}))));
@@ -467,7 +353,7 @@
     function coletar(){var x={id:ex?ex.id:null,loja:loja.value,numero:numero.value.trim(),data:data.value,vendedor:vend.value.trim()||null,pagamento:NUCLEO.coPagamento(pag.value)||(pag.value.trim().replace(/\d{5,}/g,"")||null),
         categoria:cat.value||null,observacoes:obs.value.trim()||null,itens:regs.map(function(r){return {descricao:r.d.value.trim(),qtd:+String(r.q.value||"1").replace(",",".")||1,total:NUCLEO.coNum(r.t.value),desconto:NUCLEO.coNum(r.ds.value)||0,categoria:r.c.value,codigo:r.i.codigo||null,imagem_path:r.i.imagem_path||null,natureza:r.i.natureza||null,total_linha:r.i.total_linha!=null?r.i.total_linha:null,situacao:r.i.situacao||null}}).filter(function(i){return i.descricao})};
       Object.keys(V).forEach(function(k){x[k]=NUCLEO.coNum(V[k].value)});if(x.desconto==null)x.desconto=0;if(x.frete==null)x.frete=0;if(x.taxas==null)x.taxas=0;
-      var rr=NUCLEO.coRecorrencia(recEl.value)||(recEl.value.trim()?{texto:recEl.value.trim(),meses:null}:null);x.recorrencia=rr;return x}
+      x.recorrencia=rec;return x}   /* a recorrência deixou de ser mostrada e editada (lote C, 21/11/2026); o que já estava gravado é preservado */
     function conf(){if(!editavel){salvar.disabled=!docsNovos.length||sal;falta.textContent=docsNovos.length?"":"Todos os documentos deste pedido já estão guardados.";return {ok:!!docsNovos.length}}
       var x=coletar(),r=NUCLEO.coConferir(x,{hoje:hojeISO()});
       if(r.ok&&novo){var d=NUCLEO.coDuplicata(x,CC.dados,[]);if(d&&d.nivel==="confirmada"){r.ok=false;r.erros=["Já existe: "+d.motivo+". Abra a compra e use “Adicionar documento”."]}}

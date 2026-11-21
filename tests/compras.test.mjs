@@ -120,7 +120,7 @@ test("SQL 025: casa, RLS, trava da 2ª etapa, nada para anon, conta fechada, cof
   assert.match(ler("js/sistema.js"), /t==="compras_online_docs"/);
   const app = ler("js/app.js"), html = ler("index.html"), js = ler("js/compras.js");
   const RT = registro(); assert.ok(RT.DA_CASA.includes("compras")); assert.match(rota("compras").abrirTexto, /renderCompras\(p\[1\],p\[2\],p\[3\]\)/, "Lote 5.2: a rota passa o 3º trecho (origem do produto)");
-  assert.match(html, /<section id="compras" hidden>/); assert.match(RT.menu, /href="#compras" data-k="compras" data-casa="1"/); assert.match(ler("sw.js"), /"\.\/js\/compras\.js"/);
+  assert.match(html, /<section id="compras" hidden>/); assert.doesNotMatch(RT.menu, /href="#compras"/, "Pedidos online saiu do menu (lote C, 21/11/2026): a entrada é a Central Fiscal"); assert.ok(RT.DA_CASA.includes("compras"), "a casa abre a rota"); assert.match(ler("sw.js"), /"\.\/js\/compras\.js"/);
   assert.match(js, /pdf\.js\/3\.11\.174\//); assert.match(js, /jszip\/3\.10\.1\//); assert.match(js, /tesseract\.js@5\.1\.1\//);
   assert.match(js, /upload\(path,d\.blob,\{contentType:d\.mime,upsert:false\}\)/, "o original vai como veio");
   assert.ok(!/racIA\(|rac-ia|anthropic|type:"password"/i.test(js), "sem IA paga e sem campo de senha da loja");
@@ -144,7 +144,7 @@ test("e-mails de pagamento, cancelamento e reembolso; cancelamento só sai das d
   const js = ler("js/compras.js");
   assert.match(ler("nucleo.js"), /o\.status=e\.tipo==="email_cancelamento"\?"cancelamento_informado":"reembolso_informado"/, "o e-mail só avisa (Lote 5.1: a regra está em coComplementoAnexo, no núcleo)");
   assert.match(js, /\["cancelado","Confirmar cancelamento \(sai das despesas\)"\]/);
-  assert.match(js, /Recorrência \(separada da compra\)/); assert.match(js, /nenhuma compra nem despesa futura é criada/);
+  assert.doesNotMatch(js, /Recorrência \(separada da compra\)/, "a recorrência saiu da tela (lote C, 21/11/2026; a Fernanda não usa); o dado gravado é preservado"); assert.match(js, /x\.recorrencia=rec;/);
 });
 test("Gmail: reaproveita o login do site (Client ID e gmail.readonly de js/app.js), token só na memória, conta da Amazon conferida", () => {
   const js = ler("js/compras.js"), app = ler("js/app.js");
@@ -228,9 +228,9 @@ test("Lote 1 · D2/D4: duplicidade lê Mercado, Alimentação e Abastecimento; l
   assert.equal(N.coDuplicata({ loja: "outra", numero: "9", data: "2026-10-05", total_pago: 30 }, [], [{ origem: "Mercado", data: "2026-10-06", total: 30 }]), null);
 });
 
-test("as cinco abas da Central de Compras, inclusive ＋ Manual, ficam todas à vista (a faixa quebra linha, não esconde a última à direita)", () => {
+test("as três abas de Pedidos online (Pedidos, Importar, ＋ Manual) ficam todas à vista (a faixa quebra linha, não esconde a última à direita)", () => {
   const js = ler("js/compras.js"), css = ler("index.html");
-  assert.match(js, /var CC_ABAS=\[\["resumo","Resumo"\],\["lista","Compras"\],\["importar","Importar"\],\["produtos","Produtos e recorrências"\],\["nova","＋ Manual"\]\];/);
+  assert.match(js, /var CC_ABAS=\[\["lista","Pedidos"\],\["importar","Importar"\],\["nova","＋ Manual"\]\];/);
   assert.match(js, /if\(CC\.aba==="nova"\)\{corpo\.appendChild\(ccConferencia\(/);
   assert.match(css, /#compras \.ccabas\{flex-wrap:wrap;overflow-x:visible\}/);
   assert.doesNotMatch(css, /#compras \.ccabas\{[^}]*flex-wrap:nowrap/);

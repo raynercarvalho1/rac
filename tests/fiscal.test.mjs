@@ -359,7 +359,7 @@ test("situação fiscal e conta são independentes: contingência/pendente consi
   const cont = N.nfVeredito(NOTA(itens, { total: 10 }, { chave: K65_CONT, numero: 679, tp_emis: 9, cStat: null, protocolo: null }));
   assert.equal(cont.classe, "consistente", "a conta está certa"); assert.equal(cont.fiscal.situacao, "contingencia"); assert.equal(cont.fiscal.pendente, true); assert.equal(cont.fiscal.definitiva, false);
   assert.equal(cont.acao, "gravar_pendente_fiscal"); assert.equal(cont.gravar_pendente, true); assert.equal(cont.gravar_validada, false); assert.equal(cont.pode_alimentar_financeiro, false);
-  assert.match(cont.avisos.join(" "), /contingência.*pendente de validação fiscal.*até a autorização/i); assert.deepEqual(cont.bloqueios, []);
+  assert.match(cont.avisos.join(" "), /contingência.*sem validação oficial/i); assert.deepEqual(cont.bloqueios, []);
   const pend = N.nfVeredito(NOTA(itens, { total: 10 }, { cStat: null, protocolo: null }));
   assert.equal(pend.fiscal.situacao, "pendente"); assert.equal(pend.acao, "gravar_pendente_fiscal"); assert.equal(pend.gravar_validada, false);
   const aut = N.nfVeredito(NOTA(itens, { total: 10 }));

@@ -67,7 +67,7 @@ test("foto parcialmente cortada: item sem total e total da nota ausente bloqueia
 test("campos ausentes não são inventados: sem número, série, CNPJ, chave e protocolo a nota entra como pendente fiscal; sem data ou emitente (essenciais) bloqueia com o motivo", () => {
   const leve = decidir(resposta({ numero: null, serie: null, emitente_cnpj: null, chave: null, protocolo: null, situacao: null }));
   assert.equal(leve.nota.emitente.cnpj, null); assert.equal(leve.nota.chave, null); assert.equal(leve.nota.numero, null);
-  assert.deepEqual([leve.dec.pode, leve.dec.modo], [true, "pendente_fiscal"]); assert.equal(leve.nota.situacao, "pendente", "sem evidência de autorização"); assert.match(leve.dec.avisos.join(" "), /chave de acesso não está impressa ou legível.*pendente fiscal/); assert.equal(leve.dec.veredito.sem_chave, true);
+  assert.deepEqual([leve.dec.pode, leve.dec.modo], [true, "pendente_fiscal"]); assert.equal(leve.nota.situacao, "pendente", "sem evidência de autorização"); assert.match(leve.dec.avisos.join(" "), /chave de acesso não está impressa ou legível.*sem validação oficial/); assert.equal(leve.dec.veredito.sem_chave, true);
   const essencial = decidir(resposta({ data_emissao: null, emitente_nome: null, chave: null, protocolo: null, situacao: null }));
   assert.equal(essencial.nota.data_emissao, null); assert.equal(essencial.nota.emitente.nome, null); assert.equal(essencial.dec.pode, false); assert.match(essencial.dec.bloqueios.join(" "), /Falta a data da nota/); assert.match(essencial.dec.bloqueios.join(" "), /Falta o nome do estabelecimento/);
 });
@@ -298,7 +298,7 @@ test("a tela mostra cada caso: confiança baixa (só informa), divergência, pen
   const b60 = await mostrar(resposta({ confianca: 0.6 }));
   assert.match(b60, /Conta dos itens Consistente/); assert.match(b60, /Confiança da leitura \(informação\) 60%/); assert.doesNotMatch(b60, /abaixo do mínimo|Mínimo para validar/); assert.match(b60, /Gravação Pode ser gravada como validada e lançada no Mercado/);
   assert.match(await mostrar(resposta({ total: 60 })), /Conta dos itens.*Divergente[\s\S]*R\$ 6,00 a menos que o total fiscal[\s\S]*frete, taxa ou outro acréscimo/);
-  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal.*Contingência — pendente na SEFAZ: a compra entra no Mercado mesmo assim[\s\S]*Só como pendente fiscal/);
+  assert.match(await mostrar(resposta({ situacao: "contingencia", protocolo: null })), /Situação fiscal\s+Contingência[\s\S]*Pode ser gravada sem validação oficial/);
   assert.match(await mostrar(resposta({ situacao: "cancelada" })), /Situação fiscal.*Cancelada — não vale como compra[\s\S]*não vale como compra fiscal validada[\s\S]*Gravação.*Bloqueada/);
   assert.match(await mostrar(resposta({ incertos: [{ campo: "total", motivo: "cortado" }] })), /Incerto — total: cortado/);
   const sem = await mostrar(resposta({ data_emissao: null })); assert.match(sem, /Conta dos itens Dados incompletos/); assert.match(sem, /Dados incompletos: Falta a data da nota/); assert.match(sem, /Gravação Bloqueada/);

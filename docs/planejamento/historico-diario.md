@@ -1455,3 +1455,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone (painel Delivery, botão + Adicionar pedido, a Central com o delivery somado). Depois, lote C (Central Fiscal como Entrada, Compras online dentro dela, mensagens de "pendente" fora da tela).
+
+## 21/11/2026 · Central de Compras: lote C, Central Fiscal como Entrada (versão `2026-11-21.3`, em PR)
+
+### 1. O que fizemos
+- PR #63 (lote B) mesclado a pedido do dono, depois de rerodar o CI (falha 522 de rede no teste que fala com o Supabase). Lote C: a Central Fiscal ganhou os atalhos de entrada (notas, pedidos online, importar, delivery); Compras online virou "Pedidos online", só entrada, sem Resumo/Produtos/loja/categoria nem recorrências e sem item no menu; "pendente" saiu da tela da Central Fiscal (chip, linha, frases e aviso), só exibição.
+- Sem SQL, função ou migration; nenhuma nota ou pedido alterado. Testes das telas removidas ajustados; novo `tests/entrada_fiscal.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR do lote C para revisão (CI a conferir); sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone. Depois, o lote da SEFAZ (estados e consulta oficial) quando quiser retomar; filtros por área em Preços/Consumo/Comparar, se desejado.

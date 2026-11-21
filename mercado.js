@@ -2689,7 +2689,7 @@
       p.appendChild(canalNota(c.chave, function () { recentral(); }));
       var ab = h("button", { type: "button", class: "ghostbtn", text: "Abrir a nota em Notas (editar categorias)" }); ab.onclick = function () { st.notaAberta = c.chave; st.notaItem = null; location.hash = "#mercado/notas"; }; p.appendChild(h("div", { class: "vfil" }, ab));
     } else if (c.fonte === "delivery") p.appendChild(h("div", { class: "vfil" }, h("a", { class: "link", href: "#alimentacao/pedido/" + encodeURIComponent(c.chave), text: "Ver, editar ou apagar o pedido (conta completa e fotos)" })));
-    else p.appendChild(h("div", { class: "vfil" }, h("a", { class: "link", href: "#compras", text: "Abrir em Compras online (pedido, documentos e lojas)" })));
+    else p.appendChild(h("div", { class: "vfil" }, h("a", { class: "link", href: "#compras/lista", text: "Abrir o pedido online (conta, documentos e anexos)" })));
     return p;
   }
   function svgCart() {

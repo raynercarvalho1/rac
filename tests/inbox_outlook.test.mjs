@@ -77,7 +77,7 @@ const linhas = async (db, pasta) => (await db.query("select id_externo, uid, uid
 test("listar_pastas: pastas do sistema pelos apelidos da Graph com nomes e usos do Inbox (o que não existe, como Arquivo, fica de fora); pastas do usuário pelo ID; ID grande demais é ignorado", { skip: pular }, async () => {
   const db = await banco(), repo = criarRepositorio(sessaoDe(db)), conta = await nova(db, R), cx = caixa(), { salvas } = await preparar(db, repo, conta, cx);
   assert.deepEqual(salvas.map((s) => [s.nome_externo, s.nome_exibicao, s.uso]), [["inbox", "Caixa de entrada", "entrada"], ["sentitems", "Enviados", "enviados"], ["drafts", "Rascunhos", "rascunhos"], ["deleteditems", "Lixeira", "lixo"], ["junkemail", "Spam", "spam"], ["Pasta-Trabalho_1=", "Pasta-Trabalho_1=", "outra"]]);
-  assert.ok(cx.chamadas.every((c) => c.url.startsWith("https://graph.microsoft.com/v1.0/me/") && (c.init.method ?? "GET") === "GET"), "só GET, só na Graph");
+  assert.ok(cx.chamadas.every((c) => c.url.startsWith("https://graph.microsoft.com/v1.0/me/") && (c.init.method ?? "GET") === "GET"), "só GET (nas operações de leitura), só na Graph");
   assert.ok(cx.chamadas.every((c) => /ImmutableId/.test(c.init.headers.Prefer)), "IDs imutáveis pedidos em toda chamada");
 });
 
@@ -127,10 +127,10 @@ test("erros da Graph viram códigos fechados: 401/403 = autenticação recusada 
     [{ status: 503, corpo: {} }, "http_503"], [new Error("SEGREDO-DE-REDE"), "canal_falhou"]]) {
     cx.falha(f); const r = await w.executar("testar_conta", {}); assert.deepEqual([r.ok, r.erro], [false, esperado]); assert.ok(!JSON.stringify(r).includes("SEGREDO"), "o texto do erro nunca é copiado");
   }
-  cx.falha(null); cx.add(1); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("enviar", {})).erro, "operacao_desconhecida", "nada de escrita no adaptador de leitura");
+  cx.falha(null); cx.add(1); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("enviar", {})).erro, "operacao_desconhecida", "verbo desconhecido continua recusado");
   const m = caixa(); const wm = criarWorkerOutlook({ acesso: "token-errado", http: m.http, banco: repoFalso, dono: R, conta: R }); assert.equal((await wm.executar("listar_pastas", {})).erro, "autenticacao_recusada");
   assert.equal((await w.executar("listar_mensagens", { pasta: "../etc/passwd" })).erro, "pasta_inexistente", "o nome da pasta é validado antes de ir à URL");
-  const src = ler("supabase/functions/rac-inbox/outlook.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); assert.ok(!/method:\s*"(POST|PUT|PATCH|DELETE)"|\/sendMail|\/send\b|\/move|\/copy|\/forward|\/reply/i.test(src), "nenhuma chamada que escreva na caixa");
+  const src = ler("supabase/functions/rac-inbox/outlook.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); assert.ok(!/method:\s*"PUT"|\/copy|\/permanentDelete/i.test(src), "nenhuma cópia nem exclusão permanente (o lote 4 só gerencia e envia; Itens Excluídos é o fim)");
 });
 
 /* ---------- o serviço completo ---------- */

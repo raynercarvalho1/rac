@@ -3,7 +3,7 @@
 //  - Identidade: a tela usa `uid` numérico. No Outlook o servidor atribui um uid SINTÉTICO por pasta (contador crescente, guardado com o cache); o ID da mensagem na Graph fica em `id_externo`
 //    (ID imutável: não muda quando a mensagem troca de pasta). `uidvalidity` é sempre 1. O navegador nunca vê o ID da Graph.
 //  - Pastas: as do sistema pelos apelidos fixos da Graph (inbox, sentitems, drafts, deleteditems, junkemail, archive); as do usuário (nível de cima) pelo ID.
-//  - Só LEITURA: GET em mailFolders, messages e attachments. Nenhuma escrita na caixa existe aqui (envio e gerenciamento são lotes próprios).
+//  - LEITURA (GET em mailFolders, messages e attachments) e, desde o lote 4, GERENCIAR uma mensagem por vez (PATCH isRead, move) e ENVIAR. Nunca apaga de vez: Itens Excluídos é o fim (única exceção: o rascunho que o próprio envio criou e não conseguiu enviar).
 //  - O token de acesso vive só na closure desta chamada; nada é registrado. Toda falha vira código fechado ("autenticacao_recusada", "http_NNN", "canal_falhou", …).
 import type { Http } from "./oauth.ts";
 import type { ResultadoWorker, Worker } from "./servico.ts";
@@ -51,6 +51,17 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
     if (r.status === 404 || (r.status === 400 && /InvalidId|ItemNotFound/i.test(codigo))) return { ok: false, erro: naoEncontrado };
     if (r.status === 401 || (r.status === 403 && !/throttl|limit|quota/i.test(codigo))) return { ok: false, erro: "autenticacao_recusada" };
     return { ok: false, erro: "http_" + (r.status >= 100 && r.status <= 599 ? r.status : 502) };
+  }
+  /* ESCRITA: 4xx do pedido = `recusado` (nada mudou); rede, 5xx ou 429 = `incerto` (pode ter sido aplicado: quem chama confere o estado real, nunca repete). 202/204 sem corpo é sucesso. */
+  async function escrever(metodo: "PATCH" | "POST" | "DELETE", caminho: string, corpo: Obj | null, recusado: string, incerto: string): Promise<Api> {
+    let r;
+    try { r = await d.http(API + caminho, { method: metodo, headers: { Authorization: "Bearer " + d.acesso, Accept: "application/json", "Content-Type": "application/json", Prefer: PREFER }, ...(corpo ? { body: JSON.stringify(corpo) } : {}) }); } catch (_) { return { ok: false, erro: incerto }; }
+    let j: Obj | null = null; try { j = obj(await r.json()); } catch (_) { /* corpo vazio (202/204) */ }
+    if (r.ok) return { ok: true, j: j ?? {} };
+    const codigo = str(obj(j?.error)?.code);
+    if (r.status === 404 || (r.status === 400 && /InvalidId|ItemNotFound/i.test(codigo))) return { ok: false, erro: "mensagem_inexistente" };
+    if (r.status === 401 || (r.status === 403 && !/throttl|limit|quota/i.test(codigo))) return { ok: false, erro: "autenticacao_recusada" };
+    return { ok: false, erro: r.status >= 400 && r.status < 500 && r.status !== 429 ? recusado : incerto };
   }
   const enc = encodeURIComponent;
   const pastaValida = (nome: string): boolean => ALIAS.has(nome) || RE_ID.test(nome);
@@ -129,7 +140,32 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
         texto: texto.slice(0, 65536), formato: !texto ? "sem_corpo" : html ? "html_convertido" : "texto", truncado: texto.length > 65536,
         anexos: anexos.lista.map((x, i) => ({ parte: String(i + 1), nome: x.nome, tipo: x.tipo, tamanho: x.tamanho, inline: x.inline })) } } };
     }
-    return { ok: false, erro: "operacao_desconhecida" };   // envio e gerenciamento do Outlook são lotes próprios: nada é escrito aqui
+
+    /* ---- gerenciar UMA mensagem (os mesmos verbos que organizar.ts usa com o Worker do iCloud) ---- */
+    if (operacao === "marcar_lida" || operacao === "mover_mensagem" || operacao === "verificar_mensagem") {
+      const pid = await pastaId(nome), uid = Number(pedido.uid); if (!pid || !Number.isInteger(uid) || !pastaValida(nome)) return { ok: false, erro: "pasta_inexistente" };
+      if (pedido.uidvalidity_esperado !== undefined && pedido.uidvalidity_esperado !== UIDVALIDITY_OUTLOOK) return { ok: false, erro: "uidvalidity_mudou" };
+      const id = await d.banco.idExterno(d.dono, d.conta, pid, uid); if (!id || !RE_ID.test(id)) return { ok: false, erro: "mensagem_inexistente" };
+      if (operacao === "verificar_mensagem") {
+        const m = await api(`messages/${enc(id)}?$select=parentFolderId,isRead`); if (!m.ok) return m.erro === "mensagem_inexistente" ? { ok: true, dados: { existe: false, lida: true } } : m;
+        const f = await api(`mailFolders/${enc(nome)}?$select=id`, "pasta_inexistente"); if (!f.ok) return f;
+        return { ok: true, dados: { existe: !!str(f.j.id) && str(m.j.parentFolderId) === str(f.j.id), lida: m.j.isRead !== false } };
+      }
+      const esperado = str(pedido.message_id_esperado);
+      const antes = (operacao === "marcar_lida" || esperado) ? await api(`messages/${enc(id)}?$select=isRead,internetMessageId`) : null; if (antes && !antes.ok) return antes;
+      if (antes && esperado && str(antes.j.internetMessageId) !== esperado) return { ok: false, erro: "identidade_divergente" };   // o cache não é desta mensagem: nada é alterado
+      if (operacao === "marcar_lida") {
+        const lida = pedido.lida === true; if (antes && antes.j.isRead === lida) return { ok: true, dados: { resultado: "ja_estava", lida } };
+        const r = await escrever("PATCH", `messages/${enc(id)}`, { isRead: lida }, "acao_recusada", "acao_incerta"); if (!r.ok) return r;
+        return { ok: true, dados: { resultado: "aplicada", ...(typeof r.j.isRead === "boolean" ? { lida: r.j.isRead } : {}) } };
+      }
+      const destino = str(pedido.destino);
+      if (!pastaValida(destino)) return { ok: false, erro: "pasta_inexistente" };
+      if (destino === nome) return { ok: false, erro: "acao_recusada" };
+      const r = await escrever("POST", `messages/${enc(id)}/move`, { destinationId: destino }, "acao_recusada", "acao_incerta");
+      return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r;
+    }
+    return { ok: false, erro: "operacao_desconhecida" };   // envio é o passo seguinte desta entrega (enviar); nada mais escreve aqui
   }
   return { executar: (op, ped) => executar(op, ped) };
 }

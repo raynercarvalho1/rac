@@ -188,7 +188,7 @@
     if(!todas.length){p.appendChild(pnVazio("Nenhum gasto com alimentação no período."));p.appendChild(pnFonte("Mercado (comida) e pedidos",D.ini,D.hoje));return p}
     p.appendChild(rsKpis([["No período",brl(S.total)],["Mercado (comida)",brl(fonte("Mercado"))],["Pedidos",brl(fonte("Delivery")+fonte("Restaurante"))],["Taxas e gorjetas",brl((S.por[NUCLEO.AL_CAT.taxas]||0)+(S.por[NUCLEO.AL_CAT.gorjeta]||0))]]));
     p.appendChild(rsColunas(B,D.meses.map(function(m){return pm[m].total}),pnCurto,function(i,v){var o=pm[D.meses[i]].por;return [B[i].nome,v?brl(v)+" · Mercado "+brl(o.Mercado||0)+" · Delivery "+brl(o.Delivery||0)+" · Restaurante "+brl(o.Restaurante||0):"sem gastos com alimentação"]}));
-    p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#alimentacao",text:"Abrir Alimentação"})));
+    p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#mercado/area/delivery",text:"Abrir o painel Delivery"})));
     p.appendChild(pnFonte("Mercado (itens de comida) e pedidos de delivery e restaurante",D.ini,D.hoje));return p}
   /* compras online: o total pago por mês, por loja e por categoria (os mesmos números dos gastos acima, uma vez cada) */
   function pnOnline(D,B){var p=panel("Compras online","Pedidos da Central de Compras (Amazon, Mercado Livre e outras lojas), pelo total efetivamente pago.");

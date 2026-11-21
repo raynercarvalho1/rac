@@ -60,13 +60,13 @@ const somaItens = (cs) => r2(cs.reduce((s, c) => s + c.itens.reduce((a, i) => a 
 const AREA = (id, cfg = cfgPadrao()) => N.arCompras(unif(), id, cfg);
 
 // ---------- modelo: associações iniciais ----------
-test("associações iniciais: as 13 categorias da lista oficial e nada além delas", () => {
+test("associações iniciais: as 13 categorias da lista oficial + Delivery e Restaurante (lote B), e nada além delas", () => {
   const c = cfgPadrao(), esperado = { Mercearia: "mercado", Padaria: "mercado", "Açougue/Frios": "mercado", Hortifruti: "mercado", "Chocolates/Doces": "mercado", Bebidas: "mercado", Limpeza: "mercado", "Higiene Pessoal": "mercado", Peixaria: "mercado",
-    "Casa/Utilidades": "mercado", "Bebê/Infantil": "bebe", "Farmácia": "farmacia", Automotivo: "automotivo" };
+    "Casa/Utilidades": "mercado", "Bebê/Infantil": "bebe", "Farmácia": "farmacia", Automotivo: "automotivo", Delivery: "delivery", Restaurante: "delivery" };
   assert.deepEqual(N.AR_MAPA_PADRAO, esperado);
   Object.entries(esperado).forEach(([k, a]) => assert.equal(N.arAreaDe(c, k), a, k));
   for (const k of ["Tecnologia", "Saúde", "Vestuário", "Pet", "Alimentação", "Outros", "Sem categoria", "Compras online · Digital", "Livros e papelaria", "Presentes", "constructor", "__proto__"]) assert.equal(N.arAreaDe(c, k), "", k + " não é atribuída arbitrariamente");
-  assert.deepEqual(c.areas.map((a) => a.id), ["mercado", "automotivo", "farmacia", "bebe"]);
+  assert.deepEqual(c.areas.map((a) => a.id), ["mercado", "automotivo", "farmacia", "bebe", "delivery"], "Delivery é a 5ª área de fábrica (lote B)");
   assert.equal(N.arAreaDe(c, "Veículos"), "automotivo", "o rótulo online Veículos já é Automotivo na leitura (cuCat)"); assert.equal(N.arAreaDe(c, "Bebê"), "bebe"); assert.equal(N.arAreaDe(c, "Casa"), "mercado");
 });
 
@@ -171,7 +171,7 @@ test("10b · a configuração gravada é validada na leitura (lixo, área inexis
     associacoes: { Tecnologia: "nao-existe", Pet: "ok", "__proto__": "ok", "": "ok", "<x>": "ok" }, categorias: ["Pet", "Mercearia", "<b>", 7, "Pet"] });
   assert.deepEqual(c.areas.filter((a) => a.propria).map((a) => a.id), ["ok"]); assert.equal(N.arAreaDe(c, "Tecnologia"), ""); assert.equal(N.arAreaDe(c, "Pet"), "ok");
   assert.deepEqual(c.personalizadas, ["Pet"]); assert.equal(({}).polluted, undefined);
-  for (const lixo of [null, undefined, 5, "x", [], { areas: "x", associacoes: [], categorias: {} }]) assert.deepEqual(N.arConfig(lixo).areas.length, 4);
+  for (const lixo of [null, undefined, 5, "x", [], { areas: "x", associacoes: [], categorias: {} }]) assert.deepEqual(N.arConfig(lixo).areas.length, 5);
 });
 test("11 · categorias sem associação não desaparecem: ficam como não classificadas, na Central e na gestão", () => {
   ambiente(); const cfg = cfgPadrao(), tudo = unif(), lista = N.arCategorias(cfg, tudo);

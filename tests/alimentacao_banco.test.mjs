@@ -312,8 +312,8 @@ test("tela: o Salvar usa pedido_salvar numa chamada só; o Mercado só avisa (se
   assert.match(salvarJs, /catch\(function\(\)\{return \[\]\}\)/, "se as notas não carregarem, o Salvar continua (é só um aviso)");
   assert.match(salvarJs, /e&&e\.code==="23505"/); assert.match(salvarJs, /pedidos_pkey/);
   /* lista: alIntegridadeLista no topo e marca em cada pedido; o detalhe mostra o que conferir */
-  assert.match(js, /var integ=NUCLEO\.alIntegridadeLista\(ped\)/);
-  assert.match(js, /pedido(s)? para conferir/); assert.match(js, /NUCLEO\.alIntegridade\(x\)/);
+  /* lote B (21/11/2026): a lista de pedidos saiu da página (virou o painel Delivery); o detalhe do pedido continua mostrando o que conferir */
+  assert.match(js, /NUCLEO\.alIntegridade\(x\)/); assert.ok(!/alIntegridadeLista/.test(js), "o aviso da lista antiga saiu junto com a lista");
   assert.match(ler("index.html"), /\.alconf\{/);
   assert.equal(/var MOD_VERSAO="([^"]+)"/.exec(ler("js/app.js"))[1], /const VERSAO = "([^"]+)"/.exec(ler("sw.js"))[1]);
 });

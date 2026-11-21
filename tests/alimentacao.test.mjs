@@ -195,10 +195,10 @@ test("IA: alimentacao.pedido só em DEMO (no código e no banco); a resposta sim
 });
 test("tela: rota, menu, a casa (Fernanda) vê e lança, service worker, Salvar só com a conferência completa", () => {
   const app = ler("js/app.js"), html = ler("index.html"), js = ler("js/alimentacao.js");
-  const RT = registro(); assert.ok(RT.DA_CASA.includes("alimentacao"), "a casa vê a Alimentação"); assert.deepEqual(RT.ROTA_MODS.alimentacao, ["alimentacao"]); assert.match(app, /alimentacao:\["graficos","familia"\]/, "gráficos do kit (A2) e a Família, que envia as fotos (enviarArquivos)");
+  const RT = registro(); assert.ok(RT.DA_CASA.includes("alimentacao"), "a casa abre o formulário do pedido"); assert.deepEqual(RT.ROTA_MODS.alimentacao, ["alimentacao"]); assert.match(app, /alimentacao:\["graficos","familia"\]/, "gráficos do kit (A2) e a Família, que envia as fotos (enviarArquivos)");
   const ra = rota("alimentacao"); assert.ok(!ra.marcaPropria); assert.match(ra.abrirTexto, /renderAlimentacao\(p\[1\],p\[2\]\)/);
   assert.match(html, /<section id="alimentacao" hidden><div id="alimentacao-view" class="stack"><\/div><\/section>/);
-  assert.match(RT.menu, /href="#alimentacao" data-k="alimentacao" data-casa="1"/); assert.match(html, /html\.casa #navgrp a\.it:not\(\[data-casa\]\)/, "o menu da casa mostra só os itens com data-casa");
+  assert.doesNotMatch(RT.menu, /href="#alimentacao"/, "Alimentação saiu do menu (lote B, 21/11/2026): a rota fica só para o formulário do pedido; o histórico é o painel Delivery"); assert.match(html, /html\.casa #navgrp a\.it:not\(\[data-casa\]\)/, "o menu da casa mostra só os itens com data-casa");
   assert.match(ler("sw.js"), /"\.\/js\/alimentacao\.js"/);
   assert.match(js, /salvar\.disabled=!c\.ok\|\|salvando/); assert.match(js, /if\(!navigator\.onLine\)\{falta\.textContent="Sem internet: não salvei/);
   assert.match(js, /enviarArquivos\("alimentacao",id,fotos\.files/); assert.match(js, /SB\.rpc\("pedido_salvar"/, "versões e gravação ficam no banco (027; tests/alimentacao_banco)");

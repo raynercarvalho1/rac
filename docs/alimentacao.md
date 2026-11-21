@@ -1,5 +1,7 @@
 # Alimentação e Delivery
 
+> **Lote B (21/11/2026, pedido do dono): a página de consulta saiu.** `#alimentacao` é agora só a **entrada do pedido** (`#alimentacao/novo`, `#alimentacao/editar/<id>`, `#alimentacao/pedido/<id>` para ver e apagar), sem item no menu; o botão **+ Adicionar pedido** fica na Central de Compras ao lado de Adicionar nota. O histórico, os gráficos e os totais dos pedidos são do **painel Delivery** (`#mercado/area/delivery`, `docs/central-areas.md`, seção "Lote B"); a comida do mercado é a área Mercado. Qualquer outro endereço `#alimentacao/...` abre o painel Delivery. Resumo, lista de pedidos e "Pratos e preços" desta página, e a leitura da view `alimentacao_gastos`, foram retirados do código (tabelas, view, RPC, backup e dados não foram tocados). O texto abaixo descreve o desenho original.
+
 Página `#alimentacao` (menu → Alimentação), código em `js/alimentacao.js`, contas em `nucleo.js` (`NUCLEO.al*`, testes em
 `tests/alimentacao.test.mjs`), banco em `supabase/024_alimentacao.sql`. No ar desde 01/11/2026 (versão `2026-11-01.5`).
 

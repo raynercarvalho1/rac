@@ -42,7 +42,9 @@ export function codigoDoErro(erro: string): string {
    Cada notificação individual leva o assunto e o remetente DA MESMA mensagem (montados de uma só linha do cache) e abre essa mensagem: o destino é o id estável da linha. */
 export const MAX_INDIVIDUAIS = 4, INDIVIDUAIS_NO_LOTE = 3, TITULO_MAX = 100, CORPO_MAX = 140;
 /* sem controles, sem caracteres de direção (a tela de bloqueio não pode ser enganada por texto invertido), espaços normalizados */
-const limpa = (s: string | null | undefined): string => (s ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]+/g, " ").replace(/\s+/g, " ").trim();
+/* controles e caracteres invisíveis (inclui U+2028, U+2029 e U+FEFF) saem do texto do aviso; a classe é montada por código (faixas em decimal), sem escape no fonte */
+const INVISIVEIS = new RegExp("[" + [[0, 31], [127, 159], [8203, 8207], [8232, 8238], [8288, 8303], [65279, 65279]].map((f) => String.fromCharCode(f[0]) + "-" + String.fromCharCode(f[1])).join("") + "]+", "g");
+const limpa = (s: string | null | undefined): string => (s ?? "").replace(INVISIVEIS, " ").replace(/\s+/g, " ").trim();
 const cortar = (s: string, max: number): string => { const l = [...s]; return l.length > max ? l.slice(0, max - 1).join("").trimEnd() + "…" : s; };   // por caractere (não parte um emoji ao meio)
 export const tituloDoAviso = (assunto: string | null): string => cortar(limpa(assunto), TITULO_MAX) || "(Sem assunto)";
 export function corpoDoAviso(nome: string | null, endereco: string | null): string {

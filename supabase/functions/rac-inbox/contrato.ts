@@ -64,6 +64,9 @@ const CAMPOS: Record<string, string[]> = {
   sincronizar_pasta: ["conta_id", "pasta_id"], ler_mensagem: ["conta_id", "pasta_id", "uid"], baixar_anexo: ["conta_id", "pasta_id", "uid", "parte"],
 };
 
+/* caractere de controle (inclui quebra de linha, tabulação e DEL): feito por código, sem escape no fonte (o fonte é publicado por uma ferramenta que estraga escapes; ver tests/inbox_fonte_deploy) */
+const temControle = (t: string): boolean => { for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); if (c < 32 || c === 127) return true; } return false; };
+
 export function validarPedido(corpo: unknown): { ok: true; pedido: Pedido } | { ok: false; erro: string } {
   if (corpo === null || typeof corpo !== "object" || Array.isArray(corpo)) return { ok: false, erro: "corpo_invalido" };
   const c = corpo as Record<string, unknown>, op = c.operacao;
@@ -143,7 +146,7 @@ function validarEnvio(c: Record<string, unknown>): { ok: true; pedido: Pedido } 
   const p2 = unico(para), c2 = unico(cc), o2 = unico(cco);
   if (p2.length === 0) return { ok: false, erro: "destinatario_invalido" };
   if (p2.length + c2.length + o2.length > LIMITES_ENVIO.destinatarios) return { ok: false, erro: "destinatarios_demais" };
-  if (typeof c.assunto !== "string" || c.assunto.length > LIMITES_ENVIO.assunto || /[\u0000-\u001f\u007f]/.test(c.assunto)) return { ok: false, erro: "assunto_invalido" };
+  if (typeof c.assunto !== "string" || c.assunto.length > LIMITES_ENVIO.assunto || temControle(c.assunto)) return { ok: false, erro: "assunto_invalido" };
   if (typeof c.texto !== "string") return { ok: false, erro: "campo_ausente" };
   if (c.texto.length > LIMITES_ENVIO.texto) return { ok: false, erro: "texto_grande_demais" };
   const pedido: Record<string, unknown> = { operacao: "enviar_mensagem", conta_id: c.conta_id, envio_id: c.envio_id, modo: c.modo, para: p2, cc: c2, cco: o2, assunto: c.assunto, texto: c.texto };

@@ -1,8 +1,51 @@
 {
- "coletado": "2026-11-21T10:56:21.825208+00:00",
+ "coletado": "2026-11-21T19:10:54.662656+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "Mets Extend A.J. Ewing",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-extend-a-j-ewing.html",
+   "data": "2026-11-21T18:05:49+00:00",
+   "resumo": "The Mets and outfielder A.J. Ewing have agreed to an eight-year contract extension, SNY’s Chelsea Janes reports. The deal also contains a club option for a ninth season (the 2035 campaign), and The Athletic’s Will Sammon reports that the option year is worth $25MM. Sammon also…",
+   "tags": [
+    "New York Mets",
+    "Newsstand",
+    "Transactions",
+    "A.J. Ewing"
+   ]
+  },
+  {
+   "t": "Marlins Haven’t Yet Had Extension Talks With Sandy Alcantara",
+   "link": "https://www.mlbtraderumors.com/2026/11/marlins-havent-yet-had-extension-talks-with-sandy-alcantara.html",
+   "data": "2026-11-21T17:09:41+00:00",
+   "resumo": "The Marlins have not yet approached Sandy Alcantara to discuss a contract extension, reports the Miami Herald’s Barry Jackson. Alcantara, 31, is coming off a solid rebound campaign and saw his $21MM club option picked up at the end of last month. The team has no plans to trade…",
+   "tags": [
+    "Miami Marlins",
+    "Sandy Alcantara"
+   ]
+  },
+  {
+   "t": "Latest On Freddy Peralta",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-freddy-peralta.html",
+   "data": "2026-11-21T15:34:43+00:00",
+   "resumo": "After finishing strong with the Rays this season, right-hander Freddy Peralta is one of the top available starting pitchers this side of Tarik Skubal. Unsurprisingly, Peralta is drawing interest from multiple teams, with Ken Rosenthal and Will Sammon of The Athletic listing…",
+   "tags": [
+    "Chicago Cubs",
+    "Chicago White Sox",
+    "Tampa Bay Rays",
+    "Freddy Peralta"
+   ]
+  },
+  {
+   "t": "The Opener: Lewis/Miller, Melton, Loaisiga",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-lewis-miller-melton-loaisiga.html",
+   "data": "2026-11-21T13:58:09+00:00",
+   "resumo": "Wow, that was a busy day. Yesterday saw a flurry of activity as teams adjusted their rosters before the 4:00 pm CT non-tender deadline. MLBTR has the complete lists of the American League and National League non-tenders, as well as players who agreed to terms with their clubs…",
+   "tags": [
+    "The Opener"
+   ]
+  },
   {
    "t": "Twins, Dodgers Swap Royce Lewis For Bobby Miller",
    "link": "https://www.mlbtraderumors.com/2026/11/dodgers-acquire-royce-lewis.html",
@@ -126,60 +169,6 @@
     "Transactions",
     "Washington Nationals",
     "Gus Varland"
-   ]
-  },
-  {
-   "t": "2026 Non-Tenders: National League",
-   "link": "https://www.mlbtraderumors.com/2026/11/2026-non-tenders-national-league.html",
-   "data": "2026-11-20T22:17:08+00:00",
-   "resumo": "There is one day a year where a team can send a player directly to free agency without exposing the player to waivers. For players who do not have a guaranteed contract for next season, their club had to decide by 4pm Central today whether or not to tender the player a contract…",
-   "tags": [
-    "Arizona Diamondbacks",
-    "Atlanta Braves",
-    "Chicago Cubs",
-    "Cincinnati Reds",
-    "Colorado Rockies",
-    "Los Angeles Dodgers"
-   ]
-  },
-  {
-   "t": "Players Avoiding Arbitration Prior To The 2026 Non-Tender Deadline",
-   "link": "https://www.mlbtraderumors.com/2026/11/players-avoiding-arbitration-prior-to-the-2026-non-tender-deadline.html",
-   "data": "2026-11-20T22:17:02+00:00",
-   "resumo": "The deadline for teams to tender contracts to arbitration-eligible players is this afternoon at 4pm CT. Throughout the day, we’ll see a handful of arb-eligible players agree to terms with their clubs to avoid a hearing. These so-called “pre-tender deals” usually, although not…",
-   "tags": [
-    "Baltimore Orioles",
-    "Boston Red Sox",
-    "Cleveland Guardians",
-    "Houston Astros",
-    "Los Angeles Angels",
-    "Los Angeles Dodgers"
-   ]
-  },
-  {
-   "t": "2026 Non-Tenders: American League",
-   "link": "https://www.mlbtraderumors.com/2026/11/2026-non-tenders-american-league.html",
-   "data": "2026-11-20T22:13:59+00:00",
-   "resumo": "The deadline to tender a contract to arbitration-eligible players was 4pm CT this afternoon. Below is a comprehensive list of players on American League teams who have been non-tendered today. MLBTR contributor Matt Swartz projected 2027 salaries for all arbitration-eligible…",
-   "tags": [
-    "Boston Red Sox",
-    "Cleveland Guardians",
-    "Detroit Tigers",
-    "Houston Astros",
-    "Kansas City Royals",
-    "New York Yankees"
-   ]
-  },
-  {
-   "t": "Yankees Non-Tender Fernando Cruz, Luis Gil",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-to-non-tender-fernando-cruz.html",
-   "data": "2026-11-20T22:09:32+00:00",
-   "resumo": "The Yankees announced they’ve non-tendered reliever Fernando Cruz and former Rookie of the Year Luis Gil. Both pitchers had been projected by MLBTR contributor Matt Swartz for $2.3MM salaries. Those are New York’s only non-tenders this year. Cruz was Aaron Boone’s top…",
-   "tags": [
-    "New York Yankees",
-    "Transactions",
-    "Fernando Cruz",
-    "Luis Gil"
    ]
   }
  ],

@@ -127,7 +127,7 @@ test("erros da Graph viram códigos fechados: 401/403 = autenticação recusada 
     [{ status: 503, corpo: {} }, "http_503"], [new Error("SEGREDO-DE-REDE"), "canal_falhou"]]) {
     cx.falha(f); const r = await w.executar("testar_conta", {}); assert.deepEqual([r.ok, r.erro], [false, esperado]); assert.ok(!JSON.stringify(r).includes("SEGREDO"), "o texto do erro nunca é copiado");
   }
-  cx.falha(null); cx.add(1); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("enviar", {})).erro, "operacao_desconhecida", "verbo desconhecido continua recusado");
+  cx.falha(null); cx.add(1); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("apagar_definitivo", {})).erro, "operacao_desconhecida", "verbo desconhecido continua recusado");
   const m = caixa(); const wm = criarWorkerOutlook({ acesso: "token-errado", http: m.http, banco: repoFalso, dono: R, conta: R }); assert.equal((await wm.executar("listar_pastas", {})).erro, "autenticacao_recusada");
   assert.equal((await w.executar("listar_mensagens", { pasta: "../etc/passwd" })).erro, "pasta_inexistente", "o nome da pasta é validado antes de ir à URL");
   const src = ler("supabase/functions/rac-inbox/outlook.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); assert.ok(!/method:\s*"PUT"|\/copy|\/permanentDelete/i.test(src), "nenhuma cópia nem exclusão permanente (o lote 4 só gerencia e envia; Itens Excluídos é o fim)");

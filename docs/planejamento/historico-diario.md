@@ -1501,3 +1501,17 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: republicar `rac-inbox` (`i4.2`) e o site, abrir a conta Outlook e tocar em Sincronizar; reportar o que aparecer. Depois: envio e gerenciamento (Gmail e Outlook), `delta`/`history` e sincronização automática.
+
+## 21/11/2026 · Inbox I4 lote 4: central de e-mail completa para Gmail, Outlook e iCloud (versão `2026-11-21.7`, função `rac-inbox@i4.3`)
+
+### 1. O que fizemos
+- Desenho aprovado pelo dono (abordagem A, rotina mantida em 10 min, sem marcador do Gmail e sem SQL) e implementado em código na mesma branch: `gmail.ts` e `outlook.ts` respondem os mesmos verbos de Worker do iCloud (marcar lida/não lida, mover, verificar, enviar), então `organizar.ts` e `envio.ts` (trava anti-duplicação, incerto nunca repetido, conferência do estado real) valem para os três provedores. Apagar = Lixeira; nada apaga de vez.
+- `servico.ts`: `abrirWorkerOauth` extraído e `ESCRITA_OAUTH` (interruptor). `rotina.ts`/`repositorio.ts`: a rotina de 10 min inclui Gmail e Outlook com aviso de e-mail novo. Site: Gmail e Outlook com envio e ações liberados, 6º botão Inbox na barra de baixo (só o dono) com o número de não lidas.
+- Testes: 5 arquivos novos (provedores simulados e PGlite) e ajustes dos que afirmavam "não escreve". Nenhum SQL, migration ou secret.
+
+### 2. O que estamos fazendo
+- Código pronto na branch, **não publicado e não provado com mensagens reais** (Gmail e Outlook reais ainda não foram usados para enviar, arquivar ou apagar).
+
+### 3. O que vamos fazer
+- Dono: republicar `rac-inbox` (`i4.3`), publicar o site e testar no iPhone entre as próprias contas (sincronizar, lida, arquivar, apagar, enviar, responder, encaminhar; depois aguardar a rotina e o aviso).
+- Depois: anexos e rascunhos no envio, esvaziar lixeira, marcador de mudança do Gmail (migration 065) e push em tempo real, se o dono quiser.

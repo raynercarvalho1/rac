@@ -44,5 +44,5 @@ test("a casa (Fernanda) nunca consulta o Inbox nem ganha o selo; o CSS da barra 
   for (const r of regras) { assert.match(r.trim(), /^html\.logado:not\(\.casa\) #barra/, "só do dono: " + r.trim().slice(0, 60)); assert.ok(!/rgba?\(|#[0-9a-fA-F]{3,8}\b/.test(r.slice(r.indexOf("{"))), "sem cor escrita: " + r); }
   assert.match(css, /html\.casa #navgrp h4\.areat,html\.casa #barra\{display:none\}/, "a casa continua sem barra");
   const inbox = lerArq("js/inbox.js"); assert.match(inbox, /inboxBarraMostrar\(NUCLEO\.inbContadorBarra\(INBX\.pastas\)\)/, "o Inbox atualiza o selo depois de ler (sincronizar e organizar já releem)");
-  const app = lerArq("js/app.js"); assert.match(app, /if\(PAPEL!=="casa"\)inboxBarraAtualizar\(\)/, "ao entrar só o dono atualiza"); assert.match(app, /voltaOlhar[\s\S]{0,600}inboxBarraAtualizar\(\)/, "ao voltar para a aba também");
+  const app = lerArq("js/app.js"); assert.match(app, /if\(PAPEL!=="casa"\)inboxBarraAtualizar\(\)/, "ao entrar só o dono atualiza"); assert.match(app, /voltaOlhar[\s\S]{0,600}typeof inboxBarraAtualizar==="function"\)inboxBarraAtualizar\(\)/, "ao voltar para a aba também (com guarda)");
 });

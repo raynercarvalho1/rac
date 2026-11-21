@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-21.6",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-21.7",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -1415,7 +1415,7 @@
   function voltaOlhar(ev){
     if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
     if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
-    inboxBarraAtualizar();
+    if(typeof inboxBarraAtualizar==="function")inboxBarraAtualizar();   /* o selo do Inbox na barra (só o dono) */
     var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);notifDiag();if(!saiu)return;
     var sec=document.documentElement.getAttribute("data-sec")||"inicio";
     if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}

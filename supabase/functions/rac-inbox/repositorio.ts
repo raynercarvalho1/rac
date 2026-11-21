@@ -109,15 +109,15 @@ export function criarRepositorio(sessao: Sessao): Banco & BancoRotina {
     // contas iCloud com credencial ativa, "sincronizar automaticamente" ligado e pasta de entrada conhecida; a casa (membros) nunca entra
     async contasAutomaticas() {
       const r = await sessao.exec(
-        `select distinct on (c.id) c.id as conta, c.dono, c.apelido, c.notificar, p.id as pasta_id, coalesce(s.falhas_seguidas, 0) as falhas, s.ultima_tentativa_em
+        `select distinct on (c.id) c.id as conta, c.dono, c.provedor, c.apelido, c.notificar, p.id as pasta_id, coalesce(s.falhas_seguidas, 0) as falhas, s.ultima_tentativa_em
          from public.inbox_contas c
          join public.inbox_credenciais k on k.conta_id = c.id and k.dono = c.dono and k.estado = 'ativa'
          join public.inbox_pastas p on p.conta_id = c.id and p.dono = c.dono and p.uso = 'entrada' and p.ativa
          left join public.inbox_sincronizacao s on s.pasta_id = p.id
-         where c.provedor = 'icloud' and c.sync_auto and c.estado not in ('erro_autenticacao', 'desconectada')
+         where c.provedor in ('icloud', 'gmail', 'outlook') and c.sync_auto and c.estado not in ('erro_autenticacao', 'desconectada')
            and not exists (select 1 from public.membros m where m.membro = c.dono)
          order by c.id limit 20`);
-      return r.map((x) => ({ conta: String(x.conta), dono: String(x.dono), apelido: String(x.apelido), notificar: x.notificar === true, pasta_id: String(x.pasta_id), falhas: Number(x.falhas),
+      return r.map((x) => ({ conta: String(x.conta), dono: String(x.dono), provedor: String(x.provedor), apelido: String(x.apelido), notificar: x.notificar === true, pasta_id: String(x.pasta_id), falhas: Number(x.falhas),
         ultima_tentativa_em: x.ultima_tentativa_em ? new Date(x.ultima_tentativa_em as string).toISOString() : null }));
     },
     // o que ainda não foi tratado pelo aviso: não lidas, dos últimos 24 h, com assunto e remetente (já gravados pela sincronização: nenhuma consulta extra ao provedor). As lidas e as antigas são marcadas como tratadas (nunca viram aviso tardio).

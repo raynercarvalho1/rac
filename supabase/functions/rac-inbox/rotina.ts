@@ -3,13 +3,13 @@
 // credencial recusada vira estado (e a conta sai da rotina), a primeira leitura nunca avisa, nada é avisado duas vezes, o aviso não leva conteúdo do e-mail e a credencial nunca sai.
 // A rotina é chamada pelo pg_cron (supabase/propostas/055_inbox_agendamento.sql) a cada 10 min com a senha da rotina; o Worker continua SÓ LEITURA (EXAMINE/FETCH BODY.PEEK): nada muda na caixa original.
 import { desempacotar } from "./contrato.ts";
-import { AUTENTICACAO_RECUSADA, CANAL_RECUSADO, REPASSA, detalheDe, type Banco, type Cofre, type Worker } from "./servico.ts";
+import { AUTENTICACAO_RECUSADA, CANAL_RECUSADO, REPASSA, detalheDe, type Banco, type Cofre, type ResultadoOauth, type Worker } from "./servico.ts";
 import { sincronizarPasta } from "./sync.ts";
 import type { Entrega, Msg } from "./push.ts";
 
 /* o que o aviso precisa de uma mensagem, tudo do cache já gravado pela sincronização (nenhuma consulta nova ao provedor); o id é o da linha em inbox_mensagens_ref */
 export interface Pendente { id: string; pasta_id: string; assunto: string | null; nome: string | null; endereco: string | null }
-export interface ContaAuto { conta: string; dono: string; apelido: string; notificar: boolean; pasta_id: string; falhas: number; ultima_tentativa_em: string | null }
+export interface ContaAuto { conta: string; dono: string; provedor: string; apelido: string; notificar: boolean; pasta_id: string; falhas: number; ultima_tentativa_em: string | null }
 export interface BancoRotina {
   contasAutomaticas(): Promise<ContaAuto[]>;
   pendentes(dono: string, conta: string): Promise<Pendente[]>;                       // mensagens não lidas ainda não tratadas pelo aviso, da mais nova para a mais antiga (as lidas e as antigas já saem marcadas)
@@ -67,15 +67,18 @@ export function planejarAvisos(conta: string, lista: Pendente[], naoLidas: numbe
 
 export async function rodarRotina(d: {
   banco: Banco & BancoRotina; cofre: Cofre; worker: Worker; aviso: Aviso | null;
+  /* I4: o Worker de uma conta Gmail/Outlook (token de acesso pedido agora, só nesta rodada); ausente = essas contas respondem oauth_nao_configurado */
+  workerDaConta?: (c: ContaAuto, bruto: string) => Promise<ResultadoOauth>;
   registrar: (e: { operacao: string; codigo: string; status: number; detalhe?: string }) => void; agora?: () => number; orcamentoMs?: number;
 }): Promise<Resumo> {
   const agora = d.agora ?? Date.now, inicio = agora(), limite = d.orcamentoMs ?? ORCAMENTO_MS, duro = inicio + PRAZO_DURO_MS;
   /* toda chamada ao Worker passa por aqui: recebe só o tempo que resta até o prazo duro; sem tempo, nem é feita */
-  const worker: Worker = { async executar(op, ped, cred) {
+  const comPrazo = (w: Worker): Worker => ({ async executar(op, ped, cred) {
     const resta = duro - agora();
     if (resta < CHAMADA_MIN_MS) return { ok: false, erro: "prazo_esgotado" };
-    return await d.worker.executar(op, ped, cred, { timeoutMs: Math.min(CHAMADA_MAX_MS, resta) });
-  } };
+    return await w.executar(op, ped, cred, { timeoutMs: Math.min(CHAMADA_MAX_MS, resta) });
+  } });
+  const worker = comPrazo(d.worker);
   const res: Resumo = { contas: 0, sincronizadas: 0, sem_mudanca: 0, novas: 0, avisos: 0, falhas: 0, ignoradas: 0, em_andamento: 0 };
   const reg = (codigo: string, detalhe?: string) => { try { d.registrar({ operacao: "rotina_sync", codigo, status: codigo === "ok" ? 200 : 502, ...(detalhe ? { detalhe } : {}) }); } catch (_) { /* o registro nunca derruba a rotina */ } };
   let contas: ContaAuto[] = [];
@@ -92,11 +95,20 @@ export async function rodarRotina(d: {
       let bruto: string | null = null;
       try { bruto = await d.cofre.ler(c.dono, c.conta); } catch (_) { res.falhas++; reg("cofre_indisponivel"); continue; }
       const ausente = bruto === null;
-      let cred = bruto === null ? null : desempacotar(bruto);
-      bruto = null;
+      let cred: { usuario: string; senha: string } | null = null, wk = worker;
+      if (!ausente && (c.provedor === "gmail" || c.provedor === "outlook")) {   // Gmail/Outlook: o segredo é o refresh token; o token de acesso nasce agora e morre com o Worker (abrirWorkerOauth marca a credencial inválida se o provedor recusar)
+        const o: ResultadoOauth = d.workerDaConta ? await d.workerDaConta(c, bruto as string) : { ok: false, erro: "oauth_nao_configurado" };
+        bruto = null;
+        if (!o.ok) {
+          res.falhas++; reg(o.erro);
+          if (o.erro === "servico_indisponivel") { try { await d.banco.falhaSync(c.dono, c.conta, c.pasta_id, "servico_indisponivel"); await d.banco.estadoConta(c.dono, c.conta, "atrasada", "servico_indisponivel"); } catch (_) { /* a próxima rodada tenta de novo */ } }
+          continue;   // credencial_invalida: a conta já foi marcada e sai da rotina até o dono reconectar
+        }
+        wk = comPrazo(o.worker); cred = { usuario: "", senha: "" };
+      } else { cred = bruto === null ? null : desempacotar(bruto); bruto = null; }
       if (!cred) { res.falhas++; reg(ausente ? "credencial_ausente" : "credencial_corrompida"); continue; }
       let r;
-      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker, banco: d.banco, credencial: cred, modo: "agenda", agora, prazo: inicio + limite }); }
+      try { r = await sincronizarPasta({ dono: c.dono, conta: c.conta, pastaId: c.pasta_id, worker: wk, banco: d.banco, credencial: cred, modo: "agenda", agora, prazo: inicio + limite }); }
       catch (e) { cred = null; res.falhas++; reg("servico_indisponivel", detalheDe(e)); try { await d.banco.falhaSync(c.dono, c.conta, c.pasta_id, "servico_indisponivel"); } catch (_) { /* a próxima rodada tenta de novo */ } continue; }
       cred = null;
       if (!r.ok && r.erro === "prazo_esgotado") { res.ignoradas++; reg("prazo_esgotado"); continue; }   // o tempo da rodada acabou no meio: não é falha da conta; nada foi gravado e a próxima rodada refaz

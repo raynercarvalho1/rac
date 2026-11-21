@@ -320,7 +320,7 @@ test("PGlite · repositório da rotina: aviso só para mensagem nova não lida (
   const e = await repo.estadoSync(R, c, p); assert.equal(typeof e.reconciliada_em, "string", "a data da última releitura completa volta ao algoritmo"); assert.ok(!Number.isNaN(Date.parse(e.reconciliada_em)));
 });
 
-test("PGlite · contas da rotina: só iCloud com credencial ativa, 'sincronizar automaticamente' ligado, pasta de entrada e fora de erro de autenticação; a casa e outras credenciais ficam de fora; senha da rotina e chaves VAPID", { skip: pular }, async () => {
+test("PGlite · contas da rotina: iCloud, Gmail e Outlook com credencial ativa, 'sincronizar automaticamente' ligado, pasta de entrada e fora de erro de autenticação; a casa e outras credenciais ficam de fora; senha da rotina e chaves VAPID", { skip: pular }, async () => {
   const db = await banco(); await db.exec(S54);
   await db.exec(`create table public.inbox_credenciais (conta_id uuid primary key, dono uuid not null, estado text not null default 'ativa');   -- molde da 052 (o cofre real precisa do Vault; aqui só importa o estado)
     create function public.rac_rotina_ok(segredo text) returns boolean language sql as $$ select segredo = 'senha-da-rotina' $$;`);
@@ -332,11 +332,13 @@ test("PGlite · contas da rotina: só iCloud com credencial ativa, 'sincronizar 
   await db.exec(nova(5, R, "", "ativa", false));                              // sem pasta de entrada conhecida
   await db.exec(nova(6, R, ", estado|icloud|, 'erro_autenticacao'"));         // em erro de autenticação
   await db.exec(nova(7, R, ", estado|icloud|, 'desconectada'"));              // desconectada
-  await db.exec(nova(8, R, "|gmail|"));                                       // outro provedor
+  await db.exec(nova(8, R, "|gmail|"));                                       // Gmail (lote 4): entra
+  await db.exec(nova("a", R, "|outlook|"));                                 // Outlook (lote 4): entra
+  await db.exec(nova("b", R, "|yahoo|"));                                   // provedor desconhecido: fora
   await db.exec(nova(9, F));                                                  // a casa (Fernanda) nunca entra
   await db.exec(nova(0, X, ", notificar|icloud|, false"));                    // outro usuário, sem notificar
   const repo = criarRepositorio(sessaoDe(db)), l = await repo.contasAutomaticas();
-  assert.deepEqual(l.map((x) => [x.conta.slice(-1), x.notificar]).sort(), [["0", false], ["1", true]]); assert.ok(l.every((x) => x.pasta_id && x.falhas === 0 && x.ultima_tentativa_em === null));
+  assert.deepEqual(l.map((x) => [x.conta.slice(-1), x.notificar, x.provedor]).sort(), [["0", false, "icloud"], ["1", true, "icloud"], ["8", true, "gmail"], ["a", true, "outlook"]]); assert.ok(l.every((x) => x.pasta_id && x.falhas === 0 && x.ultima_tentativa_em === null));
   assert.equal(await repo.rotinaAutorizada("senha-da-rotina"), true); assert.equal(await repo.rotinaAutorizada("outra"), false); assert.equal(await repo.rotinaAutorizada(""), false);
 });
 

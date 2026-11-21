@@ -138,10 +138,10 @@ test("erros da Gmail API viram códigos fechados: 401/403 = autenticação recus
     [{ status: 503, corpo: {} }, "http_503"], [{ status: 429, corpo: {} }, "http_429"], [new Error("SEGREDO-DE-REDE"), "canal_falhou"]]) {
     cx.falha(f); const r = await w.executar("testar_conta", {}); assert.deepEqual([r.ok, r.erro], [false, esperado]); assert.ok(!JSON.stringify(r).includes("SEGREDO"), "o texto do erro nunca é copiado");
   }
-  cx.falha(null); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("enviar", {})).erro, "operacao_desconhecida", "nada de escrita no adaptador de leitura");
+  cx.falha(null); assert.equal((await w.executar("testar_conta", {})).ok, true); assert.equal((await w.executar("enviar", {})).erro, "operacao_desconhecida", "verbo desconhecido continua recusado");
   const m = caixa(); const wm = criarWorkerGmail({ acesso: "token-errado", http: m.http, banco: repoFalso, dono: R, conta: R }); assert.equal((await wm.executar("listar_pastas", {})).erro, "autenticacao_recusada");
   assert.equal((await w.executar("listar_mensagens", { pasta: "../etc/passwd" })).erro, "pasta_inexistente", "o nome da pasta é validado antes de ir à URL");
-  const src = ler("supabase/functions/rac-inbox/gmail.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); assert.ok(!/method:\s*"(POST|PUT|PATCH|DELETE)"|\.modify|\/send|\/trash|\/batchModify|\/delete/i.test(src), "nenhuma chamada que escreva na caixa");
+  const src = ler("supabase/functions/rac-inbox/gmail.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); assert.ok(!/method:\s*"(PUT|PATCH|DELETE)"|batchDelete|\/delete/i.test(src), "nenhuma chamada que apague de vez (o lote 4 só gerencia e envia; Lixeira é o fim)");
 });
 
 /* ---------- o serviço completo ---------- */

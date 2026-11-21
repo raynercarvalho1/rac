@@ -2,7 +2,7 @@
 // MESMOS formatos (pastas, resumos, leitura, anexo), então a sincronização (sync.ts), o cache, o contrato e a tela são os mesmos: não existe sistema paralelo por provedor.
 //  - Identidade: o contrato e a tela usam `uid` numérico. No Gmail o servidor atribui um uid SINTÉTICO por pasta (contador crescente, guardado com o cache) e a identidade do provedor fica em
 //    `id_externo` (o ID da mensagem no Gmail); `uidvalidity` é sempre 1 (rótulos do Gmail não reiniciam). O navegador nunca vê o ID do Gmail.
-//  - Só LEITURA: GET em profile, labels, messages e attachments. Nenhuma escrita na caixa existe aqui (envio e gerenciamento são lotes próprios).
+//  - LEITURA (GET em profile, labels, messages e attachments) e, desde o lote 4, GERENCIAR uma mensagem por vez (modify/trash/untrash) e ENVIAR. Nunca apaga de vez: Lixeira é o fim.
 //  - O token de acesso vive só na closure desta chamada; nada é registrado. Toda falha vira código fechado ("autenticacao_recusada", "http_NNN", "canal_falhou", …).
 import type { Http } from "./oauth.ts";
 import type { ResultadoWorker, Worker } from "./servico.ts";
@@ -17,6 +17,13 @@ const PASTAS_SISTEMA: Array<{ id: string; exib: string; uso: string }> = [
 export const PASTA_ARQUIVO = "ARQUIVO";   // "Todos os e-mails" do Gmail fora da entrada, enviados, rascunhos, lixeira e spam
 const Q_ARQUIVO = "-in:inbox -in:sent -in:drafts -in:trash -in:spam";
 const RE_ID_PASTA = /^[A-Za-z0-9_\-]{1,100}$/, RE_ID_MSG = /^[0-9a-f]{8,32}$/;
+const ROTULOS_DE_PASTA = ["INBOX", "SENT", "DRAFT", "TRASH", "SPAM"];   // quem não tem nenhum destes está no "Arquivo"
+/* o que muda nos rótulos ao levar uma mensagem de uma pasta para outra (nomes externos; "ARQUIVO" não é rótulo: é a ausência dos de pasta). Lixeira usa os endpoints trash/untrash (mover_mensagem). */
+export function rotulosDaAcao(origem: string, destino: string): { adicionar: string[]; remover: string[] } {
+  const remover = origem === "ARQUIVO" ? [] : [origem];
+  if (destino === "ARQUIVO" && origem !== "INBOX" && origem !== "ARQUIVO") remover.push("INBOX");
+  return { adicionar: destino === "ARQUIVO" ? [] : [destino], remover };
+}
 
 /* o que o adaptador precisa do banco (implementado em repositorio.ts) */
 export interface BancoGmail {
@@ -113,7 +120,20 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
     if (r.status === 401 || (r.status === 403 && !/ratelimit|quota|limit/i.test(motivo))) return { ok: false, erro: "autenticacao_recusada" };
     return { ok: false, erro: "http_" + (r.status >= 100 && r.status <= 599 ? r.status : 502) };
   }
+  /* ESCRITA (POST): 4xx do pedido = `recusado` (nada mudou); rede, 5xx ou 429 = `incerto` (pode ter sido aplicado: quem chama confere o estado real, nunca repete). Resposta sem corpo é sucesso. */
+  async function escrever(caminho: string, corpo: Obj | null, recusado: string, incerto: string): Promise<Api> {
+    let r;
+    try { r = await d.http(API + caminho, { method: "POST", headers: { Authorization: "Bearer " + d.acesso, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(corpo ?? {}) }); } catch (_) { return { ok: false, erro: incerto }; }
+    let j: Obj | null = null; try { j = obj(await r.json()); } catch (_) { /* corpo vazio ou inválido */ }
+    if (r.ok) return { ok: true, j: j ?? {} };
+    if (r.status === 404) return { ok: false, erro: "mensagem_inexistente" };
+    const motivo = str(obj(arr(obj(j?.error)?.errors)[0])?.reason);
+    if (r.status === 401 || (r.status === 403 && !/ratelimit|quota|limit/i.test(motivo))) return { ok: false, erro: "autenticacao_recusada" };
+    return { ok: false, erro: r.status >= 400 && r.status < 500 && r.status !== 429 ? recusado : incerto };
+  }
   const enc = encodeURIComponent;
+  /* a mensagem ainda está nesta pasta? ("ARQUIVO" = nenhum rótulo de pasta) */
+  const naPasta = (rot: string[], nome: string): boolean => (nome === PASTA_ARQUIVO ? !rot.some((x) => ROTULOS_DE_PASTA.includes(x)) : rot.includes(nome));
   /* a consulta de uma pasta: rótulo do sistema/do usuário (labelIds) ou o "Arquivo" (consulta) */
   const consulta = (nome: string, max: number): string | null => {
     if (nome === PASTA_ARQUIVO) return `messages?maxResults=${max}&q=${enc(Q_ARQUIVO)}`;
@@ -189,7 +209,36 @@ export function criarWorkerGmail(d: DepsGmail): Worker {
       return { ok: true, dados: { mensagem: { ...resumo, anexo_provavel: anexos.length > 0, cc: enderecos(cab(p, "cc")).slice(0, 20), texto: corpo.texto, formato: corpo.formato, truncado: corpo.truncado,
         anexos: anexos.slice(0, 30).map((x) => ({ parte: x.caminho, nome: x.nome, tipo: x.tipo, tamanho: x.tamanho, inline: x.inline })) } } };
     }
-    return { ok: false, erro: "operacao_desconhecida" };   // envio e gerenciamento do Gmail são lotes próprios: nada é escrito aqui
+
+    /* ---- gerenciar UMA mensagem (os mesmos verbos que organizar.ts usa com o Worker do iCloud) ---- */
+    if (operacao === "marcar_lida" || operacao === "mover_mensagem" || operacao === "verificar_mensagem") {
+      const pid = await pastaId(nome), uid = Number(pedido.uid); if (!pid || !Number.isInteger(uid)) return { ok: false, erro: "pasta_inexistente" };
+      if (pedido.uidvalidity_esperado !== undefined && pedido.uidvalidity_esperado !== UIDVALIDITY_GMAIL) return { ok: false, erro: "uidvalidity_mudou" };
+      const id = await d.banco.idExterno(d.dono, d.conta, pid, uid); if (!id || !RE_ID_MSG.test(id)) return { ok: false, erro: "mensagem_inexistente" };
+      if (operacao === "verificar_mensagem") {
+        const r = await api(`messages/${id}?format=minimal`);
+        if (!r.ok) return r.erro === "mensagem_inexistente" ? { ok: true, dados: { existe: false, lida: true } } : r;
+        const rot = arr(r.j.labelIds).map(String); return { ok: true, dados: { existe: naPasta(rot, nome), lida: !rot.includes("UNREAD") } };
+      }
+      const esperado = str(pedido.message_id_esperado);
+      if (esperado) {   // a identidade do cache tem de ser a da mensagem real: senão nada é alterado
+        const r = await api(`messages/${id}?format=metadata&metadataHeaders=Message-ID`); if (!r.ok) return r;
+        if (cabBruto(obj(r.j.payload), "message-id") !== esperado) return { ok: false, erro: "identidade_divergente" };
+      }
+      if (operacao === "marcar_lida") {
+        const lida = pedido.lida === true, r = await escrever(`messages/${id}/modify`, lida ? { removeLabelIds: ["UNREAD"] } : { addLabelIds: ["UNREAD"] }, "acao_recusada", "acao_incerta"); if (!r.ok) return r;
+        return { ok: true, dados: { resultado: "aplicada", ...(Array.isArray(r.j.labelIds) ? { lida: !r.j.labelIds.map(String).includes("UNREAD") } : {}) } };
+      }
+      const destino = str(pedido.destino);
+      if (destino !== PASTA_ARQUIVO && !RE_ID_PASTA.test(destino)) return { ok: false, erro: "pasta_inexistente" };
+      if (destino === nome) return { ok: false, erro: "acao_recusada" };
+      if (destino === "TRASH") { const r = await escrever(`messages/${id}/trash`, null, "acao_recusada", "acao_incerta"); return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r; }
+      if (nome === "TRASH") { const u = await escrever(`messages/${id}/untrash`, null, "acao_recusada", "acao_incerta"); if (!u.ok) return u; }   // sai da Lixeira; o untrash pode devolvê-la à entrada
+      const rot = nome === "TRASH" ? { adicionar: destino === PASTA_ARQUIVO ? [] : [destino], remover: destino === "INBOX" ? [] : ["INBOX"] } : rotulosDaAcao(nome, destino);
+      const r = await escrever(`messages/${id}/modify`, { addLabelIds: rot.adicionar, removeLabelIds: rot.remover }, "acao_recusada", "acao_incerta");
+      return r.ok ? { ok: true, dados: { resultado: "aplicada" } } : r;
+    }
+    return { ok: false, erro: "operacao_desconhecida" };   // envio é o lote seguinte desta entrega (enviar); nada mais escreve aqui
   }
   return { executar: (op, ped) => executar(op, ped) };
 }

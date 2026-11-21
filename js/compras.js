@@ -39,7 +39,6 @@
     trocar:function(n){CC.dados=n.compras.v;CC.carregando=Promise.resolve(CC.dados);if(typeof PAINEL!=="undefined")PAINEL.cache={}},
     ocupado:function(){return CC.aba==="importar"&&CC.lote&&CC.lote.isConnected?"a conferência da importação (salve os pedidos ou saia de Importar)":""}});
   function ccLoja(c){return NUCLEO.CO_LOJAS[c.loja]||c.loja}
-  function ccFonte(t){return h("p",{class:"sub pnfonte",text:"Fonte: "+t})}
   /* por que o pedido entra ou não nas despesas, em uma frase (a regra é NUCLEO.coRegra, a mesma do Painel e do Hoje) */
   function ccSituacaoTexto(c){var r=NUCLEO.coRegra(c),M={cancelada:"✕ Compra cancelada (confirmada por você): fora das despesas.",
       fora_das_contas:"Compra registrada, fora das despesas (já contada em outro lugar"+(c.motivo_fora?": "+c.motivo_fora:"")+").",
@@ -74,10 +73,6 @@
       if(volta>0)setTimeout(function(){window.scrollTo(0,volta)},0)})
     .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"panel"},failed(function(){ccEsquecer();renderCompras(CC.aba)},e)));logErro("compras",e)})}
 
-  /* ---------- Resumo ---------- */
-  function ccDec(s){try{return decodeURIComponent(s||"")}catch(e){return s||""}}
-  function ccCent(x){return Math.round((+x||0)*100)}
-  function ccSinal(v){return (v<0?"−":"")+brl(Math.abs(v))}
   /* pilha das telas de Compras: ao voltar para a tela anterior, a rolagem de antes é devolvida (devolve o y, ou 0) */
   function ccNav(){var k=location.hash==="#compras"?"#compras/lista":location.hash,N=CC.nav;
     if(N.length>=2&&N[N.length-2].h===k){N.pop();return N[N.length-1].y||0}

@@ -825,12 +825,10 @@ html.casa .side .search,html.casa .side .results,html.casa .side .grp:not(#navgr
 /* Alimentação e Delivery */
 #alimentacao .alitem{border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:0 0 8px}
 #alimentacao .alitem .vfil{margin-top:6px}#alimentacao .alitem .vfil input{flex:1 1 180px;min-width:0}
-#alimentacao button.alped{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
-#alimentacao button.alped .grow{display:flex;flex-direction:column;min-width:0}#alimentacao button.alped .grow b,#alimentacao button.alped .grow .sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#alimentacao li.alli{flex-direction:column;align-items:stretch}#alimentacao .aldet{margin-top:10px}
+#alimentacao .aldet{margin-top:10px}
 .alconf{color:var(--warn);font-weight:700}
 #alimentacao ul.alconta li{padding:4px 0}#alimentacao .alfotos img{width:96px;height:96px;object-fit:cover;border-radius:10px}
-#alimentacao input[type=search]{width:100%;box-sizing:border-box;margin:0 0 6px}#alimentacao .alabas{overflow-x:auto;flex-wrap:nowrap}#alimentacao .alabas a{white-space:nowrap}
+
 /* Central de Compras */
 #compras .ccitemf{border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:0 0 8px}
 #compras button.ccitem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
@@ -838,7 +836,7 @@ html.casa .side .search,html.casa .side .results,html.casa .side .grp:not(#navgr
 #compras li.ccli{flex-direction:column;align-items:stretch}#compras .ccdet{margin-top:10px}#compras ul.ccconta li{padding:4px 0}
 #compras .ccthumb img{width:48px;height:48px;object-fit:contain;border-radius:8px;background:#fff}#compras .ccthumb:empty{display:none}
 #fiscal .fxbloq{border-left-color:#C0392B !important}#fiscal .fxvalid{margin-top:8px}#fiscal .fxaviso{border-left:4px solid #E5A100;padding:6px 10px;margin:8px 0;border-radius:8px;background:var(--surface)}#fiscal .fxnota h3{overflow-wrap:anywhere}#fiscal .row{display:flex;justify-content:space-between;gap:12px;padding:4px 0}#fiscal .row b{text-align:right;overflow-wrap:anywhere}#fiscal label.fxsel{display:block;font-weight:600;margin:8px 0}#fiscal label.fxsel input{display:block;max-width:100%;margin-top:6px;font-weight:400}#fiscal ul.fxitens{list-style:none;margin:0 0 8px;padding:0}#fiscal ul.fxitens li{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--line)}#fiscal ul.fxitens li:first-child{border-top:0}#fiscal .fxitem{display:flex;flex-direction:column;gap:2px;min-width:0}#fiscal .fxnome{overflow-wrap:anywhere}#fiscal .fxqtd,#fiscal .fxdesc{color:var(--muted);font-size:calc(13px + var(--fz))}#fiscal .fxdesc{color:inherit}#fiscal .fxtot{flex:none;font-size:calc(16px + var(--fz));white-space:nowrap}#fiscal summary .fxchip{margin:2px 6px 2px 0}#fiscal .fxchip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:calc(12px + var(--fz));font-weight:600;border:1px solid var(--line);background:var(--surface);white-space:nowrap}#fiscal .fxok{border-color:#2E8B57;color:#2E8B57}#fiscal .fxpend{border-color:#E5A100;color:#9A6B00}#fiscal .fxruim{border-color:#C0392B;color:#C0392B}#fiscal .fxlista{list-style:none;margin:0;padding:0}#fiscal .fxlista>li{padding:10px 0;border-top:1px solid var(--line)}#fiscal .fxlista>li:first-child{border-top:0}#fiscal .fxlinhalista{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}#fiscal .fxdet{margin-top:8px}#fiscal .fxdet input,#fiscal .fxdet select{max-width:100%;margin:4px 0}#fiscal .fxdet a{overflow-wrap:anywhere}
-#compras .ccaviso{border-left:4px solid #E5A100;padding:6px 10px;margin:8px 0;border-radius:8px;background:var(--surface)}#compras .ccrec{margin:8px 0}
+#compras .ccaviso{border-left:4px solid #E5A100;padding:6px 10px;margin:8px 0;border-radius:8px;background:var(--surface)}
 #compras .cchips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}#compras .ccst{font-size:.72rem;line-height:1;padding:3px 7px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);white-space:nowrap}
 #compras .ccst-ok{border-color:var(--good);color:var(--good)}#compras .ccst-aviso{border-color:var(--warn);color:var(--warn)}#compras .ccst-off{border-color:var(--muted);color:var(--muted)}#compras .ccst-info{border-color:var(--accent);color:var(--accent)}
 #compras .ccfora{text-decoration:line-through;opacity:.6}
@@ -1184,7 +1182,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-21.6">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-21.7">
 </head>
 <body>
 

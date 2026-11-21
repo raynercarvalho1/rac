@@ -978,7 +978,7 @@ test("site: a interface de IA está ligada e os textos seguem o modo que veio do
   assert.match(appJs, /var IA_LIGADA=true;/);
   assert.ok(!/IA_SO_DEMO/.test(appJs + sisJs), "sem marca de modo no site: quem decide é o servidor");
   assert.match(famJs, /if\(typeof iaLigada==="function"&&iaLigada\(\)\)f\.appendChild\(iaBotao\(\{modulo:"abastecimento",acao:"abastecimento\.interpretar"/);
-  assert.match(merJs, /if \(typeof window\.iaLigada === "function" && window\.iaLigada\(\)\) ia\.appendChild\(window\.iaBotao\(\{ modulo: "mercado", acao: "mercado\.nota"/);
+  assert.ok(!/mercado\.nota/.test(merJs), "a leitura de nota pela foto do Mercado (IA, demonstração) saiu do site no lote G; a leitura de notas é a da Central Fiscal");
   assert.match(sisJs, /if\(typeof iaLigada==="function"&&iaLigada\(\)\)try\{root\.appendChild\(sisIA\(\)\)\}/);
   /* os textos distinguem DEMONSTRAÇÃO (simulada, sem custo, não salva) e REAL (usa o orçamento, conferir antes de salvar) */
   const botao = trecho(appJs, "function iaBotao(", "\n  /* =====");
@@ -1026,12 +1026,11 @@ test("site: resposta DEMO vai só para a prévia (sem salvar); só REAL sem _dem
   assert.ok(!/button|onclick|real\(/.test(previa), "a prévia não tem botão nem caminho para salvar");
   /* e as conversões recusam _demo (segunda proteção) */
   assert.match(famJs, /real:function\(r\)\{var t=NUCLEO\.iaAbastTexto\(r\);if\(!t\)return;/);
-  assert.match(merJs, /real: function \(r\) \{ var t = window\.RACnucleo\.iaNotaTexto\(r\); if \(!t\) return;/);
 });
 
 test("site: os jeitos manuais continuam lá (pedido ao Claude, colar a resposta, conferir e salvar)", () => {
   const claude = trecho(famJs, "function abClaude(", "\n  /* ====="), form = trecho(famJs, "function abForm(", "\n  /* registro antigo");
   for (const x of ["PEDIDO_ABAST", "Colar a resposta", "function ler()"]) assert.ok(claude.includes(x), "abClaude perdeu " + x);
   for (const x of ["abClaude(", "Salvar abastecimento", "salvar.onclick", "SB.from(\"registros\").insert(row)"]) assert.ok(form.includes(x), "abForm perdeu " + x);
-  for (const x of ["var PEDIDO =", "function tentarResp()", "function lerEConferir()", "Colar a resposta", "function salvarNota("]) assert.ok(merJs.includes(x), "Mercado perdeu " + x);
+  for (const x of ["var PEDIDO =", "function tentarResp()", "function lerEConferir()", "function salvarNota("]) assert.ok(!merJs.includes(x), "o fluxo antigo de nota do Mercado saiu (lote G): " + x);
 });

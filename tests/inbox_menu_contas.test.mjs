@@ -34,7 +34,7 @@ function ambiente({ dono = true, contas = [], pastas = [], credenciais = [], men
     update(l) { gravacoes.push([t, "update", l]); return q; }, eq(c, v) { q._eq = [c, v]; return q; }, delete() { gravacoes.push([t, "delete"]); return q; }, upsert(l) { gravacoes.push([t, "upsert", l]); return q; },
     then(ok, er) { lidas.push(t); const dados = t === "inbox_contas" ? contas : t === "inbox_credenciais" ? credenciais : t === "inbox_mensagens_ref" ? mensagens : t === "inbox_sincronizacao" ? sincs : pastas;
       const r = erroMsgs && t === "inbox_mensagens_ref" ? { data: null, error: { code: "42703", message: 'column "recebida_em" does not exist' } } : q._acao === "insert" ? { data: erroGravar ? null : [{ id: "novo" }], error: erroGravar } : (erroLeitura && t !== "inbox_credenciais" ? { data: null, error: erroLeitura } : { data: q._eq ? dados.filter((x) => x[q._eq[0]] === q._eq[1]) : dados, error: null }); return Promise.resolve(r).then(ok, er); } }; return q; };
-  const ctx = { console, Promise, Object, Array, JSON, String, Date, Math, Number, setTimeout, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
+  const ctx = { console, Promise, Object, Array, JSON, String, Date: DataFixa, Math, Number, setTimeout, NUCLEO: N, document: doc, isOwner: () => dono, $: () => titulo, confirm: () => true,
     sbOk: (r) => { if (r.error) throw r.error; return r.data; }, SB: { from: tabela, functions: { invoke: (nome, o) => { chamadas.push([nome, JSON.parse(JSON.stringify(o))]); return Promise.resolve(invoke ? invoke(nome, o) : { data: { ok: true, credencial: "guardada" }, error: null }); } } }, racDica: { ligar() {}, em() {} },
     precisa: (l) => Promise.all(l.map((m) => { vm.runInContext(fs.readFileSync(new URL(`../js/${m}.js`, import.meta.url), "utf8"), ctx, { filename: `js/${m}.js` }); })) };
   ctx.window = ctx; vm.createContext(ctx);
@@ -54,6 +54,9 @@ const CONTAS = [{ id: IC, apelido: "iCloud", endereco: "eu@icloud.example", esta
 const OUTLOOK = { id: OU, apelido: "Outlook", endereco: "eu@outlook.example", estado: "conectada", provedor: "outlook" };
 const pasta = (id, conta, nome, uso, n) => ({ id, conta_id: conta, nome_externo: nome, nome_exibicao: nome, uso, total: 10, nao_lidas: n, ativa: true });
 const PASTAS = [pasta(P.ic, IC, "Entrada iCloud", "entrada", 5), pasta(P.ic2, IC, "Enviados iCloud", "enviados", 0), pasta(P.g1, G1, "Entrada Rayner", "entrada", 3), pasta(P.g1b, G1, "Rascunhos Rayner", "rascunhos", 0), pasta(P.g2, G2, "Entrada Raynim", "entrada", 0), pasta(P.ou, OU, "Entrada Outlook", "entrada", 85)];
+/* relógio fixo da tela: as datas da massa de teste são de 20/11/2026; com o relógio real o teste quebrava na virada do dia ("hoje" virava "ontem") */
+const AGORA = Date.parse("2026-11-20T12:00:00Z");
+class DataFixa extends Date { constructor(...a) { if (a.length) super(...a); else super(AGORA); } static now() { return AGORA; } }
 const SINC = [{ pasta_id: P.ic, ultima_ok_em: "2026-11-20T10:00:00Z", erro: null }, { pasta_id: P.g1, ultima_ok_em: "2026-11-20T10:05:00Z", erro: null }];
 const CRED = [IC, G1, G2].map((c) => ({ conta_id: c, estado: "ativa" }));
 const ok = (d) => ({ data: { ok: true, ...d }, error: null });
@@ -142,7 +145,8 @@ test("cabeçalho da conta: subtítulo com o provedor e o estado ('● Gmail') à
 });
 
 test("Gerenciar contas (protótipo): uma linha por conta com logo, nome, endereço, provedor, estado e última sincronização; botões só do que o provedor implementa; Sincronizar tudo no cabeçalho", async () => {
-  const contas = [...CONTAS, OUTLOOK];
+  const DataReal = globalThis.Date; globalThis.Date = DataFixa;   /* nucleo.inbFraseSync usa o relógio global quando não recebe 'agora' */
+  try {  const contas = [...CONTAS, OUTLOOK];
   const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }] }); await a.abrir(); await assentar(); ger(a);
   assert.equal(comClasse(a.raiz, "inb-gc").length, 4); assert.equal(tit(a), "Gerenciar contas"); assert.ok(/inb-item--ativo/.test(todos(lateral(a)).find((n) => /inb-ger/.test(n.className || "")).className), "o item do menu fica marcado");
   const t = (id) => texto(card(a, id)).replace(/\s+/g, " ");
@@ -150,6 +154,7 @@ test("Gerenciar contas (protótipo): uma linha por conta com logo, nome, endere�
   assert.ok([IC, G1, G2, OU].every((c) => comClasse(card(a, c), "inb-logo").length === 1), "cada cartão tem o logo do provedor"); assert.ok(!/Última sincronização/.test(t(OU)));
   assert.deepEqual([IC, G1, G2, OU].map((c) => acoesDe(card(a, c))), [["Sincronizar", "Testar conexão", "Substituir senha", "Desconectar e remover a credencial", "Opções da conexão"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Sincronizar", "Testar conexão", "Reconectar com Google", "Desconectar"], ["Reconectar com Microsoft", "Desconectar"]], "só as ações compatíveis com cada provedor");
   assert.ok(!acoesDe(card(a, OU)).some((x) => /Sincronizar|Testar/.test(x)), "Outlook sem sincronizar nem testar"); const tudo = comClasse(a.raiz, "inb-topo-sinc--tudo"); assert.equal(tudo.length, 1); assert.match(texto(tudo[0]), /Sincronizar tudo/);
+  } finally { globalThis.Date = DataReal; }
 });
 test("Gerenciar contas: sem credencial só Conectar; recusada Reconectar; Sincronizar tudo só aparece com conta que lê; nada é chamado ao abrir", async () => {
   const a = amb({ credenciais: [{ conta_id: G1, estado: "invalida" }] }); await a.abrir(); await assentar(); ger(a);

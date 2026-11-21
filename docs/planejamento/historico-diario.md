@@ -1418,3 +1418,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: revisar, mesclar e publicar o site (a 064 já está aplicada), conferir no iPhone e associar as categorias sem área. Depois, se quiser: filtrar Preços, Consumo, Comparar e Produtos por área.
+
+## 20/11/2026 · Central de Compras: navegação reorganizada (versão `2026-11-20.11`, novo PR)
+
+### 1. O que fizemos
+- O commit `0c20884` (navegação) ficou de fora do PR #60 mesclado. Branch sincronizada com a `main` por merge (sem rebase, `0c20884` preservado) e versão trocada para `2026-11-20.11` (sw.js, js/app.js, index.html).
+- Navegação (pedido do dono): caixa principal com Central, Mercado, Automotivo, Farmácia e Bebê/Infantil; linha inferior com Painel do Mercado, Preços, Consumo, Comparar, Não classificados e Gestão de categorias. Sem mudança funcional.
+
+### 2. O que estamos fazendo
+- Novo PR em revisão; CI a conferir. Sem merge e sem publicação.
+
+### 3. O que vamos fazer
+- Dono: revisar, mesclar e conferir no iPhone.

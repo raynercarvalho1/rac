@@ -1571,3 +1571,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 2 (blocos MBA, Últimas compras e Saúde/Garmin no Hoje) e lote 3 (botão **+** contextual por tela, só do dono), cada um em PR próprio.
+
+## 22/11/2026 · Hoje: botão de recolher nos cartões (versão `2026-11-22.2`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono (a tela do Hoje ficou longa), cada cartão do Hoje (Prioridades, Gastos, Saúde, Análise da IA e Pergunta) ganhou um botão pequeno de recolher ("mostrar menos"), `hjRecolhivel` em `js/hoje.js`. A escolha fica só no aparelho, junto com a dos cartões do Início. Só exibição: nenhum dado, regra, IA, SQL ou função mudou. `tests/hoje.test.mjs`.
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`, PR a abrir; merge e publicação **não confirmados**. Visual não conferido no navegador (conferência do dono, no iPhone).
+
+### 3. O que vamos fazer
+- Lote 2 do Hoje (blocos MBA, Últimas compras e Saúde/Garmin) e, depois, o lote 3 (botão **+** contextual).

@@ -407,6 +407,13 @@
     if(!it.length)return "Nada pedindo atenção nas fontes lidas.";
     if(alta)p.push(alta+(alta===1?" prioridade alta":" prioridades altas"));if(atr)p.push(atr+(atr===1?" item atrasado":" itens atrasados"));if(hoje)p.push(hoje+(hoje===1?" para hoje":" para hoje"));
     p.push(it.length+(it.length===1?" item no total":" itens no total"));return p.join(" · ")+"."}
+  /* Botão pequeno de recolher nos cartões do Hoje (pedido do dono, 22/11/2026: a tela ficou longa). A escolha fica só neste aparelho, no mesmo armazenamento dos
+     cartões do Início (recolhidos() e RECOLHIDOS, js/app.js), por título; recolhido esconde o corpo e deixa o título. Não mexe em dado, análise nem IA. */
+  function hjRecolhivel(c,titulo){var cab=c&&(c.firstChild||(c.children&&c.children[0]));if(!cab||!/rac-card-cab/.test(cab.className||"")||typeof recolhidos!=="function")return c;
+    var b=h("button",{type:"button",class:"rac-recolher-btn"});
+    function marcar(r){c.className=c.className.replace(/ ?\brecolhido\b/,"")+(r?" recolhido":"");b.setAttribute("aria-expanded",String(!r));b.setAttribute("aria-label",(r?"Mostrar ":"Recolher ")+titulo);b.title=r?"Mostrar":"Recolher";b.textContent=r?"▸":"▾"}
+    b.onclick=function(){var m=recolhidos(),r=!/\brecolhido\b/.test(c.className);if(r)m[titulo]=1;else delete m[titulo];try{localStorage.setItem(RECOLHIDOS,JSON.stringify(m))}catch(e){}marcar(r)};
+    cab.appendChild(b);marcar(!!recolhidos()[titulo]);return c}
   /* Lote 1 da reestruturação visual: uma faixa fina no lugar dos quatro cartões grandes (atenção, gasto, orçamento ou projeção, prontidão); as mesmas contas de antes */
   function hjFaixa(x){var f=x.financas,s=x.saude,it=x.itens||[],sec=h("section",{class:"rh-faixa","aria-label":"Indicadores do dia"}),
       aten=it.filter(function(i){return i.nivel==="alta"||(i.dias!=null&&i.dias<0)}).length;
@@ -430,13 +437,13 @@
         corpo.appendChild(mais)}}
     if(x.mudancas.length){corpo.appendChild(h("span",{class:"rac-t-rotulo rac-grupo-rotulo",text:"O que mudou desde ontem"}));
       corpo.appendChild(rkLista(x.mudancas.map(function(m){return {titulo:m.texto,href:HJ_DESTINO[m.area]||null}}),true))}
-    var c=rkCard("Prioridades do dia",corpo,{sub:"Ordenadas pelas regras do RAC (atraso, prazo e área), sem IA.",classe:"rh-prio"});c.id="rh-prio";return c}
+    var c=hjRecolhivel(rkCard("Prioridades do dia",corpo,{sub:"Ordenadas pelas regras do RAC (atraso, prazo e área), sem IA.",classe:"rh-prio"}),"Prioridades do dia");c.id="rh-prio";return c}
   /* gastos: este mês × mesmo trecho do mês passado, por origem (a conta é a do núcleo: NUCLEO.hojeFinancas) */
   function hjCardGastos(x){var f=x.financas;if(!f||!f.fontes.length)return null;
     var L=f.fontes.map(function(n){return {nome:HJ_NOMES_FIN[n],atual:f.atual[n]||0,anterior:f.anterior[n]||0,txtAtual:NUCLEO.hojeReais(f.atual[n]||0),txtAnterior:NUCLEO.hojeReais(f.anterior[n]||0)}});
     var corpo=h("div",{class:"rac-grafico rac-pilha"},rkComparar(L,"Este mês","Mês passado"));
     if(f.orcamento)corpo.appendChild(rkMedidor(f.orcamento.pct,f.orcamento.projecaoPct,"Orçamento usado",f.orcamento.projecaoPct!=null?"projeção do mês: "+f.orcamento.projecaoPct+"% de "+NUCLEO.hojeReais(f.orcamento.valor):"de "+NUCLEO.hojeReais(f.orcamento.valor)));
-    return rkCard("Gastos do mês",corpo,{sub:"Do dia 1º ao dia "+f.dia+", contra o mesmo trecho do mês passado.",acao:rkLink("ter","Ver na Central","#mercado"),origem:f.delta>0?"Total "+NUCLEO.hojeReais(f.total)+": "+NUCLEO.hojeReais(f.delta)+" a mais que no mesmo trecho do mês passado.":"Total "+NUCLEO.hojeReais(f.total)+(f.totalAnt?": "+NUCLEO.hojeReais(-f.delta)+" a menos que no mesmo trecho do mês passado.":".")})}
+    return hjRecolhivel(rkCard("Gastos do mês",corpo,{sub:"Do dia 1º ao dia "+f.dia+", contra o mesmo trecho do mês passado.",acao:rkLink("ter","Ver na Central","#mercado"),origem:f.delta>0?"Total "+NUCLEO.hojeReais(f.total)+": "+NUCLEO.hojeReais(f.delta)+" a mais que no mesmo trecho do mês passado.":"Total "+NUCLEO.hojeReais(f.total)+(f.totalAnt?": "+NUCLEO.hojeReais(-f.delta)+" a menos que no mesmo trecho do mês passado.":".")}),"Gastos do mês")}
   /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
      (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
   function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */
@@ -455,7 +462,7 @@
     if(tipos.length)corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Treinos nos últimos 7 dias"}),rsBarras(tipos.map(function(k){return {nome:k.replace(/_/g," "),v:s.tipos7[k],txt:String(s.tipos7[k]),dica:s.tipos7[k]+(s.tipos7[k]===1?" atividade":" atividades")}}))));
     var sub=[s.prontidao!=null?"prontidão "+s.prontidao+(s.rotulo?" ("+s.rotulo+")":""):"",s.semTreino!=null?"último treino há "+s.semTreino+(s.semTreino===1?" dia":" dias"):""].filter(Boolean).join(" · ");
     if(s.alertas&&s.alertas.length)corpo.appendChild(rkAlerta("aviso","Atenção na recuperação",s.alertas.join("; ")));
-    return rkCard("Saúde e treino",corpo,{sub:sub||"Dados do relógio.",acao:rkLink("ter","Abrir Saúde","#saude"),origem:"Último dia com dados: "+hjDataBR(s.ultimo)+(s.atraso>1?" ("+s.atraso+" dias atrás; a Saúde se sincroniza pelo botão próprio)":"")})}
+    return hjRecolhivel(rkCard("Saúde e treino",corpo,{sub:sub||"Dados do relógio.",acao:rkLink("ter","Abrir Saúde","#saude"),origem:"Último dia com dados: "+hjDataBR(s.ultimo)+(s.atraso>1?" ("+s.atraso+" dias atrás; a Saúde se sincroniza pelo botão próprio)":"")}),"Saúde e treino")}
   function hjPontos(est){var p=h("span",{class:"rh-pontos","aria-hidden":"true"});est.forEach(function(e){var c=e.estado==="falhou"?"erro":e.estado==="ausente"?"neutro":(e.estado==="ok"||e.estado==="lida")?"":"aviso";p.appendChild(h("i",{class:c}))});return p}
   function hjDesenhar(){
     var x=HJ.x,corpo=HJ.corpo;if(!x||!corpo)return;corpo.innerHTML="";
@@ -499,8 +506,8 @@
       pq.appendChild(hjBotaoPago("Perguntar",function(){var t=campo.value.trim();if(!t)return {texto:"Escreva a pergunta antes de confirmar.",semConfirmar:true};return hjAviso(x,t,false)},
         function(){var t=campo.value.trim();if(!t){HJ.aviso="Escreva a pergunta antes de confirmar.";hjDesenhar();return}hjAnalisar({pergunta:t})}));
       pq.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
-    corpo.appendChild(h("div",{class:"rh-dois"},rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Só acontece quando você pede."}),
-      rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."})));
+    corpo.appendChild(h("div",{class:"rh-dois"},hjRecolhivel(rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Só acontece quando você pede."}),"Análise da IA"),
+      hjRecolhivel(rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."}),"Pergunte sobre o seu dia")));
     /* 4. histórico e fontes: detalhe técnico recolhido (o conteúdo continua inteiro, é só abrir) */
     var ph=h("div",{class:"rac-pilha"});
     HJ.exibida=a?a.chave:null;HJ.slotHist=h("div");HJ.slotPend=h("div");

@@ -1804,3 +1804,24 @@ test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blo
   const tela = s.alvos["#rachoje-view"], reler = botao(tela, "Reler as fontes"); assert.ok(reler); reler.onclick(); await fluxo(); assert.equal(n, 2, "reler as fontes refaz os blocos");
   s.ctx.renderHoje(); await fluxo(); assert.equal(n, 3, "reabrir a tela refaz os blocos");
 });
+
+/* pedido do dono (22/11/2026): a tela do Hoje ficou longa; cada cartão ganha um botão pequeno de recolher (mostrar menos) */
+test("Hoje: os cartões principais têm botão de recolher, ligado ao mesmo armazenamento dos cartões do Início", () => {
+  const hoje = ler("js/hoje.js");
+  assert.match(hoje, /function hjRecolhivel\(c,titulo\)/);
+  for (const t of ["Prioridades do dia", "Gastos do mês", "Saúde e treino", "Análise da IA", "Pergunte sobre o seu dia"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
+  assert.match(hoje, /recolhidos\(\)/, "usa o mesmo estado de recolhidos() do app.js"); assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjRecolhivel"), hoje.indexOf("function hjRecolhivel") + 900)), "recolher não chama IA");
+  assert.match(ler("css/rac.css"), /\.rac-card\.recolhido>:not\(\.rac-card-cab\)\{display:none\}/, "o corpo some, o título fica");
+});
+test("Hoje: o botão recolhe e mostra o cartão, lembra a escolha e um cartão novo já nasce recolhido", () => {
+  const mem = {}, lido = () => { try { return JSON.parse(mem["rac-recolhidos"] || "{}"); } catch (e) { return {}; } };
+  const s = telaSite({ resp: RESP, jsons: JSONS, mem, extra: { RECOLHIDOS: "rac-recolhidos", recolhidos: lido } });
+  const novo = () => { const c = new El("div"); c.className = "rac-card"; const cab = new El("div"); cab.className = "rac-card-cab"; c.appendChild(cab); c.appendChild(new El("p")); return c; };
+  const card = novo(); s.ctx.hjRecolhivel(card, "Prioridades do dia");
+  const b = card.children[0].children.find((x) => x.tagName === "BUTTON"); assert.ok(b, "o botão está no título do cartão");
+  assert.equal(b.attrs["aria-expanded"], "true"); assert.ok(!/recolhido/.test(card.className));
+  b.onclick(); assert.ok(/recolhido/.test(card.className)); assert.equal(b.attrs["aria-expanded"], "false"); assert.equal(lido()["Prioridades do dia"], 1, "a escolha fica guardada");
+  b.onclick(); assert.ok(!/recolhido/.test(card.className)); assert.equal(lido()["Prioridades do dia"], undefined, "mostrar de novo apaga a marca");
+  mem["rac-recolhidos"] = JSON.stringify({ "Prioridades do dia": 1 }); const c2 = novo(); s.ctx.hjRecolhivel(c2, "Prioridades do dia"); assert.ok(/recolhido/.test(c2.className), "já nasce recolhido");
+  const sem = new El("div"); sem.className = "rac-card"; assert.equal(s.ctx.hjRecolhivel(sem, "X"), sem, "cartão sem título: devolve como veio, sem quebrar");
+});

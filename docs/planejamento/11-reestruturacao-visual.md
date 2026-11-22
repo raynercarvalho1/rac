@@ -123,3 +123,39 @@ estado vazio.
   `docs/planejamento/07-decisoes-e-pendencias.md` atualizados; RAC Knowledge (decisão e estado) com `indice` e `verificar`.
 - Verificação: `bash scripts/nuvem_testes.sh` (suíte completa) passando; depois commit, push, PR, CI verde e merge; conferir o CI da
   `main` e a versão realmente publicada. Planejado não é registrado como concluído.
+
+## 9. Lote 4 · Hoje mais direto e mais inteligente (desenho proposto em 22/11/2026, **aguardando aprovação do dono**)
+
+Origem: o dono conferiu o Hoje no iPhone (22/11/2026) e pediu: os "5 itens no total" não mostram quais são; os botões Reler as fontes e Custos de IA são grandes e mal colocados; a IA pode ser chamada com mais frequência para deixar a tela mais inteligente; o "O que mudou desde ontem" deve subir e ter mais destaque, com ideias novas. Perguntas e respostas: rodadas Q1 a Q7 do chat de 22/11/2026.
+
+### 9.1 O que o dono decidiu
+- **Itens do dia:** os 3 mais importantes ficam logo abaixo do "Bom dia", cada um tocável e levando ao módulo; "ver todos" abre o resto no mesmo lugar. O cartão "Prioridades do dia" de baixo deixa de existir (as regras de prioridade não mudam).
+- **Botões:** "Reler as fontes" vira um ícone ↻ pequeno na abertura; "Custos de IA" vira um link pequeno dentro do cartão da análise de IA.
+- **O que mudou desde ontem:** sobe para logo abaixo do resumo, em destaque, com cada linha tocável (5 linhas e "ver mais"). Inclui: prontidão que mudou, compras de ontem (notas, lojas e total), MBA, resultado de ontem dos times e o treino de ontem com distância e tempo; mantém vagas novas e Newsletter. **Sem** e-mails (o Inbox já está na barra) e **sem** Sorocaba (já tem bloco próprio).
+- **IA:** **2 chamadas por dia** (correção do dono: não 3), automáticas, no RAC Hoje. Mostra no topo um **resumo curto** (2 a 3 frases, o campo "Resumo" da análise atual, com fatos citados) e o link "ver análise completa". As **perguntas** continuam manuais, com confirmação (cada pergunta é uma cobrança nova).
+- **Ordem da tela:** abertura; resumo da IA e itens do dia; o que mudou; faixa de indicadores; MBA e Últimas compras; Saúde e Gastos; E-mails, Newsletter, Esportes e Sorocaba; análise completa, pergunta, histórico e fontes.
+
+### 9.2 Custo e autorização (decisão de dinheiro, só do dono)
+- Cada análise: ~US$ 0,026 (R$ 0,17) no típico, no máximo ~US$ 0,06 (R$ 0,40). Com 2 por dia: ~US$ 1,6 por mês no típico (~23% do teto interno de US$ 6,70) e no máximo ~US$ 3,6 por mês (~54%). O teto é **compartilhado** com a Newsletter e com perguntas e leituras de nota; o consumo real deste mês não pôde ser conferido nesta sessão (conexão com o Supabase falhou).
+- **Autorização:** o dono pediu "2 chamadas no dia" (22/11/2026). Este desenho trata isso como autorização para **até 2 chamadas pagas automáticas por dia** do RAC Hoje, **sujeita à sua aprovação deste documento**. Ela vira **exceção** à regra "RAC Hoje nunca automático" (CLAUDE.md, seção IA, e o registro do RAC Knowledge sobre o RAC Hoje), a ser atualizada com a mesma exceção que já existe para o resumo da Newsletter.
+- **Travas (todas já existem ou são só do site):** só o dono; só REAL, nunca demonstração; nunca repete depois de erro; respeita o teto do mês (sem reserva, não chama); a mesma análise para os mesmos dados nunca é paga duas vezes (cache e chave); **limite de 2 por dia contado no servidor** (as chamadas do dia no registro de custos), para que dois aparelhos não somem 4.
+
+### 9.3 Minhas escolhas (o dono ainda não respondeu; vale corrigir)
+1. **Quando:** a 1ª abertura de cada um de **dois turnos**, com o app aberto: **manhã (a partir das 6h)** e **noite (a partir das 18h)**, horário de Brasília. Se não abrir o app no turno, não gasta; se os dados não mudaram, não gasta. (Alternativa descartada: rotina no servidor em horários fixos, como a Newsletter; exigiria função e agendamento novos no Supabase, que dependem de SQL e publicação com autorização, e gasta também nos dias sem uso.)
+2. **Interruptor, desligado por padrão:** um botão "Análise automática: desligada/ligada" no cartão da IA, guardado no aparelho. A chamada automática só acontece depois que o **dono ligar**, o que torna a autorização explícita no momento do gasto.
+3. **Sem mudar a Edge Function:** a ação `hoje.analise` e o contrato da IA ficam como estão. O resumo do topo é o campo "Resumo" já devolvido. Se a contagem de 2 por dia exigir algo no banco ou na função, eu paro e consulto o dono.
+4. **Enquanto a análise do dia não existe ou falhou:** o topo mostra o resumo por regras de hoje, com selo "analisando…" ou o aviso do erro, sem tentar de novo.
+5. **Esportes no "O que mudou":** só aparece se o dado de ontem estiver disponível pelo que o bloco de Esportes já lê; sem dado, a linha não aparece (não invento).
+
+### 9.4 Metas, não metas e anti-metas
+- Metas: o que o dono pediu acima; cada linha de item e de mudança tocável; tela mais curta sem perder informação.
+- Não metas: Fernanda não muda; e-mails e Sorocaba fora do "O que mudou"; sem SQL, função, secret ou mudança de limite de IA sem autorização; sem coluna de quem lançou a compra.
+- Anti-metas: chamada paga que o dono não ligou; mais de 2 por dia; repetir depois de erro; análise simulada passando por real; perder as regras de prioridade ao tirar o cartão.
+
+### 9.5 Tarefas (execução nativa, um lote; PR próprio, testes e merge conforme o CLAUDE.md)
+1. **Abertura e itens do dia:** ícone ↻ pequeno; os 3 itens tocáveis com "ver todos" no mesmo lugar; remover o cartão Prioridades; "Custos de IA" no cartão da IA (js/hoje.js, css/rac.css, tests/hoje.test.mjs).
+2. **O que mudou:** subir, destacar e ampliar com prontidão, compras de ontem, MBA, esportes e treino de ontem; linhas tocáveis (nucleo.js com testes; js/hoje.js).
+3. **IA automática:** interruptor, regra dos turnos, limite de 2 por dia no servidor, resumo no topo e estados de espera e de erro; sem mudar a função (js/hoje.js, nucleo.js com testes).
+4. **Regra e documentos:** atualizar CLAUDE.md (exceção da IA do Hoje), o registro do RAC Knowledge sobre o RAC Hoje, docs/hoje.md, docs/rac-intelligence.md e o histórico diário; versão trocada.
+
+A chamada automática **não será ligada** até este desenho estar aprovado, mesclado e o dono ligar o interruptor.

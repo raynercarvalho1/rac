@@ -1644,3 +1644,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir o Hoje no iPhone e, se quiser, ligar a análise automática e acompanhar em Custos de IA. Pendentes que dependem do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (SQL, só com autorização expressa).
+
+## 22/11/2026 · Lote 4 do Hoje mesclado e publicação confirmada (correção do registro anterior do Lote 4)
+
+### 1. O que fizemos
+- PR #77 (Lote 4: itens do dia, o que mudou, botões e IA automática desligada por padrão) **mesclado** na `main` (commit de merge `3150ac2`, versão `2026-11-22.5`), com o CI do PR verde no commit testado (`e7be89a`) e sem conflito. Depois do merge: workflow **Testes** da `main` com sucesso (run 343) e **pages build and deployment** com sucesso (run 438), ambos para `3150ac2`. Isto corrige "merge e publicação não confirmados" do registro do Lote 4.
+
+### 2. O que estamos fazendo
+- Nada em andamento neste lote. **A IA automática está DESLIGADA**: nenhuma chamada paga acontece até o dono ligar o interruptor no cartão da análise; nenhuma chamada de IA foi feita pelo agente. **Não conferido:** a versão `2026-11-22.5` realmente servida pelo site (o domínio não respondeu da máquina da sessão) e o visual e os toques no iPhone (a verificação visual foi em Chromium com dados de exemplo, não nos dados nem no aparelho do dono).
+
+### 3. O que vamos fazer
+- Dono: conferir o Hoje no iPhone; decidir se e quando liga a análise automática (acompanhar em Custos de IA; o consumo real do mês não pôde ser conferido na sessão); dizer qual botão antigo "nem funcionava". Pendências que dependem de decisão do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (SQL, só com autorização expressa). Pendência técnica separada: no cartão de Saúde, o gráfico "Passos por dia" corta a primeira coluna na borda esquerda no celular (já existia).

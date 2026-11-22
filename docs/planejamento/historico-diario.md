@@ -1618,3 +1618,16 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir o **+** em cada tela no iPhone. Depois, se quiser, entrada manual de métrica na Saúde e a coluna de quem lançou a compra (esta exige SQL, só com autorização).
+
+## 22/11/2026 · Lote 3 mesclado e publicação confirmada; falha de rede no CI da main investigada (correção do registro anterior do Lote 3)
+
+### 1. O que fizemos
+- PR #75 (Lote 3, botão **+** contextual) **mesclado** na `main` (commit de merge `26ee9c5`, versão `2026-11-22.4`), com o CI do PR verde no commit testado (`9ff25e7`) e sem conflito. Depois do merge: workflow **Testes** da `main` com sucesso (run 339) e **pages build and deployment** com sucesso (run 435), ambos para `26ee9c5`. Isto corrige "merge e publicação não confirmados" do registro do Lote 3.
+- **Falha investigada:** o workflow Testes da `main` para `0cca45f` (merge do PR #74, só documentação; run 337) terminou em **falha**. Causa: `tests/banco.test.mjs` ("a tabela/view compras existe no banco e está fechada sem login") chama o Supabase real e recebeu **HTTP 522** (a conexão com o servidor expirou); falha de rede, não de código. Evidências: o commit era só documentação, o CI do próprio PR #74 passou e o run seguinte da `main` (339, que contém tudo de `0cca45f`) passou nesse mesmo teste. Nenhuma execução foi disparada de novo.
+
+### 2. O que estamos fazendo
+- Nada em andamento. **Não conferido:** a versão `2026-11-22.4` realmente servida pelo site (o domínio não respondeu da máquina da sessão) e o visual e os toques do **+** no iPhone; as duas conferências são do dono.
+- **Observação:** os testes que chamam o banco real pela internet (`tests/banco.test.mjs`) podem falhar por rede sem relação com o código; a decisão de mantê-los assim ou de mudá-los é do dono.
+
+### 3. O que vamos fazer
+- Dono: conferir o Hoje e o **+** em cada tela no iPhone e dizer qual botão antigo "nem funcionava". Opcional, dependem de decisão do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (exige SQL, só com autorização expressa).

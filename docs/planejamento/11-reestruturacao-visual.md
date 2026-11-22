@@ -1,6 +1,6 @@
 # 11 · Reestruturação visual: o Hoje como tela inicial do dono
 
-Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 mesclado na `main` em 22/11/2026 (PR #71; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono), lote 2 (MBA, Últimas compras e último treino no Hoje) mesclado em 22/11/2026 (PR #73; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) e lote 3 (botão + contextual) em implementação (seção 8). Lotes 2 e 3 não iniciados.**
+Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 mesclado na `main` em 22/11/2026 (PR #71; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono), lote 2 (MBA, Últimas compras e último treino no Hoje) mesclado em 22/11/2026 (PR #73; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) e lote 3 (botão + contextual) mesclado em 22/11/2026 (PR #75; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) (seção 8). Lotes 2 e 3 não iniciados.**
 
 ## 1. Intenção e motivo
 

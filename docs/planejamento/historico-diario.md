@@ -1606,3 +1606,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 3 (botão **+** contextual por tela, só do dono). Opcional, só com autorização do dono para SQL: coluna de quem lançou a compra, para o Hoje mostrar "você ou a Fernanda".
+
+## 22/11/2026 · Reestruturação visual, Lote 3: botão + contextual por tela (versão `2026-11-22.4`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono, o botão **+** passa a abrir só as ações da tela aberta (campo `acoes` do registro de rotas): Hoje, Agenda, Inbox (nova mensagem), Compras (adicionar nota na Central Fiscal e item na lista), Lista, MBA, Estudos, Carreira, Vagas, Conexões, Olivia, Eddie e Veículos. Telas sem ação não mostram o botão. As ações reaproveitam os formulários, o `#fiscal` e o `inboxCompor("novo")` que já existiam. **A Fernanda não muda:** mantém a folha "Anotar rápido" completa em todas as telas. `tests/captura_contextual.test.mjs` (com verificação de mutação). Sem SQL, função, secret ou IA.
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`, PR a abrir; merge e publicação **não confirmados**. Visual e toques não conferidos no navegador nem no iPhone (conferência do dono).
+- **Limite:** a Saúde ficou sem botão porque o sistema não tem entrada manual de métrica (os dados vêm do relógio). Criar essa entrada é um recurso novo e depende de decisão do dono (qual métrica, onde guardar e onde mostrar).
+
+### 3. O que vamos fazer
+- Dono: conferir o **+** em cada tela no iPhone. Depois, se quiser, entrada manual de métrica na Saúde e a coluna de quem lançou a compra (esta exige SQL, só com autorização).

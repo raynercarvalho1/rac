@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-22.3",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-22.4",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -607,7 +607,9 @@
     var html=document.documentElement;
     html.classList.add("logado");html.classList.toggle("casa",PAPEL==="casa");
     $("#gate").hidden=true;$("#quem").textContent=EU.email;syncSelo();if(PAPEL!=="casa")inboxBarraAtualizar();
-    if(!$(".capbtn")){var cb=h("button",{type:"button",class:"capbtn","aria-label":"Anotar rápido",title:"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)",text:"+"});cb.onclick=function(){abrirCaptura()};document.body.appendChild(cb)}
+    if(!$(".capbtn")){var cb=h("button",{type:"button",class:"capbtn","aria-label":"Anotar rápido",title:"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)",text:"+"});cb.onclick=function(){capClicar()};document.body.appendChild(cb);
+      if(!CAP_OBS&&window.MutationObserver){CAP_OBS=true;new MutationObserver(capAtualizar).observe(document.documentElement,{attributes:true,attributeFilter:["data-sec"]})}}
+    capAtualizar();
     /* voltar à página anterior: ← flutuante em cima do menu ☰ (celular), em todas as páginas; a regra de quando aparece e para onde vai é a do voltar da barra de título */
     if(!$(".voltarbtn")){var vb=h("button",{type:"button",class:"voltarbtn","aria-label":"Voltar",title:"Voltar",hidden:"",text:"←"});vb.onclick=voltarPagina;vb.hidden=!(PROF>0||VOLTAR_PAI);document.body.appendChild(vb)}
     /* voltar ao topo: aparece em cima do "+" depois de rolar um pouco a página */
@@ -1326,18 +1328,34 @@
     .then(function(r){ATU.rodando=false;ATU.fresco=false;ATU.semExternos=false;atuBotao();return r})}
 
   /* ===== Captura rápida: botão "+" para anotar em segundos (lista, tarefa, lembrete, ideia, link, peso, gasto, km) ===== */
+  /* [cap-ctx:ini] */
+  /* Botão + do DONO (Lote 3 da reestruturação visual): abre as ações da tela aberta (campo acoes do registro, js/rotas.js) e some onde não há ação; a Fernanda (casa) mantém
+     a folha "Anotar rápido" completa em todas as telas. A tela aberta é o data-sec que route() grava; um observador atualiza o botão a cada mudança. */
+  var CAP_OBS=false;
+  function capSecao(){return document.documentElement.getAttribute("data-sec")||""}
+  function capAcoes(sec){var r=ROTAS[sec];return isOwner()&&r&&r.acoes&&r.acoes.length?r.acoes:null}
+  function capAtualizar(){var b=$(".capbtn");if(!b)return;var a=capAcoes(capSecao()),casa=!isOwner();
+    b.classList.toggle("capoculto",!casa&&!a);
+    b.setAttribute("aria-label",a?"Adicionar nesta tela":"Anotar rápido");
+    b.title=a?"Adicionar nesta tela ("+a.map(function(x){return x[2].toLowerCase()}).join(", ")+")":"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)"}
+  function capClicar(){abrirCaptura(null,null,capAcoes(capSecao()))}
+  /* [cap-ctx:fim] */
   function capOpcoes(){
     var dono=isOwner(),o=[["compra","🛒","Item na lista de compras"],["tarefa","✅","Tarefa da casa"]];
     if(dono)o.push(["lembrete","📌","Lembrete com data"],["ideia","💡","Ideia ou projeto"],["link","🔗","Guardar um link"]);
     o.push(["peso","⚖️","Peso (Eddie ou Olivia)"],["gasto","💸","Gasto (família ou veículo)"],["km","🚗","Quilometragem do veículo"]);
     return o}
-  function abrirCaptura(inicial,pre){
+  function abrirCaptura(inicial,pre,ops){
     fecharCaptura();pre=pre||{};
     var fundo=h("div",{class:"capfundo",id:"capfundo"}),folha=h("div",{class:"capfolha panel",role:"dialog","aria-label":"Captura rápida"});
     fundo.onclick=function(e){if(e.target===fundo)fecharCaptura()};
-    var corpo=h("div");folha.appendChild(h("div",{class:"caph"},h("b",{text:"Anotar rápido"}),h("button",{type:"button",class:"ghostbtn",text:"Fechar",onclick:null})));
+    var corpo=h("div");folha.appendChild(h("div",{class:"caph"},h("b",{text:ops?"Adicionar aqui":"Anotar rápido"}),h("button",{type:"button",class:"ghostbtn",text:"Fechar",onclick:null})));
     folha.querySelector(".caph button").onclick=fecharCaptura;folha.appendChild(corpo);fundo.appendChild(folha);document.body.appendChild(fundo);
-    function menu(){corpo.innerHTML="";corpo.appendChild(h("div",{class:"capgrid"},capOpcoes().map(function(op){var b=h("button",{type:"button",class:"capop"},h("span",{class:"capico",text:op[1]}),h("span",{text:op[2]}));b.onclick=function(){form(op[0])};return b})))}
+    function menu(){corpo.innerHTML="";corpo.appendChild(h("div",{class:"capgrid"},(ops||capOpcoes()).map(function(op){var b=h("button",{type:"button",class:"capop"},h("span",{class:"capico",text:op[1]}),h("span",{text:op[2]}));b.onclick=function(){capRodar(op[0])};return b})))}
+    /* o que cada ação faz: endereço de página navega, "inbox-novo" abre a Nova mensagem do Inbox, o resto é um formulário desta folha */
+    function capRodar(id){if(id.charAt(0)==="#"){fecharCaptura();location.hash=id;return}
+      if(id==="inbox-novo"){fecharCaptura();if(typeof inboxCompor==="function")inboxCompor("novo");return}
+      form(id)}
     function campo(rot,el){return h("label",null,rot,el)}
     function pronto(msg){corpo.innerHTML="";corpo.appendChild(h("p",{class:"capok",text:msg}));var mais=h("button",{type:"button",class:"ghostbtn",text:"Anotar outra coisa"});mais.onclick=menu;corpo.appendChild(h("div",{class:"vfil"},mais));setTimeout(function(){if(document.getElementById("capfundo")===fundo&&corpo.querySelector(".capok"))fecharCaptura()},2200)}
     function registro(quem,tipo,titulo,valor,dados,detalhes){
@@ -1368,7 +1386,7 @@
       f.appendChild(h("div",{class:"vfil"},ok,volta));f.appendChild(st);corpo.appendChild(f);
       setTimeout(function(){var el=f.querySelector("input,select");if(el)el.focus()},50);
       [a,b].forEach(function(el){el.addEventListener("keydown",function(e){if(e.key==="Enter"&&el.tagName==="INPUT"){e.preventDefault();ok.click()}})})}
-    if(inicial)form(inicial);else menu()}
+    if(inicial)form(inicial);else if(ops&&ops.length===1)capRodar(ops[0][0]);else menu()}
   var FAM_NOMES={eddie:"Eddie",olivia:"Olivia",civic:"Civic",moto:"Moto",c3:"C3"};
   function fecharCaptura(){var f=document.getElementById("capfundo");if(f)f.remove()}
   document.addEventListener("keydown",function(e){if(e.key==="Escape")fecharCaptura()});

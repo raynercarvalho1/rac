@@ -1666,3 +1666,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone, inclusive os escudos reais dos times, que dependem da internet do aparelho.
+
+## 22/11/2026 · Lote 5 do Hoje mesclado e publicação confirmada (correção do registro anterior do Lote 5)
+
+### 1. O que fizemos
+- PR #79 (Lote 5: ícone em cada linha do "O que mudou desde ontem") **mesclado** na `main` (commit de merge `fb65e1e`, versão `2026-11-22.6`), com o CI do PR verde no commit testado (`9f24381`) e sem conflito. Depois do merge: workflow **Testes** da `main` com sucesso (run 347) e **pages build and deployment** com sucesso (run 440), ambos para `fb65e1e`. Isto corrige "merge e publicação não confirmados" do registro do Lote 5.
+
+### 2. O que estamos fazendo
+- Nada em andamento. **A IA automática segue DESLIGADA** (nenhuma chamada paga até o dono ligar o interruptor). **Não conferido:** a versão `2026-11-22.6` realmente servida pelo site (o domínio não respondeu da máquina da sessão) e o visual no iPhone, inclusive os escudos reais dos times, que dependem da internet do aparelho (na verificação em Chromium o escudo foi um substituto).
+
+### 3. O que vamos fazer
+- Dono: conferir o Hoje no iPhone e decidir se e quando liga a análise automática (acompanhar em Custos de IA). Pendência técnica separada: no cartão de Saúde, o gráfico "Passos por dia" corta a primeira coluna na borda esquerda no celular (já existia).

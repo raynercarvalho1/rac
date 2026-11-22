@@ -322,13 +322,12 @@
   /* ---- a página ---- */
   var SH_ABA_FN={geral:shGeral,recuperacao:shRecuperacao,sono:shSono,atividades:shAtividades,condicionamento:shCondicionamento,tendencias:shTendencias,inteligencia:shInteligencia};
   function shAbertura(S,C){var hero=S.hero;hero.innerHTML="";
-    var sinc=rkBtn("fantasma","Atualizar agora"),ocu=rkBtn("fantasma",C.pr.ocultar?"Mostrar valores":"Ocultar valores",{"aria-pressed":String(C.pr.ocultar)});S.bt=sinc;if(SAUDE.sinc)sinc.disabled=true;
+    var sinc=rkBtn("fantasma","Atualizar agora");S.bt=sinc;if(SAUDE.sinc)sinc.disabled=true;
     sinc.onclick=function(){shSincronizar(S)};
-    ocu.onclick=function(){pessoalGravar("saudePrefs",Object.assign({},PESSOAL.saudePrefs||{},{ocultar:!C.pr.ocultar}));shPintar(S)};
     var q=C.sin.qualidade;
     hero.appendChild(h("div",null,h("h2",{text:"Saúde"}),h("p",{class:"rh-hero-data",text:new Date(C.hoje+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}),
       h("p",{class:"rh-hero-resumo",text:NUCLEO.sauFrase(C.ind,C.sin)}),h("p",{class:"rh-hero-resumo ag-hero-desc",text:"Recuperação, sono, treino e condicionamento a partir do relógio Garmin, sempre comparados com o seu normal, não com a média da população."})));
-    hero.appendChild(h("div",{class:"rh-hero-acoes"},sinc,ocu));
+    hero.appendChild(h("div",{class:"rh-hero-acoes"},sinc));
     var ctx=h("div",{class:"rh-hero-ctx"});
     if(q.ultimo)ctx.appendChild(h("span",{class:"rh-chip",text:"Último dado: "+dataBR(q.ultimo)}));
     ctx.appendChild(h("span",{class:"rh-chip",text:"Origem: banco (relógio Garmin)"}));if(C.pr.ocultar)ctx.appendChild(h("span",{class:"rh-chip",text:"Valores ocultos"}));

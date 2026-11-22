@@ -192,3 +192,10 @@ test("Agenda: a página não acessa o banco nem a rede por conta própria, não 
   assert.equal(ag.area, "hoje"); assert.equal(ag.curto, undefined, "saiu da barra inferior (Lote 1 da reestruturação visual, 22/11/2026) e continua na área Hoje do menu");
   assert.match(ler("sw.js"), /"\.\/js\/agenda\.js"/, "no cache offline");
 });
+
+test("Agenda e Saúde: os indicadores (.rh-kpis) têm grade no CSS e o cabeçalho da Saúde não põe os botões por cima do título", () => {
+  const css = ler("css/rac.css");
+  assert.match(css, /\.rh-kpis\{[^}]*display:grid[^}]*repeat\(4,minmax\(0,1fr\)\)/, "sem a grade, os cartões viram faixas estreitas empilhadas (bug de 22/11/2026)");
+  assert.match(css, /max-width:1100px\)\{[^\n]*\.rh-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/, "2 colunas no celular");
+  assert.match(css, /\.sh \.rh-hero-acoes\{position:static\}/, "botões da Saúde no fluxo, não absolutos sobre o título");
+});

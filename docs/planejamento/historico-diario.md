@@ -1560,3 +1560,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 2: blocos MBA (aula ao vivo ou próxima, avaliações pendentes, boleto, "Onde parei"), Últimas compras e Saúde/Garmin no Hoje. Lote 3: botão **+** contextual por tela, só do dono. Fora de escopo por decisão do dono: horário da newsletter e e-mails externos das 6h/9h.
+
+## 22/11/2026 · Reestruturação visual, Lote 1: merge e publicação confirmados (correção do registro anterior do mesmo dia)
+
+### 1. O que fizemos
+- PR #71 **mesclado** na `main` (commit de merge `082bc3e`), com o CI do PR verde no commit testado (`c787aa0`) e sem conflito. Depois do merge: workflow **Testes** da `main` com sucesso (run 330) e **pages build and deployment** com sucesso (run 431), ambos para `082bc3e`. Isto corrige a linha "não confirmados" do registro anterior.
+
+### 2. O que estamos fazendo
+- Nada em andamento neste lote. **Não conferido:** a versão `2026-11-22.1` realmente servida pelo site (o domínio não respondeu a partir da máquina da sessão) e o visual no iPhone; as duas conferências são do dono.
+
+### 3. O que vamos fazer
+- Lote 2 (blocos MBA, Últimas compras e Saúde/Garmin no Hoje) e lote 3 (botão **+** contextual por tela, só do dono), cada um em PR próprio.

@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-22.5",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-22.6",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -1154,7 +1154,7 @@
       var camp=t?[t.recordSummary?t.recordSummary.replace("-","–"):"",standingPt(t.standingSummary)].filter(Boolean).join(", "):"";
       var li=h("li",null,img(logo,"lg"),h("span",{class:"grow"},h("a",{href:href,text:nome}),h("span",{class:"sub",text:txt+(camp?" · "+camp:"")})),
         h("span",{class:"end"},nx?h("a",{href:nx.detail,text:nx.state==="live"?"Ao vivo":quando(nx.date)}):h("span",{class:"sub",text:"sem próximo jogo"})));
-      li.prox=nx?(nx.state==="live"?"0":nx.date):"9";if(u)li.ult={t:nome+": "+txt,date:u.date,href:href};return li}
+      li.prox=nx?(nx.state==="live"?"0":nx.date):"9";if(u)li.ult={t:nome+": "+txt,date:u.date,href:href,logo:logo};return li}
     var times=[];
     Promise.all([
       mlbSched("teamId=119&startDate="+ini+"&endDate="+fim).then(function(gs){return linha("Dodgers",logoUrl(119),"#esportes/beisebol/dodgers",gs,function(t){return t.id===119},true)}).catch(function(){return null}),
@@ -1164,7 +1164,7 @@
       /* quem joga antes aparece primeiro */
       r.filter(Boolean).sort(function(a,b){return a.prox.localeCompare(b.prox)}).forEach(function(li){ul.appendChild(li)});
       /* o resultado de ontem de cada time vai para o "O que mudou desde ontem" do Hoje (só exibição; sem dado de ontem, nada) */
-      if(typeof hjMudouAdd==="function"){var ontE=NUCLEO.somaDiasISO(hojeISO(),-1);hjMudouAdd("esportes",r.filter(function(li){return li&&li.ult&&new Date(li.ult.date).toLocaleDateString("sv-SE",{timeZone:"America/Sao_Paulo"})===ontE}).map(function(li){return {texto:li.ult.t+" (ontem)",href:li.ult.href}}))}
+      if(typeof hjMudouAdd==="function"){var ontE=NUCLEO.somaDiasISO(hojeISO(),-1);hjMudouAdd("esportes",r.filter(function(li){return li&&li.ult&&new Date(li.ult.date).toLocaleDateString("sv-SE",{timeZone:"America/Sao_Paulo"})===ontE}).map(function(li){return {texto:li.ult.t+" (ontem)",href:li.ult.href,logo:li.ult.logo}}))}
       if(!ul.children.length)ul.appendChild(h("li",null,h("span",{class:"sub",text:"Não consegui carregar os jogos agora."})));
       return Promise.all(times.map(function(x){return espn(x[0],"/news?team="+x[2].id+"&limit=3").then(function(d){return (d.articles||[]).map(function(a){return {t:a.headline,link:a.links&&a.links.web&&a.links.web.href,data:a.published,quem:x[1]}})},function(){return []})}))
     }).then(function(ls){var l=[].concat.apply([],ls||[]).filter(function(a){return a.link&&a.data}).sort(function(a,b){return b.data.localeCompare(a.data)}).slice(0,4);

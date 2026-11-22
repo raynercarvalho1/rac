@@ -244,10 +244,16 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
 .rh-hero-acoes{display:flex;gap:var(--rac-esp-2);flex-wrap:wrap;justify-content:flex-end;position:relative;z-index:1}
 .rh-hero-ctx{grid-column:1/-1;display:flex;gap:var(--rac-esp-2);flex-wrap:wrap;position:relative;z-index:1}
 .rh-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--rac-raio-pilula);background:rgba(255,255,255,.16);font:500 calc(13px + var(--fz)) var(--f-ui);color:var(--rac-sobre-fill);max-width:100%;overflow-wrap:anywhere}
-.rh-kpis{grid-column:1/-1;display:grid;gap:var(--rac-esp-3);grid-template-columns:repeat(4,minmax(0,1fr))}
 .rh-prio{grid-column:span 7}
 .rh-lado{grid-column:span 5;display:flex;flex-direction:column;gap:var(--rac-esp-4)}
 .rh-largo{grid-column:1/-1}
+.rh-faixa{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--rac-esp-2) var(--rac-esp-6);padding:var(--rac-esp-3) var(--rac-esp-5);border-radius:var(--rac-raio-3);background:var(--rac-papel);box-shadow:var(--rac-sombra-1)}
+.rh-faixa-it{display:flex;align-items:baseline;gap:var(--rac-esp-2);flex-wrap:wrap;color:var(--rac-texto);text-decoration:none;min-width:0}
+.rh-faixa-v{font:700 calc(20px + var(--fz))/1.1 var(--f-ui);letter-spacing:-.02em}
+.rh-faixa-it--alerta .rh-faixa-v{color:var(--rac-erro)}
+.rh-blocos{grid-column:1/-1;display:grid;gap:var(--rac-esp-4);grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.rh-blocos>.panel{min-width:0}
+.rh-blocos .cat:first-of-type{margin-top:0}
 .rh-dois{grid-column:1/-1;display:grid;gap:var(--rac-esp-4);grid-template-columns:repeat(2,minmax(0,1fr))}
 .rh-mais{align-self:flex-start}
 .rh-ctx-lista{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
@@ -258,18 +264,19 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
 .rh .rac-card .panel{background:none;box-shadow:none;border:0;padding:0;border-radius:0;-webkit-backdrop-filter:none;backdrop-filter:none}
 .rh .rac-card .panel>h2{display:none}
 .rh textarea{width:100%;border-radius:var(--rac-raio-1);border:1px solid var(--rac-linha-campo);background:var(--rac-papel);color:var(--rac-texto);padding:10px var(--rac-esp-3);font:400 max(16px,calc(15px + var(--fz))) var(--f-body);min-height:var(--rac-alvo)}
-@media(max-width:1100px){.rh-prio,.rh-lado{grid-column:1/-1}.rh-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rh-kpis>:last-child:nth-child(odd){grid-column:1/-1}}
+@media(max-width:1100px){.rh-prio,.rh-lado{grid-column:1/-1}}
 @media(max-width:760px){
   .rh{gap:var(--rac-esp-3)}
   .rh-hero{grid-template-columns:minmax(0,1fr);padding:var(--rac-esp-5)}
   .rh-hero h2{font-size:calc(26px + var(--fz))}
   .rh-hero-acoes{justify-content:flex-start}
   .rh-dois{grid-template-columns:minmax(0,1fr)}
+  .rh-blocos{grid-template-columns:minmax(0,1fr)}
   .rac-card{padding:var(--rac-esp-4)}
   .rac-kpi{padding:var(--rac-esp-3) var(--rac-esp-4)}
   .rac-t-num{font-size:calc(28px + var(--fz))}
 }
-@media(max-width:380px){.rh-kpis{gap:var(--rac-esp-2)}.rac-t-num{font-size:calc(25px + var(--fz))}}
+@media(max-width:380px){.rac-t-num{font-size:calc(25px + var(--fz))}}
 
 /* ---------- 5. AGENDA (#agenda; DS-4.1) ---------- */
 /* a página usa o esqueleto do piloto (.rh: abertura, indicadores, colunas 7/5) e os componentes rac-*; aqui só o que é da Agenda. Só o dono abre a página. */

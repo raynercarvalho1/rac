@@ -87,12 +87,12 @@ test("shell do dono: toda regra nova vale só para html.logado:not(.casa) (ou es
 
 test("menu por área: o registro de rotas tem a área de cada item, a ordem do registro NÃO mudou e a barra inferior sai do mesmo registro", () => {
   const R = registro(), com = R.rotas.filter((r) => r.grupo);
-  assert.equal(com.length, 29);   // 29 de antes + o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) − Alimentação (saiu do menu no lote B, 21/11/2026) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
+  assert.equal(com.length, 28);   // 28 = 29 de antes − o Início (saiu do menu no Lote 1 da reestruturação visual, 22/11/2026); os 29: o Inbox (RAC Inbox I1) + o RAC Knowledge (só do dono) − Alimentação (saiu do menu no lote B, 21/11/2026) assert.ok(com.every((r) => r.area), "todo item do menu tem área");
   const areas = [...R.menu.matchAll(/<h4 class="areat" data-area="([a-z]+)"[^>]*>([^<]+)<\/h4>/g)].map((m) => m[1]);
   assert.deepEqual(areas, ["hoje", "vida", "fin", "carreira", "info", "sis"]);
   for (const r of com) assert.ok(areas.includes(r.area), r.id);
   const ordem = [...R.menu.matchAll(/<a class="it" href="#([a-z-]+)"/g)].map((m) => m[1]); assert.deepEqual(ordem, com.map((r) => r.id), "o menu da casa (sem grupos) segue a ordem de sempre");
-  const barra = [...registroBarra().matchAll(/<a href="#([a-z]+)"/g)].map((m) => m[1]); assert.deepEqual(barra, ["rachoje", "agenda", "saude", "mercado", "inbox"], "na ordem do campo barra (o Inbox é o 5º atalho)");
+  const barra = [...registroBarra().matchAll(/<a href="#([a-z]+)"/g)].map((m) => m[1]); assert.deepEqual(barra, ["rachoje", "mba", "saude", "mercado", "inbox"], "na ordem do campo barra (o Inbox é o 5º atalho)");
   assert.match(registroBarra(), /id="barramenu"/); assert.ok(barra.every((id) => com.some((r) => r.id === id)), "a barra só aponta para rotas do registro");
 });
 function registroBarra() { const ctx = { console, Object, Array, JSON, String, document: { getElementById: () => null } }; ctx.window = ctx; vm.createContext(ctx); vm.runInContext(lerArq("js/rotas.js"), ctx); return ctx.rotasBarraHtml(); }
@@ -152,7 +152,7 @@ test("RAC Hoje (piloto): usa o kit e o kit de gráficos declarados no MOD_DEPS, 
   for (const [area, href] of Object.entries(dest)) assert.ok(R.tabs.includes(href.slice(1).split("/")[0]), `${area} aponta para ${href}, que não é rota`);   /* o primeiro trecho é a rota (alimentacao aponta para #mercado/area/delivery desde o lote B) */
   for (const f of ["hjAnalisar", "hjBotaoPago", "hjAnalise", "hjErro", "hojeAnalisar", "hojeCoordenar", "hojeReenviar", "hojePendMarcar"]) assert.match(hoje, new RegExp("function " + f + "\\("), f + " continua no módulo");
   assert.ok(!/racIA\(/.test(hoje.slice(hoje.indexOf("function hjDesenhar"), hoje.indexOf("function hjPintarHist"))), "desenhar o painel não chama a IA");
-  for (const f of ["rkKpi", "rkLista", "rkComparar", "rkMedidor", "rsColunas", "rsBarras", "rkRecolher", "rkEstado", "rkAlerta"]) assert.match(hoje, new RegExp("\\b" + f + "\\("), "o painel usa " + f);
+  for (const f of ["rkDelta", "rkLista", "rkComparar", "rkMedidor", "rsColunas", "rsBarras", "rkRecolher", "rkEstado", "rkAlerta"]) assert.match(hoje, new RegExp("\\b" + f + "\\("), "o painel usa " + f);   /* Lote 1 da reestruturação visual: a faixa fina (hjFaixa) substituiu os cartões rkKpi do topo; o kit continua com o rkKpi (página #componentes) */
   assert.ok(!/\.from\("/.test(hoje.slice(hoje.indexOf("function hjDesenhar"), hoje.indexOf("function hjPintarHist"))), "o desenho do painel não abre outra leitura de banco");
 });
 

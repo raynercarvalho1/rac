@@ -358,3 +358,11 @@ do [roadmap](06-roadmap.md), depois da conferência do dono. I-01 a I-03 são da
 - **Fernanda (corrigido pelo dono no mesmo dia):** acesso integral e igual ao do dono dentro da Central de Compras (ver, criar, editar, excluir áreas e categorias, alterar associações), com a configuração compartilhada. Não amplia módulos só do dono. A migration 064 foi aplicada e conferida em produção (ChatGPT, informado pelo dono); falta mesclar e publicar o site.
 - **Pendência:** Preços, Consumo, Comparar e Produtos ainda mostram todas as categorias.
 Detalhes: `docs/central-areas.md`.
+
+## 22/11/2026 · Reestruturação visual: o Hoje é a tela inicial do dono (decisões do dono)
+
+- **Critério:** na tela inicial só entra o que tem prazo, ação ou dado novo para o dono. Desenho e plano: [Documento 11](11-reestruturacao-visual.md).
+- **Abertura:** o dono abre no **Hoje**; o **Início sai do menu** (a rota `#inicio` continua). Nenhum outro módulo é escondido ou removido. A Fernanda não muda (o Início nunca foi página da casa; ela continua no Mercado).
+- **Ordem do Hoje:** faixa fina de indicadores, Prioridades e Gastos, Saúde, E-mails, Newsletter, Esportes, Sorocaba, análise da IA (a pedido). Lote 2: MBA, Últimas compras e Saúde/Garmin no topo. Sem IA paga automática no Hoje (o resumo de esportes é o dos times e manchetes, não o da IA).
+- **Barra de baixo:** Hoje, MBA, Saúde, Compras, Inbox (a Agenda sai da barra e continua no menu). **Botão +:** ações da própria tela, só para o dono (lote 3); a Fernanda mantém o dela.
+- **Fora de escopo, por decisão do dono:** horário da newsletter e e-mails externos das 6h/9h (o RAC não envia e-mail; o selo "Atualizada às HH:MM" já mostra a hora da coleta).

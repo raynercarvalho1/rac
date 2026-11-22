@@ -1,6 +1,6 @@
 # 11 · Reestruturação visual: o Hoje como tela inicial do dono
 
-Estado: **desenho proposto em 22/11/2026, aguardando aprovação do dono. Nada implementado.**
+Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 implementado e testado em 22/11/2026, na branch, merge e publicação a confirmar (seção 8). Lotes 2 e 3 não iniciados.**
 
 ## 1. Intenção e motivo
 
@@ -75,5 +75,51 @@ Merge e publicação só com autorização do dono.
 
 ## 7. Pendências do dono
 
-- Aprovar este desenho.
 - Newsletter (horário) e e-mails externos: decididos como fora de escopo por ora.
+
+## 8. Plano do Lote 1 (Estrutura)
+
+Desenho **aprovado pelo dono em 22/11/2026**, com autorização para o desenvolvimento completo do lote, inclusive merge (o Lote 1 não
+precisa de SQL, função nem banco). Execução nativa, na branch `claude/peaceful-hopper-84odeu`; merge só com as condições do CLAUDE.md
+(CI do commit atual verde, sem conflito, dentro do escopo, sem tocar `.claude/` nem workflows).
+
+Restrições globais: ES5 puro; nomes globais únicos (`tests/estrutura.test.mjs`); cor só por token em `css/rac.css`; `VERSAO` (sw.js) e
+`MOD_VERSAO` (js/app.js) trocadas juntas; a Fernanda não muda.
+
+Pontos de atenção (o que mais pode dar errado): (a) a casa nunca pode cair no Hoje; (b) `#inicio` digitado à mão continua abrindo o
+Início; (c) newsletter sem dados não mostra "novos"; (d) um bloco que falha não derruba os outros; (e) sem rede, cada bloco mostra o seu
+estado vazio.
+
+### Tarefa 1 · Abertura do dono no Hoje
+- Arquivos: `js/app.js` (função `route`: captura, rota padrão, botão Início, volta ao pai), `js/rotas.js` (Início com `grupo:null`),
+  `index.html` (logo e `#homebtn` apontam para `#rachoje`), `tests/rotas.test.mjs`.
+- Interface nova: `rotaInicial()` em `js/app.js`, devolve `"rachoje"` para o dono e `"inicio"` para os demais (a casa continua sendo
+  levada ao Mercado pela regra de `DA_CASA`).
+- Testes primeiro: dono em `""`, `#`, `#inexistente` e `#captura` abre o Hoje; casa nos mesmos casos abre o Mercado; dono em `#inicio`
+  ainda abre o Início; no Hoje o botão Início fica escondido e, no Início, a volta vai para `#rachoje`; o menu não tem mais o Início
+  (26 itens) e a lista de rotas sem grupo passa a incluir `inicio`.
+
+### Tarefa 2 · Newsletter com selo de hora e "novos"
+- Arquivos: `nucleo.js` (`nlNovos`), `js/newsletter.js` (`wNewsletter` e abertura da página), `tests/nucleo.test.mjs`.
+- Interface nova: `NUCLEO.nlNovos(destaques, desdeMs)` devolve o número de destaques com data posterior a `desdeMs`; `0` se a lista for
+  vazia ou `desdeMs` inválido. A hora da última visita à página da Newsletter fica em `localStorage` (conveniência do aparelho, dentro
+  de `try/catch`); o selo mostra "atualizada às HH:MM" (campo `coletado` do arquivo) e "N novos".
+- Testes primeiro: lista vazia, sem visita anterior, com e sem destaques novos, data inválida.
+
+### Tarefa 3 · Hoje: faixa fina e blocos E-mails, Newsletter, Esportes e Sorocaba
+- Arquivos: `js/hoje.js` (`hjDesenhar`, nova `hjFaixa`, nova `hjBlocosDia`; sai `hjCardContexto`, que repete o que os blocos mostram),
+  `js/app.js` (`wCard` deixa recolher também no Hoje), `css/rac.css` (`.rh-faixa`, `.rh-blocos`), `tests/hoje.test.mjs`.
+- Ordem na tela: abertura → faixa → Prioridades e Gastos → Saúde → **E-mails → Newsletter → Esportes → Sorocaba** → análise da IA →
+  histórico e fontes. Os blocos reaproveitam `wEmail`, `wNewsletter`, `wEsportes` e `wNoticias`, carregados por `wLazy`; nenhum chama IA.
+- `HJ_DESTINO.noticias` deixa de apontar para `#inicio` e passa a apontar para `#rachoje`.
+- Testes primeiro: a ordem dos blocos em `hjDesenhar`; a faixa traz atenção, gasto e prontidão; nenhum bloco novo chama `racIA`.
+
+### Tarefa 4 · Barra de baixo
+- Arquivos: `js/rotas.js` (`curto`/`barra`: Hoje 1, MBA 2, Saúde 3, Compras 4, Inbox 5; a Agenda perde o `curto`),
+  `tests/design_system.test.mjs` (a lista esperada da barra).
+
+### Tarefa 5 · Versão, documentos, conhecimento e entrega
+- `VERSAO` e `MOD_VERSAO` trocadas juntas; `docs/hoje.md`, `docs/mapa.md`, `docs/planejamento/historico-diario.md` e
+  `docs/planejamento/07-decisoes-e-pendencias.md` atualizados; RAC Knowledge (decisão e estado) com `indice` e `verificar`.
+- Verificação: `bash scripts/nuvem_testes.sh` (suíte completa) passando; depois commit, push, PR, CI verde e merge; conferir o CI da
+  `main` e a versão realmente publicada. Planejado não é registrado como concluído.

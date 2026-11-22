@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-21.9",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-22.1",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -103,8 +103,8 @@
   function route(){
     if(!PAPEL)return;   /* roteador ainda sem sessão/papel: não navega; o destino (#hash) fica no endereço e iniciar() chama route() quando o papel existe */
     var parts=(location.hash||"").replace("#","").split("/");
-    if(parts[0]==="captura"){history.replaceState(history.state,"","#"+(isOwner()?"inicio":"lista"));setTimeout(function(){abrirCaptura()},300);parts=[isOwner()?"inicio":"lista"]}
-    var top=tabs.indexOf(parts[0])<0?"inicio":parts[0];
+    if(parts[0]==="captura"){history.replaceState(history.state,"","#"+(isOwner()?rotaInicial():"lista"));setTimeout(function(){abrirCaptura()},300);parts=[isOwner()?rotaInicial():"lista"]}
+    var top=tabs.indexOf(parts[0])<0?rotaInicial():parts[0];
     /* a esposa vê o Mercado, o Eddie, a Olivia e os Veículos; o resto leva ao Mercado */
     if(PAPEL==="casa"&&DA_CASA.indexOf(top)<0){top="mercado";parts=["mercado"]}
     var faltam=(ROTA_MODS[top]||[]).filter(function(n){return !MOD_OK[n]});
@@ -112,10 +112,10 @@
     tabs.forEach(function(t){document.getElementById(t).hidden=(t!==top)});
     document.documentElement.setAttribute("data-sec",top);atuBotao();if(!ATU.rodando)atuAviso("");
     if(top!=="eddie"&&top!=="olivia"&&top!=="veiculos")fundoPagina(null);
-    /* voltar ao Início em todas as páginas (a esposa não tem o Início) */
-    $("#homebtn").hidden=top==="inicio"||PAPEL==="casa";
+    /* voltar à página inicial (o Hoje, para o dono) em todas as páginas (a esposa não tem página inicial) */
+    $("#homebtn").hidden=top===rotaInicial()||PAPEL==="casa";
     /* Voltar no topo: volta pelo histórico quando ele é deste site; senão, sobe um nível (ex.: da candidatura para a Carreira) */
-    marcarProfundidade();VOLTAR_PAI=parts.length>1&&parts[1]?"#"+parts[0]:(top==="inicio"?"":PAPEL==="casa"?"":"#inicio");
+    marcarProfundidade();VOLTAR_PAI=parts.length>1&&parts[1]?"#"+parts[0]:(top===rotaInicial()?"":PAPEL==="casa"?"":"#"+rotaInicial());
     $("#voltarbtn").hidden=!(PROF>0||VOLTAR_PAI);
     var vf=$(".voltarbtn");if(vf)vf.hidden=!(PROF>0||VOLTAR_PAI);   /* o ← flutuante (celular) segue a MESMA regra do voltar da barra de título: em todas as páginas, menos onde não há para onde voltar (Início) */
     setSide(false);
@@ -942,7 +942,7 @@
     var ic=h("span",{class:"ico",style:"--ic:"+cor});ic.innerHTML=ICOS[ico];
     var wh=h("div",{class:"wh"},ic,h("h2",{text:title}),more?h("a",{class:"more",href:more[0],text:more[1]}):null);
     var p=h("div",{class:"panel "+(cls||"")},wh);
-    if(/^#?(inicio)?$/.test(location.hash.split("/")[0])){
+    if(/^#?(inicio|rachoje)?$/.test(location.hash.split("/")[0])){
       var b=h("button",{type:"button",class:"recolher"});
       function marcar(r){p.classList.toggle("recolhido",r);b.setAttribute("aria-expanded",String(!r));b.setAttribute("aria-label",(r?"Mostrar ":"Recolher ")+title);b.title=r?"Mostrar":"Recolher";b.textContent=r?"▸":"▾"}
       b.onclick=function(){var m=recolhidos(),r=!p.classList.contains("recolhido");if(r)m[title]=1;else delete m[title];try{localStorage.setItem(RECOLHIDOS,JSON.stringify(m))}catch(e){}marcar(r);document.dispatchEvent(new Event("rac-recolher"))};

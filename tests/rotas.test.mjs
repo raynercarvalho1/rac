@@ -34,13 +34,14 @@ test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (a
 });
 
 test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma ordem; a regra da casa vem da mesma tabela", () => {
-  const velho = [...ANTES_MENU.matchAll(/<a class="it"[\s\S]*?<\/a>/g)].map((m) => m[0]);
+  /* Reestruturação visual, Lote 1: o Início saiu do menu do dono (a rota #inicio continua existindo); o resto é o HTML de antes */
+  const velho = [...ANTES_MENU.matchAll(/<a class="it"[\s\S]*?<\/a>/g)].map((m) => m[0]).filter((a) => !/data-k="inicio"/.test(a));
   const novoTodos = [...R.menu.matchAll(/<a class="it"[\s\S]*?<\/a>/g)].map((m) => m[0]);
   /* RAC Inbox I1: o item do Inbox é o único a mais; sem data-casa (a casa não o vê) */
   assert.equal(novoTodos.filter((a) => /data-k="inbox"/.test(a) && !/data-casa/.test(a)).length, 1, "o Inbox está no menu e fora do menu da casa");
   assert.equal(novoTodos.filter((a) => /data-k="conhecimento"/.test(a) && !/data-casa/.test(a)).length, 1, "o RAC Knowledge está no menu do dono e fora do menu da casa");
   const novo = novoTodos.filter((a) => !/data-k="inbox"/.test(a) && !/data-k="conhecimento"/.test(a));
-  assert.equal(velho.length, 27, "29 menos Alimentação (lote B) e Compras online (lote C), que saíram do menu em 21/11/2026"); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
+  assert.equal(velho.length, 26, "29 menos Alimentação (lote B), Compras online (lote C) e o Início (reestruturação visual, 22/11/2026), que saíram do menu"); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
   /* Fase 3: cada item ganhou data-area e --o (o menu do dono é agrupado por CSS); fora isso o HTML é o de antes */
   const semFase3 = (x) => x.replace(' data-casa="1"', "").replace(/ data-area="[a-z]+" style="--o:\d+"/, "");
   assert.deepEqual(novo.map(semFase3), velho, "mesmo HTML (ícone, cor, nome, contador), na mesma ordem");
@@ -53,7 +54,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.match(html, /<nav class="grp" id="navgrp" aria-label="Seções">\n      <h4>Painel<\/h4>/, "o título do grupo continua");
   assert.ok(!/<a class="it" href="#inicio"/.test(html), "o menu não é mais HTML fixo");
   assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "o grupo do registro continua um só (\"Painel\"); as áreas da Fase 3 são o campo area, aplicado por CSS só para o dono");
-  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes", "compras"], "só a Busca (como antes), a página de componentes (Fase 3) e as entradas de pedido (Alimentação, lote B; Pedidos online, lote C) ficam sem item no menu");
+  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes", "compras", "inicio"], "só a Busca (como antes), a página de componentes (Fase 3) as entradas de pedido (Alimentação, lote B; Pedidos online, lote C) e o Início (Lote 1 da reestruturação visual) ficam sem item no menu");
   const idx = ["js/dados.js", "mercado.js", "js/rotas.js", "js/app.js"].map((s) => html.indexOf(`<script src="${s}"></script>`));
   assert.ok(idx.every((x, i) => x > 0 && (!i || x > idx[i - 1])), "o registro carrega antes do app (a busca lateral lê o menu ao abrir)");
   assert.match(lerArq("sw.js"), /"\.\/js\/rotas\.js"/);
@@ -74,7 +75,7 @@ function rodar(codigo, { papel, hash, carregados, cru }) {
     document: { getElementById: (id) => el("#" + id), querySelector: (s) => el(s), documentElement: { setAttribute: (k, v) => log.push(["attr", k, v]) } } };
   for (const n of RENDER) ctx[n] = (...a) => { log.push([n, ...a]); };
   ctx.window = ctx; vm.createContext(ctx); vm.runInContext(codigo, ctx); ctx.route();
-  return juntarSecoes(log, cru);
+  const saida = juntarSecoes(log, cru); Object.defineProperty(saida, "estado", { value: ctx }); return saida;   // o ambiente fica à parte: não entra no deepEqual
 }
 /* a única diferença aceita: a ORDEM em que as <section> são escondidas dentro do mesmo laço (tabs.forEach), que antes seguia a lista
    escrita à mão e agora segue o registro. É um laço síncrono, sem desenho no meio: o resultado na tela é o mesmo. Cada sequência de
@@ -97,12 +98,15 @@ const HASHES = ["", "#", "#inexistente", "#captura", "#x/jornalistas", "#x/nada"
   "#busca/leite%20integral", "#busca/a/b", "#newsletter/semana", "#newsletter/busca/x%2Fy", "#conexoes/x/a%20b", "#saude/treino/123", "#saude/sono", "#compras/loja/amazon/x", "#carreira/editar/1", "#mba/aulas",
   "#resumo/2026/treinos", "#seguranca/restaurar", "#veiculos/civic", "#lista/x", "#alimentacao/a/b", "#painel/x", "#documentos/x", "#sistema", "#rachoje", "#iacustos", "#agenda"];
 
+const ABERTURA_MUDOU = new Set(["", "#", "#inexistente", "#captura", "#inicio", "#rachoje"]);
 test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas, para o dono e para a casa, com e sem os módulos carregados", () => {
   const casos = [...new Set([...HASHES, ...semNovas(R.tabs).map((t) => "#" + t)])];
   let n = 0;
   for (const papel of ["dono", "casa"]) for (const carregados of [true, false]) for (const hash of casos) {
     /* DS-4.3: para o DONO a Saúde é o hub com abas (módulo a mais e a aba como 2º argumento), conferido logo abaixo; para a casa (Fernanda) tudo é idêntico, inclusive #saude */
     if (papel === "dono" && /^#saude/.test(hash)) continue;
+    /* Reestruturação visual, Lote 1 (22/11/2026): a abertura do dono passou do Início para o Hoje; estes endereços mudam de propósito e são conferidos no teste próprio */
+    if (papel === "dono" && ABERTURA_MUDOU.has(hash)) continue;
     const a = rodar(ANTES_JS, { papel, hash, carregados }), d = rodar(NOVO, { papel, hash, carregados });
     assert.deepEqual(d, a, `${papel} ${carregados ? "com" : "sem"} módulos em "${hash}"`); n++;
   }
@@ -110,7 +114,7 @@ test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas
   const rs = (hash, c = true) => rodar(NOVO, { papel: "dono", hash, carregados: c }).filter((x) => x[0] === "renderSaude");
   assert.deepEqual(rs("#saude"), [["renderSaude", null, undefined]]); assert.deepEqual(rs("#saude/sono"), [["renderSaude", null, "sono"]]); assert.deepEqual(rs("#saude/treino/123"), [["renderSaude", "123", "treino"]], "o detalhe do treino continua em #saude/treino/ID");
   assert.deepEqual(rodar(NOVO, { papel: "dono", hash: "#saude/sono", carregados: false }).filter((x) => x[0] === "precisa"), [["precisa", "saude,saude-hub"]], "a Saúde carrega o módulo antigo e o hub");
-  assert.ok(n > 250, n + " casos");
+  assert.ok(n > 240, n + " casos");
   /* e o que se espera de alguns, para o teste não comparar dois "nada" */
   const dono = rodar(NOVO, { papel: "dono", hash: "#saude/treino/123", carregados: true }), casa = rodar(NOVO, { papel: "casa", hash: "#rachoje", carregados: true });
   assert.ok(dono.some((x) => x[0] === "renderSaude" && x[1] === "123")); assert.ok(casa.some((x) => x[0] === "RACmercado.render"), "a casa num endereço do dono vai para a Central de Compras");
@@ -122,4 +126,19 @@ test("route() faz exatamente o mesmo de antes em todas as páginas e subpáginas
 test("destinos das notificações (Agenda, Resumo, Lista e outros do site) abrem a mesma página de antes", () => {
   for (const hash of ["#agenda", "#resumo", "#lista", "#sistema", "#newsletter/semana", "#mercado/radar"]) for (const papel of ["dono", "casa"])
     assert.deepEqual(rodar(NOVO, { papel, hash, carregados: true }), rodar(ANTES_JS, { papel, hash, carregados: true }), papel + " " + hash);
+});
+
+test("Reestruturação visual (Lote 1): o dono abre no Hoje; a casa nunca cai nele; #inicio continua abrindo o Início", () => {
+  const ver = (papel, hash) => rodar(NOVO, { papel, hash, carregados: true });
+  const abre = (l, n) => l.some((x) => x[0] === n);
+  for (const h of ["", "#", "#inexistente"]) { const l = ver("dono", h); assert.ok(abre(l, "renderHoje") && !abre(l, "renderInicio"), `dono em "${h}" abre o Hoje`); assert.equal(l.estado.VOLTAR_PAI, "", "no Hoje não há para onde subir"); }
+  const cap = ver("dono", "#captura"); assert.deepEqual(cap.filter((x) => x[0] === "replaceState"), [["replaceState", "#rachoje"]], "a captura rápida volta ao Hoje"); assert.ok(abre(cap, "renderHoje"));
+  for (const h of ["", "#", "#inexistente", "#rachoje", "#inicio"]) { const l = ver("casa", h); assert.ok(abre(l, "RACmercado.render") && !abre(l, "renderHoje") && !abre(l, "renderInicio"), `a casa em "${h}" vai ao Mercado`); }
+  const capCasa = ver("casa", "#captura"); assert.ok(abre(capCasa, "renderLista") && !abre(capCasa, "renderHoje") && !abre(capCasa, "renderInicio"), "a captura da casa continua indo à Lista (o teste de equivalência acima prova que é igual a antes)");
+  const ini = ver("dono", "#inicio"); assert.ok(abre(ini, "renderInicio"), "o Início ainda abre pelo endereço"); assert.equal(ini.estado.VOLTAR_PAI, "#rachoje", "do Início se volta ao Hoje");
+  assert.ok(ini.some((x) => x[0] === "set" && x[1] === "#homebtn" && x[2] === "hidden" && x[3] === false), "no Início o botão de casa aparece");
+  assert.ok(ver("dono", "#rachoje").some((x) => x[0] === "set" && x[1] === "#homebtn" && x[2] === "hidden" && x[3] === true), "no Hoje o botão de casa some");
+  assert.equal(ver("dono", "#agenda").estado.VOLTAR_PAI, "#rachoje", "as outras páginas sobem para o Hoje");
+  assert.equal(ver("casa", "#mercado").estado.VOLTAR_PAI, "", "a casa continua sem botão de subir ao Início");
+  assert.match(html, /<a class="logo" href="#rachoje"/); assert.match(html, /id="homebtn" href="#rachoje"/);
 });

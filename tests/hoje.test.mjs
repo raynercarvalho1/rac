@@ -1774,3 +1774,33 @@ test("Próxima ação 10: RAC Hoje usa a mesma régua: 'sem retorno' fora, follo
   assert.ok(s.every((i) => i.prazo === "informativo" && i.nivel === "baixa"), "saúde e vaga: informativas também no RAC Hoje");
   assert.equal(N.hojeItens({}, HOJE, { saude: { prontidao: 30, atraso: 4, alertas: [] } }).length, 0, "e a mesma regra de dado velho");
 });
+
+/* Reestruturação visual, Lote 1 (docs/planejamento/11-reestruturacao-visual.md, seção 8): o Hoje é a tela inicial do dono */
+test("Lote 1: o Hoje tem a faixa fina e, depois da Saúde e antes da análise, os blocos E-mails, Newsletter, Esportes e Sorocaba, sem IA", () => {
+  const hoje = ler("js/hoje.js"), d = hoje.slice(hoje.indexOf("function hjDesenhar()"), hoje.indexOf("/* Atualização entre abas"));
+  const pos = ["hjFaixa(x)", "hjCardPrioridades(x)", "hjCardSaude(x)", "hjBlocosDia()", "Análise da IA"].map((t) => d.indexOf(t));
+  assert.ok(pos.every((p, i) => p > 0 && (!i || p > pos[i - 1])), "ordem: faixa → prioridades → saúde → blocos do dia → análise da IA: " + pos);
+  const b = hoje.slice(hoje.indexOf("function hjBlocosDia()")), b2 = b.slice(0, b.indexOf("function hjDesenhar()") > 0 ? b.indexOf("function hjDesenhar()") : 2500);
+  const ordem = ["wEmail", "wNewsletter", "wEsportes", "wNoticias"].map((t) => b2.indexOf(t));
+  assert.ok(ordem.every((p, i) => p > 0 && (!i || p > ordem[i - 1])), "E-mails, Newsletter, Esportes e Sorocaba, nessa ordem: " + ordem);
+  assert.ok(!/racIA\(|hjAnalisar\(|hojeAnalisar\(/.test(b2), "os blocos do dia nunca chamam a IA");
+  assert.ok(!/function hjKpis|function hjCardContexto/.test(hoje), "os quatro cartões grandes e o contexto repetido saíram (a faixa e os blocos os substituem)");
+  assert.match(hoje, /noticias:"#rachoje"/, "o item de notícias leva ao próprio Hoje, não mais ao Início");
+  assert.ok(!/"#inicio"/.test(hoje), "o Hoje não aponta mais para o Início");
+});
+test("Lote 1: a tela do Hoje abre com a faixa de indicadores mesmo sem os cartões do Início carregados, e sem chamar a IA", async () => {
+  const chamadas = [], s = telaSite({ resp: RESP, jsons: JSONS, racIA: (...a) => { chamadas.push(a); return Promise.resolve(respostaReal()); } });
+  s.ctx.renderHoje(); await fluxo();
+  const tela = s.alvos["#rachoje-view"], txt = tela.textContent;
+  assert.equal(chamadas.length, 0, "abrir não chama a IA");
+  for (const t of ["Pede atenção", "Gasto no mês", "Prioridades do dia", "Análise da IA"]) assert.ok(txt.includes(t), t);
+  assert.ok(varre(tela, (e) => /rh-faixa\b/.test(e.className || "")).length >= 1, "a faixa existe");
+  assert.equal(varre(tela, (e) => /rac-kpi\b/.test(e.className || "")).length, 0, "os cartões grandes de indicador não existem mais");
+});
+test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blocos do dia; reler as fontes e reabrir a tela os refazem", async () => {
+  let n = 0; const s = telaSite({ resp: RESP, jsons: JSONS, extra: { wEmail: () => { n++; return new El("div"); } } });
+  s.ctx.renderHoje(); await fluxo(); assert.equal(n, 1, "abrir monta o bloco uma vez");
+  s.ctx.hjDesenhar(); s.ctx.hjDesenhar(); assert.equal(n, 1, "redesenhar não busca de novo");
+  const tela = s.alvos["#rachoje-view"], reler = botao(tela, "Reler as fontes"); assert.ok(reler); reler.onclick(); await fluxo(); assert.equal(n, 2, "reler as fontes refaz os blocos");
+  s.ctx.renderHoje(); await fluxo(); assert.equal(n, 3, "reabrir a tela refaz os blocos");
+});

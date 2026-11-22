@@ -229,6 +229,10 @@ e custo médio; por funcionalidade e por modelo; evolução diária (30 dias) e 
 90% por padrão); consumo atípico (hoje acima de 3× a mediana dos dias com gasto nas duas semanas anteriores, com pelo menos 5 dias de
 base); e funcionalidades com mais da metade do gasto do mês. Sem informação de custo, nada é inventado (tipo `sem_dado`).
 
+## Tela inicial do dono (Lote 1 da reestruturação visual, 22/11/2026)
+
+O app do dono abre no Hoje (`rotaInicial()` em `js/rotas.js`; o Início saiu do menu, mas `#inicio` ainda abre). A tela tem: abertura, **faixa fina** de indicadores (`hjFaixa`: atenção, gasto no mês, orçamento ou projeção, prontidão), Prioridades e Gastos (o medidor do orçamento agora fica no cartão de gastos), Saúde e os **blocos do dia** (`hjBlocosDia`: E-mails, Newsletter, Esportes e Sorocaba, que reaproveitam os cartões do Início e nunca chamam a IA; são montados uma vez e refeitos ao reabrir a tela ou em "Reler as fontes", não a cada redesenho); depois, a análise da IA e as fontes, como antes. O cartão da Newsletter mostra "Atualizada às HH:MM" e os destaques novos desde a última visita à página (`NUCLEO.nlNovos`; a visita fica só no aparelho). Desenho e plano: `docs/planejamento/11-reestruturacao-visual.md`. Testes: `tests/hoje.test.mjs`, `tests/rotas.test.mjs`, `tests/newsletter.test.mjs`.
+
 ## Telas (só do dono; a Fernanda não vê nenhuma)
 
 **RAC Hoje (`#rachoje`, em `js/hoje.js`).** Abrir a tela só lê: coletor, regras do núcleo, cache deste aparelho e as últimas chamadas em

@@ -3,6 +3,8 @@
 A camada de IA do RAC: um serviço único (`supabase/functions/rac-ia`) que todos os módulos usam pela mesma porta
 (`racIA()` em `js/app.js`). Provedor atual: Anthropic (Claude). Plano aprovado em 30/10/2026 (v2 com os ajustes finais).
 
+**Chamadas automáticas (só duas exceções, ambas autorizadas pelo dono):** o resumo da Newsletter, pela rotina do servidor (31/10/2026), e a análise do RAC Hoje, pedida pela própria tela, no máximo 2 por dia (a partir das 6h e das 14h, com o app aberto), só com o interruptor ligado pelo dono e pelo mesmo caminho do botão (22/11/2026; ver `docs/hoje.md`, "Lote 4"). Fora isso, nenhuma IA roda sozinha.
+
 ## Estado atual (31/10/2026)
 
 **O RAC Intelligence está em DEMO. Nenhuma chamada paga à Anthropic foi feita até agora** (nem geração, nem contagem):

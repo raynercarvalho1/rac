@@ -398,7 +398,7 @@ test("tela do RAC Hoje: com o tempo mudado, reabrir e reler não chamam a IA; \"
   botao(tela, "Analisar o dia").onclick(); botao(tela, "Confirmar e chamar a IA").onclick(); await fluxo();
   assert.equal(chamadas.length, 1);
   s.ctx.TEMPO_HOJE = tempoAgora(14, "11:59");
-  s.ctx.renderHoje(); await fluxo(); botao(tela, "Reler as fontes").onclick(); await fluxo();
+  s.ctx.renderHoje(); await fluxo(); relerBtn(tela).onclick(); await fluxo();
   assert.equal(chamadas.length, 0 + 1, "reabrir e reler com outro tempo não chamam a IA");
   assert.ok(tela.textContent.includes("Mesmos dados de agora"), "a análise continua com os mesmos dados");
   const de = botao(tela, "Analisar de novo (nova cobrança)"); assert.ok(de);
@@ -450,6 +450,7 @@ class El {
 }
 const doc = { createElement: (t) => new El(t), createTextNode: (t) => { const e = new El("#text"); e._t = String(t); return e; } };
 const varre = (e, f, acc = []) => { if (f(e)) acc.push(e); e.children.forEach((c) => varre(c, f, acc)); return acc; };
+const relerBtn = (raiz) => varre(raiz, (e) => e.tagName === "BUTTON" && e.attrs["aria-label"] === "Reler as fontes")[0];   // Lote 4: ícone ↻ pequeno, sem o texto grande
 const botao = (raiz, txt) => varre(raiz, (e) => e.tagName === "BUTTON" && e.textContent.includes(txt))[0];
 const fluxo = () => new Promise((r) => setTimeout(r, 25));
 function appHelpers() {
@@ -476,7 +477,7 @@ test("tela do RAC Hoje: abrir só lê (nenhuma chamada de IA); o botão pede con
   s.ctx.renderHoje(); await fluxo();
   const tela = s.alvos["#rachoje-view"], txt = () => tela.textContent;
   assert.equal(chamadas.length, 0, "abrir a tela não chama a IA");
-  for (const t of ["Bom dia, Rayner", "Fontes de informação", "Prioridades do dia", "Análise da IA", "Pergunte sobre o seu dia", "Histórico recente", "Ainda não há análise da IA neste aparelho"]) assert.ok(txt().includes(t), t);
+  for (const t of ["Bom dia, Rayner", "Fontes de informação", "Itens do dia", "Análise da IA", "Pergunte sobre o seu dia", "Histórico recente", "Ainda não há análise da IA neste aparelho"]) assert.ok(txt().includes(t), t);
   assert.ok(/Agenda[\s\S]*Leitura realizada/.test(txt()) && txt().includes("Tempo em Sorocaba"), "status de cada fonte");
   const analisar = botao(tela, "Analisar o dia");
   assert.ok(analisar, "botão de análise");
@@ -657,7 +658,8 @@ test("código das telas: ES5, a IA só é chamada pelo botão confirmado, nada g
   assert.equal((tela.match(/hojeAnalisar\(/g) || []).length, 1, "a tela chama a IA em um lugar só (hjAnalisar)");
   const i = tela.indexOf("function hjAnalisar"), fim = tela.indexOf("function hjCarregar");
   assert.ok(i > 0 && tela.slice(i, fim).includes("hojeAnalisar("));
-  assert.equal((tela.match(/hjAnalisar\(/g) || []).length, 5, "definida uma vez e usada só nos botões pagos (analisar, perguntar, reenviar e nova análise)");
+  assert.equal((tela.match(/hjAnalisar\(/g) || []).length, 6, "definida uma vez, usada nos botões pagos (analisar, perguntar, reenviar e nova análise) e na IA automática do Lote 4, autorizada pelo dono em 22/11/2026");
+  assert.equal((tela.match(/hjAnalisar\(\{auto:true\}\)/g) || []).length, 1, "a IA automática chama em um lugar só, pelo mesmo caminho dos botões");
   assert.ok(/function hjBotaoPago/.test(tela) && /Confirmar e chamar a IA/.test(tela) && /if\(HJ\.ocupado\)return/.test(tela), "confirmação e trava de pedido duplicado");
   assert.ok(!/racIA\(|functions\.invoke|\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/.test(ic), "Custos de IA só lê");
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(|functions\.invoke/.test(tela), "o RAC Hoje não grava nem chama funções além do racIA do botão");
@@ -1778,7 +1780,7 @@ test("Próxima ação 10: RAC Hoje usa a mesma régua: 'sem retorno' fora, follo
 /* Reestruturação visual, Lote 1 (docs/planejamento/11-reestruturacao-visual.md, seção 8): o Hoje é a tela inicial do dono */
 test("Lote 1: o Hoje tem a faixa fina e, depois da Saúde e antes da análise, os blocos E-mails, Newsletter, Esportes e Sorocaba, sem IA", () => {
   const hoje = ler("js/hoje.js"), d = hoje.slice(hoje.indexOf("function hjDesenhar()"), hoje.indexOf("/* Atualização entre abas"));
-  const pos = ["hjFaixa(x)", "hjCardPrioridades(x)", "hjCardSaude(x)", "hjBlocosDia()", "Análise da IA"].map((t) => d.indexOf(t));
+  const pos = ["hjCardItens(x)", "hjMudouPintar()", "hjFaixa(x)", "hjBlocosFoco()", "hjCardSaude(x)", "hjCardGastos(x)", "hjBlocosDia()", "Análise da IA"].map((t) => d.indexOf(t));
   assert.ok(pos.every((p, i) => p > 0 && (!i || p > pos[i - 1])), "ordem: faixa → prioridades → saúde → blocos do dia → análise da IA: " + pos);
   const b = hoje.slice(hoje.indexOf("function hjBlocosDia()")), b2 = b.slice(0, b.indexOf("function hjDesenhar()") > 0 ? b.indexOf("function hjDesenhar()") : 2500);
   const ordem = ["wEmail", "wNewsletter", "wEsportes", "wNoticias"].map((t) => b2.indexOf(t));
@@ -1793,7 +1795,7 @@ test("Lote 1: a tela do Hoje abre com a faixa de indicadores mesmo sem os cartõ
   s.ctx.renderHoje(); await fluxo();
   const tela = s.alvos["#rachoje-view"], txt = tela.textContent;
   assert.equal(chamadas.length, 0, "abrir não chama a IA");
-  for (const t of ["Pede atenção", "Gasto no mês", "Prioridades do dia", "Análise da IA"]) assert.ok(txt.includes(t), t);
+  for (const t of ["Pede atenção", "Gasto no mês", "Itens do dia", "Análise da IA"]) assert.ok(txt.includes(t), t);
   assert.ok(varre(tela, (e) => /rh-faixa\b/.test(e.className || "")).length >= 1, "a faixa existe");
   assert.equal(varre(tela, (e) => /rac-kpi\b/.test(e.className || "")).length, 0, "os cartões grandes de indicador não existem mais");
 });
@@ -1801,7 +1803,7 @@ test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blo
   let n = 0; const s = telaSite({ resp: RESP, jsons: JSONS, extra: { wEmail: () => { n++; return new El("div"); } } });
   s.ctx.renderHoje(); await fluxo(); assert.equal(n, 1, "abrir monta o bloco uma vez");
   s.ctx.hjDesenhar(); s.ctx.hjDesenhar(); assert.equal(n, 1, "redesenhar não busca de novo");
-  const tela = s.alvos["#rachoje-view"], reler = botao(tela, "Reler as fontes"); assert.ok(reler); reler.onclick(); await fluxo(); assert.equal(n, 2, "reler as fontes refaz os blocos");
+  const tela = s.alvos["#rachoje-view"], reler = relerBtn(tela); assert.ok(reler); reler.onclick(); await fluxo(); assert.equal(n, 2, "reler as fontes refaz os blocos");
   s.ctx.renderHoje(); await fluxo(); assert.equal(n, 3, "reabrir a tela refaz os blocos");
 });
 
@@ -1809,7 +1811,7 @@ test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blo
 test("Hoje: os cartões principais têm botão de recolher, ligado ao mesmo armazenamento dos cartões do Início", () => {
   const hoje = ler("js/hoje.js");
   assert.match(hoje, /function hjRecolhivel\(c,titulo\)/);
-  for (const t of ["Prioridades do dia", "Gastos do mês", "Saúde e treino", "Análise da IA", "Pergunte sobre o seu dia"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
+  for (const t of ["Itens do dia", "O que mudou desde ontem", "Gastos do mês", "Saúde e treino", "Análise da IA", "Pergunte sobre o seu dia"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
   assert.match(hoje, /recolhidos\(\)/, "usa o mesmo estado de recolhidos() do app.js"); assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjRecolhivel"), hoje.indexOf("function hjRecolhivel") + 900)), "recolher não chama IA");
   assert.match(ler("css/rac.css"), /\.rac-card\.recolhido>:not\(\.rac-card-cab\)\{display:none\}/, "o corpo some, o título fica");
 });
@@ -1829,7 +1831,7 @@ test("Hoje: o botão recolhe e mostra o cartão, lembra a escolha e um cartão n
 /* Lote 2 da reestruturação visual: o foco do dono (MBA e últimas compras) abaixo da faixa e o último treino no cartão de Saúde */
 test("Lote 2: o Hoje monta faixa → MBA e compras → prioridades, uma vez por abertura, e as compras só são lidas (nada grava, sem IA)", () => {
   const hoje = ler("js/hoje.js"), d = hoje.slice(hoje.indexOf("function hjDesenhar()"), hoje.indexOf("/* Atualização entre abas"));
-  const pos = ["hjFaixa(x)", "hjBlocosFoco()", "hjCardPrioridades(x)"].map((t) => d.indexOf(t)); assert.ok(pos.every((p, i) => p > 0 && (!i || p > pos[i - 1])), "ordem: " + pos);
+  const pos = ["hjFaixa(x)", "hjBlocosFoco()", "hjCardSaude(x)"].map((t) => d.indexOf(t)); assert.ok(pos.every((p, i) => p > 0 && (!i || p > pos[i - 1])), "ordem: " + pos);
   const f = hoje.slice(hoje.indexOf("function hjUltimasCompras()"), hoje.indexOf("function hjUltimoTreino"));
   assert.ok(f.indexOf('wLazy(["mba"],"wMbaHoje")') > 0 && f.indexOf('wLazy(["mba"],"wMbaHoje")') < f.indexOf("hjUltimasCompras()", f.indexOf("function hjBlocosFoco")), "MBA antes das compras");
   assert.match(f, /if\(HJ\.foco\)return HJ\.foco/, "montado uma vez"); assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(|racIA\(|functions\.invoke/.test(f), "só leitura");
@@ -1850,4 +1852,117 @@ test("Lote 2: o último treino aparece no cartão de Saúde com link para o trei
   const a = varre(box, (e) => e.tagName === "A")[0]; assert.ok(a, "o link do treino"); assert.equal(a.attrs.href, "#saude/treino/9"); assert.match(box.textContent, /Último treino[\s\S]*Running[\s\S]*5,23 km/);
   const outra = new El("div"); s.ctx.hjUltimoTreino(outra); assert.match(outra.textContent, /Running/, "a segunda vez usa o que já foi lido");
   const n = telaSite({ resp: { ...RESP, garmin_ativ: [] }, jsons: JSONS }), vazio = new El("div"); n.ctx.hjUltimoTreino(vazio); await fluxo(); assert.equal(vazio.children.length, 0, "sem treino, nada aparece");
+});
+
+/* Lote 4 (docs/planejamento/11-reestruturacao-visual.md, seções 9 e 10): itens do dia tocáveis, "o que mudou" no alto, botões pequenos */
+const ITENS5 = [{ titulo: "Aula de BI", dias: 2, sub: "aula às 19:00", nivel: "média", fontes: ["mba"] }, { titulo: "Palestra de carreira", dias: 2, nivel: "média", fontes: ["mba"] },
+  { titulo: "Vaga compatível", dias: -4, nivel: "baixa", fontes: ["vagas"] }, { titulo: "Boleto do MBA", dias: 6, nivel: "alta", fontes: ["mba"] }, { titulo: "Ligar no banco", dias: 0, nivel: "baixa", fontes: ["tarefas"] }];
+test("Lote 4: 'Itens do dia' mostra 3 itens tocáveis e 'ver todos' abre o resto no mesmo lugar; sem itens, diz que não há nada", () => {
+  const s = telaSite({ resp: RESP, jsons: JSONS }), c = s.ctx.hjCardItens({ itens: ITENS5 }), linksDe = (e) => varre(e, (x) => x.tagName === "A" && /rac-linha-item/.test(x.className));
+  assert.match(c.textContent, /Itens do dia/); assert.equal(linksDe(c).length, 3, "3 à vista"); assert.equal(linksDe(c)[0].attrs.href, "#mba", "tocar leva ao módulo do item");
+  const mais = botao(c, "ver todos (5)"); assert.ok(mais, "o botão diz quantos são"); mais.onclick(); assert.equal(linksDe(c).length, 5, "abre os 5 no mesmo lugar"); assert.match(c.textContent, /mostrar menos/i);
+  mais.onclick(); assert.equal(linksDe(c).length, 3, "volta a 3");
+  const tres = s.ctx.hjCardItens({ itens: ITENS5.slice(0, 3) }); assert.equal(botao(tres, "ver todos"), undefined, "com 3 ou menos não há 'ver todos'");
+  assert.match(s.ctx.hjCardItens({ itens: [] }).textContent, /Nada pedindo atenção/);
+});
+test("Lote 4: 'O que mudou desde ontem' junta as linhas por regra e as das fontes (hjMudouAdd), 5 à vista, 'ver mais', tudo tocável; some se não há nada", () => {
+  const s = telaSite({ resp: RESP, jsons: JSONS }), x = { hoje: "2026-11-22", mudancas: [{ area: "financas", texto: "Gastos registrados ontem: R$ 40,40" }, { area: "carreira", texto: "2 vagas novas desde ontem" }, { area: "noticias", texto: "Edição nova da Newsletter" }] };
+  const linksDe = (e) => varre(e, (y) => y.tagName === "A" && /rac-linha-item/.test(y.className));
+  s.ctx.hjMudouAdd("treino", [{ texto: "Treino de ontem: Running · 5,23 km", href: "#saude/treino/9" }]); s.ctx.hjMudouAdd("compras", [{ texto: "Compras de ontem: 2 notas · R$ 85,00", href: "#mercado" }]);
+  s.ctx.hjMudouAdd("mba", [{ texto: "MBA: 1 aula para assistir", href: "#mba" }]); s.ctx.hjMudouAdd("esportes", [{ texto: "Lakers: V 106–104 vs SAC (ontem)", href: "#esportes" }]);
+  const c = s.ctx.hjCardMudou(x), t = c.textContent;
+  assert.match(t, /O que mudou desde ontem/); assert.equal(linksDe(c).length, 5, "5 à vista de 7");
+  assert.ok(t.indexOf("Treino de ontem") < t.indexOf("Gastos registrados ontem"), "as linhas das fontes vêm antes das contas por regra");
+  const mais = botao(c, "ver mais (2)"); assert.ok(mais); mais.onclick(); assert.equal(linksDe(c).length, 7); assert.ok(linksDe(c).every((a) => /^#/.test(a.attrs.href)), "toda linha leva a algum lugar");
+  s.ctx.hjMudouZerar(); assert.equal(s.ctx.hjCardMudou({ hoje: "2026-11-22", mudancas: [] }), null, "sem nada, o cartão não existe");
+});
+test("Lote 4: a abertura tem o ↻ pequeno (sem o botão grande) e o 'Custos de IA' vira link pequeno dentro do cartão da análise", async () => {
+  const s = telaSite({ resp: RESP, jsons: JSONS }); s.ctx.renderHoje(); await fluxo(); const tela = s.alvos["#rachoje-view"];
+  const rel = relerBtn(tela); assert.ok(rel, "o ícone ↻ existe"); assert.equal(rel.textContent.trim(), "↻"); assert.ok(!/Reler as fontes/.test(rel.textContent));
+  assert.equal(botao(tela, "Custos de IA"), undefined, "não há botão grande de Custos de IA");
+  const hrefs = varre(tela, (e) => e.tagName === "A" && e.attrs.href === "#iacustos"); assert.equal(hrefs.length, 1, "só o link pequeno"); assert.ok(!/só lê os seus dados; a IA é chamada somente quando você confirma/.test(tela.textContent), "a frase antiga saiu da abertura");
+  const hoje = ler("js/hoje.js"), ia = hoje.slice(hoje.indexOf('rkCard("Análise da IA"'), hoje.indexOf('rkCard("Análise da IA"') + 400); assert.match(ia, /acao:rkLink\("ter","Custos de IA","#iacustos"\)/);
+  assert.ok(!/function hjCardPrioridades/.test(hoje), "o cartão Prioridades deixou de existir (os itens vivem em 'Itens do dia')");
+});
+test("Lote 4: as compras e o treino de ontem entram no 'O que mudou' (e só se forem mesmo de ontem)", async () => {
+  const ont = N.somaDiasISO(HOJE, -1);
+  const compras = [{ id: 1, data: ont, mercado: "Mercado A (Sorocaba)", numero: "10", valor_total: 40 }, { id: 2, data: ont, mercado: "Mercado A (Sorocaba)", numero: "10", valor_total: 5.5 }, { id: 3, data: ont, mercado: "Padaria B", numero: "7", valor_total: 3 }, { id: 4, data: N.somaDiasISO(HOJE, -3), mercado: "Loja C", numero: "1", valor_total: 99 }];
+  const s = telaSite({ resp: { ...RESP, compras, garmin_ativ: [{ id: "9", inicio: ont + "T08:10:00", tipo: "running", dados: { distancia: 5230, duracao: 1805 } }] }, jsons: JSONS });
+  s.ctx.hjUltimasCompras(); s.ctx.hjUltimoTreino(new El("div")); await fluxo();
+  const t = s.ctx.hjCardMudou({ hoje: HOJE, mudancas: [] }).textContent;
+  assert.match(t, /Compras de ontem: 2 notas · Padaria B, Mercado A · R\$\s?48,50/); assert.ok(!/Loja C/.test(t), "compra de 3 dias atrás não entra");
+  assert.match(t, /Treino de ontem: Running · 5,23 km · 30 min/);
+  const antigo = telaSite({ resp: { ...RESP, compras: [compras[3]], garmin_ativ: [{ id: "8", inicio: N.somaDiasISO(HOJE, -4) + "T08:10:00", tipo: "running", dados: { distancia: 5000, duracao: 1800 } }] }, jsons: JSONS });
+  antigo.ctx.hjUltimasCompras(); antigo.ctx.hjUltimoTreino(new El("div")); await fluxo();
+  assert.equal(antigo.ctx.hjCardMudou({ hoje: HOJE, mudancas: [] }), null, "sem compra nem treino de ontem, nenhuma linha");
+});
+test("Lote 4: o resultado de ontem dos times e a prontidão chegam ao 'O que mudou' sem entrar no pacote de fatos da IA", () => {
+  const app = ler("js/app.js"), e = app.slice(app.indexOf("function wEsportes()"), app.indexOf("/* Mercado do mês */"));
+  assert.match(e, /li\.ult=\{t:nome\+": "\+txt,date:u\.date,href:href\}/, "cada time guarda o último jogo"); assert.match(e, /hjMudouAdd\("esportes"/); assert.match(e, /America\/Sao_Paulo/, "ontem é o dia de Brasília"); assert.match(e, /\(ontem\)/);
+  const hoje = ler("js/hoje.js"), ctxIA = ler("nucleo.js"); assert.ok(!/hjMudouAdd|HJ\.extras/.test(ctxIA), "o núcleo e o pacote da IA não conhecem as linhas só de exibição");
+  assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjMudouLinhas"), hoje.indexOf("function hjMudouZerar"))), "o 'O que mudou' nunca chama a IA");
+});
+
+/* Lote 4: a IA automática do Hoje. Autorizada pelo dono em 22/11/2026: até 2 chamadas pagas por dia, a partir das 6h e das 14h, com o app aberto, interruptor DESLIGADO por padrão.
+   Aqui nada é chamado de verdade: o racIA é um dublê que só conta. */
+const FakeDate = (t) => class extends Date { static now() { return t; } };
+const horaDe = (h) => Date.parse(HOJE + "T" + h + ":00-03:00"), ciclo = async (n = 10) => { for (let i = 0; i < n; i++) await fluxo(); };
+function autoSite({ ligado = true, hora = "09:00", ia_custos = [], mem = {}, racIA, extra = {} } = {}) {
+  const chamadas = [], gravados = [], PESS = { perfilCarreira: { skills: ["sql", "powerbi"] }, candidaturas: [], hojeIaAuto: ligado };
+  const marcaNaChamada = [];
+  const rac = racIA || ((...a) => { chamadas.push(a); marcaNaChamada.push(mem["rac-hoje-auto"] || null); return Promise.resolve(respostaReal()); });
+  const s = telaSite({ resp: { ...RESP, ia_custos }, jsons: JSONS, mem, racIA: (...a) => { if (racIA) chamadas.push(a); return rac(...a); }, extra: { Date: FakeDate(horaDe(hora)), PESSOAL: PESS, pessoalGravar: (k, v) => { PESS[k] = v; gravados.push([k, v]); }, ...extra } });
+  return { ...s, chamadas, gravados, PESS, mem, marcaNaChamada };
+}
+test("IA automática: desligada por padrão, nunca chama nada, nem dentro da janela", async () => {
+  const a = autoSite({ ligado: false }); a.ctx.renderHoje(); await ciclo();
+  assert.equal(a.chamadas.length, 0, "sem o interruptor ligado não há chamada"); assert.equal(a.mem["rac-hoje-auto"], undefined, "nem marca de janela");
+  const sem = autoSite({ ligado: undefined }); sem.PESS.hojeIaAuto = undefined; sem.ctx.renderHoje(); await ciclo(); assert.equal(sem.chamadas.length, 0, "sem a chave, é desligado");
+});
+test("IA automática: ligada, na janela da manhã e com a contagem do servidor em 0, faz UMA chamada e a marca da janela é gravada ANTES dela", async () => {
+  const a = autoSite({}); a.ctx.renderHoje(); await ciclo();
+  assert.equal(a.chamadas.length, 1, "uma chamada"); const m = JSON.parse(a.marcaNaChamada[0]); assert.deepEqual(m, { dia: HOJE, manha: true }, "a marca já estava gravada quando a chamada saiu");
+  assert.match(a.alvos["#rachoje-view"].textContent, /Resumo da IA/, "o resumo da IA aparece no topo"); assert.ok(a.alvos["#rachoje-view"].textContent.includes(respostaReal().resultado.resumo.slice(0, 40)), "com o texto do Resumo da análise");
+});
+test("IA automática: reabrir a tela na mesma janela não chama de novo, mesmo sem o cache da análise (a marca vale)", async () => {
+  const mem = {}, a = autoSite({ mem }); a.ctx.renderHoje(); await ciclo(); assert.equal(a.chamadas.length, 1);
+  for (const k of Object.keys(mem)) if (k !== "rac-hoje-auto") delete mem[k];   // some o cache e o resto: fica só a marca
+  const b = autoSite({ mem }); b.ctx.renderHoje(); await ciclo(); b.ctx.renderHoje(); await ciclo(); assert.equal(b.chamadas.length, 0, "a marca da manhã impede outra chamada");
+});
+test("IA automática: depois de um erro não tenta de novo (a marca já estava gravada)", async () => {
+  const mem = {}, falhou = []; const a = autoSite({ mem, racIA: (...x) => { falhou.push(x); return Promise.reject(new Error("rede caiu")); } }); a.ctx.renderHoje(); await ciclo();
+  assert.equal(falhou.length, 1, "uma tentativa"); a.ctx.renderHoje(); await ciclo(); a.ctx.hjAutoTentar(); await ciclo(); assert.equal(falhou.length, 1, "nenhuma segunda tentativa");
+  const b = autoSite({ mem, racIA: (...x) => { falhou.push(x); return Promise.reject(new Error("de novo")); } }); b.ctx.renderHoje(); await ciclo(); assert.equal(falhou.length, 1, "nem em outro aparelho com a mesma marca");
+});
+test("IA automática: com 2 chamadas do Hoje já registradas no servidor, ou sem conseguir contar, não chama", async () => {
+  const dois = autoSite({ ia_custos: [{ id: 1 }, { id: 2 }] }); dois.ctx.renderHoje(); await ciclo(); assert.equal(dois.chamadas.length, 0, "limite de 2 por dia, contado no servidor");
+  assert.equal(dois.mem["rac-hoje-auto"], undefined, "sem chamada, sem marca"); assert.match(dois.alvos["#rachoje-view"].textContent, /2 análises/, "o motivo aparece");
+  const um = autoSite({ ia_custos: [{ id: 1 }] }); um.ctx.renderHoje(); await ciclo(); assert.equal(um.chamadas.length, 1, "com 1 ainda cabe uma");
+  const sem = autoSite({ ia_custos: FALHA }); sem.ctx.renderHoje(); await ciclo(); assert.equal(sem.chamadas.length, 0, "sem conseguir contar, na dúvida, não gasta"); assert.match(sem.alvos["#rachoje-view"].textContent, /não consegui contar/i);
+});
+test("IA automática: antes das 6h não chama; a janela da tarde (a partir das 14h) é outra e roda mesmo com a da manhã já feita", async () => {
+  const cedo = autoSite({ hora: "05:30" }); cedo.ctx.renderHoje(); await ciclo(); assert.equal(cedo.chamadas.length, 0, "antes das 6h não há janela");
+  const tarde = autoSite({ hora: "15:00", mem: { "rac-hoje-auto": JSON.stringify({ dia: HOJE, manha: true }) } }); tarde.ctx.renderHoje(); await ciclo();
+  assert.equal(tarde.chamadas.length, 1, "a tarde roda"); assert.deepEqual(JSON.parse(tarde.mem["rac-hoje-auto"]), { dia: HOJE, manha: true, tarde: true }, "e a marca da manhã continua");
+  const meio = autoSite({ hora: "13:59" }); meio.ctx.renderHoje(); await ciclo(); assert.deepEqual(JSON.parse(meio.mem["rac-hoje-auto"]), { dia: HOJE, manha: true }, "às 13h59 ainda é a manhã");
+});
+test("IA automática: se o navegador não consegue guardar a marca, não chama (na dúvida, não gasta)", async () => {
+  const a = autoSite({ extra: { quotaLS: (k) => k === "rac-hoje-auto" } }); a.ctx.renderHoje(); await ciclo();
+  assert.equal(a.chamadas.length, 0, "sem marca gravada não há chamada"); assert.match(a.alvos["#rachoje-view"].textContent, /não consegue guardar a marca/i);
+});
+test("IA automática: o interruptor mostra o custo, pede confirmação para ligar, liga e desliga na conta (PESSOAL)", async () => {
+  const a = autoSite({ ligado: false, hora: "15:00" }); a.ctx.renderHoje(); await ciclo(3); const tela = a.alvos["#rachoje-view"];
+  assert.match(tela.textContent, /Análise automática: desligada/); const ligar = botao(tela, "Ligar a análise automática"); assert.ok(ligar); ligar.onclick();
+  assert.match(tela.textContent, /Ligar autoriza até 2 chamadas pagas por dia/); assert.match(tela.textContent, /US\$ 0,026/); assert.deepEqual(a.gravados, [], "só mostrar o aviso não liga nada"); assert.equal(a.chamadas.length, 0);
+  botao(tela, "Cancelar").onclick(); assert.deepEqual(a.gravados, [], "cancelar não liga");
+  botao(tela, "Ligar a análise automática").onclick(); botao(tela, "Confirmar e ligar").onclick(); await ciclo();
+  assert.deepEqual(a.gravados, [["hojeIaAuto", true]], "ligou na conta"); assert.equal(a.chamadas.length, 1, "ligar dentro da janela que ainda não rodou faz a análise de agora (o aviso dizia isso)");
+  assert.match(tela.textContent, /Análise automática: ligada/); botao(tela, "Desligar a análise automática").onclick(); assert.deepEqual(a.gravados[1], ["hojeIaAuto", false], "desligou na conta");
+});
+test("IA automática: o código chama só pelo mesmo caminho do botão, marca antes, conta no servidor e nunca grava nada além do interruptor", () => {
+  const hoje = ler("js/hoje.js"), f = hoje.slice(hoje.indexOf("function hjAutoTentar()"), hoje.indexOf("function hjCarregar("));
+  assert.ok(f.indexOf("hjAutoMarcar(j.dia,j.janela)") > 0 && f.indexOf("hjAutoMarcar(j.dia,j.janela)") < f.indexOf("hjAnalisar({auto:true})"), "a marca vem antes da chamada");
+  assert.match(f, /hjAutoContar\(j\.dia\)/); assert.match(f, /NUCLEO\.hojeIaAutoPode\(/); assert.ok(!/hojeAnalisar\(|racIA\(|functions\.invoke/.test(f), "só pelo hjAnalisar, o mesmo caminho do botão");
+  assert.match(hoje, /\.from\("ia_custos"\)\.select\("id"\)\.eq\("funcionalidade","hoje"\)\.gte\("criado_em"/, "a contagem lê só a view de custos");
+  assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/.test(hoje.slice(hoje.indexOf("function hjAutoContar"), hoje.indexOf("function hjCarregar("))), "nada grava");
 });

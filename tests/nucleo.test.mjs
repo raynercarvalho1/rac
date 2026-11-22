@@ -717,3 +717,48 @@ test("Saúde no Hoje: a linha do último treino (tipo, dia, distância, duraçã
   assert.equal(N.hojeTreinoLinha({ id: "1", inicio: "2026-11-21T08:10:00", tipo: "strength_training" }).sub, "21/11", "sem dados, só o dia");
   assert.equal(N.hojeTreinoLinha(null), null); assert.equal(N.hojeTreinoLinha({ id: "1", tipo: "x" }), null, "sem início não há o que mostrar");
 });
+
+/* Hoje, Lote 4 (docs/planejamento/11-reestruturacao-visual.md, seções 9 e 10): a análise automática 2 vezes por dia (6h e 14h, com o app aberto) e o "o que mudou" */
+test("análise automática: as janelas são a partir das 6h e a partir das 14h, no horário de Brasília; antes das 6h não há janela", () => {
+  const j = (iso) => N.hojeIaJanela(Date.parse(iso));
+  assert.deepEqual(j("2026-11-22T05:59:59-03:00"), { dia: "2026-11-22", janela: null });
+  assert.deepEqual(j("2026-11-22T06:00:00-03:00"), { dia: "2026-11-22", janela: "manha" });
+  assert.deepEqual(j("2026-11-22T13:59:59-03:00"), { dia: "2026-11-22", janela: "manha" });
+  assert.deepEqual(j("2026-11-22T14:00:00-03:00"), { dia: "2026-11-22", janela: "tarde" });
+  assert.deepEqual(j("2026-11-22T23:59:59-03:00"), { dia: "2026-11-22", janela: "tarde" });
+  assert.deepEqual(j("2026-11-23T00:30:00-03:00"), { dia: "2026-11-23", janela: null }, "virada do dia: dia novo, sem janela");
+  assert.deepEqual(j("2026-11-23T02:30:00Z"), { dia: "2026-11-22", janela: "tarde" }, "02h30 UTC ainda é 23h30 do dia 22 em Brasília");
+});
+test("análise automática: só sai se o dono ligou, na janela, uma vez por janela, com contagem do servidor abaixo de 2 e sem nada em voo", () => {
+  const base = { ligado: true, janela: "manha", dia: "2026-11-22", marcas: null, chamadasHoje: 0, ocupado: false, jaTemAnalise: false };
+  const r = (o) => N.hojeIaAutoPode({ ...base, ...o });
+  assert.deepEqual(r({}), { ok: true, motivo: "" });
+  assert.equal(r({ ligado: false }).motivo, "desligado", "interruptor desligado: nunca chama"); assert.equal(r({ ligado: undefined }).motivo, "desligado", "sem o interruptor, é desligado");
+  assert.equal(r({ janela: null }).motivo, "fora_da_janela");
+  assert.equal(r({ marcas: { dia: "2026-11-22", manha: true } }).motivo, "janela_ja_rodou", "a marca da janela vale: nunca repete");
+  assert.deepEqual(r({ marcas: { dia: "2026-11-21", manha: true, tarde: true } }), { ok: true, motivo: "" }, "marca de ontem não vale hoje");
+  assert.deepEqual(r({ janela: "tarde", marcas: { dia: "2026-11-22", manha: true } }), { ok: true, motivo: "" }, "a janela da tarde é outra");
+  assert.equal(r({ janela: "tarde", marcas: { dia: "2026-11-22", manha: true, tarde: true } }).motivo, "janela_ja_rodou");
+  assert.equal(r({ ocupado: true }).motivo, "em_voo");
+  assert.equal(r({ chamadasHoje: null }).motivo, "contagem_indisponivel", "sem conseguir contar no servidor, não chama");
+  assert.equal(r({ chamadasHoje: undefined }).motivo, "contagem_indisponivel"); assert.equal(r({ chamadasHoje: "x" }).motivo, "contagem_indisponivel");
+  assert.equal(r({ chamadasHoje: 2 }).motivo, "limite_diario", "2 chamadas do Hoje no dia: o limite"); assert.equal(r({ chamadasHoje: 5 }).motivo, "limite_diario"); assert.equal(r({ chamadasHoje: 1 }).ok, true);
+  assert.equal(r({ jaTemAnalise: true }).motivo, "ja_analisado", "a mesma análise para os mesmos dados não é paga de novo");
+  assert.equal(r({ ligado: false, janela: null, ocupado: true, chamadasHoje: 9 }).motivo, "desligado", "o interruptor é a primeira trava");
+});
+test("análise automática: a marca da janela é gravada para o dia e nunca apaga a outra janela do mesmo dia", () => {
+  assert.deepEqual(N.hojeIaMarcar(null, "2026-11-22", "manha"), { dia: "2026-11-22", manha: true });
+  assert.deepEqual(N.hojeIaMarcar({ dia: "2026-11-22", manha: true }, "2026-11-22", "tarde"), { dia: "2026-11-22", manha: true, tarde: true });
+  assert.deepEqual(N.hojeIaMarcar({ dia: "2026-11-21", manha: true, tarde: true }, "2026-11-22", "manha"), { dia: "2026-11-22", manha: true }, "dia novo começa limpo");
+  assert.deepEqual(N.hojeIaMarcar("lixo", "2026-11-22", "tarde"), { dia: "2026-11-22", tarde: true }, "marca estragada é ignorada");
+});
+test("o que mudou: a prontidão de hoje contra a do dia anterior, só com as duas; nada se não houver dado", () => {
+  const base = []; for (let i = 1; i <= 12; i++) base.push({ data: "2026-11-" + String(i).padStart(2, "0"), dados: { vfc: { noite: 50 + (i % 3) }, fcRepouso: 52 + (i % 2), sono: { total: 7 * 3600, nota: 75 }, bbMax: 70 } });
+  const ruim = { data: "2026-11-13", dados: { vfc: { noite: 30 }, fcRepouso: 62, sono: { total: 4.5 * 3600, nota: 40 }, bbMax: 25 } }, bom = { data: "2026-11-14", dados: { vfc: { noite: 54 }, fcRepouso: 51, sono: { total: 8 * 3600, nota: 85 }, bbMax: 90 } };
+  const dias = base.concat([ruim, bom]), r = N.hojeMudouProntidao(dias, "2026-11-14");
+  assert.equal(r.atual, N.prontidao(dias, "2026-11-14").nota); assert.equal(r.anterior, N.prontidao(dias, "2026-11-13").nota); assert.ok(r.atual > r.anterior, "dormiu bem depois de uma noite ruim");
+  assert.match(r.texto, new RegExp("^Prontidão " + r.atual + " .* contra " + r.anterior + " ontem$"));
+  assert.match(N.hojeMudouProntidao(dias, "2026-11-15").texto, /contra \d+ no dia anterior$/, "se o último dado não é de hoje, não se chama de ontem");
+  assert.equal(N.hojeMudouProntidao(base.concat([bom]), "2026-11-14"), null, "sem o dia anterior, não compara");
+  assert.equal(N.hojeMudouProntidao([], "2026-11-14"), null); assert.equal(N.hojeMudouProntidao(null, "2026-11-14"), null);
+});

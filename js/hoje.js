@@ -343,7 +343,7 @@
   /* ===== Tela do RAC Hoje (#rachoje). Abrir a tela só LÊ (coletor, regras do núcleo, cache deste aparelho e o histórico em ia_custos):
      a IA só é chamada pelos botões "Analisar" e "Perguntar", depois de uma confirmação explícita, e nunca no lugar de um erro
      aparece uma análise simulada. Só do dono. ===== */
-  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null,blocos:null,foco:null,treino:undefined};
+  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null,blocos:null,foco:null,treino:undefined,extras:{},slotMudou:null,auto:false,autoVerificando:false,autoMotivo:"",vis:false};
   /* "Dados recentes" só com data conferida (ou registro de hoje); "Leitura realizada" é só leitura concluída, o dado pode ser antigo */
   var HJ_ESTADOS={ok:"Dados recentes",lida:"Leitura realizada",parcial:"Leitura parcial",vazia:"Sem dados",falhou:"Falhou",desatualizada:"Desatualizada",ausente:"Não lida"};
   var HJ_PRIO={alta:"Alta",media:"Média","média":"Média",baixa:"Baixa"};
@@ -426,18 +426,33 @@
     if(s&&!s.semDados&&s.prontidao!=null)item("Prontidão",s.prontidao,s.rotulo?h("span",{class:"rac-t-legenda",text:s.rotulo+(s.atraso>1?" · dados de "+s.atraso+" dias atrás":"")}):null,"#saude");
     return sec}
   /* prioridades: as mesmas regras do núcleo (x.itens), cada linha leva ao módulo do dado; as 5 primeiras, o resto sob demanda */
-  function hjCardPrioridades(x){var itens=x.itens||[],corpo=h("div",{class:"rac-pilha",style:"gap:8px"});
+  /* Itens do dia (Lote 4): os 3 mais importantes pelas regras do núcleo (x.itens), cada um tocável e levando ao módulo; "ver todos" abre o resto no mesmo lugar.
+     Substituiu o cartão Prioridades do dia (as regras de prioridade são as mesmas). */
+  function hjCardItens(x){var itens=x.itens||[],corpo=h("div",{class:"rac-pilha",style:"gap:8px"});
     function linha(it){var d=hjPrazoTxt(it),nv=String(it.nivel).replace("é","e");
       return {titulo:it.titulo,sub:[d,it.sub].filter(Boolean).join(" · "),href:hjDestino(it),marca:nv==="alta"?"alta":nv==="media"?"media":null,
         meta:rkSelo(nv==="alta"?"erro":nv==="media"?"aviso":"neutro",HJ_PRIO[it.nivel]||it.nivel)}}
     if(!itens.length)corpo.appendChild(rkEstado("vazio","Nada pedindo atenção nas fontes lidas."));
-    else{var lista=h("div",null,rkLista(itens.slice(0,5).map(linha)));corpo.appendChild(lista);
-      if(itens.length>5){var mais=rkBtn("ter","Mostrar todas ("+itens.length+")",{"aria-expanded":"false"}),aberto=false;
-        mais.onclick=function(){aberto=!aberto;lista.innerHTML="";lista.appendChild(rkLista((aberto?itens:itens.slice(0,5)).map(linha)));mais.textContent=aberto?"Mostrar menos":"Mostrar todas ("+itens.length+")";mais.setAttribute("aria-expanded",aberto?"true":"false")};
+    else{var lista=h("div",null,rkLista(itens.slice(0,3).map(linha)));corpo.appendChild(lista);
+      if(itens.length>3){var mais=rkBtn("ter","ver todos ("+itens.length+")",{"aria-expanded":"false"}),aberto=false;
+        mais.onclick=function(){aberto=!aberto;lista.innerHTML="";lista.appendChild(rkLista((aberto?itens:itens.slice(0,3)).map(linha)));mais.textContent=aberto?"mostrar menos":"ver todos ("+itens.length+")";mais.setAttribute("aria-expanded",aberto?"true":"false")};
         corpo.appendChild(mais)}}
-    if(x.mudancas.length){corpo.appendChild(h("span",{class:"rac-t-rotulo rac-grupo-rotulo",text:"O que mudou desde ontem"}));
-      corpo.appendChild(rkLista(x.mudancas.map(function(m){return {titulo:m.texto,href:HJ_DESTINO[m.area]||null}}),true))}
-    var c=hjRecolhivel(rkCard("Prioridades do dia",corpo,{sub:"Ordenadas pelas regras do RAC (atraso, prazo e área), sem IA.",classe:"rh-prio"}),"Prioridades do dia");c.id="rh-prio";return c}
+    var c=hjRecolhivel(rkCard("Itens do dia",corpo,{sub:"Pelas regras do RAC (atraso, prazo e área), sem IA. Toque num item para abrir.",classe:"rh-largo"}),"Itens do dia");c.id="rh-itens";return c}
+  /* O que mudou desde ontem (Lote 4): subiu para logo abaixo dos itens. Linhas por regra (x.mudancas) mais as das fontes que chegam depois (HJ.extras, por hjMudouAdd): prontidão, treino de
+     ontem, compras de ontem, MBA e esportes. São só de exibição: nunca entram no pacote de fatos da IA. 5 à vista e "ver mais"; toda linha leva ao módulo. */
+  var HJ_MUDOU_ORDEM=["treino","compras","mba","esportes"],HJ_MUDOU_DESTINO={financas:"#mercado",carreira:"#vagas",saude:"#saude",noticias:"#newsletter"};   /* para onde cada linha por regra leva (a área "carreira" não existe em HJ_DESTINO) */
+  function hjMudouLinhas(x){var l=[],sf=hjFonteDoDia("saude"),pr=sf&&sf.dias?NUCLEO.hojeMudouProntidao(sf.dias,x.hoje):null;
+    if(pr)l.push({titulo:pr.texto,href:"#saude"});
+    HJ_MUDOU_ORDEM.forEach(function(k){(HJ.extras[k]||[]).forEach(function(e){l.push({titulo:e.texto,href:e.href||null})})});
+    (x.mudancas||[]).forEach(function(m){l.push({titulo:m.texto,href:HJ_MUDOU_DESTINO[m.area]||HJ_DESTINO[m.area]||null})});return l}
+  function hjCardMudou(x){var l=hjMudouLinhas(x);if(!l.length)return null;var corpo=h("div",{class:"rac-pilha",style:"gap:8px"}),lista=h("div",null,rkLista(l.slice(0,5)));corpo.appendChild(lista);
+    if(l.length>5){var mais=rkBtn("ter","ver mais ("+(l.length-5)+")",{"aria-expanded":"false"}),aberto=false;
+      mais.onclick=function(){aberto=!aberto;lista.innerHTML="";lista.appendChild(rkLista(aberto?l:l.slice(0,5)));mais.textContent=aberto?"ver menos":"ver mais ("+(l.length-5)+")";mais.setAttribute("aria-expanded",aberto?"true":"false")};corpo.appendChild(mais)}
+    return hjRecolhivel(rkCard("O que mudou desde ontem",corpo,{classe:"rh-largo rh-mudou"}),"O que mudou desde ontem")}
+  /* as fontes (MBA, compras, último treino, esportes) entregam as suas linhas quando os dados chegam; o cartão se repinta sozinho, sem redesenhar a tela nem ler nada de novo */
+  function hjMudouPintar(){var sl=HJ.slotMudou;if(!sl||!HJ.x)return;sl.innerHTML="";var c=hjCardMudou(HJ.x);if(c)sl.appendChild(c);sl.hidden=!c}
+  function hjMudouAdd(chave,linhas){HJ.extras[chave]=linhas||[];hjMudouPintar()}
+  function hjMudouZerar(){HJ.extras={}}
   /* gastos: este mês × mesmo trecho do mês passado, por origem (a conta é a do núcleo: NUCLEO.hojeFinancas) */
   function hjCardGastos(x){var f=x.financas;if(!f||!f.fontes.length)return null;
     var L=f.fontes.map(function(n){return {nome:HJ_NOMES_FIN[n],atual:f.atual[n]||0,anterior:f.anterior[n]||0,txtAtual:NUCLEO.hojeReais(f.atual[n]||0),txtAnterior:NUCLEO.hojeReais(f.anterior[n]||0)}});
@@ -450,7 +465,8 @@
   function hjUltimasCompras(){var p=typeof wCard==="function"?wCard("Últimas compras","mala","#C2410C",["#mercado","abrir a Central"]):h("div",{class:"panel"}),
       ul=h("ul",{class:"wl"},h("li",null,h("span",{class:"sub",text:"Carregando as compras…"})));p.appendChild(ul);
     Promise.resolve().then(function(){return SB.from("compras").select("id,data,mercado,numero,valor_total").order("data",{ascending:false}).order("id",{ascending:false}).limit(150)}).then(sbOk).then(function(l){
-      var n=NUCLEO.mkUltimasNotas(l,5);ul.innerHTML="";
+      var n=NUCLEO.mkUltimasNotas(l,5),ont=NUCLEO.somaDiasISO(hojeISO(),-1),on=NUCLEO.mkUltimasNotas(l,50).filter(function(z){return z.data===ont});ul.innerHTML="";
+      hjMudouAdd("compras",on.length?[{texto:"Compras de ontem: "+on.length+(on.length===1?" nota":" notas")+" · "+on.map(function(z){return z.loja}).filter(function(v,i,a2){return v&&a2.indexOf(v)===i}).slice(0,3).join(", ")+" · "+NUCLEO.hojeReais(on.reduce(function(t,z){return t+z.total},0)),href:"#mercado"}]:[]);
       if(!n.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhuma compra lançada ainda."})));return}
       n.forEach(function(x){ul.appendChild(h("li",null,h("span",{class:"grow"},h("a",{href:"#mercado",text:x.loja||"Compra"}),h("span",{class:"sub",text:dataBR(x.data).slice(0,5)+" · "+x.itens+(x.itens===1?" item":" itens")})),h("span",{class:"end",text:NUCLEO.hojeReais(x.total)})))})
     }).catch(function(e){ul.innerHTML="";ul.appendChild(h("li",null,h("span",{class:"sub",text:"Não consegui ler as compras agora."})));logErro("hoje",e)});
@@ -466,7 +482,8 @@
     function pintar(l){if(!l)return;box.appendChild(h("a",{class:"rh-treino",href:l.href},h("span",{class:"rac-t-rotulo",text:"Último treino"}),h("b",{text:l.titulo}),h("span",{class:"rac-t-sec",text:l.sub+" · ver o treino e o mapa"})))}
     if(HJ.treino!==undefined){pintar(HJ.treino);return}
     fonteOuErro("saude",{semDias:true,limiteAtiv:6}).then(function(c){var ocultos=NUCLEO.TREINO_OCULTOS,a=((c.v&&c.v.ativs)||[]).filter(function(t){return ocultos.indexOf(t.tipo)<0})[0];
-      HJ.treino=NUCLEO.hojeTreinoLinha(a);pintar(HJ.treino)},function(e){logErro("hoje",e)})}
+      HJ.treino=NUCLEO.hojeTreinoLinha(a);pintar(HJ.treino);
+      var ontT=NUCLEO.somaDiasISO(hojeISO(),-1),l2=HJ.treino;hjMudouAdd("treino",l2&&a&&String(a.inicio).slice(0,10)===ontT?[{texto:"Treino de ontem: "+l2.titulo+(l2.sub.indexOf(" · ")>0?" · "+l2.sub.split(" · ").slice(1).join(" · "):""),href:l2.href}]:[])},function(e){logErro("hoje",e)})}
   /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
      (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
   function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */
@@ -488,31 +505,39 @@
     if(s.alertas&&s.alertas.length)corpo.appendChild(rkAlerta("aviso","Atenção na recuperação",s.alertas.join("; ")));
     return hjRecolhivel(rkCard("Saúde e treino",corpo,{sub:sub||"Dados do relógio.",acao:rkLink("ter","Abrir Saúde","#saude"),origem:"Último dia com dados: "+hjDataBR(s.ultimo)+(s.atraso>1?" ("+s.atraso+" dias atrás; a Saúde se sincroniza pelo botão próprio)":"")}),"Saúde e treino")}
   function hjPontos(est){var p=h("span",{class:"rh-pontos","aria-hidden":"true"});est.forEach(function(e){var c=e.estado==="falhou"?"erro":e.estado==="ausente"?"neutro":(e.estado==="ok"||e.estado==="lida")?"":"aviso";p.appendChild(h("i",{class:c}))});return p}
+  /* o resumo do topo (Lote 4): o campo "Resumo" da análise do dia feita pela IA, com link para a análise completa; sem ela, o resumo por regras de sempre; com a automática em curso, o selo "analisando" */
+  function hjResumoTopo(x,hist){var y=hist.filter(function(a){return !a.pergunta&&a.hoje===x.hoje})[0],txt=y&&y.resultado&&typeof y.resultado.resumo==="string"?y.resultado.resumo.trim():"",box=h("div",{class:"rh-hero-resumo"});
+    if(txt){box.appendChild(h("span",{class:"rh-selo-ia",text:"Resumo da IA · "+hjQuando(y.quando).slice(-5)}));box.appendChild(h("p",{text:txt.length>360?txt.slice(0,357)+"…":txt}));
+      var ver=h("button",{type:"button",class:"rh-link",text:"ver análise completa"});ver.onclick=function(){var el=document.getElementById&&document.getElementById("rh-analise");if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"})};box.appendChild(ver);return box}
+    if(HJ.ocupado&&HJ.auto)box.appendChild(h("span",{class:"rh-selo-ia",text:"Analisando o dia com a IA… (até 2 minutos)"}));
+    box.appendChild(h("p",{text:hjResumoDia(x)}));return box}
   function hjDesenhar(){
     var x=HJ.x,corpo=HJ.corpo;if(!x||!corpo)return;corpo.innerHTML="";
     var hist=hojeHistorico(),a=hist.filter(function(y){return y.chave===HJ.sel})[0]||hist[0]||null,pacote=hojePacote(x),def=a?NUCLEO.hojeDefasagem(a,pacote,x.hoje,Date.now()):null,
       uteis=NUCLEO.hojeFontesUteis(x.estados),qual=NUCLEO.hojeQualidadeFontes(x.estados),prev=hojePrever(x,"",false);
     /* 0. abertura: saudação, o dia numa frase, contexto e as duas ações de sempre (reler as fontes, custos de IA) */
-    var agora=new Date(),rel=rkBtn("fantasma","↻ Reler as fontes"),cus=rkLink("fantasma","Custos de IA","#iacustos"),ctx=h("div",{class:"rh-hero-ctx"}),tempo=hjFonteDoDia("tempo"),esp=hjFonteDoDia("esportes");
+    var agora=new Date(),rel=h("button",{type:"button",class:"rh-icone","aria-label":"Reler as fontes",title:"Reler as fontes",text:"↻"}),ctx=h("div",{class:"rh-hero-ctx"}),tempo=hjFonteDoDia("tempo"),esp=hjFonteDoDia("esportes");
     rel.onclick=function(){if(HJ.ocupado)return;HJ.erro=null;HJ.aviso="";hjCarregar(true)};
     if(typeof tempo==="string")ctx.appendChild(h("span",{class:"rh-chip"},"⛅ "+tempo.replace(/^Em Sorocaba:\s*/,"Sorocaba: ").replace(/\.$/,"")));
     if(typeof esp==="string")ctx.appendChild(h("span",{class:"rh-chip"},"⚾ "+esp.replace(/\.$/,"")));
     corpo.appendChild(h("section",{class:"rh-hero","aria-label":"Visão geral do dia"},
       h("div",null,h("h2",{text:saudacao()+", Rayner"}),h("p",{class:"rh-hero-data",text:agora.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}),
-        h("p",{class:"rh-hero-resumo",text:hjResumoDia(x)+" Abrir esta tela só lê os seus dados; a IA é chamada somente quando você confirma."})),
-      h("div",{class:"rh-hero-acoes"},rel,cus),ctx.children.length?ctx:null));
+        hjResumoTopo(x,hist)),
+      h("div",{class:"rh-hero-acoes"},rel),ctx.children.length?ctx:null));
     var falhas=x.estados.filter(function(e){return e.estado==="falhou"});
     if(falhas.length)corpo.appendChild(h("div",{class:"rh-largo"},rkAlerta("aviso",falhas.length+(falhas.length===1?" fonte falhou":" fontes falharam"),falhas.map(function(e){return e.nome}).join(", ")+". O resto do painel continua valendo; a lista completa está em \"Fontes de informação\", mais abaixo.")));
     /* 1. indicadores */
+    /* 1. os itens do dia e o que mudou, logo abaixo do "Bom dia" (Lote 4) */
+    corpo.appendChild(hjCardItens(x));
+    HJ.slotMudou=h("div",{class:"rh-largo"});hjMudouPintar();corpo.appendChild(HJ.slotMudou);
+    /* 2. indicadores, foco do dono (MBA e compras), Saúde, gastos e os blocos do dia */
     corpo.appendChild(hjFaixa(x));
     corpo.appendChild(hjBlocosFoco());
-    /* 2. o que resolver (regras do núcleo) e, ao lado, gastos e contexto */
-    corpo.appendChild(hjCardPrioridades(x));
-    var lado=h("div",{class:"rh-lado"}),cg=hjCardGastos(x);if(cg)lado.appendChild(cg);if(lado.children.length)corpo.appendChild(lado);
     var cs=hjCardSaude(x);if(cs){cs.className+=" rh-largo rh-saude";corpo.appendChild(cs)}
+    var cg=hjCardGastos(x);if(cg){cg.className+=" rh-largo";corpo.appendChild(cg)}
     corpo.appendChild(hjBlocosDia());
     /* 3. análise da IA e pergunta (a lógica, o cache e a cobrança são os de antes) */
-    var pa=h("div",{class:"rac-pilha"});HJ.slotAviso=h("div");pa.appendChild(HJ.slotAviso);
+    var pa=h("div",{class:"rac-pilha"});HJ.slotAviso=h("div");pa.appendChild(hjAutoControle());pa.appendChild(HJ.slotAviso);
     if(HJ.aviso)pa.appendChild(h("p",{class:"rac-t-sec",role:"status",style:"margin:0",text:HJ.aviso}));
     if(HJ.ocupado)pa.appendChild(rkEstado("carregando","Analisando com a IA… pode levar até 2 minutos. Não toque de novo: uma chamada só é feita."));
     if(HJ.erro)pa.appendChild(hjErro(HJ.erro));
@@ -531,7 +556,8 @@
       pq.appendChild(hjBotaoPago("Perguntar",function(){var t=campo.value.trim();if(!t)return {texto:"Escreva a pergunta antes de confirmar.",semConfirmar:true};return hjAviso(x,t,false)},
         function(){var t=campo.value.trim();if(!t){HJ.aviso="Escreva a pergunta antes de confirmar.";hjDesenhar();return}hjAnalisar({pergunta:t})}));
       pq.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
-    corpo.appendChild(h("div",{class:"rh-dois"},hjRecolhivel(rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Só acontece quando você pede."}),"Análise da IA"),
+    var cAnalise=hjRecolhivel(rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Roda quando você pede ou, se você ligar a análise automática, até 2 vezes por dia.",acao:rkLink("ter","Custos de IA","#iacustos")}),"Análise da IA");cAnalise.id="rh-analise";
+    corpo.appendChild(h("div",{class:"rh-dois"},cAnalise,
       hjRecolhivel(rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."}),"Pergunte sobre o seu dia")));
     /* 4. histórico e fontes: detalhe técnico recolhido (o conteúdo continua inteiro, é só abrir) */
     var ph=h("div",{class:"rac-pilha"});
@@ -670,14 +696,49 @@
       caixa.appendChild(h("div",{class:"vfil"},ok,nao));ok.focus()};
     caixa.appendChild(b);return caixa}
   /* chama a IA (só aqui e só pelos botões acima); um pedido por vez, e o pacote de fatos é o mesmo que a tela mostra */
-  function hjAnalisar(o){if(HJ.ocupado)return;HJ.ocupado=true;HJ.erro=null;HJ.aviso="";hjDesenhar();
+  function hjAnalisar(o){if(HJ.ocupado)return;HJ.ocupado=true;HJ.auto=!!(o&&o.auto);HJ.erro=null;HJ.aviso="";hjDesenhar();
     hojeAnalisar(o).then(function(r){if(HOJE.suspenso)return;/* a sessão mudou no meio da chamada: o resultado não volta para a memória nem para a tela */
       HJ.ocupado=false;
       if(r.ok){HJ.sel=r.analise.chave;HJ.aviso=r.deCache?"Esta análise já existia neste aparelho, com os mesmos dados: nada foi cobrado.":"Chamada concluída e análise disponível (guardada neste aparelho)."}else{r.pedido=hjPedido(o,{});HJ.erro=r}
       return hojeMontar(false).then(function(x){HJ.x=x;hjDesenhar()})},
       function(e){if(HOJE.suspenso)return;HJ.ocupado=false;HJ.erro={motivo:"Não consegui analisar ("+(e&&e.message||e)+")."};hjDesenhar()})}
-  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";if(forcar){HJ.blocos=null;HJ.foco=null;HJ.treino=undefined}corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
-    return hjConfig().then(function(){return hojeMontar(forcar)}).then(function(x){HJ.x=x;hjDesenhar()})
+  /* ===== IA automática do RAC Hoje (Lote 4). Autorizada pelo dono em 22/11/2026: até 2 chamadas pagas por dia, a partir das 6h e das 14h (Brasília), com o app aberto. DESLIGADA por padrão:
+     só roda depois que o dono liga o interruptor (PESSOAL.hojeIaAuto, na conta). Usa o MESMO caminho do botão (hjAnalisar: cache, chave, travas e teto), então a mesma análise para os mesmos
+     dados nunca é paga duas vezes. Travas extras: a marca "esta janela já rodou" é gravada ANTES de chamar e, se não der para gravar, NÃO chama; o servidor conta as chamadas do dia (qualquer
+     origem) e, com 2 ou sem conseguir contar, não chama; nunca repete depois de erro (a marca já está gravada). As contas puras estão em NUCLEO.hojeIaJanela, hojeIaAutoPode e hojeIaMarcar. ===== */
+  var HJ_AUTO_MARCA="rac-hoje-auto";
+  var HJ_AUTO_AVISO={limite_diario:"Hoje já houve 2 análises do RAC Hoje: a automática espera até amanhã.",contagem_indisponivel:"Não consegui contar as análises do dia no servidor; por segurança, a automática não rodou.",
+    pendente:"Há uma chamada anterior sem resultado; resolva-a abaixo antes de uma nova.",sem_fontes:"As fontes ainda não têm dados úteis; a automática não rodou.",marca_nao_gravada:"Este navegador não consegue guardar a marca da janela; por segurança, a automática não rodou."};
+  function hjAutoLigado(){return typeof PESSOAL!=="undefined"&&!!PESSOAL&&PESSOAL.hojeIaAuto===true}
+  function hjAutoMarcas(){try{var v=JSON.parse(localStorage.getItem(HJ_AUTO_MARCA)||"null");return v&&typeof v==="object"?v:null}catch(e){return null}}
+  /* grava a marca e confere que ficou gravada: sem isso não há chamada */
+  function hjAutoMarcar(dia,janela){try{localStorage.setItem(HJ_AUTO_MARCA,JSON.stringify(NUCLEO.hojeIaMarcar(hjAutoMarcas(),dia,janela)));var m=hjAutoMarcas();return !!(m&&m.dia===dia&&m[janela])}catch(e){return false}}
+  /* quantas chamadas do RAC Hoje o servidor já registrou hoje (dia de Brasília; qualquer origem); null se não deu para contar */
+  function hjAutoContar(dia){return Promise.resolve().then(function(){return SB.from("ia_custos").select("id").eq("funcionalidade","hoje").gte("criado_em",dia+"T00:00:00-03:00").limit(5)}).then(sbOk).then(function(l){return l.length}).catch(function(){return null})}
+  function hjAutoTentar(){
+    if(HJ.autoVerificando||HJ.ocupado||HOJE.suspenso||!isOwner()||!HJ.x)return;
+    var j=NUCLEO.hojeIaJanela(Date.now()),antes=NUCLEO.hojeIaAutoPode({ligado:hjAutoLigado(),janela:j.janela,dia:j.dia,marcas:hjAutoMarcas(),chamadasHoje:0,ocupado:false,jaTemAnalise:false});
+    if(!antes.ok)return;   /* desligado, fora da janela ou janela já rodou: nem conta no servidor */
+    HJ.autoVerificando=true;
+    hjAutoContar(j.dia).then(function(n){HJ.autoVerificando=false;var x=HJ.x;if(!x||HOJE.suspenso)return;
+      var prev=hojePrever(x,"",false),uteis=NUCLEO.hojeFontesUteis(x.estados),d=NUCLEO.hojeIaAutoPode({ligado:hjAutoLigado(),janela:j.janela,dia:j.dia,marcas:hjAutoMarcas(),chamadasHoje:n,ocupado:HJ.ocupado,jaTemAnalise:prev.cache});
+      var motivo=!d.ok?d.motivo:prev.pend?"pendente":!uteis.ok?"sem_fontes":"";HJ.autoMotivo=motivo;
+      if(motivo){if(HJ_AUTO_AVISO[motivo])hjDesenhar();return}
+      if(!hjAutoMarcar(j.dia,j.janela)){HJ.autoMotivo="marca_nao_gravada";hjDesenhar();return}
+      hjAnalisar({auto:true})},function(){HJ.autoVerificando=false})}
+  /* o interruptor, dentro do cartão da análise: mostra o estado, o custo e o que cada janela já fez hoje; ligar pede confirmação (e, se a janela de agora ainda não rodou, a análise sai na hora) */
+  function hjAutoControle(){var caixa=h("div",{class:"hjauto"}),on=hjAutoLigado(),m=hjAutoMarcas(),j=NUCLEO.hojeIaJanela(Date.now()),hj=m&&m.dia===j.dia?m:{};
+    caixa.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Análise automática: "+(on?"ligada":"desligada")+". "+(on?"Até 2 análises por dia, a partir das 6h e das 14h, com o app aberto (hoje: manhã "+(hj.manha?"feita":"pendente")+", tarde "+(hj.tarde?"feita":"pendente")+").":"Nada é chamado sozinho.")}));
+    if(on&&HJ.autoMotivo&&HJ_AUTO_AVISO[HJ.autoMotivo])caixa.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+HJ_AUTO_AVISO[HJ.autoMotivo]}));
+    var b=h("button",{type:"button",class:"ghostbtn",text:on?"Desligar a análise automática":"Ligar a análise automática"});
+    b.onclick=function(){
+      if(on){pessoalGravar("hojeIaAuto",false);HJ.autoMotivo="";hjDesenhar();return}
+      caixa.innerHTML="";caixa.appendChild(h("p",{class:"hjaviso",role:"alert",text:"Ligar autoriza até 2 chamadas pagas por dia (a partir das 6h e das 14h, com o app aberto), cerca de US$ 0,026 (R$ 0,17) cada, no máximo US$ 0,06. Se já passou das 6h e a janela de agora ainda não rodou, a análise será feita agora. Dá para desligar aqui a qualquer momento."}));
+      var sim=h("button",{type:"button",class:"ghostbtn pri",text:"Confirmar e ligar"}),nao=h("button",{type:"button",class:"ghostbtn",text:"Cancelar"});
+      sim.onclick=function(){pessoalGravar("hojeIaAuto",true);hjDesenhar();hjAutoTentar()};nao.onclick=function(){hjDesenhar()};caixa.appendChild(h("div",{class:"vfil"},sim,nao))};
+    caixa.appendChild(b);return caixa}
+  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";if(forcar){HJ.blocos=null;HJ.foco=null;HJ.treino=undefined;HJ.extras={}}corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
+    return hjConfig().then(function(){return hojeMontar(forcar)}).then(function(x){HJ.x=x;hjDesenhar();hjAutoTentar()})
       .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("erro","Não consegui carregar agora.",h("div",{class:"rac-linha-flex"},rkBtn("sec","tentar de novo",{onclick:null}),e?h("span",{class:"rac-t-mono",text:"Detalhe técnico: "+(e.message||e)}):null))));
         var b=corpo.querySelector("button");if(b)b.onclick=function(){hjCarregar(forcar)};logErro("hoje",e)})}
   function renderHoje(){var root=$("#rachoje-view");root.innerHTML="";
@@ -689,6 +750,8 @@
     /* outra aba deste aparelho mudou o que o RAC Hoje guarda (análise, chamada sem resultado): repinta só o histórico, as chamadas sem resultado e o aviso, sem chamar nada.
        O listener é um só (hojeOuvir, também usado pela sessão em outra aba). */
     hojeOuvir();
-    HJ.corpo=h("div",{class:"rh"});HJ.blocos=null;HJ.foco=null;HJ.treino=undefined;root.appendChild(HJ.corpo);hjCarregar(false)}
+    HJ.corpo=h("div",{class:"rh"});HJ.blocos=null;HJ.foco=null;HJ.treino=undefined;HJ.extras={};root.appendChild(HJ.corpo);hjCarregar(false)}
   /* a vigilância da sessão começa quando o módulo carrega (antes de a tela abrir), para a memória do RAC Hoje não sobreviver a um logout em outra aba */
   hojeOuvir();
+  /* voltar ao app (a 2ª janela do dia costuma começar com o app já aberto): só tenta a automática; não redesenha nada */
+  if(typeof document!=="undefined"&&document.addEventListener&&!HJ.vis){HJ.vis=true;document.addEventListener("visibilitychange",function(){if(document.hidden||!HJ.x||!HJ.corpo)return;var de=document.documentElement;if(de&&de.getAttribute&&de.getAttribute("data-sec")==="rachoje")hjAutoTentar()})}

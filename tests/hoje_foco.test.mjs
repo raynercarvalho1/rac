@@ -64,3 +64,9 @@ test("MBA no Hoje: avaliação vencida e boleto atrasado aparecem como alerta", 
   assert.match(p.textContent, /1 avaliação vencida sem resposta/); assert.match(p.textContent, /atrasado/);
   assert.ok(varre(p, (x) => x.tagName === "LI" && /alerta/.test(x.className)).length >= 2, "os dois itens carregam a classe de alerta");
 });
+test("MBA no Hoje: entrega a linha do MBA ao 'O que mudou' (aulas para assistir e a próxima avaliação), e a atualiza ao marcar", () => {
+  const { ctx } = mbaFixo(), got = []; ctx.hjMudouAdd = (k, l) => got.push([k, JSON.parse(JSON.stringify(l))]);
+  const p = ctx.wMbaHoje(); assert.deepEqual(got[0], ["mba", [{ texto: "MBA: 1 aula para assistir · avaliação até 25/11", href: "#mba" }]]);
+  botoes(p, "Assistida")[0].onclick(); assert.deepEqual(got[got.length - 1], ["mba", [{ texto: "MBA: avaliação até 25/11", href: "#mba" }]], "marcar atualiza a linha");
+  const { ctx: c2 } = mbaFixo({ mba: { aulas: [], avaliacoes: [], financeiro: null, disciplinas: [] } }), g2 = []; c2.hjMudouAdd = (k, l) => g2.push([k, JSON.parse(JSON.stringify(l))]); c2.wMbaHoje(); assert.deepEqual(g2[0], ["mba", []], "sem pendência, nenhuma linha");
+});

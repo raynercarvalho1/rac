@@ -12,6 +12,8 @@
     function desenhar(){corpo.innerHTML="";
       if(!PESSOAL.mba||!PESSOAL.mba.curso){corpo.appendChild(h("p",{class:"sub",text:"O MBA ainda não foi preenchido. Abra o MBA para cadastrar o curso."}));return}
       var r=NUCLEO.mbaHojeResumo(PESSOAL.mba,PESSOAL.mbaLinks,mbaFeito(),hojeISO(),Date.now()),ul=h("ul",{class:"wl"}),op=mbaOndeParei();
+      /* a linha do MBA no "O que mudou desde ontem" do Hoje (só exibição; o cartão do Hoje se repinta) */
+      if(typeof hjMudouAdd==="function"){var ps=[];if(r.paraAssistir.length)ps.push(r.paraAssistir.length+(r.paraAssistir.length===1?" aula para assistir":" aulas para assistir"));if(r.avalPendentes.length)ps.push("avaliação até "+dataBR(r.avalPendentes[0].ate).slice(0,5));hjMudouAdd("mba",ps.length?[{texto:"MBA: "+ps.join(" · "),href:"#mba"}]:[])}
       function li(cls,tit,sub,acoes){ul.appendChild(h("li",{class:cls||null},h("span",{class:"grow"},h("b",{text:tit}),sub?h("span",{class:"sub",text:sub}):null),acoes?h("span",{class:"end vfil"},acoes):null))}
       function marcar(k,rot){var b=h("button",{type:"button",class:"ghostbtn",text:rot});b.onclick=function(){mbaMarcar(k,true);desenhar()};return b}
       function ver(href,rot){return h("a",{class:"ghostbtn",href:href,text:rot})}

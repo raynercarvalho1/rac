@@ -254,6 +254,8 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
 .rh-blocos{grid-column:1/-1;display:grid;gap:var(--rac-esp-4);grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 .rh-blocos>.panel{min-width:0}
 .rh-blocos .cat:first-of-type{margin-top:0}
+.rh-treino{display:flex;flex-direction:column;gap:2px;padding:var(--rac-esp-3) var(--rac-esp-4);border-radius:var(--rac-raio-2);background:var(--rac-papel-2);color:var(--rac-texto);text-decoration:none}
+.rh-treino b{font:700 calc(16px + var(--fz))/1.2 var(--f-ui)}
 .rac-card-cab .rac-recolher-btn{margin-left:auto;flex:none;width:var(--rac-alvo);height:var(--rac-alvo);min-width:32px;min-height:32px;border-radius:var(--rac-raio-2);display:grid;place-items:center;background:var(--rac-papel-2);color:var(--rac-texto-2);padding:0;font-size:15px;line-height:1;border:0;cursor:pointer}
 .rac-card-cab .rac-recolher-btn:hover{color:var(--rac-texto)}
 .rac-card.recolhido>:not(.rac-card-cab){display:none}

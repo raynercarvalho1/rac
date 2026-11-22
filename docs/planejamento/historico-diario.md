@@ -1582,3 +1582,16 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 2 do Hoje (blocos MBA, Últimas compras e Saúde/Garmin) e, depois, o lote 3 (botão **+** contextual).
+
+## 22/11/2026 · Reestruturação visual, Lote 2: MBA, últimas compras e último treino no Hoje (versão `2026-11-22.3`, em branch)
+
+### 1. O que fizemos
+- Logo abaixo da faixa do Hoje, o foco do dono: **MBA e estudos** (aula ao vivo ou próxima, aulas para assistir com "Assistida", avaliações com "Já respondi", boleto e "Onde parei"; alertas para vencido e atrasado) e **Últimas compras** (5 notas mais recentes, só leitura). O cartão de Saúde ganhou o **último treino**, com link para a página do treino (o mapa fica lá). "Aula assistida" é nova e fica em `PESSOAL.mbaFeito` (`au:<id>`), sem tabela nova.
+- Testes: `tests/nucleo.test.mjs`, `tests/hoje.test.mjs`, `tests/hoje_foco.test.mjs` (novo; com verificação de mutação). Sem SQL, função, secret ou IA paga.
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`; PR a abrir; merge e publicação **não confirmados**. Visual não conferido no navegador (conferência do dono).
+- **Limite que o dono precisa saber:** o banco não guarda quem lançou a compra, então as Últimas compras não mostram "você ou a Fernanda". Mostrar isso exigiria uma coluna nova (SQL em produção), não feita.
+
+### 3. O que vamos fazer
+- Lote 3: botão **+** contextual por tela, só do dono. Opcional: coluna de quem lançou a compra, se o dono quiser (SQL).

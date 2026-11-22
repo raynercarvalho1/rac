@@ -343,7 +343,7 @@
   /* ===== Tela do RAC Hoje (#rachoje). Abrir a tela só LÊ (coletor, regras do núcleo, cache deste aparelho e o histórico em ia_custos):
      a IA só é chamada pelos botões "Analisar" e "Perguntar", depois de uma confirmação explícita, e nunca no lugar de um erro
      aparece uma análise simulada. Só do dono. ===== */
-  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null,blocos:null};
+  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null,blocos:null,foco:null,treino:undefined};
   /* "Dados recentes" só com data conferida (ou registro de hoje); "Leitura realizada" é só leitura concluída, o dado pode ser antigo */
   var HJ_ESTADOS={ok:"Dados recentes",lida:"Leitura realizada",parcial:"Leitura parcial",vazia:"Sem dados",falhou:"Falhou",desatualizada:"Desatualizada",ausente:"Não lida"};
   var HJ_PRIO={alta:"Alta",media:"Média","média":"Média",baixa:"Baixa"};
@@ -444,6 +444,29 @@
     var corpo=h("div",{class:"rac-grafico rac-pilha"},rkComparar(L,"Este mês","Mês passado"));
     if(f.orcamento)corpo.appendChild(rkMedidor(f.orcamento.pct,f.orcamento.projecaoPct,"Orçamento usado",f.orcamento.projecaoPct!=null?"projeção do mês: "+f.orcamento.projecaoPct+"% de "+NUCLEO.hojeReais(f.orcamento.valor):"de "+NUCLEO.hojeReais(f.orcamento.valor)));
     return hjRecolhivel(rkCard("Gastos do mês",corpo,{sub:"Do dia 1º ao dia "+f.dia+", contra o mesmo trecho do mês passado.",acao:rkLink("ter","Ver na Central","#mercado"),origem:f.delta>0?"Total "+NUCLEO.hojeReais(f.total)+": "+NUCLEO.hojeReais(f.delta)+" a mais que no mesmo trecho do mês passado.":"Total "+NUCLEO.hojeReais(f.total)+(f.totalAnt?": "+NUCLEO.hojeReais(-f.delta)+" a menos que no mesmo trecho do mês passado.":".")}),"Gastos do mês")}
+  /* Lote 2 da reestruturação visual: o foco do dono logo abaixo da faixa, MBA e estudos + últimas compras. O MBA tem a tela própria (wMbaHoje, js/mba.js; as marcas de aula
+     assistida e avaliação respondida são do MBA); as compras são lidas aqui, só leitura, na mesma tabela da Central (uma linha por item, agrupadas por nota).
+     Não há campo de quem lançou a compra no banco, então a lista mostra as notas de vocês dois sem essa marca. Montado uma vez por abertura, como os blocos do dia. */
+  function hjUltimasCompras(){var p=typeof wCard==="function"?wCard("Últimas compras","mala","#C2410C",["#mercado","abrir a Central"]):h("div",{class:"panel"}),
+      ul=h("ul",{class:"wl"},h("li",null,h("span",{class:"sub",text:"Carregando as compras…"})));p.appendChild(ul);
+    Promise.resolve().then(function(){return SB.from("compras").select("id,data,mercado,numero,valor_total").order("data",{ascending:false}).order("id",{ascending:false}).limit(150)}).then(sbOk).then(function(l){
+      var n=NUCLEO.mkUltimasNotas(l,5);ul.innerHTML="";
+      if(!n.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhuma compra lançada ainda."})));return}
+      n.forEach(function(x){ul.appendChild(h("li",null,h("span",{class:"grow"},h("a",{href:"#mercado",text:x.loja||"Compra"}),h("span",{class:"sub",text:dataBR(x.data).slice(0,5)+" · "+x.itens+(x.itens===1?" item":" itens")})),h("span",{class:"end",text:NUCLEO.hojeReais(x.total)})))})
+    }).catch(function(e){ul.innerHTML="";ul.appendChild(h("li",null,h("span",{class:"sub",text:"Não consegui ler as compras agora."})));logErro("hoje",e)});
+    return p}
+  function hjBlocosFoco(){if(HJ.foco)return HJ.foco;
+    var g=HJ.foco=h("section",{class:"rh-blocos rh-foco","aria-label":"MBA e últimas compras"});
+    [function(){return typeof wLazy==="function"?wLazy(["mba"],"wMbaHoje"):null},function(){return hjUltimasCompras()}].forEach(function(f){
+      try{var el=f();if(el)g.appendChild(el)}catch(e){logErro("hoje",e)}});
+    return g}
+  /* o último treino do relógio dentro do cartão de Saúde: leitura própria e mínima pela fonte da Saúde (só os treinos mais novos, sem os dias), nunca chama o relógio;
+     o mapa fica na página do treino (o link), para o Hoje não carregar o mapa */
+  function hjUltimoTreino(box){
+    function pintar(l){if(!l)return;box.appendChild(h("a",{class:"rh-treino",href:l.href},h("span",{class:"rac-t-rotulo",text:"Último treino"}),h("b",{text:l.titulo}),h("span",{class:"rac-t-sec",text:l.sub+" · ver o treino e o mapa"})))}
+    if(HJ.treino!==undefined){pintar(HJ.treino);return}
+    fonteOuErro("saude",{semDias:true,limiteAtiv:6}).then(function(c){var ocultos=NUCLEO.TREINO_OCULTOS,a=((c.v&&c.v.ativs)||[]).filter(function(t){return ocultos.indexOf(t.tipo)<0})[0];
+      HJ.treino=NUCLEO.hojeTreinoLinha(a);pintar(HJ.treino)},function(e){logErro("hoje",e)})}
   /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
      (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
   function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */
@@ -455,7 +478,8 @@
       try{var el=f();if(el)g.appendChild(el)}catch(e){logErro("hoje",e)}});
     return g}
   /* saúde: passos dos últimos dias (série real do relógio) e treinos da semana por tipo; só com dados */
-  function hjCardSaude(x){var s=x.saude;if(!s||s.semDados)return null;var corpo=h("div",{class:"rac-pilha rac-grafico"}),sf=hjFonteDoDia("saude"),dias=(sf&&sf.dias||[]).filter(function(d){return d.dados&&d.dados.passos>0}).slice(-10);
+  function hjCardSaude(x){var s=x.saude;if(!s||s.semDados)return null;var corpo=h("div",{class:"rac-pilha rac-grafico"}),slot=h("div"),sf=hjFonteDoDia("saude"),dias=(sf&&sf.dias||[]).filter(function(d){return d.dados&&d.dados.passos>0}).slice(-10);
+    corpo.appendChild(slot);hjUltimoTreino(slot);
     if(dias.length>=3){var B=dias.map(function(d){var p=d.data.split("-");return {nome:p[2]+"/"+p[1],cima:p[2]+"/"+p[1],baixo:""}}),V=dias.map(function(d){return d.dados.passos});
       corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Passos por dia"}),rsColunas(B,V,function(v){return NUCLEO.iaNum(v,0)},function(i,v){return [B[i].nome,NUCLEO.iaNum(v,0)+" passos"]})))}
     var tipos=Object.keys(s.tipos7||{}).sort(function(a,b){return s.tipos7[b]-s.tipos7[a]});
@@ -481,6 +505,7 @@
     if(falhas.length)corpo.appendChild(h("div",{class:"rh-largo"},rkAlerta("aviso",falhas.length+(falhas.length===1?" fonte falhou":" fontes falharam"),falhas.map(function(e){return e.nome}).join(", ")+". O resto do painel continua valendo; a lista completa está em \"Fontes de informação\", mais abaixo.")));
     /* 1. indicadores */
     corpo.appendChild(hjFaixa(x));
+    corpo.appendChild(hjBlocosFoco());
     /* 2. o que resolver (regras do núcleo) e, ao lado, gastos e contexto */
     corpo.appendChild(hjCardPrioridades(x));
     var lado=h("div",{class:"rh-lado"}),cg=hjCardGastos(x);if(cg)lado.appendChild(cg);if(lado.children.length)corpo.appendChild(lado);
@@ -651,7 +676,7 @@
       if(r.ok){HJ.sel=r.analise.chave;HJ.aviso=r.deCache?"Esta análise já existia neste aparelho, com os mesmos dados: nada foi cobrado.":"Chamada concluída e análise disponível (guardada neste aparelho)."}else{r.pedido=hjPedido(o,{});HJ.erro=r}
       return hojeMontar(false).then(function(x){HJ.x=x;hjDesenhar()})},
       function(e){if(HOJE.suspenso)return;HJ.ocupado=false;HJ.erro={motivo:"Não consegui analisar ("+(e&&e.message||e)+")."};hjDesenhar()})}
-  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";if(forcar)HJ.blocos=null;corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
+  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";if(forcar){HJ.blocos=null;HJ.foco=null;HJ.treino=undefined}corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
     return hjConfig().then(function(){return hojeMontar(forcar)}).then(function(x){HJ.x=x;hjDesenhar()})
       .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("erro","Não consegui carregar agora.",h("div",{class:"rac-linha-flex"},rkBtn("sec","tentar de novo",{onclick:null}),e?h("span",{class:"rac-t-mono",text:"Detalhe técnico: "+(e.message||e)}):null))));
         var b=corpo.querySelector("button");if(b)b.onclick=function(){hjCarregar(forcar)};logErro("hoje",e)})}
@@ -664,6 +689,6 @@
     /* outra aba deste aparelho mudou o que o RAC Hoje guarda (análise, chamada sem resultado): repinta só o histórico, as chamadas sem resultado e o aviso, sem chamar nada.
        O listener é um só (hojeOuvir, também usado pela sessão em outra aba). */
     hojeOuvir();
-    HJ.corpo=h("div",{class:"rh"});HJ.blocos=null;root.appendChild(HJ.corpo);hjCarregar(false)}
+    HJ.corpo=h("div",{class:"rh"});HJ.blocos=null;HJ.foco=null;HJ.treino=undefined;root.appendChild(HJ.corpo);hjCarregar(false)}
   /* a vigilância da sessão começa quando o módulo carrega (antes de a tela abrir), para a memória do RAC Hoje não sobreviver a um logout em outra aba */
   hojeOuvir();

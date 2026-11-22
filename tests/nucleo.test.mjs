@@ -681,3 +681,39 @@ test("Agenda: o peso da linha (atrasado = alta; o resto pela régua de prioridad
   assert.equal(N.agdTom(evAg(dia(-12), "velho", { semRetorno: true }), AG_HOJE), null); assert.equal(N.agdTom(null, AG_HOJE), null);
   assert.equal(N.agdTom(evAg(dia(-2), "follow-up", { prazo: "calculado", acao: "followup" }), AG_HOJE), "alta", "follow-up vencido continua alerta, como antes");
 });
+
+/* Reestruturação visual, Lote 2 (docs/planejamento/11-reestruturacao-visual.md): o que o Hoje mostra do MBA, das compras e do último treino */
+const MBA_HOJE = {
+  aulas: [{ id: "a1", data: "2026-11-24", hora: "19:00", t: "BI e Data Visualization III" }, { id: "a2", data: "2026-11-20", hora: "19:00", t: "Estatística" },
+    { id: "a3", data: "2026-11-01", hora: "19:00", t: "Antiga" }, { id: "a4", data: "2026-11-22", hora: "18:00", t: "Palestra" }, { id: "a5", data: "2026-11-23" , t: "Sem hora" }],
+  avaliacoes: [{ id: "v1", t: "Prova 1", ate: "2026-11-30", link: "https://x.exemplo" }, { id: "v2", t: "Pesquisa", ate: "2026-11-15" }],
+  financeiro: { parcelas: [{ k: "1", v: 626.85, venc: "2026-11-10" }, { k: "2", v: 626.85, venc: "2026-12-10" }] },
+};
+const AGORA = Date.parse("2026-11-22T10:00:00-03:00");
+test("MBA no Hoje: aula ao vivo, próxima, aulas para assistir (14 dias), avaliações pendentes e vencidas e o boleto", () => {
+  const r = N.mbaHojeResumo(MBA_HOJE, {}, {}, "2026-11-22", AGORA);
+  assert.equal(r.aoVivo.id, "a4", "a de hoje que ainda não passou"); assert.equal(r.proxima.id, "a5", "a próxima depois da de hoje (hora padrão 19:00)");
+  assert.deepEqual(r.paraAssistir.map((a) => a.id), ["a2"], "passou, ainda sem marca e dentro de 14 dias; a de 01/11 fica de fora");
+  assert.deepEqual(r.avalPendentes.map((a) => a.id), ["v1"]); assert.deepEqual(r.avalVencidas.map((a) => a.id), ["v2"]);
+  assert.equal(r.boleto.v, 626.85); assert.equal(r.boleto.dias, -12, "o boleto de 10/11 está atrasado"); assert.equal(r.boleto.pagas, 0); assert.equal(r.boleto.total, 2);
+  const f = N.mbaHojeResumo(MBA_HOJE, {}, { "au:a2": "2026-11-21", "av:v2": "2026-11-21", "pg:1": "2026-11-12" }, "2026-11-22", AGORA);
+  assert.deepEqual(f.paraAssistir, [], "aula marcada como assistida sai da lista"); assert.deepEqual(f.avalVencidas, [], "avaliação respondida sai"); assert.equal(f.boleto.dias, 18, "pago o 1º, o próximo é o de 10/12");
+  const l = N.mbaHojeResumo(MBA_HOJE, { a1: "https://class.exemplo/a1" }, {}, "2026-11-22", AGORA); assert.equal(l.proxima.id, "a5"); assert.equal(N.mbaHojeResumo(MBA_HOJE, { a5: "https://l" }, {}, "2026-11-22", AGORA).proxima.link, "https://l", "o link colado vai junto");
+  assert.deepEqual(N.mbaHojeResumo(null, null, null, "2026-11-22", AGORA), { aoVivo: null, proxima: null, paraAssistir: [], avalPendentes: [], avalVencidas: [], boleto: null }, "sem MBA cadastrado: tudo vazio, sem quebrar");
+  assert.equal(N.mbaHojeResumo({ aulas: [{ id: "x", data: "lixo", hora: "??" }] }, {}, {}, "2026-11-22", AGORA).paraAssistir.length, 0, "data inválida não entra");
+});
+test("Compras no Hoje: as últimas notas (por número da nota), com loja sem a cidade, total em centavos e a mais recente primeiro", () => {
+  const L = [{ id: 1, data: "2026-11-21", mercado: "Mercado A (Sorocaba)", numero: "100", valor_total: 10 }, { id: 2, data: "2026-11-21", mercado: "Mercado A (Sorocaba)", numero: "100", valor_total: "5.55" },
+    { id: 3, data: "2026-11-20", mercado: "Padaria B", numero: "7", valor_total: 3 }, { id: 4, data: "2026-11-21", mercado: "Loja C", numero: "", valor_total: 8 }, { id: 5, data: null, mercado: "X", numero: "1", valor_total: 1 }];
+  const r = N.mkUltimasNotas(L, 5);
+  assert.deepEqual(r.map((x) => x.loja), ["Loja C", "Mercado A", "Padaria B"], "mais recente primeiro; empate de data pelo maior id; linha sem data fica fora");
+  assert.deepEqual(r.map((x) => x.total), [8, 15.55, 3]); assert.deepEqual(r.map((x) => x.itens), [1, 2, 1]); assert.equal(r[1].data, "2026-11-21");
+  assert.equal(N.mkUltimasNotas(L, 2).length, 2, "respeita o limite"); assert.deepEqual(N.mkUltimasNotas([], 5), []); assert.deepEqual(N.mkUltimasNotas(null, 5), []);
+});
+test("Saúde no Hoje: a linha do último treino (tipo, dia, distância, duração) e o link para o treino", () => {
+  const a = { id: "9", inicio: "2026-11-21T08:10:00", tipo: "trail_running", dados: { distancia: 5230, duracao: 1805 } };
+  assert.deepEqual(N.hojeTreinoLinha(a), { id: "9", titulo: "Trail running", sub: "21/11 · 5,23 km · 30 min", href: "#saude/treino/9" });
+  assert.equal(N.hojeTreinoLinha({ ...a, dados: { distancia: 800, duracao: 4000 }, tipo: "lap_swimming" }).sub, "21/11 · 800 m · 1h07", "natação em metros; mais de uma hora em h e min");
+  assert.equal(N.hojeTreinoLinha({ id: "1", inicio: "2026-11-21T08:10:00", tipo: "strength_training" }).sub, "21/11", "sem dados, só o dia");
+  assert.equal(N.hojeTreinoLinha(null), null); assert.equal(N.hojeTreinoLinha({ id: "1", tipo: "x" }), null, "sem início não há o que mostrar");
+});

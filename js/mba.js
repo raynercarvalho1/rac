@@ -5,6 +5,26 @@
   /* cada linha do quadro leva à parte da página que trata daquilo (#mba/aulas, #mba/avaliacoes, #mba/financeiro, #mba/disc-<id>) */
   function mbaLinha(li,alvo){li.classList.add("clic");li.tabIndex=0;li.title="Abrir";li.onclick=function(e){if(e.target.closest("a"))return;location.hash="#mba/"+alvo};
     li.onkeydown=function(e){if(e.key==="Enter")li.onclick(e)};return li}
+  /* Hoje, Lote 2 da reestruturação visual: o que pede ação no MBA, com botões que resolvem ali mesmo. Aula assistida fica em PESSOAL.mbaFeito ("au:<id>"), junto com as
+     outras marcas do MBA (sem tabela nova). Só o dono vê o Hoje; as contas vêm de NUCLEO.mbaHojeResumo. */
+  function wMbaHoje(){
+    var p=wCard("MBA e estudos","mba","#5B5BD6",["#mba","abrir o MBA"]),corpo=h("div");p.appendChild(corpo);
+    function desenhar(){corpo.innerHTML="";
+      if(!PESSOAL.mba||!PESSOAL.mba.curso){corpo.appendChild(h("p",{class:"sub",text:"O MBA ainda não foi preenchido. Abra o MBA para cadastrar o curso."}));return}
+      var r=NUCLEO.mbaHojeResumo(PESSOAL.mba,PESSOAL.mbaLinks,mbaFeito(),hojeISO(),Date.now()),ul=h("ul",{class:"wl"}),op=mbaOndeParei();
+      function li(cls,tit,sub,acoes){ul.appendChild(h("li",{class:cls||null},h("span",{class:"grow"},h("b",{text:tit}),sub?h("span",{class:"sub",text:sub}):null),acoes?h("span",{class:"end vfil"},acoes):null))}
+      function marcar(k,rot){var b=h("button",{type:"button",class:"ghostbtn",text:rot});b.onclick=function(){mbaMarcar(k,true);desenhar()};return b}
+      function ver(href,rot){return h("a",{class:"ghostbtn",href:href,text:rot})}
+      if(r.avalVencidas.length)li("alerta",r.avalVencidas.length+(r.avalVencidas.length===1?" avaliação vencida sem resposta":" avaliações vencidas sem resposta"),r.avalVencidas[0].t+" · era até "+dataBR(r.avalVencidas[0].ate).slice(0,5),[ver("#mba/avaliacoes","Ver")]);
+      if(r.aoVivo)li(null,"Aula hoje às "+(r.aoVivo.hora||"19:00"),r.aoVivo.t,[ext(mbaLinkAula(r.aoVivo),"▶ Ao vivo","ghostbtn pri")]);
+      else if(r.proxima)li(null,"Próxima aula",r.proxima.t,[h("span",{class:"sub",text:quando(r.proxima.data+"T"+(r.proxima.hora||"19:00"))})]);
+      r.paraAssistir.slice(0,3).forEach(function(a){li("alerta","Aula para assistir",a.t+" · "+dataBR(a.data).slice(0,5),[ext(mbaLinkAula(a),"▶ Assistir","ghostbtn pri"),marcar("au:"+a.id,"Assistida")])});
+      if(r.paraAssistir.length>3)li(null,"+ "+(r.paraAssistir.length-3)+(r.paraAssistir.length-3===1?" aula":" aulas")+" para assistir",null,[ver("#mba/aulas","Ver")]);
+      r.avalPendentes.slice(0,3).forEach(function(a){var d=diasAte(a.ate);li(d<=5?"alerta":null,a.t,"Avaliação até "+dataBR(a.ate).slice(0,5)+(a.disc?" · "+a.disc:""),[a.link?ext(a.link,"Abrir","ghostbtn"):null,marcar("av:"+a.id,"Já respondi")])});
+      if(r.boleto){var dv=r.boleto.dias;li(dv<=5?"alerta":null,"Próximo boleto: "+BRL(r.boleto.v),r.boleto.pagas+" de "+r.boleto.total+" pagas · faltam "+BRL(r.boleto.falta),[h("span",{class:"sub",text:dv<0?"atrasado":dv===0?"vence hoje":"vence "+dataBR(r.boleto.venc).slice(0,5)})])}
+      if(op)li(null,op.prox?"Onde parei: "+op.prox.t:"Tópicos de "+op.d.nome+" concluídos",op.d.nome+(op.ext?" · exercícios "+op.exf+" de "+op.ext:""),[ver("#mba/disc-"+op.d.id,"Continuar")]);
+      if(!ul.children.length)corpo.appendChild(h("p",{class:"sub",text:"Nada pendente no MBA agora."}));else corpo.appendChild(ul)}
+    desenhar();return p}
   function wMba(){
     var p=wCard("MBA","mba","#5B5BD6",location.hash.indexOf("#mba")===0?null:["#mba","página do MBA"]),m=PESSOAL.mba;
     function form(){

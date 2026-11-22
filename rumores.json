@@ -1,8 +1,66 @@
 {
- "coletado": "2026-11-21T19:10:54.662656+00:00",
+ "coletado": "2026-11-22T01:15:19.637104+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
+  {
+   "t": "AL East Notes: Gray, Red Sox, Fortes, Orioles, Rays",
+   "link": "https://www.mlbtraderumors.com/2026/11/al-east-notes-gray-red-sox-fortes-orioles-rays.html",
+   "data": "2026-11-22T00:38:12+00:00",
+   "resumo": "Sonny Gray signed a two-year, $55MM deal with the Twins earlier this week, with the 37-year-old landing a very nice payday on the heels of a strong 2026 campaign with the Red Sox. Despite Gray’s success in Boston, he told reporters (including MassLive.com’s Chris Cotillo)…",
+   "tags": [
+    "Baltimore Orioles",
+    "Boston Red Sox",
+    "Notes",
+    "Tampa Bay Rays",
+    "Christian Koss",
+    "Cole Sulser"
+   ]
+  },
+  {
+   "t": "Manfred: Angels’ Sale Expected To Be Finalized In Early January",
+   "link": "https://www.mlbtraderumors.com/2026/11/manfred-angels-sale-expected-to-be-finalized-in-early-january.html",
+   "data": "2026-11-21T23:29:21+00:00",
+   "resumo": "News broke on September 1 that Arte Moreno would be selling the Angels to Stan Kroenke, with the team’s announcement stating that the deal was “expected to close in the first quarter of 2027.” MLB Commissioner Rob Manfred added some specificity when speaking to the Associated…",
+   "tags": [
+    "Los Angeles Angels",
+    "Stan Kroenke"
+   ]
+  },
+  {
+   "t": "Red Sox Had Interest In Corey Seager, CJ Abrams At Trade Deadline",
+   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-had-interest-in-corey-seager-cj-abrams-at-trade-deadline.html",
+   "data": "2026-11-21T21:53:53+00:00",
+   "resumo": "The Red Sox were linked to such high-profile shortstops as Elly De La Cruz, Zach Neto, and Otto Lopez in the lead-up to last summer’s trade deadline, and MassLive.com’s Sean McAdam reports that the Sox were also interested in the Rangers’ Corey Seager and the Nationals’ CJ…",
+   "tags": [
+    "Boston Red Sox",
+    "Texas Rangers",
+    "Washington Nationals",
+    "CJ Abrams",
+    "Corey Seager"
+   ]
+  },
+  {
+   "t": "Giants Reportedly “Open To” Hearing Offers For Logan Webb",
+   "link": "https://www.mlbtraderumors.com/2026/11/giants-reportedly-open-to-hearing-offers-for-logan-webb.html",
+   "data": "2026-11-21T21:01:34+00:00",
+   "resumo": "Giants president of baseball operations Buster Posey flatly denied the possibility of a Logan Webb trade heading into last summer’s deadline, and even as recently as a week ago, Webb still seemed to be off the table in all trade discussions. However, the club’s stance now seems…",
+   "tags": [
+    "Newsstand",
+    "San Francisco Giants",
+    "Logan Webb"
+   ]
+  },
+  {
+   "t": "White Sox Getting Trade Interest In Sean Sullivan",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-getting-trade-interest-in-sean-sullivan.html",
+   "data": "2026-11-21T20:05:18+00:00",
+   "resumo": "Sean Sullivan has only been a member of the White Sox for two days, yet the left-hander could conceivably find himself on the move again. The Athletic’s Ken Rosenthal and Will Sammon report that “multiple teams” stepped up with offers for Sullivan in the aftermath of the…",
+   "tags": [
+    "Chicago White Sox",
+    "Sean Sullivan"
+   ]
+  },
   {
    "t": "Mets Extend A.J. Ewing",
    "link": "https://www.mlbtraderumors.com/2026/11/mets-extend-a-j-ewing.html",
@@ -109,66 +167,6 @@
    "resumo": "The Tigers made the first move on the free agent market by signing righty reliever Emilio Pagán to a one-year, $11.5MM deal. If president of baseball operations Scott Harris has his way, there will be more bullpen additions incoming. When asked on Tuesday if he expected to add…",
    "tags": [
     "Detroit Tigers"
-   ]
-  },
-  {
-   "t": "Nationals Trade Braxton Roxby To Cubs",
-   "link": "https://www.mlbtraderumors.com/2026/11/nationals-trade-braxton-roxby-to-cubs.html",
-   "data": "2026-11-21T00:44:47+00:00",
-   "resumo": "The Nationals and Cubs announced a trade that sends reliever Braxton Roxby from Washington to Chicago in exchange for cash considerations. The Nats had designated Roxby for assignment on Tuesday. Chicago’s roster count sits at 37. Roxby has bounced around a little bit since the…",
-   "tags": [
-    "Chicago Cubs",
-    "Transactions",
-    "Washington Nationals",
-    "Braxton Roxby"
-   ]
-  },
-  {
-   "t": "Red Sox Trade Johan Oviedo To Diamondbacks",
-   "link": "https://www.mlbtraderumors.com/2026/11/diamondbacks-to-acquire-johan-oviedo.html",
-   "data": "2026-11-20T23:07:33+00:00",
-   "resumo": "The Diamondbacks announced the acquisition of right-hander Johan Oviedo from the Red Sox for relief prospect Luke Dotson and a player to be named later or cash considerations. Arizona’s 40-man roster tally sits at 38. Oviedo adds some depth to an Arizona rotation that lost…",
-   "tags": [
-    "Arizona Diamondbacks",
-    "Boston Red Sox",
-    "Transactions",
-    "Johan Oviedo"
-   ]
-  },
-  {
-   "t": "Rays Acquire Christian Koss",
-   "link": "https://www.mlbtraderumors.com/2026/11/rays-acquire-christian-koss.html",
-   "data": "2026-11-20T23:04:41+00:00",
-   "resumo": "The Giants announced that they have traded infielder Christian Koss to the Rays in exchange for right-hander Cole Stokes. Koss was designated for assignment by San Francisco earlier this week. The Rays had 40-man space and don’t need to make a corresponding move. Koss, 28, came…",
-   "tags": [
-    "San Francisco Giants",
-    "Tampa Bay Rays",
-    "Transactions",
-    "Christian Koss"
-   ]
-  },
-  {
-   "t": "White Sox Trade Jordan Leasure To Phillies",
-   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-trade-jordan-leasure-to-phillies.html",
-   "data": "2026-11-20T22:34:35+00:00",
-   "resumo": "The White Sox have traded reliever Jordan Leasure to the Phillies for minor league pitcher Christian Coppola, according to announcements from both clubs. Philadelphia immediately agreed to a deal with Leasure to avoid arbitration. Leasure was designated for assignment earlier…",
-   "tags": [
-    "Chicago White Sox",
-    "Philadelphia Phillies",
-    "Transactions",
-    "Jordan Leasure"
-   ]
-  },
-  {
-   "t": "Mets Claim Gus Varland",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-claim-gus-varland.html",
-   "data": "2026-11-20T22:31:01+00:00",
-   "resumo": "The Mets have claimed right-handed reliever Gus Varland off waivers from the NL East rival Nationals, Spencer Nusbaum of The Athletic reports. The Nats designated Varland for assignment on Tuesday. Unlike his brother, Blue Jays All-Star closer Louis Varland, Gus Varland has…",
-   "tags": [
-    "New York Mets",
-    "Transactions",
-    "Washington Nationals",
-    "Gus Varland"
    ]
   }
  ],

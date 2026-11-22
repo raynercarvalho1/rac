@@ -189,6 +189,6 @@ test("Agenda: a página não acessa o banco nem a rede por conta própria, não 
   assert.match(limpo, /agendaColetarLeitura\(\)/); assert.match(limpo, /proximasSelecao\(\)/); assert.match(limpo, /proximaAcao\(/);
   assert.ok(!/\bwindow\.open\(|innerHTML\s*=\s*[^"'\s]/.test(limpo.replace(/innerHTML\s*=\s*""/g, "")), "nada de HTML montado de texto");
   const R = registro(), ag = R.rotas.find((r) => r.id === "agenda"); assert.deepEqual(ag.mods, ["agenda"]); assert.ok(!ag.casa && !R.DA_CASA.includes("agenda"), "a casa (Fernanda) não vê a Agenda");
-  assert.equal(ag.area, "hoje"); assert.equal(ag.curto, "Agenda", "continua na barra inferior do celular e na área Hoje do menu");
+  assert.equal(ag.area, "hoje"); assert.equal(ag.curto, undefined, "saiu da barra inferior (Lote 1 da reestruturação visual, 22/11/2026) e continua na área Hoje do menu");
   assert.match(ler("sw.js"), /"\.\/js\/agenda\.js"/, "no cache offline");
 });

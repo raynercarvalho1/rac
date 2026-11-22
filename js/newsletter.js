@@ -32,6 +32,11 @@
   function nlDataLonga(data){return new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
   function nlTurnoTxt(t){return NUCLEO.NL_TURNOS[t]?"edição das "+NUCLEO.NL_TURNOS[t]:""}
   var NL_ORDEM_TURNO={manha:0,tarde:1,noite:2};
+  /* a última visita à página da Newsletter fica só neste aparelho (conveniência; sem armazenamento, o cartão simplesmente não mostra "novos") */
+  var NL_VISTO="rac_nl_visto";
+  function nlVisto(){try{return Number(localStorage.getItem(NL_VISTO))||0}catch(e){return 0}}
+  function nlMarcarVisto(){try{localStorage.setItem(NL_VISTO,String(Date.now()))}catch(e){}}
+  function nlHoraColeta(iso){var d=new Date(iso);return isNaN(d)?"":d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"})}
   function nlEdicaoAtual(){return NUCLEO.nlEdicao(NLS.dados,PESSOAL.newsletter,Date.now())}
 
   /* ----- peças da tela ----- */
@@ -71,7 +76,7 @@
     return p}
 
   function renderNewsletter(sub,arg){
-    var root=$("#newsletter-view");root.innerHTML="";window.scrollTo(0,0);if(!ATU.rodando){NLS.busca=null;NLS.hist=null}
+    var root=$("#newsletter-view");root.innerHTML="";window.scrollTo(0,0);nlMarcarVisto();if(!ATU.rodando){NLS.busca=null;NLS.hist=null}
     sub=["busca","guardadas","historico","semana","ajustes"].indexOf(sub)>=0?sub:"";
     root.appendChild(nlTabs(sub));
     var corpo=h("div",{class:"stack"},h("div",{class:"panel"},h("p",{class:"empty",text:"Carregando…"})));root.appendChild(corpo);
@@ -286,6 +291,8 @@
     var p=wCard("Newsletter","jornal","var(--c-inicio)",["#newsletter","abrir"],"w5"),b=h("div",null,h("p",{class:"sub",text:"Carregando a edição…"}));p.appendChild(b);
     nlCarregar().then(function(){var c=nlEdicaoAtual();b.innerHTML="";
       if(!c.destaques.length){b.appendChild(h("p",{class:"sub",text:"Nenhuma notícia nas últimas horas."}));return}
+      var hora=nlHoraColeta(NLS.dados&&NLS.dados.coletado),novos=NUCLEO.nlNovos(c.destaques,nlVisto());
+      if(hora)b.appendChild(h("p",{class:"sub nlselo",text:"Atualizada às "+hora+(novos?" · "+novos+(novos===1?" novo":" novos")+" desde a sua última visita":"")}));
       b.appendChild(h("p",{class:"sub nlwres",text:c.resumo_dia}));
       b.appendChild(h("ul",{class:"wl"},c.destaques.slice(0,4).map(function(g){return h("li",null,h("span",{class:"grow"},h("a",{href:g.u,target:"_blank",rel:"noopener",text:g.t}),
         h("span",{class:"sub",text:NUCLEO.nlCat(g.c).n+" · "+g.f+" · "+nlQuando(g.d)+(g.n>1?" · "+g.n+" fontes":"")})))})))

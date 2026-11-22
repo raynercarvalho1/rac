@@ -343,7 +343,7 @@
   /* ===== Tela do RAC Hoje (#rachoje). Abrir a tela só LÊ (coletor, regras do núcleo, cache deste aparelho e o histórico em ia_custos):
      a IA só é chamada pelos botões "Analisar" e "Perguntar", depois de uma confirmação explícita, e nunca no lugar de um erro
      aparece uma análise simulada. Só do dono. ===== */
-  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null};
+  var HJ={x:null,corpo:null,sel:null,ocupado:false,erro:null,aviso:"",cfg:undefined,exibida:null,slotHist:null,slotPend:null,slotAviso:null,tmr:null,blocos:null};
   /* "Dados recentes" só com data conferida (ou registro de hoje); "Leitura realizada" é só leitura concluída, o dado pode ser antigo */
   var HJ_ESTADOS={ok:"Dados recentes",lida:"Leitura realizada",parcial:"Leitura parcial",vazia:"Sem dados",falhou:"Falhou",desatualizada:"Desatualizada",ausente:"Não lida"};
   var HJ_PRIO={alta:"Alta",media:"Média","média":"Média",baixa:"Baixa"};
@@ -397,7 +397,7 @@
      inventado: cada bloco usa o que a coleta e o núcleo (NUCLEO.hoje*) já entregam, e some quando a fonte não trouxe dado. A IA, o cache, a cobrança e as
      chamadas sem resultado continuam exatamente nas funções de antes (hjAnalisar, hjBotaoPago, hjAnalise, hjErro, hjPint*). ===== */
   /* o módulo dono de cada área (os ids são os do registro de rotas, js/rotas.js): cada item do painel leva para onde o dado vive */
-  var HJ_DESTINO={agenda:"#agenda",tarefas:"#lista",mba:"#mba",compras:"#compras",saude:"#saude",vagas:"#vagas",mercado:"#mercado",alimentacao:"#mercado/area/delivery",financas:"#mercado",newsletter:"#newsletter",noticias:"#inicio"};
+  var HJ_DESTINO={agenda:"#agenda",tarefas:"#lista",mba:"#mba",compras:"#compras",saude:"#saude",vagas:"#vagas",mercado:"#mercado",alimentacao:"#mercado/area/delivery",financas:"#mercado",newsletter:"#newsletter",noticias:"#rachoje"};
   var HJ_NOMES_FIN={mercado:"Mercado",alimentacao:"Pedidos de comida",compras:"Compras online"};
   function hjDestino(it){if(it.href&&String(it.href).charAt(0)==="#")return it.href;var f=(it.fontes||[]).filter(function(k){return HJ_DESTINO[k]})[0];return f?HJ_DESTINO[f]:null}
   function hjPrazoTxt(it){return it.dias==null?"":it.dias<0?"atrasado há "+(-it.dias)+(it.dias===-1?" dia":" dias"):it.dias===0?"hoje":it.dias===1?"amanhã":"em "+it.dias+" dias"}
@@ -407,15 +407,17 @@
     if(!it.length)return "Nada pedindo atenção nas fontes lidas.";
     if(alta)p.push(alta+(alta===1?" prioridade alta":" prioridades altas"));if(atr)p.push(atr+(atr===1?" item atrasado":" itens atrasados"));if(hoje)p.push(hoje+(hoje===1?" para hoje":" para hoje"));
     p.push(it.length+(it.length===1?" item no total":" itens no total"));return p.join(" · ")+"."}
-  function hjKpis(x){var k=[],f=x.financas,s=x.saude,it=x.itens||[];
-    var atr=it.filter(function(i){return i.dias!=null&&i.dias<0}).length,alta=it.filter(function(i){return i.nivel==="alta"}).length,aten=it.filter(function(i){return i.nivel==="alta"||(i.dias!=null&&i.dias<0)}).length;
-    k.push(rkKpi({rotulo:"Pede atenção",valor:aten,alerta:aten>0,apoio:aten?(atr?atr+(atr===1?" atrasado":" atrasados")+(alta?" · ":""):"")+(alta?alta+" de prioridade alta":""):"nada urgente agora"}));
-    if(f&&f.fontes.length)k.push(rkKpi({rotulo:"Gasto no mês",valor:NUCLEO.hojeReais(f.total),delta:rkDelta(f.pct,"alta","vs. mês passado"),href:"#mercado",apoio:"até o dia "+f.dia+" · "+f.fontes.map(function(n){return HJ_NOMES_FIN[n]}).join(", ")}));
-    if(f&&f.orcamento)k.push(rkKpi({rotulo:"Orçamento usado",valor:f.orcamento.pct+"%",meter:rkMedidor(f.orcamento.pct,f.orcamento.projecaoPct,"Orçamento usado",f.orcamento.projecaoPct!=null?"projeção do mês: "+f.orcamento.projecaoPct+"% de "+NUCLEO.hojeReais(f.orcamento.valor):"de "+NUCLEO.hojeReais(f.orcamento.valor)),
-      apoio:"de "+NUCLEO.hojeReais(f.orcamento.valor)+(f.orcamento.projecaoPct!=null?" · projeção "+f.orcamento.projecaoPct+"%":"")}));
-    else if(f&&f.projecao!=null)k.push(rkKpi({rotulo:"Projeção do mês",valor:NUCLEO.hojeReais(f.projecao),apoio:"no ritmo atual de gastos"}));
-    if(s&&!s.semDados&&s.prontidao!=null)k.push(rkKpi({rotulo:"Prontidão",valor:s.prontidao,href:"#saude",apoio:(s.rotulo||"")+(s.atraso>1?" · dados de "+s.atraso+" dias atrás":"")}));
-    return k}
+  /* Lote 1 da reestruturação visual: uma faixa fina no lugar dos quatro cartões grandes (atenção, gasto, orçamento ou projeção, prontidão); as mesmas contas de antes */
+  function hjFaixa(x){var f=x.financas,s=x.saude,it=x.itens||[],sec=h("section",{class:"rh-faixa","aria-label":"Indicadores do dia"}),
+      aten=it.filter(function(i){return i.nivel==="alta"||(i.dias!=null&&i.dias<0)}).length;
+    function item(rotulo,valor,extra,href,alerta){var el=h(href?"a":"div",href?{class:"rh-faixa-it",href:href}:{class:"rh-faixa-it"});if(alerta)el.className+=" rh-faixa-it--alerta";
+      el.appendChild(h("span",{class:"rac-t-rotulo",text:rotulo}));el.appendChild(h("b",{class:"rh-faixa-v",text:String(valor)}));if(extra)el.appendChild(extra);sec.appendChild(el)}
+    item("Pede atenção",aten,aten?null:h("span",{class:"rac-t-legenda",text:"nada urgente"}),null,aten>0);
+    if(f&&f.fontes.length)item("Gasto no mês",NUCLEO.hojeReais(f.total),rkDelta(f.pct,"alta","vs. mês passado"),"#mercado");
+    if(f&&f.orcamento)item("Orçamento usado",f.orcamento.pct+"%",h("span",{class:"rac-t-legenda",text:"de "+NUCLEO.hojeReais(f.orcamento.valor)+(f.orcamento.projecaoPct!=null?" · projeção "+f.orcamento.projecaoPct+"%":"")}),"#mercado");
+    else if(f&&f.projecao!=null)item("Projeção do mês",NUCLEO.hojeReais(f.projecao),null,"#mercado");
+    if(s&&!s.semDados&&s.prontidao!=null)item("Prontidão",s.prontidao,s.rotulo?h("span",{class:"rac-t-legenda",text:s.rotulo+(s.atraso>1?" · dados de "+s.atraso+" dias atrás":"")}):null,"#saude");
+    return sec}
   /* prioridades: as mesmas regras do núcleo (x.itens), cada linha leva ao módulo do dado; as 5 primeiras, o resto sob demanda */
   function hjCardPrioridades(x){var itens=x.itens||[],corpo=h("div",{class:"rac-pilha",style:"gap:8px"});
     function linha(it){var d=hjPrazoTxt(it),nv=String(it.nivel).replace("é","e");
@@ -433,14 +435,18 @@
   function hjCardGastos(x){var f=x.financas;if(!f||!f.fontes.length)return null;
     var L=f.fontes.map(function(n){return {nome:HJ_NOMES_FIN[n],atual:f.atual[n]||0,anterior:f.anterior[n]||0,txtAtual:NUCLEO.hojeReais(f.atual[n]||0),txtAnterior:NUCLEO.hojeReais(f.anterior[n]||0)}});
     var corpo=h("div",{class:"rac-grafico rac-pilha"},rkComparar(L,"Este mês","Mês passado"));
+    if(f.orcamento)corpo.appendChild(rkMedidor(f.orcamento.pct,f.orcamento.projecaoPct,"Orçamento usado",f.orcamento.projecaoPct!=null?"projeção do mês: "+f.orcamento.projecaoPct+"% de "+NUCLEO.hojeReais(f.orcamento.valor):"de "+NUCLEO.hojeReais(f.orcamento.valor)));
     return rkCard("Gastos do mês",corpo,{sub:"Do dia 1º ao dia "+f.dia+", contra o mesmo trecho do mês passado.",acao:rkLink("ter","Ver na Central","#mercado"),origem:f.delta>0?"Total "+NUCLEO.hojeReais(f.total)+": "+NUCLEO.hojeReais(f.delta)+" a mais que no mesmo trecho do mês passado.":"Total "+NUCLEO.hojeReais(f.total)+(f.totalAnt?": "+NUCLEO.hojeReais(-f.delta)+" a menos que no mesmo trecho do mês passado.":".")})}
-  /* contexto do dia: tempo, jogo, destaques da Newsletter e notícias (as mesmas fontes lidas; cada bloco leva ao seu módulo) */
-  function hjCardContexto(x){var itens=[],tempo=hjFonteDoDia("tempo"),esp=hjFonteDoDia("esportes"),nl=hjFonteDoDia("newsletter"),nt=hjFonteDoDia("noticias");
-    if(typeof tempo==="string")itens.push(rkInfo("⛅","Tempo",tempo.replace(/^Em Sorocaba:\s*/,"Sorocaba: ")));
-    if(typeof esp==="string")itens.push(rkInfo("⚾","Dodgers",esp,"#esportes"));
-    if(nl&&nl.destaques&&nl.destaques.length)itens.push(rkInfo("📰","Na Newsletter",nl.destaques.slice(0,2).map(function(g){return g.t}).join(" · "),"#newsletter"));
-    if(nt&&nt.length)itens.push(rkInfo("📍","Sorocaba",nt.slice(0,2).map(function(n){return n.t}).join(" · "),"#inicio"));
-    if(!itens.length)return null;return rkCard("Contexto do dia",h("div",{class:"rh-ctx-lista"},itens))}
+  /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
+     (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
+  function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */
+    var g=HJ.blocos=h("section",{class:"rh-blocos","aria-label":"E-mails, newsletter, esportes e Sorocaba"});
+    [function(){return typeof wEmail==="function"?wEmail():null},
+     function(){return typeof wLazy==="function"?wLazy(["newsletter"],"wNewsletter"):null},
+     function(){return typeof wLazy==="function"?wLazy(["esportes"],"wEsportes"):null},
+     function(){return typeof wNoticias==="function"?wNoticias():null}].forEach(function(f){
+      try{var el=f();if(el)g.appendChild(el)}catch(e){logErro("hoje",e)}});
+    return g}
   /* saúde: passos dos últimos dias (série real do relógio) e treinos da semana por tipo; só com dados */
   function hjCardSaude(x){var s=x.saude;if(!s||s.semDados)return null;var corpo=h("div",{class:"rac-pilha rac-grafico"}),sf=hjFonteDoDia("saude"),dias=(sf&&sf.dias||[]).filter(function(d){return d.dados&&d.dados.passos>0}).slice(-10);
     if(dias.length>=3){var B=dias.map(function(d){var p=d.data.split("-");return {nome:p[2]+"/"+p[1],cima:p[2]+"/"+p[1],baixo:""}}),V=dias.map(function(d){return d.dados.passos});
@@ -467,11 +473,12 @@
     var falhas=x.estados.filter(function(e){return e.estado==="falhou"});
     if(falhas.length)corpo.appendChild(h("div",{class:"rh-largo"},rkAlerta("aviso",falhas.length+(falhas.length===1?" fonte falhou":" fontes falharam"),falhas.map(function(e){return e.nome}).join(", ")+". O resto do painel continua valendo; a lista completa está em \"Fontes de informação\", mais abaixo.")));
     /* 1. indicadores */
-    var ks=hjKpis(x);corpo.appendChild(h("section",{class:"rh-kpis","aria-label":"Indicadores"},ks));
+    corpo.appendChild(hjFaixa(x));
     /* 2. o que resolver (regras do núcleo) e, ao lado, gastos e contexto */
     corpo.appendChild(hjCardPrioridades(x));
-    var lado=h("div",{class:"rh-lado"}),cg=hjCardGastos(x),cc=hjCardContexto(x);if(cg)lado.appendChild(cg);if(cc)lado.appendChild(cc);if(lado.children.length)corpo.appendChild(lado);
+    var lado=h("div",{class:"rh-lado"}),cg=hjCardGastos(x);if(cg)lado.appendChild(cg);if(lado.children.length)corpo.appendChild(lado);
     var cs=hjCardSaude(x);if(cs){cs.className+=" rh-largo rh-saude";corpo.appendChild(cs)}
+    corpo.appendChild(hjBlocosDia());
     /* 3. análise da IA e pergunta (a lógica, o cache e a cobrança são os de antes) */
     var pa=h("div",{class:"rac-pilha"});HJ.slotAviso=h("div");pa.appendChild(HJ.slotAviso);
     if(HJ.aviso)pa.appendChild(h("p",{class:"rac-t-sec",role:"status",style:"margin:0",text:HJ.aviso}));
@@ -637,7 +644,7 @@
       if(r.ok){HJ.sel=r.analise.chave;HJ.aviso=r.deCache?"Esta análise já existia neste aparelho, com os mesmos dados: nada foi cobrado.":"Chamada concluída e análise disponível (guardada neste aparelho)."}else{r.pedido=hjPedido(o,{});HJ.erro=r}
       return hojeMontar(false).then(function(x){HJ.x=x;hjDesenhar()})},
       function(e){if(HOJE.suspenso)return;HJ.ocupado=false;HJ.erro={motivo:"Não consegui analisar ("+(e&&e.message||e)+")."};hjDesenhar()})}
-  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
+  function hjCarregar(forcar){var corpo=HJ.corpo;corpo.innerHTML="";if(forcar)HJ.blocos=null;corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("carregando","Lendo as fontes do dia…")));
     return hjConfig().then(function(){return hojeMontar(forcar)}).then(function(x){HJ.x=x;hjDesenhar()})
       .catch(function(e){corpo.innerHTML="";corpo.appendChild(h("div",{class:"rh-largo"},rkEstado("erro","Não consegui carregar agora.",h("div",{class:"rac-linha-flex"},rkBtn("sec","tentar de novo",{onclick:null}),e?h("span",{class:"rac-t-mono",text:"Detalhe técnico: "+(e.message||e)}):null))));
         var b=corpo.querySelector("button");if(b)b.onclick=function(){hjCarregar(forcar)};logErro("hoje",e)})}
@@ -650,6 +657,6 @@
     /* outra aba deste aparelho mudou o que o RAC Hoje guarda (análise, chamada sem resultado): repinta só o histórico, as chamadas sem resultado e o aviso, sem chamar nada.
        O listener é um só (hojeOuvir, também usado pela sessão em outra aba). */
     hojeOuvir();
-    HJ.corpo=h("div",{class:"rh"});root.appendChild(HJ.corpo);hjCarregar(false)}
+    HJ.corpo=h("div",{class:"rh"});HJ.blocos=null;root.appendChild(HJ.corpo);hjCarregar(false)}
   /* a vigilância da sessão começa quando o módulo carrega (antes de a tela abrir), para a memória do RAC Hoje não sobreviver a um logout em outra aba */
   hojeOuvir();

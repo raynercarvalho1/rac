@@ -145,7 +145,7 @@ test("Início: o cartão usa o mesmo estado e a mesma sincronização do Inbox (
   assert.ok(!/insert\(|update\(|upsert\(|delete\(/.test(bloco), "o cartão só lê");
 });
 test("Início: a casa (Fernanda) não é afetada — o Início é do dono e o Inbox continua fora de DA_CASA", () => {
-  const rotas = lerArq("js/rotas.js"); assert.ok(!/id:"inbox"[^}]*casa:true/.test(rotas)); assert.match(lerArq("js/app.js"), /PAPEL==="casa"\?"lista":"inicio"|isOwner\(\)\?"inicio":"lista"/);
+  const rotas = lerArq("js/rotas.js"); assert.ok(!/id:"inbox"[^}]*casa:true/.test(rotas)); assert.match(lerArq("js/app.js"), /PAPEL==="casa"\?"lista":"inicio"|isOwner\(\)\?"inicio":"lista"|isOwner\(\)\?rotaInicial\(\):"lista"/);
 });
 test("Início: layout do cartão só com tokens, alvos de 44 px e sem estouro horizontal a 390 px", () => {
   const css = lerArq("css/rac.css"), bloco = css.slice(css.indexOf("cartão E-mail do Início"));

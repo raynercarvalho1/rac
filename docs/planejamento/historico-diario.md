@@ -1548,3 +1548,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir no iPhone (colar uma chave real, abrir o link, enviar o PDF). Se quiser lançar só pela chave no futuro, depende da consulta oficial à SEFAZ (certificado digital; lote futuro já decidido).
+
+## 22/11/2026 · Reestruturação visual, Lote 1: o Hoje como tela inicial do dono (versão `2026-11-22.1`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono (o Início tinha cartões que ele não usa; o Hoje é mais útil), desenho e plano em `docs/planejamento/11-reestruturacao-visual.md`, aprovados por ele. Lote 1 implementado e testado: o app do dono abre no **Hoje** (`rotaInicial()`); o **Início saiu do menu** (a rota `#inicio` continua existindo); a Fernanda não muda (continua no Mercado). O Hoje ganhou uma **faixa fina** (atenção, gasto, orçamento ou projeção, prontidão) no lugar dos quatro cartões grandes e os blocos **E-mails, Newsletter, Esportes e Sorocaba** depois da Saúde, reaproveitando os cartões do Início (sem IA). A Newsletter mostra "Atualizada às HH:MM" e quantos destaques são novos desde a última visita (`NUCLEO.nlNovos`). Barra de baixo do celular: Hoje, MBA, Saúde, Compras, Inbox (a Agenda saiu da barra).
+- Testes: `tests/rotas.test.mjs` (equivalência com o roteador de antes, com as exceções da abertura declaradas), `tests/hoje.test.mjs`, `tests/newsletter.test.mjs`, `tests/design_system.test.mjs`, rodados pelo `scripts/nuvem_testes.sh` (Node 24). Sem SQL, função, secret ou IA paga.
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`; PR, CI, merge e publicação ainda **não confirmados** neste registro (ver a linha de correção abaixo, se houver). Não foi possível ver a tela no navegador nesta sessão: a conferência visual é do dono, no iPhone.
+
+### 3. O que vamos fazer
+- Lote 2: blocos MBA (aula ao vivo ou próxima, avaliações pendentes, boleto, "Onde parei"), Últimas compras e Saúde/Garmin no Hoje. Lote 3: botão **+** contextual por tela, só do dono. Fora de escopo por decisão do dono: horário da newsletter e e-mails externos das 6h/9h.

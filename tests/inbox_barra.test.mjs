@@ -8,9 +8,9 @@ import { registro, lerArq } from "./_rotas.mjs";
 globalThis.window = globalThis; await import("../nucleo.js"); const N = globalThis.RACnucleo;
 const barraHtml = () => { const ctx = { console, Object, Array, JSON, String, document: { getElementById: () => null } }; ctx.window = ctx; vm.createContext(ctx); vm.runInContext(lerArq("js/rotas.js"), ctx, { filename: "js/rotas.js" }); return ctx.rotasBarraHtml(); };
 
-test("barra: Hoje, Agenda, Saúde, Compras, Inbox e o botão do menu, nessa ordem; o Inbox leva o selo de não lidas (escondido até haver número); o menu lateral e o registro NÃO mudam de ordem", () => {
+test("barra: Hoje, MBA, Saúde, Compras, Inbox e o botão do menu, nessa ordem; o Inbox leva o selo de não lidas (escondido até haver número); o menu lateral e o registro NÃO mudam de ordem", () => {
   const h = barraHtml(), links = [...h.matchAll(/<a href="#([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(links, ["rachoje", "agenda", "saude", "mercado", "inbox"]); assert.ok(h.indexOf('id="barramenu"') > h.indexOf('href="#inbox"'), "o menu continua por último");
+  assert.deepEqual(links, ["rachoje", "mba", "saude", "mercado", "inbox"]);   /* 22/11/2026 (reestruturação visual, Lote 1): o MBA entrou na barra e a Agenda saiu */ assert.ok(h.indexOf('id="barramenu"') > h.indexOf('href="#inbox"'), "o menu continua por último");
   assert.match(h, /<a href="#inbox"[^>]*>[\s\S]*?<span class="t">Inbox<\/span>[\s\S]*?<span class="bcnt" id="cntbarrainbox" hidden><\/span><\/a>/, "selo dentro do atalho do Inbox, escondido");
   assert.equal((h.match(/id="cntbarrainbox"/g) || []).length, 1);
   const ids = registro().rotas.map((r) => r.id); assert.ok(ids.indexOf("inbox") < ids.indexOf("saude"), "a ordem do registro (e do menu lateral) segue a de antes");

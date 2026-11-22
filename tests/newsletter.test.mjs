@@ -853,3 +853,26 @@ test("SQL 021: liga só a Newsletter (casa em REAL, lista só com newsletter.res
   assert.match(s, /conname = 'ia_config_newsletter_so_dono'/, "só depois do 020"); assert.match(s, /count\(\*\) from public\.ia_config\) <> 1/);
   assert.equal((s.match(/\bupdate\b/gi) || []).length, 1);
 });
+
+/* Reestruturação visual, Lote 1 (docs/planejamento/11-reestruturacao-visual.md): o cartão da Newsletter no Hoje mostra a hora da coleta e quantos destaques são novos desde a última visita */
+test("Newsletter no Hoje: NUCLEO.nlNovos conta só os destaques mais novos que a última visita", () => {
+  createRequire(import.meta.url)("../nucleo.js"); const N = globalThis.RACnucleo;
+  const l = [{ d: "2026-11-22T09:00:00Z" }, { d: "2026-11-22T11:00:00Z" }, { d: "2026-11-21T20:00:00Z" }];
+  const desde = Date.parse("2026-11-22T10:00:00Z");
+  assert.equal(N.nlNovos(l, desde), 1, "só o das 11h é depois da visita das 10h");
+  assert.equal(N.nlNovos(l, Date.parse("2026-11-20T00:00:00Z")), 3, "visita antiga: todos são novos");
+  assert.equal(N.nlNovos(l, Date.parse("2026-11-23T00:00:00Z")), 0, "visita depois de tudo: nenhum novo");
+  assert.equal(N.nlNovos([], desde), 0, "lista vazia");
+  assert.equal(N.nlNovos(null, desde), 0, "sem lista");
+  assert.equal(N.nlNovos(l, 0), 0, "sem visita anterior não se inventa 'novos'");
+  assert.equal(N.nlNovos(l, NaN), 0, "visita inválida");
+  assert.equal(N.nlNovos([{ d: "lixo" }, { d: null }, {}], desde), 0, "data inválida não conta");
+});
+test("Newsletter no Hoje: o cartão mostra 'Atualizada às HH:MM' e 'novos'; a visita fica no aparelho, com try/catch, e é gravada ao abrir a página", () => {
+  const src = fs.readFileSync(new URL("../js/newsletter.js", import.meta.url), "utf8");
+  const card = src.slice(src.indexOf("function wNewsletter()"), src.indexOf("function wNewsletter()") + 2200);
+  assert.match(card, /nlNovos\(/); assert.match(card, /Atualizada às /); assert.match(card, /NLS\.dados\.coletado|nlHoraColeta\(/);
+  assert.match(src, /function nlVisto\(\)\{try\{/); assert.match(src, /function nlMarcarVisto\(\)\{try\{/);
+  assert.match(src.slice(src.indexOf("function renderNewsletter("), src.indexOf("function renderNewsletter(") + 400), /nlMarcarVisto\(\)/, "abrir a página da Newsletter conta como visita");
+  assert.ok(!/racIA\(/.test(card), "o cartão nunca chama IA");
+});

@@ -248,6 +248,7 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
 .rh-hero h2{padding-right:48px}
 .rh-hero-ctx{grid-column:1/-1;display:flex;gap:var(--rac-esp-2);flex-wrap:wrap;position:relative;z-index:1}
 .rh-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--rac-raio-pilula);background:rgba(255,255,255,.16);font:500 calc(13px + var(--fz)) var(--f-ui);color:var(--rac-sobre-fill);max-width:100%;overflow-wrap:anywhere}
+.rh-kpis{grid-column:1/-1;display:grid;gap:var(--rac-esp-3);grid-template-columns:repeat(4,minmax(0,1fr))}
 .rh-prio{grid-column:span 7}
 .rh-lado{grid-column:span 5;display:flex;flex-direction:column;gap:var(--rac-esp-4)}
 .rh-largo{grid-column:1/-1}
@@ -280,7 +281,7 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
 .rh .rac-card .panel{background:none;box-shadow:none;border:0;padding:0;border-radius:0;-webkit-backdrop-filter:none;backdrop-filter:none}
 .rh .rac-card .panel>h2{display:none}
 .rh textarea{width:100%;border-radius:var(--rac-raio-1);border:1px solid var(--rac-linha-campo);background:var(--rac-papel);color:var(--rac-texto);padding:10px var(--rac-esp-3);font:400 max(16px,calc(15px + var(--fz))) var(--f-body);min-height:var(--rac-alvo)}
-@media(max-width:1100px){.rh-prio,.rh-lado{grid-column:1/-1}}
+@media(max-width:1100px){.rh-prio,.rh-lado{grid-column:1/-1}.rh-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rh-kpis>:last-child:nth-child(odd){grid-column:1/-1}}
 @media(max-width:760px){
   .rh{gap:var(--rac-esp-3)}
   .rh-hero{grid-template-columns:minmax(0,1fr);padding:var(--rac-esp-5)}
@@ -292,7 +293,7 @@ html.casa #navgrp h4.areat,html.casa #barra{display:none}
   .rac-kpi{padding:var(--rac-esp-3) var(--rac-esp-4)}
   .rac-t-num{font-size:calc(28px + var(--fz))}
 }
-@media(max-width:380px){.rac-t-num{font-size:calc(25px + var(--fz))}}
+@media(max-width:380px){.rh-kpis{gap:var(--rac-esp-2)}.rac-t-num{font-size:calc(25px + var(--fz))}}
 
 /* ---------- 5. AGENDA (#agenda; DS-4.1) ---------- */
 /* a página usa o esqueleto do piloto (.rh: abertura, indicadores, colunas 7/5) e os componentes rac-*; aqui só o que é da Agenda. Só o dono abre a página. */
@@ -355,6 +356,7 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .sh-chk input{width:22px;height:22px;flex:none;accent-color:var(--rac-dodger)}
 .sh .rac-campo-entrada[type=number]{max-width:200px}
 @media(max-width:1100px){.sh-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sh-kpis>:last-child:nth-child(odd){grid-column:1/-1}}
+.sh .rh-hero-acoes{position:static}.sh .rh-hero h2{padding-right:0}
 @media(max-width:760px){.sh .rh-hero-acoes{width:100%}.sh .rh-hero-acoes .rac-btn{flex:1 1 auto}.sh .ag-hero-desc{display:none}}
 /* gráficos de 30 dias: cada coluna tem pelo menos 44 px (valor e rótulo legíveis, alvo de toque) e o gráfico rola por dentro do cartão em qualquer largura */
 .sh .vbars.vbpeso{overflow-x:auto;overflow-y:hidden;padding-bottom:6px;scrollbar-width:thin}

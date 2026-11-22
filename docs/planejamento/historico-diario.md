@@ -1677,3 +1677,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir o Hoje no iPhone e decidir se e quando liga a análise automática (acompanhar em Custos de IA). Pendência técnica separada: no cartão de Saúde, o gráfico "Passos por dia" corta a primeira coluna na borda esquerda no celular (já existia).
+
+## 22/11/2026 · Correção visual da Agenda e do cabeçalho da Saúde (versão `2026-11-22.7`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono (prints do iPhone): **Agenda** — os cartões de indicadores estavam estreitos e empilhados porque o Lote 1 do Hoje (c787aa0) apagou do `css/rac.css` as regras de `.rh-kpis`, ainda usadas pela Agenda e pelas abas Sono e Atividades da Saúde; regras restauradas. **Saúde** — o botão "Atualizar agora" não fica mais por cima do título (`.sh .rh-hero-acoes` no fluxo) e o botão "Ocultar valores" saiu do cabeçalho (o ajuste continua em Inteligência → Ajustes). Testes: `agenda_tela`, `saude_tela` e `inbox_notificacao_abrir` ajustados/ampliados (teste novo da grade `.rh-kpis`).
+
+### 2. O que estamos fazendo
+- Branch `claude/funny-goldberg-0oxo4a`; sem PR, merge nem publicação. **Não conferido:** o visual no iPhone.
+
+### 3. O que vamos fazer
+- Dono: conferir Agenda e Saúde no iPhone após a publicação.
+

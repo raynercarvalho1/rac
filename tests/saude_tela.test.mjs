@@ -51,7 +51,7 @@ test("Saúde: a abertura do hub — data, frase com dados reais, as 7 abas na or
   const c = tela(); await abrir(c);
   const hero = texto(porClasse(c.root, "rh-hero")[0]);
   assert.match(hero, /Saúde/); assert.match(hero, /sexta-feira, 13 de novembro de 2026/); assert.match(hero, /Prontidão \d+: .+\. (Nenhum sinal persistente|\d sinais? persistentes? em observação)\./, "a frase vem dos dados");
-  assert.match(hero, /Último dado: 13\/11\/2026/); assert.match(hero, /Origem: banco/); assert.ok(botao(c.root, "Atualizar agora")); assert.ok(botao(c.root, "Ocultar valores"));
+  assert.match(hero, /Último dado: 13\/11\/2026/); assert.match(hero, /Origem: banco/); assert.ok(botao(c.root, "Atualizar agora")); assert.ok(!botao(c.root, "Ocultar valores"), "o botão Ocultar valores saiu do cabeçalho (só resta o ajuste em Inteligência)");
   assert.deepEqual(abas(c.root).map((a) => a.rot), ["Visão geral", "Recuperação", "Sono", "Atividades", "Condicionamento", "Tendências", "Inteligência"]);
   assert.deepEqual(abas(c.root).map((a) => a.href), ["#saude", "#saude/recuperacao", "#saude/sono", "#saude/atividades", "#saude/condicionamento", "#saude/tendencias", "#saude/inteligencia"], "as abas usam o 2º trecho da rota, sem rotas paralelas");
   assert.deepEqual(abas(c.root).filter((a) => a.ativa).map((a) => a.rot), ["Visão geral"]); assert.equal(c.erros.length, 0);
@@ -196,12 +196,11 @@ test("Saúde · abrir atualizando: dado com mais de 2 h pede ao relógio (como s
 });
 
 /* ---------- ocultar valores e local ---------- */
-test("Saúde · ocultar valores: máscara só de apresentação — os valores somem da tela e dos gráficos, os dados e as contas não mudam, e o botão alterna e guarda a preferência", async () => {
-  const c = tela(); await abrir(c); const antes = JSON.stringify([c.SAUDE.dias, c.SAUDE.ativs]), valor0 = kpi(c.root, "VFC (noite)").valor; assert.match(valor0, /^\d+ ms$/);
-  botao(c.root, "Ocultar valores").onclick(); await pausa();
-  assert.deepEqual(js(c.gravados.at(-1)), ["saudePrefs", { ocultar: true }], "só a preferência é guardada, na conta pessoal"); assert.equal(c.PESSOAL.saudePrefs.ocultar, true);
+test("Saúde · ocultar valores: máscara só de apresentação — os valores somem da tela e dos gráficos, os dados e as contas não mudam, e a preferência (ajuste em Inteligência) é a única forma de ligar", async () => {
+  const c0 = tela(); await abrir(c0); const valor0 = kpi(c0.root, "VFC (noite)").valor; assert.match(valor0, /^\d+ ms$/); assert.ok(!botao(c0.root, "Ocultar valores") && !botao(c0.root, "Mostrar valores"), "sem botão de ocultar no cabeçalho");
+  const c = tela({ prefs: { ocultar: true } }); await abrir(c); const antes = JSON.stringify([c.SAUDE.dias, c.SAUDE.ativs]); assert.equal(c.PESSOAL.saudePrefs.ocultar, true);
   for (const r of ["Prontidão", "Sono", "VFC (noite)", "FC de repouso", "Body Battery"]) assert.equal(kpi(c.root, r).valor, "•••", r + " oculto"); assert.match(kpi(c.root, "Sono").apoio, /seu normal •••/);
-  assert.ok(botao(c.root, "Mostrar valores")); assert.match(texto(porClasse(c.root, "rh-hero-ctx")[0]), /Valores ocultos/); assert.ok(classe(c.root.children[0], "sh-oculto"));
+  assert.ok(!botao(c.root, "Mostrar valores")); assert.match(texto(porClasse(c.root, "rh-hero-ctx")[0]), /Valores ocultos/); assert.ok(classe(c.root.children[0], "sh-oculto"));
   assert.match(texto(cartao(c.root, "Esta semana")), /•••/); assert.equal(JSON.stringify([c.SAUDE.dias, c.SAUDE.ativs]), antes, "os dados originais não foram tocados");
   /* abas e gráficos: nada de número nas barras, nas dicas nem nas listas de valores */
   await abrir(c, "recuperacao"); const barras = porClasse(cartao(c.root, "VFC (variabilidade cardíaca)"), "vb"); assert.ok(barras.length === 30);
@@ -210,8 +209,7 @@ test("Saúde · ocultar valores: máscara só de apresentação — os valores s
   await abrir(c, "sono"); assert.equal(kpi(c.root, "Última noite").valor, "•••"); assert.ok(!/\d{1,2}:\d\d|\d+h\d\d/.test(texto(cartao(c.root, "Horários e regularidade")).replace(/\d{2}\/\d{2}/g, "")), "os horários também ficam ocultos");
   await abrir(c, "atividades"); assert.equal(kpi(c.root, "Atividades").valor, "•••"); assert.ok(!/km|batimentos \d/.test(texto(cartao(c.root, "Histórico de atividades"))), "distância e batimentos ocultos na lista");
   await abrir(c, "inteligencia"); assert.ok(!/Hipótese: |Comparação com o seu normal/.test(texto(c.root)) || true); assert.match(texto(cartao(c.root, "Ajustes de Saúde")), /Ocultar os valores de saúde/);
-  /* alterna de volta: tudo volta, e as contas do núcleo são as mesmas de antes */
-  await abrir(c); botao(c.root, "Mostrar valores").onclick(); await pausa(); assert.equal(c.PESSOAL.saudePrefs.ocultar, false); assert.equal(kpi(c.root, "VFC (noite)").valor, valor0); assert.equal(c.erros.length, 0);
+  assert.equal(c.erros.length, 0);
 });
 
 test("Saúde · local: o dono pode esconder o local dos treinos nas telas; sem a preferência ele aparece como sempre; o local nunca entra em sinais nem em textos de análise", async () => {

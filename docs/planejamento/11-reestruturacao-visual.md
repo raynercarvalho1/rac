@@ -1,6 +1,6 @@
 # 11 · Reestruturação visual: o Hoje como tela inicial do dono
 
-Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 implementado e testado em 22/11/2026, na branch, merge e publicação a confirmar (seção 8). Lotes 2 e 3 não iniciados.**
+Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 mesclado na `main` em 22/11/2026 (PR #71; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono), lotes 2 e 3 não iniciados (seção 8). Lotes 2 e 3 não iniciados.**
 
 ## 1. Intenção e motivo
 

@@ -164,3 +164,12 @@ test("serviço: refresh recusado marca a credencial inválida e a conta em erro 
   assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, { ...ok.c, oauth: {} })).corpo.erro, "oauth_nao_configurado");
   assert.equal((await atender({ operacao: "testar_conta", conta_id: conta }, { ...ok.c, oauth: { gmail: CFG.outlook } })).corpo.erro, "oauth_nao_configurado", "a configuração do Google nunca serve ao Outlook");
 });
+
+test("Outlook · NUNCA mais de uma requisição por vez: a Graph aceita 4 simultâneas por aplicativo e caixa e responde 429 acima disso (listar_pastas disparava 6 juntas e a sincronização falhava com http_429 em 21/11/2026)", async () => {
+  const cx = caixa(); cx.add(1); let ativas = 0, max = 0; const http = cx.http;
+  cx.http = async (u, i) => { ativas++; max = Math.max(max, ativas); await new Promise((r) => setTimeout(r, 4)); try { return await http(u, i); } finally { ativas--; } };
+  const repo = { pastaIdPorNome: async () => "p", idsExternos: async () => new Map(), maiorUid: async () => 0, idExterno: async () => null };
+  const w = criarWorkerOutlook({ acesso: ACESSO, http: cx.http, banco: repo, dono: R, conta: R });
+  assert.equal((await w.executar("listar_pastas", {})).ok, true); assert.equal((await w.executar("estado_pasta", { pasta: "inbox" })).ok, true); assert.equal((await w.executar("listar_mensagens", { pasta: "inbox" })).ok, true);
+  assert.equal(max, 1, "no máximo uma requisição em andamento (máximo visto: " + max + ")");
+});

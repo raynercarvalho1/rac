@@ -92,7 +92,9 @@ export function criarWorkerOutlook(d: DepsOutlook): Worker {
     if (operacao === "testar_conta") { const r = await api("mailFolders/inbox?$select=id"); return r.ok ? { ok: true, dados: {} } : r; }
 
     if (operacao === "listar_pastas") {
-      const sis = await Promise.all(PASTAS_SISTEMA.map(async (s) => ({ s, r: await api(`mailFolders/${s.alias}?$select=id`, "pasta_inexistente") })));
+      /* UMA requisição por vez: a Graph aceita 4 simultâneas por aplicativo e caixa e responde 429 (Too Many Requests) acima disso */
+      const sis: Array<{ s: (typeof PASTAS_SISTEMA)[number]; r: Api }> = [];
+      for (const s of PASTAS_SISTEMA) sis.push({ s, r: await api(`mailFolders/${s.alias}?$select=id`, "pasta_inexistente") });
       const falha = sis.find((x) => !x.r.ok && x.r.erro !== "pasta_inexistente"); if (falha && !falha.r.ok) return falha.r;
       if (!sis.some((x) => x.s.alias === "inbox" && x.r.ok)) return { ok: false, erro: "pasta_inexistente" };
       const idsSistema = new Set(sis.filter((x) => x.r.ok).map((x) => str((x.r as { j: Obj }).j.id)));

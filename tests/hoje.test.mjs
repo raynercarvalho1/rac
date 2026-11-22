@@ -1804,3 +1804,50 @@ test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blo
   const tela = s.alvos["#rachoje-view"], reler = botao(tela, "Reler as fontes"); assert.ok(reler); reler.onclick(); await fluxo(); assert.equal(n, 2, "reler as fontes refaz os blocos");
   s.ctx.renderHoje(); await fluxo(); assert.equal(n, 3, "reabrir a tela refaz os blocos");
 });
+
+/* pedido do dono (22/11/2026): a tela do Hoje ficou longa; cada cartão ganha um botão pequeno de recolher (mostrar menos) */
+test("Hoje: os cartões principais têm botão de recolher, ligado ao mesmo armazenamento dos cartões do Início", () => {
+  const hoje = ler("js/hoje.js");
+  assert.match(hoje, /function hjRecolhivel\(c,titulo\)/);
+  for (const t of ["Prioridades do dia", "Gastos do mês", "Saúde e treino", "Análise da IA", "Pergunte sobre o seu dia"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
+  assert.match(hoje, /recolhidos\(\)/, "usa o mesmo estado de recolhidos() do app.js"); assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjRecolhivel"), hoje.indexOf("function hjRecolhivel") + 900)), "recolher não chama IA");
+  assert.match(ler("css/rac.css"), /\.rac-card\.recolhido>:not\(\.rac-card-cab\)\{display:none\}/, "o corpo some, o título fica");
+});
+test("Hoje: o botão recolhe e mostra o cartão, lembra a escolha e um cartão novo já nasce recolhido", () => {
+  const mem = {}, lido = () => { try { return JSON.parse(mem["rac-recolhidos"] || "{}"); } catch (e) { return {}; } };
+  const s = telaSite({ resp: RESP, jsons: JSONS, mem, extra: { RECOLHIDOS: "rac-recolhidos", recolhidos: lido } });
+  const novo = () => { const c = new El("div"); c.className = "rac-card"; const cab = new El("div"); cab.className = "rac-card-cab"; c.appendChild(cab); c.appendChild(new El("p")); return c; };
+  const card = novo(); s.ctx.hjRecolhivel(card, "Prioridades do dia");
+  const b = card.children[0].children.find((x) => x.tagName === "BUTTON"); assert.ok(b, "o botão está no título do cartão");
+  assert.equal(b.attrs["aria-expanded"], "true"); assert.ok(!/recolhido/.test(card.className));
+  b.onclick(); assert.ok(/recolhido/.test(card.className)); assert.equal(b.attrs["aria-expanded"], "false"); assert.equal(lido()["Prioridades do dia"], 1, "a escolha fica guardada");
+  b.onclick(); assert.ok(!/recolhido/.test(card.className)); assert.equal(lido()["Prioridades do dia"], undefined, "mostrar de novo apaga a marca");
+  mem["rac-recolhidos"] = JSON.stringify({ "Prioridades do dia": 1 }); const c2 = novo(); s.ctx.hjRecolhivel(c2, "Prioridades do dia"); assert.ok(/recolhido/.test(c2.className), "já nasce recolhido");
+  const sem = new El("div"); sem.className = "rac-card"; assert.equal(s.ctx.hjRecolhivel(sem, "X"), sem, "cartão sem título: devolve como veio, sem quebrar");
+});
+
+/* Lote 2 da reestruturação visual: o foco do dono (MBA e últimas compras) abaixo da faixa e o último treino no cartão de Saúde */
+test("Lote 2: o Hoje monta faixa → MBA e compras → prioridades, uma vez por abertura, e as compras só são lidas (nada grava, sem IA)", () => {
+  const hoje = ler("js/hoje.js"), d = hoje.slice(hoje.indexOf("function hjDesenhar()"), hoje.indexOf("/* Atualização entre abas"));
+  const pos = ["hjFaixa(x)", "hjBlocosFoco()", "hjCardPrioridades(x)"].map((t) => d.indexOf(t)); assert.ok(pos.every((p, i) => p > 0 && (!i || p > pos[i - 1])), "ordem: " + pos);
+  const f = hoje.slice(hoje.indexOf("function hjUltimasCompras()"), hoje.indexOf("function hjUltimoTreino"));
+  assert.ok(f.indexOf('wLazy(["mba"],"wMbaHoje")') > 0 && f.indexOf('wLazy(["mba"],"wMbaHoje")') < f.indexOf("hjUltimasCompras()", f.indexOf("function hjBlocosFoco")), "MBA antes das compras");
+  assert.match(f, /if\(HJ\.foco\)return HJ\.foco/, "montado uma vez"); assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(|racIA\(|functions\.invoke/.test(f), "só leitura");
+  assert.ok(!/\.from\("/.test(d), "o desenho do painel continua sem abrir leitura de banco própria");
+});
+test("Lote 2: 'Últimas compras' mostra as 5 notas mais recentes, loja sem a cidade, total e itens, e diz o que houve se o banco falhar", async () => {
+  const compras = [{ id: 1, data: "2026-11-21", mercado: "Mercado A (Sorocaba)", numero: "100", valor_total: 10 }, { id: 2, data: "2026-11-21", mercado: "Mercado A (Sorocaba)", numero: "100", valor_total: 5.5 },
+    { id: 3, data: "2026-11-20", mercado: "Padaria B", numero: "7", valor_total: 3 }];
+  const s = telaSite({ resp: { ...RESP, compras }, jsons: JSONS }); const p = s.ctx.hjUltimasCompras(); await fluxo();
+  const t = p.textContent; assert.ok(t.includes("Mercado A") && !t.includes("Sorocaba") && t.includes("Padaria B"), t); assert.ok(t.includes("2 itens") && t.includes("1 item"), t);
+  assert.ok(t.indexOf("Mercado A") < t.indexOf("Padaria B"), "a mais recente primeiro");
+  const f = telaSite({ resp: { ...RESP, compras: FALHA }, jsons: JSONS }), pf = f.ctx.hjUltimasCompras(); await fluxo(); assert.match(pf.textContent, /Não consegui ler as compras agora/);
+  const v = telaSite({ resp: { ...RESP, compras: [] }, jsons: JSONS }), pv = v.ctx.hjUltimasCompras(); await fluxo(); assert.match(pv.textContent, /Nenhuma compra lançada ainda/);
+});
+test("Lote 2: o último treino aparece no cartão de Saúde com link para o treino; sem treino, nada; lido uma vez por abertura", async () => {
+  const ativ = [{ id: "9", inicio: "2026-11-21T08:10:00", tipo: "running", dados: { distancia: 5230, duracao: 1805 } }];
+  const s = telaSite({ resp: { ...RESP, garmin_ativ: ativ }, jsons: JSONS }); const box = new El("div"); s.ctx.hjUltimoTreino(box); await fluxo();
+  const a = varre(box, (e) => e.tagName === "A")[0]; assert.ok(a, "o link do treino"); assert.equal(a.attrs.href, "#saude/treino/9"); assert.match(box.textContent, /Último treino[\s\S]*Running[\s\S]*5,23 km/);
+  const outra = new El("div"); s.ctx.hjUltimoTreino(outra); assert.match(outra.textContent, /Running/, "a segunda vez usa o que já foi lido");
+  const n = telaSite({ resp: { ...RESP, garmin_ativ: [] }, jsons: JSONS }), vazio = new El("div"); n.ctx.hjUltimoTreino(vazio); await fluxo(); assert.equal(vazio.children.length, 0, "sem treino, nada aparece");
+});

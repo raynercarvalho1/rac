@@ -1595,3 +1595,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 3: botão **+** contextual por tela, só do dono. Opcional: coluna de quem lançou a compra, se o dono quiser (SQL).
+
+## 22/11/2026 · Hoje: botão de recolher e Lote 2 mesclados e publicação confirmada (correção dos dois registros anteriores sobre eles)
+
+### 1. O que fizemos
+- PR #73 **mesclado** na `main` (commit de merge `f3b5f99`, versão `2026-11-22.3`), com o CI do PR verde no commit testado (`4a83ffb`) e sem conflito. Depois do merge: workflow **Testes** da `main` com sucesso (run 335) e **pages build and deployment** com sucesso (run 433), ambos para `f3b5f99`. Isto corrige "merge e publicação não confirmados" dos registros do botão de recolher e do Lote 2. O deploy do PR #72 (`fe0b9fb`, run 432) também terminou com sucesso.
+
+### 2. O que estamos fazendo
+- Nada em andamento nestes dois itens. **Não conferido:** a versão `2026-11-22.3` realmente servida pelo site (o domínio não respondeu da máquina da sessão) e o visual no iPhone; as duas conferências são do dono.
+
+### 3. O que vamos fazer
+- Lote 3 (botão **+** contextual por tela, só do dono). Opcional, só com autorização do dono para SQL: coluna de quem lançou a compra, para o Hoje mostrar "você ou a Fernanda".

@@ -474,7 +474,7 @@ test("controle de orçamento: com o teto esgotado a geração não acontece (só
 test("só a Newsletter ganha o REAL automático: o Mercado continua DEMO fixo, a rotina só pede newsletter.resumo e o site nunca repete sozinho", async () => {
   assert.deepEqual(Object.values(ACOES).filter((a) => a.real).map((a) => a.id).sort(), ["abastecimento.interpretar", "fiscal.nota", "hoje.analise", "newsletter.resumo", "radar.equivalencia"]);
   assert.equal(ACOES["mercado.nota"].real, false);
-  /* o RAC Hoje é REAL, mas nunca automático: nenhum arquivo do site chama hojeAnalisar sozinho (só o dono, pela função) */
+  /* o RAC Hoje é REAL e só roda por hjAnalisar (a tela): nenhum arquivo do site chama hojeAnalisar sozinho. Desde 22/11/2026 a tela pode pedir a análise sozinha, até 2 por dia, SÓ com o interruptor ligado pelo dono (tests/hoje.test.mjs, "IA automática") */
   for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) assert.ok(!/hojeAnalisar\(/.test(ler("js/" + f).replace(/function hojeAnalisar\(|analisar:hojeAnalisar|hojeAnalisar\(o\)\.then\(/g, "")), f + " chama o RAC Hoje sozinho");
   /* a única chamada é a da tela do RAC Hoje (hjAnalisar), só depois do botão e da confirmação (tests/hoje.test.mjs) */
   /* o abastecimento só é REAL se o banco liberar, e a liberação desta fase é só da Newsletter */

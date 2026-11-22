@@ -123,7 +123,12 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
   resposta REAL validada (o banco confere a chamada). Uma chamada por edição, no máximo 3 por dia, sem repetir depois de
   erro (docs/newsletter.md).
 - RAC Hoje (`hoje.analise`, docs/hoje.md): só REAL e sem demonstração, por decisão do dono (02/11/2026). Em DEMO a `rac-ia` responde
-  o erro `sem_real`, nunca uma análise simulada; só do dono (o banco proíbe para a casa); nunca automático, só a pedido do dono.
+  o erro `sem_real`, nunca uma análise simulada; só do dono (o banco proíbe para a casa); a pedido do dono (botão com confirmação).
+  **Segunda exceção (autorizada pelo dono em 22/11/2026):** com o interruptor "Análise automática" **ligado pelo dono** (`PESSOAL.hojeIaAuto`,
+  desligado por padrão), a tela do Hoje pede a análise sozinha, **no máximo 2 por dia** (1ª abertura ou volta ao app a partir das 6h e a partir
+  das 14h, horário de Brasília, com o app aberto), pelo mesmo caminho do botão (`hjAnalisar`). A marca da janela é gravada antes de chamar, o
+  servidor conta as chamadas do dia (`ia_custos`, funcionalidade `hoje`) e, com 2 ou sem conseguir contar, não chama; sem repetir depois de
+  erro. As perguntas continuam só manuais, com confirmação (docs/hoje.md, "IA automática").
 - Nada de repetição paga automática, de troca de modelo na recusa nem de liberar reserva incerta por prazo.
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
 

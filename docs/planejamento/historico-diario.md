@@ -1631,3 +1631,16 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir o Hoje e o **+** em cada tela no iPhone e dizer qual botão antigo "nem funcionava". Opcional, dependem de decisão do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (exige SQL, só com autorização expressa).
+
+## 22/11/2026 · Reestruturação visual, Lote 4: Hoje mais direto e mais inteligente (versão `2026-11-22.5`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono (conferência no iPhone): **Itens do dia** tocáveis (3 à vista e "ver todos" no mesmo lugar) no lugar do cartão Prioridades; **O que mudou desde ontem** logo abaixo, com prontidão, treino, compras, MBA e resultado dos times (linhas só de exibição, fora do pacote da IA); botões Reler as fontes e Custos de IA reorganizados; nova ordem da tela; resumo da IA no topo.
+- **IA automática, autorizada pelo dono em 22/11/2026:** até 2 análises pagas por dia, a partir das 6h e das 14h, com o app aberto, **interruptor desligado por padrão** (liga na conta, com aviso de custo). Travas: marca da janela gravada antes de chamar, contagem de chamadas do dia no servidor (`ia_custos`), nunca repete depois de erro, mesmo caminho do botão (cache, chave e teto). CLAUDE.md e o RAC Knowledge atualizados com a exceção. Sem SQL, função, secret nem mudança de limite. **Nenhuma chamada de IA foi feita por mim.**
+- Testes: núcleo, Hoje (cenários de gasto, com verificação de mutação), MBA. Entrega pela alternativa A escolhida pelo dono (um PR só).
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`; verificação visual, suíte completa e PR a fazer; merge e publicação **não confirmados**. O interruptor está **desligado**: nada é gasto até o dono ligar.
+
+### 3. O que vamos fazer
+- Dono: conferir o Hoje no iPhone e, se quiser, ligar a análise automática e acompanhar em Custos de IA. Pendentes que dependem do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (SQL, só com autorização expressa).

@@ -1,6 +1,6 @@
 # 11 · Reestruturação visual: o Hoje como tela inicial do dono
 
-Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 mesclado na `main` em 22/11/2026 (PR #71; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono), lote 2 (MBA, Últimas compras e último treino no Hoje) mesclado em 22/11/2026 (PR #73; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) e lote 3 (botão + contextual) mesclado em 22/11/2026 (PR #75; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) (seção 8). Lotes 2 e 3 não iniciados.**
+Estado: **desenho aprovado pelo dono em 22/11/2026; Lote 1 mesclado na `main` em 22/11/2026 (PR #71; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono), lote 2 (MBA, Últimas compras e último treino no Hoje) mesclado em 22/11/2026 (PR #73; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) e lote 3 (botão + contextual) mesclado em 22/11/2026 (PR #75; Testes e deploy do Pages com sucesso; conferência no iPhone pendente do dono) (seção 8). **Lote 4** (seções 9 e 10): aprovado pelo dono em 22/11/2026, em implementação na branch. Lotes 2 e 3 não iniciados.**
 
 ## 1. Intenção e motivo
 
@@ -123,3 +123,56 @@ estado vazio.
   `docs/planejamento/07-decisoes-e-pendencias.md` atualizados; RAC Knowledge (decisão e estado) com `indice` e `verificar`.
 - Verificação: `bash scripts/nuvem_testes.sh` (suíte completa) passando; depois commit, push, PR, CI verde e merge; conferir o CI da
   `main` e a versão realmente publicada. Planejado não é registrado como concluído.
+
+## 9. Lote 4 · Hoje mais direto e mais inteligente (desenho proposto em 22/11/2026, **aguardando aprovação do dono**)
+
+Origem: o dono conferiu o Hoje no iPhone (22/11/2026) e pediu: os "5 itens no total" não mostram quais são; os botões Reler as fontes e Custos de IA são grandes e mal colocados; a IA pode ser chamada com mais frequência para deixar a tela mais inteligente; o "O que mudou desde ontem" deve subir e ter mais destaque, com ideias novas. Perguntas e respostas: rodadas Q1 a Q7 do chat de 22/11/2026.
+
+### 9.1 O que o dono decidiu
+- **Itens do dia:** os 3 mais importantes ficam logo abaixo do "Bom dia", cada um tocável e levando ao módulo; "ver todos" abre o resto no mesmo lugar. O cartão "Prioridades do dia" de baixo deixa de existir (as regras de prioridade não mudam).
+- **Botões:** "Reler as fontes" vira um ícone ↻ pequeno na abertura; "Custos de IA" vira um link pequeno dentro do cartão da análise de IA.
+- **O que mudou desde ontem:** sobe para logo abaixo do resumo, em destaque, com cada linha tocável (5 linhas e "ver mais"). Inclui: prontidão que mudou, compras de ontem (notas, lojas e total), MBA, resultado de ontem dos times e o treino de ontem com distância e tempo; mantém vagas novas e Newsletter. **Sem** e-mails (o Inbox já está na barra) e **sem** Sorocaba (já tem bloco próprio).
+- **IA:** **2 chamadas por dia** (correção do dono: não 3), automáticas, no RAC Hoje. Mostra no topo um **resumo curto** (2 a 3 frases, o campo "Resumo" da análise atual, com fatos citados) e o link "ver análise completa". As **perguntas** continuam manuais, com confirmação (cada pergunta é uma cobrança nova).
+- **Ordem da tela:** abertura; resumo da IA e itens do dia; o que mudou; faixa de indicadores; MBA e Últimas compras; Saúde e Gastos; E-mails, Newsletter, Esportes e Sorocaba; análise completa, pergunta, histórico e fontes.
+
+### 9.2 Custo e autorização (decisão de dinheiro, só do dono)
+- Cada análise: ~US$ 0,026 (R$ 0,17) no típico, no máximo ~US$ 0,06 (R$ 0,40). Com 2 por dia: ~US$ 1,6 por mês no típico (~23% do teto interno de US$ 6,70) e no máximo ~US$ 3,6 por mês (~54%). O teto é **compartilhado** com a Newsletter e com perguntas e leituras de nota; o consumo real deste mês não pôde ser conferido nesta sessão (conexão com o Supabase falhou).
+- **Autorização:** o dono pediu "2 chamadas no dia" (22/11/2026). Este desenho trata isso como autorização para **até 2 chamadas pagas automáticas por dia** do RAC Hoje, **sujeita à sua aprovação deste documento**. Ela vira **exceção** à regra "RAC Hoje nunca automático" (CLAUDE.md, seção IA, e o registro do RAC Knowledge sobre o RAC Hoje), a ser atualizada com a mesma exceção que já existe para o resumo da Newsletter.
+- **Travas (todas já existem ou são só do site):** só o dono; só REAL, nunca demonstração; nunca repete depois de erro; respeita o teto do mês (sem reserva, não chama); a mesma análise para os mesmos dados nunca é paga duas vezes (cache e chave); **limite de 2 por dia contado no servidor** (as chamadas do dia no registro de custos), para que dois aparelhos não somem 4.
+
+### 9.3 Minhas escolhas (o dono ainda não respondeu; vale corrigir)
+1. **Quando:** a 1ª abertura (ou volta ao app) de cada uma de **duas janelas**, com o app aberto: **a partir das 6h** e **a partir das 14h**, horário de Brasília (decisão do dono, 22/11/2026; antes eu propunha 6h e 18h). Antes das 6h não há chamada automática. Se não abrir o app no turno, não gasta; se os dados não mudaram, não gasta. (Alternativa descartada: rotina no servidor em horários fixos, como a Newsletter; exigiria função e agendamento novos no Supabase, que dependem de SQL e publicação com autorização, e gasta também nos dias sem uso.)
+2. **Interruptor, desligado por padrão:** um botão "Análise automática: desligada/ligada" no cartão da IA, guardado **na conta do dono** (PESSOAL, que já existe e entra no backup, sem SQL), para que desligar num aparelho desligue em todos (trava de gasto). Ligar mostra o aviso do custo e pede uma confirmação. A chamada automática só acontece depois que o **dono ligar**, o que torna a autorização explícita no momento do gasto.
+3. **Sem mudar a Edge Function:** a ação `hoje.analise` e o contrato da IA ficam como estão. O resumo do topo é o campo "Resumo" já devolvido. Se a contagem de 2 por dia exigir algo no banco ou na função, eu paro e consulto o dono.
+4. **Enquanto a análise do dia não existe ou falhou:** o topo mostra o resumo por regras de hoje, com selo "analisando…" ou o aviso do erro, sem tentar de novo.
+5. **Esportes no "O que mudou":** só aparece se o dado de ontem estiver disponível pelo que o bloco de Esportes já lê; sem dado, a linha não aparece (não invento).
+
+### 9.4 Metas, não metas e anti-metas
+- Metas: o que o dono pediu acima; cada linha de item e de mudança tocável; tela mais curta sem perder informação.
+- Não metas: Fernanda não muda; e-mails e Sorocaba fora do "O que mudou"; sem SQL, função, secret ou mudança de limite de IA sem autorização; sem coluna de quem lançou a compra.
+- Anti-metas: chamada paga que o dono não ligou; mais de 2 por dia; repetir depois de erro; análise simulada passando por real; perder as regras de prioridade ao tirar o cartão.
+
+### 9.5 Tarefas (execução nativa, um lote; PR próprio, testes e merge conforme o CLAUDE.md)
+1. **Abertura e itens do dia:** ícone ↻ pequeno; os 3 itens tocáveis com "ver todos" no mesmo lugar; remover o cartão Prioridades; "Custos de IA" no cartão da IA (js/hoje.js, css/rac.css, tests/hoje.test.mjs).
+2. **O que mudou:** subir, destacar e ampliar com prontidão, compras de ontem, MBA, esportes e treino de ontem; linhas tocáveis (nucleo.js com testes; js/hoje.js).
+3. **IA automática:** interruptor, regra dos turnos, limite de 2 por dia no servidor, resumo no topo e estados de espera e de erro; sem mudar a função (js/hoje.js, nucleo.js com testes).
+4. **Regra e documentos:** atualizar CLAUDE.md (exceção da IA do Hoje), o registro do RAC Knowledge sobre o RAC Hoje, docs/hoje.md, docs/rac-intelligence.md e o histórico diário; versão trocada.
+
+A chamada automática **não será ligada** até este desenho estar aprovado, mesclado e o dono ligar o interruptor.
+
+### 9.6 Decisões do dono depois do desenho (22/11/2026) e forma de entrega
+- **Autorização expressa:** "Autorizo" (2 chamadas pagas automáticas por dia do RAC Hoje; "2 chamadas no dia"); janelas "às 6h e às 14h com o app aberto"; interruptor desligado por padrão: "ok".
+- **Entrega: alternativa A, um PR só** (a minha recomendação era dois PRs; o dono escolheu um). Como a IA automática vai no mesmo PR da tela, ela **só pode estar desligada por padrão**: publicar o PR não gasta nada; só o dono, ao ligar o interruptor, autoriza o gasto no aparelho dele.
+- **Reforços de segurança que eu mantenho (minhas escolhas):** a marca "esta janela já rodou" é gravada **antes** de chamar (um erro nunca provoca nova tentativa); contagem de chamadas do dia no servidor antes de cada chamada (view ia_custos, funcionalidade "hoje"; conta qualquer chamada do Hoje, manual ou automática, o que é conservador); verificação da tela em Chromium de verdade, no tamanho do iPhone, com dados de mentira, antes do PR; plano de volta: desligar o interruptor, ou um PR de reversão.
+- **O que mudou, por fonte:** prontidão (função pura sobre os dias do relógio); compras de ontem (a mesma leitura das Últimas compras); MBA (aulas para assistir e a próxima avaliação, do mesmo cálculo do bloco do MBA); treino de ontem (a mesma leitura do último treino); resultado dos times (um gancho no bloco de Esportes, que já calcula o último jogo de cada time). **Nada disso entra no pacote de fatos da IA**: o pacote e a validação da IA ficam exatamente como estão (são linhas só de exibição).
+
+## 10. Plano do Lote 4 (execução nativa, um PR)
+
+Restrições globais: ES5; nomes globais únicos; cor só por token; `VERSAO` e `MOD_VERSAO` trocadas juntas; Fernanda não muda; **nenhuma chamada paga é feita por mim**; Node 24 pelo script de testes.
+
+1. **Núcleo, com testes (nucleo.js):** `hojeIaJanela(agoraMs)` devolve o dia e a janela ("manha" de 6h a 13h59, "tarde" a partir das 14h, nada antes das 6h); `hojeIaAutoPode(o)` decide se a chamada automática pode sair (interruptor, janela, marca local, contagem do servidor menor que 2, sem chamada em voo, sem análise igual já feita, sem erro anterior na janela) e diz o motivo; `hojeMudouProntidao(dias, hoje)`. Testes: todas as combinações, e os cenários de repetição (reabrir várias vezes, falha, dois aparelhos, antes das 6h, virada do dia).
+2. **Tela (js/hoje.js, css/rac.css):** abertura com ↻ pequeno e sem os botões grandes; itens do dia (3 + "ver todos" no mesmo lugar, tocáveis) no lugar do cartão Prioridades; cartão "O que mudou desde ontem" logo abaixo (5 linhas + "ver mais", tocáveis; linhas por regra mais as de exibição `hjMudouAdd` das fontes); ordem final da tela; "Custos de IA" como link no cartão da IA. Ganchos: `wMbaHoje` (js/mba.js), `hjUltimasCompras`, `hjUltimoTreino` e `wEsportes` (js/app.js) chamam `hjMudouAdd`.
+3. **IA automática (js/hoje.js):** interruptor em PESSOAL (desligado por padrão, com aviso de custo e confirmação ao ligar); portão `hjAutoTentar` depois de carregar a tela e ao voltar ao app; marca antes de chamar; contagem no servidor; usa o mesmo `hjAnalisar` de hoje (mesmo cache, chave e travas); resumo da IA no topo (campo "Resumo") com selo "analisando…" e aviso de erro, sem repetir.
+4. **Testes existentes:** os do Hoje que citam "Prioridades do dia" e "Reler as fontes" são atualizados de propósito.
+5. **Regra e documentos:** CLAUDE.md (seção IA: exceção do RAC Hoje, 2 por dia, 6h e 14h, interruptor), registro do RAC Knowledge sobre o RAC Hoje (nova decisão que cita a anterior), docs/hoje.md, docs/rac-intelligence.md, histórico diário e versão.
+6. **Verificação:** capturas do Hoje no tamanho do iPhone (Chromium com Supabase de mentira); suíte completa; PR; CI; merge; conferir o CI da `main` e o Pages.

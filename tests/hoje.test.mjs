@@ -1898,7 +1898,7 @@ test("Lote 4: as compras e o treino de ontem entram no 'O que mudou' (e só se f
 });
 test("Lote 4: o resultado de ontem dos times e a prontidão chegam ao 'O que mudou' sem entrar no pacote de fatos da IA", () => {
   const app = ler("js/app.js"), e = app.slice(app.indexOf("function wEsportes()"), app.indexOf("/* Mercado do mês */"));
-  assert.match(e, /li\.ult=\{t:nome\+": "\+txt,date:u\.date,href:href\}/, "cada time guarda o último jogo"); assert.match(e, /hjMudouAdd\("esportes"/); assert.match(e, /America\/Sao_Paulo/, "ontem é o dia de Brasília"); assert.match(e, /\(ontem\)/);
+  assert.match(e, /li\.ult=\{t:nome\+": "\+txt,date:u\.date,href:href,logo:logo\}/, "cada time guarda o último jogo (e o escudo, Lote 5)"); assert.match(e, /hjMudouAdd\("esportes"/); assert.match(e, /America\/Sao_Paulo/, "ontem é o dia de Brasília"); assert.match(e, /\(ontem\)/);
   const hoje = ler("js/hoje.js"), ctxIA = ler("nucleo.js"); assert.ok(!/hjMudouAdd|HJ\.extras/.test(ctxIA), "o núcleo e o pacote da IA não conhecem as linhas só de exibição");
   assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjMudouLinhas"), hoje.indexOf("function hjMudouZerar"))), "o 'O que mudou' nunca chama a IA");
 });
@@ -1965,4 +1965,26 @@ test("IA automática: o código chama só pelo mesmo caminho do botão, marca an
   assert.match(f, /hjAutoContar\(j\.dia\)/); assert.match(f, /NUCLEO\.hojeIaAutoPode\(/); assert.ok(!/hojeAnalisar\(|racIA\(|functions\.invoke/.test(f), "só pelo hjAnalisar, o mesmo caminho do botão");
   assert.match(hoje, /\.from\("ia_custos"\)\.select\("id"\)\.eq\("funcionalidade","hoje"\)\.gte\("criado_em"/, "a contagem lê só a view de custos");
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/.test(hoje.slice(hoje.indexOf("function hjAutoContar"), hoje.indexOf("function hjCarregar("))), "nada grava");
+});
+
+/* Lote 5 (pedido do dono, 22/11/2026): cada linha do "O que mudou desde ontem" ganha um ícone do assunto: o da rota (MBA, Saúde, Compras...) ou o escudo do time */
+test("Lote 5: cada linha do 'O que mudou' tem o ícone do assunto (da rota ou o escudo do time); rkLista só desenha o ícone quando a linha tem", () => {
+  const ROTAS = { saude: { ico: "<svg/>" }, mercado: { ico: "<svg/>" }, mba: { ico: "<svg/>" }, vagas: { ico: "<svg/>" }, newsletter: { ico: "<svg/>" } };
+  const s = telaSite({ resp: RESP, jsons: JSONS, extra: { ROTAS } });
+  s.ctx.hjMudouAdd("treino", [{ texto: "Treino de ontem: Running", href: "#saude/treino/9", rota: "saude" }]); s.ctx.hjMudouAdd("compras", [{ texto: "Compras de ontem: 1 nota", href: "#mercado", rota: "mercado" }]);
+  s.ctx.hjMudouAdd("mba", [{ texto: "MBA: 2 aulas para assistir", href: "#mba", rota: "mba" }]); s.ctx.hjMudouAdd("esportes", [{ texto: "Lakers: V 106–104 vs SAC (ontem)", href: "#esportes", logo: "https://logo.exemplo/lakers.png" }]);
+  const x = { hoje: "2026-11-22", mudancas: [{ area: "financas", texto: "Gastos registrados ontem: R$ 40,40" }, { area: "carreira", texto: "2 vagas novas desde ontem" }, { area: "saude", texto: "Teve treino ontem" }, { area: "noticias", texto: "Edição nova da Newsletter" }] };
+  const c = s.ctx.hjCardMudou(x), icosDe = (e) => varre(e, (y) => /rac-linha-ico/.test(y.className || ""));
+  assert.equal(icosDe(c).length, 5, "uma por linha à vista"); botao(c, "ver mais (3)").onclick(); const todos = icosDe(c); assert.equal(todos.length, 8, "e uma em cada linha de 'ver mais'");
+  const qual = (i) => { const f = todos[i].children[0]; return f.tagName === "IMG" ? "logo:" + f.attrs.src : f.attrs["data-rota"]; };
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map(qual), ["saude", "mercado", "mba", "logo:https://logo.exemplo/lakers.png", "mercado", "vagas", "saude", "newsletter"], "treino, compras, MBA, escudo do time, gastos, vagas, saúde e Newsletter");
+  const sem = s.ctx.rkLista([{ titulo: "sem ícone" }, { titulo: "com ícone", ico: new El("span") }]); assert.equal(icosDe(sem).length, 1, "só a linha que tem ícone ganha o espaço dele");
+  const semRota = telaSite({ resp: RESP, jsons: JSONS }); semRota.ctx.hjMudouAdd("mba", [{ texto: "MBA: x", href: "#mba", rota: "mba" }]);
+  assert.equal(icosDe(semRota.ctx.hjCardMudou({ hoje: "2026-11-22", mudancas: [] })).length, 0, "sem o registro de rotas, a linha aparece sem ícone, sem quebrar");
+});
+test("Lote 5: as fontes entregam o ícone (rota ou escudo) e o CSS reserva o espaço dele", () => {
+  const app = ler("js/app.js"), e = app.slice(app.indexOf("function wEsportes()"), app.indexOf("/* Mercado do mês */")), hoje = ler("js/hoje.js"), mba = ler("js/mba.js");
+  assert.match(e, /li\.ult=\{t:nome\+": "\+txt,date:u\.date,href:href,logo:logo\}/, "o escudo do time vai junto do último jogo"); assert.match(e, /logo:li\.ult\.logo/);
+  assert.match(mba, /href:"#mba",rota:"mba"/); assert.match(hoje, /rota:"mercado"/); assert.match(hoje, /rota:"saude"/);
+  assert.match(ler("css/rac.css"), /\.rac-linha-ico\{[^}]*flex:none/);
 });

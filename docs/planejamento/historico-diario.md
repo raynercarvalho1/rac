@@ -1655,3 +1655,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: conferir o Hoje no iPhone; decidir se e quando liga a análise automática (acompanhar em Custos de IA; o consumo real do mês não pôde ser conferido na sessão); dizer qual botão antigo "nem funcionava". Pendências que dependem de decisão do dono: entrada manual de métrica na Saúde; coluna de quem lançou a compra (SQL, só com autorização expressa). Pendência técnica separada: no cartão de Saúde, o gráfico "Passos por dia" corta a primeira coluna na borda esquerda no celular (já existia).
+
+## 22/11/2026 · Hoje, Lote 5: ícone em cada linha do "O que mudou desde ontem" (versão `2026-11-22.6`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono, cada linha do "O que mudou desde ontem" ganhou o ícone do assunto: o da rota (coração para prontidão, treino e passos; carrinho para compras e gastos; capelo para o MBA; vagas; Newsletter) e o **escudo do time** nas linhas de esportes. `rkLista` aceita `ico`; `hjIcone` e os ganchos das fontes (`rota` ou `logo`). Só exibição; sem SQL, função, secret ou IA. `tests/hoje.test.mjs`. Conferido em Chromium no tamanho do iPhone, com dados de exemplo (o escudo foi um substituto, pois a internet externa é bloqueada na sessão).
+
+### 2. O que estamos fazendo
+- Branch `claude/peaceful-hopper-84odeu`; PR a abrir; merge e publicação **não confirmados**. A IA automática segue **desligada**.
+
+### 3. O que vamos fazer
+- Dono: conferir no iPhone, inclusive os escudos reais dos times, que dependem da internet do aparelho.

@@ -441,10 +441,14 @@
   /* O que mudou desde ontem (Lote 4): subiu para logo abaixo dos itens. Linhas por regra (x.mudancas) mais as das fontes que chegam depois (HJ.extras, por hjMudouAdd): prontidão, treino de
      ontem, compras de ontem, MBA e esportes. São só de exibição: nunca entram no pacote de fatos da IA. 5 à vista e "ver mais"; toda linha leva ao módulo. */
   var HJ_MUDOU_ORDEM=["treino","compras","mba","esportes"],HJ_MUDOU_DESTINO={financas:"#mercado",carreira:"#vagas",saude:"#saude",noticias:"#newsletter"};   /* para onde cada linha por regra leva (a área "carreira" não existe em HJ_DESTINO) */
+  /* o ícone de cada linha (Lote 5): o do assunto, o mesmo da rota na barra e no menu (MBA, Saúde, Compras...), ou o escudo do time; sem o registro de rotas, a linha fica sem ícone */
+  var HJ_MUDOU_ROTA={financas:"mercado",carreira:"vagas",saude:"saude",noticias:"newsletter"};
+  function hjIcone(rota,logo){if(logo)return h("img",{class:"rh-logo",src:logo,alt:"",loading:"lazy"});
+    if(rota&&typeof ROTAS!=="undefined"&&ROTAS[rota]&&ROTAS[rota].ico){var s=h("span",{class:"rh-ico","data-rota":rota});s.innerHTML=ROTAS[rota].ico;return s}return null}
   function hjMudouLinhas(x){var l=[],sf=hjFonteDoDia("saude"),pr=sf&&sf.dias?NUCLEO.hojeMudouProntidao(sf.dias,x.hoje):null;
-    if(pr)l.push({titulo:pr.texto,href:"#saude"});
-    HJ_MUDOU_ORDEM.forEach(function(k){(HJ.extras[k]||[]).forEach(function(e){l.push({titulo:e.texto,href:e.href||null})})});
-    (x.mudancas||[]).forEach(function(m){l.push({titulo:m.texto,href:HJ_MUDOU_DESTINO[m.area]||HJ_DESTINO[m.area]||null})});return l}
+    if(pr)l.push({titulo:pr.texto,href:"#saude",ico:hjIcone("saude")});
+    HJ_MUDOU_ORDEM.forEach(function(k){(HJ.extras[k]||[]).forEach(function(e){l.push({titulo:e.texto,href:e.href||null,ico:hjIcone(e.rota,e.logo)})})});
+    (x.mudancas||[]).forEach(function(m){l.push({titulo:m.texto,href:HJ_MUDOU_DESTINO[m.area]||HJ_DESTINO[m.area]||null,ico:hjIcone(HJ_MUDOU_ROTA[m.area])})});return l}
   function hjCardMudou(x){var l=hjMudouLinhas(x);if(!l.length)return null;var corpo=h("div",{class:"rac-pilha",style:"gap:8px"}),lista=h("div",null,rkLista(l.slice(0,5)));corpo.appendChild(lista);
     if(l.length>5){var mais=rkBtn("ter","ver mais ("+(l.length-5)+")",{"aria-expanded":"false"}),aberto=false;
       mais.onclick=function(){aberto=!aberto;lista.innerHTML="";lista.appendChild(rkLista(aberto?l:l.slice(0,5)));mais.textContent=aberto?"ver menos":"ver mais ("+(l.length-5)+")";mais.setAttribute("aria-expanded",aberto?"true":"false")};corpo.appendChild(mais)}
@@ -466,7 +470,7 @@
       ul=h("ul",{class:"wl"},h("li",null,h("span",{class:"sub",text:"Carregando as compras…"})));p.appendChild(ul);
     Promise.resolve().then(function(){return SB.from("compras").select("id,data,mercado,numero,valor_total").order("data",{ascending:false}).order("id",{ascending:false}).limit(150)}).then(sbOk).then(function(l){
       var n=NUCLEO.mkUltimasNotas(l,5),ont=NUCLEO.somaDiasISO(hojeISO(),-1),on=NUCLEO.mkUltimasNotas(l,50).filter(function(z){return z.data===ont});ul.innerHTML="";
-      hjMudouAdd("compras",on.length?[{texto:"Compras de ontem: "+on.length+(on.length===1?" nota":" notas")+" · "+on.map(function(z){return z.loja}).filter(function(v,i,a2){return v&&a2.indexOf(v)===i}).slice(0,3).join(", ")+" · "+NUCLEO.hojeReais(on.reduce(function(t,z){return t+z.total},0)),href:"#mercado"}]:[]);
+      hjMudouAdd("compras",on.length?[{texto:"Compras de ontem: "+on.length+(on.length===1?" nota":" notas")+" · "+on.map(function(z){return z.loja}).filter(function(v,i,a2){return v&&a2.indexOf(v)===i}).slice(0,3).join(", ")+" · "+NUCLEO.hojeReais(on.reduce(function(t,z){return t+z.total},0)),href:"#mercado",rota:"mercado"}]:[]);
       if(!n.length){ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhuma compra lançada ainda."})));return}
       n.forEach(function(x){ul.appendChild(h("li",null,h("span",{class:"grow"},h("a",{href:"#mercado",text:x.loja||"Compra"}),h("span",{class:"sub",text:dataBR(x.data).slice(0,5)+" · "+x.itens+(x.itens===1?" item":" itens")})),h("span",{class:"end",text:NUCLEO.hojeReais(x.total)})))})
     }).catch(function(e){ul.innerHTML="";ul.appendChild(h("li",null,h("span",{class:"sub",text:"Não consegui ler as compras agora."})));logErro("hoje",e)});
@@ -483,7 +487,7 @@
     if(HJ.treino!==undefined){pintar(HJ.treino);return}
     fonteOuErro("saude",{semDias:true,limiteAtiv:6}).then(function(c){var ocultos=NUCLEO.TREINO_OCULTOS,a=((c.v&&c.v.ativs)||[]).filter(function(t){return ocultos.indexOf(t.tipo)<0})[0];
       HJ.treino=NUCLEO.hojeTreinoLinha(a);pintar(HJ.treino);
-      var ontT=NUCLEO.somaDiasISO(hojeISO(),-1),l2=HJ.treino;hjMudouAdd("treino",l2&&a&&String(a.inicio).slice(0,10)===ontT?[{texto:"Treino de ontem: "+l2.titulo+(l2.sub.indexOf(" · ")>0?" · "+l2.sub.split(" · ").slice(1).join(" · "):""),href:l2.href}]:[])},function(e){logErro("hoje",e)})}
+      var ontT=NUCLEO.somaDiasISO(hojeISO(),-1),l2=HJ.treino;hjMudouAdd("treino",l2&&a&&String(a.inicio).slice(0,10)===ontT?[{texto:"Treino de ontem: "+l2.titulo+(l2.sub.indexOf(" · ")>0?" · "+l2.sub.split(" · ").slice(1).join(" · "):""),href:l2.href,rota:"saude"}]:[])},function(e){logErro("hoje",e)})}
   /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
      (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
   function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */

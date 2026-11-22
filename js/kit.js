@@ -46,7 +46,7 @@
   /* lista: linhas {titulo, sub, meta (texto ou nó), href, marca (alta, media, ok, info)}; linha com href é link inteiro */
   function rkLista(linhas,leve){
     return h("ul",{class:"rac-lista"+(leve?" rac-lista--leve":"")},linhas.map(function(l){
-      var corpo=[l.marca?h("span",{class:"rac-marca rac-marca--"+l.marca,"aria-hidden":"true"}):null,h("span",{class:"rac-linha-corpo"},h("b",{class:"rac-t-cartao",text:l.titulo}),l.sub?h("span",{class:"rac-t-sec",text:l.sub}):null),
+      var corpo=[l.marca?h("span",{class:"rac-marca rac-marca--"+l.marca,"aria-hidden":"true"}):null,l.ico?h("span",{class:"rac-linha-ico","aria-hidden":"true"},l.ico):null,h("span",{class:"rac-linha-corpo"},h("b",{class:"rac-t-cartao",text:l.titulo}),l.sub?h("span",{class:"rac-t-sec",text:l.sub}):null),
         l.meta?h("span",{class:"rac-linha-meta"},l.meta):null];
       var ok=l.href&&String(l.href).charAt(0)==="#";
       return h("li",null,ok?h("a",{class:"rac-linha-item",href:l.href},corpo):h("div",{class:"rac-linha-item"},corpo))}))}

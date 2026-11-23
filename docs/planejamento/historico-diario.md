@@ -1714,3 +1714,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Republicar a função, testar, completar o histórico, e só então telas dos lotes 4 e 6 que usam esses dados. Lote 3 (mapa geral) segue independente.
+
+## 23/11/2026 · Lote 2 corrigido: endpoints oficiais da Personal API nos extras do Garmin (versão `2026-11-23.3`, função NÃO publicada)
+
+### 1. O que fizemos
+- O teste do botão mostrou **erro 404 nos sete caminhos** (eram caminhos de bibliotecas da comunidade, não da API pessoal). Trocados pelos endpoints do cliente oficial da Garmin: batimentos e SpO₂ por data; estresse, Body Battery e peso por intervalo (uma consulta por janela de até 28 dias). Training Status e Readiness removidos (sem endpoint documentado); VO₂ máx só na sondagem. Leitores novos por dado, com agrupamento por dia e hora local; HTTP 204 separado de erro; sondagem só com nomes e tipos. Testes novos (`tests/garmin_extras.test.mjs`). Sem SQL, secrets, cron ou publicação.
+
+### 2. O que estamos fazendo
+- PR aberto, **sem merge** (pedido do dono/ChatGPT: a revisão e a publicação são conduzidas pelo ChatGPT). **Não conferido:** o formato real das respostas (o Swagger não foi lido por este agente; o cliente da Garmin não o descreve).
+
+### 3. O que vamos fazer
+- Republicar a função, rodar "Testar", ajustar os leitores à estrutura real e só então completar o histórico desde 01/01/2026.

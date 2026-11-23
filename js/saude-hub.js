@@ -326,12 +326,12 @@
     function rodar(sondar){bt.disabled=bc.disabled=true;pre.textContent="";
       saudeExtras(sondar,function(t){st.textContent=t}).then(function(r){
         st.textContent=sondar?"✓ Teste pronto. Nada foi gravado.":"✓ Concluído: "+r.salvos+" dias receberam dados novos. Nada do que já existia foi alterado ou apagado.";
-        pre.textContent=JSON.stringify(sondar?{estado:r.estado,formato:r.formato}:{estado:r.estado},null,1);bt.disabled=bc.disabled=false;if(!sondar)return saudeCarregar().then(function(){shPintar(S)})})
+        pre.textContent=JSON.stringify(sondar?{estado:r.estado,fora_da_api_pessoal:r.indisponiveis,formato:r.formato}:{estado:r.estado},null,1);bt.disabled=bc.disabled=false;if(!sondar)return saudeCarregar().then(function(){shPintar(S)})})
       .catch(function(e){logErro("Garmin (extras)",e);bt.disabled=bc.disabled=false;st.textContent="Não consegui: "+e.message})}
     bt.onclick=function(){rodar(true)};
     bc.onclick=function(){if(window.confirm("Buscar na Garmin, de "+dataBR(NUCLEO.SAU_MARCO.data)+" até hoje, as curvas do dia, o estado de treino, a respiração e o peso? Só acrescenta dados novos nos dias que já existem; nada é apagado ou trocado."))rodar(false)};
     [h("div",{class:"rac-linha-flex"},bt,bc),st,pre].forEach(function(n){corpo.appendChild(n)});
-    return rkCard("Dados extras do relógio",corpo,{sub:"Curvas de batimentos, estresse e Body Battery, estado de treino, prontidão, respiração, oxigenação e peso. O teste mostra o que a sua conta da Garmin libera, sem gravar nada.",origem:"Função garmin (API pessoal da Garmin), gravados em garmin_dia, só do dono."})}
+    return rkCard("Dados extras do relógio",corpo,{sub:"Batimentos, estresse, Body Battery, oxigenação e peso (endpoints documentados da API pessoal). Estado de treino e prontidão não existem nela. O teste mostra o estado e a estrutura de cada consulta, sem valores e sem gravar nada.",origem:"Função garmin (API pessoal da Garmin), gravados em garmin_dia, só do dono."})}
   /* ---- a página ---- */
   var SH_ABA_FN={geral:shGeral,recuperacao:shRecuperacao,sono:shSono,atividades:shAtividades,condicionamento:shCondicionamento,tendencias:shTendencias,inteligencia:shInteligencia};
   function shAbertura(S,C){var hero=S.hero;hero.innerHTML="";

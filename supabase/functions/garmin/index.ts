@@ -3,7 +3,7 @@
 // O site chama com { tipo: "dias" } e { tipo: "ativ" } até a resposta trazer mais: false.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resumoAlertasPreco } from "./alertas_preco.ts";
-import { CAMINHOS, formato, lerEstadoTreino, lerEstresseDia, lerFcDia, lerPeso, lerProntidao, lerRespiracaoDia, lerSpo2Dia } from "./extras.ts";
+import { CAMINHOS, INDISPONIVEIS, JANELA_DIAS, formato, lerBodyBatteryIntervalo, lerEstresseIntervalo, lerFcDia, lerPeso, lerSpo2Dia } from "./extras.ts";
 
 const BASE = "https://personal.connectapi.garmin.com";
 /* CORS: só o site (e o teste local) podem chamar pelo navegador. Atalhos do iPhone e a rotina do banco não são navegador
@@ -295,48 +295,69 @@ async function sincDias(sb: Sb, tok: string, uid: string | null, corpo: Record<s
   return { salvos, mais: ini <= limite, desde: ini, ...(contar || somenteNovos ? { porMes } : {}) };
 }
 
-/* Extras do dia (Lote 2, 23/11/2026): curvas (batimentos, estresse, Body Battery), estado de treino, prontidão, respiração, SpO₂ e peso.
-   Só ACRESCENTA chaves em garmin_dia.dados (extras: fc, estresse, treino, prontidao, respiracao, spo2, peso); nunca apaga nem troca o que já existe,
-   e só mexe em dias que já têm linha. Cada chamada à Garmin é tentada sozinha: a que a conta não libera vira "estado" e não derruba as outras.
-   corpo: desde, ate (padrão: ontem e hoje), max (dias por chamada, padrão 6), refazer (relê dias que já têm extras), sondar (não grava; devolve o estado e o formato das respostas) */
+/* Extras do dia (Lote 2, endpoints oficiais da Personal API): batimentos e SpO₂ por data; estresse, Body Battery e peso por intervalo (uma consulta por janela
+   de até 28 dias, nunca uma por dia). Só ACRESCENTA chaves em garmin_dia.dados.extras (fc, estresse, bb, spo2, peso); nunca apaga nem troca o que já existe, nunca
+   grava resposta vazia e só mexe em dias que já têm linha. Training Status e Training Readiness NÃO são chamados (a API pessoal não os documenta). Cada consulta é
+   isolada: a que falha vira "estado" e não derruba as outras. HTTP 204 e corpo vazio = "sem dado", diferente de erro.
+   corpo: desde (padrão: ontem), ate (padrão: hoje), refazer (relê dias que já têm extras), sondar (não grava nada; devolve estado e estrutura, só nomes e tipos) */
+type Consulta = { estado: string; dados: unknown };
+async function consultar(tok: string, path: string): Promise<Consulta> {
+  try {
+    const r = await fetch(BASE + path, { headers: { Accept: "application/json", Authorization: "Bearer " + tok } });
+    if (r.status === 204) return { estado: "sem dado", dados: undefined };
+    if (!r.ok) return { estado: "erro " + r.status, dados: undefined };
+    const t = await r.text();
+    if (!t.trim()) return { estado: "sem dado", dados: undefined };
+    const dados = JSON.parse(t);
+    return { estado: dados == null || (Array.isArray(dados) && !dados.length) ? "sem dado" : "ok", dados };
+  } catch (_) { return { estado: "falha de rede", dados: undefined }; }
+}
 async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>, hoje: string) {
-  const sondar = corpo.sondar === true, refazer = corpo.refazer === true, max = Math.min(Math.max(Number(corpo.max) || 6, 1), 10);
-  const limite = (corpo.ate as string) ?? hoje; let ini = (corpo.desde as string) ?? somaDias(hoje, -1);
+  const sondar = corpo.sondar === true, refazer = corpo.refazer === true;
   const estado: Record<string, Record<string, number>> = {}, forma: Record<string, unknown> = {};
   const conta = (k: string, r: string) => { const o = (estado[k] ||= {}); o[r] = (o[r] ?? 0) + 1; };
-  const tenta = async (k: string, path: string) => {
-    try { const r = await garmin(tok, path); if (sondar && !forma[k]) forma[k] = formato(r); return r; }
-    catch (e) { conta(k, String((e as Error).message ?? e).replace(/.*respondeu (\d+).*/, "erro $1")); return undefined; }
-  };
-  let q = sb.from("garmin_dia").select("data,dados").gte("data", ini).lte("data", limite).order("data"); if (uid) q = q.eq("user_id", uid);
-  const { data: linhas, error } = await q; if (error) throw error;
-  const dias = (linhas ?? []) as { data: string; dados: Record<string, any> }[];
-  const peso = lerPeso(await tenta("peso", CAMINHOS.peso(ini, limite)));
-  let feitos = 0, salvos = 0, proximo = ini;
-  for (const l of dias) {
-    if (feitos >= max) break;
-    proximo = somaDias(l.data, 1);
-    const recente = l.data >= somaDias(hoje, -2);
-    if (!sondar && !refazer && !recente && l.dados?.extras) continue;
-    feitos++;
-    const [fc, es, tr, pr, re, sp] = await Promise.all([
-      tenta("fc", CAMINHOS.fc(l.data)), tenta("estresse", CAMINHOS.estresse(l.data)), tenta("treino", CAMINHOS.treino(l.data)),
-      tenta("prontidao", CAMINHOS.prontidao(l.data)), tenta("respiracao", CAMINHOS.respiracao(l.data)), tenta("spo2", CAMINHOS.spo2(l.data)),
+  const tenta = async (k: string, path: string) => { const c = await consultar(tok, path); conta(k, c.estado); if (sondar && !forma[k]) forma[k] = formato(c.dados); return c.dados; };
+  const indisponiveis = [...INDISPONIVEIS];
+  if (sondar) {
+    /* sondagem: só endpoints documentados, 1 dia e 1 intervalo curto; os 3 conjuntos que o RAC já coleta entram só para mostrar os campos que existem */
+    const dia = somaDias(hoje, -1), ini = somaDias(hoje, -3);
+    await Promise.all([
+      tenta("fc", CAMINHOS.fc(dia)), tenta("spo2", CAMINHOS.spo2(dia)), tenta("estresse", CAMINHOS.estresse(ini, dia)), tenta("bb", CAMINHOS.bb(ini, dia)),
+      tenta("peso", CAMINHOS.peso(somaDias(hoje, -30), dia)), tenta("vo2max_so_sondagem", CAMINHOS.vo2(ini, dia)),
+      tenta("ja_coletado_resumo_diario", `/usersummary-service/v2/dailysummaries?startDate=${ini}&endDate=${dia}`),
+      tenta("ja_coletado_sono", `/sleep-service/sleep/dailySleepSummariesByDate?startDate=${ini}&endDate=${dia}`),
+      tenta("ja_coletado_vfc", `/hrv-service/hrv/daily/${ini}/${dia}`),
     ]);
-    const ex: Record<string, unknown> = {};
-    const poe = (k: string, v: unknown) => { if (v !== undefined) { ex[k] = v; conta(k, "ok"); } else if (!estado[k]?.["erro 403"] && !estado[k]?.["erro 404"]) conta(k, "sem dado"); };
-    poe("fc", fc && lerFcDia(fc, l.data)); poe("estresse", es && lerEstresseDia(es, l.data)); poe("treino", tr && lerEstadoTreino(tr));
-    poe("prontidao", pr && lerProntidao(pr)); poe("respiracao", re && lerRespiracaoDia(re)); poe("spo2", sp && lerSpo2Dia(sp));
-    if (peso[l.data]) { ex.peso = peso[l.data]; conta("peso", "ok"); }
-    if (!sondar && Object.keys(ex).length) {
-      const dados = { ...l.dados, extras: { ...(l.dados?.extras ?? {}), ...ex, atualizado: hoje } };
-      let u = sb.from("garmin_dia").update({ dados, atualizado: new Date().toISOString() }).eq("data", l.data); if (uid) u = u.eq("user_id", uid);
-      const { error: e2 } = await u; if (e2) throw e2;
-      salvos++;
+    return { salvos: 0, mais: false, desde: somaDias(hoje, 1), estado, indisponiveis, formato: forma };
+  }
+  const ini = (corpo.desde as string) ?? somaDias(hoje, -1), limite = (corpo.ate as string) ?? hoje;
+  let fim = somaDias(ini, JANELA_DIAS - 1); if (fim > limite) fim = limite;
+  let q = sb.from("garmin_dia").select("data,dados").gte("data", ini).lte("data", fim).order("data"); if (uid) q = q.eq("user_id", uid);
+  const { data: linhas, error } = await q; if (error) throw error;
+  const dias = ((linhas ?? []) as { data: string; dados: Record<string, any> }[])
+    .filter((l) => refazer || l.data >= somaDias(hoje, -2) || !l.dados?.extras);
+  let salvos = 0;
+  if (dias.length) {
+    const a = dias[0].data, b = dias[dias.length - 1].data;
+    const [es, bb, ps] = await Promise.all([tenta("estresse", CAMINHOS.estresse(a, b)), tenta("bb", CAMINHOS.bb(a, b)), tenta("peso", CAMINHOS.peso(a, b))]);
+    const estresse = lerEstresseIntervalo(es), bateria = lerBodyBatteryIntervalo(bb), peso = lerPeso(ps);
+    for (let i = 0; i < dias.length; i += 7) {          // as consultas por data, 7 por vez
+      await Promise.all(dias.slice(i, i + 7).map(async (l) => {
+        const [fc, sp] = await Promise.all([tenta("fc", CAMINHOS.fc(l.data)), tenta("spo2", CAMINHOS.spo2(l.data))]);
+        const ex: Record<string, unknown> = {};
+        const poe = (k: string, v: unknown) => { if (v !== undefined) ex[k] = v; };
+        poe("fc", fc ? lerFcDia(fc, l.data) : undefined); poe("spo2", sp ? lerSpo2Dia(sp) : undefined);
+        poe("estresse", estresse[l.data]); poe("bb", bateria[l.data]); poe("peso", peso[l.data]);
+        if (!Object.keys(ex).length) return;
+        const dados = { ...l.dados, extras: { ...(l.dados?.extras ?? {}), ...ex, atualizado: hoje } };
+        let u = sb.from("garmin_dia").update({ dados, atualizado: new Date().toISOString() }).eq("data", l.data); if (uid) u = u.eq("user_id", uid);
+        const { error: e2 } = await u; if (e2) throw e2;
+        salvos++;
+      }));
     }
   }
-  const mais = feitos >= max && proximo <= limite;
-  return { salvos, mais, desde: mais ? proximo : somaDias(limite, 1), estado, ...(sondar ? { formato: forma } : {}) };
+  const mais = fim < limite;
+  return { salvos, mais, desde: mais ? somaDias(fim, 1) : somaDias(limite, 1), estado, indisponiveis };
 }
 
 /* ---------- notificações push (Web Push: VAPID + aes128gcm, RFC 8291/8292), só com WebCrypto ---------- */
@@ -636,7 +657,7 @@ async function rotina(req: Request) {
   if (tok) {
     await passo("garmin_dias", () => sincDias(adm, tok!, uid, {}, hoje, 13));
     await passo("garmin_treinos", () => sincAtiv(adm, tok!, uid, {}));
-    await passo("garmin_extras", () => sincExtras(adm, tok!, uid, { max: 3 }, hoje));
+    await passo("garmin_extras", () => sincExtras(adm, tok!, uid, {}, hoje));
   }
   const domingo = new Date(hoje + "T12:00:00Z").getUTCDay() === 0;
   let chuva: string | null = null, semana: string[] = [];

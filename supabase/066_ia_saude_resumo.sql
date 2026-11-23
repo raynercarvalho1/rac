@@ -1,4 +1,4 @@
--- 066 · Resumo semanal da Saúde com IA (Lote 6). STATUS: pendente (a rodar em produção; pode rodar de novo sem erro).
+-- 066 · Resumo semanal da Saúde com IA (Lote 6). APLICADA EM PRODUÇÃO em 23/11/2026 (Supabase MCP, conferida por leitura: acoes_reais com saude.resumo, acoes_reais_casa sem ela, limite_brl intacto). Pode rodar de novo sem erro.
 -- RAC Intelligence: libera a ação saude.resumo (Haiku 5.5) em REAL, só para o dono. Mesmo molde da 028 (hoje.analise):
 --   1) o banco passa a aceitar 'saude.resumo' em acoes_reais (continuam as outras quatro);
 --   2) saude.resumo nunca vale para quem é da casa (acoes_reais_casa): a Fernanda continua exatamente como está;

@@ -363,6 +363,7 @@ Detalhes: `docs/central-areas.md`.
 
 - **Critério:** na tela inicial só entra o que tem prazo, ação ou dado novo para o dono. Desenho e plano: [Documento 11](11-reestruturacao-visual.md).
 - **Abertura:** o dono abre no **Hoje**; o **Início sai do menu** (a rota `#inicio` continua). Nenhum outro módulo é escondido ou removido. A Fernanda não muda (o Início nunca foi página da casa; ela continua no Mercado).
+- **Atividades recentes (23/11/2026):** último bloco do Hoje, vindo do Painel; "treino" não conta caminhada no Painel e no Resumo.
 - **Ordem do Hoje:** faixa fina de indicadores, Prioridades e Gastos, Saúde, E-mails, Newsletter, Esportes, Sorocaba, análise da IA (a pedido). Lote 2: MBA, Últimas compras e Saúde/Garmin no topo. Sem IA paga automática no Hoje (o resumo de esportes é o dos times e manchetes, não o da IA).
 - **Barra de baixo:** Hoje, MBA, Saúde, Compras, Inbox (a Agenda sai da barra e continua no menu). **Botão +:** ações da própria tela, só para o dono (lote 3); a Fernanda mantém o dela.
 - **Fora de escopo, por decisão do dono:** horário da newsletter e e-mails externos das 6h/9h (o RAC não envia e-mail; o selo "Atualizada às HH:MM" já mostra a hora da coleta).

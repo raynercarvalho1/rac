@@ -32,11 +32,12 @@
       var o={ini:ini,fim:fim,dias:Math.round((new Date(fim)-new Date(ini))/864e5)+1};
       /* relógio */
       var at=(SAUDE.ativs||[]).filter(function(a){return dentro(a.inicio.slice(0,10))&&TREINO_OCULTOS.indexOf(a.tipo)<0}),ds=(SAUDE.dias||[]).filter(function(d){return dentro(d.data)});
-      o.treinos=at.length;o.km=at.reduce(function(s,a){return s+(a.dados.distancia||0)},0)/1000;o.seg=at.reduce(function(s,a){return s+(a.dados.duracao||0)},0);
+      var atT=at.filter(NUCLEO.sauContaTreino);   /* "treino" não inclui caminhada; Esporte, Distância e Passos seguem com todas as atividades */
+      o.treinos=atT.length;o.km=atT.reduce(function(s,a){return s+(a.dados.distancia||0)},0)/1000;o.seg=atT.reduce(function(s,a){return s+(a.dados.duracao||0)},0);
       var pt={};at.forEach(function(a){pt[a.tipo]=(pt[a.tipo]||0)+1});o.fav=Object.keys(pt).sort(function(a,b){return pt[b]-pt[a]})[0];o.favN=o.fav?pt[o.fav]:0;
       o.maior=at.filter(function(a){return a.dados.distancia}).sort(function(a,b){return b.dados.distancia-a.dados.distancia})[0];
-      var pm={};at.forEach(function(a){var k=a.inicio.slice(0,7);pm[k]=(pm[k]||0)+1});o.mesTop=Object.keys(pm).sort(function(a,b){return pm[b]-pm[a]})[0];o.mesTopN=o.mesTop?pm[o.mesTop]:0;
-      var dtr={};at.forEach(function(a){dtr[a.inicio.slice(0,10)]=1});o.diasTreino=Object.keys(dtr).length;o.at=at;o.ds=ds;
+      var pm={};atT.forEach(function(a){var k=a.inicio.slice(0,7);pm[k]=(pm[k]||0)+1});o.mesTop=Object.keys(pm).sort(function(a,b){return pm[b]-pm[a]})[0];o.mesTopN=o.mesTop?pm[o.mesTop]:0;
+      var dtr={};atT.forEach(function(a){dtr[a.inicio.slice(0,10)]=1});o.diasTreino=Object.keys(dtr).length;o.at=at;o.atT=atT;o.ds=ds;
       function med(f){var v=ds.map(function(d){return f(d.dados||{})}).filter(function(x){return typeof x==="number"});return v.length?v.reduce(function(a,b){return a+b},0)/v.length:null}
       o.sono=med(function(d){return d.sono&&d.sono.total});o.notaSono=med(function(d){return d.sono&&d.sono.nota});o.vfc=med(function(d){return d.vfc&&d.vfc.noite});o.fcRep=med(function(d){return d.fcRepouso});
       o.passosDia=med(function(d){return d.passos});o.passos=ds.reduce(function(s,d){return s+((d.dados||{}).passos||0)},0);
@@ -101,6 +102,7 @@
       return rsBarras(Object.keys(g).sort(function(a,b){return g[b].n-g[a].n}).map(function(t){var x=g[t];return {nome:T(t)[1]+" "+T(t)[0],sub:hmDur(x.s)+(x.m>=1000?" · "+km(x.m/1000):""),v:x.n,txt:x.n+"×",dica:x.n+(x.n===1?" treino":" treinos")+" · "+hmDur(x.s)+(x.m>=1000?" · "+km(x.m/1000):"")}}))}
     var at=(o.at||[]).slice().sort(porData),ds=(o.ds||[]).slice().sort(function(a,b){return b.data.localeCompare(a.data)}),dd=function(d){return d.dados||{}};
     if(k==="treinos"){
+      var at=(o.atT||[]).slice().sort(porData);   /* só os treinos (sem caminhada) */
       box.appendChild(rsKpis([["Treinos",o.treinos],["Distância",o.km?km(o.km):""],["Tempo",hmDur(o.seg)],["Dias com treino",o.diasTreino+" de "+o.dias]]));
       sec("Treinos"+porQ).appendChild(rsColunas(B,serie(at,diaA,function(){return 1}),String,function(i,v){var L=noBalde(at,diaA,i),s=L.reduce(function(t,a){return t+(a.dados.duracao||0)},0),m=L.reduce(function(t,a){return t+(a.dados.distancia||0)},0);
         return [B[i].nome,v?v+(v===1?" treino":" treinos")+" · "+hmDur(s)+(m>=1000?" · "+km(m/1000):"")+(v<=3?" · "+L.map(function(a){return T(a.tipo)[0]}).join(", "):""):"sem treino"]}));

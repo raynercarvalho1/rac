@@ -4,6 +4,8 @@ Página `#painel` (menu → Produtividade), código em `js/painel.js`, contas em
 Não confundir com os **painéis de consumo** da Central de Compras (`#mercado`: Central, Mercado, Automotivo, Farmácia, Bebê/Infantil; `docs/central-areas.md`): este é o painel geral de produtividade do RAC.
 Feita em 31/10/2026. Só para o dono (dados pessoais). Não há SQL novo, Edge Function nova, IA nem API de fora.
 
+**Atualização 23/11/2026:** o quadro "Atividades recentes" não está mais aqui: foi para o último bloco do RAC Hoje (`wAtividadesRecentes`). "Treinos" no Painel não conta caminhada (`NUCLEO.sauContaTreino`).
+
 ## Como funciona
 
 - Abas: **Visão geral**, **Finanças**, **Saúde e atividades**, **MBA e desenvolvimento** (`#painel/<aba>`); período de 3, 6 ou 12 meses.

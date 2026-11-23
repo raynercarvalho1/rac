@@ -1689,3 +1689,16 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: conferir Agenda e Saúde no iPhone após a publicação.
 
+
+## 23/11/2026 · Lote 1 do plano Garmin e Resumo: Treinos sem caminhada e Atividades recentes no Hoje (versão `2026-11-23.1`, em branch)
+
+### 1. O que fizemos
+- A pedido do dono: **"treino" não conta caminhada**. Painel (Este mês, Evolução, Comparação, aba Saúde) e Resumo (cartão e detalhe de Treinos, dias com treino, mês mais ativo) usam `NUCLEO.sauContaTreino` (a regra que a meta semanal da Saúde já usava). Esporte, Distância e Passos do Resumo, a lista de atividades e o mapa do treino seguem com todas as atividades. Gastos não mudou.
+- **Atividades recentes** saiu do Painel e virou o último bloco do RAC Hoje (`wAtividadesRecentes`, só do dono; a Fernanda não vê o Hoje). Mesmo conteúdo: as 10 mais novas de todas as áreas, com a caminhada incluída.
+- Teste novo em `tests/painel.test.mjs`; `tests/navegador.test.mjs` sem o quadro no Painel. Sem SQL, função, secret ou IA.
+
+### 2. O que estamos fazendo
+- Branch `claude/lote1-treinos-atividades-hoje`, PR aberto. **Não conferido:** o visual no iPhone e a versão servida pelo site.
+
+### 3. O que vamos fazer
+- Lotes seguintes (decisões do dono em 23/11/2026): 2 função `garmin` (dados novos desde 01/01/2026), 3 mapa geral, 4 recomendação do dia, 5 lugares (compras e passeios), 6 resumo semanal com IA no clique.

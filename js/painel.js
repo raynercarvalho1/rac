@@ -71,7 +71,26 @@
   /* ---------- contas comuns às abas ---------- */
   function pnGastos(D){var mf=typeof mbaFin==="function"?mbaFin():null;
     return NUCLEO.pnDespesas(D.compras.ok?D.compras.v:[],D.registros.ok?D.registros.v:[],mf?mf.ps:[],pnFonteReg,D.pedidos&&D.pedidos.ok?D.pedidos.v:[],D.online&&D.online.ok?D.online.v:[])}
-  function pnTreinos(D){return D.saude.ok?D.saude.v.ativs:[]}
+  /* "treino" não inclui caminhada (decisão do dono, 22/11/2026): só a contagem muda; a caminhada segue nas atividades */
+  function pnAtividades(D){return D.saude.ok?D.saude.v.ativs:[]}
+  function pnTreinos(D){return pnAtividades(D).filter(NUCLEO.sauContaTreino)}
+  /* Atividades recentes: saiu do Painel e aparece no RAC Hoje (só do dono); o painel recebe os dados já lidos (D de pnCarregar) */
+  function pnRecentes(D){var hoje=D.hoje,tr=pnAtividades(D),est=pnEstudosFeitos(),tf=pnTarefasFeitas(D);
+    /* atividades recentes: o que aconteceu de verdade, de todas as fontes */
+    var rec=[];
+    if(D.compras.ok){var nt={};D.compras.v.forEach(function(x){var k=x.data+"|"+x.mercado+"|"+(x.numero||"");nt[k]=nt[k]||{d:x.data,t:"Compra no "+String(x.mercado||"mercado").replace(/\s*\(.*\)$/,""),v:0,ico:"🛒",href:"#mercado"};nt[k].v+=+x.valor_total||0});
+      Object.keys(nt).forEach(function(k){var n=nt[k];n.sub=brl(n.v);rec.push(n)})}
+    tr.forEach(function(a){rec.push({d:a.inicio.slice(0,10),t:(a.dados.nome||ativTipo(a.tipo)[0]),sub:a.dados.distancia?fmtN(Math.round(a.dados.distancia/100)/10)+" km":hmDur(a.dados.duracao),ico:ativTipo(a.tipo)[1],href:"#saude/treino/"+a.id})});
+    if(D.registros.ok)D.registros.v.forEach(function(r){var F=typeof FAM!=="undefined"&&FAM[r.quem];if(!F)return;rec.push({d:r.data,t:r.titulo,sub:F.n,ico:(typeof AGENDA_ICO!=="undefined"&&AGENDA_ICO[r.quem])||"📄",href:F.veic?"#veiculos/"+r.quem:F.docs?"#documentos":"#"+r.quem})});
+    est.forEach(function(x){rec.push({d:x.d,t:x.t,sub:"concluído · "+x.orig,ico:"🎓",href:x.orig==="MBA"?"#mba":x.orig==="Estudos"?"#estudos":"#carreira"})});
+    tf.forEach(function(x){rec.push({d:x.d,t:x.t,sub:"tarefa feita",ico:"✅",href:"#lista/tarefas"})});
+    rec=rec.filter(function(x){return x.d&&x.d<=hoje}).sort(function(a,b){return b.d.localeCompare(a.d)}).slice(0,10);
+    var pr=panel("Atividades recentes","As 10 mais novas, de todas as áreas."),ul=h("ul",{class:"wl"});
+    rec.forEach(function(x){ul.appendChild(h("li",null,h("span",{class:"pnico",text:x.ico}),h("a",{class:"grow",href:x.href},h("b",{text:x.t||"(sem título)"}),h("span",{class:"sub",text:dataBR(x.d)+(x.sub?" · "+x.sub:"")}))))});
+    pr.appendChild(rec.length?ul:pnVazio("Nenhuma atividade registrada no período."));pr.appendChild(pnFonte("Mercado, relógio Garmin, registros da família e veículos, MBA, Estudos e tarefas",D.iniAnt,D.hoje));return pr}
+  /* cartão do RAC Hoje: lê o período de 3 meses (o mesmo do Painel, em cache) e mostra as 10 mais novas */
+  function wAtividadesRecentes(){var box=h("div",null,h("div",{class:"panel"},loading()));
+    pnCarregar(3).then(function(D){box.innerHTML="";box.appendChild(pnRecentes(D))}).catch(function(e){box.innerHTML="";box.appendChild(h("div",{class:"panel"},h("p",{class:"sub",text:"Não consegui ler as atividades agora ("+(e&&e.message||e)+")."})));logErro("painel",e)});return box}
   /* estudos concluídos com data: tópicos e exercícios do MBA, trilhas de Estudos e exercícios de SQL (as marcações do próprio site) */
   function pnEstudosFeitos(){var L=[],f=typeof mbaFeito==="function"?mbaFeito():{};
     (typeof mbaDiscs==="function"?mbaDiscs():[]).forEach(function(d){
@@ -115,18 +134,6 @@
     else pc.appendChild(h("div",{class:"kgasto"},pnKpi("Gastos",pnBRL(somaP),somaA?"antes: "+brl(somaA)+" · "+pnDif(somaP,somaA,brl,true):"sem gastos no período anterior"),
       pnKpi("Treinos",String(trP),trA?"antes: "+trA+" · "+pnDif(trP,trA,String):"sem treinos no período anterior")));
     pc.appendChild(pnFonte("Mercado, registros, MBA e relógio Garmin",D.iniAnt,D.hoje));L.push(pc);
-    /* atividades recentes: o que aconteceu de verdade, de todas as fontes */
-    var rec=[];
-    if(D.compras.ok){var nt={};D.compras.v.forEach(function(x){var k=x.data+"|"+x.mercado+"|"+(x.numero||"");nt[k]=nt[k]||{d:x.data,t:"Compra no "+String(x.mercado||"mercado").replace(/\s*\(.*\)$/,""),v:0,ico:"🛒",href:"#mercado"};nt[k].v+=+x.valor_total||0});
-      Object.keys(nt).forEach(function(k){var n=nt[k];n.sub=brl(n.v);rec.push(n)})}
-    tr.forEach(function(a){rec.push({d:a.inicio.slice(0,10),t:(a.dados.nome||ativTipo(a.tipo)[0]),sub:a.dados.distancia?fmtN(Math.round(a.dados.distancia/100)/10)+" km":hmDur(a.dados.duracao),ico:ativTipo(a.tipo)[1],href:"#saude/treino/"+a.id})});
-    if(D.registros.ok)D.registros.v.forEach(function(r){var F=typeof FAM!=="undefined"&&FAM[r.quem];if(!F)return;rec.push({d:r.data,t:r.titulo,sub:F.n,ico:(typeof AGENDA_ICO!=="undefined"&&AGENDA_ICO[r.quem])||"📄",href:F.veic?"#veiculos/"+r.quem:F.docs?"#documentos":"#"+r.quem})});
-    est.forEach(function(x){rec.push({d:x.d,t:x.t,sub:"concluído · "+x.orig,ico:"🎓",href:x.orig==="MBA"?"#mba":x.orig==="Estudos"?"#estudos":"#carreira"})});
-    tf.forEach(function(x){rec.push({d:x.d,t:x.t,sub:"tarefa feita",ico:"✅",href:"#lista/tarefas"})});
-    rec=rec.filter(function(x){return x.d&&x.d<=hoje}).sort(function(a,b){return b.d.localeCompare(a.d)}).slice(0,10);
-    var pr=panel("Atividades recentes","As 10 mais novas, de todas as áreas."),ul=h("ul",{class:"wl"});
-    rec.forEach(function(x){ul.appendChild(h("li",null,h("span",{class:"pnico",text:x.ico}),h("a",{class:"grow",href:x.href},h("b",{text:x.t||"(sem título)"}),h("span",{class:"sub",text:dataBR(x.d)+(x.sub?" · "+x.sub:"")}))))});
-    pr.appendChild(rec.length?ul:pnVazio("Nenhuma atividade registrada no período."));pr.appendChild(pnFonte("Mercado, relógio Garmin, registros da família e veículos, MBA, Estudos e tarefas",D.iniAnt,D.hoje));L.push(pr);
     /* pendências e compromissos: a Agenda única do site (nada novo) */
     var pp=panel("Pendências e compromissos","O que vem nos próximos 14 dias e o que ficou para trás, pela Agenda.");
     if(!D.agenda.ok)pp.appendChild(pnVazio("Não consegui ler a Agenda agora ("+D.agenda.erro+")."));
@@ -279,13 +286,13 @@
   /* ---------- 3. saúde e atividades ---------- */
   function pnSaude(D){
     var L=[];if(!D.saude.ok)return [h("div",{class:"panel"},pnVazio("Não consegui ler os dados do relógio agora ("+D.saude.erro+")."))];
-    var at=D.saude.v.ativs.filter(function(a){return a.inicio.slice(0,10)>=D.ini}),dias=D.saude.v.dias,B=pnBaldes(D.meses),ini=D.ini<NUCLEO.SAU_MARCO.data?NUCLEO.SAU_MARCO.data:D.ini;
+    var at=D.saude.v.ativs.filter(NUCLEO.sauContaTreino).filter(function(a){return a.inicio.slice(0,10)>=D.ini}),dias=D.saude.v.dias,B=pnBaldes(D.meses),ini=D.ini<NUCLEO.SAU_MARCO.data?NUCLEO.SAU_MARCO.data:D.ini;
     if(!at.length&&!dias.some(function(d){return d.data>=D.ini}))return [h("div",{class:"panel"},pnVazio("Nenhum dado do relógio Garmin no período."),pnFonte("relógio Garmin (desde "+dataBR(NUCLEO.SAU_MARCO.data)+")",ini,D.hoje))];
     var c=NUCLEO.pnConsistencia(at.map(function(a){return a.inicio}),ini,D.hoje);
     var pc=panel("Frequência e consistência","Semana = de segunda a domingo. A semana atual sem treino ainda não quebra a sequência.");
     pc.appendChild(h("div",{class:"kgasto"},pnKpi("Treinos",String(c.treinos),c.diasAtivos+" dias com treino"),pnKpi("Por semana",fmtN(Math.round(c.porSemana*10)/10),"média do período"),
       pnKpi("Semanas ativas",c.semanasAtivas+" de "+c.semanas,Math.round(c.semanasAtivas/c.semanas*100)+"% das semanas"),pnKpi("Sequência atual",c.sequenciaAtual+(c.sequenciaAtual===1?" semana":" semanas"),"recorde no período: "+c.maiorSequencia)));
-    pc.appendChild(pnFonte("relógio Garmin (treinos, sem os tipos que a Saúde esconde)",ini,D.hoje));L.push(pc);
+    pc.appendChild(pnFonte("relógio Garmin (treinos, sem caminhadas e sem os tipos que a Saúde esconde)",ini,D.hoje));L.push(pc);
     var pe=panel("Evolução das atividades","Treinos, distância e tempo por mês.");
     var nM=D.meses.map(function(m){return at.filter(function(a){return a.inicio.slice(0,7)===m}).length}),kmM=D.meses.map(function(m){return at.filter(function(a){return a.inicio.slice(0,7)===m}).reduce(function(s,a){return s+(a.dados.distancia||0)},0)/1000}),
       hM=D.meses.map(function(m){return at.filter(function(a){return a.inicio.slice(0,7)===m}).reduce(function(s,a){return s+(a.dados.duracao||0)},0)});

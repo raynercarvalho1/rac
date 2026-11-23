@@ -575,7 +575,7 @@ test("Painel de Produtividade: 375 px, quatro abas, fontes, sem contar em dobro,
         colunas: document.querySelectorAll("#painel-view .vb").length, largura: document.documentElement.scrollWidth,
         texto: document.querySelector("#painel-view").innerText };
     });
-    for (const [hash, titulos] of [["#painel", ["Este mês", "Evolução mensal", "Comparação entre períodos", "Atividades recentes", "Pendências e compromissos"]],
+    for (const [hash, titulos] of [["#painel", ["Este mês", "Evolução mensal", "Comparação entre períodos", "Pendências e compromissos"]],
       ["#painel/financas", ["Indicadores de controle", "Gastos por mês", "Evolução das compras", "Categorias de despesas"]],
       ["#painel/saude", ["Frequência e consistência", "Evolução das atividades", "Histórico das métricas"]],
       ["#painel/estudos", ["MBA", "Evolução do aprendizado", "Competências", "Projetos e tarefas"]]]) {

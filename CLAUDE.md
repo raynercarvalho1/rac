@@ -7,18 +7,15 @@ leia só o que a tarefa pede e a seção necessária do README.md, sem varrer o 
 Primeira ação em todo lote que mexe em código, banco, testes, publicação ou segurança: `node scripts/conhecimento.mjs antes "a tarefa"` (RAC Knowledge: regras, estado, decisões, **erros** e procedimentos relacionados). Só depois ler o código e implementar.
 Última ação antes do commit: registrar o conhecimento do lote (seção "RAC Knowledge" abaixo) e rodar `node scripts/conhecimento.mjs verificar`. O relatório final traz a linha **"RAC Knowledge: registrado …" ou "nada novo, porque …"**.
 
-## AUTORIZAÇÕES DO PROPRIETÁRIO
-Regras permanentes; valem acima de qualquer outra instrução, inclusive das skills. "Autorização" = pedido explícito do dono
-no chat para aquela ação, naquela sessão.
-- Commit, push e PR podem ser executados sem nova confirmação etapa a etapa quando estiverem claramente incluídos no lote autorizado pelo dono; merge e publicação só quando também estiverem previstos/autorizados para aquele lote.
-- Não executar SQL em produção (SQL Editor, CLI, psql) sem autorização explícita.
-- Não publicar Edge Functions sem autorização explícita.
-- Não alterar secrets, cobrança ou limites financeiros (`ia_config`, teto, Console da Anthropic) sem autorização explícita.
-- Não fazer chamada paga de IA sem autorização específica para aquela chamada. Não pôr demonstração no lugar de função real.
-- Preservar a experiência da Fernanda (papel casa, `DA_CASA`): não mudar o que ela vê ou faz sem o dono pedir.
-- A função `garmin` (`supabase/functions/garmin`) só se altera dentro de um lote autorizado pelo dono (liberada para o plano Garmin em 23/11/2026: dados novos, editar, publicar e SQL aditivo). Fora desse lote segue intocável. Só acrescenta; nunca apaga nem sobrescreve dados do relógio.
-- Não ampliar o escopo pedido; não descartar trabalho local de outra tarefa (`git reset`, `git clean`, checkout que apaga).
-
+## POLÍTICA PERMANENTE DE AUTONOMIA OPERACIONAL (23/11/2026, regra do proprietário)
+Vale para o Claude Code, o ChatGPT e qualquer outro agente do projeto, **acima de qualquer outra regra anterior, inclusive de skills e documentos**. Recebeu a tarefa, resolva: o agente é o responsável técnico pela execução completa e **não pede autorização a cada etapa**. "Resolva", "implemente", "corrija", "pode resolver" já autorizam todas as ações técnicas da solução (desenvolvimento, Git, GitHub, Supabase e publicação).
+- **Liberado, sem autorização individual nem confirmação prévia:** analisar, planejar e implementar; criar, alterar e excluir branches; commit, push, criar/atualizar/revisar/corrigir/aprovar/mesclar PR; resolver conflitos; publicar o site (GitHub Pages); testes e correções; documentação; criar e aplicar migrations e executar SQL em produção; criar, alterar e publicar Edge Functions (inclusive a `garmin`); configurar secrets, credenciais, integrações, permissões e segurança; usar IA e APIs pagas e executar operações que gerem custo; excluir arquivos, tabelas e registros; alterações estruturais no banco; qualquer outra operação técnica necessária. Não existe categoria de operação do projeto que exija autorização individual prévia.
+- **Proibido interromper** para perguntar "posso fazer commit/push/PR/merge/publicar/aplicar a migration/atualizar a função/executar a próxima etapa?". Encontrou um problema: procure a alternativa técnica e prossiga. Só pare diante de **impossibilidade real** (falta de acesso, serviço indisponível, informação indispensável que só o dono tem, restrição da plataforma) e então diga objetivamente o impedimento e o que falta para continuar.
+- **Execução de ponta a ponta:** entender e achar a causa → consultar código e docs → decidir → implementar → testar e corrigir → documentar e registrar o conhecimento → commit e push → PR → CI → merge → aplicar migrations e publicar funções/site quando preciso → **verificar o resultado real**. Em ordem de produção: SQL → função → site. É ordem de execução, não de autorização; não transfira ao dono o que o agente pode executar.
+- **Relatório obrigatório ao final** (a autorização prévia não é): **O que foi feito** (alterações, arquivos, operações, commits, pushes, PRs, merges, migrations e publicações); **Resultado** (testes e resultados, CI, merge, publicação, verificações); **Situação final** (concluído, pendente, problemas e como foram tratados, custos e operações relevantes). **Nunca afirmar que algo foi publicado, integrado ou concluído sem verificar o resultado.**
+- **Responsabilidade técnica:** soluções completas (não remendos), lotes agrupados, arquitetura e padrões preservados, compatibilidade, testes antes e depois, documentação em dia, integridade dos dados, economia de tokens.
+- **Limites (não são pedidos de autorização):** a política não concede capacidade técnica que o agente não tem. Respeitar as permissões realmente disponíveis, as restrições da plataforma, as proteções do GitHub (nunca contorná-las) e os limites dos serviços; se algo não puder ser feito, informar o impedimento, **sem simular a execução**. **Segredos** nunca vão a código público, relatório, log ou commit (o repositório é público: ver "Segurança"). **Guardas de higiene do Git** mantidas no `.claude/settings.json`: push direto para `main`/`master`, `--force` sem `--force-with-lease`, `git add -A`/`.` (que arrastam arquivos por engano) e leitura de `.env*` e `privado/`; para integrar na `main` use PR e merge.
+- **Padrão de preservação (não é portão de aprovação):** por padrão preserve a experiência da Fernanda (papel casa, `DA_CASA`) e os dados existentes; mude quando a tarefa exigir e registre no relatório.
 
 ## PROTOCOLO PERMANENTE DE TRABALHO E AUTONOMIA (todos os chats e agentes)
 
@@ -30,21 +27,12 @@ Este protocolo é a instrução operacional comum do RAC. Vale para ChatGPT, Cla
 - **ChatGPT:** arquiteto e revisor. Recupera contexto e decisões, consulta a documentação e o estado do GitHub, estrutura a estratégia e os lotes, prepara instruções operacionais completas, revisa evidências e resultados e recomenda o próximo passo. Não deve transferir ao dono tarefas de coordenação que os agentes possam executar.
 
 ### Autonomia por lote
-- Trabalhar em **lotes completos e coerentes**, preferencialmente em batch; evitar interromper o fluxo para aprovações técnicas rotineiras ou testes unitários fragmentados sem necessidade.
-- Uma vez aprovado o objetivo e o escopo do lote, o agente responsável tem autonomia para tomar decisões técnicas reversíveis, criar/editar/remover arquivos necessários dentro do escopo, instalar dependências compatíveis quando justificadas, implementar, executar os testes adequados, corrigir falhas e repetir validações.
-- Quando o lote incluir entrega Git, o agente pode criar branch, fazer commits claros e isolados, push e abrir PR sem pedir autorização separada para cada etapa.
-- **Merge e publicação/deploy** só podem ser feitos quando estiverem expressamente incluídos no objetivo/autorização do lote e as validações exigidas tiverem passado. A autorização de um lote não é permissão ilimitada para alterar qualquer parte do repositório ou da produção.
-- Respeitar sempre as proteções técnicas do GitHub, as branches permitidas, os ambientes e os limites de cada sessão. Nunca contornar bloqueios, regras de proteção ou controles de aprovação.
+- Trabalhar em **lotes completos e coerentes**, preferencialmente em batch; sem aprovações técnicas intermediárias nem testes fragmentados sem necessidade.
+- O agente decide e executa tudo o que a tarefa pede, de ponta a ponta, conforme a **Política Permanente de Autonomia Operacional** acima: código, banco, funções, Git, GitHub, publicação, segredos e custos. **Commit, push, PR, merge, migrations, SQL em produção, publicação de funções e do site não pedem autorização.**
+- Respeitar as proteções técnicas do GitHub, as branches protegidas, os ambientes e os limites de cada sessão; nunca contornar bloqueios.
 
 ### Quando parar e consultar o dono
-Interromper somente quando a continuidade exigir uma decisão que pertence ao dono, incluindo:
-- custo, contratação, consumo pago ou ampliação de limites;
-- credenciais, autenticação, permissões sensíveis ou acesso a contas/serviços que só o dono pode conceder;
-- exclusão irreversível de dados/recursos ou ação com risco relevante de perda;
-- mudança significativa de regra de negócio, privacidade, papéis ou experiência de outra pessoa;
-- atividade fora do escopo autorizado, conflito entre decisões registradas ou informação que só o dono pode fornecer.
-
-Não pedir aprovação para escolhas técnicas rotineiras, organização interna, implementação, testes, correções ou documentação que estejam dentro do lote.
+Somente diante de **impossibilidade real de continuar**: falta de acesso ou credencial que só o dono pode conceder (ex.: um token que ele precisa criar), serviço indisponível, restrição da plataforma ou informação indispensável que só o dono tem (preferência pessoal, regra de negócio nova que a tarefa não define). Nesses casos, explicar objetivamente o impedimento e o que é necessário. Não parar por formalidade, por custo, por exclusão de dados ou por risco rotineiro: decidir, executar, verificar e relatar.
 
 ### Comunicação e prestação de contas
 - Comunicar status de forma objetiva, distinguindo **feito**, **em andamento**, **bloqueado** e **próximo**.
@@ -66,7 +54,7 @@ Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs
 - **DEPOIS de implementar** (checklist, antes do commit do lote): registrar só o que é novo e reutilizável, em registros pequenos: (1) **decisão nova**, com o motivo; (2) **erro relevante**, com causa-raiz, solução e prevenção; (3) **procedimento que mudou**; (4) **estado do projeto** atualizado (versão, o que está aplicado ou pendente); (5) resultado de testes, commit, PR e publicação como `diario`, só quando o lote tiver marco real.
   Use `node scripts/conhecimento.mjs novo ...` ou edite o `.md`; depois `node scripts/conhecimento.mjs indice` e `verificar`. Tudo vai **no commit do lote** (os testes reprovam arquivo inválido e índice desatualizado). Corrigir o registro existente em vez de duplicar; decisão que substitui outra a cita em `relacionados`. Nada de novo = dizer isso no relatório final, com o motivo.
 - Não registrar detalhe trivial. **Nunca** registrar senha, chave, token, CPF, endereço, telefone, placa, foto ou exame: o repositório é público e o banco e o script recusam. Registro de decisão ou regra do dono só com o que o dono realmente decidiu; o resto é hipótese e vai como tal.
-- Isto complementa, não substitui, `docs/planejamento/` (histórico diário e decisões) e o restante deste arquivo; em conflito valem as autorizações do dono.
+- Isto complementa, não substitui, `docs/planejamento/` (histórico diário e decisões) e o restante deste arquivo; em conflito vale a Política Permanente de Autonomia Operacional.
 
 ## Planejamento e histórico diário
 - Planejamento oficial (visão, arquitetura, roadmap, decisões e pendências): `docs/planejamento/` (Documento 1).
@@ -84,47 +72,43 @@ Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs
 - Em edições por script Python: caminho e regex como string crua (`r"..."`), senão `\b` vira caractere de controle (há teste).
 
 ## Publicação (skill `rac-publicar`)
-- O Claude prepara e valida; para antes de commit, push, SQL em produção, deploy de função ou publicação, e entrega ao dono
-  a lista do que falta e em que ordem (SQL → função → site). Só segue o passo que o dono autorizar.
+- O Claude **prepara, valida e publica** de ponta a ponta (política de autonomia, 23/11/2026): SQL → função → site, conferindo cada resultado antes de afirmar que está publicado. Nada disso pede autorização.
 - Durante o trabalho, rode só o teste do módulo (`node --test tests/x.test.mjs`); a suíte inteira só na preparação da publicação.
 - Sempre: `node --test tests/*.test.mjs` passando, e `VERSAO` (sw.js) e `MOD_VERSAO` (js/app.js) trocadas juntas.
 - SQL novo (skill `rac-sql-novo`): arquivo numerado em `supabase/` (pode rodar de novo sem erro), com RLS ligado, `revoke all ... from anon`
-  e a tabela incluída em `tests/seguranca.test.mjs`. O dono roda no SQL Editor antes do site ir ao ar.
+  e a tabela incluída em `tests/seguranca.test.mjs`. O agente aplica em produção (Supabase MCP, `apply_migration`) e confere o resultado; depois troca o cabeçalho do arquivo para "aplicada" com a data. Tabela nova precisa dar `select, insert, update` à `service_role` quando a rotina diária da função grava nela (como `garmin_ativ` e `garmin_rotas`).
 - Tabela pessoal nova: entra no backup (`NUCLEO.SEG_TABELAS`, com pk/fk) e ganha a trava restritiva "mfa" do 022 (há teste).
   Restauração nunca grava sem prévia e confirmação, e nunca sobrescreve sem o dono marcar (docs/seguranca.md).
-- Edge Function: o dono republica a função antes do site ir ao ar.
-- Quando o dono autorizar o commit pelo computador (fluxo antigo): no `main`, como `github-actions[bot]`; o dono roda `git pull --rebase` e
-  `git push` (os robôs também publicam). Pela nuvem, vale a seção abaixo.
+- Edge Function: o agente publica (Supabase MCP `deploy_edge_function`, ou o workflow manual `garmin-publicar.yml` quando o token do Supabase estiver no Environment) e confere a versão ativa antes do site ir ao ar.
+- Pelo computador do dono (fluxo antigo): commit na `main` como `github-actions[bot]`, e o dono roda `git pull --rebase` e `git push` (os robôs também publicam). Pela nuvem, vale a seção abaixo.
 
 ### Git pelo Claude Code Cloud
 
-Aplicar o **Protocolo Permanente de Trabalho e Autonomia** acima. As regras técnicas abaixo continuam obrigatórias:
-- Trabalhar em branch de tarefa `claude/*`, nunca diretamente em `main`; commits e push somente na branch autorizada da sessão.
-- Adicionar arquivos pelos caminhos explícitos; nunca usar `git add -A` ou `git add .`. Uma tarefa coerente por commit, sem incluir alterações de outras tarefas.
-- Nunca usar force push, apagar branches para contornar proteção ou descartar trabalho alheio.
-- Não editar `.claude/settings.json` sem necessidade explícita do lote. SQL em produção, Edge Functions, site, segredos e IA paga continuam sujeitos aos limites de autorização acima.
+Aplicar o **Protocolo Permanente de Trabalho e Autonomia** e a **Política Permanente de Autonomia Operacional** acima. Regras técnicas:
+- Trabalhar em branch de tarefa `claude/*` e integrar na `main` por PR (merge liberado); nunca empurrar direto para `main`/`master`.
+- Adicionar arquivos pelos caminhos explícitos; nunca `git add -A` ou `git add .` (arrastam arquivos por engano; o repositório é público). Uma tarefa coerente por commit.
+- `--force-with-lease` em branch `claude/*` é permitido (necessário depois de `rebase` ou `commit --amend`); `--force` puro e `+refspec` ficam fora (use o `--with-lease`).
 - Testes na nuvem (máquina preparada pelo ambiente "RAC", `docs/nuvem.md`): `bash scripts/nuvem_testes.sh tests/x.test.mjs` (módulo) e `bash scripts/nuvem_testes.sh` (tudo, como o CI). Não rodar `npm install` dentro do repositório.
 
-Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com um repositório só):
-- Nega: push com `main`/`master`, `--force`, `-f`, `+refspec`, `--delete`, `--all`, `--mirror`; `git reset --hard` e `git clean`; `psql`;
-  a CLI `supabase` (deploy, db, migration, secrets); a API de gerenciamento do Supabase; escrever arquivo direto pela API do GitHub
-  (`push_files`, `create_or_update_file`, `delete_file`, que escapariam do git); ler `.env*` e `privado/`.
-- **Política permanente de permissões (14/11/2026, pedido do dono; escopo do projeto, compartilhada).** Liberado sem pedir a cada vez: consultas Git (`status`, `diff`, `log`, `show`, `fetch`, `rev-parse`…), `git add` (por caminho), `git commit` (sem `--amend`), criar e trocar de branch de trabalho (`switch`, `checkout -b`, `worktree add`, `merge` da `main` na branch), `git push` só de `claude/*`, testes e verificações (`node --test`, `node --check`, `scripts/nuvem_testes.sh`), o RAC Knowledge (`node scripts/conhecimento.mjs` só com `antes`, `buscar`, `listar`, `ver`, `novo`, `indice` e `verificar`; escreve apenas em `docs/conhecimento/`; liberado pelo dono em 20/11/2026), edição de código, documentação e planejamento, consultas à API e leitura de PRs, commits, checks e comentários no GitHub, criar branch e criar ou atualizar PR. **Merge de PR liberado pelo dono em 14/11/2026** (não pede mais aprovação), mas o Claude só mescla quando: o CI do commit atual do PR passou; não há conflito; o PR está dentro do escopo que o dono pediu (o merge não é consequência automática de "os testes passaram"); o PR não altera `.claude/`, `.github/workflows/`, `CODEOWNERS`, secrets ou permissões (esses ficam para o dono); e não há nada de produção pendente que dependa do dono (SQL, função, secret). Depois do merge, confirma o resultado real (CI da `main`, publicação). **Continua pedindo autorização explícita:** merge automático (`enable_pr_auto_merge`), `git reset`, `git rebase`, `git stash`, apagar branch, disparar workflow, editar `.claude/`, `.github/workflows/` e `CODEOWNERS`, e tudo que não está na lista (nenhum Bash irrestrito). **Continua negado:** push para `main`/`master`, force push (inclui `--force-with-lease`), `git reset --hard`, `git clean`, `git add -A`/`.`, `git commit --amend`, `psql`, CLI e API de gerenciamento do Supabase, ler `.env*` e `privado/`. Um nome de branch com `main` ou `master` dentro (ex.: `claude/x-main`) cai na trava de push; evite. A política vale em sessão nova depois de mesclada na `main`; o teste `tests/permissoes.test.mjs` impede que ela seja afrouxada sem ninguém ver.
-- Os controles de confirmação do ambiente não substituem a autorização do lote nem permitem contornar rulesets do GitHub.
-- `.claude/settings.local.json` e o resto de `.claude/` ficam ignorados pelo Git; nenhum segredo vai em `settings.json`.
+Configuração técnica (`.claude/settings.json`, versionado; vale em sessão nova com um repositório só; o teste `tests/permissoes.test.mjs` mantém a política efetiva):
+- **Liberado (allow):** edição de qualquer arquivo (inclusive `.claude/` e `.github/workflows/`), Git de rotina e de reescrita da própria branch (`add`, `commit`, `commit --amend`, `switch`, `checkout`, `merge`, `rebase`, `stash`, `reset`, `restore`, `rm`, `branch -d/-D`, `worktree`, `push origin claude/*` e `--force-with-lease` em `claude/*`, `push --delete` de branch `claude/*`), `gh` (PR, merge, API, runs, workflows), ferramentas do GitHub (inclusive `merge_pull_request`, `enable_pr_auto_merge`, `actions_run_trigger`), testes, o RAC Knowledge, a CLI `supabase`, `psql` e a API de gerenciamento do Supabase (precisam de credencial, que o agente nunca imprime), e as ferramentas do Supabase MCP.
+- **Negado (deny), só as guardas de higiene:** push para `main`/`master`, `--force` sem lease, `+refspec`, `--all`, `--mirror`, `git add -A`/`.`, escrita direta de arquivo pela API do GitHub (`push_files`, `create_or_update_file`, `delete_file`, que escapam do Git e da PR), `rm -rf` na raiz ou no home, e leitura/edição de `.env*` e `privado/`.
+- **Pedir (ask): vazio.** Nenhuma operação do projeto fica à espera de aprovação. Se a plataforma (modo de permissão da sessão, confirmação de um conector) ainda interromper, isso é restrição técnica externa: relatar, não simular.
+- `.claude/settings.local.json` fica ignorado pelo Git; nenhum segredo vai em `settings.json`.
 
 ## IA (RAC Intelligence, docs/rac-intelligence.md)
+- **Autonomia:** usar IA e APIs pagas para desenvolver, testar e entregar uma tarefa **não pede autorização** (política de 23/11/2026). O que segue define o **comportamento do produto** (quem chama, limites de uso e interruptores do dono no site), não portão de aprovação do agente.
 - Toda IA passa pela função `rac-ia` e, no site, só por `racIA()`. Nenhum outro arquivo chama a Anthropic (há teste).
 - Ação nova (skill `rac-acao-ia`) = entrada em `acoes.ts` (modelo, papéis, limites, JSON obrigatório, validação) + demonstração
   em `demo.ts` (exceto ação só REAL, como `hoje.analise`) + testes.
 - A IA nunca grava: o resultado vai para a conferência existente e só o clique em Salvar grava. Resposta DEMO nunca chega ao que salva.
-- Única exceção (autorizada pelo dono em 31/10/2026): o resumo da Newsletter (`newsletter.resumo`, sempre Haiku) é feito
+- Única exceção (decisão do dono em 31/10/2026): o resumo da Newsletter (`newsletter.resumo`, sempre Haiku) é feito
   sozinho às 6h, 12h e 18h pela `rac-newsletter`, que pede à `rac-ia` pela porta da rotina e salva a edição "ia" só com
   resposta REAL validada (o banco confere a chamada). Uma chamada por edição, no máximo 3 por dia, sem repetir depois de
   erro (docs/newsletter.md).
 - RAC Hoje (`hoje.analise`, docs/hoje.md): só REAL e sem demonstração, por decisão do dono (02/11/2026). Em DEMO a `rac-ia` responde
   o erro `sem_real`, nunca uma análise simulada; só do dono (o banco proíbe para a casa); a pedido do dono (botão com confirmação).
-  **Segunda exceção (autorizada pelo dono em 22/11/2026):** com o interruptor "Análise automática" **ligado pelo dono** (`PESSOAL.hojeIaAuto`,
+  **Segunda exceção (decisão do dono em 22/11/2026):** com o interruptor "Análise automática" **ligado pelo dono** (`PESSOAL.hojeIaAuto`,
   desligado por padrão), a tela do Hoje pede a análise sozinha, **no máximo 2 por dia** (1ª abertura ou volta ao app a partir das 6h e a partir
   das 14h, horário de Brasília, com o app aberto), pelo mesmo caminho do botão (`hjAnalisar`). A marca da janela é gravada antes de chamar, o
   servidor conta as chamadas do dia (`ia_custos`, funcionalidade `hoje`) e, com 2 ou sem conseguir contar, não chama; sem repetir depois de
@@ -133,10 +117,10 @@ Bloqueio técnico (`.claude/settings.json`, versionado; vale em sessão nova com
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
 
 ## Supabase MCP (acesso ao banco do RAC pelo Claude Code)
-- Servidor remoto oficial, só do projeto `hofnhbxnfebfnncwxrds` (`.mcp.json`, sem segredo; `features=docs,database,debugging,development,branching`: sem `functions` nem `storage`, sem ferramentas de conta). Autenticação **OAuth no navegador**, feita pelo dono (`/mcp` → supabase → Authenticate, ou conectar o Supabase em claude.ai → Connectors e abrir sessão nova). Nunca pedir nem guardar senha do banco, `service_role`, PAT ou token; nada disso vai para arquivo, commit ou chat.
-- Os servidores MCP são lidos no início da sessão; sem a autenticação feita, as ferramentas `mcp__supabase__*` não aparecem. Não simular resultado nem usar `psql`/CLI/API de gerenciamento (continuam negados).
-- Leitura (`list_tables`, `list_migrations`, `list_extensions`, `get_advisors`, `get_logs`, `execute_sql` só com `select`) vale para conferir o estado real antes de qualquer lote com banco. Escrita (`apply_migration`, `execute_sql` que altera, branches) mantém a **confirmação manual a cada chamada** (não liberar em `.claude/settings.json`) e continua sujeita às Autorizações do proprietário: só com pedido explícito do dono para aquela migration, naquela sessão.
-- Antes de alterar produção: ler a migration inteira; conferir o impacto (tabelas, políticas, funções, dados); a sequência (`list_migrations` × arquivos de `supabase/`, status `-- status: pendente`); rodar a conferência só leitura de `supabase/conferencias/`; preferir testar a mudança estrutural num branch de desenvolvimento (`create_branch`, se o plano permitir) ou em PGlite (`tests/*_sql.test.mjs`) antes de produção. Depois de aplicar: rodar a conferência, trocar o cabeçalho da migration para aplicada (com a data) e registrar no histórico diário.
+- Servidor remoto oficial, só do projeto `hofnhbxnfebfnncwxrds` (`.mcp.json`, sem segredo; `features=docs,database,debugging,development,branching,functions`: com `functions` para publicar Edge Functions, sem `storage` e sem ferramentas de conta). Autenticação **OAuth no navegador**, feita pelo dono (`/mcp` → supabase → Authenticate, ou conectar o Supabase em claude.ai → Connectors e abrir sessão nova). Nunca pedir nem guardar senha do banco, `service_role`, PAT ou token; nada disso vai para arquivo, commit ou chat.
+- Os servidores MCP são lidos no início da sessão; sem a autenticação feita, as ferramentas `mcp__supabase__*` não aparecem. Não simular resultado. `psql`, a CLI `supabase` e a API de gerenciamento também estão liberados quando houver credencial; o agente nunca imprime nem guarda a credencial.
+- Leitura (`list_tables`, `list_migrations`, `list_extensions`, `get_advisors`, `get_logs`, `execute_sql` com `select`) confere o estado real antes de qualquer lote com banco. **Escrita (`apply_migration`, `execute_sql` que altera, `deploy_edge_function`, branches) é liberada ao agente** (política de 23/11/2026): aplicar, conferir por leitura o resultado e registrar. Se o conector pedir uma confirmação na tela do dono e ela expirar, é restrição da plataforma: relatar, tentar o caminho alternativo (por exemplo, o dono ou outro agente rodar o SQL) e **nunca declarar aplicado sem conferir por leitura**.
+- Antes de alterar produção: ler a migration inteira; conferir o impacto (tabelas, políticas, funções, dados); a sequência (`list_migrations` × arquivos de `supabase/`); rodar a conferência só leitura de `supabase/conferencias/`; preferir testar a mudança estrutural em PGlite (`tests/*_sql.test.mjs`) antes de produção. Depois de aplicar: rodar a conferência, trocar o cabeçalho da migration para aplicada (com a data) e registrar no histórico diário.
 - `apply_migration` grava no histórico do Supabase com número próprio: o arquivo `supabase/NNN_*.sql` do repositório continua sendo a fonte; usar o mesmo texto, sem editar na hora.
 
 ## Segurança (o repositório é público)

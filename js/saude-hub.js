@@ -165,6 +165,7 @@
     nos.appendChild(shChips([["","Todos"]].concat(usados.map(function(t){return [t,ativTipo(t)[1]+" "+ativTipo(t)[0]]})),SH.tipo,function(t){SH.tipo=t;SH.mais=30;shPintar(S)},"Modalidade"));
     nos.appendChild(shChips([["30","30 dias"],["90","3 meses"],["180","6 meses"],["tudo","Tudo"]],SH.pAtiv,function(p){SH.pAtiv=p;SH.mais=30;shPintar(S)},"Período"));
     L.push(nos);
+    var mg=shMapaGeral(fil,C);if(mg)L.push(h("div",{class:"rh-largo"},mg));
     var cons=NUCLEO.pnConsistencia(fil.map(function(a){return a.inicio}),ini,C.hoje),r=NUCLEO.sauResumoAtiv(fil);
     var k=h("section",{class:"rh-kpis","aria-label":"Indicadores das atividades"});
     k.appendChild(rkKpi({rotulo:"Atividades",valor:shV(String(r.n)),apoio:cons.diasAtivos+" dias ativos no período"}));
@@ -320,6 +321,25 @@
     br.onclick=function(){if(window.confirm("Gravar na sua conta os dias e treinos anteriores a "+dataBR(M)+" que a Garmin ainda devolve e que ainda não estão no banco? Nada que já existe é alterado ou apagado."))rodar(false)};
     [h("div",{class:"rac-linha-flex"},bm,br),st,rel].forEach(function(n){corpo.appendChild(n)});
     return rkCard("Histórico anterior à posse",corpo,{sub:"A posse do relógio começa em "+dataBR(M)+". O que veio antes é legado: continua guardado no banco e no backup, não entra em nenhuma análise e nunca é apagado.",origem:"Opcional: a recuperação só roda se você pedir."})}
+  /* mapa geral dos percursos (Lote 3): só o dono; respeita "esconder o local" dos Ajustes; usa os mesmos filtros de modalidade e período da aba (saudeMapaGeral, em js/saude.js) */
+  function shMapaGeral(fil,C){
+    if(!isOwner())return null;
+    if(C.pr.esconderLocal)return rkCard("Mapa geral dos percursos",h("p",{class:"rac-t-sec",style:"margin:0",text:"O local está escondido nos Ajustes de Saúde; o mapa geral fica desligado."}),{origem:"Rotas guardadas na sua conta, só do dono."});
+    var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bm=rkBtn("pri","Mostrar o mapa"),bb=rkBtn("sec","Buscar rotas dos treinos"),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),caixa=h("div",{style:"height:380px;border-radius:12px;display:none"});
+    function limpar(){caixa.style.display="none";if(caixa.__mapa){caixa.__mapa.remove();caixa.__mapa=null}}
+    bm.onclick=function(){bm.disabled=true;st.textContent="Lendo as rotas…";limpar();
+      saudeRotasLer().then(function(rs){var por={};rs.forEach(function(r){por[r.id]=r.pontos});
+        var linhas=fil.filter(function(a){return por[a.id]&&por[a.id].length>1}).map(function(a){return {pontos:por[a.id],cor:saudeCorRota(a.tipo)}});
+        var semRota=fil.filter(function(a){return !por[a.id]}).length;
+        st.textContent=linhas.length?linhas.length+(linhas.length===1?" percurso":" percursos")+" no mapa"+(semRota?" · "+semRota+" treinos ainda sem rota (use “Buscar rotas dos treinos”)":" · onde você mais passa, a linha fica mais forte."):(semRota?"Nenhuma rota guardada ainda para este filtro: use “Buscar rotas dos treinos”.":"Nenhum treino com GPS neste filtro.");
+        if(!linhas.length){bm.disabled=false;return}
+        caixa.style.display="block";return saudeMapaGeral(caixa,linhas,true).then(function(m){caixa.__mapa=m;bm.disabled=false})})
+      .catch(function(e){logErro("Garmin (mapa geral)",e);bm.disabled=false;st.textContent="Não consegui: "+e.message})};
+    bb.onclick=function(){if(!window.confirm("Buscar na Garmin a rota de cada treino que ainda não tem (em blocos pequenos, uma vez só)? Só acrescenta; nada é apagado."))return;bb.disabled=bm.disabled=true;
+      saudeRotasBuscar(function(t){st.textContent=t}).then(function(){bb.disabled=bm.disabled=false;st.textContent="✓ Rotas completas. Toque em “Mostrar o mapa”."})
+      .catch(function(e){logErro("Garmin (rotas)",e);bb.disabled=bm.disabled=false;st.textContent="Não consegui: "+e.message})};
+    [h("div",{class:"rac-linha-flex"},bm,bb),st,caixa].forEach(function(n){corpo.appendChild(n)});
+    return rkCard("Mapa geral dos percursos",corpo,{sub:"Todos os percursos do filtro acima num só mapa. Só você vê; o ponto de partida aparece como um ponto pequeno.",origem:"Rotas simplificadas (até 150 pontos por treino), guardadas na sua conta."})}
   /* extras do relógio (Lote 2): só o dono; testar não grava, completar só acrescenta chaves em dias que já existem (saudeExtras, em js/saude.js) */
   function shExtras(S){
     if(!isOwner())return null;var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("sec","Testar o que a Garmin libera"),bc=rkBtn("pri","Completar desde "+dataBR(NUCLEO.SAU_MARCO.data)),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),pre=h("pre",{class:"rac-t-legenda",style:"white-space:pre-wrap;margin:0"});

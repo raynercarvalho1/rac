@@ -144,6 +144,28 @@
     /* trechos seguidos com a mesma cor viram uma linha só */
     var tr=[],cor=null;for(var i=1;i<rota.length;i++){var c=corVel(Math.round(((rota[i][2]||0)-lo)/((hi-lo)||1)*12)/12);
       if(c!==cor){tr.push({cor:c,pts:[rota[i-1]]});cor=c}tr[tr.length-1].pts.push(rota[i])}return tr}
+  /* Mapa geral (Lote 3): as rotas simplificadas (até 150 pontos por treino, tabela garmin_rotas) de todos os treinos num só mapa, linhas finas e translúcidas
+     (onde mais se anda fica mais forte). Só o dono. A tabela é preenchida pela função garmin (tipo "rotas"); a função antiga é denunciada pela resposta sem "restantes". */
+  var ROTA_COR={running:"#E5484D",treadmill_running:"#E5484D",walking:"#2E8BD8",casual_walking:"#2E8BD8",hiking:"#2E9E44",cycling:"#B5641B"};
+  function saudeCorRota(t){return ROTA_COR[t]||"#2E6FD8"}
+  function saudeRotasLer(){var acc=[];
+    function pag(f){return Promise.resolve().then(function(){return SB.from("garmin_rotas").select("id,pontos").order("id").range(f,f+499)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===500?pag(f+500):acc})}
+    return pag(0)}
+  function saudeRotasBuscar(st){
+    function rodada(){return saudeChamar({tipo:"rotas",max:6}).then(function(d){
+      if(!d||d.restantes==null)throw new Error("a função garmin publicada ainda é a versão antiga (não conhece as rotas); publique a nova antes");
+      st(d.restantes?"Buscando rotas… faltam "+d.restantes+" treinos":"Rotas completas");
+      if(d.falhas&&d.falhas.length)logErro("Garmin (rotas)",new Error(d.falhas.join("; ")));
+      if(d.mais)return rodada()})}
+    return rodada()}
+  function saudeMapaGeral(div,rotas,comPartida){
+    return carregarLeaflet().then(function(){var L=window.L,m=L.map(div,{scrollWheelZoom:false}),todos=[];
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(m);
+      rotas.forEach(function(r){var pts=r.pontos.map(function(p){return [p[0],p[1]]});if(pts.length<2)return;todos=todos.concat(pts);
+        L.polyline(pts,{color:r.cor||"#2E6FD8",weight:2,opacity:.28}).addTo(m);
+        if(comPartida)L.circleMarker(pts[0],{radius:3,color:"#fff",weight:1,fillColor:r.cor||"#2E6FD8",fillOpacity:.9}).addTo(m)});
+      if(todos.length)m.fitBounds(L.latLngBounds(todos),{padding:[18,18]});else m.setView([-23.5,-47.46],11);
+      setTimeout(function(){m.invalidateSize()},200);return m})}
   function carregarGoogle(chave){
     if(window.google&&window.google.maps)return Promise.resolve();
     return new Promise(function(ok,erro){window.__gmOk=ok;setTimeout(function(){erro(new Error("o Google Maps não respondeu"))},10000);

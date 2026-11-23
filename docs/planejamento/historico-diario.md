@@ -1725,3 +1725,27 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Republicar a função, rodar "Testar", ajustar os leitores à estrutura real e só então completar o histórico desde 01/01/2026.
+
+## 23/11/2026 · Lote 3: mapa geral dos percursos (versão `2026-11-23.4`, SQL e função pendentes de aplicar)
+
+### 1. O que fizemos
+- Código: migration `065_garmin_rotas.sql` (tabela nova, só do dono, com mfa), função `garmin` com o tipo `rotas` e passo na rotina, e o cartão "Mapa geral dos percursos" na aba Atividades da Saúde (filtros da aba, partida de cada treino, local escondido respeitado). Backup e catálogo de segurança atualizados. Testes novos em `tests/garmin_rotas.test.mjs`.
+- **Fato:** nenhum dos 986 treinos guardava coordenadas; só 809 têm o nome do local.
+
+### 2. O que estamos fazendo
+- **Bloqueios:** (1) a migration 065 **não foi aplicada**: o conector do Supabase pediu confirmação ao dono e não houve resposta a tempo (tabela confirmada como inexistente por leitura); (2) a função `garmin` precisa ser republicada (com o tipo `rotas` e os extras corrigidos). Sem os dois, o botão do mapa avisa e o resto do site segue igual.
+
+### 3. O que vamos fazer
+- Aplicar a 065, republicar a função, buscar as rotas dos 986 treinos e conferir o mapa no iPhone. Depois, Lote 4 (recomendação do dia).
+
+## 23/11/2026 · Política Permanente de Autonomia Operacional implementada (versão `2026-11-23.5`)
+
+### 1. O que fizemos
+- Lote 3 concluído e integrado: PR #85 mesclado (merge `60fed87`), CI e deploy das Pages verdes; migration 065 aplicada em produção (pelo dono/ChatGPT) com o grant da `service_role`; função `garmin` v23 publicada (PRs #84 e #85).
+- Política do proprietário implementada de ponta a ponta: `CLAUDE.md` reescrito (autorizações, protocolo, publicação, Git na nuvem, IA, Supabase MCP), `.claude/settings.json` (ask vazio, Bash liberado, só guardas de higiene), `.mcp.json` (`functions`), registros do RAC Knowledge, decisões (07), docs de governança e testes `tests/permissoes.test.mjs` e `tests/politica_autonomia.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR da política, com CI e merge. **Restrições técnicas externas que a política não remove:** o conector do Supabase pede confirmação na tela do dono em `apply_migration` e pode expirar; o modo de permissão da sessão do Claude Code (classificador) pode bloquear ações de merge por API; a publicação da função pelo chat esbarra no tamanho dos arquivos (o workflow manual resolve quando o token do Supabase estiver no Environment).
+
+### 3. O que vamos fazer
+- Lote 4 (recomendação do dia); buscar as rotas dos 986 treinos e rodar o "Testar" dos extras; configurar o token do Supabase para o workflow de publicação.

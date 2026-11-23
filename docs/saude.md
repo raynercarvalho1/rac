@@ -71,5 +71,12 @@ A função `garmin` tem o tipo `extras` (`supabase/functions/garmin/extras.ts` +
 - **Formato das respostas:** o cliente da Garmin devolve o JSON bruto e não o descreve; os leitores aceitam os nomes conhecidos e não inventam número. **A sondagem (Inteligência → Dados extras do relógio → Testar) devolve só a estrutura (nomes e tipos, sem valores)**, inclusive dos três conjuntos já coletados (resumo diário, sono, VFC), para ajustar os leitores e achar campos úteis antes de ampliar o que se grava.
 - A função precisa ser **republicada** depois de cada mudança aqui. Testes: `tests/garmin_extras.test.mjs`.
 
+## Mapa geral dos percursos (Lote 3, 23/11/2026)
+Saúde → Atividades → **Mapa geral dos percursos** (só o dono; desligado quando "esconder o local" está ativo nos Ajustes). Mostra num só mapa (Leaflet/OpenStreetMap) as rotas dos treinos do filtro de modalidade e período da aba, em linhas finas e translúcidas (onde mais se anda fica mais forte), com o ponto de partida de cada treino.
+- **Dados:** tabela nova `garmin_rotas` (migration `supabase/065_garmin_rotas.sql`, aditiva, RLS só do dono + trava "mfa", sem anon, no backup): uma linha por treino com até 150 pontos `[lat, lon]` (5 casas, cerca de 1 m). Treino sem GPS grava `pontos = []`.
+- **Quem grava:** a função `garmin`, tipo `rotas` (`sincRotas`, `rotas.ts`): baixa o .FIT dos treinos que ainda não têm linha, em blocos de até 10, e a rotina diária busca os novos. O site só **lê** a tabela. O botão "Buscar rotas dos treinos" recupera os treinos antigos (uma vez só).
+- **Ordem de publicação:** SQL 065 → função `garmin` → site. A função antiga é denunciada pela resposta sem `restantes`.
+- Testes: `tests/garmin_rotas.test.mjs`.
+
 ## Publicar a função garmin sem colar arquivos (workflow manual)
 `.github/workflows/garmin-publicar.yml` (manual, só main, Environment `supabase-producao` com o segredo `SUPABASE_ACCESS_TOKEN`). Passos únicos do dono: (1) criar um token de acesso pessoal no Supabase; (2) no GitHub, criar o Environment `supabase-producao`, aceitando só a `main`, e guardar o token como segredo; (3) em Actions → "Publicar a função garmin" → Run workflow, informando a versão exata da CLI. **Não foi testado em produção.**

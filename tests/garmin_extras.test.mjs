@@ -7,7 +7,7 @@ import fs from "node:fs";
 const E = await import(new URL("../supabase/functions/garmin/extras.ts", import.meta.url));
 const idx = fs.readFileSync(new URL("../supabase/functions/garmin/index.ts", import.meta.url), "utf8");
 const D = "2026-03-10", t0 = Date.parse(D + "T00:00:00Z"), BR = -3 * 3600e3;
-const bloco = idx.slice(idx.indexOf("type Consulta ="), idx.indexOf("/* ---------- notificações push"));
+const bloco = idx.slice(idx.indexOf("type Consulta ="), idx.indexOf("/* Rotas simplificadas (Lote 3"));
 
 test("os cinco endpoints oficiais, com caminho e parâmetros exatos", () => {
   assert.equal(E.CAMINHOS.fc(D), "/wellness-service/wellness/dailyHeartRate?date=2026-03-10");

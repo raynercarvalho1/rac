@@ -3,6 +3,7 @@
 // O site chama com { tipo: "dias" } e { tipo: "ativ" } até a resposta trazer mais: false.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resumoAlertasPreco } from "./alertas_preco.ts";
+import { simplificarRota } from "./rotas.ts";
 import { CAMINHOS, INDISPONIVEIS, JANELA_DIAS, formato, lerBodyBatteryIntervalo, lerEstresseIntervalo, lerFcDia, lerPeso, lerSpo2Dia } from "./extras.ts";
 
 const BASE = "https://personal.connectapi.garmin.com";
@@ -360,6 +361,33 @@ async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record
   return { salvos, mais, desde: mais ? somaDias(fim, 1) : somaDias(limite, 1), estado, indisponiveis };
 }
 
+/* Rotas simplificadas (Lote 3, mapa geral): para os treinos que ainda não têm linha em garmin_rotas, baixa o arquivo .FIT, tira a rota, reduz a até 150 pontos
+   e grava. Treino sem GPS grava a linha com pontos [] (não é pedido de novo). Só ACRESCENTA em garmin_rotas; nunca mexe em garmin_ativ.
+   corpo: max (treinos por chamada, padrão 6, no máximo 10). Devolve { salvas, restantes, mais }; o site chama de novo enquanto mais for verdadeiro. */
+async function sincRotas(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>) {
+  const max = Math.min(Math.max(Number(corpo.max) || 6, 1), 10);
+  let qa = sb.from("garmin_ativ").select("id").order("inicio", { ascending: false }).limit(2000); if (uid) qa = qa.eq("user_id", uid);
+  let qr = sb.from("garmin_rotas").select("id").limit(5000); if (uid) qr = qr.eq("user_id", uid);
+  const [{ data: ativs, error: e1 }, { data: feitas, error: e2 }] = await Promise.all([qa, qr]);
+  if (e1) throw e1; if (e2) throw e2;
+  const tem = new Set((feitas ?? []).map((x: any) => Number(x.id)));
+  const falta = (ativs ?? []).map((x: any) => Number(x.id)).filter((id) => !tem.has(id));
+  let salvas = 0; const falhas: string[] = [];
+  for (const id of falta.slice(0, max)) {
+    try {
+      const r = await fetch(BASE + `/download-service/files/activity/${id}`, { headers: { Authorization: "Bearer " + tok } });
+      if (!r.ok) { falhas.push(id + ": HTTP " + r.status); continue; }
+      const fit = resumirFit(lerFit(await unzipFit(new Uint8Array(await r.arrayBuffer()))));
+      const pontos = simplificarRota(fit.rota);
+      const { error } = await sb.from("garmin_rotas").upsert({ ...(uid ? { user_id: uid } : {}), id, pontos, qtd: pontos.length }, { onConflict: "user_id,id" });
+      if (error) throw error;
+      salvas++;
+    } catch (e) { falhas.push(id + ": " + String((e as Error).message ?? e)); }
+  }
+  const restantes = Math.max(falta.length - salvas, 0);
+  return { salvas, restantes, mais: restantes > 0 && salvas > 0, ...(falhas.length ? { falhas: falhas.slice(0, 5) } : {}) };
+}
+
 /* ---------- notificações push (Web Push: VAPID + aes128gcm, RFC 8291/8292), só com WebCrypto ---------- */
 const b64u = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const deB64u = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
@@ -658,6 +686,7 @@ async function rotina(req: Request) {
     await passo("garmin_dias", () => sincDias(adm, tok!, uid, {}, hoje, 13));
     await passo("garmin_treinos", () => sincAtiv(adm, tok!, uid, {}));
     await passo("garmin_extras", () => sincExtras(adm, tok!, uid, {}, hoje));
+    await passo("garmin_rotas", () => sincRotas(adm, tok!, uid, { max: 6 }));
   }
   const domingo = new Date(hoje + "T12:00:00Z").getUTCDay() === 0;
   let chuva: string | null = null, semana: string[] = [];
@@ -732,6 +761,7 @@ async function atender(req: Request): Promise<Response> {
       return responder({ ok: true, nome: a?.activityName, local: a?.locationName, tipo: a?.activityTypeDTO?.typeKey, resumo, ...(fit ?? { serie: [], rota: [], voltas: [], series: [] }) });
     }
 
+    if (corpo.tipo === "rotas") return responder({ ok: true, ...(await sincRotas(sb, tok, null, corpo)) });
     if (corpo.tipo === "extras") return responder({ ok: true, ...(await sincExtras(sb, tok, null, corpo, hoje)) });
     if (corpo.tipo === "ativ") return responder({ ok: true, ...(await sincAtiv(sb, tok, null, corpo)) });
     return responder({ ok: true, ...(await sincDias(sb, tok, null, corpo, hoje)) });

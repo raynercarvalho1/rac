@@ -1771,3 +1771,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 5 (lugares) e Lote 6 (resumo semanal com IA no clique); decidir quais campos extras dos conjuntos já coletados vale guardar.
+
+## 23/11/2026 · Lote 5: lugares, compras e passeios no mapa (versão `2026-11-23.8`)
+
+### 1. O que fizemos
+- Regras puras `lug*` (notas por mercado, sugestão pelo GPS com lift para excluir a casa, passeios por nome do local), cartão "Lugares" na Saúde → Atividades (marcar, trocar, remover, confirmar sugestão), marcação guardada em `PESSOAL.saudeLugares` (só do dono, no backup; sem tabela nova nem serviço de endereço). Testes novos em `tests/lugares.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Pendente do dono:** republicar a função `garmin` (429) e buscar as rotas dos treinos (hoje 168 de 987): as sugestões dependem delas. **Não conferido:** o visual no iPhone.
+
+### 3. O que vamos fazer
+- Lote 6 (resumo semanal com IA no clique). Possível refinamento: horário da compra (se a nota tiver) para escolher o ponto mais próximo.

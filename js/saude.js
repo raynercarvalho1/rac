@@ -160,6 +160,19 @@
       if(d.falhas&&d.falhas.length)logErro("Garmin (rotas)",new Error(d.falhas.join("; ")));
       if(d.mais)return new Promise(function(ok){setTimeout(ok,2500)}).then(rodada)})}   /* pausa entre rodadas: a Garmin limita pedidos seguidos */
     return rodada().catch(function(e){if(/429/.test(e.message)){st("A Garmin pediu uma pausa (limite de pedidos). O que já foi buscado está guardado: espere alguns minutos e toque de novo.");return {limitado:true}}throw e})}
+  /* Lugares (Lote 5): compras do Mercado (só data, mercado, número e valor) e as rotas; as regras estão em NUCLEO.lug* */
+  function saudeCorLugar(t){return t==="mercado"?"#C2410C":"#2E8BD8"}
+  function saudeLugaresLer(){var acc=[];
+    function pag(f){return Promise.resolve().then(function(){return SB.from("compras").select("data,mercado,numero,valor_total").order("data").range(f,f+999)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(f+1000):acc})}
+    return Promise.all([pag(0),saudeRotasLer()]).then(function(r){var rotas={};r[1].forEach(function(x){rotas[x.id]=x.pontos});return {compras:r[0],rotas:rotas}})}
+  /* marcadores: [{lat,lon,cor,texto,tipo}]; onPick(lat,lon) é chamado ao tocar no mapa quando pick=true */
+  function saudeMapaLugares(div,marcadores,pick,onPick){
+    return carregarLeaflet().then(function(){var L=window.L,m=L.map(div,{scrollWheelZoom:false}),pts=[];
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(m);
+      marcadores.forEach(function(k){pts.push([k.lat,k.lon]);L.circleMarker([k.lat,k.lon],{radius:k.tipo==="mercado"?9:6,color:"#fff",weight:2,fillColor:k.cor,fillOpacity:k.tipo==="sugestao"?.45:.95,dashArray:k.tipo==="sugestao"?"4":null}).addTo(m).bindTooltip(k.texto)});
+      if(pts.length)m.fitBounds(L.latLngBounds(pts),{padding:[24,24],maxZoom:16});else m.setView([-23.5,-47.46],11);
+      if(pick&&onPick)m.on("click",function(e){onPick(Math.round(e.latlng.lat*1e5)/1e5,Math.round(e.latlng.lng*1e5)/1e5)});
+      setTimeout(function(){m.invalidateSize()},200);return m})}
   function saudeMapaGeral(div,rotas,comPartida){
     return carregarLeaflet().then(function(){var L=window.L,m=L.map(div,{scrollWheelZoom:false}),todos=[];
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(m);

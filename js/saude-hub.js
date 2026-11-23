@@ -175,6 +175,7 @@
     nos.appendChild(shChips([["30","30 dias"],["90","3 meses"],["180","6 meses"],["tudo","Tudo"]],SH.pAtiv,function(p){SH.pAtiv=p;SH.mais=30;shPintar(S)},"Período"));
     L.push(nos);
     var mg=shMapaGeral(fil,C);if(mg)L.push(h("div",{class:"rh-largo"},mg));
+    var lu=shLugares(fil,C);if(lu)L.push(h("div",{class:"rh-largo"},lu));
     var cons=NUCLEO.pnConsistencia(fil.map(function(a){return a.inicio}),ini,C.hoje),r=NUCLEO.sauResumoAtiv(fil);
     var k=h("section",{class:"rh-kpis","aria-label":"Indicadores das atividades"});
     k.appendChild(rkKpi({rotulo:"Atividades",valor:shV(String(r.n)),apoio:cons.diasAtivos+" dias ativos no período"}));
@@ -349,6 +350,33 @@
       .catch(function(e){logErro("Garmin (rotas)",e);bb.disabled=bm.disabled=false;st.textContent="Não consegui: "+e.message})};
     [h("div",{class:"rac-linha-flex"},bm,bb),st,caixa].forEach(function(n){corpo.appendChild(n)});
     return rkCard("Mapa geral dos percursos",corpo,{sub:"Todos os percursos do filtro acima num só mapa. Só você vê; o ponto de partida aparece como um ponto pequeno.",origem:"Rotas simplificadas (até 150 pontos por treino), guardadas na sua conta."})}
+  /* lugares (Lote 5): mercados (marcação do dono ou sugestão pelo GPS, que ele confirma), passeios por nome do local; só do dono; respeita "esconder o local" */
+  function shLugares(fil,C){
+    if(!isOwner())return null;
+    if(C.pr.esconderLocal)return rkCard("Lugares: compras e passeios",h("p",{class:"rac-t-sec",style:"margin:0",text:"O local está escondido nos Ajustes de Saúde; os lugares ficam desligados."}),{origem:"Só do dono."});
+    var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("pri","Mostrar lugares"),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),caixa=h("div",{style:"height:380px;border-radius:12px;display:none"}),lista=h("div",{class:"rac-pilha",style:"gap:8px"}),D=null,pick=null;
+    function marc(){var o=PESSOAL.saudeLugares;return (o&&o.mercados)||{}}
+    function gravar(nome,l){var o=JSON.parse(JSON.stringify(PESSOAL.saudeLugares||{}));o.mercados=o.mercados||{};if(l)o.mercados[nome]={lat:l.lat,lon:l.lon};else delete o.mercados[nome];
+      pessoalGravar("saudeLugares",o,function(m){if(m)st.textContent=m});pick=null;pintar()}
+    function pintar(){lista.innerHTML="";if(caixa.__mapa){caixa.__mapa.remove();caixa.__mapa=null}
+      var notas=NUCLEO.lugNotas(D.compras),mer=NUCLEO.lugMercados(notas,marc()),sug=NUCLEO.lugSugerir(notas,NUCLEO.lugPontosDia(C.ativs,D.rotas),marc()),pas=NUCLEO.lugPasseios(C.ativs,D.rotas),mk=[];
+      mer.forEach(function(m){var s=sug[m.mercado],txt=m.mercado+" · "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total);
+        if(m.local)mk.push({lat:m.local.lat,lon:m.local.lon,cor:saudeCorLugar("mercado"),tipo:"mercado",texto:"🛒 "+txt});else if(s)mk.push({lat:s.lat,lon:s.lon,cor:saudeCorLugar("mercado"),tipo:"sugestao",texto:"Sugestão: "+txt});
+        var bs=[];
+        if(m.local){bs.push(rkBtn("sec","Trocar no mapa"));bs[0].onclick=function(){pick=m.mercado;st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};var br=rkBtn("sec","Remover");br.onclick=function(){gravar(m.mercado,null)};bs.push(br)}
+        else{if(s){var bc=rkBtn("pri","Confirmar aqui");bc.onclick=function(){gravar(m.mercado,{lat:s.lat,lon:s.lon})};bs.push(bc)}
+          var bk=rkBtn("sec","Marcar no mapa");bk.onclick=function(){pick=m.mercado;st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};bs.push(bk)}
+        lista.appendChild(h("div",{class:"rac-linha-flex"},h("span",{class:"grow"},h("b",{text:m.mercado}),h("span",{class:"rac-t-sec",text:" "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total)+(m.local?" · ✓ local marcado":s?" · sugestão ("+s.confianca+"): em "+s.dias+" de "+s.de+" dias de compra um treino começa ou termina aqui":" · sem local")})),bs))});
+      pas.filter(function(p){return p.lat!=null}).slice(0,25).forEach(function(p){mk.push({lat:p.lat,lon:p.lon,cor:saudeCorLugar("passeio"),tipo:"passeio",texto:p.nome+" · "+p.n+(p.n===1?" treino":" treinos")})});
+      if(pas.length)lista.appendChild(h("p",{class:"rac-t-sec",style:"margin:4px 0 0",text:"Passeios (por nome do local): "+pas.slice(0,8).map(function(p){return p.nome+" ("+p.n+")"}).join(", ")+(pas.length>8?" e mais "+(pas.length-8):"")}));
+      if(!mer.length&&!pas.length){st.textContent="Sem compras nem treinos com nome de local para mostrar.";return}
+      caixa.style.display="block";
+      saudeMapaLugares(caixa,mk,!!pick,function(la,lo){if(pick)gravar(pick,{lat:la,lon:lo})}).then(function(m){caixa.__mapa=m;if(!pick)st.textContent=mk.length?mer.filter(function(x){return x.local}).length+" de "+mer.length+" mercados com local marcado · "+Object.keys(sug).length+" com sugestão":"Nenhum lugar com posição ainda (as rotas dos treinos precisam estar buscadas)."})
+      .catch(function(e){logErro("Garmin (lugares)",e);st.textContent="Não consegui desenhar o mapa: "+e.message})}
+    bt.onclick=function(){bt.disabled=true;st.textContent="Lendo compras e rotas…";
+      saudeLugaresLer().then(function(d){D=d;bt.disabled=false;pintar()}).catch(function(e){logErro("Garmin (lugares)",e);bt.disabled=false;st.textContent="Não consegui: "+e.message})};
+    [bt,st,caixa,lista].forEach(function(n){corpo.appendChild(n)});
+    return rkCard("Lugares: compras e passeios",corpo,{sub:"Onde ficam os mercados e os passeios. O local do mercado é marcação sua (ou sugestão pelo GPS dos treinos, que você confirma); nada é enviado a serviço de endereços.",origem:"Compras do Mercado e rotas dos treinos; marcações guardadas na sua conta, só do dono."})}
   /* extras do relógio (Lote 2): só o dono; testar não grava, completar só acrescenta chaves em dias que já existem (saudeExtras, em js/saude.js) */
   function shExtras(S){
     if(!isOwner())return null;var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("sec","Testar o que a Garmin libera"),bc=rkBtn("pri","Completar desde "+dataBR(NUCLEO.SAU_MARCO.data)),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),pre=h("pre",{class:"rac-t-legenda",style:"white-space:pre-wrap;margin:0"});

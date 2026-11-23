@@ -276,6 +276,7 @@
     if(ins.length&&!oc)L.push(h("div",{class:"rh-largo"},rkRecolher("Padrões do diário e do treino","(regras anteriores)",h("div",{class:"rac-pilha",style:"gap:8px"},rkLista(ins.map(function(t){return {titulo:t}})),
       h("span",{class:"rac-t-legenda",text:"Cálculo anterior à modernização, mantido como estava: a “carga” pode usar minutos quando a Garmin não informa carga, e a correlação mínima é mais baixa que a das análises acima. Use como pista, não como conclusão."})))));
     var lg=shLegado(S);if(lg)L.push(h("div",{class:"rh-largo"},lg));
+    var ex=shExtras(S);if(ex)L.push(h("div",{class:"rh-largo"},ex));
     return L}
   /* S12: saúde dos dados */
   function shQualidade(C){var q=C.sin.qualidade,NM={sono:"Sono",vfc:"VFC",fc:"FC de repouso",estresse:"Estresse",bb:"Body Battery"},corpo=h("div",{class:"rac-pilha",style:"gap:12px"});
@@ -319,6 +320,18 @@
     br.onclick=function(){if(window.confirm("Gravar na sua conta os dias e treinos anteriores a "+dataBR(M)+" que a Garmin ainda devolve e que ainda não estão no banco? Nada que já existe é alterado ou apagado."))rodar(false)};
     [h("div",{class:"rac-linha-flex"},bm,br),st,rel].forEach(function(n){corpo.appendChild(n)});
     return rkCard("Histórico anterior à posse",corpo,{sub:"A posse do relógio começa em "+dataBR(M)+". O que veio antes é legado: continua guardado no banco e no backup, não entra em nenhuma análise e nunca é apagado.",origem:"Opcional: a recuperação só roda se você pedir."})}
+  /* extras do relógio (Lote 2): só o dono; testar não grava, completar só acrescenta chaves em dias que já existem (saudeExtras, em js/saude.js) */
+  function shExtras(S){
+    if(!isOwner())return null;var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("sec","Testar o que a Garmin libera"),bc=rkBtn("pri","Completar desde "+dataBR(NUCLEO.SAU_MARCO.data)),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),pre=h("pre",{class:"rac-t-legenda",style:"white-space:pre-wrap;margin:0"});
+    function rodar(sondar){bt.disabled=bc.disabled=true;pre.textContent="";
+      saudeExtras(sondar,function(t){st.textContent=t}).then(function(r){
+        st.textContent=sondar?"✓ Teste pronto. Nada foi gravado.":"✓ Concluído: "+r.salvos+" dias receberam dados novos. Nada do que já existia foi alterado ou apagado.";
+        pre.textContent=JSON.stringify(sondar?{estado:r.estado,formato:r.formato}:{estado:r.estado},null,1);bt.disabled=bc.disabled=false;if(!sondar)return saudeCarregar().then(function(){shPintar(S)})})
+      .catch(function(e){logErro("Garmin (extras)",e);bt.disabled=bc.disabled=false;st.textContent="Não consegui: "+e.message})}
+    bt.onclick=function(){rodar(true)};
+    bc.onclick=function(){if(window.confirm("Buscar na Garmin, de "+dataBR(NUCLEO.SAU_MARCO.data)+" até hoje, as curvas do dia, o estado de treino, a respiração e o peso? Só acrescenta dados novos nos dias que já existem; nada é apagado ou trocado."))rodar(false)};
+    [h("div",{class:"rac-linha-flex"},bt,bc),st,pre].forEach(function(n){corpo.appendChild(n)});
+    return rkCard("Dados extras do relógio",corpo,{sub:"Curvas de batimentos, estresse e Body Battery, estado de treino, prontidão, respiração, oxigenação e peso. O teste mostra o que a sua conta da Garmin libera, sem gravar nada.",origem:"Função garmin (API pessoal da Garmin), gravados em garmin_dia, só do dono."})}
   /* ---- a página ---- */
   var SH_ABA_FN={geral:shGeral,recuperacao:shRecuperacao,sono:shSono,atividades:shAtividades,condicionamento:shCondicionamento,tendencias:shTendencias,inteligencia:shInteligencia};
   function shAbertura(S,C){var hero=S.hero;hero.innerHTML="";

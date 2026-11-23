@@ -52,3 +52,6 @@ Guardadas em `PESSOAL.saudePrefs` (mecanismo `pessoalGravar` já existente; sem 
 ## Fora do escopo desta entrega
 
 Mapas e trajetos históricos (S7 do roadmap), IA de Saúde (S8), coleta extra da Garmin (S6 do roadmap), qualquer alteração em `supabase/functions/garmin`, SQL, secrets, cron ou workflows, e a recuperação do histórico anterior a 01/11/2025 (opcional, adiada pelo dono).
+
+## Dados extras do relógio (Lote 2, 23/11/2026)
+A função `garmin` ganhou o tipo `extras` (`supabase/functions/garmin/extras.ts` + `sincExtras` em `index.ts`): curvas do dia em blocos de 15 min (batimentos, estresse, Body Battery), estado de treino (carga aguda/crônica, razão, VO₂ máx), prontidão e tempo de recuperação, respiração, SpO₂ e peso/composição. Gravados em `garmin_dia.dados.extras` (chave nova; só acrescenta, só em dias que já têm linha, nunca apaga nem troca o que existia). Cada caminho da Garmin é tentado sozinho; o que a conta não libera aparece em `estado` ("erro 403", "sem dado"). Sincronização diária (rotina e botão) refaz ontem e hoje; **Inteligência → Dados extras do relógio** testa (`sondar`, não grava) e completa desde 01/01/2026. Testes: `tests/garmin_extras.test.mjs`. **A função precisa ser republicada** antes de o botão funcionar (a antiga é denunciada pela resposta sem `estado`).

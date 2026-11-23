@@ -86,7 +86,19 @@
     var n=0;
     function dias(){st("Buscando no relógio… (dias)");return chamar({tipo:"dias"}).then(function(d){n+=d.salvos||0;if(d.mais)return dias()})}
     function ativs(ini){st("Buscando no relógio… (treinos)");return chamar({tipo:"ativ",inicio:ini||0}).then(function(d){if(d.mais)return ativs(d.inicio)})}
-    return dias().then(function(){return ativs(0)})}
+    /* extras do dia (curvas, estado de treino, peso…): opcional; se a função publicada ainda não os conhece ou a Garmin recusa, a sincronização comum não falha */
+    function extras(){return chamar({tipo:"extras"}).then(function(d){if(d&&d.estado&&d.mais)return extras()}).catch(function(e){logErro("Garmin (extras)",e)})}
+    return dias().then(function(){return ativs(0)}).then(function(){st("Buscando no relógio… (curvas e estado de treino)");return extras()})}
+  /* Extras do relógio (Lote 2): sondar = só testa o que a Garmin libera e devolve estado e formato (nada é gravado); completar = grava, de 01/01/2026 até hoje,
+     só chaves novas em dias que já existem (nunca apaga nem troca o que já está lá). A função antiga não conhece "extras": a resposta sem "estado" a denuncia. */
+  function saudeExtras(sondar,st){
+    var M=NUCLEO.SAU_MARCO.data,tot={salvos:0,estado:{},formato:null};
+    function junta(d){tot.salvos+=d.salvos||0;Object.keys(d.estado||{}).forEach(function(k){var o=tot.estado[k]=tot.estado[k]||{};Object.keys(d.estado[k]).forEach(function(r){o[r]=(o[r]||0)+d.estado[k][r]})});if(d.formato&&!tot.formato)tot.formato=d.formato}
+    function rodada(desde){st((sondar?"Testando… ":"Gravando… ")+dataBR(desde));
+      return saudeChamar(sondar?{tipo:"extras",sondar:true,desde:NUCLEO.somaDiasISO(hojeISO(),-3),ate:NUCLEO.somaDiasISO(hojeISO(),-1),max:1}:{tipo:"extras",desde:desde,ate:hojeISO(),max:6}).then(function(d){
+        if(!d||!d.estado)throw new Error("a função garmin publicada ainda é a versão antiga (não conhece os extras); publique a nova antes");
+        junta(d);if(!sondar&&d.mais)return rodada(d.desde)})}
+    return rodada(M).then(function(){return tot})}
   /* a página #saude (renderSaude) é o hub com abas, em js/saude-hub.js; a página do treino abaixo continua aqui */
 
   /* ===== Um treino aberto (#saude/treino/<id>): mapa, números, gráficos, zonas, voltas e séries =====

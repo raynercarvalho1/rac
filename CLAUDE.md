@@ -16,7 +16,7 @@ no chat para aquela ação, naquela sessão.
 - Não alterar secrets, cobrança ou limites financeiros (`ia_config`, teto, Console da Anthropic) sem autorização explícita.
 - Não fazer chamada paga de IA sem autorização específica para aquela chamada. Não pôr demonstração no lugar de função real.
 - Preservar a experiência da Fernanda (papel casa, `DA_CASA`): não mudar o que ela vê ou faz sem o dono pedir.
-- A função `garmin` (`supabase/functions/garmin`) é intocável sem autorização expressa.
+- A função `garmin` (`supabase/functions/garmin`) só se altera dentro de um lote autorizado pelo dono (liberada para o plano Garmin em 23/11/2026: dados novos, editar, publicar e SQL aditivo). Fora desse lote segue intocável. Só acrescenta; nunca apaga nem sobrescreve dados do relógio.
 - Não ampliar o escopo pedido; não descartar trabalho local de outra tarefa (`git reset`, `git clean`, checkout que apaga).
 
 

@@ -3,6 +3,7 @@
 // O site chama com { tipo: "dias" } e { tipo: "ativ" } até a resposta trazer mais: false.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resumoAlertasPreco } from "./alertas_preco.ts";
+import { CAMINHOS, formato, lerEstadoTreino, lerEstresseDia, lerFcDia, lerPeso, lerProntidao, lerRespiracaoDia, lerSpo2Dia } from "./extras.ts";
 
 const BASE = "https://personal.connectapi.garmin.com";
 /* CORS: só o site (e o teste local) podem chamar pelo navegador. Atalhos do iPhone e a rotina do banco não são navegador
@@ -292,6 +293,50 @@ async function sincDias(sb: Sb, tok: string, uid: string | null, corpo: Record<s
     salvos += contar ? 0 : linhas.length; ini = somaDias(fim, 1);
   }
   return { salvos, mais: ini <= limite, desde: ini, ...(contar || somenteNovos ? { porMes } : {}) };
+}
+
+/* Extras do dia (Lote 2, 23/11/2026): curvas (batimentos, estresse, Body Battery), estado de treino, prontidão, respiração, SpO₂ e peso.
+   Só ACRESCENTA chaves em garmin_dia.dados (extras: fc, estresse, treino, prontidao, respiracao, spo2, peso); nunca apaga nem troca o que já existe,
+   e só mexe em dias que já têm linha. Cada chamada à Garmin é tentada sozinha: a que a conta não libera vira "estado" e não derruba as outras.
+   corpo: desde, ate (padrão: ontem e hoje), max (dias por chamada, padrão 6), refazer (relê dias que já têm extras), sondar (não grava; devolve o estado e o formato das respostas) */
+async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>, hoje: string) {
+  const sondar = corpo.sondar === true, refazer = corpo.refazer === true, max = Math.min(Math.max(Number(corpo.max) || 6, 1), 10);
+  const limite = (corpo.ate as string) ?? hoje; let ini = (corpo.desde as string) ?? somaDias(hoje, -1);
+  const estado: Record<string, Record<string, number>> = {}, forma: Record<string, unknown> = {};
+  const conta = (k: string, r: string) => { const o = (estado[k] ||= {}); o[r] = (o[r] ?? 0) + 1; };
+  const tenta = async (k: string, path: string) => {
+    try { const r = await garmin(tok, path); if (sondar && !forma[k]) forma[k] = formato(r); return r; }
+    catch (e) { conta(k, String((e as Error).message ?? e).replace(/.*respondeu (\d+).*/, "erro $1")); return undefined; }
+  };
+  let q = sb.from("garmin_dia").select("data,dados").gte("data", ini).lte("data", limite).order("data"); if (uid) q = q.eq("user_id", uid);
+  const { data: linhas, error } = await q; if (error) throw error;
+  const dias = (linhas ?? []) as { data: string; dados: Record<string, any> }[];
+  const peso = lerPeso(await tenta("peso", CAMINHOS.peso(ini, limite)));
+  let feitos = 0, salvos = 0, proximo = ini;
+  for (const l of dias) {
+    if (feitos >= max) break;
+    proximo = somaDias(l.data, 1);
+    const recente = l.data >= somaDias(hoje, -2);
+    if (!sondar && !refazer && !recente && l.dados?.extras) continue;
+    feitos++;
+    const [fc, es, tr, pr, re, sp] = await Promise.all([
+      tenta("fc", CAMINHOS.fc(l.data)), tenta("estresse", CAMINHOS.estresse(l.data)), tenta("treino", CAMINHOS.treino(l.data)),
+      tenta("prontidao", CAMINHOS.prontidao(l.data)), tenta("respiracao", CAMINHOS.respiracao(l.data)), tenta("spo2", CAMINHOS.spo2(l.data)),
+    ]);
+    const ex: Record<string, unknown> = {};
+    const poe = (k: string, v: unknown) => { if (v !== undefined) { ex[k] = v; conta(k, "ok"); } else if (!estado[k]?.["erro 403"] && !estado[k]?.["erro 404"]) conta(k, "sem dado"); };
+    poe("fc", fc && lerFcDia(fc, l.data)); poe("estresse", es && lerEstresseDia(es, l.data)); poe("treino", tr && lerEstadoTreino(tr));
+    poe("prontidao", pr && lerProntidao(pr)); poe("respiracao", re && lerRespiracaoDia(re)); poe("spo2", sp && lerSpo2Dia(sp));
+    if (peso[l.data]) { ex.peso = peso[l.data]; conta("peso", "ok"); }
+    if (!sondar && Object.keys(ex).length) {
+      const dados = { ...l.dados, extras: { ...(l.dados?.extras ?? {}), ...ex, atualizado: hoje } };
+      let u = sb.from("garmin_dia").update({ dados, atualizado: new Date().toISOString() }).eq("data", l.data); if (uid) u = u.eq("user_id", uid);
+      const { error: e2 } = await u; if (e2) throw e2;
+      salvos++;
+    }
+  }
+  const mais = feitos >= max && proximo <= limite;
+  return { salvos, mais, desde: mais ? proximo : somaDias(limite, 1), estado, ...(sondar ? { formato: forma } : {}) };
 }
 
 /* ---------- notificações push (Web Push: VAPID + aes128gcm, RFC 8291/8292), só com WebCrypto ---------- */
@@ -591,6 +636,7 @@ async function rotina(req: Request) {
   if (tok) {
     await passo("garmin_dias", () => sincDias(adm, tok!, uid, {}, hoje, 13));
     await passo("garmin_treinos", () => sincAtiv(adm, tok!, uid, {}));
+    await passo("garmin_extras", () => sincExtras(adm, tok!, uid, { max: 3 }, hoje));
   }
   const domingo = new Date(hoje + "T12:00:00Z").getUTCDay() === 0;
   let chuva: string | null = null, semana: string[] = [];
@@ -665,6 +711,7 @@ async function atender(req: Request): Promise<Response> {
       return responder({ ok: true, nome: a?.activityName, local: a?.locationName, tipo: a?.activityTypeDTO?.typeKey, resumo, ...(fit ?? { serie: [], rota: [], voltas: [], series: [] }) });
     }
 
+    if (corpo.tipo === "extras") return responder({ ok: true, ...(await sincExtras(sb, tok, null, corpo, hoje)) });
     if (corpo.tipo === "ativ") return responder({ ok: true, ...(await sincAtiv(sb, tok, null, corpo)) });
     return responder({ ok: true, ...(await sincDias(sb, tok, null, corpo, hoje)) });
   } catch (e) {

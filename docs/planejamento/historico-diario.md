@@ -1702,3 +1702,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lotes seguintes (decisões do dono em 23/11/2026): 2 função `garmin` (dados novos desde 01/01/2026), 3 mapa geral, 4 recomendação do dia, 5 lugares (compras e passeios), 6 resumo semanal com IA no clique.
+
+## 23/11/2026 · Lote 2 do plano Garmin: dados extras do relógio no código (versão `2026-11-23.2`, função NÃO publicada)
+
+### 1. O que fizemos
+- Função `garmin`: tipo novo `extras` (`extras.ts` + `sincExtras`): curvas do dia, estado de treino, prontidão e recuperação, respiração, SpO₂ e peso, só acrescentando `garmin_dia.dados.extras` (nada apagado ou trocado). Cada chamada à Garmin é tentada sozinha. A rotina diária refaz ontem e hoje. Regra do `CLAUDE.md` atualizada (função liberada pelo dono para o plano Garmin). Saúde → Inteligência ganhou "Dados extras do relógio" (testar sem gravar; completar desde 01/01/2026). Teste novo `tests/garmin_extras.test.mjs`. Suíte completa verde.
+- **Fato:** o relógio já entregava mais do que a tela usava (estresse e Body Battery do dia, respiração, SpO₂, VO₂ máx, carga, zonas de FC); o que faltava e agora é tentado: curvas do dia, Training Status/Readiness, recuperação e peso.
+
+### 2. O que estamos fazendo
+- **Bloqueio:** a função precisa ser republicada (a antiga é denunciada pelo botão). **Não conferido:** se a conta da Garmin libera cada caminho; o botão "Testar o que a Garmin libera" mostra isso sem gravar.
+
+### 3. O que vamos fazer
+- Republicar a função, testar, completar o histórico, e só então telas dos lotes 4 e 6 que usam esses dados. Lote 3 (mapa geral) segue independente.

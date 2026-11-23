@@ -37,9 +37,16 @@ export const CAMINHOS = {
   vo2: (ini: string, fim: string) => `/metrics-service/metrics/maxmet/daily/${ini}/${fim}`,   // documentado; só sondagem, não grava (formato ainda não confirmado)
 };
 
+/* a Garmin manda os horários de início como TEXTO ("2026-11-22T03:00:00.0", sem fuso; confirmado pela sondagem de 23/11/2026) ou como número em milissegundos */
+export function tms(v: unknown): number | undefined {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v !== "string" || !v.trim()) return undefined;
+  const t = Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(v) ? v : v + "Z");
+  return isFinite(t) ? t : undefined;
+}
 /* deslocamento do relógio para a hora local: (início local − início GMT) da resposta; sem isso, Brasília */
 export function deslocamento(r: any): number {
-  const l = num(r?.startTimestampLocal), g = num(r?.startTimestampGMT);
+  const l = tms(r?.startTimestampLocal), g = tms(r?.startTimestampGMT);
   return l != null && g != null ? l - g : DESLOC_PADRAO_MS;
 }
 
@@ -87,7 +94,7 @@ export function lerEstresseIntervalo(r: any): Record<string, Record<string, numb
 export function lerBodyBatteryIntervalo(r: any): Record<string, Record<string, unknown>> {
   const out: Record<string, Record<string, unknown>> = {};
   for (const it of lista(r, "data", "bodyBatteryReports", "reports")) {
-    const dia = diaDe(it?.date ?? it?.calendarDate) ?? (num(it?.startTimestampLocal) != null ? diaDe(new Date(it.startTimestampLocal).toISOString()) : undefined);
+    const dia = diaDe(it?.date ?? it?.calendarDate) ?? (tms(it?.startTimestampLocal) != null ? diaDe(new Date(tms(it.startTimestampLocal)!).toISOString()) : undefined);
     if (!dia) continue;
     const curva = bloquear(it?.bodyBatteryValuesArray, dia, (v) => v >= 0 && v <= 100, deslocamento(it));
     const niveis = (curva ?? []).filter((x): x is number => x != null);

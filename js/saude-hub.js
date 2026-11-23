@@ -344,8 +344,8 @@
         if(!linhas.length){bm.disabled=false;return}
         caixa.style.display="block";return saudeMapaGeral(caixa,linhas,true).then(function(m){caixa.__mapa=m;bm.disabled=false})})
       .catch(function(e){logErro("Garmin (mapa geral)",e);bm.disabled=false;st.textContent="Não consegui: "+e.message})};
-    bb.onclick=function(){if(!window.confirm("Buscar na Garmin a rota de cada treino que ainda não tem (em blocos pequenos, uma vez só)? Só acrescenta; nada é apagado."))return;bb.disabled=bm.disabled=true;
-      saudeRotasBuscar(function(t){st.textContent=t}).then(function(){bb.disabled=bm.disabled=false;st.textContent="✓ Rotas completas. Toque em “Mostrar o mapa”."})
+    bb.onclick=function(){if(!window.confirm("Buscar na Garmin a rota de cada treino que ainda não tem (em blocos pequenos, com pausas)? Só acrescenta; nada é apagado."))return;bb.disabled=bm.disabled=true;
+      saudeRotasBuscar(function(t){st.textContent=t}).then(function(r){bb.disabled=bm.disabled=false;if(!(r&&r.limitado))st.textContent="✓ Rotas completas. Toque em “Mostrar o mapa”."})
       .catch(function(e){logErro("Garmin (rotas)",e);bb.disabled=bm.disabled=false;st.textContent="Não consegui: "+e.message})};
     [h("div",{class:"rac-linha-flex"},bm,bb),st,caixa].forEach(function(n){corpo.appendChild(n)});
     return rkCard("Mapa geral dos percursos",corpo,{sub:"Todos os percursos do filtro acima num só mapa. Só você vê; o ponto de partida aparece como um ponto pequeno.",origem:"Rotas simplificadas (até 150 pontos por treino), guardadas na sua conta."})}
@@ -354,7 +354,7 @@
     if(!isOwner())return null;var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("sec","Testar o que a Garmin libera"),bc=rkBtn("pri","Completar desde "+dataBR(NUCLEO.SAU_MARCO.data)),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),pre=h("pre",{class:"rac-t-legenda",style:"white-space:pre-wrap;margin:0"});
     function rodar(sondar){bt.disabled=bc.disabled=true;pre.textContent="";
       saudeExtras(sondar,function(t){st.textContent=t}).then(function(r){
-        st.textContent=sondar?"✓ Teste pronto. Nada foi gravado.":"✓ Concluído: "+r.salvos+" dias receberam dados novos. Nada do que já existia foi alterado ou apagado.";
+        st.textContent=sondar?"✓ Teste pronto. Nada foi gravado.":r.limitado?"A Garmin pediu uma pausa (limite de pedidos): "+r.salvos+" dias receberam dados novos. Espere alguns minutos e toque de novo para continuar de onde parou.":"✓ Concluído: "+r.salvos+" dias receberam dados novos. Nada do que já existia foi alterado ou apagado.";
         pre.textContent=JSON.stringify(sondar?{estado:r.estado,fora_da_api_pessoal:r.indisponiveis,formato:r.formato}:{estado:r.estado},null,1);bt.disabled=bc.disabled=false;if(!sondar)return saudeCarregar().then(function(){shPintar(S)})})
       .catch(function(e){logErro("Garmin (extras)",e);bt.disabled=bc.disabled=false;st.textContent="Não consegui: "+e.message})}
     bt.onclick=function(){rodar(true)};

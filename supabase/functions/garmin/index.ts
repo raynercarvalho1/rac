@@ -342,8 +342,9 @@ async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record
     const a = dias[0].data, b = dias[dias.length - 1].data;
     const [es, bb, ps] = await Promise.all([tenta("estresse", CAMINHOS.estresse(a, b)), tenta("bb", CAMINHOS.bb(a, b)), tenta("peso", CAMINHOS.peso(a, b))]);
     const estresse = lerEstresseIntervalo(es), bateria = lerBodyBatteryIntervalo(bb), peso = lerPeso(ps);
-    for (let i = 0; i < dias.length; i += 7) {          // as consultas por data, 7 por vez
-      await Promise.all(dias.slice(i, i + 7).map(async (l) => {
+    for (let i = 0; i < dias.length; i += 4) {          // as consultas por data, 4 por vez, com pausa (a Garmin limita pedidos seguidos)
+      if (i) await new Promise((ok) => setTimeout(ok, 500));
+      await Promise.all(dias.slice(i, i + 4).map(async (l) => {
         const [fc, sp] = await Promise.all([tenta("fc", CAMINHOS.fc(l.data)), tenta("spo2", CAMINHOS.spo2(l.data))]);
         const ex: Record<string, unknown> = {};
         const poe = (k: string, v: unknown) => { if (v !== undefined) ex[k] = v; };
@@ -357,25 +358,27 @@ async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record
       }));
     }
   }
-  const mais = fim < limite;
-  return { salvos, mais, desde: mais ? somaDias(fim, 1) : somaDias(limite, 1), estado, indisponiveis };
+  const mais = fim < limite, limitado = Object.values(estado).some((o) => (o["erro 429"] ?? 0) > 0);
+  return { salvos, mais, limitado, desde: mais ? somaDias(fim, 1) : somaDias(limite, 1), estado, indisponiveis };
 }
 
 /* Rotas simplificadas (Lote 3, mapa geral): para os treinos que ainda não têm linha em garmin_rotas, baixa o arquivo .FIT, tira a rota, reduz a até 150 pontos
    e grava. Treino sem GPS grava a linha com pontos [] (não é pedido de novo). Só ACRESCENTA em garmin_rotas; nunca mexe em garmin_ativ.
    corpo: max (treinos por chamada, padrão 6, no máximo 10). Devolve { salvas, restantes, mais }; o site chama de novo enquanto mais for verdadeiro. */
 async function sincRotas(sb: Sb, tok: string, uid: string | null, corpo: Record<string, unknown>) {
-  const max = Math.min(Math.max(Number(corpo.max) || 6, 1), 10);
+  const max = Math.min(Math.max(Number(corpo.max) || 4, 1), 10);   // blocos pequenos: a Garmin limita pedidos seguidos (HTTP 429 em 23/11/2026)
   let qa = sb.from("garmin_ativ").select("id").order("inicio", { ascending: false }).limit(2000); if (uid) qa = qa.eq("user_id", uid);
   let qr = sb.from("garmin_rotas").select("id").limit(5000); if (uid) qr = qr.eq("user_id", uid);
   const [{ data: ativs, error: e1 }, { data: feitas, error: e2 }] = await Promise.all([qa, qr]);
   if (e1) throw e1; if (e2) throw e2;
   const tem = new Set((feitas ?? []).map((x: any) => Number(x.id)));
   const falta = (ativs ?? []).map((x: any) => Number(x.id)).filter((id) => !tem.has(id));
-  let salvas = 0; const falhas: string[] = [];
+  let salvas = 0, limitado = false; const falhas: string[] = [];
   for (const id of falta.slice(0, max)) {
     try {
+      if (salvas) await new Promise((ok) => setTimeout(ok, 900));   // pausa entre downloads
       const r = await fetch(BASE + `/download-service/files/activity/${id}`, { headers: { Authorization: "Bearer " + tok } });
+      if (r.status === 429) { limitado = true; falhas.push(id + ": HTTP 429"); break; }
       if (!r.ok) { falhas.push(id + ": HTTP " + r.status); continue; }
       const fit = resumirFit(lerFit(await unzipFit(new Uint8Array(await r.arrayBuffer()))));
       const pontos = simplificarRota(fit.rota);
@@ -385,7 +388,7 @@ async function sincRotas(sb: Sb, tok: string, uid: string | null, corpo: Record<
     } catch (e) { falhas.push(id + ": " + String((e as Error).message ?? e)); }
   }
   const restantes = Math.max(falta.length - salvas, 0);
-  return { salvas, restantes, mais: restantes > 0 && salvas > 0, ...(falhas.length ? { falhas: falhas.slice(0, 5) } : {}) };
+  return { salvas, restantes, mais: restantes > 0 && salvas > 0 && !limitado, limitado, ...(falhas.length ? { falhas: falhas.slice(0, 5) } : {}) };
 }
 
 /* ---------- notificações push (Web Push: VAPID + aes128gcm, RFC 8291/8292), só com WebCrypto ---------- */
@@ -686,7 +689,7 @@ async function rotina(req: Request) {
     await passo("garmin_dias", () => sincDias(adm, tok!, uid, {}, hoje, 13));
     await passo("garmin_treinos", () => sincAtiv(adm, tok!, uid, {}));
     await passo("garmin_extras", () => sincExtras(adm, tok!, uid, {}, hoje));
-    await passo("garmin_rotas", () => sincRotas(adm, tok!, uid, { max: 6 }));
+    await passo("garmin_rotas", () => sincRotas(adm, tok!, uid, { max: 4 }));
   }
   const domingo = new Date(hoje + "T12:00:00Z").getUTCDay() === 0;
   let chuva: string | null = null, semana: string[] = [];

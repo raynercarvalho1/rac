@@ -1,104 +1,135 @@
-// Dados extras do relógio (Lote 2, 23/11/2026): curvas do dia (batimentos, estresse, Body Battery), estado de treino, prontidão e tempo de recuperação,
-// respiração/SpO₂ do dia e peso/composição corporal. Só funções puras (sem rede, sem banco, sem Deno): a função "garmin" faz as chamadas e grava;
-// aqui ficam os caminhos da Garmin e a conversão para o formato compacto que vai em garmin_dia.dados (chaves novas; nada do que já existe muda).
-// Formatos da Garmin variam por conta e aparelho: todo leitor devolve undefined quando não reconhece o dado (nunca inventa número).
+// Dados extras do relógio (Lote 2, corrigido em 23/11/2026 com os endpoints oficiais da Personal API da Garmin).
+// Só funções puras (sem rede, sem banco, sem Deno): a função "garmin" faz as chamadas e grava; aqui ficam os caminhos e a conversão para o formato
+// compacto de garmin_dia.dados.extras (chaves novas; nada do que já existe muda).
+// Caminhos e parâmetros conferidos no cliente Python publicado pela Garmin (github.com/garmin/connect-personal-api-python). O cliente devolve o JSON bruto e
+// não descreve o formato das respostas: por isso cada leitor aceita os nomes de campo conhecidos, devolve undefined quando não reconhece o dado
+// (nunca inventa número) e a sondagem mostra a estrutura real (só nomes e tipos) para ajustar o leitor.
 
 export const PASSO_MIN = 15;                    // curvas do dia em blocos de 15 minutos (96 pontos)
 const PONTOS = (24 * 60) / PASSO_MIN;
+/* intervalo máximo por consulta de intervalo: o mesmo limite de 28 dias que a função já respeita nos resumos diários (hipótese conservadora; se a Garmin
+   recusar, o estado mostra "erro 400" e a janela menor resolve) */
+export const JANELA_DIAS = 28;
+/* sem a hora local na resposta, o dia é o de Brasília (UTC-3), o fuso do dono */
+const DESLOC_PADRAO_MS = -3 * 3600e3;
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && isFinite(v) ? v : undefined);
 const arred = (v: number | undefined, casas = 2): number | undefined => (v == null ? undefined : Math.round(v * 10 ** casas) / 10 ** casas);
 const vazio = (o: Record<string, unknown>) => { for (const k of Object.keys(o)) if (o[k] == null) delete o[k]; return Object.keys(o).length ? o : undefined; };
+const lista = (r: any, ...chaves: string[]): any[] => {
+  if (Array.isArray(r)) return r;
+  for (const k of chaves) if (Array.isArray(r?.[k])) return r[k];
+  return [];
+};
+const diaDe = (v: unknown): string | undefined => { const s = typeof v === "string" ? v.slice(0, 10) : ""; return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined; };
 
-/* caminhos candidatos da API pessoal; cada um é tentado sozinho e um que a conta não libera não derruba os outros */
+/* Chaves de extras que a Personal API NÃO documenta (Training Status e Training Readiness): não são chamadas, não são gravadas e a sondagem as marca assim.
+   Só entram de volta com documentação oficial do caminho. */
+export const INDISPONIVEIS = ["treino", "prontidao"] as const;
+
+/* caminhos oficiais (GET). Por data: fc e spo2. Por intervalo: estresse, bb, peso e vo2 (só sondagem). */
 export const CAMINHOS = {
-  fc: (d: string) => `/wellness-service/wellness/dailyHeartRate/${d}`,
-  estresse: (d: string) => `/wellness-service/wellness/dailyStress/${d}`,
-  treino: (d: string) => `/metrics-service/metrics/trainingstatus/daily/${d}`,
-  prontidao: (d: string) => `/metrics-service/metrics/trainingreadiness/${d}`,
-  respiracao: (d: string) => `/wellness-service/wellness/daily/respiration/${d}`,
-  spo2: (d: string) => `/wellness-service/wellness/daily/spo2/${d}`,
-  peso: (ini: string, fim: string) => `/weight-service/weight/dateRange?startDate=${ini}&endDate=${fim}`,
+  fc: (d: string) => `/wellness-service/wellness/dailyHeartRate?date=${d}`,
+  estresse: (ini: string, fim: string) => `/usersummary-service/stats/stress/daily/${ini}/${fim}`,
+  peso: (ini: string, fim: string) => `/weight-service/weight/range/${ini}/${fim}?includeAll=true`,
+  spo2: (d: string) => `/wellness-service/wellness/daily/spo2acclimation/${d}`,
+  bb: (ini: string, fim: string) => `/wellness-service/wellness/bodyBattery/reports/daily?startDate=${ini}&endDate=${fim}`,
+  vo2: (ini: string, fim: string) => `/metrics-service/metrics/maxmet/daily/${ini}/${fim}`,   // documentado; só sondagem, não grava (formato ainda não confirmado)
 };
 
-/* [[milissegundos, valor], ...] → 96 blocos de 15 min (média do bloco, arredondada); bloco sem leitura = null. A hora vem do relógio em UTC "local" da Garmin (calendarDate). */
-export function bloquear(pares: unknown, dia: string, valido: (v: number) => boolean = (v) => v >= 0): (number | null)[] | undefined {
+/* deslocamento do relógio para a hora local: (início local − início GMT) da resposta; sem isso, Brasília */
+export function deslocamento(r: any): number {
+  const l = num(r?.startTimestampLocal), g = num(r?.startTimestampGMT);
+  return l != null && g != null ? l - g : DESLOC_PADRAO_MS;
+}
+
+/* [[milissegundos, valor], ...] → 96 blocos de 15 min do dia (média do bloco, arredondada); bloco sem leitura = null; nada válido = undefined.
+   O valor é o 2º item do par ou, se o 2º for texto (status), o 3º. */
+export function bloquear(pares: unknown, dia: string, valido: (v: number) => boolean = (v) => v >= 0, desloc = 0): (number | null)[] | undefined {
   if (!Array.isArray(pares)) return undefined;
   const ini = Date.parse(dia + "T00:00:00Z"), soma: number[] = new Array(PONTOS).fill(0), qtd: number[] = new Array(PONTOS).fill(0);
   let usados = 0;
   for (const p of pares) {
-    const t = Array.isArray(p) ? num(p[0]) : undefined, v = Array.isArray(p) ? num(p[1]) : undefined;
+    if (!Array.isArray(p)) continue;
+    const t = num(p[0]), v = typeof p[1] === "string" ? num(p[2]) : num(p[1]);
     if (t == null || v == null || !valido(v)) continue;
-    const i = Math.floor((t - ini) / (PASSO_MIN * 60e3));
+    const i = Math.floor((t + desloc - ini) / (PASSO_MIN * 60e3));
     if (i < 0 || i >= PONTOS) continue;
     soma[i] += v; qtd[i]++; usados++;
   }
-  if (!usados) return undefined;
-  return soma.map((s, i) => (qtd[i] ? Math.round(s / qtd[i]) : null));
+  return usados ? soma.map((s, i) => (qtd[i] ? Math.round(s / qtd[i]) : null)) : undefined;
 }
 
-/* batimentos do dia: { fc: [96], fcRepouso } */
+/* batimentos do dia (consulta por data): { passoMin, fc: [96], fcRepouso, fcMin, fcMax } */
 export function lerFcDia(r: any, dia: string) {
-  const fc = bloquear(r?.heartRateValues, dia, (v) => v > 0);
-  return fc ? { passoMin: PASSO_MIN, fc, fcRepouso: num(r?.restingHeartRate) } : undefined;
+  const fc = bloquear(r?.heartRateValues, dia, (v) => v > 0, deslocamento(r));
+  if (!fc) return undefined;
+  return vazio({ passoMin: PASSO_MIN, fc, fcRepouso: num(r?.restingHeartRate), fcMin: num(r?.minHeartRate), fcMax: num(r?.maxHeartRate) });
 }
 
-/* estresse e Body Battery do dia: { estresse: [96], bb: [96] }. Estresse negativo (-1/-2) = sem medida (movimento), fica fora. */
-export function lerEstresseDia(r: any, dia: string) {
-  const estresse = bloquear(r?.stressValuesArray, dia, (v) => v >= 0);
-  const bbBruto = Array.isArray(r?.bodyBatteryValuesArray) ? r.bodyBatteryValuesArray.map((p: any) => [p?.[0], p?.[2]]) : undefined;   // [ts, status, nível, versão]
-  const bb = bloquear(bbBruto, dia, (v) => v >= 0 && v <= 100);
-  return estresse || bb ? { passoMin: PASSO_MIN, estresse, bb } : undefined;
-}
-
-/* estado de treino (Training Status): carga aguda/crônica, razão e rótulo; VO₂ máx do dia */
-export function lerEstadoTreino(r: any) {
-  const st = r?.mostRecentTrainingStatus?.latestTrainingStatusData;
-  const disp = st && typeof st === "object" ? (Object.values(st)[0] as any) : undefined;
-  const carga = disp?.acuteTrainingLoadDTO ?? r?.mostRecentTrainingLoadBalance ?? undefined;
-  const vo2 = r?.mostRecentVO2Max?.generic ?? r?.mostRecentVO2Max?.cycling;
-  return vazio({
-    status: disp?.trainingStatusFeedbackPhrase ?? (disp?.trainingStatus != null ? String(disp.trainingStatus) : undefined),
-    cargaAguda: arred(num(carga?.dailyTrainingLoadAcute), 0), cargaCronica: arred(num(carga?.dailyTrainingLoadChronic), 0),
-    razao: arred(num(carga?.acwrPercent), 0), razaoStatus: typeof carga?.acwrStatus === "string" ? carga.acwrStatus : undefined,
-    vo2max: arred(num(vo2?.vo2MaxPreciseValue ?? vo2?.vo2MaxValue), 1),
-  });
-}
-
-/* prontidão para treinar (Training Readiness) e tempo de recuperação em minutos */
-export function lerProntidao(r: any) {
-  const x = Array.isArray(r) ? r[0] : r;
-  return vazio({
-    pontos: arred(num(x?.score), 0), nivel: typeof x?.level === "string" ? x.level : undefined,
-    recuperacaoMin: arred(num(x?.recoveryTime), 0), sono: arred(num(x?.sleepScore), 0), vfc: arred(num(x?.hrvFactorPercent), 0),
-  });
-}
-
-/* respiração e oxigenação do dia (resumos) */
-export function lerRespiracaoDia(r: any) {
-  return vazio({ media: arred(num(r?.avgWakingRespirationValue ?? r?.avgSleepRespirationValue), 1), min: arred(num(r?.lowestRespirationValue), 1), max: arred(num(r?.highestRespirationValue), 1) });
-}
-export function lerSpo2Dia(r: any) {
-  return vazio({ media: arred(num(r?.averageSpO2 ?? r?.avgSpO2), 1), min: arred(num(r?.lowestSpO2), 1), ultimo: arred(num(r?.latestSpO2), 1) });
-}
-
-/* peso e composição: { "AAAA-MM-DD": { kg, gordura, agua, musculo, osso, imc } }. A Garmin manda o peso em gramas; vale a última pesagem do dia. */
-export function lerPeso(r: any): Record<string, Record<string, number>> {
-  const lista: any[] = Array.isArray(r?.dateWeightList) ? r.dateWeightList : Array.isArray(r?.dailyWeightSummaries) ? r.dailyWeightSummaries.map((d: any) => ({ calendarDate: d.summaryDate, ...(d.latestWeight ?? {}) })) : [];
+/* estresse (consulta por intervalo, um item por dia): { "AAAA-MM-DD": { nivel, alto, medio, baixo, descanso } } (durações em segundos, como a Garmin manda).
+   Aceita o item com os números dentro de "values" ou soltos. Dia sem nenhum número fica de fora. */
+export function lerEstresseIntervalo(r: any): Record<string, Record<string, number>> {
   const out: Record<string, Record<string, number>> = {};
-  const g = (v: unknown) => { const x = num(v); return x == null ? undefined : x > 1000 ? x / 1000 : x; };   // gramas → kg (valores já em kg ficam como estão)
-  for (const w of lista) {
-    const dia = String(w?.calendarDate ?? "").slice(0, 10), kg = g(w?.weight);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || kg == null) continue;
+  for (const it of lista(r, "data", "dailyStress", "stats")) {
+    const dia = diaDe(it?.calendarDate ?? it?.date), v = it?.values ?? it;
+    if (!dia) continue;
+    const o = vazio({
+      nivel: arred(num(v?.overallStressLevel), 0), alto: arred(num(v?.highStressDuration), 0), medio: arred(num(v?.mediumStressDuration), 0),
+      baixo: arred(num(v?.lowStressDuration), 0), descanso: arred(num(v?.restStressDuration), 0),
+    });
+    if (o) out[dia] = o as Record<string, number>;
+  }
+  return out;
+}
+
+/* Body Battery (consulta por intervalo, um item por dia): { "AAAA-MM-DD": { carregou, gastou, min, max, curva: [96] } } */
+export function lerBodyBatteryIntervalo(r: any): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const it of lista(r, "data", "bodyBatteryReports", "reports")) {
+    const dia = diaDe(it?.date ?? it?.calendarDate) ?? (num(it?.startTimestampLocal) != null ? diaDe(new Date(it.startTimestampLocal).toISOString()) : undefined);
+    if (!dia) continue;
+    const curva = bloquear(it?.bodyBatteryValuesArray, dia, (v) => v >= 0 && v <= 100, deslocamento(it));
+    const niveis = (curva ?? []).filter((x): x is number => x != null);
+    const o = vazio({
+      passoMin: curva ? PASSO_MIN : undefined, curva, carregou: arred(num(it?.charged), 0), gastou: arred(num(it?.drained), 0),
+      min: niveis.length ? Math.min(...niveis) : undefined, max: niveis.length ? Math.max(...niveis) : undefined,
+    });
+    if (o) out[dia] = o;
+  }
+  return out;
+}
+
+/* oxigenação do dia (consulta por data): média, mínimo, último e média do sono */
+export function lerSpo2Dia(r: any) {
+  return vazio({ media: arred(num(r?.averageSpO2 ?? r?.avgSpO2), 1), min: arred(num(r?.lowestSpO2), 1), ultimo: arred(num(r?.latestSpO2), 1), sono: arred(num(r?.avgSleepSpO2), 1) });
+}
+
+/* peso e composição (consulta por intervalo, includeAll): { "AAAA-MM-DD": { kg, gordura, agua, musculo, osso, imc } }. A Garmin manda o peso em gramas
+   (valor acima de 1000 é convertido; abaixo disso já é kg). Vale a última pesagem do dia. */
+export function lerPeso(r: any): Record<string, Record<string, number>> {
+  const itens: any[] = [];
+  for (const d of lista(r, "dateWeightList")) itens.push(d);
+  for (const d of lista(r?.dailyWeightSummaries ? r.dailyWeightSummaries : [])) {
+    const todas = lista(d?.allWeightMetrics);
+    const ult = d?.latestWeight ?? todas.slice().sort((a: any, b: any) => (num(a?.timestampGMT) ?? 0) - (num(b?.timestampGMT) ?? 0)).pop();
+    if (ult) itens.push({ calendarDate: d?.summaryDate ?? ult?.calendarDate, ...ult });
+  }
+  const out: Record<string, Record<string, number>> = {};
+  const g = (v: unknown) => { const x = num(v); return x == null ? undefined : x > 1000 ? x / 1000 : x; };
+  for (const w of itens) {
+    const dia = diaDe(w?.calendarDate ?? w?.summaryDate), kg = g(w?.weight);
+    if (!dia || kg == null) continue;
     const o = vazio({ kg: arred(kg, 2), gordura: arred(num(w?.bodyFat), 1), agua: arred(num(w?.bodyWater), 1), musculo: arred(g(w?.muscleMass), 2), osso: arred(g(w?.boneMass), 2), imc: arred(num(w?.bmi), 1) });
     if (o) out[dia] = o as Record<string, number>;
   }
   return out;
 }
 
-/* a forma de uma resposta desconhecida (só nomes de chaves e tamanhos), para ajustar o leitor sem guardar dado pessoal */
+/* a estrutura de uma resposta desconhecida: nomes de chaves, tipos e tamanhos de lista, NUNCA valores (nem de texto nem de número) */
 export function formato(r: unknown, nivel = 0): unknown {
-  if (Array.isArray(r)) return { lista: r.length, item: r.length && nivel < 2 ? formato(r[0], nivel + 1) : undefined };
-  if (r && typeof r === "object") { const o: Record<string, unknown> = {}; for (const k of Object.keys(r as object).slice(0, 25)) o[k] = nivel < 2 ? formato((r as any)[k], nivel + 1) : typeof (r as any)[k]; return o; }
+  if (r === null || r === undefined) return "vazio";
+  if (Array.isArray(r)) return { lista: r.length, item: r.length && nivel < 3 ? formato(r[0], nivel + 1) : undefined };
+  if (typeof r === "object") { const o: Record<string, unknown> = {}; for (const k of Object.keys(r as object).slice(0, 40)) o[k] = nivel < 3 ? formato((r as any)[k], nivel + 1) : typeof (r as any)[k]; return o; }
   return typeof r;
 }

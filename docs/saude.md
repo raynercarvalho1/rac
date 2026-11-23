@@ -53,5 +53,20 @@ Guardadas em `PESSOAL.saudePrefs` (mecanismo `pessoalGravar` já existente; sem 
 
 Mapas e trajetos históricos (S7 do roadmap), IA de Saúde (S8), coleta extra da Garmin (S6 do roadmap), qualquer alteração em `supabase/functions/garmin`, SQL, secrets, cron ou workflows, e a recuperação do histórico anterior a 01/11/2025 (opcional, adiada pelo dono).
 
-## Dados extras do relógio (Lote 2, 23/11/2026)
-A função `garmin` ganhou o tipo `extras` (`supabase/functions/garmin/extras.ts` + `sincExtras` em `index.ts`): curvas do dia em blocos de 15 min (batimentos, estresse, Body Battery), estado de treino (carga aguda/crônica, razão, VO₂ máx), prontidão e tempo de recuperação, respiração, SpO₂ e peso/composição. Gravados em `garmin_dia.dados.extras` (chave nova; só acrescenta, só em dias que já têm linha, nunca apaga nem troca o que existia). Cada caminho da Garmin é tentado sozinho; o que a conta não libera aparece em `estado` ("erro 403", "sem dado"). Sincronização diária (rotina e botão) refaz ontem e hoje; **Inteligência → Dados extras do relógio** testa (`sondar`, não grava) e completa desde 01/01/2026. Testes: `tests/garmin_extras.test.mjs`. **A função precisa ser republicada** antes de o botão funcionar (a antiga é denunciada pela resposta sem `estado`).
+## Dados extras do relógio (Lote 2, corrigido em 23/11/2026)
+A função `garmin` tem o tipo `extras` (`supabase/functions/garmin/extras.ts` + `sincExtras` em `index.ts`), com os **endpoints oficiais da Personal API** (conferidos no cliente Python publicado pela Garmin, `github.com/garmin/connect-personal-api-python`):
+
+| Dado | Endpoint | Consulta |
+|---|---|---|
+| Batimentos | `GET /wellness-service/wellness/dailyHeartRate?date=` | por data |
+| SpO₂ | `GET /wellness-service/wellness/daily/spo2acclimation/{data}` | por data |
+| Estresse | `GET /usersummary-service/stats/stress/daily/{ini}/{fim}` | por intervalo |
+| Body Battery | `GET /wellness-service/wellness/bodyBattery/reports/daily?startDate=&endDate=` | por intervalo |
+| Peso | `GET /weight-service/weight/range/{ini}/{fim}?includeAll=true` | por intervalo |
+| VO₂ máx | `GET /metrics-service/metrics/maxmet/daily/{ini}/{fim}` | só sondagem (formato não confirmado; não grava) |
+
+- **Intervalos:** uma consulta por janela de até 28 dias (hipótese conservadora, o mesmo limite dos resumos diários), nunca uma por dia. Por data: 7 em paralelo.
+- **Fora da Personal API:** Training Status e Training Readiness (e o tempo de recuperação deles) **não têm endpoint documentado**: não são chamados nem gravados; a sondagem os lista em `fora_da_api_pessoal`. Respiração segue vindo dos resumos diário e de sono já coletados.
+- **Gravação:** só `garmin_dia.dados.extras` (chaves `fc`, `spo2`, `estresse`, `bb`, `peso`), acrescentando; nunca apaga nem troca; nunca grava resposta vazia; só atualiza dias que já têm linha. Cada consulta é isolada; HTTP 204 e corpo vazio = "sem dado", diferente de "erro NNN" e de "falha de rede".
+- **Formato das respostas:** o cliente da Garmin devolve o JSON bruto e não o descreve; os leitores aceitam os nomes conhecidos e não inventam número. **A sondagem (Inteligência → Dados extras do relógio → Testar) devolve só a estrutura (nomes e tipos, sem valores)**, inclusive dos três conjuntos já coletados (resumo diário, sono, VFC), para ajustar os leitores e achar campos úteis antes de ampliar o que se grava.
+- A função precisa ser **republicada** depois de cada mudança aqui. Testes: `tests/garmin_extras.test.mjs`.

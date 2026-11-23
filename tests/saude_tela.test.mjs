@@ -189,8 +189,8 @@ test("Saúde · estados: vazio, falha (com 'Tentar de novo'), parcial, dado anti
 test("Saúde · abrir atualizando: dado com mais de 2 h pede ao relógio (como sempre); com o ↻ (semExternos) não; e no máximo uma vez a cada 30 minutos", async () => {
   const dados = { dias: gerarDias(30, HOJE, () => ({ atualizado: agoraMenos(5) })) };
   const chamadas = []; const c = tela({ ...dados, semExternos: false, invoke: (n, o) => { chamadas.push(o.body); return Promise.resolve({ data: { salvos: 0, mais: false }, error: null }); } }); await abrir(c); await pausa(40);
-  assert.deepEqual(chamadas.map((x) => x.tipo), ["dias", "ativ"], "a mesma sincronização de sempre: dias e depois treinos"); assert.match(texto(c.root), /Atualizado agora/);
-  await abrir(c, "sono"); await pausa(40); assert.equal(chamadas.length, 2, "trocar de aba não repete o pedido");
+  assert.deepEqual(chamadas.map((x) => x.tipo), ["dias", "ativ", "extras"], "a mesma sincronização de sempre (dias e depois treinos) e, no fim, os extras do relógio (Lote 2), que não derrubam a sincronização"); assert.match(texto(c.root), /Atualizado agora/);
+  await abrir(c, "sono"); await pausa(40); assert.equal(chamadas.length, 3, "trocar de aba não repete o pedido");
   const ext = []; const d2 = tela({ ...dados, semExternos: true, invoke: (n, o) => { ext.push(o); return Promise.resolve({ data: {}, error: null }); } }); await abrir(d2); await pausa(30); assert.equal(ext.length, 0, "o ↻ nunca chama o relógio");
   const fresco = tela({ dias: gerarDias(30, HOJE, () => ({ atualizado: agoraMenos(0.5) })), semExternos: false, invoke: (n, o) => { chamadas.push(o.body); return Promise.resolve({ data: {}, error: null }); } }); const antes = chamadas.length; await abrir(fresco); await pausa(30); assert.equal(chamadas.length, antes, "dado de menos de 2 h não pede");
 });

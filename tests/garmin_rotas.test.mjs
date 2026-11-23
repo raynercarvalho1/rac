@@ -29,7 +29,8 @@ test("migration 065: tabela nova só do dono, com mfa, sem anon, limite de 150 p
   assert.match(sql, /revoke all on public\.%I from public, anon/);
   const so = sql.replace(/--.*$/gm, "");
   assert.ok(!/\bdelete from\b|\btruncate\b|alter table public\.garmin_(dia|ativ)|drop table public\.garmin_(dia|ativ)/i.test(so));
-  assert.match(sql, /^-- 065 · .*pendente/);
+  assert.match(sql, /^-- 065 · .*APLICADA EM PRODUÇÃO em 23\/11\/2026/);
+  assert.match(sql, /grant select, insert, update on public\.garmin_rotas to service_role/, "a rotina (service_role) precisa ler e gravar, como na garmin_ativ");
 });
 test("função: tipo 'rotas' só acrescenta em garmin_rotas, nunca toca garmin_ativ, treino sem GPS grava pontos vazios, falha isolada por treino", () => {
   const f = idx.slice(idx.indexOf("async function sincRotas"), idx.indexOf("/* ---------- notificações push"));

@@ -1,4 +1,5 @@
--- 065 · Rotas simplificadas dos treinos (Lote 3, mapa geral de percursos). STATUS: pendente (a rodar em produção; aditiva e pode rodar de novo sem erro).
+-- 065 · Rotas simplificadas dos treinos (Lote 3, mapa geral de percursos). APLICADA EM PRODUÇÃO em 23/11/2026 (migration 20261123160345, informado pelo dono); aditiva e pode rodar de novo sem erro.
+-- PENDENTE em produção: o GRANT da service_role (última linha do bloco de grants, abaixo). A aplicação de 23/11 saiu sem ele e a rotina diária (service_role) não conseguiria ler nem gravar; rode este arquivo de novo ou só a linha do grant.
 -- O que muda: tabela NOVA public.garmin_rotas, uma linha por treino (id = garmin_ativ.id): até 150 pontos [lat, lon] com 5 casas (cerca de 1 m).
 --   Quem grava é a função "garmin" (tipo "rotas" e a rotina diária), em nome do dono. Treino sem GPS grava pontos = [] (não é pedido de novo).
 -- Não muda: nenhuma linha existente de nenhuma tabela; garmin_dia e garmin_ativ ficam como estão. Só o dono lê e grava (a casa/Fernanda fica de fora),
@@ -31,6 +32,7 @@ begin
   end loop;
 end $$;
 grant select, insert, update, delete on public.garmin_rotas to authenticated;
+grant select, insert, update on public.garmin_rotas to service_role;   -- a rotina diária da função garmin grava como service_role (igual à garmin_ativ)
 
 -- catálogo da auditoria (050), quando existir
 do $$

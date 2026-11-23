@@ -1749,3 +1749,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 4 (recomendação do dia); buscar as rotas dos 986 treinos e rodar o "Testar" dos extras; configurar o token do Supabase para o workflow de publicação.
+
+## 23/11/2026 · Lote 4: recomendação do dia (versão `2026-11-23.6`)
+
+### 1. O que fizemos
+- `NUCLEO.sauRecomendacao` (regra pura: prontidão do RAC + carga recente, só reduz), cartão "Recomendação do dia" na Saúde → Visão geral e linha no cartão Saúde do RAC Hoje. Sem IA, sem custo, sem SQL, sem função nova. Testes novos em `tests/saude_recomendacao.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR, CI e merge (política de autonomia). **Não conferido:** o visual no iPhone nem a versão servida pelo site.
+
+### 3. O que vamos fazer
+- Lote 5 (lugares: compras e passeios no mapa) e Lote 6 (resumo semanal com IA no clique). Rodar "Buscar rotas dos treinos" e "Testar" dos extras (dono) para os lotes 5 e refinamentos.

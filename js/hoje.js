@@ -507,6 +507,8 @@
       corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Passos por dia"}),rsColunas(B,V,function(v){return NUCLEO.iaNum(v,0)},function(i,v){return [B[i].nome,NUCLEO.iaNum(v,0)+" passos"]})))}
     var tipos=Object.keys(s.tipos7||{}).sort(function(a,b){return s.tipos7[b]-s.tipos7[a]});
     if(tipos.length)corpo.appendChild(h("div",null,h("span",{class:"rac-t-rotulo",text:"Treinos nos últimos 7 dias"}),rsBarras(tipos.map(function(k){return {nome:k.replace(/_/g," "),v:s.tipos7[k],txt:String(s.tipos7[k]),dica:s.tipos7[k]+(s.tipos7[k]===1?" atividade":" atividades")}}))));
+    if(sf&&sf.dias&&sf.ativs){var rec=NUCLEO.sauRecomendacao(sf.dias,sf.ativs,hojeISO());   /* Lote 4: a recomendação do dia, a mesma regra da Saúde */
+      if(rec.estado!=="sem_dados")corpo.appendChild(rkAlerta(rec.estado==="forte"?"ok":"aviso","Hoje: "+rec.titulo,rec.motivos.slice(0,2).join(" "),rkLink("ter","Entender por quê","#saude")))}
     var sub=[s.prontidao!=null?"prontidão "+s.prontidao+(s.rotulo?" ("+s.rotulo+")":""):"",s.semTreino!=null?"último treino há "+s.semTreino+(s.semTreino===1?" dia":" dias"):""].filter(Boolean).join(" · ");
     if(s.alertas&&s.alertas.length)corpo.appendChild(rkAlerta("aviso","Atenção na recuperação",s.alertas.join("; ")));
     return hjRecolhivel(rkCard("Saúde e treino",corpo,{sub:sub||"Dados do relógio.",acao:rkLink("ter","Abrir Saúde","#saude"),origem:"Último dia com dados: "+hjDataBR(s.ultimo)+(s.atraso>1?" ("+s.atraso+" dias atrás; a Saúde se sincroniza pelo botão próprio)":"")}),"Saúde e treino")}

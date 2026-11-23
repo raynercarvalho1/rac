@@ -80,3 +80,12 @@ Saúde → Atividades → **Mapa geral dos percursos** (só o dono; desligado qu
 
 ## Publicar a função garmin sem colar arquivos (workflow manual)
 `.github/workflows/garmin-publicar.yml` (manual, só main, Environment `supabase-producao` com o segredo `SUPABASE_ACCESS_TOKEN`). Passos únicos do dono: (1) criar um token de acesso pessoal no Supabase; (2) no GitHub, criar o Environment `supabase-producao`, aceitando só a `main`, e guardar o token como segredo; (3) em Actions → "Publicar a função garmin" → Run workflow, informando a versão exata da CLI. **Não foi testado em produção.**
+
+## Recomendação do dia (Lote 4, 23/11/2026)
+Saúde → Visão geral (cartão **Recomendação do dia**, logo abaixo dos indicadores) e RAC Hoje (linha "Hoje: …" no cartão Saúde e treino). Regra pura do RAC em `NUCLEO.sauRecomendacao` (`nucleo.js`), **sem IA, sem custo e sem chamada nova ao relógio**: usa os mesmos `garmin_dia` e `garmin_ativ` já lidos.
+- **Base:** a prontidão do RAC (VFC, FC de repouso, sono e Body Battery contra o seu normal de 60 dias): ≥ 70 forte, 45 a 69 leve, < 45 descanso.
+- **Ajustes, só para baixo (nunca eleva):** carga dos 3 últimos dias ≥ 1,5× a sua média de 28 dias (mín. 4 dias com carga); treino forte ontem (carga no quintil superior dos últimos 120 dias, mín. 8 dias); 4 ou mais dias seguidos de treino; 2 ou mais alertas da prontidão. **Caminhada não conta como treino** em nenhum desses cálculos.
+- **Sem dados:** sem prontidão (falta sono/VFC/base de 10 dias) ou último dia do relógio com mais de 1 dia de atraso, mostra "Sem dados para recomendar" e o motivo.
+- Cada motivo traz o número que o gerou. É hipótese de apoio, não orientação médica (texto fixo do cartão). Com "ocultar valores" nos Ajustes, o cartão mostra só a decisão.
+- **O que a Personal API não dá:** Training Status/Readiness e tempo de recuperação da Garmin não existem nela; por isso a recomendação usa a carga das atividades já guardadas. Quando houver mais dados (extras, peso, Body Battery detalhado), a regra pode refiná-los em lote próprio.
+- Testes: `tests/saude_recomendacao.test.mjs`.

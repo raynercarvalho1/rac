@@ -46,6 +46,14 @@
   function shKpiItem(rot,v,fmt,ind,pior,href,sufixo){var it=ind.itens[v],val=it&&it.v!=null?shV(fmt(it.v)+(sufixo||"")):"—",delta=it&&it.pct!=null&&it.v!=null?rkDelta(it.pct,pior):null,
       apoio=it&&it.v==null?"sem registro neste dia":it&&it.med!=null?"seu normal "+shV(fmt(it.med)+(sufixo||""))+" ("+it.n+" dias)":"sem base de 14 dias para comparar";
     return rkKpi({rotulo:rot,valor:val,delta:delta,apoio:apoio,href:href})}
+  /* recomendação do dia (Lote 4): NUCLEO.sauRecomendacao, regra pura do RAC; só reduz, nunca eleva; cada motivo traz o número; com "ocultar valores" mostra só a decisão */
+  var SH_REC_ESTADO={forte:"ok",leve:"aviso",descanso:"aviso",sem_dados:"vazio"};
+  function shRecomendacao(C){var r=NUCLEO.sauRecomendacao(C.dias,C.ativs,C.hoje),corpo=h("div",{class:"rac-pilha",style:"gap:10px"});
+    corpo.appendChild(rkEstado(SH_REC_ESTADO[r.estado]||"vazio",r.titulo+(r.resumo?". "+r.resumo:"")));
+    if(C.pr.ocultar&&r.estado!=="sem_dados")corpo.appendChild(h("span",{class:"rac-t-sec",text:"Motivos ocultos (valores ocultos nos Ajustes)."}));
+    else if(r.motivos.length)corpo.appendChild(h("ul",{class:"wl"},r.motivos.map(function(m){return h("li",null,h("span",{class:"grow",text:m}))})));
+    corpo.appendChild(h("span",{class:"rac-t-legenda",text:r.hipotese+" "+r.limite}));
+    return rkCard("Recomendação do dia",corpo,{sub:"Treino forte, leve ou descanso, a partir da sua prontidão e da carga recente.",origem:"Cálculo do RAC com os dados do relógio; sem IA e sem custo."})}
   function shGeral(C){var L=[],I=C.ind;
     if(!I){L.push(h("div",{class:"rh-largo"},rkEstado("vazio","Ainda sem dados do relógio. Toque em “Atualizar agora”.")));return L}
     var pr=I.prontidao,k=h("section",{class:"sh-kpis","aria-label":"Indicadores principais"});
@@ -53,6 +61,7 @@
     k.appendChild(shKpiItem("Sono","sono",shHm,I,"queda","#saude/sono"));k.appendChild(shKpiItem("VFC (noite)","vfc",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"," ms"));
     k.appendChild(shKpiItem("FC de repouso","fc",function(v){return Math.round(v)},I,"alta","#saude/recuperacao"," bpm"));k.appendChild(shKpiItem("Body Battery","bb",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"));
     L.push(k);
+    L.push(h("div",{class:"rh-largo"},shRecomendacao(C)));
     /* sinais persistentes: no máximo 3, só os que passaram da persistência e da cobertura mínima */
     var cs=h("div",{class:"rac-pilha",style:"gap:12px"}),S=C.sin;
     if(S.qualidade.suprime)cs.appendChild(rkEstado("aviso","Sinais suspensos: "+S.qualidade.motivo+"."));

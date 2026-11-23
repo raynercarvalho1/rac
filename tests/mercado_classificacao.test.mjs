@@ -196,7 +196,7 @@ test("precedência: produto já cadastrado e correção manual vencem a regra; n
   assert.equal(N.mkCategoriaEfetiva({ categoria_item: "Higiene Pessoal", categoria: "Mercearia" }, { categoria: "Mercearia" }), "Higiene Pessoal", "a do item vence a do produto");
   assert.equal(N.mkCategoriaEfetiva({ categoria: "Mercearia" }, { categoria: "Farmácia" }), "Farmácia", "a do produto vence a gravada no item");
   const sql = ["supabase/059_central_fiscal_entrada_unica.sql", "supabase/060_central_fiscal_rotinas.sql"].map((f) => fs.readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n");
-  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /^(061|06[5-9])_.*\.sql$/.test(f)), "nenhuma migration nova de Mercado (a 062 é do RAC Knowledge, a 063 do OAuth do Inbox e a 064 só libera a chave das áreas à casa, sem tocar nota nem item): nada é reclassificado em massa");
+  assert.ok(!fs.readdirSync(new URL("../supabase/", import.meta.url)).some((f) => /^(061|06[6-9])_.*\.sql$/.test(f)), "nenhuma migration nova de Mercado (a 062 é do RAC Knowledge, a 063 do OAuth do Inbox e a 064 só libera a chave das áreas à casa e a 065 é a tabela de rotas do Garmin, sem tocar nota nem item): nada é reclassificado em massa");
   assert.ok(!/update public\.(produtos|itens) set categoria/i.test(sql), "nenhuma migration reclassifica");
 });
 test("orçamento, filtros e gráficos: Farmácia fica fora de Alimentação, entra nos seletores e nos quadros por categoria", () => {

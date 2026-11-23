@@ -491,11 +491,13 @@
   /* Lote 1 da reestruturação visual: os blocos do dia, na ordem E-mails, Newsletter, Esportes e Sorocaba. Reaproveitam os cartões que já existiam no Início
      (cada um busca o próprio dado, sem IA); um que falha não derruba os outros, e sem o cartão carregado o bloco simplesmente não aparece */
   function hjBlocosDia(){if(HJ.blocos)return HJ.blocos;   /* redesenhar o Hoje (análise, aviso) não busca tudo de novo: o bloco é refeito ao reabrir a tela ou em "Reler as fontes" */
-    var g=HJ.blocos=h("section",{class:"rh-blocos","aria-label":"E-mails, newsletter, esportes e Sorocaba"});
+    var g=HJ.blocos=h("section",{class:"rh-blocos","aria-label":"E-mails, newsletter, esportes, Sorocaba e atividades recentes"});
     [function(){return typeof wEmail==="function"?wEmail():null},
      function(){return typeof wLazy==="function"?wLazy(["newsletter"],"wNewsletter"):null},
      function(){return typeof wLazy==="function"?wLazy(["esportes"],"wEsportes"):null},
-     function(){return typeof wNoticias==="function"?wNoticias():null}].forEach(function(f){
+     function(){return typeof wNoticias==="function"?wNoticias():null},
+     /* Atividades recentes (vieram do Painel de Produtividade, 22/11/2026): por último, só do dono */
+     function(){return typeof wLazy==="function"?wLazy(["painel"],"wAtividadesRecentes"):null}].forEach(function(f){
       try{var el=f();if(el)g.appendChild(el)}catch(e){logErro("hoje",e)}});
     return g}
   /* saúde: passos dos últimos dias (série real do relógio) e treinos da semana por tipo; só com dados */

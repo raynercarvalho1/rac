@@ -43,3 +43,17 @@ test("Painel: a lata de fórmula que veio do Mercado não entra duas vezes nas d
   assert.match(pn, /NUCLEO\.pnDespesas\(/);
   assert.match(ler("nucleo.js"), /d\.compra\|\|!r\.data\)return/);
 });
+
+test("Treino não conta caminhada (22/11/2026): Painel e Resumo contam sem caminhada; Esporte e Distância seguem com tudo; Atividades recentes vive no Hoje", () => {
+  const rs = ler("js/resumo.js"), hj = ler("js/hoje.js");
+  assert.match(pn, /function pnTreinos\(D\)\{return pnAtividades\(D\)\.filter\(NUCLEO\.sauContaTreino\)\}/);
+  assert.match(pn, /function pnSaude[\s\S]*?filter\(NUCLEO\.sauContaTreino\)/);
+  assert.match(rs, /atT=at\.filter\(NUCLEO\.sauContaTreino\)/);
+  assert.match(rs, /o\.treinos=atT\.length/);
+  assert.match(rs, /o\.diasTreino=Object\.keys\(dtr\)\.length;o\.at=at;o\.atT=atT/);   /* o cartão de esporte usa `at` (todas as atividades) */
+  assert.match(rs, /var pt=\{\};at\.forEach/);
+  assert.ok(!/panel\("Atividades recentes"/.test(pn.split("function pnRecentes")[0]), "o quadro não é mais montado dentro do Painel");
+  assert.match(pn, /function wAtividadesRecentes\(\)/);
+  assert.match(hj, /wLazy\(\["painel"\],"wAtividadesRecentes"\)/);
+  assert.ok(hj.indexOf("wAtividadesRecentes") > hj.indexOf("wNoticias()"), "Atividades recentes é o último bloco do Hoje");
+});

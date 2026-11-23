@@ -1760,3 +1760,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 5 (lugares: compras e passeios no mapa) e Lote 6 (resumo semanal com IA no clique). Rodar "Buscar rotas dos treinos" e "Testar" dos extras (dono) para os lotes 5 e refinamentos.
+
+## 23/11/2026 · Correção do limite de pedidos da Garmin e do formato real (versão `2026-11-23.7`, função a republicar)
+
+### 1. O que fizemos
+- O teste real mostrou que os endpoints oficiais funcionam (estresse, batimentos, SpO₂ e Body Battery `ok`; peso e VO₂ máx sem dados na conta). A recuperação das rotas parou em 168 de 987 treinos por **HTTP 429** da Garmin (e 504). Corrigido: blocos menores, pausas, parada educada no 429 e mensagem no site; horários em texto aceitos nos leitores. Testes novos. Sem SQL.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Pendente:** republicar a função `garmin` (o ajuste de 429 está nela) e tocar de novo em "Buscar rotas dos treinos" e "Completar" (agora com pausas).
+
+### 3. O que vamos fazer
+- Lote 5 (lugares) e Lote 6 (resumo semanal com IA no clique); decidir quais campos extras dos conjuntos já coletados vale guardar.

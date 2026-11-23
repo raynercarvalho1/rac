@@ -97,7 +97,8 @@
     function rodada(desde){st((sondar?"Testando… ":"Gravando… ")+dataBR(desde));
       return saudeChamar(sondar?{tipo:"extras",sondar:true}:{tipo:"extras",desde:desde,ate:hojeISO()}).then(function(d){
         if(!d||!d.estado)throw new Error("a função garmin publicada ainda é a versão antiga (não conhece os extras); publique a nova antes");
-        junta(d);if(!sondar&&d.mais)return rodada(d.desde)})}
+        junta(d);if(d.limitado){tot.limitado=true;return}   /* a Garmin pediu uma pausa: o que foi gravado fica; tocar de novo continua de onde parou */
+        if(!sondar&&d.mais)return new Promise(function(ok){setTimeout(ok,1500)}).then(function(){return rodada(d.desde)})})}
     return rodada(M).then(function(){return tot})}
   /* a página #saude (renderSaude) é o hub com abas, em js/saude-hub.js; a página do treino abaixo continua aqui */
 
@@ -152,12 +153,13 @@
     function pag(f){return Promise.resolve().then(function(){return SB.from("garmin_rotas").select("id,pontos").order("id").range(f,f+499)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===500?pag(f+500):acc})}
     return pag(0)}
   function saudeRotasBuscar(st){
-    function rodada(){return saudeChamar({tipo:"rotas",max:6}).then(function(d){
+    function rodada(){return saudeChamar({tipo:"rotas",max:4}).then(function(d){
       if(!d||d.restantes==null)throw new Error("a função garmin publicada ainda é a versão antiga (não conhece as rotas); publique a nova antes");
       st(d.restantes?"Buscando rotas… faltam "+d.restantes+" treinos":"Rotas completas");
+      if(d.limitado){st("A Garmin pediu uma pausa (limite de pedidos). O que já foi buscado está guardado: espere alguns minutos e toque de novo. Faltam "+d.restantes+" treinos.");return {limitado:true}}
       if(d.falhas&&d.falhas.length)logErro("Garmin (rotas)",new Error(d.falhas.join("; ")));
-      if(d.mais)return rodada()})}
-    return rodada()}
+      if(d.mais)return new Promise(function(ok){setTimeout(ok,2500)}).then(rodada)})}   /* pausa entre rodadas: a Garmin limita pedidos seguidos */
+    return rodada().catch(function(e){if(/429/.test(e.message)){st("A Garmin pediu uma pausa (limite de pedidos). O que já foi buscado está guardado: espere alguns minutos e toque de novo.");return {limitado:true}}throw e})}
   function saudeMapaGeral(div,rotas,comPartida){
     return carregarLeaflet().then(function(){var L=window.L,m=L.map(div,{scrollWheelZoom:false}),todos=[];
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(m);

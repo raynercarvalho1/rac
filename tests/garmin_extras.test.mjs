@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 const E = await import(new URL("../supabase/functions/garmin/extras.ts", import.meta.url));
 const idx = fs.readFileSync(new URL("../supabase/functions/garmin/index.ts", import.meta.url), "utf8");
+const ler = (a) => fs.readFileSync(new URL("../" + a, import.meta.url), "utf8");
 const D = "2026-03-10", t0 = Date.parse(D + "T00:00:00Z"), BR = -3 * 3600e3;
 const bloco = idx.slice(idx.indexOf("type Consulta ="), idx.indexOf("/* Rotas simplificadas (Lote 3"));
 
@@ -22,7 +23,7 @@ test("os cinco endpoints oficiais, com caminho e parâmetros exatos", () => {
 test("por data (fc, spo2) versus por intervalo (estresse, bb, peso): intervalo uma vez por janela, nunca por dia", () => {
   assert.match(bloco, /tenta\("estresse", CAMINHOS\.estresse\(a, b\)\), tenta\("bb", CAMINHOS\.bb\(a, b\)\), tenta\("peso", CAMINHOS\.peso\(a, b\)\)/);
   assert.match(bloco, /tenta\("fc", CAMINHOS\.fc\(l\.data\)\), tenta\("spo2", CAMINHOS\.spo2\(l\.data\)\)/);
-  const dentroDoLaco = bloco.slice(bloco.indexOf("for (let i = 0; i < dias.length; i += 7)"));
+  const dentroDoLaco = bloco.slice(bloco.indexOf("for (let i = 0; i < dias.length; i += 4)"));
   assert.ok(!/CAMINHOS\.(estresse|bb|peso)\(/.test(dentroDoLaco), "nenhuma consulta de intervalo dentro do laço por dia");
   assert.match(bloco, /JANELA_DIAS - 1/);
 });
@@ -105,4 +106,20 @@ test("gravação: só acrescenta em garmin_dia.dados.extras, preserva extras ant
   assert.match(g, /\.update\(\{ dados,/);
   assert.match(idx, /corpo\.tipo === "extras"/);
   assert.match(idx, /sincExtras\(adm, tok!, uid, \{\}, hoje\)/);
+});
+
+test("horários como texto (formato real confirmado pela sondagem de 23/11/2026): deslocamento e dia do Body Battery a partir de strings", () => {
+  assert.equal(E.tms("2026-11-22T03:00:00.0"), Date.parse("2026-11-22T03:00:00.0Z")); assert.equal(E.tms("2026-11-22T03:00:00Z"), Date.parse("2026-11-22T03:00:00Z"));
+  assert.equal(E.tms(1700000000000), 1700000000000); assert.equal(E.tms(""), undefined); assert.equal(E.tms("lixo"), undefined); assert.equal(E.tms(null), undefined);
+  assert.equal(E.deslocamento({ startTimestampGMT: "2026-11-22T03:00:00.0", startTimestampLocal: "2026-11-22T00:00:00.0" }), -3 * 3600e3);
+  assert.equal(E.deslocamento({}), -3 * 3600e3, "sem horários, Brasília");
+  const g = Date.parse("2026-11-22T03:00:00Z");
+  const bb = E.lerBodyBatteryIntervalo([{ date: "2026-11-22", charged: 40, drained: 35, startTimestampGMT: "2026-11-22T03:00:00.0", startTimestampLocal: "2026-11-22T00:00:00.0", bodyBatteryValuesArray: [[g + 60e3, 55], [g + 3 * 3600e3, 70]] }]);
+  assert.equal(bb["2026-11-22"].curva[0], 55); assert.equal(bb["2026-11-22"].curva[12], 70, "03:00 GMT + 3 h = 03:00 locais, bloco 12");
+  const fc = E.lerFcDia({ startTimestampGMT: "2026-11-22T03:00:00.0", startTimestampLocal: "2026-11-22T00:00:00.0", heartRateValues: [[g + 60e3, 58]], restingHeartRate: 49 }, "2026-11-22");
+  assert.equal(fc.fc[0], 58);
+});
+test("429: a coleta de extras avisa 'limitado', usa blocos de 4 com pausa e o site para com mensagem e continua de onde parou ao tocar de novo", () => {
+  assert.match(bloco, /limitado = Object\.values\(estado\)\.some\(\(o\) => \(o\["erro 429"\] \?\? 0\) > 0\)/); assert.match(bloco, /setTimeout\(ok, 500\)/);
+  assert.match(ler("js/saude.js"), /if\(d\.limitado\)\{tot\.limitado=true;return\}/);
 });

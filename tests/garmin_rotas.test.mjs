@@ -38,7 +38,7 @@ test("função: tipo 'rotas' só acrescenta em garmin_rotas, nunca toca garmin_a
   assert.ok(!/from\("garmin_ativ"\)\.(update|upsert|insert|delete)/.test(f));
   assert.match(f, /simplificarRota\(fit\.rota\)/);
   assert.match(f, /catch \(e\) \{ falhas\.push/);
-  assert.match(f, /Math\.min\(Math\.max\(Number\(corpo\.max\) \|\| 6, 1\), 10\)/);
+  assert.match(f, /Math\.min\(Math\.max\(Number\(corpo\.max\) \|\| 4, 1\), 10\)/);
   assert.match(idx, /corpo\.tipo === "rotas"/); assert.match(idx, /passo\("garmin_rotas"/);
 });
 test("site: mapa geral só do dono, respeita 'esconder o local', usa os filtros da aba, nunca grava e denuncia a função antiga", () => {
@@ -48,4 +48,11 @@ test("site: mapa geral só do dono, respeita 'esconder o local', usa os filtros 
   assert.match(hub, /var mg=shMapaGeral\(fil,C\)/);
   assert.match(sa, /d\.restantes==null\)throw new Error\("a função garmin publicada ainda é a versão antiga/);
   assert.ok(!/\.(insert|upsert|update|delete)\(/.test(sa.slice(sa.indexOf("function saudeRotasLer"), sa.indexOf("function carregarGoogle"))), "o site só lê garmin_rotas; quem grava é a função");
+});
+
+test("429 da Garmin: a função para sem erro e avisa (limitado), faz pausa entre downloads e usa blocos de 4; o site espera entre rodadas e para com mensagem amigável", () => {
+  const f = idx.slice(idx.indexOf("async function sincRotas"), idx.indexOf("/* ---------- notificações push"));
+  assert.match(f, /r\.status === 429\) \{ limitado = true;/); assert.match(f, /setTimeout\(ok, 900\)/); assert.match(f, /mais: restantes > 0 && salvas > 0 && !limitado, limitado/);
+  assert.match(idx, /sincRotas\(adm, tok!, uid, \{ max: 4 \}\)/);
+  assert.match(sa, /d\.limitado\)\{st\("A Garmin pediu uma pausa/); assert.match(sa, /setTimeout\(ok,2500\)/); assert.match(sa, /\/429\/\.test\(e\.message\)/);
 });

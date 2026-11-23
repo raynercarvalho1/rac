@@ -1782,3 +1782,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Lote 6 (resumo semanal com IA no clique). Possível refinamento: horário da compra (se a nota tiver) para escolher o ponto mais próximo.
+
+## 23/11/2026 · Lote 6: resumo semanal da Saúde com IA no clique (versão `2026-11-23.9`; SQL 066 e `rac-ia` a aplicar/publicar)
+
+### 1. O que fizemos
+- `NUCLEO.sauResumoSemana` (texto por regras + fatos agregados), ação `saude.resumo` na `rac-ia` (Haiku, só dono, só REAL, validação "todo número está nos fatos"), migration `066_ia_saude_resumo.sql` (molde da 028, sem teto novo) e o cartão "Resumo da semana" na Saúde (confirmação antes de gastar, "Guardar" explícito). Testes novos em `tests/saude_resumo.test.mjs`. **Nenhuma chamada paga foi feita nesta entrega.**
+
+### 2. O que estamos fazendo
+- PR, CI e merge; aplicar a 066 em produção e republicar a `rac-ia` (ordem: SQL → função → site). **Não conferido:** a resposta real da IA (nenhuma chamada foi feita) e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Após a publicação, o dono toca em "Resumir com IA" uma vez para validar o formato real e o custo; ajustar o prompt se a validação recusar.

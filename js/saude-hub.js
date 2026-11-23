@@ -54,6 +54,28 @@
     else if(r.motivos.length)corpo.appendChild(h("ul",{class:"wl"},r.motivos.map(function(m){return h("li",null,h("span",{class:"grow",text:m}))})));
     corpo.appendChild(h("span",{class:"rac-t-legenda",text:r.hipotese+" "+r.limite}));
     return rkCard("Recomendação do dia",corpo,{sub:"Treino forte, leve ou descanso, a partir da sua prontidão e da carga recente.",origem:"Cálculo do RAC com os dados do relógio; sem IA e sem custo."})}
+  /* resumo da semana (Lote 6): o texto por regras é sempre mostrado (sem custo); o resumo com IA só sai do clique do dono, com confirmação, e só o botão "Guardar" o salva
+     (PESSOAL.saudeResumos, por semana, só do dono). A IA recebe apenas agregados numéricos. */
+  function shResumoSemana(C){var r=NUCLEO.sauResumoSemana(C.dias,C.ativs,C.hoje),corpo=h("div",{class:"rac-pilha",style:"gap:10px"}),saved=(PESSOAL.saudeResumos||{})[r.ini],box=h("div",{class:"rac-pilha",style:"gap:8px"}),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"});
+    if(r.semDados)corpo.appendChild(rkEstado("vazio","Poucos dias com dado do relógio nesta semana ("+r.diasComDado+" de 7): sincronize o relógio para o resumo."));
+    else if(C.pr.ocultar)corpo.appendChild(h("span",{class:"rac-t-sec",text:"Valores ocultos nos Ajustes."}));
+    else corpo.appendChild(h("ul",{class:"wl"},r.linhas.map(function(t){return h("li",null,h("span",{class:"grow",text:t}))})));
+    function mostra(x,guardado){box.innerHTML="";box.appendChild(h("p",{style:"margin:0",text:x.resumo}));
+      if(x.destaques&&x.destaques.length)box.appendChild(h("ul",{class:"wl"},x.destaques.map(function(t){return h("li",null,h("span",{class:"grow",text:"✓ "+t}))})));
+      if(x.atencao&&x.atencao.length)box.appendChild(h("ul",{class:"wl"},x.atencao.map(function(t){return h("li",null,h("span",{class:"grow",text:"⚠ "+t}))})));
+      if(x.proximo)box.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Próxima semana: "+x.proximo}));
+      box.appendChild(h("span",{class:"rac-t-legenda",text:"Texto escrito pela IA (Claude Haiku) a partir de números agregados da sua semana; não é orientação médica. "+(guardado?"Guardado em "+dataBR(guardado)+".":"")}))}
+    if(saved&&saved.res)mostra(saved.res,saved.quando);
+    if(!r.semDados&&!C.pr.ocultar){var bg=rkBtn(saved?"sec":"pri",saved?"Gerar de novo com IA":"✨ Resumir com IA"),bs=rkBtn("pri","Guardar este resumo");bs.hidden=true;var ult=null;
+      bg.onclick=function(){if(!window.confirm("Gerar o resumo desta semana com IA? É uma chamada paga ao Claude (Haiku, uns centavos), dentro do limite mensal que já existe. Vai só números agregados da semana, nada de local, nome ou foto."))return;
+        bg.disabled=true;bs.hidden=true;st.textContent="Gerando o resumo…";
+        saudeResumoIA(r).then(function(x){bg.disabled=false;if(!x.ok){st.textContent=x.msg;return}ult=x.res;st.textContent="Pronto"+(x.custo!=null?" (custo estimado US$ "+String(Math.round(x.custo*10000)/10000).replace(".",",")+")":"")+". Toque em Guardar para manter este resumo.";mostra(ult,null);bs.hidden=false})};
+      bs.onclick=function(){if(!ult)return;var o=JSON.parse(JSON.stringify(PESSOAL.saudeResumos||{}));o[r.ini]={res:ult,quando:C.hoje};
+        Object.keys(o).sort().slice(0,Math.max(0,Object.keys(o).length-8)).forEach(function(k){delete o[k]});   /* só as 8 últimas semanas */
+        pessoalGravar("saudeResumos",o,function(m){if(m)st.textContent=m});st.textContent="✓ Resumo guardado.";bs.hidden=true;mostra(ult,C.hoje)};
+      corpo.appendChild(h("div",{class:"rac-linha-flex"},bg,bs))}
+    corpo.appendChild(st);corpo.appendChild(box);
+    return rkCard("Resumo da semana",corpo,{sub:"Os 7 últimos dias contra os 7 anteriores (caminhada não conta como treino). O texto acima é por regras, sem custo; o resumo com IA só sai quando você pede.",origem:"Dados do relógio; IA só a pedido, pela função de IA do RAC (ação saude.resumo)."})}
   function shGeral(C){var L=[],I=C.ind;
     if(!I){L.push(h("div",{class:"rh-largo"},rkEstado("vazio","Ainda sem dados do relógio. Toque em “Atualizar agora”.")));return L}
     var pr=I.prontidao,k=h("section",{class:"sh-kpis","aria-label":"Indicadores principais"});
@@ -62,6 +84,7 @@
     k.appendChild(shKpiItem("FC de repouso","fc",function(v){return Math.round(v)},I,"alta","#saude/recuperacao"," bpm"));k.appendChild(shKpiItem("Body Battery","bb",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"));
     L.push(k);
     L.push(h("div",{class:"rh-largo"},shRecomendacao(C)));
+    L.push(h("div",{class:"rh-largo"},shResumoSemana(C)));
     /* sinais persistentes: no máximo 3, só os que passaram da persistência e da cobertura mínima */
     var cs=h("div",{class:"rac-pilha",style:"gap:12px"}),S=C.sin;
     if(S.qualidade.suprime)cs.appendChild(rkEstado("aviso","Sinais suspensos: "+S.qualidade.motivo+"."));

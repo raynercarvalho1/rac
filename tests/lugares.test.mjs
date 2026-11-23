@@ -54,5 +54,5 @@ test("telas: só do dono, respeita esconder o local, marcação só em PESSOAL (
   assert.ok(!/fetch\(|nominatim|geocod|googleapis/i.test(f + sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeMapaGeral"))), "nenhum serviço externo de endereço");
   assert.ok(!/\.(insert|upsert|update|delete)\(/.test(sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeMapaGeral"))), "o site só lê compras e rotas");
   assert.match(hub, /var lu=shLugares\(fil,C\)/);
-  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[6-9]_/.test(x)); assert.deepEqual(m, [], "nenhuma migration nova neste lote");
+  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[7-9]_/.test(x)); assert.deepEqual(m, [], "nenhuma migration do Lote 5 (a 066 é do Lote 6)");
 });

@@ -101,3 +101,11 @@ Saúde → Atividades → cartão **Lugares: compras e passeios** (só o dono; d
 - **Passeios:** treinos com nome de local do relógio (`dados.local`), agrupados por nome (contagem e posição da partida do treino mais recente com GPS).
 - **Sem serviço externo de endereço:** nada é enviado a geocodificadores; o nome do mercado nunca sai do RAC. As sugestões dependem de as rotas dos treinos já estarem buscadas ("Buscar rotas dos treinos").
 - Regras puras em `nucleo.js` (`lugNotas`, `lugMercados`, `lugPontosDia`, `lugSugerir`, `lugPasseios`, `lugValida`). Testes: `tests/lugares.test.mjs`.
+
+## Resumo da semana com IA no clique (Lote 6, 23/11/2026)
+Saúde → Visão geral → cartão **Resumo da semana** (logo abaixo da Recomendação do dia).
+- **Texto por regras, sempre, sem custo:** `NUCLEO.sauResumoSemana` compara os 7 últimos dias com os 7 anteriores (sono, VFC, FC de repouso, passos, treinos sem caminhada, carga, minutos, prontidão de hoje). Com menos de 4 dias de dado, pede para sincronizar o relógio.
+- **Resumo com IA só a pedido do dono:** botão "✨ Resumir com IA" (com confirmação: chamada paga ao Claude Haiku, uns centavos, dentro do limite mensal que já existe; **nenhum teto foi alterado**). Uma chamada por clique, nunca repetida sozinha, pela `rac-ia` (ação `saude.resumo`, Haiku 5.5, só dono, **só REAL**: em DEMO a função responde `sem_real`). O servidor recebe **só agregados numéricos** (`fatos`: médias, contagens, carga; nenhum local, nome, foto ou valor bruto). A resposta só vale se **todo número do texto estiver nos fatos** (ou for contagem de até 7 dias), sem links, com resumo, destaques e próximo passo; senão a IA é recusada e nada é mostrado.
+- **A IA nunca grava:** o texto aparece e só o botão "Guardar este resumo" o salva (`PESSOAL.saudeResumos`, por semana, só do dono, 8 semanas). "Gerar de novo" faz outra chamada paga, com nova confirmação. O consumo aparece em Custos de IA (módulo `saude`).
+- **Produção:** a ação precisa estar liberada no banco (**migration 066**, no molde da 028: acrescenta `saude.resumo` a `acoes_reais`, nunca à casa) e a **`rac-ia` republicada**; sem isso o botão avisa e nada é cobrado. Ordem: SQL → função → site.
+- Testes: `tests/saude_resumo.test.mjs`.

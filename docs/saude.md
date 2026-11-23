@@ -77,3 +77,6 @@ Saúde → Atividades → **Mapa geral dos percursos** (só o dono; desligado qu
 - **Quem grava:** a função `garmin`, tipo `rotas` (`sincRotas`, `rotas.ts`): baixa o .FIT dos treinos que ainda não têm linha, em blocos de até 10, e a rotina diária busca os novos. O site só **lê** a tabela. O botão "Buscar rotas dos treinos" recupera os treinos antigos (uma vez só).
 - **Ordem de publicação:** SQL 065 → função `garmin` → site. A função antiga é denunciada pela resposta sem `restantes`.
 - Testes: `tests/garmin_rotas.test.mjs`.
+
+## Publicar a função garmin sem colar arquivos (workflow manual)
+`.github/workflows/garmin-publicar.yml` (manual, só main, Environment `supabase-producao` com o segredo `SUPABASE_ACCESS_TOKEN`). Passos únicos do dono: (1) criar um token de acesso pessoal no Supabase; (2) no GitHub, criar o Environment `supabase-producao`, aceitando só a `main`, e guardar o token como segredo; (3) em Actions → "Publicar a função garmin" → Run workflow, informando a versão exata da CLI. **Não foi testado em produção.**

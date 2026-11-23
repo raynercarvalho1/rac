@@ -1725,3 +1725,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Republicar a função, rodar "Testar", ajustar os leitores à estrutura real e só então completar o histórico desde 01/01/2026.
+
+## 23/11/2026 · Lote 3: mapa geral dos percursos (versão `2026-11-23.4`, SQL e função pendentes de aplicar)
+
+### 1. O que fizemos
+- Código: migration `065_garmin_rotas.sql` (tabela nova, só do dono, com mfa), função `garmin` com o tipo `rotas` e passo na rotina, e o cartão "Mapa geral dos percursos" na aba Atividades da Saúde (filtros da aba, partida de cada treino, local escondido respeitado). Backup e catálogo de segurança atualizados. Testes novos em `tests/garmin_rotas.test.mjs`.
+- **Fato:** nenhum dos 986 treinos guardava coordenadas; só 809 têm o nome do local.
+
+### 2. O que estamos fazendo
+- **Bloqueios:** (1) a migration 065 **não foi aplicada**: o conector do Supabase pediu confirmação ao dono e não houve resposta a tempo (tabela confirmada como inexistente por leitura); (2) a função `garmin` precisa ser republicada (com o tipo `rotas` e os extras corrigidos). Sem os dois, o botão do mapa avisa e o resto do site segue igual.
+
+### 3. O que vamos fazer
+- Aplicar a 065, republicar a função, buscar as rotas dos 986 treinos e conferir o mapa no iPhone. Depois, Lote 4 (recomendação do dia).

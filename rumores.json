@@ -1,13 +1,37 @@
 {
- "coletado": "2026-11-23T01:39:45.800209+00:00",
+ "coletado": "2026-11-23T12:27:06.914773+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "MLBTR Live Chat",
+   "t": "Mets To Sign Tarik Skubal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-sign-tarik-skubal.html",
+   "data": "2026-11-23T05:24:27+00:00",
+   "resumo": "The Mets have made another blockbuster addition, as the club has signed two-time AL Cy Young Award winner Tarik Skubal to a nine-year, $450MM contract. The deal is a straight nine-year pact with no opt-outs and a full no-trade clause. Skubal will get the first $45MM of his deal…",
+   "tags": [
+    "New York Mets",
+    "Newsstand",
+    "Transactions",
+    "Tarik Skubal"
+   ]
+  },
+  {
+   "t": "Astros, Blue Jays, Padres Interested In Randy Arozarena",
+   "link": "https://www.mlbtraderumors.com/2026/11/astros-blue-jays-padres-interested-in-randy-arozarena.html",
+   "data": "2026-11-23T05:02:32+00:00",
+   "resumo": "The Astros, Blue Jays, and Padres are among the teams “monitoring” Randy Arozarena’s market, according to reporter Francys Romero. This trio of clubs joins the Orioles, Phillies, and Yankees as teams linked to the free agent outfielder to date. Arozarena hits the open market in…",
+   "tags": [
+    "Houston Astros",
+    "San Diego Padres",
+    "Toronto Blue Jays",
+    "Randy Arozarena"
+   ]
+  },
+  {
+   "t": "MLBTR Chat Transcript",
    "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-live-chat-927.html",
-   "data": "2026-11-23T01:19:44+00:00",
-   "resumo": "Click here to submit questions and follow along with tonight’s live baseball chat",
+   "data": "2026-11-23T03:26:44+00:00",
+   "resumo": "Mark P How kind of the Mets to make the offseason’s biggest signing before the Weekend Chat got rolling! Let’s dive into your questions… Mets does the skubal move make me a World Series contender Anonymous participant 903 Skubal to the Mets what does this mean for the Rest of…",
    "tags": [
     "MLBTR Chats"
    ]
@@ -20,18 +44,6 @@
    "tags": [
     "New York Mets",
     "Toronto Blue Jays",
-    "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Mets To Sign Tarik Skubal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-sign-tarik-skubal.html",
-   "data": "2026-11-22T22:00:27+00:00",
-   "resumo": "The Mets have made another blockbuster addition, as the club has signed two-time AL Cy Young Award winner Tarik Skubal to a nine-year, $450MM contract. The deal is a straight nine-year pact with no opt-outs and a full no-trade clause. Skubal will get the first $45MM of his deal…",
-   "tags": [
-    "New York Mets",
-    "Newsstand",
-    "Transactions",
     "Tarik Skubal"
    ]
   },
@@ -151,16 +163,6 @@
     "Chicago Cubs",
     "Chicago White Sox",
     "Hiromi Itoh"
-   ]
-  },
-  {
-   "t": "Blue Jays’ Nathan Lukes Receiving Trade Interest",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-nathan-lukes-receiving-trade-interest.html",
-   "data": "2026-11-22T01:21:59+00:00",
-   "resumo": "Blue Jays outfielder Nathan Lukes has been getting some trade interest, the Toronto Star’s Gregor Chisholm reported earlier this week. Lukes has spent the last two seasons as a regular in the Jays’ outfield, and he is projected to earn $2.1MM in the first of four trips through…",
-   "tags": [
-    "Toronto Blue Jays",
-    "Nathan Lukes"
    ]
   }
  ],

@@ -127,7 +127,7 @@ Fases [Recomendação]:
 | M3 | Uma view no banco (`security_invoker`) que junta `rotina_log`, `radar_coletas`, `newsletter_edicoes` e `ia_uso` no formato do contrato, para o servidor e a IA lerem o mesmo que a tela | Sim (pequena) | Mesmo resultado na tela e na view (teste PGlite) |
 | M4 | Alerta proativo: uma função agendada no banco detecta processo atrasado e cria um **sinal** ([Documento 04](04-rac-intelligence.md)); o aviso sai no resumo diário | Sim | Robô parado aparece como sinal e no aviso das 6h, uma vez |
 
-Para o aviso por push de M4 é preciso uma Edge Function que envie (a `garmin` é intocável sem autorização): decisão do dono
+Para o aviso por push de M4 é preciso uma Edge Function que envie (a `garmin` é editável pelo agente desde 23/11/2026): decisão do dono
 ([Documento 07](07-decisoes-e-pendencias.md)).
 
 ### 4.3 Implementação de M1 e M2 (Fase 1, 13/11/2026)
@@ -223,7 +223,7 @@ velocidade (Google Maps com chave do dono ou OpenStreetMap), resumo semanal no d
 
 A API pessoal da Garmin provavelmente oferece outros serviços (composição corporal e peso, prontidão de treino e status de
 treino calculados pela Garmin, carga aguda, linha do tempo de estresse e de frequência cardíaca, hidratação, pontuações de
-resistência). **Nada disso foi confirmado**: a rede deste ambiente não alcança a Garmin e a função é intocável sem autorização.
+resistência). **Nada disso foi confirmado**: a rede deste ambiente não alcança a Garmin e a função é editável pelo agente desde 23/11/2026.
 Para confirmar: o dono autoriza uma investigação só de leitura (documentação oficial da API pessoal e, se preciso, uma chamada de
 teste numa versão separada da função), registrando o que o relógio dele de fato fornece.
 

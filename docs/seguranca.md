@@ -175,7 +175,7 @@ aparece na Auditoria do dono como pendência e **não** entra sozinha na confer�
 `catalogo_sem_tabela`. RLS, visitante sem login, cofres e funções abertas continuam conferidos do mesmo jeito.
 
 **Situação: preparada e testada, NÃO aplicada em produção** (testes com Postgres de verdade no PGlite: `tests/seguranca_catalogo.test.mjs`).
-Aplicar é passo do dono, com autorização própria: rodar a 050 inteira no SQL Editor (pode rodar de novo sem estragar nada), depois a
+Aplicar é livre ao agente (política de autonomia de 23/11/2026; antes era passo do dono): rodar a 050 inteira (Supabase MCP ou SQL Editor) (pode rodar de novo sem estragar nada), depois a
 conferência só de leitura `supabase/conferencias/050_conferir_producao.sql` (tudo `true`), tirar a linha `-- status: pendente` do arquivo e
 conferir a Auditoria no site (a linha "Catálogo da auditoria" aparece com ✓). Antes da 050 o site funciona igual: a linha só aparece quando
 a função nova responde, e a Fernanda não vê a Auditoria. Desfazer: recriar `seguranca_estado()` com o texto da 048 e depois

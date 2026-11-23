@@ -5,7 +5,7 @@ Sem IA e sem custo: regras fixas sobre o histórico real da view `compras`. "Men
 
 ## Arquitetura (auditada)
 - **Web Push já existente:** `push_inscricoes` (um aparelho por linha, RLS do dono), chaves VAPID em `rac_segredos`, `sw.js` (mostra o aviso e abre a URL) e o envio `pushPara`/`enviarPush`, que vive **dentro da função `garmin`**
-  e roda na rotina diária do banco (`rac-rotina`, 09:00 UTC, 6h em Brasília). Não existe envio por evento, e a função `garmin` é intocável sem autorização expressa.
+  e roda na rotina diária do banco (`rac-rotina`, 09:00 UTC, 6h em Brasília). Não existe envio por evento, e a função `garmin` é editável pelo agente desde 23/11/2026 (política de autonomia).
 - **Decisão deste lote:** alertas **dentro do RAC** (aba, contador na aba "Alertas (n)"), sem tocar em `garmin`, `sw.js` nem nas rotinas. Nenhum Web Push é enviado e não há rotina nova.
 - **Onde ficam os dados (sem migration):** `PESSOAL["mercado-alertas"]` = `{ v:1, cfg, estado }`, na tabela `pessoal` que já existe (só a própria conta, a casa não grava, trava MFA e backup). `cfg` guarda os tipos ligados, percentuais, janelas e limites;
   `estado.lidos` guarda os ids já lidos (máximo de 1500). Os alertas em si **não são gravados**: são recalculados do histórico e têm id fixo, então o "histórico de alertas" é o próprio histórico de compras.

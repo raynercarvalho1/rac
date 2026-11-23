@@ -424,7 +424,7 @@ e de vínculos com RLS e backup (`SEG_TABELAS`); cofre para os originais; tela d
   `familia`, em `<dono>/notas-fiscais/<nota>/`, com o caminho conferido pela política. Sem gravação atômica própria ainda (`nota_fiscal_salvar` fica para
   o lote da tela, no mesmo molde de `compras_gravar`).
 - Backup do site: as seis tabelas novas entram em `NUCLEO.SEG_TABELAS` e os originais das notas vão em `anexos/`. O backup semanal do servidor
-  (função `garmin`, intocável) não inclui nenhuma tabela de compras nem fiscal; propor a inclusão exige mexer nela, então fica como proposta separada.
+  (função `garmin`, editável pelo agente desde 23/11/2026) não inclui nenhuma tabela de compras nem fiscal; propor a inclusão exige mexer nela, então fica como proposta separada.
 
 ## Lote 4 · Lote A: tela de conferência por XML (07/11/2026) — só leitura (superado pelo Lote B abaixo: a tela agora também salva)
 

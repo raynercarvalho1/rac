@@ -1,7 +1,7 @@
 # Desenvolvimento pelo Claude Code na nuvem
 
-Como o RAC é desenvolvido pelo celular, numa máquina do Claude Code na nuvem, sem o computador. As regras de Git e de autorização
-estão no `CLAUDE.md` (seção "Git pelo Claude Code Cloud"); aqui fica o ambiente e a proteção da `main`.
+Como o RAC é desenvolvido pelo celular, numa máquina do Claude Code na nuvem, sem o computador. As regras de Git e a política de autonomia
+estão no `CLAUDE.md` (seções "Política permanente de autonomia operacional" e "Git pelo Claude Code Cloud"); aqui fica o ambiente e a proteção da `main`.
 
 ## Ambiente "RAC" (configurado em 12/11/2026)
 - **Rede:** limitada; além dos registros de pacotes (npm, PyPI…), só o Supabase do RAC (para os testes que leem o banco real, só leitura).
@@ -74,7 +74,7 @@ Caminhos para a Fase 2 (cada um é decisão do dono):
    exceção (modo Always) e ligar a regra "Require a pull request before merging" com 0 aprovações; depois conferir que a
    próxima rodada de Notícias e a de Vagas gravaram (a página Actions mostra verde e um commit novo na `main`).
 2. Se não aparecer: criar um GitHub App só para os robôs (o token dele substitui o `GITHUB_TOKEN` no push), o que exige mudar os dois
-   workflows e criar dois secrets: mudança nos robôs e em secrets, que precisa de autorização própria.
+   workflows e criar dois secrets: mudança nos robôs e em secrets (livre ao agente pela política de autonomia de 23/11/2026, desde que o valor do segredo seja fornecido pelo dono).
 3. Ou fazer os robôs abrirem PR com merge automático, também mudando os robôs.
 
 Regras recomendadas na Fase 2, além das da Fase 1: "Require a pull request before merging" (0 aprovações; métodos merge e squash)

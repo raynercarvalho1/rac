@@ -300,5 +300,5 @@ agregadores; regras que estão nas telas; `seguranca_estado()` sem lista fixa; d
 - Microserviços ou backend próprio: o Supabase (RLS, RPC, Edge Functions, pg_cron) cobre as necessidades.
 - Eliminar `PESSOAL`: continua ótimo para preferências e listas pequenas; só migram para tabela as chaves que o servidor ou a IA
   precisam consultar (ex.: lembretes e prazos da Agenda), quando houver motivo concreto.
-- Unificar o código copiado entre Edge Functions: a `garmin` é intocável e publicada pelo painel; basta um teste que confira que
+- Unificar o código copiado entre Edge Functions: a `garmin` (editável desde 23/11/2026) é publicada pelo painel, pelo Supabase MCP ou pelo workflow manual; basta um teste que confira que
   as cópias (CORS, envio de push) continuam iguais.

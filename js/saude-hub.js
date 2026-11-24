@@ -392,29 +392,51 @@
   function shLugares(fil,C){
     if(!isOwner())return null;
     if(C.pr.esconderLocal)return rkCard("Lugares: compras e passeios",h("p",{class:"rac-t-sec",style:"margin:0",text:"O local está escondido nos Ajustes de Saúde; os lugares ficam desligados."}),{origem:"Só do dono."});
-    var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("pri","Mostrar lugares"),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),caixa=h("div",{style:"height:380px;border-radius:12px;display:none"}),lista=h("div",{class:"rac-pilha",style:"gap:8px"}),D=null,pick=null;
+    var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("pri","Mostrar lugares"),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),busca=h("div",{class:"rac-pilha",style:"gap:8px"}),caixa=h("div",{style:"height:380px;border-radius:12px;display:none"}),lista=h("div",{class:"rac-pilha",style:"gap:8px"}),D=null,pick=null,alvo=null,buscaTxt="";
     function marc(){var o=PESSOAL.saudeLugares;return (o&&o.mercados)||{}}
-    function gravar(nome,l){var o=JSON.parse(JSON.stringify(PESSOAL.saudeLugares||{}));o.mercados=o.mercados||{};if(l)o.mercados[nome]={lat:l.lat,lon:l.lon};else delete o.mercados[nome];
+    /* a sugestão para um mercado sem local: 1º o endereço do cadastro do CNPJ, 2º o GPS dos treinos, 3º o nome e a cidade (menos certo); o dono só confirma */
+    function cand(nome,sug){var e=((PESSOAL.saudeLugares||{}).enderecos||{})[nome],g=sug[nome];
+      if(e&&!e.falhou&&e.fonte==="cnpj")return {lat:e.lat,lon:e.lon,confianca:"alta",origem:"endereço do cadastro do CNPJ: "+e.texto};
+      if(g)return {lat:g.lat,lon:g.lon,confianca:g.confianca,origem:"em "+g.dias+" de "+g.de+" dias de compra um treino começa ou termina aqui"};
+      if(e&&!e.falhou)return {lat:e.lat,lon:e.lon,confianca:"baixa",origem:"pelo nome e cidade (confira): "+e.texto};
+      return null}
+    function gravar(nome,l){alvo=null;buscaTxt="";var o=JSON.parse(JSON.stringify(PESSOAL.saudeLugares||{}));o.mercados=o.mercados||{};if(l)o.mercados[nome]={lat:l.lat,lon:l.lon};else delete o.mercados[nome];
       pessoalGravar("saudeLugares",o,function(m){if(m)st.textContent=m});pick=null;pintar()}
-    function pintar(){lista.innerHTML="";if(caixa.__mapa){caixa.__mapa.remove();caixa.__mapa=null}
+    function pintar(){lista.innerHTML="";busca.innerHTML="";if(caixa.__mapa){caixa.__mapa.remove();caixa.__mapa=null}
+      if(pick){var inp=h("input",{type:"text",class:"rac-campo-entrada",maxlength:"120",placeholder:"CEP ou endereço (ex.: 18035-000 ou Av. Dom Aguirre, 100, Sorocaba)","aria-label":"CEP ou endereço de "+pick,value:buscaTxt}),bb2=rkBtn("sec","Buscar no mapa"),bok=rkBtn("pri","Usar este ponto"),bcan=rkBtn("sec","Cancelar"),achado=h("span",{class:"rac-t-sec",text:alvo?"Achei: "+alvo.nome+". Confira no mapa; toque no mapa para ajustar.":"Marcando "+pick+": digite o CEP ou o endereço, ou toque direto no mapa."});
+        bok.hidden=!alvo;
+        function buscar(){buscaTxt=inp.value;bb2.disabled=true;achado.textContent="Buscando…";
+          saudeGeocodificar(buscaTxt).then(function(r){alvo=r;pintar()},function(e){bb2.disabled=false;achado.textContent=e.message})}
+        bb2.onclick=buscar;inp.onkeydown=function(ev){if(ev.key==="Enter"){ev.preventDefault();buscar()}};
+        bok.onclick=function(){gravar(pick,{lat:alvo.lat,lon:alvo.lon})};bcan.onclick=function(){pick=null;alvo=null;buscaTxt="";st.textContent="";pintar()};
+        busca.appendChild(inp);busca.appendChild(h("div",{class:"rac-linha-flex"},bb2,bok,bcan));busca.appendChild(achado)}
       var notas=NUCLEO.lugNotas(D.compras),mer=NUCLEO.lugMercados(notas,marc()),sug=NUCLEO.lugSugerir(notas,NUCLEO.lugPontosDia(C.ativs,D.rotas),marc()),pas=NUCLEO.lugPasseios(C.ativs,D.rotas),mk=[];
-      mer.forEach(function(m){var s=sug[m.mercado],txt=m.mercado+" · "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total);
+      mer.forEach(function(m){var s=cand(m.mercado,sug),txt=m.mercado+" · "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total);
         if(m.local)mk.push({lat:m.local.lat,lon:m.local.lon,cor:saudeCorLugar("mercado"),tipo:"mercado",texto:"🛒 "+txt});else if(s)mk.push({lat:s.lat,lon:s.lon,cor:saudeCorLugar("mercado"),tipo:"sugestao",texto:"Sugestão: "+txt});
         var bs=[];
-        if(m.local){bs.push(rkBtn("sec","Trocar no mapa"));bs[0].onclick=function(){pick=m.mercado;st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};var br=rkBtn("sec","Remover");br.onclick=function(){gravar(m.mercado,null)};bs.push(br)}
+        if(m.local){bs.push(rkBtn("sec","Trocar no mapa"));bs[0].onclick=function(){pick=m.mercado;alvo=null;buscaTxt="";st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};var br=rkBtn("sec","Remover");br.onclick=function(){gravar(m.mercado,null)};bs.push(br)}
         else{if(s){var bc=rkBtn("pri","Confirmar aqui");bc.onclick=function(){gravar(m.mercado,{lat:s.lat,lon:s.lon})};bs.push(bc)}
-          var bk=rkBtn("sec","Marcar no mapa");bk.onclick=function(){pick=m.mercado;st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};bs.push(bk)}
-        lista.appendChild(h("div",{class:"rac-linha-flex"},h("span",{class:"grow"},h("b",{text:m.mercado}),h("span",{class:"rac-t-sec",text:" "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total)+(m.local?" · ✓ local marcado":s?" · sugestão ("+s.confianca+"): em "+s.dias+" de "+s.de+" dias de compra um treino começa ou termina aqui":" · sem local")})),bs))});
+          var bk=rkBtn("sec","Marcar no mapa");bk.onclick=function(){pick=m.mercado;alvo=null;buscaTxt="";st.textContent="Toque no mapa onde fica "+m.mercado+".";pintar()};bs.push(bk)}
+        lista.appendChild(h("div",{class:"rac-linha-flex"},h("span",{class:"grow"},h("b",{text:m.mercado}),h("span",{class:"rac-t-sec",text:" "+m.n+(m.n===1?" compra":" compras")+" · "+brl(m.total)+(m.local?" · ✓ local marcado":s?" · sugestão ("+s.confianca+"): "+s.origem:" · sem local")})),bs))});
       pas.filter(function(p){return p.lat!=null}).slice(0,25).forEach(function(p){mk.push({lat:p.lat,lon:p.lon,cor:saudeCorLugar("passeio"),tipo:"passeio",texto:p.nome+" · "+p.n+(p.n===1?" treino":" treinos")})});
       if(pas.length)lista.appendChild(h("p",{class:"rac-t-sec",style:"margin:4px 0 0",text:"Passeios (por nome do local): "+pas.slice(0,8).map(function(p){return p.nome+" ("+p.n+")"}).join(", ")+(pas.length>8?" e mais "+(pas.length-8):"")}));
       if(!mer.length&&!pas.length){st.textContent="Sem compras nem treinos com nome de local para mostrar.";return}
+      if(pick&&alvo)mk.push({lat:alvo.lat,lon:alvo.lon,cor:saudeCorLugar("alvo"),tipo:"alvo",texto:"Endereço achado: "+alvo.nome});
       caixa.style.display="block";
-      saudeMapaLugares(caixa,mk,!!pick,function(la,lo){if(pick)gravar(pick,{lat:la,lon:lo})}).then(function(m){caixa.__mapa=m;if(!pick)st.textContent=mk.length?mer.filter(function(x){return x.local}).length+" de "+mer.length+" mercados com local marcado · "+Object.keys(sug).length+" com sugestão":"Nenhum lugar com posição ainda (as rotas dos treinos precisam estar buscadas)."})
+      saudeMapaLugares(caixa,mk,!!pick,function(la,lo){if(pick)gravar(pick,{lat:la,lon:lo})},pick&&alvo?alvo:null).then(function(m){caixa.__mapa=m;if(!pick)st.textContent=mk.length?mer.filter(function(x){return x.local}).length+" de "+mer.length+" mercados com local marcado · "+mer.filter(function(x){return !x.local&&cand(x.mercado,sug)}).length+" com sugestão para confirmar":"Nenhum lugar com posição ainda (as rotas dos treinos precisam estar buscadas)."})
       .catch(function(e){logErro("Garmin (lugares)",e);st.textContent="Não consegui desenhar o mapa: "+e.message})}
+    /* o RAC procura sozinho o endereço dos mercados sem local (uma vez por mercado; o resultado fica guardado) e o dono só confirma */
+    var buscando=false;
+    function achar(){if(buscando)return;var E=(PESSOAL.saudeLugares||{}).enderecos||{},mer=NUCLEO.lugMercados(NUCLEO.lugNotas(D.compras),marc()),
+        falta=mer.filter(function(m){return !m.local&&!E[m.mercado]}).map(function(m){var c=D.cadastro&&D.cadastro[m.mercado]||{};return {mercado:m.mercado,cnpj:c.cnpj,cidade:c.cidade}});
+      if(!falta.length)return;buscando=true;
+      saudeEnderecosDosMercados(falta,E,function(i,n){st.textContent="Procurando o endereço dos mercados… "+i+" de "+n}).then(function(novo){buscando=false;
+        var o=JSON.parse(JSON.stringify(PESSOAL.saudeLugares||{}));o.enderecos=Object.assign({},o.enderecos,novo);pessoalGravar("saudeLugares",o,function(m){if(m)st.textContent=m});pintar()},
+        function(e){buscando=false;logErro("Garmin (lugares)",e);st.textContent="Não consegui procurar os endereços: "+e.message})}
     bt.onclick=function(){bt.disabled=true;st.textContent="Lendo compras e rotas…";
-      saudeLugaresLer().then(function(d){D=d;bt.disabled=false;pintar()}).catch(function(e){logErro("Garmin (lugares)",e);bt.disabled=false;st.textContent="Não consegui: "+e.message})};
-    [bt,st,caixa,lista].forEach(function(n){corpo.appendChild(n)});
-    return rkCard("Lugares: compras e passeios",corpo,{sub:"Onde ficam os mercados e os passeios. O local do mercado é marcação sua (ou sugestão pelo GPS dos treinos, que você confirma); nada é enviado a serviço de endereços.",origem:"Compras do Mercado e rotas dos treinos; marcações guardadas na sua conta, só do dono."})}
+      saudeLugaresLer().then(function(d){D=d;bt.disabled=false;pintar();achar()}).catch(function(e){logErro("Garmin (lugares)",e);bt.disabled=false;st.textContent="Não consegui: "+e.message})};
+    [bt,st,busca,caixa,lista].forEach(function(n){corpo.appendChild(n)});
+    return rkCard("Lugares: compras e passeios",corpo,{sub:"Onde ficam os mercados e os passeios. O local do mercado é marcação sua (ou sugestão pelo GPS dos treinos, que você confirma); o RAC procura sozinho o endereço de cada mercado pelo CNPJ (cadastro público, BrasilAPI) e o localiza no OpenStreetMap, uma vez por mercado, e você só confirma; o que você digitar na busca também vai ao ViaCEP e ao OpenStreetMap. Só isso sai do RAC.",origem:"Compras do Mercado e rotas dos treinos; marcações guardadas na sua conta, só do dono."})}
   /* extras do relógio (Lote 2): só o dono; testar não grava, completar só acrescenta chaves em dias que já existem (saudeExtras, em js/saude.js) */
   function shExtras(S){
     if(!isOwner())return null;var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),bt=rkBtn("sec","Testar o que a Garmin libera"),bc=rkBtn("pri","Completar desde "+dataBR(NUCLEO.SAU_MARCO.data)),st=h("p",{class:"rac-t-sec",role:"status",style:"margin:0"}),pre=h("pre",{class:"rac-t-legenda",style:"white-space:pre-wrap;margin:0"});

@@ -169,16 +169,39 @@
       return {ok:false,msg:(x&&x.erro&&x.erro.mensagem)||(x&&x.mensagem)||"A IA não respondeu.",codigo:x&&x.erro&&x.erro.codigo}},
       function(e){return {ok:false,msg:"Não consegui falar com a IA ("+(e&&e.message||e)+"). Se a chamada saiu, ela fica registrada nos Custos de IA e não será repetida sozinha."}})}
   /* Lugares (Lote 5): compras do Mercado (só data, mercado, número e valor) e as rotas; as regras estão em NUCLEO.lug* */
-  function saudeCorLugar(t){return t==="mercado"?"#C2410C":"#2E8BD8"}
+  function saudeCorLugar(t){return t==="mercado"?"#C2410C":t==="alvo"?"#15803D":"#2E8BD8"}
   function saudeLugaresLer(){var acc=[];
     function pag(f){return Promise.resolve().then(function(){return SB.from("compras").select("data,mercado,numero,valor_total").order("data").range(f,f+999)}).then(sbOk).then(function(l){acc=acc.concat(l);return l.length===1000?pag(f+1000):acc})}
-    return Promise.all([pag(0),saudeRotasLer()]).then(function(r){var rotas={};r[1].forEach(function(x){rotas[x.id]=x.pontos});return {compras:r[0],rotas:rotas}})}
+    return Promise.all([pag(0),saudeRotasLer(),Promise.resolve().then(function(){return SB.from("mercados").select("nome,cnpj,cidade")}).then(sbOk).catch(function(){return []})]).then(function(r){var rotas={};r[1].forEach(function(x){rotas[x.id]=x.pontos});var cad={};(r[2]||[]).forEach(function(x){cad[x.nome]=x});return {compras:r[0],rotas:rotas,cadastro:cad}})}
+  /* Busca por CEP ou endereço (24/11/2026, pedido do dono, só ao tocar em "Buscar"): CEP → ViaCEP → endereço; endereço → Nominatim (OpenStreetMap), só no Brasil.
+     Só o texto digitado sai do navegador: nenhum nome de mercado, compra, treino ou coordenada sua. Devolve {lat, lon, nome} ou lança com a mensagem para o dono. */
+  function saudeNominatim(q){return fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&accept-language=pt-BR&q="+encodeURIComponent(q)).then(function(r){if(!r.ok)throw new Error("A busca de endereço não respondeu ("+r.status+").");return r.json()}).then(function(l){
+      var x=Array.isArray(l)&&l[0],la=x&&parseFloat(x.lat),lo=x&&parseFloat(x.lon);
+      if(!x||!isFinite(la)||!isFinite(lo))throw new Error("Não achei esse endereço. Tente o CEP ou toque no mapa.");
+      return {lat:Math.round(la*1e5)/1e5,lon:Math.round(lo*1e5)/1e5,nome:String(x.display_name||q).slice(0,160)}})}
+  function saudeGeocodificar(texto){
+    var t=String(texto||"").trim();if(t.length<3)return Promise.reject(new Error("Digite o CEP ou o endereço."));
+    var cep=NUCLEO.lugCep(t),pre=cep?fetch("https://viacep.com.br/ws/"+cep+"/json/").then(function(r){if(!r.ok)throw new Error("O ViaCEP não respondeu ("+r.status+").");return r.json()}).then(function(o){var e=NUCLEO.lugEnderecoViaCep(o);if(!e)throw new Error("CEP não encontrado.");return e}):Promise.resolve(t);
+    return pre.then(saudeNominatim)}
+  /* Endereço do mercado achado pelo RAC (24/11/2026, pedido do dono: o RAC marca e ele só confirma): CNPJ → cadastro público (BrasilAPI) → Nominatim; sem CNPJ ou sem resposta,
+     "nome, cidade, UF" (o nome traz a cidade entre parênteses) → Nominatim, com fonte "nome" (menos certo). Só o CNPJ (dado público da empresa) ou o nome sai do navegador, uma vez
+     por mercado: o resultado (ou a falha) fica em PESSOAL.saudeLugares.enderecos e não é pedido de novo. Nunca grava o local sozinho: o dono confirma. */
+  function saudeEnderecoDoMercado(m){
+    var cn=NUCLEO.lugCnpj(m.cnpj),nc=NUCLEO.lugNomeCidade(m.mercado),cidade=nc.cidade||(m.cidade||"").trim(),pelaNome=function(){var q=[nc.nome,cidade,nc.uf].filter(Boolean).join(", ");
+      return q.length<6?Promise.reject(new Error("sem dados para procurar")):saudeNominatim(q).then(function(r){return {lat:r.lat,lon:r.lon,texto:r.nome,fonte:"nome"}})};
+    if(!cn)return pelaNome();
+    return fetch("https://brasilapi.com.br/api/cnpj/v1/"+cn).then(function(r){if(!r.ok)throw new Error("cadastro do CNPJ indisponível ("+r.status+")");return r.json()}).then(function(o){var e=NUCLEO.lugEnderecoCnpj(o);if(!e)throw new Error("cadastro sem endereço");return e})
+      .then(function(e){return saudeNominatim(e).then(function(r){return {lat:r.lat,lon:r.lon,texto:e,fonte:"cnpj"}})}).catch(function(){return pelaNome()})}
+  function saudeEnderecosDosMercados(lista,cache,progresso){var novo={},i=0;
+    function prox(){if(i>=lista.length)return Promise.resolve(novo);var m=lista[i++];progresso(i,lista.length);
+      return saudeEnderecoDoMercado(m).then(function(r){novo[m.mercado]=r},function(){novo[m.mercado]={falhou:true,quando:hojeISO()}}).then(function(){return new Promise(function(ok){setTimeout(ok,1200)})}).then(prox)}   /* 1 consulta a cada 1,2 s: a política do Nominatim */
+    return prox()}
   /* marcadores: [{lat,lon,cor,texto,tipo}]; onPick(lat,lon) é chamado ao tocar no mapa quando pick=true */
-  function saudeMapaLugares(div,marcadores,pick,onPick){
+  function saudeMapaLugares(div,marcadores,pick,onPick,foco){
     return carregarLeaflet().then(function(){var L=window.L,m=L.map(div,{scrollWheelZoom:false}),pts=[];
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(m);
-      marcadores.forEach(function(k){pts.push([k.lat,k.lon]);L.circleMarker([k.lat,k.lon],{radius:k.tipo==="mercado"?9:6,color:"#fff",weight:2,fillColor:k.cor,fillOpacity:k.tipo==="sugestao"?.45:.95,dashArray:k.tipo==="sugestao"?"4":null}).addTo(m).bindTooltip(k.texto)});
-      if(pts.length)m.fitBounds(L.latLngBounds(pts),{padding:[24,24],maxZoom:16});else m.setView([-23.5,-47.46],11);
+      marcadores.forEach(function(k){pts.push([k.lat,k.lon]);L.circleMarker([k.lat,k.lon],{radius:k.tipo==="mercado"||k.tipo==="alvo"?9:6,color:"#fff",weight:2,fillColor:k.cor,fillOpacity:k.tipo==="sugestao"?.45:.95,dashArray:k.tipo==="sugestao"?"4":null}).addTo(m).bindTooltip(k.texto)});
+      if(foco)m.setView([foco.lat,foco.lon],17);else if(pts.length)m.fitBounds(L.latLngBounds(pts),{padding:[24,24],maxZoom:16});else m.setView([-23.5,-47.46],11);
       if(pick&&onPick)m.on("click",function(e){onPick(Math.round(e.latlng.lat*1e5)/1e5,Math.round(e.latlng.lng*1e5)/1e5)});
       setTimeout(function(){m.invalidateSize()},200);return m})}
   function saudeMapaGeral(div,rotas,comPartida){

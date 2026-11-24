@@ -51,8 +51,40 @@ test("telas: só do dono, respeita esconder o local, marcação só em PESSOAL (
   const hub = ler("js/saude-hub.js"), sa = ler("js/saude.js"), f = hub.slice(hub.indexOf("function shLugares"), hub.indexOf("/* extras do relógio (Lote 2)"));
   assert.match(f, /if\(!isOwner\(\)\)return null/); assert.match(f, /C\.pr\.esconderLocal/); assert.match(f, /pessoalGravar\("saudeLugares"/);
   assert.match(f, /bc\.onclick=function\(\)\{gravar\(m\.mercado,\{lat:s\.lat,lon:s\.lon\}\)\}/, "só o clique em Confirmar grava a sugestão");
-  assert.ok(!/fetch\(|nominatim|geocod|googleapis/i.test(f + sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeMapaGeral"))), "nenhum serviço externo de endereço");
+  const g = sa.slice(sa.indexOf("function saudeNominatim"), sa.indexOf("/* marcadores: [{lat,lon,cor,texto,tipo}]"));
+  assert.ok(!/fetch\(|googleapis|api\./i.test(f + sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeNominatim"))), "fora da busca por endereço, nenhuma consulta de rede");
   assert.ok(!/\.(insert|upsert|update|delete)\(/.test(sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeMapaGeral"))), "o site só lê compras e rotas");
   assert.match(hub, /var lu=shLugares\(fil,C\)/);
-  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[7-9]_/.test(x)); assert.deepEqual(m, [], "nenhuma migration do Lote 5 (a 066 é do Lote 6)");
+  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[8-9]_/.test(x)); assert.deepEqual(m, [], "nenhuma migration do Lote 5 (a 066 é do Lote 6)");
+});
+
+test("busca por CEP ou endereço (24/11/2026): CEP de 8 dígitos, endereço do ViaCEP; só 2 serviços, só ao tocar em Buscar, só com o texto digitado", () => {
+  assert.equal(N.lugCep("18035-000"), "18035000"); assert.equal(N.lugCep(" 18.035-000 "), "18035000"); assert.equal(N.lugCep("1803500"), null); assert.equal(N.lugCep("Av. Dom Aguirre 100"), null); assert.equal(N.lugCep(null), null);
+  assert.equal(N.lugEnderecoViaCep({ logradouro: "Avenida Dom Aguirre", bairro: "Centro", localidade: "Sorocaba", uf: "SP" }), "Avenida Dom Aguirre, Centro, Sorocaba, SP");
+  assert.equal(N.lugEnderecoViaCep({ localidade: "Sorocaba", uf: "SP" }), "Sorocaba, SP"); assert.equal(N.lugEnderecoViaCep({ erro: true }), null); assert.equal(N.lugEnderecoViaCep(null), null); assert.equal(N.lugEnderecoViaCep({ localidade: "X" }), null);
+  const sa = ler("js/saude.js"), hub = ler("js/saude-hub.js"), g = sa.slice(sa.indexOf("function saudeNominatim"), sa.indexOf("/* Endereço do mercado achado pelo RAC"));
+  const hosts = [...new Set([...g.matchAll(/https:\/\/([a-z.]+)\//g)].map((m) => m[1]))].sort(); assert.deepEqual(hosts, ["nominatim.openstreetmap.org", "viacep.com.br"]);   // a busca digitada: só estes dois
+  assert.match(g, /countrycodes=br/); assert.ok(!/mercado|compra|treino|rota|lat,lon/i.test(g.replace(/\{lat:Math\.round[^}]*\}/, "").replace(/return \{lat[^}]*\}/, "")), "nada do RAC vai junto da consulta");
+  assert.ok((hub.match(/saudeGeocodificar\(/g) || []).length === 1 && /function buscar\(\)\{buscaTxt=inp\.value;[\s\S]*saudeGeocodificar\(buscaTxt\)/.test(hub), "uma única chamada, dentro do clique em Buscar");
+  assert.ok(!/setInterval|setTimeout|onload|oninput/.test(hub.slice(hub.indexOf("function shLugares"), hub.indexOf("/* extras do relógio (Lote 2)"))), "nunca busca sozinho nem a cada letra");
+  assert.match(hub, /bok\.onclick=function\(\)\{gravar\(pick,\{lat:alvo\.lat,lon:alvo\.lon\}\)\}/, "só o botão Usar este ponto grava o endereço achado");
+});
+
+test("endereço do mercado pelo CNPJ (24/11/2026): CNPJ válido, endereço do cadastro e cidade/UF do nome; o RAC acha e o dono só confirma", () => {
+  assert.equal(N.lugCnpj("12.345.678/0001-95"), "12345678000195"); assert.equal(N.lugCnpj("00000000000000"), null); assert.equal(N.lugCnpj("123"), null); assert.equal(N.lugCnpj(null), null);
+  assert.equal(N.lugEnderecoCnpj({ descricao_tipo_de_logradouro: "AVENIDA", logradouro: "DOM AGUIRRE", numero: "100", bairro: "CENTRO", municipio: "SOROCABA", uf: "SP" }), "AVENIDA DOM AGUIRRE, 100, CENTRO, SOROCABA, SP");
+  assert.equal(N.lugEnderecoCnpj({ logradouro: "RUA X", numero: "S/N", bairro: "B", municipio: "SOROCABA", uf: "SP" }), "RUA X, B, SOROCABA, SP", "sem número não fica 'S/N' na busca");
+  assert.equal(N.lugEnderecoCnpj({ logradouro: "RUA X" }), null); assert.equal(N.lugEnderecoCnpj(null), null);
+  assert.deepEqual(N.lugNomeCidade("Confiança Supermercados (Sorocaba/SP)"), { nome: "Confiança Supermercados", cidade: "Sorocaba", uf: "SP" });
+  assert.deepEqual(N.lugNomeCidade("MACER DROGUISTAS LTDA"), { nome: "MACER DROGUISTAS LTDA", cidade: null, uf: null });
+  const sa = ler("js/saude.js"), hub = ler("js/saude-hub.js"), g = sa.slice(sa.indexOf("function saudeEnderecoDoMercado"), sa.indexOf("/* marcadores: [{lat,lon,cor,texto,tipo}]"));
+  assert.match(g, /brasilapi\.com\.br\/api\/cnpj\/v1\//); assert.match(g, /fonte:"cnpj"/); assert.match(g, /fonte:"nome"/); assert.match(g, /setTimeout\(ok,1200\)/, "uma consulta a cada 1,2 s (política do Nominatim)");
+  assert.ok(!/pessoalGravar|SB\./.test(g), "a busca só devolve; quem guarda é a tela");
+  assert.match(g, /falhou:true/, "a falha também fica guardada: não repete em loop");
+  const f = hub.slice(hub.indexOf("function shLugares"), hub.indexOf("/* extras do relógio (Lote 2)"));
+  assert.match(f, /if\(!falta\.length\)return;buscando=true;/); assert.match(f, /!m\.local&&!E\[m\.mercado\]/, "só mercados sem local e ainda não procurados");
+  assert.match(f, /o\.enderecos=Object\.assign\(\{\},o\.enderecos,novo\)/, "guarda só em enderecos (sugestão), nunca em mercados");
+  assert.match(f, /saudeLugaresLer\(\)\.then\(function\(d\)\{D=d;bt\.disabled=false;pintar\(\);achar\(\)\}\)/, "só depois de tocar em Mostrar lugares");
+  assert.match(f, /bc\.onclick=function\(\)\{gravar\(m\.mercado,\{lat:s\.lat,lon:s\.lon\}\)\}/, "só o clique em Confirmar grava o local");
+  assert.match(f, /e&&!e\.falhou&&e\.fonte==="cnpj"/, "o endereço do CNPJ tem prioridade sobre o GPS e sobre o nome");
 });

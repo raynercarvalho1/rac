@@ -1872,3 +1872,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Se o dono quiser, separar visualmente "Diagnóstico" de "Consulta de rotina" quando a consulta mais recente não for um diagnóstico.
+
+## 24/11/2026 · Busca por CEP ou endereço para marcar mercados no mapa (versão `2026-11-24.2`)
+
+### 1. O que fizemos
+- Pedido do dono (marcar no mapa exigia dar zoom e procurar o estabelecimento). Campo de CEP ou endereço no modo "Marcar no mapa": CEP → ViaCEP → endereço; endereço → Nominatim (OpenStreetMap), só Brasil; marcador verde, ajuste tocando no mapa e "Usar este ponto" para gravar. **Muda a decisão do Lote 5 ("nenhum serviço externo de endereço")** por pedido expresso do dono: só o texto digitado sai do RAC, só ao tocar em Buscar. - Segundo pedido do dono no mesmo dia: "as notas já têm endereço, você marca e eu só confirmo". As notas não guardam o endereço como texto (9 mercados, 7 com CNPJ, 3 com cidade), então o RAC procura sozinho o endereço pelo CNPJ (BrasilAPI) → Nominatim, com fallback nome + cidade, uma vez por mercado (resultado em `PESSOAL.saudeLugares.enderecos`); o dono só toca em "Confirmar aqui". Versão final `2026-11-24.7` (corrige um deslize meu: a numeração tinha ficado em `.2`, abaixo da `.6` da `main`). Sem SQL, função, secret ou IA. Testes novos em `tests/lugares.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Não conferido:** a resposta real do BrasilAPI, do Nominatim e do ViaCEP (nenhuma consulta foi feita pelo agente) e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Se o Nominatim errar o ponto de algum estabelecimento, o dono ajusta tocando no mapa; avaliar, se preciso, a busca pelo nome do lugar.

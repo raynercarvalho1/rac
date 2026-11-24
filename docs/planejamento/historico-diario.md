@@ -1804,3 +1804,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Se a validação da IA recusar a resposta real, ajustar o prompt de `saude.resumo`; depois da busca das rotas, conferir as sugestões de lugares; decidir quais campos extras já coletados vale guardar (hidratação, escores de sono, faixas da VFC).
+
+## 24/11/2026 · Score do sono na Saúde (versão `2026-11-24.1`; função `garmin` a republicar para os escores por fase)
+
+### 1. O que fizemos
+- Pedido do dono depois de validar o plano Garmin. Indicador "Score do sono" na Visão geral, cartão e tendência na aba Sono (`NUCLEO.sauScoreSono`: nota, rótulo, médias de 7 e 30, melhor e pior das 14 noites) e escores por fase em `extras.sono` (função `garmin`, mesmo endpoint de sono, uma consulta por janela). Sem SQL, sem IA, sem custo. Testes novos em `tests/saude_score_sono.test.mjs`.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Pendente:** republicar a `garmin` e tocar em "Completar" nos Dados extras para os escores por fase dos dias antigos. O score principal (nota e rótulo) já aparece com o que está gravado.
+
+### 3. O que vamos fazer
+- Avaliar guardar outros campos já coletados e não usados (hidratação, faixas da VFC, cochilo, FC no sono).

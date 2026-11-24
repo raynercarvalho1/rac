@@ -58,9 +58,10 @@ test("Saúde: a abertura do hub — data, frase com dados reais, as 7 abas na or
   await abrir(c, "sono"); assert.deepEqual(abas(c.root).filter((a) => a.ativa).map((a) => a.rot), ["Sono"]); await abrir(c, "lixo"); assert.deepEqual(abas(c.root).filter((a) => a.ativa).map((a) => a.rot), ["Visão geral"], "aba desconhecida volta à visão geral");
 });
 
-test("Saúde · Visão geral: 5 indicadores com a comparação pessoal, no máximo 3 sinais, último treino, semana e diário de humor", async () => {
+test("Saúde · Visão geral: 6 indicadores com a comparação pessoal, no máximo 3 sinais, último treino, semana e diário de humor", async () => {
   const c = tela(); await abrir(c);
-  const k = porClasse(c.root, "sh-kpis")[0]; assert.deepEqual(porClasse(k, "rac-kpi").map((x) => texto(porClasse(x, "rac-t-rotulo")[0])), ["Prontidão", "Sono", "VFC (noite)", "FC de repouso", "Body Battery"]);
+  const k = porClasse(c.root, "sh-kpis")[0]; assert.deepEqual(porClasse(k, "rac-kpi").map((x) => texto(porClasse(x, "rac-t-rotulo")[0])), ["Prontidão", "Sono", "Score do sono", "VFC (noite)", "FC de repouso", "Body Battery"]);   // o Score do sono entrou em 24/11/2026
+  assert.match(kpi(c.root, "Score do sono").valor, /^\d+ \/100$/);
   assert.match(kpi(c.root, "Prontidão").apoio, /cálculo do RAC/); assert.equal(kpi(c.root, "Prontidão").href, "#saude/recuperacao");
   assert.match(kpi(c.root, "Sono").valor, /^\d+h\d{2}$/); assert.match(kpi(c.root, "Sono").apoio, /seu normal \d+h\d{2} \(\d+ dias\)/); assert.match(kpi(c.root, "VFC (noite)").valor, /^\d+ ms$/); assert.match(kpi(c.root, "FC de repouso").valor, /^\d+ bpm$/);
   assert.equal(kpi(c.root, "Sono").href, "#saude/sono");

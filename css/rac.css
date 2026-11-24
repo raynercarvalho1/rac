@@ -339,7 +339,7 @@ a.ag-dest-titulo:hover{text-decoration:underline}
 .sh-col{display:flex;flex-direction:column;gap:var(--rac-esp-4);min-width:0}
 .sh-abas{display:flex;gap:var(--rac-esp-2);overflow-x:auto;padding:2px 0 var(--rac-esp-1);scrollbar-width:thin;-webkit-overflow-scrolling:touch}
 .sh-abas .rac-chip{flex:none}
-.sh-kpis{grid-column:1/-1;display:grid;gap:var(--rac-esp-3);grid-template-columns:repeat(5,minmax(0,1fr))}
+.sh-kpis{grid-column:1/-1;display:grid;gap:var(--rac-esp-3);grid-template-columns:repeat(6,minmax(0,1fr))}
 .sh-kpis>*{min-width:0}
 .sh-sinal--ativo{border-left:4px solid var(--rac-aviso-fill)}
 .sh-sinal--suprimido{opacity:.92}

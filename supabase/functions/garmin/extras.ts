@@ -34,6 +34,7 @@ export const CAMINHOS = {
   peso: (ini: string, fim: string) => `/weight-service/weight/range/${ini}/${fim}?includeAll=true`,
   spo2: (d: string) => `/wellness-service/wellness/daily/spo2acclimation/${d}`,
   bb: (ini: string, fim: string) => `/wellness-service/wellness/bodyBattery/reports/daily?startDate=${ini}&endDate=${fim}`,
+  sono: (ini: string, fim: string) => `/sleep-service/sleep/dailySleepSummariesByDate?startDate=${ini}&endDate=${fim}`,   // o mesmo conjunto que a função já coleta; aqui só os escores por fase
   vo2: (ini: string, fim: string) => `/metrics-service/metrics/maxmet/daily/${ini}/${fim}`,   // documentado; só sondagem, não grava (formato ainda não confirmado)
 };
 
@@ -102,6 +103,23 @@ export function lerBodyBatteryIntervalo(r: any): Record<string, Record<string, u
       passoMin: curva ? PASSO_MIN : undefined, curva, carregou: arred(num(it?.charged), 0), gastou: arred(num(it?.drained), 0),
       min: niveis.length ? Math.min(...niveis) : undefined, max: niveis.length ? Math.max(...niveis) : undefined,
     });
+    if (o) out[dia] = o;
+  }
+  return out;
+}
+
+/* escores do sono por fase (consulta por intervalo, um item por dia; o mesmo endpoint dos resumos de sono): { "AAAA-MM-DD": { escores: {duracao, estresse, despertares, rem, agitacao, leve, profundo} (texto
+   da Garmin: EXCELLENT, GOOD, FAIR, POOR…), pct: {rem, leve, profundo} (%) } }. Só o que a Garmin mandou; dia sem nenhum escore fica de fora. */
+export function lerSonoIntervalo(r: any): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  const q = (x: any) => (typeof x?.qualifierKey === "string" && /^[A-Z_]{2,30}$/.test(x.qualifierKey) ? x.qualifierKey : undefined);
+  const p = (x: any) => arred(num(x?.value), 0);
+  for (const it of lista(r, "data", "dailySleepDTO")) {
+    const dia = diaDe(it?.calendarDate ?? it?.date), sc = it?.sleepScores;
+    if (!dia || !sc || typeof sc !== "object") continue;
+    const escores = vazio({ duracao: q(sc.totalDuration), estresse: q(sc.stress), despertares: q(sc.awakeCount), rem: q(sc.remPercentage), agitacao: q(sc.restlessness), leve: q(sc.lightPercentage), profundo: q(sc.deepPercentage) });
+    const pct = vazio({ rem: p(sc.remPercentage), leve: p(sc.lightPercentage), profundo: p(sc.deepPercentage) });
+    const o = vazio({ escores, pct });
     if (o) out[dia] = o;
   }
   return out;

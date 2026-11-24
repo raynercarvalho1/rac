@@ -80,7 +80,7 @@
     if(!I){L.push(h("div",{class:"rh-largo"},rkEstado("vazio","Ainda sem dados do relógio. Toque em “Atualizar agora”.")));return L}
     var pr=I.prontidao,k=h("section",{class:"sh-kpis","aria-label":"Indicadores principais"});
     k.appendChild(rkKpi({rotulo:"Prontidão",valor:pr?shV(String(pr.nota)):"—",apoio:pr?pr.rotulo+" · cálculo do RAC":"dados insuficientes",href:"#saude/recuperacao",destaque:true,alerta:!!(pr&&pr.nota<45)}));
-    k.appendChild(shKpiItem("Sono","sono",shHm,I,"queda","#saude/sono"));k.appendChild(shKpiItem("VFC (noite)","vfc",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"," ms"));
+    k.appendChild(shKpiItem("Sono","sono",shHm,I,"queda","#saude/sono"));k.appendChild(shKpiItem("Score do sono","nota",function(v){return Math.round(v)},I,"queda","#saude/sono"," /100"));k.appendChild(shKpiItem("VFC (noite)","vfc",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"," ms"));
     k.appendChild(shKpiItem("FC de repouso","fc",function(v){return Math.round(v)},I,"alta","#saude/recuperacao"," bpm"));k.appendChild(shKpiItem("Body Battery","bb",function(v){return Math.round(v)},I,"queda","#saude/recuperacao"));
     L.push(k);
     L.push(h("div",{class:"rh-largo"},shRecomendacao(C)));
@@ -143,6 +143,19 @@
   var SAU_C=NUCLEO.SAU_CAMPOS;
   /* ---- Sono ---- */
   var SH_FASES=[["profundo","Profundo","sh-f1"],["rem","REM","sh-f2"],["leve","Leve","sh-f3"],["acordado","Acordado","sh-f4"]];
+  /* score do sono (nota de 0 a 100 do relógio): última noite com o rótulo, médias de 7 e 30 noites, melhor e pior das 14 últimas e os escores por fase (quando já buscados) */
+  function shScoreSono(C){var S=NUCLEO.sauScoreSono(C.dias,C.hoje),oc=C.pr.ocultar;
+    if(!S)return rkCard("Score do sono",rkEstado("vazio","Sem score do sono: o relógio não mandou a nota das últimas noites."),{origem:"Nota do relógio Garmin."});
+    var corpo=h("div",{class:"rac-pilha",style:"gap:12px"}),k=h("section",{class:"rh-kpis","aria-label":"Score do sono"});
+    k.appendChild(rkKpi({rotulo:"Última noite"+(S.hoje?"":" ("+dataBR(S.data).slice(0,5)+")"),valor:shV(String(S.nota)+" /100"),apoio:S.rotulo||"",destaque:true,alerta:S.nota<60}));
+    k.appendChild(rkKpi({rotulo:"Média de 7 noites",valor:S.media7!=null?shV(String(S.media7)):"—",apoio:S.media7!=null?S.n7+" noites":"menos de 4 noites"}));
+    k.appendChild(rkKpi({rotulo:"Média de 30 noites",valor:S.media30!=null?shV(String(S.media30)):"—",apoio:S.media30!=null?S.n30+" noites":"menos de 10 noites"}));
+    corpo.appendChild(k);
+    if(!oc&&S.melhor&&S.pior&&S.melhor.data!==S.pior.data)corpo.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Nas últimas 14 noites: melhor "+S.melhor.v+" ("+dataBR(S.melhor.data).slice(0,5)+") e pior "+S.pior.v+" ("+dataBR(S.pior.data).slice(0,5)+")."}));
+    if(S.escores.length&&!oc)corpo.appendChild(h("div",{class:"rac-linha-flex",style:"flex-wrap:wrap;gap:6px"},S.escores.map(function(e){return rkSelo(/EXCELLENT|GOOD|OPTIMAL|NORMAL/.test(e.chave)?"ok":/FAIR|MODERATE|MILD|LOW/.test(e.chave)?"aviso":"erro",e.nome+": "+e.rotulo)})));
+    else if(!S.escores.length)corpo.appendChild(h("span",{class:"rac-t-legenda",text:"Os escores por fase (duração, profundo, REM…) aparecem depois de “Completar” nos Dados extras do relógio (Inteligência)."}));
+    corpo.appendChild(h("span",{class:"rac-t-legenda",text:"Nota de 0 a 100 calculada pelo relógio Garmin (duração, fases, agitação e estresse); estimativa, não exame."}));
+    return rkCard("Score do sono",corpo,{sub:"Excelente a partir de 90, bom de 80 a 89, regular de 60 a 79 e ruim abaixo de 60 (faixas da Garmin).",origem:"Nota do relógio Garmin; escores por fase nos dados extras."})}
   function shSono(C){var L=[],noites=NUCLEO.sauJanela(C.por,C.hoje,14,SAU_C.sono),I=C.ind;
     if(!noites.length&&!I){L.push(h("div",{class:"rh-largo"},rkEstado("vazio","Sem dados de sono.")));return L}
     var j7=NUCLEO.sauJanela(C.por,C.hoje,7,SAU_C.sono),m7=j7.length>=5?NUCLEO.sauMedia(NUCLEO.sauVals(j7)):null,meta=C.pr.sonoH,reg=NUCLEO.sauRegularidade(C.por,C.hoje,14),ult=noites[noites.length-1],uSono=ult?C.por[ult.data].sono:null;
@@ -152,7 +165,9 @@
     k.appendChild(rkKpi({rotulo:"Dorme em média às",valor:reg.suficiente?shV(reg.dormirMedio):"—",apoio:reg.suficiente?"variação de "+shV(reg.dormirDpMin+" min")+" · "+reg.n+" noites":"menos de 8 noites com horário"}));
     k.appendChild(rkKpi({rotulo:"Acorda em média às",valor:reg.suficiente&&reg.acordarMedio?shV(reg.acordarMedio):"—",apoio:reg.acordarDpMin!=null?"variação de "+shV(reg.acordarDpMin+" min"):"horário só em parte das noites"}));
     L.push(k);
+    L.push(h("div",{class:"rh-largo"},shScoreSono(C)));
     var esq=h("div",{class:"rh-prio sh-col"}),dir=h("div",{class:"rh-lado sh-col"});L.push(esq,dir);
+    esq.appendChild(shCardSerie("Score do sono: tendência","Nota por noite nos últimos 30 dias.",C,SAU_C.nota,function(v){return String(Math.round(v))},0,"As colunas partem do zero."));
     esq.appendChild(shCardSerie("Duração do sono: tendência","Horas por noite nos últimos 30 dias.",C,SAU_C.sono,shHm,0,"As colunas partem do zero. A meta pessoal é de "+meta+" h."));
     /* estágios: estimativa do relógio (frequência cardíaca e movimento), nunca diagnóstico */
     var comE=noites.slice(-14).filter(function(n){var s=C.por[n.data].sono;return s&&(s.profundo||s.rem||s.leve)});

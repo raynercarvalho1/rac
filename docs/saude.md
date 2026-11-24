@@ -109,3 +109,10 @@ Saúde → Visão geral → cartão **Resumo da semana** (logo abaixo da Recomen
 - **A IA nunca grava:** o texto aparece e só o botão "Guardar este resumo" o salva (`PESSOAL.saudeResumos`, por semana, só do dono, 8 semanas). "Gerar de novo" faz outra chamada paga, com nova confirmação. O consumo aparece em Custos de IA (módulo `saude`).
 - **Produção:** a ação precisa estar liberada no banco (**migration 066**, no molde da 028: acrescenta `saude.resumo` a `acoes_reais`, nunca à casa) e a **`rac-ia` republicada**; sem isso o botão avisa e nada é cobrado. Ordem: SQL → função → site.
 - Testes: `tests/saude_resumo.test.mjs`.
+
+## Score do sono (24/11/2026)
+A nota de 0 a 100 que o relógio dá a cada noite (`garmin_dia.dados.sono.nota`, com o rótulo `qualidade` da Garmin) ganhou lugar de destaque:
+- **Visão geral:** indicador "Score do sono" ao lado do Sono, com a nota, a comparação com o seu normal de 60 dias e o dia.
+- **Aba Sono:** cartão **Score do sono** (última noite com o rótulo: excelente, bom, regular ou ruim; média de 7 e de 30 noites; melhor e pior das 14 últimas; escores por fase quando já buscados) e o gráfico "Score do sono: tendência" (30 noites). Faixas da Garmin: excelente a partir de 90, bom de 80 a 89, regular de 60 a 79, ruim abaixo de 60.
+- **Escores por fase** (duração, sono profundo, REM, sono leve, despertares, agitação e estresse: excelente/bom/regular/ruim) vêm de `dados.extras.sono`, gravados pela função `garmin` (`lerSonoIntervalo`, o mesmo endpoint de sono já coletado, **uma consulta por janela de 28 dias**, sem chamada nova por dia). Aparecem para os dias já completados em Inteligência → Dados extras do relógio → "Completar", e a rotina diária os grava dos dias novos. **Exige republicar a função `garmin`.**
+- Regra pura `NUCLEO.sauScoreSono`; só lê, sem IA e sem custo; sem nota o RAC não inventa. Com "ocultar valores" nos Ajustes, os detalhes ficam ocultos. Testes: `tests/saude_score_sono.test.mjs`.

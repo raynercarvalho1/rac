@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resumoAlertasPreco } from "./alertas_preco.ts";
 import { simplificarRota } from "./rotas.ts";
-import { CAMINHOS, INDISPONIVEIS, JANELA_DIAS, formato, lerBodyBatteryIntervalo, lerEstresseIntervalo, lerFcDia, lerPeso, lerSpo2Dia } from "./extras.ts";
+import { CAMINHOS, INDISPONIVEIS, JANELA_DIAS, formato, lerBodyBatteryIntervalo, lerEstresseIntervalo, lerFcDia, lerPeso, lerSonoIntervalo, lerSpo2Dia } from "./extras.ts";
 
 const BASE = "https://personal.connectapi.garmin.com";
 /* CORS: só o site (e o teste local) podem chamar pelo navegador. Atalhos do iPhone e a rotina do banco não são navegador
@@ -340,8 +340,8 @@ async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record
   let salvos = 0;
   if (dias.length) {
     const a = dias[0].data, b = dias[dias.length - 1].data;
-    const [es, bb, ps] = await Promise.all([tenta("estresse", CAMINHOS.estresse(a, b)), tenta("bb", CAMINHOS.bb(a, b)), tenta("peso", CAMINHOS.peso(a, b))]);
-    const estresse = lerEstresseIntervalo(es), bateria = lerBodyBatteryIntervalo(bb), peso = lerPeso(ps);
+    const [es, bb, ps, sn] = await Promise.all([tenta("estresse", CAMINHOS.estresse(a, b)), tenta("bb", CAMINHOS.bb(a, b)), tenta("peso", CAMINHOS.peso(a, b)), tenta("sono", CAMINHOS.sono(a, b))]);
+    const estresse = lerEstresseIntervalo(es), bateria = lerBodyBatteryIntervalo(bb), peso = lerPeso(ps), sonoDet = lerSonoIntervalo(sn);
     for (let i = 0; i < dias.length; i += 4) {          // as consultas por data, 4 por vez, com pausa (a Garmin limita pedidos seguidos)
       if (i) await new Promise((ok) => setTimeout(ok, 500));
       await Promise.all(dias.slice(i, i + 4).map(async (l) => {
@@ -349,7 +349,7 @@ async function sincExtras(sb: Sb, tok: string, uid: string | null, corpo: Record
         const ex: Record<string, unknown> = {};
         const poe = (k: string, v: unknown) => { if (v !== undefined) ex[k] = v; };
         poe("fc", fc ? lerFcDia(fc, l.data) : undefined); poe("spo2", sp ? lerSpo2Dia(sp) : undefined);
-        poe("estresse", estresse[l.data]); poe("bb", bateria[l.data]); poe("peso", peso[l.data]);
+        poe("estresse", estresse[l.data]); poe("bb", bateria[l.data]); poe("peso", peso[l.data]); poe("sono", sonoDet[l.data]);
         if (!Object.keys(ex).length) return;
         const dados = { ...l.dados, extras: { ...(l.dados?.extras ?? {}), ...ex, atualizado: hoje } };
         let u = sb.from("garmin_dia").update({ dados, atualizado: new Date().toISOString() }).eq("data", l.data); if (uid) u = u.eq("user_id", uid);

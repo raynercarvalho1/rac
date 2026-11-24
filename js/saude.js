@@ -160,6 +160,14 @@
       if(d.falhas&&d.falhas.length)logErro("Garmin (rotas)",new Error(d.falhas.join("; ")));
       if(d.mais)return new Promise(function(ok){setTimeout(ok,2500)}).then(rodada)})}   /* pausa entre rodadas: a Garmin limita pedidos seguidos */
     return rodada().catch(function(e){if(/429/.test(e.message)){st("A Garmin pediu uma pausa (limite de pedidos). O que já foi buscado está guardado: espere alguns minutos e toque de novo.");return {limitado:true}}throw e})}
+  /* Resumo da semana com IA (Lote 6): UMA chamada por clique, depois da confirmação do dono, pela rac-ia (ação saude.resumo, Haiku, só REAL). Nunca repete sozinha.
+     Só agregados numéricos vão ao servidor (r.fatos, de NUCLEO.sauResumoSemana). Só a resposta REAL e no formato vira resumo; o resto vira mensagem. */
+  function saudeResumoIA(r){
+    var chamada;try{chamada=Promise.resolve(racIA("saude","saude.resumo",{texto:r.fatos,imagens:[]},{data:r.fim},iaNovaChave()))}catch(e){return Promise.resolve({ok:false,msg:"Falhou antes de enviar; nada saiu do navegador e nada foi cobrado."})}
+    return chamada.then(function(x){var res=x&&x.resultado;
+      if(x&&x.ok&&x.modo==="REAL"&&res&&!res._demo&&res.resumo&&Array.isArray(res.destaques))return {ok:true,res:{resumo:res.resumo,destaques:res.destaques,atencao:res.atencao||[],proximo:res.proximo||""},custo:x.consumo&&x.consumo.estimado_rac_usd};
+      return {ok:false,msg:(x&&x.erro&&x.erro.mensagem)||(x&&x.mensagem)||"A IA não respondeu.",codigo:x&&x.erro&&x.erro.codigo}},
+      function(e){return {ok:false,msg:"Não consegui falar com a IA ("+(e&&e.message||e)+"). Se a chamada saiu, ela fica registrada nos Custos de IA e não será repetida sozinha."}})}
   /* Lugares (Lote 5): compras do Mercado (só data, mercado, número e valor) e as rotas; as regras estão em NUCLEO.lug* */
   function saudeCorLugar(t){return t==="mercado"?"#C2410C":"#2E8BD8"}
   function saudeLugaresLer(){var acc=[];

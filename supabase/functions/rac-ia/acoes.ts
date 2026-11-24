@@ -614,6 +614,53 @@ const hojeAnalise: Acao = {
   },
 };
 
+/* ---------- Saúde: resumo da semana (Lote 6, Haiku 5.5; só dono; só REAL, sem demonstração) ---------- */
+/* O site manda só AGREGADOS numéricos da semana (médias, contagens, cargas; nunca local, nome, foto ou valor bruto). A IA escreve um texto curto e NÃO inventa:
+   todo número do texto precisa estar nos fatos (ou ser um número pequeno de contagem de dias). Não diagnostica nem dá conselho médico. Nunca grava: o dono
+   vê o texto e só o clique em "Guardar" o salva (no site, em PESSOAL). */
+const SAUDE_RESUMO_REGRAS =
+  "Você recebe os números agregados de uma semana de saúde e treino de uma pessoa (sono, variabilidade cardíaca, batimentos em repouso, passos, treinos sem caminhada, carga e " +
+  "prontidão), com a semana anterior para comparar. Escreva SEMPRE em português do Brasil, em tom próximo e objetivo, falando com a pessoa (\"você\").\n" +
+  "Regras: use apenas os números e fatos que estão em <dados>; não invente valores, causas, diagnósticos, doenças nem conselhos médicos; não prometa resultados. " +
+  "Cada número que aparecer no texto tem de estar nos dados (exatamente como escrito). Compare com a semana anterior só quando os dois valores existirem. " +
+  "Se um dado estiver ausente, diga que faltou, sem estimar. Não escreva links.\n" +
+  "resumo: de 3 a 5 frases sobre a semana. destaques: de 2 a 4 pontos positivos ou marcantes, cada um em 1 frase. atencao: de 0 a 3 pontos que merecem cuidado (queda, falta de dado, carga alta), cada um em 1 frase, sem alarmismo; lista vazia se não houver. " +
+  "proximo: 1 frase com uma sugestão leve e prática para a próxima semana, baseada só nos dados.";
+const saudeResumo: Acao = {
+  id: "saude.resumo",
+  modulo: "saude",
+  modelo: "claude-haiku-5-5",
+  papeis: ["dono"],
+  real: true, // só REAL (sem demonstração): em DEMO a função responde sem_real; vale quando o banco liberar (066)
+  maxTokens: 1500,
+  esforco: "low",
+  imagensMax: 0,
+  textoMax: 3000,
+  contexto: { data: "texto" },
+  sistema: REGRAS_GERAIS + "\n\n" + SAUDE_RESUMO_REGRAS,
+  esquema: {
+    type: "object",
+    properties: { resumo: { type: "string" }, destaques: { type: "array", items: { type: "string" } }, atencao: { type: "array", items: { type: "string" } }, proximo: { type: "string" } },
+    required: ["resumo", "destaques", "atencao", "proximo"],
+    additionalProperties: false,
+  },
+  validar(r, ctx, entrada) {
+    if (typeof ctx.data !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(ctx.data)) return { ok: false, motivo: "data do contexto inválida" };
+    const o = objeto(r); if (!o) return { ok: false, motivo: "resposta não é um objeto" };
+    const permitidos = new Set(numerosDe(entrada?.texto ?? "")); for (let i = 0; i <= 7; i++) permitidos.add(i);   // contagem de dias da semana
+    const limpo = (v: unknown, max: number) => semLinks(txt(v, max));
+    const resumo = limpo(o.resumo, 900); if (resumo.length < 40) return { ok: false, motivo: "resumo curto demais" };
+    const destaques = (Array.isArray(o.destaques) ? o.destaques : []).map((x) => limpo(x, 240)).filter(Boolean).slice(0, 4);
+    const atencao = (Array.isArray(o.atencao) ? o.atencao : []).map((x) => limpo(x, 240)).filter(Boolean).slice(0, 3);
+    const proximo = limpo(o.proximo, 240);
+    if (!destaques.length) return { ok: false, motivo: "sem destaques" };
+    if (!proximo) return { ok: false, motivo: "sem próximo passo" };
+    const todos = [resumo, ...destaques, ...atencao, proximo], fora = todos.flatMap((t) => numerosDe(t)).filter((n) => !permitidos.has(n));
+    if (fora.length) return { ok: false, motivo: "número fora dos fatos: " + fora.slice(0, 3).join(", ") };
+    return { ok: true, avisos: [], resultado: { resumo, destaques, atencao, proximo } };
+  },
+};
+
 /* ---------- Central Fiscal: nota em foto ou PDF (Sonnet 5.5; dono e casa (057); só REAL, sem demonstração) ---------- */
 /* Lote 1.4 (docs/fiscal.md). A IA só LÊ: o RAC valida a conta (nfValidarSoma/nfVeredito), a situação e a duplicidade, e a confiança mínima de 0,90 vale
    para a gravação como validada. Sem demonstração: em DEMO a função responde sem_real (como o RAC Hoje). */
@@ -821,7 +868,7 @@ const radarEquivalencia: Acao = {
 export const ACOES: Record<string, Acao> = {
   [abastecimento.id]: abastecimento, [mercadoNota.id]: mercadoNota, [newsletterResumo.id]: newsletterResumo,
   [esportesAnalise.id]: esportesAnalise, [esportesGiro.id]: esportesGiro, [alimentacaoPedido.id]: alimentacaoPedido,
-  [hojeAnalise.id]: hojeAnalise, [fiscalNota.id]: fiscalNota, [radarEquivalencia.id]: radarEquivalencia,
+  [hojeAnalise.id]: hojeAnalise, [saudeResumo.id]: saudeResumo, [fiscalNota.id]: fiscalNota, [radarEquivalencia.id]: radarEquivalencia,
 };
 
 /* monta o pedido ao provedor: instruções fixas no "system"; imagens e texto do usuário como dados, entre <dados> */

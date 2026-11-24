@@ -280,7 +280,7 @@ test("Saúde: só o dono vê; nenhuma IA, nenhuma leitura própria do banco, nen
   const hub = ler("js/saude-hub.js").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.ok(!/\.from\("/.test(hub), "o hub não lê o banco por conta própria (só pela fonte)"); assert.ok(!/\.(insert|update|upsert|delete|rpc)\(/.test(hub), "e não grava");
   assert.ok(!/racIA|rac-ia|ia_config|functions\.invoke/.test(hub), "sem IA e sem chamada de função no hub (a sincronização é a de js/saude.js)");
-  const grav = [...hub.matchAll(/pessoalGravar\("([^"]+)"/g)].map((m) => m[1]).sort(); assert.deepEqual([...new Set(grav)], ["diario", "saudeLugares", "saudePrefs"], "só o diário de humor, a preferência e as marcações de lugares (Lote 5, só do dono)");
+  const grav = [...hub.matchAll(/pessoalGravar\("([^"]+)"/g)].map((m) => m[1]).sort(); assert.deepEqual([...new Set(grav)], ["diario", "saudeLugares", "saudePrefs", "saudeResumos"], "só o diário de humor, a preferência, as marcações de lugares (Lote 5) e os resumos guardados (Lote 6), só do dono");
   const limpo = hub.replace(/"(?:[^"\\\n]|\\.)*"/g, '""'); assert.ok(!/\b(let|const)\s|=>|`|\bclass\s+\w|\.\.\.|\basync\b|\bawait\b/.test(limpo), "ES5 puro");
   assert.match(ler("sw.js"), /"\.\/js\/saude-hub\.js"/); assert.match(ler("sw.js"), /"\.\/js\/fonte-saude\.js"/);
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(hub.replace(/&#\d+/g, "").replace(/href:"#[a-z]/g, "")), "cores só por tokens (sem hex no hub)");

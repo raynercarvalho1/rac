@@ -1,115 +1,159 @@
 {
- "coletado": "2026-11-24T13:37:29.771648+00:00",
+ "coletado": "2026-11-24T23:52:35.482274+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "Cubs To Sign Trevor Rogers",
-   "link": "https://www.mlbtraderumors.com/2026/11/cubs-to-sign-trevor-rogers.html",
-   "data": "2026-11-24T05:59:34+00:00",
-   "resumo": "The Cubs have made their first big move on the pitching front. Chicago is reportedly in agreement with starter Trevor Rogers on a five-year, $120MM contract. The deal, which is pending a physical, includes an escalator package and some deferrals that’ll bring down the net…",
+   "t": "White Sox To Sign Tyrone Taylor",
+   "link": "https://www.mlbtraderumors.com/2026/11/white-sox-to-sign-tyrone-taylor.html",
+   "data": "2026-11-24T23:25:44+00:00",
+   "resumo": "The White Sox and free agent outfielder Tyrone Taylor have reportedly agreed to a contract worth $17MM over two years. The Sox have an open 40-man spot at the moment and therefore won’t need a corresponding move to make this deal official. Taylor, 33 in January, has a long…",
    "tags": [
-    "Baltimore Orioles",
-    "Chicago Cubs",
+    "Chicago White Sox",
     "Newsstand",
     "Transactions",
-    "Trevor Rogers"
+    "Tyrone Taylor"
    ]
   },
   {
-   "t": "José Suarez Signs With KBO’s Doosan Bears",
-   "link": "https://www.mlbtraderumors.com/2026/11/jose-suarez-signs-with-kbos-doosan-bears.html",
-   "data": "2026-11-24T05:37:37+00:00",
-   "resumo": "Left-hander José Suarez signed with the Doosan Bears of the Korea Baseball Organization, the club announced. Ari Alexander of Boston 7 News first reported the move, noting that the ISE Baseball client will make a $1MM guarantee. Suarez heads to Asia after parts of eight seasons…",
+   "t": "Multiple Teams Showing Interest In Tyler Austin",
+   "link": "https://www.mlbtraderumors.com/2026/11/multiple-teams-showing-interest-in-tyler-austin.html",
+   "data": "2026-11-24T22:38:10+00:00",
+   "resumo": "Free agent first baseman Tyler Austin is generating interest from multiple clubs, reports Joel Sherman of The New York Post. He lists the Mets, Yankees, Cubs, Blue Jays and Rays as the teams in the mix. Austin, 35, would be a buy-low addition for any club and Sherman notes he…",
    "tags": [
-    "Korea Baseball Organization",
+    "Chicago Cubs",
+    "New York Mets",
+    "New York Yankees",
+    "Tampa Bay Rays",
+    "Toronto Blue Jays",
+    "Tyler Austin"
+   ]
+  },
+  {
+   "t": "Tigers Interested In Bryan Abreu",
+   "link": "https://www.mlbtraderumors.com/2026/11/tigers-interested-in-bryan-abreu.html",
+   "data": "2026-11-24T21:51:23+00:00",
+   "resumo": "The Tigers are interested in free agent reliever Bryan Abreu, reports Evan Petzold, though Petzold notes that the two sides are currently at an impasse because Abreu is looking for a multi-year deal while the club would prefer to keep an arrangement to one year. Abreu, 30 in…",
+   "tags": [
+    "Detroit Tigers",
+    "Bryan Abreu"
+   ]
+  },
+  {
+   "t": "Mets, Eddys Leonard Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-sign-infielder-eddys-leonard.html",
+   "data": "2026-11-24T21:21:08+00:00",
+   "resumo": "The Mets and infielder Eddys Leonard are in agreement on a minor league deal with an invitation to major league spring training, reports Will Sammon of The Athletic. Leonard, 26, made his big league debut with the Giants this past season. He only tallied eight plate…",
+   "tags": [
+    "New York Mets",
     "Transactions",
-    "Jose Suarez"
+    "Eddys Leonard"
    ]
   },
   {
-   "t": "Twins Pursuing Right Side Infielder, Left-Handed Relief",
-   "link": "https://www.mlbtraderumors.com/2026/11/twins-pursuing-right-side-infielder-left-handed-relief.html",
-   "data": "2026-11-24T02:58:38+00:00",
-   "resumo": "The Twins have been among the most active clubs in the first couple weeks of the offseason. They retained catcher Ryan Jeffers when he surprisingly accepted a $23.15MM qualifying offer. Minnesota followed up by bringing Sonny Gray back to the Twin Cities on a two-year, $55MM…",
+   "t": "Nationals Among Teams Interested In Jazz Chisholm Jr.",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-rumors-jazz-chisholm-free-agent.html",
+   "data": "2026-11-24T20:39:13+00:00",
+   "resumo": "The Nationals are among the clubs showing interest in free agent infielder Jazz Chisholm Jr., reports Robert Murray of FanSided. There’s no indication a deal is close. Broadly speaking, the market for pitching has moved considerably faster than the market for bats —…",
    "tags": [
-    "Minnesota Twins",
+    "Washington Nationals",
     "Jazz Chisholm Jr."
    ]
   },
   {
-   "t": "Astros To Add Aaron Bates, J.P. Martinez To Coaching Staff",
-   "link": "https://www.mlbtraderumors.com/2026/11/astros-to-add-aaron-bates-j-p-martinez-to-coaching-staff.html",
-   "data": "2026-11-24T00:46:49+00:00",
-   "resumo": "The Astros are hiring J.P. Martinez as their pitching coach and Aaron Bates as hitting coach, as first reported by Chandler Rome and Ken Rosenthal of The Athletic. Brian McTaggart of MLB.com reports that Triple-A manager Mickey Storey is also being promoted to the big league…",
+   "t": "Orioles Sign Freddy Peralta",
+   "link": "https://www.mlbtraderumors.com/2026/11/orioles-sign-freddy-peralta.html",
+   "data": "2026-11-24T20:30:25+00:00",
+   "resumo": "2:30pm: Per Noah Trister of the Associated Press, there’s a $10MM signing bonus and Peralta will make even salaries of $23MM in each year of the deal. 1:42pm: The Orioles have formally announced the signing. 11:20am: The Orioles and free agent starter Freddy Peralta are…",
+   "tags": [
+    "Baltimore Orioles",
+    "Newsstand",
+    "Transactions",
+    "Freddy Peralta"
+   ]
+  },
+  {
+   "t": "Blue Jays To Sign Kaima Taira",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-to-sign-kaima-taira.html",
+   "data": "2026-11-24T20:20:45+00:00",
+   "resumo": "The Blue Jays and right-hander Kaima Taira have reportedly agreed to a five-year, $80MM deal. There’s an opt-out after the third year and a $5MM signing bonus for the Boras Corporation client. The Jays will also owe a posting fee of $13.875MM to the Seibu Lions, Taira’s NPB…",
+   "tags": [
+    "Newsstand",
+    "Toronto Blue Jays",
+    "Transactions",
+    "Kaima Taira"
+   ]
+  },
+  {
+   "t": "Astros To Hire Nate Irving As Assistant Hitting Coach",
+   "link": "https://www.mlbtraderumors.com/2026/11/astros-to-hire-nate-irving-as-assistant-hitting-coach.html",
+   "data": "2026-11-24T20:01:59+00:00",
+   "resumo": "New Astros manager Brad Ausmus’ staff continues to come together. Houston is expected to hire Nate Irving as an assistant hitting coach, reports Joel Sherman of the New York Post. Irving was most recently a hitting coach in the Mets’ minor league system. Irving is the latest…",
    "tags": [
     "Houston Astros",
-    "Aaron Bates",
-    "J.P. Martinez (coach)",
-    "Mickey Storey",
-    "Victor Rodriguez"
+    "Nate Irving"
    ]
   },
   {
-   "t": "Royals Sign Caleb Thielbar",
-   "link": "https://www.mlbtraderumors.com/2026/11/royals-to-sign-caleb-thielbar.html",
-   "data": "2026-11-24T00:10:24+00:00",
-   "resumo": "The Royals announced that they have signed left-hander Caleb Thielbar to a one-year deal. It’s reportedly a $3.25MM guarantee for the ISE Baseball client. Kansas City had an open 40-man roster spot and didn’t need to make a corresponding move. Thielbar, 40 in January, is a…",
+   "t": "Tigers To Sign Ha-Seong Kim",
+   "link": "https://www.mlbtraderumors.com/2026/11/tigers-to-sign-ha-seong-kim.html",
+   "data": "2026-11-24T19:00:41+00:00",
+   "resumo": "The Tigers and infielder Ha-Seong Kim have agreed to a one-year, $5MM deal, reports Jeff Passan of ESPN. The Boras Corporation client can earn an extra $1MM via incentives, per Jon Heyman of The New York Post. Detroit has a full 40-man roster and will need to make a…",
    "tags": [
-    "Kansas City Royals",
+    "Detroit Tigers",
+    "Newsstand",
     "Transactions",
-    "Caleb Thielbar"
+    "Ha-Seong Kim"
    ]
   },
   {
-   "t": "Nationals To Sign Luis Curvelo To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/nationals-to-sign-luis-curvelo-to-minor-league-deal.html",
-   "data": "2026-11-23T23:33:49+00:00",
-   "resumo": "The Nationals have agreed to sign right-hander Luis Curvelo to a minor league deal, reports Kiley McDaniel of ESPN. The Ballengee Group client receives an invite to big league camp in spring training. Curvelo, 26, pitched for the Rangers in the two most recent big league…",
+   "t": "Pirates To Re-Sign Noah Murdock",
+   "link": "https://www.mlbtraderumors.com/2026/11/pirates-to-re-sign-noah-murdock.html",
+   "data": "2026-11-24T18:59:34+00:00",
+   "resumo": "Right-hander Noah Murdock is headed back to the Pirates on a minor league deal, per reporter Alex Stumpf. Pittsburgh non-tendered Murdock last week. Murdock joined the organization on a minor league deal last winter. He had his contract selected in July and made three…",
    "tags": [
+    "Pittsburgh Pirates",
     "Transactions",
-    "Washington Nationals",
-    "Luis Curvelo"
+    "Noah Murdock"
    ]
   },
   {
-   "t": "MLB Offers To Raise Minimum Salary To $1MM In Latest Cap Proposal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlb-offers-to-raise-minimum-salary-to-1mm-in-latest-cap-proposal.html",
-   "data": "2026-11-23T22:01:46+00:00",
-   "resumo": "Major League Baseball made its latest proposal on core economics on Monday. The league offered to raise the minimum salary to $1MM for all players, a modest increase over their previous proposal of a $900K minimum for those with less than two years of service time (links via…",
+   "t": "Freddy Tarnok Re-Signs With NPB’s Hiroshima Carp",
+   "link": "https://www.mlbtraderumors.com/2026/11/freddy-tarnok-re-signs-npb-hiroshima-carp-japan.html",
+   "data": "2026-11-24T18:13:58+00:00",
+   "resumo": "Former big league right-hander Freddy Tarnok has re-signed with the Hiroshima Carp of Japan’s Nippon Professional Baseball, MLBTR has learned. The Excel Sports Management client is re-upping on a one-year deal after a solid first season overseas. Tarnok, a 2017 third-round pick…",
    "tags": [
-    "2026-27 Collective Bargaining"
-   ]
-  },
-  {
-   "t": "Guardians Sign Jairo Iriarte To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/guardians-sign-jairo-iriarte-to-minor-league-deal.html",
-   "data": "2026-11-23T21:45:52+00:00",
-   "resumo": "The Guardians announced Monday that they’ve signed right-hander Jairo Iriarte to a minor league contract. He’s been invited to major league spring training. Iriarte is represented by Klutch Sports. Iriarte, 25 next month, is a former top prospect in both the Padres and White…",
-   "tags": [
-    "Cleveland Guardians",
+    "Nippon Professional Baseball",
     "Transactions",
-    "Jairo Iriarte"
+    "Freddy Tarnok"
    ]
   },
   {
-   "t": "Latest Details On Tarik Skubal Bidding",
-   "link": "https://www.mlbtraderumors.com/2026/11/latest-details-on-tarik-skubal-bidding.html",
-   "data": "2026-11-23T21:22:42+00:00",
-   "resumo": "The Mets landed their top target on Sunday evening, agreeing to a nine-year contract with Tarik Skubal. The deal, which is pending a physical, comes with a record-setting $450MM guarantee that allowed New York to win the bidding over other suitors like the Blue Jays and Padres.…",
+   "t": "Cubs, Sam Moll Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/cubs-sign-sam-moll-reliever-lefty-reds.html",
+   "data": "2026-11-24T17:53:03+00:00",
+   "resumo": "The Cubs and free agent reliever Sam Moll are in agreement on a minor league contract with a spring training invitation, reports Jon Heyman of the New York Post. The 34-year-old lefty (35 in January) has spent parts of the past four seasons with the division-rival Reds. Moll…",
    "tags": [
-    "Los Angeles Dodgers",
-    "New York Mets",
-    "San Diego Padres",
-    "Toronto Blue Jays",
-    "Tarik Skubal"
+    "Chicago Cubs",
+    "Transactions",
+    "Sam Moll"
    ]
   },
   {
-   "t": "Yankees To Sign Brent Suter",
+   "t": "Nolan Arenado Working Out At First Base",
+   "link": "https://www.mlbtraderumors.com/2026/11/nolan-arenado-working-out-at-first-base.html",
+   "data": "2026-11-24T17:50:23+00:00",
+   "resumo": "There was a report in late October about the Diamondbacks considering a shift from third to first base for Nolan Arenado. Steve Gilbert of MLB.com provided more details on the discussion last week. The more recent report (both of which were from Gilbert) mentions Arenado…",
+   "tags": [
+    "Arizona Diamondbacks",
+    "Nolan Arenado"
+   ]
+  },
+  {
+   "t": "Yankees Sign Brent Suter",
    "link": "https://www.mlbtraderumors.com/2026/11/yankees-to-sign-brent-suter.html",
-   "data": "2026-11-23T20:45:36+00:00",
-   "resumo": "The Yankees and left-hander Brent Suter have reportedly agreed to a one-year deal with a club option for 2028. It’s a $4MM guarantee for the Diamond Sports Management client in the form of a $3.75MM salary next year then a $250K buyout on the option, which is valued at $3.5MM.…",
+   "data": "2026-11-24T16:55:36+00:00",
+   "resumo": "November 24: The Yankees announced the Suter deal. The 11-year vet is the latest addition to New York’s bullpen. November 23: The Yankees and left-hander Brent Suter have reportedly agreed to a one-year deal with a club option for 2028. It’s a $4MM guarantee for the Diamond…",
    "tags": [
     "New York Yankees",
     "Transactions",
@@ -117,56 +161,14 @@
    ]
   },
   {
-   "t": "Blue Jays Offered Tarik Skubal Nine-Year Deal In $420MM Range",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-offered-tarik-skubal-nine-year-deal-in-400mm-range.html",
-   "data": "2026-11-23T20:20:40+00:00",
-   "resumo": "November 23: Jon Heyman of The New York Post reports that Toronto’s offer checked in at $420MM over nine years. November 22: The Mets outpaced the market in signing Tarik Skubal to a nine-year, $450MM agreement earlier today, setting a new record as the largest contract ever…",
+   "t": "Yankees Re-Sign Tim Hill To One-Year Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/yankees-re-sign-tim-hill-to-one-year-deal.html",
+   "data": "2026-11-24T16:25:16+00:00",
+   "resumo": "November 24: The Yankees have officially announced the Hill signing. He rejoins a bullpen that also includes Brent Headrick and new addition Brent Suter from the left side. November 15: The Yankees are bringing back a known quantity for their bullpen. Left-hander Tim Hill is…",
    "tags": [
-    "New York Mets",
-    "Toronto Blue Jays",
-    "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "The Best Fits For Teruaki Sato",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-teruaki-sato.html",
-   "data": "2026-11-23T20:17:51+00:00",
-   "resumo": "MLBTR continues to give subscribers detailed looks at the markets for top free agents. In this edition, we look at Teruaki Sato, who is almost certainly going to sign very shortly. His 45-day posting window technically goes into the middle of December but a lockout is expected…",
-   "tags": [
-    "Front Office Originals",
-    "Teruaki Sato"
-   ]
-  },
-  {
-   "t": "Trade Rumors Front Office Subscriber Chat Transcript",
-   "link": "https://www.mlbtraderumors.com/2026/11/trade-rumors-front-office-subscriber-chat-today-2pm-ct-24.html",
-   "data": "2026-11-23T19:59:11+00:00",
-   "resumo": "Steve Adams Skubal off the board. Just over one week left on the lockout clock. Going to be a hectic few days! We’ll talk all things hot stove starting at 2pm CT, but feel free to send questions my way ahead of time! As we get underway, Jeff Passan reporting the Yankees are…",
-   "tags": [
-    "Front Office Originals",
-    "MLBTR Chats"
-   ]
-  },
-  {
-   "t": "Pitching Coach Josh Miller Will Not Return To Astros In 2027",
-   "link": "https://www.mlbtraderumors.com/2026/11/astros-pitching-coach-josh-miller-wont-return-2027.html",
-   "data": "2026-11-23T18:50:37+00:00",
-   "resumo": "The Astros previously announced that pitching coach Josh Miller would be back for the 2027 season, but it seems there’s been a change of plans. Brian McTaggart of MLB.com reports that Miller will not be back next year, ostensibly ending a 16-year run with the organization.…",
-   "tags": [
-    "Houston Astros",
-    "Brad Ausmus",
-    "Josh Miller"
-   ]
-  },
-  {
-   "t": "Tanner Rainey Signs With NPB’s Hokkaido Nippon-Ham Fighters",
-   "link": "https://www.mlbtraderumors.com/2026/11/tanner-rainey-signs-with-npbs-hokkaido-nippon-ham-fighters.html",
-   "data": "2026-11-23T18:48:28+00:00",
-   "resumo": "Former Tigers reliever Tanner Rainey is heading to Japan. The righty has agreed to a deal with the Hokkaido Nippon-Ham Fighters, per a team announcement. Rainey appeared in six games with Detroit this past season. He allowed three earned runs over seven innings and had more…",
-   "tags": [
-    "Nippon Professional Baseball",
+    "New York Yankees",
     "Transactions",
-    "Tanner Rainey"
+    "Tim Hill"
    ]
   }
  ],

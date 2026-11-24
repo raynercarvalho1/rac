@@ -549,8 +549,9 @@
     if(HJ.aviso)pa.appendChild(h("p",{class:"rac-t-sec",role:"status",style:"margin:0",text:HJ.aviso}));
     if(HJ.ocupado)pa.appendChild(rkEstado("carregando","Analisando com a IA… pode levar até 2 minutos. Não toque de novo: uma chamada só é feita."));
     if(HJ.erro)pa.appendChild(hjErro(HJ.erro));
-    if(prev.pend&&!(HJ.erro&&HJ.erro.chave===prev.pend.chave))pa.appendChild(hjErro(prev.pend));
-    if(a)pa.appendChild(hjAnalise(a,def));
+    var erroAntigo=prev.pend&&!(HJ.erro&&HJ.erro.chave===prev.pend.chave)?prev.pend:null;
+    if(erroAntigo&&!a)pa.appendChild(hjErro(erroAntigo));
+    if(a)pa.appendChild(hjAnalise(a,def,erroAntigo));
     else if(!HJ.ocupado)pa.appendChild(rkEstado("vazio","Ainda não há análise da IA neste aparelho. Nada foi chamado ao abrir a tela."));
     var existe=hist.some(function(y){return y.pacote===pacote&&!y.pergunta&&y.hoje===x.hoje});
     if(!uteis.ok)pa.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Análise bloqueada. "+uteis.motivo}));
@@ -564,7 +565,7 @@
       pq.appendChild(hjBotaoPago("Perguntar",function(){var t=campo.value.trim();if(!t)return {texto:"Escreva a pergunta antes de confirmar.",semConfirmar:true};return hjAviso(x,t,false)},
         function(){var t=campo.value.trim();if(!t){HJ.aviso="Escreva a pergunta antes de confirmar.";hjDesenhar();return}hjAnalisar({pergunta:t})}));
       pq.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
-    var cAnalise=hjRecolhivel(rkCard("Análise da IA",pa,{sub:"Interpretação feita pelo Claude sobre os fatos do painel. Roda quando você pede ou, se você ligar a análise automática, até 2 vezes por dia.",acao:rkLink("ter","Custos de IA","#iacustos")}),"Análise da IA");cAnalise.id="rh-analise";
+    var cAnalise=hjRecolhivel(rkCard("Análise da IA",pa,{acao:rkLink("ter","Custos de IA","#iacustos")}),"Análise da IA");cAnalise.id="rh-analise";
     corpo.appendChild(h("div",{class:"rh-dois"},cAnalise,
       hjRecolhivel(rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."}),"Pergunte sobre o seu dia")));
     /* 4. histórico e fontes: detalhe técnico recolhido (o conteúdo continua inteiro, é só abrir) */
@@ -574,7 +575,8 @@
     ph.appendChild(HJ.slotHist);ph.appendChild(HJ.slotPend);hjPintarHist();hjPintarPend();hjPintarAviso();
     var banco=h("div",null,h("p",{class:"sub",text:"Lendo o registro de chamadas…"}));ph.appendChild(h("span",{class:"rac-t-rotulo",text:"Registro de chamadas no banco (ia_custos)"}));ph.appendChild(banco);
     hjRegistro(banco);
-    corpo.appendChild(h("div",{class:"rh-largo"},rkRecolher("Histórico recente",null,ph)));
+    var npend=hojePendencias().length;
+    corpo.appendChild(h("div",{class:"rh-largo"},rkRecolher("Histórico recente",npend?h("span",{class:"rac-t-sec",text:npend+(npend===1?" chamada sem resultado":" chamadas sem resultado")}):null,ph)));
     var pf=h("div",{class:"rac-pilha"});
     pf.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Coleta feita"+(x.coletado?" às "+hjQuando(x.coletado).slice(-5)+" ("+hjIdade(x.coletado)+")":"")+". Só leitura; cada coleta vale por até 10 minutos. Origem: "+(hjOrigens(x.estados)||"nenhuma fonte lida")+
       ". \"Memória do site\" é dado já carregado, não relido aqui. Uma fonte que falha não derruba as outras."}));
@@ -601,7 +603,7 @@
   /* o aviso de outra aba: só diz o que há; as opções (reenviar, nova análise) aparecem ao reler as fontes ou na próxima ação desta aba */
   function hjPintarAviso(){var box=HJ.slotAviso;if(!box)return;box.innerHTML="";var pend=hojePendencias(),curso=pend.filter(function(r){return r.situacao==="em_curso"});
     if(curso.length)box.appendChild(h("p",{class:"hjdef",role:"status",text:"⏳ Há uma chamada em andamento (esta aba ou outra aberta neste aparelho). Novas análises ficam bloqueadas até ela terminar; o resultado aparece aqui quando chegar. Nada é enviado sozinho."}));
-    else if(pend.length)box.appendChild(h("p",{class:"hjdef",role:"status",text:"⚠ Há "+pend.length+(pend.length===1?" chamada sem resultado":" chamadas sem resultado")+" neste aparelho (veja em Histórico recente). Ao tentar a mesma análise, as opções aparecem."}))}
+    /* chamadas sem resultado não aparecem aqui: ficam em "Histórico recente" (resumo no título) */}
   function hjEntreAbas(){HJ.tmr=null;if(!HJ.corpo||!HJ.x||HJ.ocupado||!isOwner())return;
     try{hjPintarHist();hjPintarPend();hjPintarAviso()}catch(e){logErro("hoje",e)}}
   function hjSituacaoTxt(r){return r.situacao==="em_curso"?"em andamento":r.situacao==="consumida"?"não recuperável":r.situacao==="incerta"?"resultado incerto":""}
@@ -616,41 +618,49 @@
       box.appendChild(h("p",{class:"sub"},"Todos os custos, filtros e gráficos: ",h("a",{href:"#iacustos",text:"Custos de IA"}),"."))})
     .catch(function(e){box.innerHTML="";box.appendChild(h("p",{class:"empty",text:"Não consegui ler o registro de chamadas ("+(e.message||e)+")."}))})}
   /* a análise em exibição: o que é fato, o que é inferência, de onde veio, com que fontes e quanto custou */
-  function hjAnalise(a,def){var r=a.resultado,box=h("div",{class:"hjanalise"}),q=a.estados&&a.estados.length?NUCLEO.hojeQualidadeFontes(a.estados):null,
-      fonteDe={};(a.fatos||[]).forEach(function(f){fonteDe[f.id]=f.fonte});
-    /* dois selos separados: o pacote de dados bate com o de agora? e as fontes que a alimentaram tinham ressalva? */
+  function hjAnalise(a,def,erroAntigo){var r=a.resultado,box=h("div",{class:"hjanalise"}),q=a.estados&&a.estados.length?NUCLEO.hojeQualidadeFontes(a.estados):null,
+      fonteDe={},av=h("div",{class:"rac-pilha"}),nAv=0;(a.fatos||[]).forEach(function(f){fonteDe[f.id]=f.fonte});
+    function aviso(no){av.appendChild(no);nAv++}
+    /* linha de situação: só o selo de dados e a data; avisos, ressalvas e erros ficam na seção recolhida do fim */
     box.appendChild(h("div",{class:"hjmeta"},
       def&&def.atual?hjTag("Mesmos dados de agora","hje-ok","O pacote de dados é igual ao de agora e a análise tem menos de 6 horas. Não diz que as fontes estavam em dia."):hjTag("Desatualizada","hje-desatualizada"),
-      q?(q.comRessalva?hjTag("Fontes com ressalva ("+q.problemas.length+")","hje-desatualizada","Veja quais abaixo."):hjTag("Fontes lidas com dados","hje-lida","Todas as fontes responderam com dados; a idade só foi conferida nas que têm data própria. Não garante dados recentes.")):hjTag("Fontes não registradas","hje-ausente"),
       h("span",{class:"sub",text:"Feita em "+hjQuando(a.quando)+" · "+hjModelo(a.consumo&&a.consumo.modelo||"claude-sonnet-5-5")+" · "+hjCusto(a)})));
-    box.appendChild(h("p",{class:"sub",text:"A hora é a da análise, não a dos dados. \"Mesmos dados de agora\" compara os fatos com os de agora; não garante que as fontes estivessem em dia."}));
-    if(def&&!def.atual)box.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+def.motivo+" Peça uma nova análise se precisar de uma leitura atual."}));
-    if(q&&q.comRessalva)box.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Feita com fontes com ressalva: "+q.problemas.map(function(p){return p.nome+" ("+(HJ_ESTADOS[p.estado]||p.estado).toLowerCase()+(p.detalhe?", "+p.detalhe:"")+")"}).join("; ")+"."}));
-    if(q){var df=h("details",{class:"famvals hjfatos"},h("summary",{text:"Fontes no momento da análise ("+q.resumo+")"}));
-      df.appendChild(h("ul",{class:"wl hjfontes"},a.estados.map(function(e){return hjLinhaFonte(e,a.hoje)})));box.appendChild(df)}
-    else box.appendChild(h("p",{class:"sub",text:"O estado das fontes não foi guardado nesta análise (feita antes desta versão): não dá para saber quais tinham ressalva."}));
     if(a.pergunta)box.appendChild(h("p",{class:"sub",text:"Pergunta: "+a.pergunta}));
-    box.appendChild(h("h3",{class:"dayh",text:"Resumo"}));box.appendChild(h("p",{class:"sub",text:"Interpretação escrita pela IA: pode juntar fatos e inferências. A base são os fatos citados."}));
+    box.appendChild(h("h3",{class:"dayh",text:"Resumo"}));
     box.appendChild(h("p",{class:"hjtexto",text:r.resumo}));box.appendChild(h("p",{class:"sub",text:hjFatosTxt(r.resumo_fatos,fonteDe)}));
-    if(r.resposta){box.appendChild(h("h3",{class:"dayh",text:"Resposta à sua pergunta"}));box.appendChild(h("p",{class:"sub",text:"Resposta escrita pela IA: interpretação sobre os fatos citados, não um registro."}));
+    if(r.resposta){box.appendChild(h("h3",{class:"dayh",text:"Resposta à sua pergunta"}));
       box.appendChild(h("p",{class:"hjtexto",text:r.resposta.texto}));box.appendChild(h("p",{class:"sub",text:hjFatosTxt(r.resposta.fatos,fonteDe)}))}
+    /* O que merece atenção: cada item numa tela só, com a classificação e a prioridade em cima e a base (fatos) em letra pequena */
     box.appendChild(h("h3",{class:"dayh",text:"O que merece atenção"}));
-    box.appendChild(h("p",{class:"sub",text:"\"Fato\" e \"Inferência\" são a classificação da própria IA. O RAC confere que cada trecho cita fatos do pacote e que os números existem neles; não confere se a classificação está certa."}));
-    box.appendChild(h("ul",{class:"wl hjitens"},(r.atencao||[]).map(function(t){var fato=t.natureza==="fato";
-      return h("li",null,h("span",{class:"grow"},h("b",{text:t.titulo}),h("span",{class:"sub",text:t.por_que}),h("span",{class:"sub",text:hjFatosTxt(t.fatos,fonteDe)})),
-        h("span",{class:"hjtags"},hjTag(fato?"Fato (segundo a IA)":"Inferência (da IA)",fato?"hjn-fato":"hjn-inf",fato?"Classificação feita pela própria IA; o RAC conferiu as citações e os números, não a classificação.":"Interpretação da IA a partir dos fatos citados; não é um registro."),hjTag(HJ_PRIO[t.prioridade]||t.prioridade,"hjp-"+t.prioridade)))})));
-    function inf(titulo,sub,l,rotulo,cls,dica){if(!l||!l.length)return;box.appendChild(h("h3",{class:"dayh",text:titulo}));box.appendChild(h("p",{class:"sub",text:sub}));
+    box.appendChild(h("ul",{class:"hjatencao"},(r.atencao||[]).map(function(t){var fato=t.natureza==="fato";
+      return h("li",{class:"hjat hjat-"+t.prioridade},
+        h("span",{class:"hjtags"},hjTag(HJ_PRIO[t.prioridade]||t.prioridade,"hjp-"+t.prioridade),hjTag(fato?"Fato (segundo a IA)":"Inferência (da IA)",fato?"hjn-fato":"hjn-inf",fato?"Classificação feita pela própria IA; o RAC conferiu as citações e os números, não a classificação.":"Interpretação da IA a partir dos fatos citados; não é um registro.")),
+        h("b",{class:"hjat-t",text:t.titulo}),h("span",{class:"hjat-p",text:t.por_que}),h("span",{class:"hjat-f",text:hjFatosTxt(t.fatos,fonteDe)}))})));
+    function inf(titulo,l,rotulo,cls,dica){if(!l||!l.length)return;box.appendChild(h("h3",{class:"dayh",text:titulo}));
       box.appendChild(h("ul",{class:"wl hjitens"},l.map(function(t){return h("li",null,h("span",{class:"grow"},h("span",{class:"hjtexto",text:t.texto}),h("span",{class:"sub",text:hjFatosTxt(t.fatos,fonteDe)})),hjTag(rotulo,cls,dica))})))}
-    inf("Relações entre módulos","Ligações que a IA enxergou entre fontes diferentes. São inferências, não fatos registrados.",r.relacoes,"Inferência (da IA)","hjn-inf","Interpretação da IA que liga fontes diferentes; não é um registro.");
-    inf("Recomendações","Sugestões da IA. Ela não executa nada: você decide.",r.recomendacoes,"Recomendação da IA","hjn-sug","Sugestão da IA: o que ela recomenda fazer. Não é um fato; você decide.");
+    inf("Relações entre módulos",r.relacoes,"Inferência (da IA)","hjn-inf","Interpretação da IA que liga fontes diferentes; não é um registro.");
+    inf("Recomendações",r.recomendacoes,"Recomendação da IA","hjn-sug","Sugestão da IA: o que ela recomenda fazer. Não é um fato; você decide.");
     box.appendChild(h("h3",{class:"dayh",text:"Incertezas"}));
-    box.appendChild(h("p",{class:"sub",text:"Limites apontados pela IA: o que ela disse não saber ou não poder confirmar. Não inclui o que ela não percebeu."}));
-    box.appendChild(r.incertezas&&r.incertezas.length?h("ul",{class:"wl hjitens"},r.incertezas.map(function(t){return h("li",null,h("span",{class:"grow"},h("span",{class:"sub",text:t})))})):h("p",{class:"empty",text:"A IA não apontou incertezas (isso não quer dizer que não existam)."}));
+    if(r.incertezas&&r.incertezas.length)box.appendChild(h("ul",{class:"wl hjitens"},r.incertezas.map(function(t){return h("li",null,h("span",{class:"grow"},h("span",{class:"sub",text:t})))})));
+    else box.appendChild(h("p",{class:"sub",text:"A IA não apontou incertezas (isso não quer dizer que não existam)."}));
+    /* tudo o que é aviso, ressalva, erro e explicação técnica, num lugar só */
+    aviso(h("p",{class:"sub",text:"Como ler: \"Fato\" e \"Inferência\" são a classificação da própria IA. O RAC confere que cada trecho cita fatos do pacote e que os números existem neles; não confere se a classificação está certa. Interpretação escrita pela IA: o resumo pode juntar fatos e inferências. Recomendações: sugestões da IA, que não executa nada."}));
+    aviso(h("p",{class:"sub",text:"A hora é a da análise, não a dos dados. \"Mesmos dados de agora\" compara os fatos com os de agora; não garante que as fontes estivessem em dia."}));
+    aviso(h("p",{class:"sub",text:"Limites apontados pela IA: o que ela disse não saber ou não poder confirmar. Não inclui o que ela não percebeu."}));
+    if(def&&!def.atual)aviso(h("p",{class:"hjdef",role:"note",text:"⚠ "+def.motivo+" Peça uma nova análise se precisar de uma leitura atual."}));
+    if(q)aviso(hjTag(q.comRessalva?"Fontes com ressalva ("+q.problemas.length+")":"Fontes lidas com dados",q.comRessalva?"hje-desatualizada":"hje-lida",q.comRessalva?"Veja quais abaixo.":"Todas as fontes responderam com dados; a idade só foi conferida nas que têm data própria. Não garante dados recentes."));
+    if(q&&q.comRessalva)aviso(h("p",{class:"hjdef",role:"note",text:"⚠ Feita com fontes com ressalva: "+q.problemas.map(function(p){return p.nome+" ("+(HJ_ESTADOS[p.estado]||p.estado).toLowerCase()+(p.detalhe?", "+p.detalhe:"")+")"}).join("; ")+"."}));
+    if(q){var df=h("details",{class:"famvals hjfatos"},h("summary",{text:"Fontes no momento da análise ("+q.resumo+")"}));
+      df.appendChild(h("ul",{class:"wl hjfontes"},a.estados.map(function(e){return hjLinhaFonte(e,a.hoje)})));aviso(df)}
+    else aviso(h("p",{class:"sub",text:"O estado das fontes não foi guardado nesta análise (feita antes desta versão): não dá para saber quais tinham ressalva."}));
+    if(erroAntigo)aviso(hjErro(erroAntigo));
+    (a.avisos||[]).forEach(function(t){aviso(h("p",{class:"sub",text:t}))});
     var fatos=a.fatos||[],d=h("details",{class:"famvals hjfatos"},h("summary",{text:"Fatos utilizados ("+fatos.length+")"}));
     if(fatos.length)d.appendChild(h("ul",{class:"wl hjitens"},fatos.map(function(f){return h("li",null,h("span",{class:"grow"},h("b",{text:f.id+" · "+f.fonte}),h("span",{class:"sub",text:f.texto})))})));
     else d.appendChild(h("p",{class:"empty",text:"Esta análise foi guardada antes do registro dos fatos citados."}));
-    box.appendChild(d);
-    if((a.avisos||[]).length)box.appendChild(h("p",{class:"sub",text:a.avisos.join(" ")}));
+    aviso(d);
+    var nProb=(def&&!def.atual?1:0)+(q&&q.comRessalva?q.problemas.length:0)+(erroAntigo?1:0);
+    box.appendChild(rkRecolher("Avisos e detalhes técnicos",nProb?h("span",{class:"rac-t-sec",text:nProb+(nProb===1?" aviso":" avisos")}):null,av,false));
     return box}
   /* uma chamada que não virou análise, ou ficou sem resultado: o motivo, o que foi cobrado (se for o caso), se dá para recuperar e as saídas explícitas.
      Nada simulado ocupa o lugar da análise, e nada é repetido sozinho. */
@@ -736,7 +746,7 @@
       hjAnalisar({auto:true})},function(){HJ.autoVerificando=false})}
   /* o interruptor, dentro do cartão da análise: mostra o estado, o custo e o que cada janela já fez hoje; ligar pede confirmação (e, se a janela de agora ainda não rodou, a análise sai na hora) */
   function hjAutoControle(){var caixa=h("div",{class:"hjauto"}),on=hjAutoLigado(),m=hjAutoMarcas(),j=NUCLEO.hojeIaJanela(Date.now()),hj=m&&m.dia===j.dia?m:{};
-    caixa.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Análise automática: "+(on?"ligada":"desligada")+". "+(on?"Até 2 análises por dia, a partir das 6h e das 14h, com o app aberto (hoje: manhã "+(hj.manha?"feita":"pendente")+", tarde "+(hj.tarde?"feita":"pendente")+").":"Nada é chamado sozinho.")}));
+    caixa.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"Análise automática: "+(on?"ligada":"desligada")+(on?" · até 2 por dia (6h e 14h, app aberto) · manhã "+(hj.manha?"feita":"pendente")+", tarde "+(hj.tarde?"feita":"pendente"):" · nada é chamado sozinho")}));
     if(on&&HJ.autoMotivo&&HJ_AUTO_AVISO[HJ.autoMotivo])caixa.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ "+HJ_AUTO_AVISO[HJ.autoMotivo]}));
     var b=h("button",{type:"button",class:"ghostbtn",text:on?"Desligar a análise automática":"Ligar a análise automática"});
     b.onclick=function(){

@@ -1815,3 +1815,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Avaliar guardar outros campos já coletados e não usados (hidratação, faixas da VFC, cochilo, FC no sono).
+
+## 24/11/2026 · Hoje: Análise da IA mais limpa (versão `2026-11-24.2`)
+
+### 1. O que fizemos
+- Pedido do dono (capturas do iPhone): tirar a descrição do topo do cartão "Análise da IA"; concentrar avisos, ressalvas de fontes, erros e explicações técnicas numa seção recolhida "Avisos e detalhes técnicos" no fim da análise (com a contagem de avisos); o aviso de "chamadas sem resultado" saiu do topo e virou resumo no título de "Histórico recente"; "O que merece atenção" ficou compacto, com prioridade e Fato/Inferência em chips acima do título, motivo e base (fatos) em letra pequena, para caber numa tela. A linha da análise automática ficou numa linha só. Só apresentação: mesmas regras, fontes, cache, cobrança e textos (todos continuam na tela, só reorganizados). `js/hoje.js` e `index.html` (CSS). Testes: `hoje.test.mjs` e suíte completa (2.314 passam, 0 falham).
+
+### 2. O que estamos fazendo
+- PR, CI e merge. A versão servida e o visual no iPhone dependem da conferência do dono.
+
+### 3. O que vamos fazer
+- Conferir no iPhone se "O que merece atenção" cabe numa tela e ajustar o espaçamento se preciso.

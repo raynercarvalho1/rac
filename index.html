@@ -1036,6 +1036,12 @@ code.mbaf{font:calc(12px + var(--fz))/1.4 ui-monospace,Consolas,monospace;white-
 #rachoje-view .wl .grow b,#rachoje-view .wl .grow .sub,#iacustos-view .wl .grow b,#iacustos-view .wl .grow .sub{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 #rachoje-view ul.wl li{align-items:flex-start;gap:10px}.hjtags{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
 .hjmeta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:6px}.hjmeta .sub{margin:0}
+/* O que merece atenção: lista compacta, uma tela só (marcas em cima, título, motivo e base em letra pequena) */
+.hjatencao{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+.hjat{display:flex;flex-direction:column;gap:3px;padding:9px 0 9px 12px;border-bottom:1px solid var(--line);border-left:3px solid var(--line)}.hjat:last-child{border-bottom:0}
+.hjat-alta{border-left-color:var(--bad)}.hjat-media{border-left-color:var(--warn)}
+.hjat .hjtags{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px}.hjat .hjtag{padding:1px 7px;font-size:calc(10.5px + var(--fz))}
+.hjat-t{font-size:calc(15px + var(--fz));line-height:1.25}.hjat-p{line-height:1.4;color:var(--ink)}.hjat-f{font-size:calc(11px + var(--fz));color:var(--muted)}
 .hjtexto{display:block;margin:0 0 6px;line-height:1.5;overflow-wrap:anywhere}.hjdef{border-left:4px solid var(--warn);padding:6px 10px;margin:6px 0;background:var(--hover);border-radius:0 8px 8px 0}
 .hjerro{border:1px solid var(--bad);border-left-width:4px;border-radius:10px;padding:10px 12px;margin:0 0 12px}.hjerro p{margin:4px 0}
 .hjaviso{margin:10px 0 6px;font-weight:600;overflow-wrap:anywhere}.hjpago{margin-top:12px}.hjperg textarea{width:100%;min-height:72px;resize:vertical}
@@ -1183,7 +1189,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-24.1">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-24.2">
 </head>
 <body>
 

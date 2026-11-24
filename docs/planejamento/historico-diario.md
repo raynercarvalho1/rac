@@ -1826,3 +1826,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Conferir no iPhone se "O que merece atenção" cabe numa tela e ajustar o espaçamento se preciso.
+
+## 24/11/2026 · Hoje: análise ainda mais enxuta, usando a largura da tela (versão `2026-11-24.3`)
+
+### 1. O que fizemos
+- Pedido do dono (capturas do iPhone, 08:15): não quer ver na análise o aviso de fontes com ressalva, a lista "Fontes no momento da análise", a linha "Fatos: f01…" abaixo do resumo e o texto "Fato e Inferência…". Tudo isso fica só dentro de "Avisos e detalhes técnicos" (recolhido). A base do resumo e da resposta também foi para lá. Em "O que merece atenção", Relações, Recomendações e Incertezas, o texto usa a largura toda: chips (prioridade, Fato/Inferência) e os ids dos fatos numa linha só em cima, texto embaixo, sem a coluna lateral que deixava metade da tela vazia. `js/hoje.js`, `index.html` (CSS). Só apresentação; textos preservados dentro do recolhido.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. Conferir no iPhone (o dono) e confirmar a versão servida (a #94, `2026-11-24.2`, foi mesclada; a verificação do deploy não foi possível pela rede da nuvem).
+
+### 3. O que vamos fazer
+- Rever o que sobra de texto explicativo em "Pergunte sobre o seu dia", "Histórico recente" e "Fontes de informação", conforme o dono disser como usa a análise.

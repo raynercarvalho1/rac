@@ -625,26 +625,29 @@
     box.appendChild(h("div",{class:"hjmeta"},
       def&&def.atual?hjTag("Mesmos dados de agora","hje-ok","O pacote de dados é igual ao de agora e a análise tem menos de 6 horas. Não diz que as fontes estavam em dia."):hjTag("Desatualizada","hje-desatualizada"),
       h("span",{class:"sub",text:"Feita em "+hjQuando(a.quando)+" · "+hjModelo(a.consumo&&a.consumo.modelo||"claude-sonnet-5-5")+" · "+hjCusto(a)})));
+    if(r.resposta)aviso(h("p",{class:"sub",text:"Base da resposta. "+hjFatosTxt(r.resposta.fatos,fonteDe)}));
     if(a.pergunta)box.appendChild(h("p",{class:"sub",text:"Pergunta: "+a.pergunta}));
     box.appendChild(h("h3",{class:"dayh",text:"Resumo"}));
-    box.appendChild(h("p",{class:"hjtexto",text:r.resumo}));box.appendChild(h("p",{class:"sub",text:hjFatosTxt(r.resumo_fatos,fonteDe)}));
+    box.appendChild(h("p",{class:"hjtexto",text:r.resumo}));
     if(r.resposta){box.appendChild(h("h3",{class:"dayh",text:"Resposta à sua pergunta"}));
-      box.appendChild(h("p",{class:"hjtexto",text:r.resposta.texto}));box.appendChild(h("p",{class:"sub",text:hjFatosTxt(r.resposta.fatos,fonteDe)}))}
+      box.appendChild(h("p",{class:"hjtexto",text:r.resposta.texto}))}
     /* O que merece atenção: cada item numa tela só, com a classificação e a prioridade em cima e a base (fatos) em letra pequena */
     box.appendChild(h("h3",{class:"dayh",text:"O que merece atenção"}));
     box.appendChild(h("ul",{class:"hjatencao"},(r.atencao||[]).map(function(t){var fato=t.natureza==="fato";
       return h("li",{class:"hjat hjat-"+t.prioridade},
-        h("span",{class:"hjtags"},hjTag(HJ_PRIO[t.prioridade]||t.prioridade,"hjp-"+t.prioridade),hjTag(fato?"Fato (segundo a IA)":"Inferência (da IA)",fato?"hjn-fato":"hjn-inf",fato?"Classificação feita pela própria IA; o RAC conferiu as citações e os números, não a classificação.":"Interpretação da IA a partir dos fatos citados; não é um registro.")),
-        h("b",{class:"hjat-t",text:t.titulo}),h("span",{class:"hjat-p",text:t.por_que}),h("span",{class:"hjat-f",text:hjFatosTxt(t.fatos,fonteDe)}))})));
+        h("span",{class:"hjtags"},hjTag(HJ_PRIO[t.prioridade]||t.prioridade,"hjp-"+t.prioridade),hjTag(fato?"Fato (segundo a IA)":"Inferência (da IA)",fato?"hjn-fato":"hjn-inf",fato?"Classificação feita pela própria IA; o RAC conferiu as citações e os números, não a classificação.":"Interpretação da IA a partir dos fatos citados; não é um registro."),
+          h("span",{class:"hjat-f",title:hjFatosTxt(t.fatos,fonteDe),text:(t.fatos||[]).join(" · ")})),
+        h("b",{class:"hjat-t",text:t.titulo}),h("span",{class:"hjat-p",text:t.por_que}))})));
     function inf(titulo,l,rotulo,cls,dica){if(!l||!l.length)return;box.appendChild(h("h3",{class:"dayh",text:titulo}));
-      box.appendChild(h("ul",{class:"wl hjitens"},l.map(function(t){return h("li",null,h("span",{class:"grow"},h("span",{class:"hjtexto",text:t.texto}),h("span",{class:"sub",text:hjFatosTxt(t.fatos,fonteDe)})),hjTag(rotulo,cls,dica))})))}
+      box.appendChild(h("ul",{class:"hjatencao"},l.map(function(t){return h("li",{class:"hjat"},h("span",{class:"hjtags"},hjTag(rotulo,cls,dica),h("span",{class:"hjat-f",title:hjFatosTxt(t.fatos,fonteDe),text:(t.fatos||[]).join(" · ")})),h("span",{class:"hjat-p",text:t.texto}))})))}
     inf("Relações entre módulos",r.relacoes,"Inferência (da IA)","hjn-inf","Interpretação da IA que liga fontes diferentes; não é um registro.");
     inf("Recomendações",r.recomendacoes,"Recomendação da IA","hjn-sug","Sugestão da IA: o que ela recomenda fazer. Não é um fato; você decide.");
     box.appendChild(h("h3",{class:"dayh",text:"Incertezas"}));
-    if(r.incertezas&&r.incertezas.length)box.appendChild(h("ul",{class:"wl hjitens"},r.incertezas.map(function(t){return h("li",null,h("span",{class:"grow"},h("span",{class:"sub",text:t})))})));
+    if(r.incertezas&&r.incertezas.length)box.appendChild(h("ul",{class:"hjatencao"},r.incertezas.map(function(t){return h("li",{class:"hjat"},h("span",{class:"hjat-p",text:t}))})));
     else box.appendChild(h("p",{class:"sub",text:"A IA não apontou incertezas (isso não quer dizer que não existam)."}));
     /* tudo o que é aviso, ressalva, erro e explicação técnica, num lugar só */
     aviso(h("p",{class:"sub",text:"Como ler: \"Fato\" e \"Inferência\" são a classificação da própria IA. O RAC confere que cada trecho cita fatos do pacote e que os números existem neles; não confere se a classificação está certa. Interpretação escrita pela IA: o resumo pode juntar fatos e inferências. Recomendações: sugestões da IA, que não executa nada."}));
+    aviso(h("p",{class:"sub",text:hjFatosTxt(r.resumo_fatos,fonteDe)?"Base do resumo. "+hjFatosTxt(r.resumo_fatos,fonteDe):"O resumo não citou fatos."}));
     aviso(h("p",{class:"sub",text:"A hora é a da análise, não a dos dados. \"Mesmos dados de agora\" compara os fatos com os de agora; não garante que as fontes estivessem em dia."}));
     aviso(h("p",{class:"sub",text:"Limites apontados pela IA: o que ela disse não saber ou não poder confirmar. Não inclui o que ela não percebeu."}));
     if(def&&!def.atual)aviso(h("p",{class:"hjdef",role:"note",text:"⚠ "+def.motivo+" Peça uma nova análise se precisar de uma leitura atual."}));

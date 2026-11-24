@@ -762,3 +762,19 @@ test("o que mudou: a prontidão de hoje contra a do dia anterior, só com as dua
   assert.equal(N.hojeMudouProntidao(base.concat([bom]), "2026-11-14"), null, "sem o dia anterior, não compara");
   assert.equal(N.hojeMudouProntidao([], "2026-11-14"), null); assert.equal(N.hojeMudouProntidao(null, "2026-11-14"), null);
 });
+
+test("famDiagnostico: o mais recente entre laudo com diagnóstico e consulta cadastrada; empate de data fica com o diagnóstico escrito; sem nada, null", () => {
+  const laudo = { id: "a", tipo: "exame", data: "2026-09-18", titulo: "FAS: pancreatite", dados: { diagnostico: "Pancreatite", vet: "Dr. Diego" } };
+  const cons = { id: "b", tipo: "consulta", data: "2026-11-23", titulo: "Dermatite Bacteriana (Piodermite)", valor: "Dra. Ana", dados: {} };
+  const r = N.famDiagnostico([laudo, cons]);
+  assert.equal(r.texto, "Dermatite Bacteriana (Piodermite)"); assert.equal(r.r.id, "b"); assert.equal(r.vet, "Dra. Ana");
+  assert.equal(N.famDiagnostico([cons, laudo]).r.id, "b", "a ordem de entrada não importa");
+  /* consulta mais antiga que o laudo: vale o laudo */
+  assert.equal(N.famDiagnostico([laudo, { ...cons, data: "2026-08-01" }]).texto, "Pancreatite");
+  assert.equal(N.famDiagnostico([laudo]).vet, "Dr. Diego");
+  /* mesma data: o diagnóstico escrito ganha da consulta */
+  assert.equal(N.famDiagnostico([{ ...cons, data: "2026-09-18" }, laudo]).texto, "Pancreatite");
+  /* outros tipos (vacina, peso) e consulta sem título nunca viram diagnóstico */
+  assert.equal(N.famDiagnostico([{ id: "v", tipo: "vacina", data: "2026-11-30", titulo: "V10", dados: {} }, { id: "c", tipo: "consulta", data: "2026-11-30", titulo: "", dados: {} }]), null);
+  assert.equal(N.famDiagnostico([]), null); assert.equal(N.famDiagnostico(null), null);
+});

@@ -556,18 +556,9 @@
     var existe=hist.some(function(y){return y.pacote===pacote&&!y.pergunta&&y.hoje===x.hoje});
     if(!uteis.ok)pa.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Análise bloqueada. "+uteis.motivo}));
     else if(!prev.pend)pa.appendChild(hjBotaoPago(existe?"✨ Analisar de novo (nova cobrança)":"✨ Analisar o dia",function(){return hjAviso(x,"",existe)},function(){hjAnalisar({nova:existe})}));
-    var pq=h("div",{class:"rac-pilha"});
-    if(!uteis.ok)pq.appendChild(h("p",{class:"hjdef",role:"note",text:"⚠ Perguntas bloqueadas. "+uteis.motivo}));
-    else{
-      var campo=h("textarea",{rows:"2",maxlength:"500",placeholder:"Ex.: o que devo resolver primeiro hoje?","aria-label":"Pergunta sobre os dados de hoje"});
-      campo.disabled=HJ.ocupado;
-      pq.appendChild(h("div",{class:"wform hjperg"},h("label",null,"Sua pergunta",campo)));
-      pq.appendChild(hjBotaoPago("Perguntar",function(){var t=campo.value.trim();if(!t)return {texto:"Escreva a pergunta antes de confirmar.",semConfirmar:true};return hjAviso(x,t,false)},
-        function(){var t=campo.value.trim();if(!t){HJ.aviso="Escreva a pergunta antes de confirmar.";hjDesenhar();return}hjAnalisar({pergunta:t})}));
-      pq.appendChild(h("p",{class:"rac-t-sec",style:"margin:0",text:"A mesma pergunta com os mesmos dados não é cobrada de novo (vem do cache deste aparelho). Mudanças só no tempo, nas notícias ou na Newsletter não contam como dados novos."}))}
     var cAnalise=hjRecolhivel(rkCard("Análise da IA",pa,{acao:rkLink("ter","Custos de IA","#iacustos")}),"Análise da IA");cAnalise.id="rh-analise";
-    corpo.appendChild(h("div",{class:"rh-dois"},cAnalise,
-      hjRecolhivel(rkCard("Pergunte sobre o seu dia",pq,{sub:"A IA responde só com os fatos acima; se eles não bastarem, ela diz isso."}),"Pergunte sobre o seu dia")));
+    /* sem perguntas na tela (decisão do dono, 24/11/2026): o dono só lê a análise */
+    corpo.appendChild(h("div",{class:"rh-largo"},cAnalise));
     /* 4. histórico e fontes: detalhe técnico recolhido (o conteúdo continua inteiro, é só abrir) */
     var ph=h("div",{class:"rac-pilha"});
     HJ.exibida=a?a.chave:null;HJ.slotHist=h("div");HJ.slotPend=h("div");

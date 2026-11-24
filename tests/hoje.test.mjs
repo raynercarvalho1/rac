@@ -450,6 +450,8 @@ class El {
 }
 const doc = { createElement: (t) => new El(t), createTextNode: (t) => { const e = new El("#text"); e._t = String(t); return e; } };
 const varre = (e, f, acc = []) => { if (f(e)) acc.push(e); e.children.forEach((c) => varre(c, f, acc)); return acc; };
+/* elemento vivo da tela usado como sonda de "não foi redesenhado" (antes era o campo de pergunta, que saiu do Hoje em 24/11/2026): o bloco Histórico recente */
+const sonda = (tela) => varre(tela, (e) => e.tagName === "DETAILS" && /Histórico recente/.test(e.textContent))[0];
 const relerBtn = (raiz) => varre(raiz, (e) => e.tagName === "BUTTON" && e.attrs["aria-label"] === "Reler as fontes")[0];   // Lote 4: ícone ↻ pequeno, sem o texto grande
 const botao = (raiz, txt) => varre(raiz, (e) => e.tagName === "BUTTON" && e.textContent.includes(txt))[0];
 const fluxo = () => new Promise((r) => setTimeout(r, 25));
@@ -477,7 +479,8 @@ test("tela do RAC Hoje: abrir só lê (nenhuma chamada de IA); o botão pede con
   s.ctx.renderHoje(); await fluxo();
   const tela = s.alvos["#rachoje-view"], txt = () => tela.textContent;
   assert.equal(chamadas.length, 0, "abrir a tela não chama a IA");
-  for (const t of ["Bom dia, Rayner", "Fontes de informação", "Itens do dia", "Análise da IA", "Pergunte sobre o seu dia", "Histórico recente", "Ainda não há análise da IA neste aparelho"]) assert.ok(txt().includes(t), t);
+  for (const t of ["Bom dia, Rayner", "Fontes de informação", "Itens do dia", "Análise da IA", "Histórico recente", "Ainda não há análise da IA neste aparelho"]) assert.ok(txt().includes(t), t);
+  assert.ok(!txt().includes("Pergunte sobre o seu dia") && !botao(tela, "Perguntar"), "sem perguntas na tela: o dono só lê a análise");
   assert.ok(/Agenda[\s\S]*Leitura realizada/.test(txt()) && txt().includes("Tempo em Sorocaba"), "status de cada fonte");
   const analisar = botao(tela, "Analisar o dia");
   assert.ok(analisar, "botão de análise");
@@ -658,7 +661,7 @@ test("código das telas: ES5, a IA só é chamada pelo botão confirmado, nada g
   assert.equal((tela.match(/hojeAnalisar\(/g) || []).length, 1, "a tela chama a IA em um lugar só (hjAnalisar)");
   const i = tela.indexOf("function hjAnalisar"), fim = tela.indexOf("function hjCarregar");
   assert.ok(i > 0 && tela.slice(i, fim).includes("hojeAnalisar("));
-  assert.equal((tela.match(/hjAnalisar\(/g) || []).length, 6, "definida uma vez, usada nos botões pagos (analisar, perguntar, reenviar e nova análise) e na IA automática do Lote 4, autorizada pelo dono em 22/11/2026");
+  assert.equal((tela.match(/hjAnalisar\(/g) || []).length, 5, "definida uma vez, usada nos botões pagos (analisar, reenviar e nova análise) e na IA automática do Lote 4, autorizada pelo dono em 22/11/2026; sem perguntas desde 24/11/2026");
   assert.equal((tela.match(/hjAnalisar\(\{auto:true\}\)/g) || []).length, 1, "a IA automática chama em um lugar só, pelo mesmo caminho dos botões");
   assert.ok(/function hjBotaoPago/.test(tela) && /Confirmar e chamar a IA/.test(tela) && /if\(HJ\.ocupado\)return/.test(tela), "confirmação e trava de pedido duplicado");
   assert.ok(!/racIA\(|functions\.invoke|\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/.test(ic), "Custos de IA só lê");
@@ -736,7 +739,7 @@ test("P1: sem fonte útil nada é chamado nem cobrado, e a tela explica; com fal
   assert.equal(chamadas.length, 0); assert.equal(s.mem["rac-hoje-ia-pend:dono-1"], undefined, "nada saiu: nenhum registro de chamada");
   const t = telaSite({ ...SEM_NADA(), racIA: mk() }); t.ctx.renderHoje(); await fluxo();
   const tela = t.alvos["#rachoje-view"];
-  assert.ok(tela.textContent.includes("Análise bloqueada") && tela.textContent.includes("Perguntas bloqueadas"));
+  assert.ok(tela.textContent.includes("Análise bloqueada") && !tela.textContent.includes("Perguntas bloqueadas"));
   assert.ok(!botao(tela, "Analisar o dia") && !botao(tela, "Perguntar"), "não há botão para uma chamada que não pode acontecer"); assert.equal(chamadas.length, 0);
   /* falha parcial: Mercado falha, o resto responde */
   const p = site({ resp: { ...RESP, compras: FALHA }, jsons: JSONS, racIA: mk() });
@@ -899,16 +902,8 @@ test("P11: a confirmação diz se vem do cache (sem cobrança) ou se é cobranç
   botao(tela, "Analisar de novo (nova cobrança)").onclick(); const dep = tela.textContent;
   assert.ok(dep.includes("NOVA cobrança") && dep.includes("cada chamada custou US$ 0,011") && dep.includes("não é valor garantido"), "com histórico: estimativa dita como estimativa");
   assert.equal(chamadas.length, 1, "o primeiro toque só avisa"); botao(tela, "Cancelar").onclick();
-  /* pergunta já respondida: vem do cache */
-  const campo = varre(tela, (e) => e.tagName === "TEXTAREA")[0]; campo.value = "O que devo resolver primeiro?";
-  botao(tela, "Perguntar").onclick(); assert.ok(tela.textContent.includes("chamada paga")); botao(tela, "Confirmar e chamar a IA").onclick(); await fluxo(); assert.equal(chamadas.length, 2);
-  const campo2 = varre(tela, (e) => e.tagName === "TEXTAREA")[0]; campo2.value = "O que devo resolver primeiro?";
-  botao(tela, "Perguntar").onclick(); const c = tela.textContent;
-  assert.ok(c.includes("já está guardada neste aparelho") && c.includes("sem chamar a IA e sem cobrança")); assert.ok(!botao(tela, "Confirmar e chamar a IA"), "o botão não promete chamada");
-  botao(tela, "Mostrar do cache (sem cobrança)").onclick(); await fluxo(); assert.equal(chamadas.length, 2, "do cache: nenhuma chamada");
-  /* pergunta vazia: só avisa */
-  const campo3 = varre(tela, (e) => e.tagName === "TEXTAREA")[0]; campo3.value = "  ";
-  botao(tela, "Perguntar").onclick(); assert.ok(tela.textContent.includes("Escreva a pergunta antes de confirmar")); assert.ok(!botao(tela, "Confirmar e chamar a IA"));
+  /* perguntas saíram da tela (24/11/2026): não há campo nem botão */
+  assert.equal(varre(tela, (e) => e.tagName === "TEXTAREA").length, 0); assert.ok(!botao(tela, "Perguntar"));
 });
 
 test("estados da tela: carregando, falha de leitura e chamada em andamento; o histórico do banco separado do local e a falha do banco não derruba a tela", async () => {
@@ -1392,7 +1387,7 @@ async function telaComDados({ dono = true, uid = "dono-1" } = {}) {
   const t = telaSite({ resp: RESP, jsons: JSONS, racIA: ia.racIA, mem, dono, uid, extra: { addEventListener: (ev, f) => { nAdd++; if (ev === "storage") ouvintes.push(f); } } }); comApp(t, mem);
   mem[CAC] = JSON.stringify({ k: { chave: "k", quando: iso(1e3), hoje: HOJE, resultado: boa(), pergunta: "da conta A", consumo: { estimado_rac_usd: 0.01 }, fatos: [] } });
   mem[REG] = JSON.stringify({ z: regInc("z", iso(20e3), { pergunta: PERG, rotulo: "Pergunta: " + PERG }) }); mem[AUTH] = sessaoDe(uid);
-  t.ctx.renderHoje(); await fluxo(); const tela = t.alvos["#rachoje-view"]; const campo = varre(tela, (e) => e.tagName === "TEXTAREA")[0];
+  t.ctx.renderHoje(); await fluxo(); const tela = t.alvos["#rachoje-view"]; const campo = sonda(tela);
   return { t, ia, mem, tela, campo, ouvinte: (ev) => ouvintes.forEach((f) => f(ev)), ouvintes, nAdd: () => nAdd };
 }
 
@@ -1458,7 +1453,7 @@ test("E5/2: a nova identidade só recebe dados depois de confirmada pelo app (en
 
 test("E5/2: renovar o token na outra aba (mesmo usuário), chaves de outros módulos e eventos repetidos não apagam nada e não criam listeners nem ciclos", async () => {
   const c = await telaComDados(); const { t, tela, mem, ia } = c; assert.equal(c.nAdd(), 1, "um único addEventListener, mesmo depois de abrir a tela"); t.ctx.renderHoje(); t.ctx.renderHoje(); await fluxo(); assert.equal(c.nAdd(), 1, "reabrir a tela não cria outro");
-  const campo = varre(t.alvos["#rachoje-view"], (e) => e.tagName === "TEXTAREA")[0]; campo.value = "digitando"; const foto = JSON.stringify(mem);
+  const campo = sonda(t.alvos["#rachoje-view"]); campo.value = "digitando"; const foto = JSON.stringify(mem);
   let limpezas = 0; const orig = t.ctx.hojeLimparLocal; t.ctx.hojeLimparLocal = (...a) => { limpezas++; return orig(...a); };
   for (let i = 0; i < 5; i++) c.ouvinte({ key: AUTH, newValue: sessaoDe("dono-1"), oldValue: sessaoDe("dono-1") });
   for (const k of ["rac-mercado-auth-code-verifier", "rac-p-lista", "sb-outra-auth-token"]) c.ouvinte({ key: k, newValue: null }); c.ouvinte(undefined); c.ouvinte({});
@@ -1589,7 +1584,7 @@ test("E4/4: o evento 'storage' repinta só histórico, chamadas sem resultado e 
   const ia = iaTeste(); let ouvinte = null, gravacoes = 0; const mem = {};
   const t = telaSite({ resp: RESP, jsons: JSONS, racIA: ia.racIA, mem, extra: { addEventListener: (ev, f) => { if (ev === "storage") ouvinte = f; }, quotaLS: () => { gravacoes++; return false; } } });
   t.ctx.renderHoje(); await fluxo(); const tela = t.alvos["#rachoje-view"];
-  const campo = varre(tela, (e) => e.tagName === "TEXTAREA")[0]; campo.value = "pergunta que estou digitando"; let foco = 0; campo.focus = () => { foco++; };
+  const campo = sonda(tela); campo.value = "pergunta que estou digitando"; let foco = 0; campo.focus = () => { foco++; };
   botao(tela, "Analisar o dia").onclick(); const confirmar = botao(tela, "Confirmar e chamar a IA"); assert.ok(confirmar, "a confirmação está aberta");
   const contagem = { hist: 0, pend: 0, aviso: 0, tudo: 0 }; const wrap = (n, k) => { const f = t.ctx[n]; t.ctx[n] = (...a) => { contagem[k]++; return f(...a); }; };
   wrap("hjPintarHist", "hist"); wrap("hjPintarPend", "pend"); wrap("hjPintarAviso", "aviso"); wrap("hjDesenhar", "tudo");
@@ -1811,7 +1806,7 @@ test("Lote 1: redesenhar o Hoje (ex.: depois de uma análise) reaproveita os blo
 test("Hoje: os cartões principais têm botão de recolher, ligado ao mesmo armazenamento dos cartões do Início", () => {
   const hoje = ler("js/hoje.js");
   assert.match(hoje, /function hjRecolhivel\(c,titulo\)/);
-  for (const t of ["Itens do dia", "O que mudou desde ontem", "Gastos do mês", "Saúde e treino", "Análise da IA", "Pergunte sobre o seu dia"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
+  for (const t of ["Itens do dia", "O que mudou desde ontem", "Gastos do mês", "Saúde e treino", "Análise da IA"]) assert.match(hoje, new RegExp('hjRecolhivel\\(rkCard\\("' + t + '"|hjRecolhivel\\(c,"' + t + '"'), "recolher em " + t);
   assert.match(hoje, /recolhidos\(\)/, "usa o mesmo estado de recolhidos() do app.js"); assert.ok(!/racIA\(|hojeAnalisar\(/.test(hoje.slice(hoje.indexOf("function hjRecolhivel"), hoje.indexOf("function hjRecolhivel") + 900)), "recolher não chama IA");
   assert.match(ler("css/rac.css"), /\.rac-card\.recolhido>:not\(\.rac-card-cab\)\{display:none\}/, "o corpo some, o título fica");
 });

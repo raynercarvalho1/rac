@@ -112,7 +112,7 @@ Configuração técnica (`.claude/settings.json`, versionado; vale em sessão no
   desligado por padrão), a tela do Hoje pede a análise sozinha, **no máximo 2 por dia** (1ª abertura ou volta ao app a partir das 6h e a partir
   das 14h, horário de Brasília, com o app aberto), pelo mesmo caminho do botão (`hjAnalisar`). A marca da janela é gravada antes de chamar, o
   servidor conta as chamadas do dia (`ia_custos`, funcionalidade `hoje`) e, com 2 ou sem conseguir contar, não chama; sem repetir depois de
-  erro. As perguntas continuam só manuais, com confirmação (docs/hoje.md, "IA automática").
+  erro. As perguntas saíram da tela do Hoje por decisão do dono (24/11/2026: ele só lê a análise); o motor (`hojeAnalisar` com pergunta) segue no código, sem botão (docs/hoje.md).
 - Nada de repetição paga automática, de troca de modelo na recusa nem de liberar reserva incerta por prazo.
 - Preços só em `ia_precos` (com fonte e data), nunca no código.
 

@@ -1849,3 +1849,26 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Se o dono quiser, apagar a pesagem junto com o registro de origem, ou mostrar "peso do dia" dentro do cartão do registro.
+
+## 24/11/2026 · Eddie: apagar o registro apaga a pesagem; Hoje sem perguntas (versão `2026-11-24.5`)
+
+### 1. O que fizemos
+- Decisão do dono: **apagar um registro do Eddie (ex.: consulta) apaga também a pesagem que veio com ele** (via `dados.pesoRegId`); apagar uma pesagem avulsa ligada a um registro solta o vínculo dele (remove `dados.peso`/`pesoRegId`). `js/familia.js`.
+- Decisão do dono: **sem perguntas no Hoje** (ele só lê a análise). Saiu o cartão "Pergunte sobre o seu dia" e o aviso "Perguntas bloqueadas"; a análise ocupa a largura toda. O motor de perguntas segue no código e nos testes, sem botão. `js/hoje.js`, `tests/hoje.test.mjs` (contagem de usos de `hjAnalisar` 6→5), `CLAUDE.md`, `docs/hoje.md`.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. O dono confere no iPhone.
+
+### 3. O que vamos fazer
+- Enxugar o texto explicativo que sobra em "Histórico recente" e "Fontes de informação", se o dono quiser.
+
+## 24/11/2026 · Eddie: "Diagnóstico mais recente" considera a consulta cadastrada (versão `2026-11-24.6`)
+
+### 1. O que fizemos
+- Relato do dono: a consulta "Dermatite Bacteriana (Piodermite)" (23/11/2026) cadastrada à mão não aparecia no topo do resumo do Eddie, que mostrava a Pancreatite de 18/09/2026. Causa: o cartão só olhava registros com `dados.diagnostico` (laudos importados) e ignorava consultas do formulário. Correção: `NUCLEO.famDiagnostico` escolhe o mais novo entre laudos com diagnóstico e consultas (o título da consulta é o diagnóstico; o profissional vem de `dados.vet` ou do campo da consulta); na mesma data, o diagnóstico escrito vence. Só para o Eddie (não-bebê); a Olivia ficou como estava. O rótulo segue "Diagnóstico mais recente". `nucleo.js`, `js/familia.js`, `tests/nucleo.test.mjs`.
+
+### 2. O que estamos fazendo
+- Junto ao PR #97 (mesma branch): CI e merge. O dono confere no iPhone.
+
+### 3. O que vamos fazer
+- Se o dono quiser, separar visualmente "Diagnóstico" de "Consulta de rotina" quando a consulta mais recente não for um diagnóstico.

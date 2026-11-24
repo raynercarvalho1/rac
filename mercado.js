@@ -1288,9 +1288,9 @@
   /* ---------- Editar nome e categoria na própria página do produto (sem ir à aba Produtos) ----------
      Nota do Mercado: grava em produtos (nome e categoria valem para todas as compras do produto, como na aba Produtos).
      Pedido online: o nome vira uma junção (PESSOAL["mercado-equivalencias"]) e a categoria fica no campo "categorias" da mesma chave; o pedido gravado, os valores e as datas não mudam. */
-  function editarProduto(nome, rp, catAtual) {
+  function editarProduto(nome, rp, catAtual, resumo, naLista) {
     var N = NU(), box = h("details", { class: "mknota" }), msg = h("p", { class: "sub", role: "status" });
-    box.appendChild(h("summary", null, h("span", { class: "mkn" }, h("b", { text: "✎ Editar nome e categoria" }))));
+    box.appendChild(h("summary", null, resumo || h("span", { class: "mkn" }, h("b", { text: "✎ Editar nome e categoria" }))));
     var porId = {}; (rows || []).forEach(function (r) { porId[r.id] = r; });
     var notas = rp.filter(function (x) { return x.fonte === "nota"; }).map(function (x) { return porId[x.item_id]; }).filter(Boolean);
     var idsProd = {}; notas.forEach(function (r) { if (r.produto_id) idsProd[r.produto_id] = 1; });
@@ -1298,7 +1298,7 @@
     var origens = {}; rp.forEach(function (x) { if (x.fonte === "online") origens[x.nome_original || x.produto] = 1; });
     var temOnline = Object.keys(origens).length > 0, outras = rp.some(function (x) { return x.fonte !== "nota" && x.fonte !== "online"; });
     function terminar(novoNome) {
-      return loadRows(true).then(function () { cuMemo = null; if (novoNome) location.hash = linkProd(novoNome); else drawApp("produto", encodeURIComponent(nome)); });
+      return loadRows(true).then(function () { cuMemo = null; if (naLista) drawApp("produtos", ""); else if (novoNome) location.hash = linkProd(novoNome); else drawApp("produto", encodeURIComponent(nome)); });
     }
     var nomeI = h("input", { type: "text", value: nome, maxlength: "160", "aria-label": "Nome do produto", autocomplete: "off" });
     var salvarN = h("button", { type: "button", class: "ghostbtn pri", text: "Salvar nome" });
@@ -1835,6 +1835,26 @@
     if (onl === null) loadOnline().then(pintar); else pintar();
     return h("div", { class: "panel" }, caixa);
   }
+  /* Produtos que só aparecem em pedidos online: não existem na tabela produtos, então a lista acima não os traz. Cada um abre o mesmo editor da página do produto (nome e categoria). */
+  function painelProdutosOnline(q) {
+    var p = panel("Produtos de pedidos online", "Itens que só existem em pedidos online (Amazon, Shopee…) e por isso não aparecem na lista acima. Toque num produto para mudar o nome ou a categoria."), lista = h("div", { class: "mkplist" });
+    p.appendChild(lista);
+    function pintar() {
+      var N = NU(), lin = N.cmLinhas(centralDados().compras), g = groupBy(lin, function (x) { return x.produto; }), nq = q ? norm(q.value || "") : "";
+      lista.innerHTML = "";
+      var nomes = Object.keys(g).filter(function (n) { return g[n].every(function (x) { return x.fonte === "online"; }) && (!nq || norm(n).indexOf(nq) >= 0); }).sort(function (a, b) { return a.localeCompare(b); });
+      if (!nomes.length) { lista.appendChild(h("p", { class: "empty", text: nq ? "Nenhum produto online com essa busca." : "Nenhum produto só de pedido online." })); return; }
+      nomes.forEach(function (n) {
+        var r = g[n], d = N.mkcProduto(r), cat = d ? d.categoria : (r[0].categoria || "Outros");
+        var ed = editarProduto(n, r, cat, h("span", { class: "mkn" }, h("b", { text: n }), h("span", { class: "sub", text: " · " + cat + " · " + r.length + (r.length === 1 ? " compra" : " compras") })), true);
+        ed.appendChild(h("p", null, h("a", { class: "link", href: linkProd(n), text: "Abrir a página do produto" })));
+        lista.appendChild(ed);
+      });
+    }
+    if (q && q.addEventListener) q.addEventListener("input", pintar);
+    if (onl === null) loadOnline().then(pintar); else pintar();
+    return p;
+  }
   /* ---------- Produtos: renomear, juntar repetidos e trocar categoria ---------- */
   function viewProdutos(body) {
     var p = panel("Produtos", "Junte nomes diferentes do mesmo produto para o histórico de preços ficar num lugar só. A categoria escolhida aqui vale para todas as compras do produto.");
@@ -1847,6 +1867,7 @@
     var list = h("div", { class: "mkplist" }); p.appendChild(list);
     if (ehDono()) body.appendChild(painelJuncoes());   /* pedido online × nota com nomes diferentes (dono e casa) */
     body.appendChild(p);
+    if (ehDono()) body.appendChild(painelProdutosOnline(q));   /* produtos que só existem em pedidos online (não estão na tabela produtos) */
     var prods = [], sel = {};
     var cats = listaCats(rows);
     var stats = groupBy(rows, function (x) { return x.produto_id || ""; });

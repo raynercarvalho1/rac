@@ -301,3 +301,10 @@ test("página do produto (nota do Mercado): renomear e trocar a categoria gravam
   campo("Categoria do produto").value = "Bebidas"; botoes("Salvar categoria")[0].onclick(); await esperar(10);
   assert.ok(escritas(calls).some((c) => c[0] === "update" && c[1] === "produtos"), "categoria do produto"); assert.deepEqual(gravP, []);
 });
+
+test("aba Produtos (dono): produtos que só existem em pedidos online aparecem para serem tratados (nome e categoria); os que também estão em nota não repetem", async () => {
+  await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [] } }); await esperar(10); const t = tudo();
+  assert.ok(t.includes("Produtos de pedidos online") && t.includes("Ração Golden 10kg"), "o produto só online está na aba");
+  assert.ok(campo("Nome do produto") && campo("Categoria do produto"), "com o editor de nome e categoria");
+  assert.ok(!achar(ROOT, (e) => e.tag === "b" && texto(e) === "Leite").length, "Leite (nota) não entra na lista de só online");
+});

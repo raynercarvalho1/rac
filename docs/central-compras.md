@@ -101,6 +101,12 @@ a casa sem nada novo, só leitura, compras online relidas depois de gravar, nota
 - A variação e as oportunidades usam preços já pagos em datas diferentes: um lugar visitado há muitos meses pode parecer mais barato só pela data. A tela mostra as datas e chama o valor de estimativa.
 - Pedido gravado em outro aparelho aparece na próxima abertura de uma tela de consulta depois do prazo (15 s) ou na hora com o ↻; não há aviso em tempo real (seria outra tarefa).
 
+## Editar nome e categoria na página do produto · 24/11/2026, versão 2026-11-24.9, pedido do dono
+Dono e casa. Em cada produto (`#mercado/produto/<nome>`), o quadro recolhido "✎ Editar nome e categoria" (`editarProduto`, `mercado.js`) troca o nome e a categoria sem ir à aba Produtos. Só muda o nome e a categoria na Central: valores, datas, quantidades e o pedido gravado não mudam.
+- **Nota do Mercado:** grava em `produtos` (nome e categoria de todas as compras do produto, como na aba Produtos; com a 046 limpa a classificação "só do item" para a categoria valer em todas). Nome repetido (único no banco) avisa e manda juntar pela aba Produtos. Itens sem produto cadastrado recebem a categoria só neles (precisa da 046).
+- **Pedido online:** sem migration. O nome vira uma junção em `PESSOAL["mercado-equivalencias"].itens` (`NUCLEO.cmRenomearOn`; voltar ao nome do pedido remove a junção) e a categoria vai em `PESSOAL["mercado-equivalencias"].categorias`, chave `cmChaveOn(nome final)` (`cmCategoriaOnDefinir`, `cmCategoriasOn`), aplicada por `cmAplicarEquivalencias(compras, mapa, categorias)`, que também refaz o resumo por categoria da compra; nenhum total muda. `gravarEquiv` preserva o campo `categorias` ao juntar ou separar.
+- Produto com as duas fontes: grava nas duas. Itens de delivery não mudam por aqui. Testes: `central_mercado.test.mjs` (puro) e `central_mercado_tela.test.mjs` (telas).
+
 ## Juntar produtos com nomes diferentes (pedido online × nota do Mercado) · 12/11/2026, versão 2026-11-12.9, pedido do dono
 O mesmo produto pode vir com nomes diferentes na nota do Mercado e no pedido online (ou em dois pedidos). Produtos do Mercado já eram juntados pela aba Produtos (no banco: os itens passam para um produto e o outro some).
 Para o pedido online não há produto no banco, então a junção é uma **decisão do dono guardada em `PESSOAL["mercado-equivalencias"]`** (`{v:1, itens:{"o:<nome do item no pedido, normalizado>": "<nome do produto>"}}`; tabela `pessoal`: só o dono, trava MFA, entra no backup; **sem migration**).

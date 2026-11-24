@@ -1285,6 +1285,61 @@
   }
 
   /* ---------- Notas ---------- */
+  /* ---------- Editar nome e categoria na própria página do produto (sem ir à aba Produtos) ----------
+     Nota do Mercado: grava em produtos (nome e categoria valem para todas as compras do produto, como na aba Produtos).
+     Pedido online: o nome vira uma junção (PESSOAL["mercado-equivalencias"]) e a categoria fica no campo "categorias" da mesma chave; o pedido gravado, os valores e as datas não mudam. */
+  function editarProduto(nome, rp, catAtual) {
+    var N = NU(), box = h("details", { class: "mknota" }), msg = h("p", { class: "sub", role: "status" });
+    box.appendChild(h("summary", null, h("span", { class: "mkn" }, h("b", { text: "✎ Editar nome e categoria" }))));
+    var porId = {}; (rows || []).forEach(function (r) { porId[r.id] = r; });
+    var notas = rp.filter(function (x) { return x.fonte === "nota"; }).map(function (x) { return porId[x.item_id]; }).filter(Boolean);
+    var idsProd = {}; notas.forEach(function (r) { if (r.produto_id) idsProd[r.produto_id] = 1; });
+    var ids = Object.keys(idsProd), semProd = notas.filter(function (r) { return !r.produto_id; });
+    var origens = {}; rp.forEach(function (x) { if (x.fonte === "online") origens[x.nome_original || x.produto] = 1; });
+    var temOnline = Object.keys(origens).length > 0, outras = rp.some(function (x) { return x.fonte !== "nota" && x.fonte !== "online"; });
+    function terminar(novoNome) {
+      return loadRows(true).then(function () { cuMemo = null; if (novoNome) location.hash = linkProd(novoNome); else drawApp("produto", encodeURIComponent(nome)); });
+    }
+    var nomeI = h("input", { type: "text", value: nome, maxlength: "160", "aria-label": "Nome do produto", autocomplete: "off" });
+    var salvarN = h("button", { type: "button", class: "ghostbtn pri", text: "Salvar nome" });
+    salvarN.onclick = function () {
+      var novo = nomeI.value.replace(/\s+/g, " ").trim();
+      if (!novo || novo === nome) { msg.textContent = novo ? "O nome é o mesmo." : "Escreva o novo nome."; return; }
+      if (novo.length > 160) { msg.textContent = "O nome passa de 160 letras."; return; }
+      var on = null;
+      if (temOnline) { on = N.cmRenomearOn(equivLer(), equivCatLer(), Object.keys(origens), nome, novo); if (!on.ok) { msg.textContent = on.erro; return; } }
+      salvarN.disabled = true; msg.textContent = "Salvando…";
+      var passo = ids.length ? Promise.resolve(sb.from("produtos").update({ nome: novo }).in("id", ids)).then(ok) : Promise.resolve();
+      passo.then(function () { if (on) gravarEquiv(on.mapa, msg, function () {}, on.categorias); return terminar(novo); })
+        .catch(function (e) { salvarN.disabled = false; msg.textContent = /duplicate|unique/i.test(e.message) ? "Já existe um produto com esse nome. Para juntar os dois, use a aba Produtos (Juntar selecionados)." : "Não consegui salvar: " + e.message; });
+    };
+    var opts = N.mkOpcoesCategoria((rows || []).concat(rp), areaCfg().personalizadas || []);
+    if (opts.indexOf(catAtual) < 0) opts.push(catAtual);
+    var selC = h("select", { "aria-label": "Categoria do produto" }, opts.map(function (c) { return h("option", { value: c, selected: c === catAtual ? "" : null, text: c }); }));
+    var salvarC = h("button", { type: "button", class: "ghostbtn pri", text: "Salvar categoria" });
+    salvarC.onclick = function () {
+      var cat = selC.value;
+      if (cat === catAtual) { msg.textContent = "A categoria é a mesma."; return; }
+      var v = N.mkClasseValida(cat, "", (rows || []).map(function (x) { return x.mercado; }));
+      if (!v.ok) { msg.textContent = v.erro; return; }
+      salvarC.disabled = true; msg.textContent = "Salvando…";
+      var passo = Promise.resolve();
+      if (ids.length) {
+        var campos = { categoria: v.categoria }; if (mig046 !== false) campos.subcategoria = null;
+        passo = Promise.resolve(sb.from("produtos").update(campos).in("id", ids)).then(ok).then(function () { return mig046 === false ? null : Promise.resolve(sb.from("itens").update({ categoria_item: null, subcategoria: null }).in("produto_id", ids)).then(ok); });
+      }
+      if (semProd.length) passo = passo.then(function () { return mig046 === false ? Promise.reject(new Error("Há itens sem produto cadastrado; para mudar só eles é preciso aplicar a migration 046.")) : Promise.resolve(sb.from("itens").update({ categoria_item: v.categoria, subcategoria: null }).in("id", semProd.map(function (r) { return r.id; }))).then(ok); });
+      passo.then(function () {
+        if (temOnline) { var c = N.cmCategoriaOnDefinir(equivCatLer(), nome, v.categoria); if (!c.ok) throw new Error(c.erro); gravarEquiv(equivLer(), msg, function () {}, c.categorias); }
+        return terminar(null);
+      }).catch(function (e) { salvarC.disabled = false; msg.textContent = "Não consegui salvar: " + e.message; });
+    };
+    box.appendChild(h("p", { class: "sub", text: "Muda só o nome e a categoria na Central (todas as compras deste produto). Valores, datas e quantidades não mudam." + (outras ? " Itens de delivery não mudam aqui." : "") }));
+    box.appendChild(h("label", null, "Nome", nomeI)); box.appendChild(h("div", { class: "vfil" }, salvarN));
+    box.appendChild(h("label", null, "Categoria", selC)); box.appendChild(h("div", { class: "vfil" }, salvarC));
+    box.appendChild(msg);
+    return box;
+  }
   /* Reclassificar um item (docs/mercado-classificacao.md): muda SÓ a classificação; valor, quantidade, data, nota e mercado não são tocados.
      escopo "item": categoria_item/subcategoria do próprio item (precisa da migration 046); escopo "produto": produtos.categoria (e subcategoria, se a 046 existir) para todas as compras do produto. */
   function salvarClasse(item, escopo, cat, sub) {
@@ -1622,6 +1677,7 @@
     /* 1) cabeçalho e o que foi PAGO */
     var nOn = rp.filter(function (x) { return x.fonte === "online"; }), chOn = nOn.length ? nOn[nOn.length - 1].chave_online : null;
     var cab = panel(d.nome, d.categoria + " · " + d.compras + (d.compras === 1 ? " compra" : " compras") + " · " + money(d.total) + " gastos no total · " + (d.mercados.length === 1 ? "comprado em " + d.mercados[0] : "comprado em " + d.mercados.length + " lugares") + ".");
+    if (ehDono()) cab.appendChild(editarProduto(nome, rp, d.categoria));
     /* cada valor leva à COMPRA onde foi registrado (nota em Notas; pedido online na Central); média e contagem não vêm de uma compra só: levam ao histórico logo abaixo */
     var histEl = null;
     var kpiCompra = function (rotulo, valor, detalhe, linha) {
@@ -1722,9 +1778,9 @@
   }
   /* ---------- Juntar produtos com nomes diferentes (pedido online × nota do Mercado; docs/central-compras.md, "Juntar produtos") ----------
      Só o dono. O sistema só SUGERE (NUCLEO.cmSugerirJuncoes); juntar e separar gravam só PESSOAL["mercado-equivalencias"]: o pedido gravado, os valores e a categoria não mudam. */
-  function gravarEquiv(mapa, msg, depois) {
+  function gravarEquiv(mapa, msg, depois, cats) {
     if (typeof pessoalGravar !== "function") { msg.textContent = "Não consegui guardar agora."; return; }
-    var v = { v: 1, itens: mapa };
+    var v = { v: 1, itens: mapa }; cats = cats || equivCatLer(); if (Object.keys(cats).length) v.categorias = cats;
     pessoalGravar("mercado-equivalencias", v, function (erro) { if (erro) msg.textContent = erro; });
     if (typeof PESSOAL !== "undefined" && PESSOAL) PESSOAL["mercado-equivalencias"] = v;
     cuMemo = null; depois();
@@ -2118,13 +2174,15 @@
   function emissorTxt(x) { if (x.fonte) return x.emissor && semCidade(x.emissor) !== semCidade(x.estabelecimento) ? " · emissor: " + semCidade(x.emissor) : ""; return estabDe(x) !== x.mercado ? " · emissor: " + semCidade(x.mercado) : ""; }
   /* junções de produto (pedido online × nota) decididas pelo dono: PESSOAL["mercado-equivalencias"] (a casa não tem PESSOAL: vê os nomes como estão nos pedidos) */
   function equivLer() { return NU().cmEquivalencias(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["mercado-equivalencias"] : null); }
+  /* categoria escolhida para produtos de pedido online (mesma chave PESSOAL, campo "categorias"; sem migration) */
+  function equivCatLer() { return NU().cmCategoriasOn(typeof PESSOAL !== "undefined" && PESSOAL ? PESSOAL["mercado-equivalencias"] : null); }
   function centralDados() {
-    var canais = canaisLer(), eq = equivLer(), k = JSON.stringify(canais) + "|" + JSON.stringify(eq);
+    var canais = canaisLer(), eq = equivLer(), ec = equivCatLer(), k = JSON.stringify(canais) + "|" + JSON.stringify(eq) + "|" + JSON.stringify(ec);
     if (cuMemo && cuMemo.rows === rows && cuMemo.onl === onl && cuMemo.ped === ped && cuMemo.k === k) return cuMemo.d;
     var N = NU(), on = N.cuDeOnline(onl || []), dl = N.cuDeDelivery(ped), fora = {};
     [on.fora, dl.fora].forEach(function (f) { Object.keys(f || {}).forEach(function (c) { var x = fora[c] || (fora[c] = { n: 0, valor: 0 }); x.n += f[c].n; x.valor = Math.round((x.valor + f[c].valor) * 100) / 100; }); });
     var d = N.cuUnificar(N.cuDeNotas(rows || [], canais), { compras: on.compras.concat(dl.compras), fora: fora });
-    if (Object.keys(eq).length) d = Object.assign({}, d, { compras: N.cmAplicarEquivalencias(d.compras, eq) });
+    if (Object.keys(eq).length || Object.keys(ec).length) d = Object.assign({}, d, { compras: N.cmAplicarEquivalencias(d.compras, eq, ec) });
     cuMemo = { rows: rows, onl: onl, ped: ped, k: k, d: d }; return d;
   }
   function canalTxt(c) { return c.canal === "online" ? "Online" + (c.plataforma && c.plataforma !== c.estabelecimento ? " · " + c.plataforma : "") : "Presencial"; }

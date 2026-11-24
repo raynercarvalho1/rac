@@ -69,7 +69,7 @@
   function inboxPreferencia(c,campo,valor){
     if(INBX.salvandoPref)return;INBX.salvandoPref=true;var corpo={};corpo[campo]=valor;
     Promise.resolve(SB.from("inbox_contas").update(corpo).eq("id",c.id)).then(sbOk).then(function(){return inboxLer()}).then(function(){INBX.salvandoPref=false;inboxDesenhar()},function(){INBX.salvandoPref=false;INBX.aviso={tipo:"erro",t:"Não consegui salvar a preferência. Confira se a migration 054 foi aplicada."};inboxDesenhar()})}
-  function inboxOpcao(c,campo,rotulo){var id="inb-pref-"+campo,inp=h("input",{type:"checkbox",id:id});inp.checked=c[campo]!==false;inp.onchange=function(){inboxPreferencia(c,campo,inp.checked)};return h("label",{class:"inb-opcao","for":id},inp,h("span",{text:rotulo}))}
+  function inboxOpcao(c,campo,rotulo){var id="inb-pref-"+campo+"-"+c.id,inp=h("input",{type:"checkbox",id:id});inp.checked=c[campo]!==false;inp.onchange=function(){inboxPreferencia(c,campo,inp.checked)};return h("label",{class:"inb-opcao","for":id},inp,h("span",{text:rotulo}))}
   function inboxSincronizarConta(c){
     var tinha=INBX.pastas.some(function(p){return p.conta_id===c.id}),prep=tinha?Promise.resolve({ok:true}):inboxChamar("listar_pastas",{conta_id:c.id});
     return prep.then(function(r){
@@ -218,6 +218,7 @@
       if(!oauth&&est==="ativa"){var aberto=INBX.opcoes===c.id,mais=inboxBtnConta("mais","Opções da conexão",function(){INBX.opcoes=aberto?null:c.id;inboxDesenhar()},{aberto:aberto});mais.className+=" inb-conexao-mais";acoes.appendChild(mais)}
     }
     lin.appendChild(acoes);el.appendChild(lin);
+    if(INBS.publicado&&!INBX.demo&&est==="ativa"&&"notificar" in c)el.appendChild(h("div",{class:"inb-gc-notif"},inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo")));   /* só a 054 aplicada tem a coluna; vale para as três contas (a rotina avisa as três) */
     if(!INBS.publicado)el.appendChild(h("p",{class:"inb-nota",text:"A conexão será liberada quando o serviço de e-mail for publicado. Nada foi pedido nem guardado."}));
     else if(est==="ausente"&&oauth)el.appendChild(h("p",{class:"inb-nota",text:"O RAC nunca vê a sua senha: guarda só uma autorização que você pode revogar, cifrada no cofre do servidor."}));
     if(!oauth&&INBX.opcoes===c.id&&est==="ativa")el.appendChild(inboxOpcoesIcloud(c));
@@ -301,7 +302,6 @@
     op.appendChild(bProva);op.appendChild(bProvaMail);box.appendChild(op);
     if("sync_auto" in c){   /* só com a 054 aplicada */
       box.appendChild(inboxOpcao(c,"sync_auto","Sincronizar automaticamente a cada 10 minutos (no servidor, com o RAC aberto ou fechado)"));
-      box.appendChild(inboxOpcao(c,"notificar","Avisar por notificação quando chegar e-mail novo"));
       box.appendChild(h("p",{class:"inb-nota",text:(sy&&sy.origem==="agenda"?"A última sincronização foi feita pela rotina do servidor. ":"A rotina do servidor ainda não sincronizou esta conta. ")+"O aviso mostra o assunto e o remetente (nunca o texto do e-mail) e abre a mensagem; chega neste aparelho se as notificações estiverem ativadas em Sistema."}))}
     box.appendChild(h("p",{class:"inb-nota",text:"A senha fica cifrada no cofre do servidor e não volta ao navegador."}));return box}
   function inboxFormCredencial(c){

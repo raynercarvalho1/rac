@@ -205,3 +205,18 @@ test("painel lateral sobreposto: o véu só existe com o menu aberto, tocar nele
   btAria(a, "Caixas").onclick(); contaBtn(a, G2).onclick(); assert.equal(j().attrs["data-painel"], "lista", "escolher uma conta fecha o painel (comportamento de sempre)");
   ger(a); btAria(a, "Caixas").onclick(); assert.equal(j().attrs["data-painel"], "caixas", "o menu abre também em Gerenciar contas"); assert.equal(comClasse(a.raiz, "inb-fundo").length, 1); assert.ok(todos(comClasse(a.raiz, "inb-barra")[0]).includes(btAria(a, "Voltar às mensagens")));
 });
+
+test("Notificação de e-mail novo: cada conta CONECTADA mostra a caixa direto no cartão de Gerenciar contas (iCloud, Gmail e Outlook), ligada por padrão; clicar grava só a coluna `notificar` daquela conta; conta sem conexão ou sem a 054 não mostra; o iCloud não repete a caixa nas Opções da conexão", async () => {
+  const comPref = (c) => ({ ...c, sync_auto: true, notificar: true }), contas = [...CONTAS, OUTLOOK].map(comPref);
+  const a = amb({ contas, credenciais: [...CRED, { conta_id: OU, estado: "ativa" }] }); await a.abrir(); await assentar(); ger(a);
+  const caixa = (id) => todos(card(a, id)).find((n) => n.tag === "input" && n.attrs.type === "checkbox" && /^inb-pref-notificar-/.test(n.attrs.id || ""));
+  for (const id of [IC, G1, G2, OU]) { const c = caixa(id); assert.ok(c, "o cartão " + id + " tem a caixa"); assert.equal(c.checked, true, "ligada por padrão"); assert.equal(c.attrs.id, "inb-pref-notificar-" + id, "id único por conta (duas caixas com o mesmo id trocariam de conta no toque no rótulo)"); assert.match(texto(card(a, id)), /Avisar por notificação quando chegar e-mail novo/); }
+  assert.equal(new Set([IC, G1, G2, OU].map((id) => caixa(id).attrs.id)).size, 4);
+  const g = caixa(G1); g.checked = false; g.onchange(); await assentar();
+  assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [["inbox_contas", "update", { notificar: false }]], "só a coluna pedida; nenhum outro dado");
+  opcoes(a.raiz); assert.deepEqual(todos(card(a, IC)).filter((n) => n.tag === "input" && n.attrs.type === "checkbox").map((n) => n.attrs.id), ["inb-pref-notificar-" + IC, "inb-pref-sync_auto-" + IC], "a caixa não se repete nas Opções do iCloud");
+  const fora = amb({ contas: [comPref(OUTLOOK), { ...CONTAS[1], sync_auto: true, notificar: true }], credenciais: [{ conta_id: G1, estado: "ativa" }] }); await fora.abrir(); await assentar(); ger(fora);
+  assert.equal(todos(card(fora, OU)).some((n) => n.tag === "input" && n.attrs.type === "checkbox"), false, "Outlook sem conexão: nada a avisar");
+  const sem054 = amb({ contas: CONTAS, credenciais: CRED }); await sem054.abrir(); await assentar(); ger(sem054);
+  assert.equal(todos(sem054.raiz).some((n) => n.tag === "input" && n.attrs.type === "checkbox"), false, "sem a 054 (coluna ausente) a caixa não aparece");
+});

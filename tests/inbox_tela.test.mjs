@@ -363,10 +363,10 @@ test("rotina automática (054): preferências 'sincronizar sozinho' e 'avisar' s
   const selos = []; a.ctx.navigator = { setAppBadge: (n) => { selos.push(n); return Promise.resolve(); }, clearAppBadge: () => { selos.push(0); return Promise.resolve(); } };
   await a.abrir(UUID); await assentar(); opcoes(a.raiz);
   const caixas = todos(a.raiz).filter((n) => n.tag === "input" && n.attrs.type === "checkbox");
-  assert.deepEqual(caixas.map((c) => [c.attrs.id, c.checked]), [["inb-pref-sync_auto", true], ["inb-pref-notificar", true]]);
+  assert.deepEqual(caixas.map((c) => [c.attrs.id, c.checked]), [["inb-pref-notificar-" + UUID, true], ["inb-pref-sync_auto-" + UUID, true]], "a caixa de notificação fica no cartão da conta; a de sincronizar sozinho, nas Opções");
   assert.match(texto(a.raiz), /Sincronizar automaticamente a cada 10 minutos/); assert.match(texto(a.raiz), /Avisar por notificação quando chegar e-mail novo/); assert.match(texto(a.raiz), /feita pela rotina do servidor/);
   assert.match(texto(a.raiz), /assunto e o remetente \(nunca o texto do e-mail\)/, "a tela diz o que o aviso mostra");
-  caixas[1].checked = false; caixas[1].onchange(); await assentar();
+  caixas[0].checked = false; caixas[0].onchange(); await assentar();
   assert.deepEqual(JSON.parse(JSON.stringify(a.gravacoes)), [["inbox_contas", "update", { notificar: false }]], "só a coluna pedida; nenhuma senha, nenhum outro dado");
   assert.ok(selos.length >= 1 && selos.every((n) => Number.isInteger(n) && n >= 0), "o selo recebe um número de não lidas (ou limpa)");
   const rot = ambiente(REAL({ contas: [{ ...CONTA_OK, sync_auto: true, notificar: true }] })); await rot.abrir(UUID); await assentar(); opcoes(rot.raiz); assert.match(texto(rot.raiz), /ainda não sincronizou esta conta/, "sem origem 'agenda', não afirma que a rotina rodou");

@@ -1883,3 +1883,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Se o Nominatim errar o ponto de algum estabelecimento, o dono ajusta tocando no mapa; avaliar, se preciso, a busca pelo nome do lugar.
+
+## 24/11/2026 · Inbox: caixa de ativar e desativar a notificação de e-mail em cada conta (site `2026-11-24.8`)
+
+### 1. O que fizemos
+- A pedido do dono, a preferência `notificar` (já existente, migration 054) ganhou uma caixa à vista no cartão de cada conta conectada em Gerenciar contas (iCloud, Gmail e Outlook); antes só o iCloud tinha, escondida em "Opções da conexão". Sem SQL, função ou secret novo; só o site.
+
+### 2. O que estamos fazendo
+- Código pronto na branch, não publicado.
+
+### 3. O que vamos fazer
+- Dono: publicar o site `2026-11-24.8` e testar a caixa nas três contas (desligar uma conta e conferir que a rotina deixa de avisar dela).

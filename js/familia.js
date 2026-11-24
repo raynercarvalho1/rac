@@ -47,8 +47,9 @@
       var li=h("li",{class:(cls||"")+(alvo?" clic":""),tabindex:alvo?"0":null,role:alvo?"button":null},h("span",{class:"grow"},h("b",{text:rot}),sub?h("span",{class:"sub",text:sub}):null),val?h("span",{class:"end",text:val}):null);
       if(alvo){li.onclick=function(){ir(alvo)};li.onkeydown=function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();ir(alvo)}}}
       ul.appendChild(li)}
-    var dg=regs.filter(function(r){return dadosDe(r).diagnostico}).sort(function(a,b){return b.data.localeCompare(a.data)})[0];
-    if(dg)item("Diagnóstico mais recente",dg.dados.diagnostico,dataBR(dg.data)+(dg.dados.vet?" · "+dg.dados.vet:""),"",{r:dg});
+    /* o mais recente entre os laudos importados e as consultas cadastradas; a Olivia segue só com o que traz diagnóstico escrito */
+    var dg=FAM[quem].bebe?(function(){var l=regs.filter(function(r){return dadosDe(r).diagnostico}).sort(function(a,b){return b.data.localeCompare(a.data)})[0];return l?{r:l,texto:l.dados.diagnostico,vet:l.dados.vet||""}:null})():NUCLEO.famDiagnostico(regs);
+    if(dg)item("Diagnóstico mais recente",dg.texto,dataBR(dg.r.data)+(dg.vet?" · "+dg.vet:""),"",{r:dg.r});
     var ps=regs.filter(function(r){return r.tipo==="peso"&&pesoNum(r)!=null}).sort(function(a,b){return b.data.localeCompare(a.data)});
     if(ps.length){var d=ps[1]?pesoNum(ps[0])-pesoNum(ps[1]):0;
       item("Peso",fmtN(pesoNum(ps[0]))+" kg","em "+dataBR(ps[0].data)+(ps[1]?" · "+(d>0?"+":"")+fmtN(Math.round(d*10)/10)+" kg desde "+dataBR(ps[1].data)+" ("+(d>0?"+":"")+Math.round(d/pesoNum(ps[1])*100)+"%)":""),(function(){var nasc=regs.filter(function(r){return r.tipo==="nascimento"})[0];/* bebê: ganhar peso é o esperado; só a perda chama atenção */return nasc&&nasc.data>maisDias(hojeISO(),-730)?(d<0?"alerta":"bom"):(Math.abs(d)>=0.05*pesoNum(ps[1]||ps[0])?"alerta":null)})(),{r:ps[0],filtro:"peso"})}

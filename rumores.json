@@ -1,172 +1,200 @@
 {
- "coletado": "2026-11-23T12:27:06.914773+00:00",
+ "coletado": "2026-11-24T02:10:47.570804+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "Mets To Sign Tarik Skubal",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-sign-tarik-skubal.html",
-   "data": "2026-11-23T05:24:27+00:00",
-   "resumo": "The Mets have made another blockbuster addition, as the club has signed two-time AL Cy Young Award winner Tarik Skubal to a nine-year, $450MM contract. The deal is a straight nine-year pact with no opt-outs and a full no-trade clause. Skubal will get the first $45MM of his deal…",
+   "t": "Astros To Add Aaron Bates, J.P. Martinez To Coaching Staff",
+   "link": "https://www.mlbtraderumors.com/2026/11/astros-to-add-aaron-bates-j-p-martinez-to-coaching-staff.html",
+   "data": "2026-11-24T00:46:49+00:00",
+   "resumo": "The Astros are hiring J.P. Martinez as their pitching coach and Aaron Bates as hitting coach, as first reported by Chandler Rome and Ken Rosenthal of The Athletic. Brian McTaggart of MLB.com reports that Triple-A manager Mickey Storey is also being promoted to the big league…",
    "tags": [
-    "New York Mets",
-    "Newsstand",
+    "Houston Astros",
+    "Aaron Bates",
+    "J.P. Martinez (coach)",
+    "Mickey Storey",
+    "Victor Rodriguez"
+   ]
+  },
+  {
+   "t": "Royals Sign Caleb Thielbar",
+   "link": "https://www.mlbtraderumors.com/2026/11/royals-to-sign-caleb-thielbar.html",
+   "data": "2026-11-24T00:10:24+00:00",
+   "resumo": "The Royals announced that they have signed left-hander Caleb Thielbar to a one-year deal. It’s reportedly a $3.25MM guarantee for the ISE Baseball client. Kansas City had an open 40-man roster spot and didn’t need to make a corresponding move. Thielbar, 40 in January, is a…",
+   "tags": [
+    "Kansas City Royals",
     "Transactions",
+    "Caleb Thielbar"
+   ]
+  },
+  {
+   "t": "Nationals To Sign Luis Curvelo To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-to-sign-luis-curvelo-to-minor-league-deal.html",
+   "data": "2026-11-23T23:33:49+00:00",
+   "resumo": "The Nationals have agreed to sign right-hander Luis Curvelo to a minor league deal, reports Kiley McDaniel of ESPN. The Ballengee Group client receives an invite to big league camp in spring training. Curvelo, 26, pitched for the Rangers in the two most recent big league…",
+   "tags": [
+    "Transactions",
+    "Washington Nationals",
+    "Luis Curvelo"
+   ]
+  },
+  {
+   "t": "MLB Offers To Raise Minimum Salary To $1MM In Latest Cap Proposal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlb-offers-to-raise-minimum-salary-to-1mm-in-latest-cap-proposal.html",
+   "data": "2026-11-23T22:01:46+00:00",
+   "resumo": "Major League Baseball made its latest proposal on core economics on Monday. The league offered to raise the minimum salary to $1MM for all players, a modest increase over their previous proposal of a $900K minimum for those with less than two years of service time (links via…",
+   "tags": [
+    "2026-27 Collective Bargaining"
+   ]
+  },
+  {
+   "t": "Guardians Sign Jairo Iriarte To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/guardians-sign-jairo-iriarte-to-minor-league-deal.html",
+   "data": "2026-11-23T21:45:52+00:00",
+   "resumo": "The Guardians announced Monday that they’ve signed right-hander Jairo Iriarte to a minor league contract. He’s been invited to major league spring training. Iriarte is represented by Klutch Sports. Iriarte, 25 next month, is a former top prospect in both the Padres and White…",
+   "tags": [
+    "Cleveland Guardians",
+    "Transactions",
+    "Jairo Iriarte"
+   ]
+  },
+  {
+   "t": "Latest Details On Tarik Skubal Bidding",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-details-on-tarik-skubal-bidding.html",
+   "data": "2026-11-23T21:22:42+00:00",
+   "resumo": "The Mets landed their top target on Sunday evening, agreeing to a nine-year contract with Tarik Skubal. The deal, which is pending a physical, comes with a record-setting $450MM guarantee that allowed New York to win the bidding over other suitors like the Blue Jays and Padres.…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "New York Mets",
+    "San Diego Padres",
+    "Toronto Blue Jays",
     "Tarik Skubal"
    ]
   },
   {
-   "t": "Astros, Blue Jays, Padres Interested In Randy Arozarena",
-   "link": "https://www.mlbtraderumors.com/2026/11/astros-blue-jays-padres-interested-in-randy-arozarena.html",
-   "data": "2026-11-23T05:02:32+00:00",
-   "resumo": "The Astros, Blue Jays, and Padres are among the teams “monitoring” Randy Arozarena’s market, according to reporter Francys Romero. This trio of clubs joins the Orioles, Phillies, and Yankees as teams linked to the free agent outfielder to date. Arozarena hits the open market in…",
+   "t": "Yankees To Sign Brent Suter",
+   "link": "https://www.mlbtraderumors.com/2026/11/yankees-to-sign-brent-suter.html",
+   "data": "2026-11-23T20:45:36+00:00",
+   "resumo": "The Yankees and left-hander Brent Suter have reportedly agreed to a one-year deal with a club option for 2028. It’s a $4MM guarantee for the Diamond Sports Management client in the form of a $3.75MM salary next year then a $250K buyout on the option, which is valued at $3.5MM.…",
    "tags": [
-    "Houston Astros",
-    "San Diego Padres",
-    "Toronto Blue Jays",
-    "Randy Arozarena"
+    "New York Yankees",
+    "Transactions",
+    "Brent Suter"
    ]
   },
   {
-   "t": "MLBTR Chat Transcript",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-live-chat-927.html",
-   "data": "2026-11-23T03:26:44+00:00",
-   "resumo": "Mark P How kind of the Mets to make the offseason’s biggest signing before the Weekend Chat got rolling! Let’s dive into your questions… Mets does the skubal move make me a World Series contender Anonymous participant 903 Skubal to the Mets what does this mean for the Rest of…",
+   "t": "Blue Jays Offered Tarik Skubal Nine-Year Deal In $420MM Range",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-offered-tarik-skubal-nine-year-deal-in-400mm-range.html",
+   "data": "2026-11-23T20:20:40+00:00",
+   "resumo": "November 23: Jon Heyman of The New York Post reports that Toronto’s offer checked in at $420MM over nine years. November 22: The Mets outpaced the market in signing Tarik Skubal to a nine-year, $450MM agreement earlier today, setting a new record as the largest contract ever…",
    "tags": [
+    "New York Mets",
+    "Toronto Blue Jays",
+    "Tarik Skubal"
+   ]
+  },
+  {
+   "t": "The Best Fits For Teruaki Sato",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-teruaki-sato.html",
+   "data": "2026-11-23T20:17:51+00:00",
+   "resumo": "MLBTR continues to give subscribers detailed looks at the markets for top free agents. In this edition, we look at Teruaki Sato, who is almost certainly going to sign very shortly. His 45-day posting window technically goes into the middle of December but a lockout is expected…",
+   "tags": [
+    "Front Office Originals",
+    "Teruaki Sato"
+   ]
+  },
+  {
+   "t": "Trade Rumors Front Office Subscriber Chat Transcript",
+   "link": "https://www.mlbtraderumors.com/2026/11/trade-rumors-front-office-subscriber-chat-today-2pm-ct-24.html",
+   "data": "2026-11-23T19:59:11+00:00",
+   "resumo": "Steve Adams Skubal off the board. Just over one week left on the lockout clock. Going to be a hectic few days! We’ll talk all things hot stove starting at 2pm CT, but feel free to send questions my way ahead of time! As we get underway, Jeff Passan reporting the Yankees are…",
+   "tags": [
+    "Front Office Originals",
     "MLBTR Chats"
    ]
   },
   {
-   "t": "Blue Jays Offered Tarik Skubal Nine-Year Deal In $400MM Range",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-offered-tarik-skubal-nine-year-deal-in-400mm-range.html",
-   "data": "2026-11-23T01:00:40+00:00",
-   "resumo": "The Mets outpaced the market in signing Tarik Skubal to a nine-year, $450MM agreement earlier today, setting a new record as the largest contract ever given to a pitcher. The Dodgers, Padres, and Blue Jays were the other suitors known to be in on Skubal, and The Athletic’s…",
+   "t": "Pitching Coach Josh Miller Will Not Return To Astros In 2027",
+   "link": "https://www.mlbtraderumors.com/2026/11/astros-pitching-coach-josh-miller-wont-return-2027.html",
+   "data": "2026-11-23T18:50:37+00:00",
+   "resumo": "The Astros previously announced that pitching coach Josh Miller would be back for the 2027 season, but it seems there’s been a change of plans. Brian McTaggart of MLB.com reports that Miller will not be back next year, ostensibly ending a 16-year run with the organization.…",
    "tags": [
+    "Houston Astros",
+    "Brad Ausmus",
+    "Josh Miller"
+   ]
+  },
+  {
+   "t": "Tanner Rainey Signs With NPB’s Hokkaido Nippon-Ham Fighters",
+   "link": "https://www.mlbtraderumors.com/2026/11/tanner-rainey-signs-with-npbs-hokkaido-nippon-ham-fighters.html",
+   "data": "2026-11-23T18:48:28+00:00",
+   "resumo": "Former Tigers reliever Tanner Rainey is heading to Japan. The righty has agreed to a deal with the Hokkaido Nippon-Ham Fighters, per a team announcement. Rainey appeared in six games with Detroit this past season. He allowed three earned runs over seven innings and had more…",
+   "tags": [
+    "Nippon Professional Baseball",
+    "Transactions",
+    "Tanner Rainey"
+   ]
+  },
+  {
+   "t": "Nationals Sign Jared Simpson, Marc Church To Minor League Deals",
+   "link": "https://www.mlbtraderumors.com/2026/11/nationals-sign-jared-simpson-marc-church-to-minor-league-deals.html",
+   "data": "2026-11-23T17:20:39+00:00",
+   "resumo": "The Nationals announced a pair of minor league signings on Monday. Left-hander Jared Simpson is back in the organization. Right-hander Marc Church is joining the club after departing from the Rangers. Both deals include invitations to MLB Spring Training. Washington did not…",
+   "tags": [
+    "Transactions",
+    "Washington Nationals",
+    "Jared Simpson",
+    "Marc Church"
+   ]
+  },
+  {
+   "t": "Blue Jays Interested In Trevor Rogers, Freddy Peralta",
+   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-interested-in-trevor-rogers-freddy-peralta.html",
+   "data": "2026-11-23T16:31:21+00:00",
+   "resumo": "After coming up short in the Tarik Skubal sweepstakes, the Blue Jays are moving on to the remaining top names on the starting pitching market. Toronto is interested in Trevor Rogers and Freddy Peralta, reports Ben Nicholson-Smith of Sportsnet. Peralta and Rogers can be added to…",
+   "tags": [
+    "Toronto Blue Jays",
+    "Freddy Peralta",
+    "Trevor Rogers"
+   ]
+  },
+  {
+   "t": "Dodgers, Robert Stephenson Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-sign-robert-stephenson-reliever.html",
+   "data": "2026-11-23T16:20:45+00:00",
+   "resumo": "The Dodgers and right-handed reliever Robert Stephenson are in agreement on a minor league contract, per Katie Woo and Ken Rosenthal of The Athletic. The Apex Baseball client missed all of the 2026 campaign due to elbow surgery and had a 2027 club option declined by the Angels…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Transactions",
+    "Robert Stephenson"
+   ]
+  }
+ ],
+ "dodgers": [
+  {
+   "t": "Latest Details On Tarik Skubal Bidding",
+   "link": "https://www.mlbtraderumors.com/2026/11/latest-details-on-tarik-skubal-bidding.html",
+   "data": "2026-11-23T21:22:42+00:00",
+   "resumo": "The Mets landed their top target on Sunday evening, agreeing to a nine-year contract with Tarik Skubal. The deal, which is pending a physical, comes with a record-setting $450MM guarantee that allowed New York to win the bidding over other suitors like the Blue Jays and Padres.…",
+   "tags": [
+    "Los Angeles Dodgers",
     "New York Mets",
+    "San Diego Padres",
     "Toronto Blue Jays",
     "Tarik Skubal"
    ]
   },
   {
-   "t": "Rockies Hire Scott Servais For Front Office Role",
-   "link": "https://www.mlbtraderumors.com/2026/11/rockies-hire-scott-servais-for-front-office-role.html",
-   "data": "2026-11-22T21:45:52+00:00",
-   "resumo": "Scott Servais has joined the Rockies as the team’s new senior director of baseball operations, according to Dennis Lin and Will Sammon of The Athletic. Servais has been a special assistant in the Padres organization for the past two seasons, coming off a nine-year run as the…",
+   "t": "Dodgers, Robert Stephenson Agree To Minor League Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-sign-robert-stephenson-reliever.html",
+   "data": "2026-11-23T16:20:45+00:00",
+   "resumo": "The Dodgers and right-handed reliever Robert Stephenson are in agreement on a minor league contract, per Katie Woo and Ken Rosenthal of The Athletic. The Apex Baseball client missed all of the 2026 campaign due to elbow surgery and had a 2027 club option declined by the Angels…",
    "tags": [
-    "Colorado Rockies",
-    "San Diego Padres",
-    "Scott Servais"
-   ]
-  },
-  {
-   "t": "Tigers To Sign Luis Gil",
-   "link": "https://www.mlbtraderumors.com/2026/11/tigers-to-sign-luis-gil.html",
-   "data": "2026-11-22T20:27:43+00:00",
-   "resumo": "The Tigers are adding free agent righty Luis Gil on a one-year deal, reports Jeff Passan of ESPN. The pact is worth $2.3MM, with another $2MM available in incentives. Gil was non-tendered by the Yankees on Friday. We had him projected to earn $2.3MM in arbitration. He’ll land…",
-   "tags": [
-    "Detroit Tigers",
+    "Los Angeles Dodgers",
     "Transactions",
-    "Luis Gil"
+    "Robert Stephenson"
    ]
   },
-  {
-   "t": "Red Sox Interested In Luis Gil",
-   "link": "https://www.mlbtraderumors.com/2026/11/red-sox-interested-in-luis-gil.html",
-   "data": "2026-11-22T19:30:48+00:00",
-   "resumo": "Right-hander Luis Gil was non-tendered by the Yankees on Friday, making him a free agent. One of his suitors on the open market is a former AL East rival. The Red Sox are interested in Gil, reports Tim Healey of the Boston Globe. MLBTR had Gil projected to earn $2.3MM in…",
-   "tags": [
-    "Boston Red Sox",
-    "Luis Gil"
-   ]
-  },
-  {
-   "t": "Jonathan Loaisiga Had Offers From Mets, Blue Jays",
-   "link": "https://www.mlbtraderumors.com/2026/11/jonathan-loaisiga-had-offers-from-mets-blue-jays.html",
-   "data": "2026-11-22T18:18:50+00:00",
-   "resumo": "Right-hander Jonathan Loaisiga signed with the Yankees on Friday, bringing him back to New York after a season in Arizona. Loaisiga had other suitors, though, including another AL East squad and the other New York club. Bob Nightengale of USA Today reports that Loaisiga had…",
-   "tags": [
-    "New York Mets",
-    "New York Yankees",
-    "Toronto Blue Jays",
-    "Jonathan Loaisiga"
-   ]
-  },
-  {
-   "t": "Cardinals, Alec Burleson Have Mutual Interest In Extension",
-   "link": "https://www.mlbtraderumors.com/2026/11/cardinals-alec-burleson-have-mutual-interest-in-extension.html",
-   "data": "2026-11-22T17:19:59+00:00",
-   "resumo": "First baseman Alec Burleson is coming off a two-year run of excellent hitting for the Cardinals. It’s not surprising that other teams have shown interest in trading for him, and even less of a surprise that St. Louis quickly turned away that trade interest. On the contrary, the…",
-   "tags": [
-    "St. Louis Cardinals",
-    "Alec Burleson"
-   ]
-  },
-  {
-   "t": "Padres, Mariners, Phillies Interested In Jarren Duran",
-   "link": "https://www.mlbtraderumors.com/2026/11/padres-mariners-phillies-interested-in-jarren-duran.html",
-   "data": "2026-11-22T15:54:01+00:00",
-   "resumo": "The Red Sox are known to be actively shopping outfielder Jarren Duran since the recent GM Meetings. Duran appears to be drawing interest from a few clubs, with Chris Cotillo and Sean McAdam of MassLive naming the Padres, Mariners, and Phillies as clubs who have done due…",
-   "tags": [
-    "Philadelphia Phillies",
-    "San Diego Padres",
-    "Seattle Mariners",
-    "Jarren Duran"
-   ]
-  },
-  {
-   "t": "The Opener: Ewing, Webb, Itoh",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-ewing-webb-itoh.html",
-   "data": "2026-11-22T13:54:59+00:00",
-   "resumo": "It’s been just under three months since news broke that Arte Moreno was selling the Angels to Stan Kroenke. The sale is expected to be finalized in early January, according to MLB Commissioner Rob Manfred. Once that’s complete, Kroenke’s first order of business will be hiring a…",
-   "tags": [
-    "The Opener"
-   ]
-  },
-  {
-   "t": "Mets Extend A.J. Ewing",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-extend-a-j-ewing.html",
-   "data": "2026-11-22T04:59:49+00:00",
-   "resumo": "The Mets and outfielder A.J. Ewing have agreed to an eight-year contract extension, SNY’s Chelsea Janes reports. The deal also contains a club option for a ninth season (the 2035 campaign), and The Athletic’s Will Sammon reports that the option year is worth $25MM. Sammon also…",
-   "tags": [
-    "New York Mets",
-    "Newsstand",
-    "Transactions",
-    "A.J. Ewing"
-   ]
-  },
-  {
-   "t": "Giants Expected To Re-Sign Victor Bericoto",
-   "link": "https://www.mlbtraderumors.com/2026/11/giants-expected-to-re-sign-victor-bericoto.html",
-   "data": "2026-11-22T04:40:14+00:00",
-   "resumo": "The Giants did not tender a contract to outfielder Victor Bericoto by Friday’s deadline, making him a free agent. The sides might not be splitting up for long, though. Alex Pavlovic of NBC Sports Bay Area reports that Bericoto will likely rejoin the organization on a minor…",
-   "tags": [
-    "San Francisco Giants",
-    "Victor Bericoto"
-   ]
-  },
-  {
-   "t": "Ty France Seeking Three-Year Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/ty-france-seeking-three-year-deal.html",
-   "data": "2026-11-22T03:39:28+00:00",
-   "resumo": "Free agent first baseman Ty France is looking for a three-year contract, per Ken Rosenthal and Will Sammon of The Athletic. France wants an annual average value between Jake Bauers’ deal with the Red Sox last week and Jorge Polanco’s pact with the Mets last winter. With Bauers…",
-   "tags": [
-    "2026-27 MLB Free Agents",
-    "Ty France"
-   ]
-  },
-  {
-   "t": "Hiromi Itoh Reportedly Visited Chicago",
-   "link": "https://www.mlbtraderumors.com/2026/11/hiromi-itoh-reportedly-visited-chicago.html",
-   "data": "2026-11-22T02:31:18+00:00",
-   "resumo": "Free agent right-hander Hiromi Itoh was in Chicago on Friday, reported Jesse Rogers and Jorge Castillo of ESPN. The report didn’t specify whether he visited the Cubs, White Sox, or both. The White Sox are known to be interested in Itoh. The Cubs haven’t been publicly connected…",
-   "tags": [
-    "Chicago Cubs",
-    "Chicago White Sox",
-    "Hiromi Itoh"
-   ]
-  }
- ],
- "dodgers": [
   {
    "t": "Twins, Dodgers Swap Royce Lewis For Bobby Miller",
    "link": "https://www.mlbtraderumors.com/2026/11/dodgers-acquire-royce-lewis.html",
@@ -332,28 +360,6 @@
     "Newsstand",
     "Freddy Peralta",
     "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Dodgers Expect To Have Meeting With Tarik Skubal",
-   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-expect-to-have-meeting-with-tarik-skubal.html",
-   "data": "2026-11-11T00:46:59+00:00",
-   "resumo": "It was reported earlier today that free agent Tarik Skubal is hoping to sign before the lockout arrives on December 2 and will meet with the Mets next week. Dodgers general manager Brandon Gomes said that his club has been in touch with Skubal and expects to have a meeting with…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Newsstand",
-    "Tarik Skubal"
-   ]
-  },
-  {
-   "t": "Dodgers Hire Pedro Guerrero As Hitting Coach",
-   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-hire-pedro-guerrero-as-hitting-coach.html",
-   "data": "2026-11-10T21:51:54+00:00",
-   "resumo": "The Dodgers announced Tuesday that they’ve hired Pedro Guerrero as a hitting coach. He’ll replace Aaron Bates, who surprisingly opted to leave the organization despite being offered a multi-year deal to stay. Guerrero has spent the past two seasons as the Marlins’ hitting…",
-   "tags": [
-    "Los Angeles Dodgers",
-    "Pedro Guerrero",
-    "Robert Van Scoyoc"
    ]
   }
  ]

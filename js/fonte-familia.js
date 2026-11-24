@@ -4,7 +4,7 @@
    RAC Hoje usam esta mesma configuração, e o RAC Hoje a lê pela fonte "familia" (fonteLer), sem carregar a tela.
    Os valores são os mesmos de antes. Na Fase 4 (Família e Casa) os integrantes passam a vir de uma tabela; quem lê pela fonte não muda. */
   function tipoInfo(k){return TIPOS.concat(TIPOS_VEIC).filter(function(t){return t[0]===k})[0]||TIPOS[TIPOS.length-1]}
-  var FAM={eddie:{n:"Eddie",peso:true},olivia:{n:"Olivia",peso:true,bebe:true,
+  var FAM={eddie:{n:"Eddie",peso:true,pesoEmTodos:true},olivia:{n:"Olivia",peso:true,bebe:true,
     /* compras do Mercado que também são gastos dela: lata de NAN, fraldas e lenços (entram sozinhas nos Gastos) */
     merc:{termos:["nan","fralda","pampers","huggies","umedec"],re:/(^|[^a-zà-ú])nan([^a-zà-ú]|$)|fralda|pampers|huggies|umedec/i}},
     /* veículos: mesma tabela de registros, outra lista de tipos e outro resumo; aparecem na página Veículos.

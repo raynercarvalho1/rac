@@ -1837,3 +1837,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Rever o que sobra de texto explicativo em "Pergunte sobre o seu dia", "Histórico recente" e "Fontes de informação", conforme o dono disser como usa a análise.
+
+## 24/11/2026 · Eddie: "Peso do dia" opcional em todos os tipos de registro (versão `2026-11-24.4`)
+
+### 1. O que fizemos
+- Pedido do dono: o formulário de registro do Eddie passa a ter o campo **Peso do dia (kg, opcional)** em todos os tipos (exame, consulta, vacina…), sem ser obrigatório, alimentando as bases que mostram o peso dele. Decisão técnica: o peso preenchido vira uma **pesagem de verdade** (registro `tipo="peso"`, mesma data, título "Pesagem (tipo)", `dados.pesoDe` aponta para o registro; o registro guarda `dados.peso` e `dados.pesoRegId`). Assim o quadro, o gráfico e o resumo de peso (que leem `tipo="peso"`) e o + rápido continuam iguais, sem tocar nos leitores. Editar atualiza a pesagem ligada; esvaziar o campo apaga só ela; no tipo "Peso" nada muda. Olivia e veículos ficaram como estavam (flag `pesoEmTodos` só no Eddie, em `js/fonte-familia.js`). Sem SQL, função ou IA. `js/familia.js`, `js/fonte-familia.js`, `tests/eddie_peso.test.mjs` (6 testes).
+- Apagar o registro original (ex.: a consulta) **não** apaga a pesagem: ela é um dado de peso válido e se apaga à parte.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. O dono confere no iPhone (e o gráfico só aparece com 2 ou mais pesagens).
+
+### 3. O que vamos fazer
+- Se o dono quiser, apagar a pesagem junto com o registro de origem, ou mostrar "peso do dia" dentro do cartão do registro.

@@ -713,6 +713,11 @@
     f.appendChild(h("div",{class:"two"},h("label",null,"Tipo",tipo),h("label",null,"Data",data)));
     f.appendChild(h("label",null,"Título",titulo));
     f.appendChild(h("div",{class:"two"},lValor,lProx));
+    /* Eddie: qualquer tipo de registro pode levar o peso do dia (opcional). Ele vira uma pesagem de verdade (tipo "peso"), que alimenta o quadro, o gráfico e o resumo de peso */
+    var pesoDia=!!FAM[quem].pesoEmTodos,pesoAntigo=reg&&reg.dados&&reg.dados.pesoRegId||null,pv=reg&&reg.dados&&typeof reg.dados.peso==="number"?reg.dados.peso:null;
+    var pesoI=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 12,5",value:pv!=null?String(pv).replace(".",","):""}),lPeso=h("label",null,"Peso do dia (kg, opcional)",pesoI);
+    function ajustarPeso(){lPeso.hidden=tipo.value==="peso"}tipo.addEventListener("change",ajustarPeso);ajustarPeso();
+    if(pesoDia)f.appendChild(lPeso);
     f.appendChild(h("label",null,"Quanto custou (R$, opcional)",custo));
     /* Olivia: comprimento e perímetro cefálico (cm) ficam em dados.altura e dados.cabeca do registro de peso, como os importados da OMS */
     var rdb=reg&&reg.dados||{},compI=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 61,5",value:typeof rdb.altura==="number"?String(rdb.altura).replace(".",","):""}),cabI=h("input",{type:"text",inputmode:"decimal",placeholder:"Ex.: 42",value:typeof rdb.cabeca==="number"?String(rdb.cabeca).replace(".",","):""});
@@ -757,11 +762,26 @@
         if(errM){st.textContent=errM;salvar.disabled=false;return}
         if(!algum){st.textContent="Informe o peso, o comprimento ou o perímetro cefálico.";salvar.disabled=false;return}
         dados.dados=db}
+      var pesoKg=null;
+      if(pesoDia){var dpz=Object.assign({},dados.dados||reg&&reg.dados||{}),ptx=pesoI.value.trim().replace(",",".");
+        if(tipo.value!=="peso"&&ptx){pesoKg=/^\d+(\.\d+)?$/.test(ptx)?parseFloat(ptx):NaN;
+          if(!(pesoKg>=0.1&&pesoKg<=150)){st.textContent="O peso precisa ser um número em kg, como 12,5.";salvar.disabled=false;return}
+          pesoKg=Math.round(pesoKg*100)/100;dpz.peso=pesoKg}
+        else{delete dpz.peso;delete dpz.pesoRegId}
+        dados.dados=dpz}
       if(ehVeic(quem)){var dv=Object.assign({},dados.dados||reg&&reg.dados||{});
         [["km",kmI],["proxKm",pkI]].forEach(function(x){var v=parseInt(x[1].value.replace(/\D/g,""),10);if(v>0)dv[x[0]]=v;else delete dv[x[0]]});
         dados.dados=dv}
       var passo=reg?SB.from("registros").update(dados).eq("id",reg.id).select("id,arquivos").single():SB.from("registros").insert(dados).select("id,arquivos").single();
-      passo.then(sbOk).then(function(row){
+      /* a pesagem acompanha o registro: cria, atualiza ou apaga a pesagem ligada a ele (dados.pesoDe), sem mexer em nenhum outro registro de peso */
+      function sincronizarPeso(row){
+        if(!pesoDia)return Promise.resolve();
+        if(pesoKg==null)return pesoAntigo?SB.from("registros").delete().eq("id",pesoAntigo).then(sbOk):Promise.resolve();
+        var pf={quem:quem,tipo:"peso",data:data.value,titulo:"Pesagem ("+String(tipoInfo(tipo.value)[1]).toLowerCase()+")",valor:String(pesoKg).replace(".",","),dados:{pesoDe:row.id}};
+        if(pesoAntigo)return SB.from("registros").update(pf).eq("id",pesoAntigo).then(sbOk);
+        return SB.from("registros").insert(pf).select("id").single().then(sbOk).then(function(c){
+          var dl=Object.assign({},dados.dados||{});dl.pesoRegId=c.id;return SB.from("registros").update({dados:dl}).eq("id",row.id).then(sbOk)})}
+      passo.then(sbOk).then(function(row){return sincronizarPeso(row).then(function(){return row})}).then(function(row){
         if(!arq.files.length)return;
         return enviarArquivos(quem,row.id,arq.files,function(t){st.textContent=t}).then(function(novos){
           return SB.from("registros").update({arquivos:(row.arquivos||[]).concat(novos)}).eq("id",row.id).then(sbOk)})

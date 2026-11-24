@@ -188,3 +188,20 @@ test("cmSugerirJuncoes: só sugere para o produto que existe apenas em pedido on
   const juntado = N.cmLinhas(N.cmAplicarEquivalencias(UJ.compras, N.cmJuntar({}, "Ração Golden 10kg", "Ração Golden Adulto 10kg").mapa));
   assert.deepEqual(N.cmSugerirJuncoes(juntado), [], "depois de juntar, a sugestão some");
 });
+
+test("categoria e nome de produto de pedido online (editar na página do produto): cmCategoriasOn/cmCategoriaOnDefinir/cmRenomearOn só aceitam o válido, não alteram o que recebem; a categoria muda só as linhas do produto e nenhum total", () => {
+  assert.deepEqual(N.cmCategoriasOn({ categorias: { "o:racao": " Saúde ", "x:errado": "A", "o:vazio": " ", "o:longa": "x".repeat(41), "o:tag": "<b>", "o:num": 3 } }), { "o:racao": "Saúde" });
+  assert.deepEqual(N.cmCategoriasOn(null), {}); assert.deepEqual(N.cmCategoriasOn({ categorias: [] }), {});
+  const c0 = {}, c1 = N.cmCategoriaOnDefinir(c0, "Ração Golden 10kg", "Saúde"); assert.ok(c1.ok); assert.deepEqual(c0, {}, "não altera o recebido");
+  assert.equal(N.cmCategoriaOnDefinir(c1.categorias, "Ração Golden 10kg", "").categorias[N.cmChaveOn("Ração Golden 10kg")], undefined, "categoria vazia remove a escolha");
+  assert.equal(N.cmCategoriaOnDefinir({}, "", "Pet").ok, false); assert.equal(N.cmCategoriaOnDefinir({}, "A", "x".repeat(41)).ok, false);
+  const C = N.cmAplicarEquivalencias(UJ.compras, {}, c1.categorias), o1 = C.find((c) => c.id === "online:o1");
+  assert.deepEqual([o1.itens[0].categoria, o1.itens[0].valor, Object.keys(o1.categorias)], ["Saúde", 100, ["Saúde"]], "a linha e o resumo da compra mudam de categoria; o valor não");
+  const R0 = N.cuResumo(N.cuFiltrar(UJ.compras, {})), R1 = N.cuResumo(N.cuFiltrar(C, {})); assert.equal(R1.total, R0.total, "trocar a categoria não muda o total");
+  assert.equal(C.find((c) => c.fonte === "nota"), UJ.compras.find((c) => c.fonte === "nota"), "notas intocadas");
+  // renomear: toda origem passa a apontar para o novo nome; a categoria escolhida acompanha; voltar ao nome do pedido remove a junção
+  const m0 = N.cmJuntar({}, "Golden 10kg Amazon", "Ração Golden 10kg").mapa, r = N.cmRenomearOn(m0, c1.categorias, ["Golden 10kg Amazon", "Ração Golden 10kg"], "Ração Golden 10kg", "Ração Premium 10kg");
+  assert.ok(r.ok); assert.deepEqual(Object.values(r.mapa), ["Ração Premium 10kg", "Ração Premium 10kg"]); assert.deepEqual(r.categorias, { [N.cmChaveOn("Ração Premium 10kg")]: "Saúde" });
+  const volta = N.cmRenomearOn(r.mapa, r.categorias, ["Ração Golden 10kg"], "Ração Premium 10kg", "Ração Golden 10kg"); assert.ok(volta.ok); assert.equal(volta.mapa[N.cmChaveOn("Ração Golden 10kg")], undefined, "nome original: sem junção");
+  assert.equal(N.cmRenomearOn({}, {}, ["A"], "A", " a ").ok, false, "mesmo nome"); assert.equal(N.cmRenomearOn({}, {}, ["A"], "A", "").ok, false); assert.equal(N.cmRenomearOn({}, {}, ["A"], "A", "x".repeat(161)).ok, false);
+});

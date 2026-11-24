@@ -276,3 +276,35 @@ test("junção na Central e na aba Produtos: o pedido aberto mostra o nome do pe
   await abrir("produto", encodeURIComponent("Ração Golden 10kg"), { dono: false, linhas: COM_PET }); t = tudo();
   assert.ok(t.includes("O que você pagou"), "a casa vê o produto pelo nome do pedido"); assert.deepEqual(gravP, []);
 });
+
+/* ---------- editar nome e categoria na própria página do produto (pedido do dono em 24/11/2026) ---------- */
+const campo = (rotulo) => achar(ROOT, (e) => (e.tag === "input" || e.tag === "select") && e.attrs["aria-label"] === rotulo)[0];
+
+test("página do produto (pedido online): renomear grava só a junção em PESSOAL e leva ao novo nome; trocar a categoria grava só o campo categorias; nada vai ao banco de compras", async () => {
+  const calls = await abrir("produto", encodeURIComponent("Ração Golden 10kg"), { linhas: COM_PET, db: { radar_itens: [] } });
+  assert.ok(tudo().includes("Editar nome e categoria") && campo("Nome do produto") && campo("Categoria do produto"), "o editor está no produto");
+  campo("Nome do produto").value = "Ração Premium 10kg"; botoes("Salvar nome")[0].onclick(); await esperar(10);
+  assert.deepEqual(gravP, [["mercado-equivalencias", { v: 1, itens: { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Premium 10kg" } }]], "só a junção (o nome do pedido não muda)");
+  assert.equal(globalThis.location.hash, "#mercado/produto/" + encodeURIComponent("Ração Premium 10kg"));
+  await abrir("produto", encodeURIComponent("Ração Golden 10kg"), { linhas: COM_PET, db: { radar_itens: [] } });
+  campo("Categoria do produto").value = "Saúde"; botoes("Salvar categoria")[0].onclick(); await esperar(10);
+  assert.deepEqual(gravP, [["mercado-equivalencias", { v: 1, itens: {}, categorias: { [N.cmChaveOn("Ração Golden 10kg")]: "Saúde" } }]], "a categoria fica no mesmo registro, preservando as junções");
+  assert.deepEqual(escritas(calls), [], "nada no banco de compras para pedido online");
+});
+
+test("página do produto (nota do Mercado): renomear e trocar a categoria gravam em produtos (todas as compras do produto); sem PESSOAL", async () => {
+  let calls = await abrir("produto", encodeURIComponent("Leite"), { db: { radar_itens: [] } });
+  campo("Nome do produto").value = "Leite Integral"; botoes("Salvar nome")[0].onclick(); await esperar(10);
+  assert.deepEqual(escritas(calls).slice(0, 1), [["update", "produtos"]]); assert.deepEqual(gravP, []);
+  assert.equal(globalThis.location.hash, "#mercado/produto/" + encodeURIComponent("Leite Integral"));
+  calls = await abrir("produto", encodeURIComponent("Leite"), { db: { radar_itens: [] } });
+  campo("Categoria do produto").value = "Bebidas"; botoes("Salvar categoria")[0].onclick(); await esperar(10);
+  assert.ok(escritas(calls).some((c) => c[0] === "update" && c[1] === "produtos"), "categoria do produto"); assert.deepEqual(gravP, []);
+});
+
+test("aba Produtos (dono): produtos que só existem em pedidos online aparecem para serem tratados (nome e categoria); os que também estão em nota não repetem", async () => {
+  await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [] } }); await esperar(10); const t = tudo();
+  assert.ok(t.includes("Produtos de pedidos online") && t.includes("Ração Golden 10kg"), "o produto só online está na aba");
+  assert.ok(campo("Nome do produto") && campo("Categoria do produto"), "com o editor de nome e categoria");
+  assert.ok(!achar(ROOT, (e) => e.tag === "b" && texto(e) === "Leite").length, "Leite (nota) não entra na lista de só online");
+});

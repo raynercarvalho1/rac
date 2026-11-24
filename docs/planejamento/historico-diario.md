@@ -1894,3 +1894,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: publicar o site `2026-11-24.8` e testar a caixa nas três contas (desligar uma conta e conferir que a rotina deixa de avisar dela).
+
+## 24/11/2026 · Central de Compras: editar nome e categoria na página do produto (site `2026-11-24.9`)
+
+### 1. O que fizemos
+- Pedido do dono: mudar o nome e a categoria de um produto direto na página dele, sem ir à aba Produtos. Quadro recolhido "✎ Editar nome e categoria" na página do produto (dono e casa). Nota do Mercado grava em `produtos`; pedido online usa a junção e um novo campo `categorias` em `PESSOAL["mercado-equivalencias"]` (sem migration, sem SQL, sem função). Funções novas no núcleo: `cmRenomearOn`, `cmCategoriaOnDefinir`, `cmCategoriasOn`; `cmAplicarEquivalencias` ganhou o 3º parâmetro. Testes: módulo `central_mercado` (puro e telas) passando.
+
+### 2. O que estamos fazendo
+- Suíte completa, PR, CI e merge. **Não conferido:** o uso real no site (gravação em `produtos` e em PESSOAL com a conta do dono) e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Dono: publicar o site `2026-11-24.9` e testar renomear e trocar a categoria num produto de nota e num de pedido online (como o Bellacotton da Amazon).
+

@@ -101,3 +101,11 @@ test("Eddie: registro do tipo Peso continua como antes (usa o campo Peso (kg), s
   const valor = todos(f, (e) => e.tag === "input" && e.attrs.type === "text")[1]; valor.value = "12,4"; await salvar(f);
   assert.equal(gravados.length, 1); assert.equal(gravados[0][1].tipo, "peso"); assert.equal(gravados[0][1].valor, "12,4");
 });
+
+test("apagar o registro do Eddie apaga a pesagem ligada (pesoRegId); apagar a pesagem avulsa solta o vínculo do registro de origem (pesoDe)", () => {
+  const src = ler("js/familia.js"), i = src.indexOf('del.onclick=function(){'), blocoApagar = src.slice(i, src.indexOf('card.appendChild(h("div",{class:"vfoot"}', i));
+  assert.match(blocoApagar, /dr\.pesoRegId\)return SB\.from\("registros"\)\.delete\(\)\.eq\("id",dr\.pesoRegId\)/, "apaga a pesagem ligada junto com o registro");
+  assert.match(blocoApagar, /dr\.pesoDe\)return SB\.from\("registros"\)\.select\("dados"\)/, "pesagem avulsa: lê o registro de origem");
+  assert.match(blocoApagar, /delete d2\.peso;delete d2\.pesoRegId/, "e solta o vínculo dele");
+  assert.match(blocoApagar, /\.catch\(function\(\)\{\}\)/, "origem que já não existe não impede de apagar");
+});

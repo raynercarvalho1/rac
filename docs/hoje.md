@@ -322,3 +322,6 @@ guardada quando a página continua aberta, mensagens que dizem "incerta" ou "nã
 - **P5**: a `rac-ia` valida citações e números, não a classificação fato × inferência. Para validar de verdade, a função precisaria
   tratar como "fato" só trechos cujo conteúdo conste literalmente nos fatos citados e que não citem apenas fatos "rac" (data, estado de fonte),
   ou deixar de pedir a classificação à IA e derivá-la das citações. Até lá a tela rotula "(segundo a IA)".
+
+
+**Perguntas fora da tela (24/11/2026, decisão do dono).** O cartão "Pergunte sobre o seu dia" foi retirado do Hoje: o dono só lê a análise. O motor de perguntas (`hojeAnalisar({pergunta})`, cache e cobrança) continua no código e nos testes, sem botão nem campo; análises antigas com pergunta seguem aparecendo no histórico. Para voltar, reponha o cartão em `renderHoje` (`js/hoje.js`).

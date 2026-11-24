@@ -460,7 +460,12 @@
             if(!armado){armado=true;del.textContent="Toque de novo para apagar";del.classList.add("danger");setTimeout(function(){armado=false;del.textContent="Apagar";del.classList.remove("danger")},5000);return}
             del.disabled=true;
             var ps=(r.arquivos||[]).map(function(x){return x.path});
-            (ps.length?SB.storage.from("familia").remove(ps):Promise.resolve()).then(function(){return SB.from("registros").delete().eq("id",r.id).then(sbOk)}).then(function(){renderFamilia(quem)})
+            (ps.length?SB.storage.from("familia").remove(ps):Promise.resolve()).then(function(){return SB.from("registros").delete().eq("id",r.id).then(sbOk)})
+              /* a pesagem que veio com o registro (Eddie: "Peso do dia") some junto; apagar uma pesagem avulsa solta o vínculo do registro de origem */
+              .then(function(){var dr=r.dados||{};
+                if(dr.pesoRegId)return SB.from("registros").delete().eq("id",dr.pesoRegId).then(sbOk);
+                if(dr.pesoDe)return SB.from("registros").select("dados").eq("id",dr.pesoDe).single().then(sbOk).then(function(o){var d2=Object.assign({},o&&o.dados||{});delete d2.peso;delete d2.pesoRegId;return SB.from("registros").update({dados:d2}).eq("id",dr.pesoDe).then(sbOk)}).catch(function(){})})
+              .then(function(){renderFamilia(quem)})
               .catch(function(e){del.disabled=false;del.textContent="Não apagou ("+e.message+")"})};
           card.appendChild(h("div",{class:"vfoot"},ed,del));
           box.appendChild(card)})}

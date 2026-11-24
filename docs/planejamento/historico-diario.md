@@ -1793,3 +1793,14 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Após a publicação, o dono toca em "Resumir com IA" uma vez para validar o formato real e o custo; ajustar o prompt se a validação recusar.
+
+## 24/11/2026 · Funções `garmin` v24 e `rac-ia` v21 publicadas e conferidas (plano Garmin, lotes 1 a 6 na `main`)
+
+### 1. O que fizemos
+- **Conferido por leitura (lista de Edge Functions do Supabase):** `garmin` v24 ATIVA e `rac-ia` v21 ATIVA, ambas com `verify_jwt: false` preservado. Informado pelo agente que publicou: a `rac-ia` foi republicada com os 9 arquivos da `main` (contém a ação `saude.resumo`) e a `garmin` já estava na v24 (extras corrigidos, rotas, tratamento de 429 com pausas). Migrations 065 e 066 aplicadas e conferidas por leitura. Nenhuma chamada à Anthropic nem à Garmin foi feita pela republicação.
+
+### 2. O que estamos fazendo
+- **Validação funcional no site, pelo dono (não conferida por este agente):** Saúde → Visão geral (resumo por regras, "Resumir com IA" com confirmação, custo em Custos de IA), "Buscar rotas dos treinos" (168 de 987 antes), "Completar desde 01/01/2026" dos extras e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Se a validação da IA recusar a resposta real, ajustar o prompt de `saude.resumo`; depois da busca das rotas, conferir as sugestões de lugares; decidir quais campos extras já coletados vale guardar (hidratação, escores de sono, faixas da VFC).

@@ -10,9 +10,9 @@ data: 2026-11-25
 
 No iPhone, a barra inferior e os botões flutuantes (←, ↑, +) ficavam no meio da tela e só voltavam ao rolar a página (visto na Segurança, 25/11/2026). Já houve um caso parecido no Inbox (versão 2026-11-24.9), tratado com camada própria (`translate3d`) em `css/rac.css`; sozinha ela não bastou.
 
-## Causa (hipótese, não confirmada no aparelho)
+## Causa
 
-O Safari do iPhone deixa a janela "encolhida" depois do teclado (código do MFA, nome da passkey), do Face ID ou de uma rolagem suave programática (`scrollIntoView` com `smooth`); os elementos `position:fixed` ficam deslocados até a próxima rolagem.
+Hipótese, não confirmada no aparelho: o Safari do iPhone deixa a janela "encolhida" depois do teclado (código do MFA, nome da passkey), do Face ID ou de uma rolagem suave programática (`scrollIntoView` com `smooth`); os elementos `position:fixed` ficam deslocados até a próxima rolagem.
 
 ## Solução
 

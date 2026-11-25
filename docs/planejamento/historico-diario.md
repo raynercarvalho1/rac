@@ -1932,3 +1932,14 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: testar renomear e trocar a categoria de um produto online na aba Produtos.
 
+## 25/11/2026 · Categorias: a mesma lista completa em todos os seletores (site `2026-11-25.4`)
+
+### 1. O que fizemos
+- Relato do dono (iPhone): alguns produtos ofereciam Pet no seletor de categoria e outros não. Causa: cada tela montava a lista a partir das categorias dos itens que tinha à mão (Pet só existia nos pedidos online). Agora há uma lista única (`mkTodasCategorias`) em Produtos, na página do produto e no editor de item das Notas. Sem SQL, função ou secret.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Não conferido:** o uso real no site e no iPhone.
+
+### 3. O que vamos fazer
+- Dono: abrir um produto de nota e um de pedido online e conferir que os seletores têm as mesmas categorias.
+

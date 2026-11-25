@@ -20,6 +20,7 @@
       if(r.avalVencidas.length)li("alerta",r.avalVencidas.length+(r.avalVencidas.length===1?" avaliação vencida sem resposta":" avaliações vencidas sem resposta"),r.avalVencidas[0].t+" · era até "+dataBR(r.avalVencidas[0].ate).slice(0,5),[ver("#mba/avaliacoes","Ver")]);
       if(r.aoVivo)li(null,"Aula hoje às "+(r.aoVivo.hora||"19:00"),r.aoVivo.t,[ext(mbaLinkAula(r.aoVivo),"▶ Ao vivo","ghostbtn pri")]);
       else if(r.proxima)li(null,"Próxima aula",r.proxima.t,[h("span",{class:"sub",text:quando(r.proxima.data+"T"+(r.proxima.hora||"19:00"))})]);
+      NUCLEO.mbaMaterialPendente(PESSOAL.mba,PESSOAL.mbaLinks,mbaFeito(),hojeISO()).slice(0,2).forEach(function(a){li("alerta","Conferir o material da aula",a.t+" · "+dataBR(a.data).slice(0,5)+" (sai cerca de 3 dias antes)",[ext(mbaLinkAula(a),"Abrir portal","ghostbtn"),marcar("mat:"+a.id,"Material conferido")])});
       r.paraAssistir.slice(0,3).forEach(function(a){li("alerta","Aula para assistir",a.t+" · "+dataBR(a.data).slice(0,5),[ext(mbaLinkAula(a),"▶ Assistir","ghostbtn pri"),marcar("au:"+a.id,"Assistida")])});
       if(r.paraAssistir.length>3)li(null,"+ "+(r.paraAssistir.length-3)+(r.paraAssistir.length-3===1?" aula":" aulas")+" para assistir",null,[ver("#mba/aulas","Ver")]);
       r.avalPendentes.slice(0,3).forEach(function(a){var d=diasAte(a.ate);li(d<=5?"alerta":null,a.t,"Avaliação até "+dataBR(a.ate).slice(0,5)+(a.disc?" · "+a.disc:""),[a.link?ext(a.link,"Abrir","ghostbtn"):null,marcar("av:"+a.id,"Já respondi")])});
@@ -72,9 +73,11 @@
      o que já foi feito fica à parte em PESSOAL.mbaFeito, para uma nova importação não apagar o progresso. */
   function mbaFeito(){return PESSOAL.mbaFeito||{}}
   function mbaMarcar(k,on){var o=Object.assign({},mbaFeito());if(on)o[k]=hojeISO();else delete o[k];pessoalGravar("mbaFeito",o)}
-  function mbaDiscs(){return ((PESSOAL.mba||{}).disciplinas||[]).slice().sort(function(a,b){var o={andamento:0,proxima:1,concluida:2};return (o[a.status]||0)-(o[b.status]||0)})}
+  /* disciplina com todos os tópicos do roteiro marcados conta como concluída, mesmo que o arquivo importado ainda diga "andamento" */
+  function mbaStatusDe(d,f){var r=d.roteiro||[];return d.status==="concluida"||(r.length&&r.every(function(t){return f[d.id+":"+t.k]}))?"concluida":d.status}
+  function mbaDiscs(){var f=mbaFeito();return ((PESSOAL.mba||{}).disciplinas||[]).slice().sort(function(a,b){var o={andamento:0,proxima:1,concluida:2};return (o[mbaStatusDe(a,f)]||0)-(o[mbaStatusDe(b,f)]||0)})}
   /* próximo tópico ainda não marcado da disciplina em andamento */
-  function mbaOndeParei(){var d=mbaDiscs().filter(function(x){return x.status!=="concluida"})[0];if(!d)return null;var f=mbaFeito();
+  function mbaOndeParei(){var f=mbaFeito(),d=mbaDiscs().filter(function(x){return mbaStatusDe(x,f)!=="concluida"})[0];if(!d)return null;
     var r=(d.roteiro||[]).filter(function(t){return !f[d.id+":"+t.k]})[0],ex=(d.exercicios||[]),exf=ex.filter(function(e){return f[d.id+":ex"+e.n]}).length;
     return {d:d,prox:r,exf:exf,ext:ex.length}}
   function mbaAulasTxt(a){return (a||[]).map(function(x){var p=x.split("-");return p[2]+"/"+p[1]}).join(", ")}
@@ -133,6 +136,12 @@
     p.appendChild(h("div",{class:"vfil"},cal,mbaLinkAulas(PESSOAL.mba)?ext(mbaLinkAulas(PESSOAL.mba),"Aulas no portal","ghostbtn"):null));
     p.appendChild(h("p",{class:"sub",text:"O calendário avisa 10 minutos antes e na hora de cada aula, com o link para entrar. Quando sair aula nova, baixe de novo: as que já estão lá são atualizadas, sem repetir."}));
     return p}
+  /* o material de cada aula só sai no portal cerca de 3 dias antes: lembrete até o dono marcar "Material conferido" (mbaFeito "mat:<id>") */
+  function mbaPainelMaterial(){
+    var l=NUCLEO.mbaMaterialPendente(PESSOAL.mba,PESSOAL.mbaLinks,mbaFeito(),hojeISO());if(!l.length)return null;
+    var p=panel("Material das próximas aulas","O portal libera o material cerca de 3 dias antes de cada aula (terças). Confira e marque.");p.id="mba-material";
+    p.appendChild(h("ul",{class:"wl"},l.map(function(a){var b=h("button",{type:"button",class:"ghostbtn",text:"Material conferido"});b.onclick=function(){mbaMarcar("mat:"+a.id,true);renderMba()};
+      return h("li",{class:"alerta"},h("span",{class:"grow"},h("b",{text:a.t}),h("span",{class:"sub",text:dataBR(a.data)+" · "+(a.hora||"19:00")})),h("span",{class:"end vfil"},ext(mbaLinkAula(a),"Abrir portal","ghostbtn"),b))})));return p}
   function mbaPainelFin(){
     var x=mbaFin();if(!x)return null;
     var p=panel("Financeiro",x.pagas+" de "+x.ps.length+" pagas · faltam "+BRL(x.falta)),f=mbaFeito();p.id="mba-financeiro";
@@ -152,7 +161,7 @@
   /* avaliações do portal (pesquisas e provas): o link abre direto a avaliação; "já respondi" fica em PESSOAL.mbaFeito */
   function mbaAvals(){return NUCLEO.mbaAvalsDe(PESSOAL.mba,mbaFeito(),hojeISO())}
   function mbaPainelAval(){
-    var l=mbaAvals();if(!l.length)return null;var abertas=l.filter(function(a){return !a.feita&&!a.vencida});
+    var l=mbaAvals();var abertas=l.filter(function(a){return !a.feita&&!a.vencida});
     var p=panel("Avaliações",abertas.length?abertas.length+(abertas.length===1?" para responder":" para responder")+", a próxima até "+dataBR(abertas[0].ate):"Nenhuma pendente");p.id="mba-avaliacoes";
     var box=h("div",{class:"exl"});
     l.forEach(function(a){var cb=h("input",{type:"checkbox"});cb.checked=a.feita;cb.onchange=function(){mbaMarcar("av:"+a.id,cb.checked);renderMba()};
@@ -162,6 +171,17 @@
         !a.feita&&!a.vencida&&a.link?ext(a.link,"Responder","ghostbtn pri"):null))});
     p.appendChild(box);
     p.appendChild(h("p",{class:"sub",text:"Depois de responder no portal, marque aqui para sair da lista de pendências."}));
+    /* cadastro de avaliação ou atividade nova (grava em PESSOAL.mba.avaliacoes; importar o .json de novo junta por id e não apaga estas) */
+    var det=h("details",{class:"famvals"},h("summary",{text:"+ Nova avaliação ou atividade"})),fm=h("div",{class:"wform"});
+    function cp(r,k,t){var i=h("input",{type:t||"text"});i.dataset.k=k;return h("label",null,r,i)}
+    fm.appendChild(cp("Título","t"));fm.appendChild(h("div",{class:"two"},cp("Disciplina","disc"),cp("Prazo final","ate","date")));fm.appendChild(cp("Link no portal (opcional)","link","url"));
+    var sv=h("button",{type:"button",class:"ghostbtn pri",text:"Salvar"}),ms=h("p",{class:"sub",role:"status"});
+    sv.onclick=function(){var v={};[].forEach.call(fm.querySelectorAll("input"),function(i){v[i.dataset.k]=i.value.trim()});
+      if(!v.t||!/^\d{4}-\d{2}-\d{2}$/.test(v.ate)){ms.textContent="Preencha o título e o prazo.";return}
+      if(v.link&&!/^https:\/\//.test(v.link)){ms.textContent="O link precisa começar com https://";return}
+      var m=Object.assign({},PESSOAL.mba||{}),L=(m.avaliacoes||[]).slice(),o={id:"m"+Date.now(),t:v.t,ate:v.ate};if(v.disc)o.disc=v.disc;if(v.link)o.link=v.link;
+      L.push(o);m.avaliacoes=L;pessoalGravar("mba",m);renderMba()};
+    fm.appendChild(h("div",{class:"vfil"},sv));fm.appendChild(ms);det.appendChild(fm);p.appendChild(det);
     return p}
   function mbaPainelGeral(){var g=(PESSOAL.mba||{}).materiaisGerais||[];if(!g.length)return null;
     var p=panel("Materiais do curso","Guardados também no seu Google Drive.");
@@ -173,8 +193,8 @@
       fp.appendChild(w.mbaForm?w.mbaForm():h("p",{class:"sub",text:"Nada para editar."}));root.appendChild(fp);return}
     if(sub)setTimeout(function(){var alvo=$("#mba-"+sub)||(sub==="disciplinas"?root.querySelector('[id^="mba-disc-"]'):null);if(alvo){alvo.scrollIntoView({behavior:"smooth",block:"start"});alvo.classList.add("pisca");setTimeout(function(){alvo.classList.remove("pisca")},1800)}},60);
     root.appendChild(wMba());
-    [mbaPainelAulas(),mbaPainelAval(),mbaPainelFin()].forEach(function(x){if(x)root.appendChild(x)});
-    var discs=mbaDiscs().filter(function(d){return (d.roteiro||[]).length||(d.exercicios||[]).length||d.notas||(d.materiais||[]).length});
+    [mbaPainelMaterial(),mbaPainelAulas(),mbaPainelAval(),mbaPainelFin()].forEach(function(x){if(x)root.appendChild(x)});
+    var discs=mbaDiscs().filter(function(d){return d.nome});/* todas as disciplinas, inclusive as próximas, só com as datas das aulas */
     var imp=h("input",{type:"file",accept:".json,application/json",hidden:""}),bimp=h("button",{type:"button",class:"ghostbtn",text:"Importar do arquivo (.json)"}),imsg=h("p",{class:"sub",role:"status"});
     bimp.onclick=function(){imp.click()};
     imp.onchange=function(){var fl=imp.files[0];if(!fl)return;fl.text().then(function(t){
@@ -184,7 +204,11 @@
       var porId={};(m.disciplinas||[]).forEach(function(d){porId[d.id]=d});
       (j.disciplinas||[]).forEach(function(d){porId[d.id]=d;n++});
       m.disciplinas=Object.keys(porId).map(function(k){return porId[k]});
-      ["aulas","financeiro","materiaisGerais","aulasLink","avaliacoes"].forEach(function(k){if(j[k])m[k]=j[k]});
+      ["financeiro","materiaisGerais","aulasLink"].forEach(function(k){if(j[k])m[k]=j[k]});
+      /* aulas também juntam por id (o link de cada aula já guardado não se perde) */
+      if(j.aulas){var au={};(m.aulas||[]).forEach(function(x){au[x.id]=x});j.aulas.forEach(function(x){au[x.id]=Object.assign({},au[x.id]||{},x)});m.aulas=Object.keys(au).map(function(k){return au[k]})}
+      /* avaliações juntam por id: as cadastradas pelo formulário não se perdem */
+      if(j.avaliacoes){var av={};(m.avaliacoes||[]).forEach(function(x){av[x.id]=x});j.avaliacoes.forEach(function(x){av[x.id]=x});m.avaliacoes=Object.keys(av).map(function(k){return av[k]})}
       pessoalGravar("mba",m);
       /* o que o arquivo diz que já foi feito só entra se ainda não estiver marcado */
       var o=Object.assign({},mbaFeito());(j.feitos||[]).forEach(function(k){if(!o[k])o[k]=hojeISO()});pessoalGravar("mbaFeito",o);
@@ -193,7 +217,7 @@
     if(!discs.length){root.appendChild(h("div",{class:"panel"},h("p",{class:"empty",text:"Nenhuma disciplina ainda. Importe o arquivo do MBA para ver o roteiro, a lista de exercícios e os materiais."}),h("div",{class:"vfil"},bimp),imp,imsg));return}
     discs.forEach(function(d){
       var rot=d.roteiro||[],ex=d.exercicios||[],nf=rot.filter(function(t){return f[d.id+":"+t.k]}).length,exf=ex.filter(function(e){return f[d.id+":ex"+e.n]}).length;
-      var st={andamento:"em andamento",proxima:"próxima",concluida:"concluída"}[d.status]||"";
+      var st={andamento:"em andamento",proxima:"próxima",concluida:"concluída"}[mbaStatusDe(d,f)]||"",ab=mbaStatusDe(d,f)==="concluida"?{class:"famvals"}:{class:"famvals",open:""};/* disciplina concluída abre recolhida */
       var p=panel(d.nome,[d.prof?"Prof. "+d.prof:"",d.aulas&&d.aulas.length?"aulas em "+mbaAulasTxt(d.aulas):"",st].filter(Boolean).join(" · "));p.id="mba-disc-"+d.id;
       if(d.status==="concluida"&&!rot.length){root.appendChild(p);return}
       /* onde parei: barra de progresso e o próximo tópico */
@@ -208,7 +232,7 @@
           var k=d.id+":"+t.k,cb=h("input",{type:"checkbox"});cb.checked=!!f[k];
           cb.onchange=function(){mbaMarcar(k,cb.checked);renderMba()};
           l.appendChild(h("label",{class:(cb.checked?"done":"")+(t===prox?" mbaprox":"")||null},cb,h("span",{class:"grow"},h("b",{text:t.t}),t.sub?h("span",{class:"sub",style:"display:block",text:t.sub}):null)))});
-        p.appendChild(h("details",{class:"famvals",open:""},h("summary",{text:"Roteiro da disciplina"}),l))}
+        p.appendChild(h("details",ab,h("summary",{text:"Roteiro da disciplina"}),l))}
       /* lista de exercícios: cada um com o tema (o tópico do roteiro) e a aba da planilha */
       if(ex.length){
         var le=h("div",{class:"exl"}),tema={};rot.forEach(function(t){tema[t.k]=t.t});
@@ -218,7 +242,7 @@
           le.appendChild(h("label",{class:cb.checked?"done":null},cb,h("span",{class:"grow"},h("b",{text:e.n+". "+e.t}),
             h("span",{class:"sub",style:"display:block",text:[e.tema&&tema[e.tema]?"Tema: "+tema[e.tema]:"",e.aba?"planilha, aba "+e.aba:"",!cb.checked&&!pronto?"tópico ainda não estudado":""].filter(Boolean).join(" · ")}))))});
         var lk=(d.materiais||[]).filter(function(m){return m.lista});
-        p.appendChild(h("details",{class:"famvals",open:""},h("summary",{text:"Lista de exercícios: "+exf+" de "+ex.length+" feitos"}),
+        p.appendChild(h("details",ab,h("summary",{text:"Lista de exercícios: "+exf+" de "+ex.length+" feitos"}),
           lk.length?h("div",{class:"vfil"},lk.map(function(m){return ext(m.url,m.n,"ghostbtn")})):null,le))}
       /* anotações: o documento e a colinha de fórmulas do Excel */
       if(d.notas||(d.cola||[]).length){

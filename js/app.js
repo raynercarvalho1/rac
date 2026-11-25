@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-24.9",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-25.1",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -616,6 +616,10 @@
     if(!$(".topobtn")){var tb=h("button",{type:"button",class:"topobtn","aria-label":"Voltar ao topo da página",title:"Voltar ao topo",hidden:""},"↑");
       tb.onclick=function(){scrollTo({top:0,behavior:"smooth"})};document.body.appendChild(tb);
       var olhar=function(){tb.hidden=(window.scrollY||document.documentElement.scrollTop)<500};addEventListener("scroll",olhar,{passive:true});addEventListener("hashchange",function(){setTimeout(olhar,50)})}
+    /* iPhone: depois do teclado (código do MFA, nome da passkey) ou do Face ID, o Safari às vezes deixa a janela "encolhida": a barra inferior e os botões flutuantes ficam no meio da tela até rolar. Um vai-e-volta de 1px na rolagem refaz o desenho */
+    var iosAjusteT=null,iosAjuste=function(){clearTimeout(iosAjusteT);iosAjusteT=setTimeout(function(){var ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;var y=window.scrollY||document.documentElement.scrollTop||0;window.scrollTo(0,y+1);window.scrollTo(0,y)},350)};
+    document.addEventListener("focusout",iosAjuste);addEventListener("pageshow",iosAjuste);
+    if(window.visualViewport)window.visualViewport.addEventListener("resize",iosAjuste);
     processarFila();setTimeout(capturaCompartilhada,400);
     if(isOwner()){items=SEM_TABELA?lsRead():(PESSOAL.aniversarios||[]);render();montarSideX()}
     else $("#bdalert").hidden=true;

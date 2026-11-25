@@ -1906,3 +1906,17 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Dono: publicar o site `2026-11-24.9` e testar renomear e trocar a categoria num produto de nota e num de pedido online (como o Bellacotton da Amazon).
 
+
+## 25/11/2026 · MBA: todas as disciplinas, lembrete do material e cadastro de avaliações (site `2026-11-25.2`)
+
+### 1. O que fizemos
+- Causa de só aparecer a Estatística: o `mba.json` importado em 28/10 tinha roteiro só dela e `js/mba.js` escondia disciplina sem roteiro. A tela não lê o Drive; a estrutura vem do .json importado e as marcações ficam em `PESSOAL.mbaFeito`.
+- `js/mba.js`: mostra todas as disciplinas (as futuras só com datas); disciplina com todos os tópicos marcados vira concluída sozinha e recolhida (Onde parei segue para a próxima); formulário "Nova avaliação ou atividade"; importação junta aulas e avaliações por id; painel "Material das próximas aulas" na página do MBA e no Hoje (`NUCLEO.mbaMaterialPendente`, 3 dias antes, sem palestras, marcação `mat:<id>`).
+- `tests/mba_material.test.mjs` novo; versão `2026-11-25.2` (sw.js, app.js, index.html e o teste de versão).
+- Novo `mba-novo.json` (fora do repositório, por ter valores e links pessoais): roteiro de Python (15 tópicos, marcados) e de BI (12), Social Network Analysis, Metodologias Ágeis, Engenharia de Dados e Business Case, e as 3 avaliações pendentes do portal (BI I até 03/12, BI II e Estatística/Python até 10/12; a de Estatística/Python já com nota 10, marcada).
+
+### 2. O que estamos fazendo
+- Suíte completa, PR, CI e merge. **Não conferido:** a importação do arquivo no site real e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Dono: importar o `mba-novo.json` (MBA, botão Importar) e conferir; mandar print quando surgirem provas e atividades novas ou cadastrá-las pelo formulário. Conferir o material de Social Network Analysis I a partir de 28/11.

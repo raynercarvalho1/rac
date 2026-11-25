@@ -1313,7 +1313,7 @@
       passo.then(function () { if (on) gravarEquiv(on.mapa, msg, function () {}, on.categorias); return terminar(novo); })
         .catch(function (e) { salvarN.disabled = false; msg.textContent = /duplicate|unique/i.test(e.message) ? "Já existe um produto com esse nome. Para juntar os dois, use a aba Produtos (Juntar selecionados)." : "Não consegui salvar: " + e.message; });
     };
-    var opts = N.mkOpcoesCategoria((rows || []).concat(rp), areaCfg().personalizadas || []);
+    var opts = categoriasTodas(rp);
     if (opts.indexOf(catAtual) < 0) opts.push(catAtual);
     var selC = h("select", { "aria-label": "Categoria do produto" }, opts.map(function (c) { return h("option", { value: c, selected: c === catAtual ? "" : null, text: c }); }));
     var salvarC = h("button", { type: "button", class: "ghostbtn pri", text: "Salvar categoria" });
@@ -1360,7 +1360,7 @@
     return Promise.resolve(q).then(function (r) { return r && r.error ? ok(r) : r; }).then(function () { return loadRows(true); });
   }
   function formClasse(item, depois) {
-    var N = NU(), opts = N.mkOpcoesCategoria(rows, ehProprietario() ? areaCfg().personalizadas : []), atual = item.categoria;
+    var N = NU(), opts = categoriasTodas(), atual = item.categoria;
     var selC = h("select", { "aria-label": "Categoria" }, opts.map(function (k) { return h("option", { value: k, text: k }); }), h("option", { value: "__outra", text: "Outra (digitar)…" }));
     selC.value = opts.indexOf(atual) >= 0 ? atual : "__outra";
     var outra = h("input", { type: "text", placeholder: "Nome da categoria", maxlength: "40", "aria-label": "Nova categoria", value: opts.indexOf(atual) >= 0 ? "" : atual });
@@ -1865,7 +1865,7 @@
         .catch(function (e) { info.textContent = /duplicate|unique/i.test(e.message) ? "Já existe um produto com esse nome. Para juntar os dois, marque ambos e use “Juntar selecionados”." : "Não consegui salvar: " + e.message; draw(); });
     }
     function draw() {
-      var nq = norm(q.value);
+      var nq = norm(q.value); cats = listaCats(rows.concat(prods));
       list.innerHTML = "";
       prods.filter(function (x) { return !nq || norm(x.nome + " " + x.categoria).indexOf(nq) >= 0; }).forEach(function (x) {
         var compras = stats[x.id] || [];
@@ -1971,7 +1971,12 @@
   function catOf(c) { return NU().mkCatOficial(c); }
   var CATS_OFICIAIS = function () { return NU().MK_CATEGORIAS.slice(); };
   /* categorias da lista: as oficiais + qualquer outra que o dono já tenha usado (sem repetir "Limpeza/Descartáveis") */
-  function listaCats(prods) { var l = CATS_OFICIAIS(); (prods || []).forEach(function (x) { var c = catOf(x.categoria); if (c && l.indexOf(c) < 0) l.push(c); }); return l; }
+  /* lista única de categorias para todos os seletores (notas + pedidos online + áreas), igual em todas as telas */
+  function categoriasTodas(extra) {
+    var N = NU(), lin = (rows || []).concat(extra || []); if (onl !== null) lin = lin.concat(N.cmLinhas(centralDados().compras));
+    return N.mkTodasCategorias(lin, ehProprietario() ? areaCfg().personalizadas || [] : []);
+  }
+  function listaCats(prods) { var l = categoriasTodas(); (prods || []).forEach(function (x) { var c = catOf(x.categoria); if (c && l.indexOf(c) < 0) l.push(c); }); return l; }
 
 
   /* Pedido que a pessoa cola no Claude junto com a foto; a resposta (JSON) é colada de volta aqui */

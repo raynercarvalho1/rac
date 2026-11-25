@@ -312,3 +312,13 @@ test("aba Produtos (dono): produtos que só existem em pedidos online aparecem n
   assert.deepEqual(gravP.at(-1), ["mercado-equivalencias", { v: 1, itens: { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Premium 10kg" } }]);
   assert.ok(nomes().includes("Ração Premium 10kg") && !nomes().includes("Ração Golden 10kg"), "a lista já mostra o novo nome");
 });
+
+test("categorias: a MESMA lista completa (inclui Pet, Tecnologia, Saúde…) em todos os seletores, mesmo num produto de nota que nunca teve essas categorias", async () => {
+  const opcoes = (rot) => achar(ROOT, (e) => e.tag === "select" && e.attrs["aria-label"] === rot).map((sel) => achar(sel, (e) => e.tag === "option").map((o) => o.attrs.value));
+  await abrir("produto", encodeURIComponent("Leite"), { db: { radar_itens: [] } });
+  const pag = opcoes("Categoria do produto")[0];
+  await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [{ id: "p1", nome: "Leite", categoria: "Mercearia", unidade: "un" }] } }); await esperar(10);
+  const lista = opcoes("Categoria");
+  for (const c of ["Pet", "Tecnologia", "Saúde", "Automotivo", "Vestuário", "Mercearia", "Farmácia"]) { assert.ok(pag.includes(c), "página do produto: " + c); lista.forEach((o) => assert.ok(o.includes(c), "lista de Produtos: " + c)); }
+  lista.forEach((o) => assert.deepEqual([...o].sort(), [...pag].sort(), "mesma lista nos dois lugares"));
+});

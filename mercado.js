@@ -1835,26 +1835,6 @@
     if (onl === null) loadOnline().then(pintar); else pintar();
     return h("div", { class: "panel" }, caixa);
   }
-  /* Produtos que só aparecem em pedidos online: não existem na tabela produtos, então a lista acima não os traz. Cada um abre o mesmo editor da página do produto (nome e categoria). */
-  function painelProdutosOnline(q) {
-    var p = panel("Produtos de pedidos online", "Itens que só existem em pedidos online (Amazon, Shopee…) e por isso não aparecem na lista acima. Toque num produto para mudar o nome ou a categoria."), lista = h("div", { class: "mkplist" });
-    p.appendChild(lista);
-    function pintar() {
-      var N = NU(), lin = N.cmLinhas(centralDados().compras), g = groupBy(lin, function (x) { return x.produto; }), nq = q ? norm(q.value || "") : "";
-      lista.innerHTML = "";
-      var nomes = Object.keys(g).filter(function (n) { return g[n].every(function (x) { return x.fonte === "online"; }) && (!nq || norm(n).indexOf(nq) >= 0); }).sort(function (a, b) { return a.localeCompare(b); });
-      if (!nomes.length) { lista.appendChild(h("p", { class: "empty", text: nq ? "Nenhum produto online com essa busca." : "Nenhum produto só de pedido online." })); return; }
-      nomes.forEach(function (n) {
-        var r = g[n], d = N.mkcProduto(r), cat = d ? d.categoria : (r[0].categoria || "Outros");
-        var ed = editarProduto(n, r, cat, h("span", { class: "mkn" }, h("b", { text: n }), h("span", { class: "sub", text: " · " + cat + " · " + r.length + (r.length === 1 ? " compra" : " compras") })), true);
-        ed.appendChild(h("p", null, h("a", { class: "link", href: linkProd(n), text: "Abrir a página do produto" })));
-        lista.appendChild(ed);
-      });
-    }
-    if (q && q.addEventListener) q.addEventListener("input", pintar);
-    if (onl === null) loadOnline().then(pintar); else pintar();
-    return p;
-  }
   /* ---------- Produtos: renomear, juntar repetidos e trocar categoria ---------- */
   function viewProdutos(body) {
     var p = panel("Produtos", "Junte nomes diferentes do mesmo produto para o histórico de preços ficar num lugar só. A categoria escolhida aqui vale para todas as compras do produto.");
@@ -1867,7 +1847,6 @@
     var list = h("div", { class: "mkplist" }); p.appendChild(list);
     if (ehDono()) body.appendChild(painelJuncoes());   /* pedido online × nota com nomes diferentes (dono e casa) */
     body.appendChild(p);
-    if (ehDono()) body.appendChild(painelProdutosOnline(q));   /* produtos que só existem em pedidos online (não estão na tabela produtos) */
     var prods = [], sel = {};
     var cats = listaCats(rows);
     var stats = groupBy(rows, function (x) { return x.produto_id || ""; });
@@ -1916,7 +1895,37 @@
         list.appendChild(h("div", { class: "mkprow" }, cb, celNome, cat,
           h("span", { class: "sub", text: compras.length + (compras.length === 1 ? " compra" : " compras") + (compras.length ? " · " + money(compras[compras.length - 1].valor_unitario) + (x.unidade === "kg" ? "/kg" : "") : "") })));
       });
+      linhasOnline(nq);
       atualizarBotao();
+    }
+    /* produtos que só existem em pedidos online não estão na tabela produtos: entram na mesma lista, com nome e categoria editáveis (junção e PESSOAL, sem tocar no pedido) */
+    function linhasOnline(nq) {
+      if (!ehDono()) return;
+      if (onl === null) { loadOnline().then(draw); return; }
+      var N = NU(), g = groupBy(N.cmLinhas(centralDados().compras), function (x) { return x.produto; }), n0 = 0;
+      Object.keys(g).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (n) {
+        var r = g[n]; if (!r.every(function (x) { return x.fonte === "online"; })) return;
+        var d = N.mkcProduto(r), catX = d ? d.categoria : "Outros"; if (nq && norm(n + " " + catX).indexOf(nq) < 0) return;
+        n0++;
+        var origens = {}; r.forEach(function (x) { origens[x.nome_original || x.produto] = 1; });
+        var nome = h("input", { type: "text", value: n, maxlength: "160", "aria-label": "Nome do produto", class: "mkpname" });
+        nome.onchange = function () {
+          var v = nome.value.replace(/\s+/g, " ").trim(); if (!v || v === n) { nome.value = n; return; }
+          var on = N.cmRenomearOn(equivLer(), equivCatLer(), Object.keys(origens), n, v); if (!on.ok) { info.textContent = on.erro; nome.value = n; return; }
+          info.textContent = "Salvando…"; gravarEquiv(on.mapa, info, function () { info.textContent = "Nome atualizado."; draw(); }, on.categorias);
+        };
+        var opts = cats.concat(cats.indexOf(catX) < 0 ? [catX] : []);
+        var cat = h("select", { "aria-label": "Categoria" }, opts.map(function (c) { return h("option", { value: c, selected: c === catX ? "" : null, text: c }); }));
+        cat.onchange = function () {
+          var v = N.mkClasseValida(cat.value, "", rows.map(function (x) { return x.mercado; })); if (!v.ok) { info.textContent = v.erro; return; }
+          var c = N.cmCategoriaOnDefinir(equivCatLer(), n, v.categoria); if (!c.ok) { info.textContent = c.erro; return; }
+          info.textContent = "Salvando…"; gravarEquiv(equivLer(), info, function () { info.textContent = "Categoria atualizada."; draw(); }, c.categorias);
+        };
+        var ult = d && d.unidades[0] && d.unidades[0].ultimo ? " · " + money(d.unidades[0].ultimo.preco) : "";
+        list.appendChild(h("div", { class: "mkprow" }, h("span", { class: "sub", text: "online" }), nome, cat,
+          h("span", { class: "sub" }, r.length + (r.length === 1 ? " compra" : " compras") + ult + " · ", h("a", { class: "link", href: linkProd(n), text: "abrir" }))));
+      });
+      if (n0) info.textContent = prods.length + " produtos + " + n0 + " só de pedidos online";
     }
     juntar.onclick = function () {
       var l = selecionados(); if (l.length < 2) return;

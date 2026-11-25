@@ -1920,3 +1920,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Dono: importar o `mba-novo.json` (MBA, botão Importar) e conferir; mandar print quando surgirem provas e atividades novas ou cadastrá-las pelo formulário. Conferir o material de Social Network Analysis I a partir de 28/11.
+
+## 25/11/2026 · Produtos: itens só de pedido online dentro da lista principal (site `2026-11-25.3`)
+
+### 1. O que fizemos
+- O dono mostrou que o produto só de pedido online (ex.: Papel Higiênico Vip) aparecia só num quadro separado e não na lista de Produtos. Os produtos só online agora entram na mesma lista (selo "online"), com nome e categoria editáveis na linha; o quadro separado saiu. Sem SQL, função ou secret.
+
+### 2. O que estamos fazendo
+- PR, CI e merge. **Não conferido:** o uso real no site e o visual no iPhone.
+
+### 3. O que vamos fazer
+- Dono: testar renomear e trocar a categoria de um produto online na aba Produtos.
+

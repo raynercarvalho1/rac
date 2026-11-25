@@ -302,9 +302,13 @@ test("página do produto (nota do Mercado): renomear e trocar a categoria gravam
   assert.ok(escritas(calls).some((c) => c[0] === "update" && c[1] === "produtos"), "categoria do produto"); assert.deepEqual(gravP, []);
 });
 
-test("aba Produtos (dono): produtos que só existem em pedidos online aparecem para serem tratados (nome e categoria); os que também estão em nota não repetem", async () => {
-  await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [] } }); await esperar(10); const t = tudo();
-  assert.ok(t.includes("Produtos de pedidos online") && t.includes("Ração Golden 10kg"), "o produto só online está na aba");
-  assert.ok(campo("Nome do produto") && campo("Categoria do produto"), "com o editor de nome e categoria");
-  assert.ok(!achar(ROOT, (e) => e.tag === "b" && texto(e) === "Leite").length, "Leite (nota) não entra na lista de só online");
+test("aba Produtos (dono): produtos que só existem em pedidos online aparecem na MESMA lista, com nome e categoria editáveis; os de nota não repetem; a busca acha", async () => {
+  await abrir("produtos", "", { linhas: COM_PET, db: { produtos: [] } }); await esperar(10);
+  const nomes = () => achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === "Nome do produto").map((e) => e.value || e.attrs.value);
+  assert.ok(nomes().includes("Ração Golden 10kg"), "o produto só online está na lista de Produtos");
+  assert.ok(!tudo().includes("Produtos de pedidos online"), "sem quadro separado");
+  const inp = achar(ROOT, (e) => e.tag === "input" && e.attrs["aria-label"] === "Nome do produto" && (e.value || e.attrs.value) === "Ração Golden 10kg")[0];
+  inp.value = "Ração Premium 10kg"; inp.onchange(); await esperar(6);
+  assert.deepEqual(gravP.at(-1), ["mercado-equivalencias", { v: 1, itens: { [N.cmChaveOn("Ração Golden 10kg")]: "Ração Premium 10kg" } }]);
+  assert.ok(nomes().includes("Ração Premium 10kg") && !nomes().includes("Ração Golden 10kg"), "a lista já mostra o novo nome");
 });

@@ -46,7 +46,7 @@
     (ATU.rodando&&SEG.fontes?Promise.resolve():segCarregar()).then(function(){root.innerHTML="";
       root.appendChild(segProtecao());root.appendChild(segPasskeys());root.appendChild(segMfa());
       if(isOwner()){root.appendChild(segBackupPainel());var pr=segRestaurarPainel();root.appendChild(pr);root.appendChild(segHistorico());root.appendChild(segAuditoria());
-        if(sub==="restaurar")setTimeout(function(){pr.scrollIntoView({behavior:"smooth",block:"start"})},80)}
+        if(sub==="restaurar")setTimeout(function(){pr.scrollIntoView({behavior:"auto",block:"start"})},80)}
       root.appendChild(segRecuperacao())})
     .catch(function(e){root.innerHTML="";root.appendChild(failed(function(){renderSeguranca(sub)},e));logErro("segurança",e)})}
   /* problemas da auditoria de dentro do banco (vazio = tudo certo) */
@@ -303,7 +303,7 @@
       cf.onclick=function(){cf.disabled=true;st.textContent="Conferindo "+nome+"…";sisTesteRestauracao(f).then(function(r){cf.disabled=false;st.textContent=r.ok?"✓ "+nome+" restauraria tudo (JSON íntegro, todas as tabelas, sem repetidos).":"⚠ "+nome+": "+r.problemas.join("; ");
         segEvento("teste_restauracao",{arquivo:nome,ok:r.ok,problemas:r.problemas})},function(e){cf.disabled=false;st.textContent="Não consegui conferir: "+e.message})};
       pv.onclick=function(){var a=SEG.areaRestaurar;segPrevia({nome:"servidor/"+nome,ler:function(){return SB.storage.from("backups").download(EU.id+"/"+nome).then(function(r){if(r.error)throw r.error;return r.data.text()}).then(function(t){return {json:JSON.parse(t),anexos:[]}})}},a);
-        a.scrollIntoView({behavior:"smooth",block:"start"})};
+        a.scrollIntoView({behavior:"auto",block:"start"})};
       var tam=f.metadata&&f.metadata.size;
       ul.appendChild(h("li",null,h("span",{class:"grow"},h("b",{text:dataBR(nome.slice(0,10))}),h("span",{class:"sub",text:tam?sisKb(tam):""})),h("div",{class:"vfil"},bx,cf,pv)))});
     p.appendChild(h("h3",{class:"mbag",text:"Registro de segurança"}));var ue=h("ul",{class:"wl"});p.appendChild(ue);

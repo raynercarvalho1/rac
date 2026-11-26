@@ -1967,9 +1967,10 @@ Família e da Casa.
 - **Erro achado e corrigido:** o primeiro ensaio respondeu 500 porque o `service_role` não tinha SELECT em `rotina_log`, `inbox_contas`, `inbox_sincronizacao` e `notas_fiscais_entradas`; a `068` concede só as colunas usadas (sem `resumo` nem endereço de e-mail) e o harness do PGlite passou a imitar a produção. O ensaio seguinte respondeu 200 sem gravar nada.
 - **Primeira rodada real (14:00 UTC):** 2 incidentes abertos (Newsletter e Robô de notícias, atrasados de verdade: o `noticias.yml` não rodava desde as 05:23 UTC) e 1 push consolidado aceito pelo serviço de push.
 - Tela: bloco "Ocorrências recentes" em `#monitor`. Testes novos (`monitor_sinais_sql`, `monitor_alerta`, ampliação de `monitor`) e cinco testes de guarda ajustados para as migrations 067 a 069. Documentos 04, 05, 06, 07, mapa e RAC Knowledge atualizados. A `garmin` não foi tocada; sem IA.
+- **Publicação verificada:** PR #108 com CI verde e mesclado (`b850491`); Pages #487 com sucesso; o domínio serve `sw.js` e `MOD_VERSAO` `2026-11-26.2`, `js/sistema.js` com `sisMonOcorrencia` e a leitura de `sinais`, e o CSS novo no `index.html`.
 
 ### 2. O que estamos fazendo
-- Suíte completa, PR, CI e merge; depois conferir a versão servida do site (`2026-11-26.2`). **Não conferido:** a chegada do push no aparelho e o bloco "Ocorrências recentes" no iPhone (validação do dono).
+- Nada em aberto no código. **Não conferido por mim:** a chegada do push no aparelho e o bloco "Ocorrências recentes" no iPhone (validação do dono).
 
 ### 3. O que vamos fazer
 - Dono: confirmar se o push "RAC Monitor" chegou e se o toque abriu o Monitor; abrir Sistema → Monitor e ver "Ocorrências recentes". Investigar por que o GitHub parou de rodar o `noticias.yml` (o vigia vai avisar de novo se continuar parado). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.

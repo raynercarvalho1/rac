@@ -1455,7 +1455,7 @@
      limite: "cron" = atrasado se não rodou desde o último horário previsto (com a tolerância em min); número = atrasado se a última
      execução tem mais que isso (min), para quem não tem horário fixo de verdade (o GitHub atrasa e pula; a Newsletter só grava
      quando há coleta). semRegistro: sem registro no horário previsto não prova atraso (o Radar só grava quando há oferta). ===== */
-  var MON_JANELA_MS=7*864e5;
+  var MON_JANELA_MS=7*864e5,MON_RODANDO_MAX=2*36e5;
   var MON_PROCESSOS=[
     {id:"rotina",nome:"Rotina das 6h",area:"Sistema",onde:"banco",job:"rac-rotina",arquivo:"supabase/008_sistema.sql",crons:["0 9 * * *"],limite:"cron",tolerancia:60,
       fonte:"rotina_log",rotulo:"Última execução",oque:"Garmin, tempo, agenda e avisos (notificação e Telegram); aos domingos, resumo da semana e backup"},
@@ -1470,7 +1470,9 @@
     {id:"testes",nome:"Testes automáticos",area:"Sistema",onde:"github",workflow:"testes.yml",arquivo:".github/workflows/testes.yml",crons:["30 10 * * 1"],limite:8*24*60,
       fonte:"execuções do GitHub",rotulo:"Última execução",oque:"Toda segunda e a cada mudança publicada ou PR: os testes do site"},
     {id:"fiscal_entradas",nome:"Central Fiscal (entrada no Mercado)",area:"Compras",onde:"banco",job:"fiscal-entradas",arquivo:"supabase/060_central_fiscal_rotinas.sql",crons:["10 */6 * * *"],limite:"cron",tolerancia:90,semRegistro:true,
-      fonte:"notas_fiscais_entradas",rotulo:"Última retomada",oque:"Retoma sozinha a entrada no Mercado das notas confirmadas que falharam e liga notas antigas a compras que já existem; só registra quando há o que fazer"}];
+      fonte:"notas_fiscais_entradas",rotulo:"Última retomada",oque:"Retoma sozinha a entrada no Mercado das notas confirmadas que falharam e liga notas antigas a compras que já existem; só registra quando há o que fazer"},
+    {id:"inbox",nome:"Inbox (sincronização)",area:"Inbox",onde:"banco",job:"inbox-sync",arquivo:"supabase/propostas/055_inbox_agendamento.sql",crons:["*/10 * * * *"],limite:30,donoSo:true,
+      fonte:"inbox_sincronizacao",rotulo:"Última sincronização",oque:"A cada 10 minutos lê as caixas de e-mail conectadas e avisa as mensagens novas; só do dono (uma sincronização manual recente também conta)"}];
   function monMs(x){if(x==null||x==="")return null;var t=typeof x==="number"?x:Date.parse(x);return isFinite(t)?t:null}
   /* cron de 5 campos (minuto hora dia mês dia-da-semana), com *, n, a-b, lista e /passo; dia do mês e da semana juntos = qualquer um */
   function monCampo(txt,min,max,expr){var ok={};String(txt).split(",").forEach(function(p){var m=/^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(p);
@@ -1493,12 +1495,13 @@
         if(!monDia(c,d)){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-6e4;continue}
         if(!c.h[d.getUTCHours()]){t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),d.getUTCHours())-6e4;continue}
         if(c.mi[d.getUTCMinutes()]){if(melhor==null||t>melhor)melhor=t;break}t-=6e4}});return melhor}
-  function monVazio(origem){return {ultima_execucao:null,ultimo_sucesso:null,ultima_ok:null,duracao:null,falhas:null,registros:"",erro:"",origem:origem}}
+  function monVazio(origem){return {ultima_execucao:null,ultimo_sucesso:null,ultima_ok:null,duracao:null,falhas:null,registros:"",erro:"",origem:origem,ultima_falha:null,historico:null,janela_desde:null,rodando_desde:null}}
   /* rotina_log [{quando, ok, resumo}]: quando é o fim da rotina (não há início, então não há duração) */
   function monDeRotina(linhas,agora){var l=(linhas||[]).filter(function(x){return x&&monMs(x.quando)}).sort(function(a,b){return monMs(b.quando)-monMs(a.quando)}),o=monVazio("rotina_log");
     o.falhas=0;if(!l.length)return o;var u=l[0],s=u.resumo||{},ok=l.filter(function(x){return x.ok!==false})[0],partes=[];
     o.ultima_execucao=monMs(u.quando);o.ultima_ok=u.ok!==false;o.ultimo_sucesso=ok?monMs(ok.quando):null;
     o.falhas=l.filter(function(x){return x.ok===false&&monMs(x.quando)>=agora-MON_JANELA_MS}).length;
+    var f0=l.filter(function(x){return x.ok===false})[0];o.ultima_falha=f0?monMs(f0.quando):null;o.historico=l.slice(0,7).map(function(x){return {t:monMs(x.quando),e:x.ok===false?"falha":"ok"}});
     if(s.garmin_dias&&s.garmin_dias.salvos!=null)partes.push(s.garmin_dias.salvos+" dias da Garmin");if(s.garmin_treinos&&s.garmin_treinos.salvas!=null)partes.push(s.garmin_treinos.salvas+" treinos conferidos");
     if(s.alertas&&s.alertas.itens!=null)partes.push(s.alertas.itens+" avisos");o.registros=partes.join(", ");
     o.erro=Object.keys(s).filter(function(k){return s[k]&&s[k].erro}).map(function(k){return k+": "+s[k].erro}).join("; ");
@@ -1520,7 +1523,9 @@
     o.ultima_execucao=u.ini;o.ultima_ok=u.r.andando?null:!u.r.falhou;o.rodando=u.r.andando;o.ultimo_sucesso=ok?ok.ini:null;
     o.duracao=u.r.fim!=null&&!u.r.andando?Math.round((u.r.fim-u.ini)/1000):null;
     o.registros=u.r.lidas+" ofertas lidas, "+u.r.grav+" preços gravados"+(u.r.fal?", "+u.r.fal+" com falha":"");o.erro=u.r.falhou?u.r.erro:"";
-    o.falhas=gs.filter(function(g){return g.r.falhou&&g.ini>=agora-MON_JANELA_MS}).length;return o}
+    o.falhas=gs.filter(function(g){return g.r.falhou&&g.ini>=agora-MON_JANELA_MS}).length;
+    var fg=gs.filter(function(g){return g.r.falhou&&!g.r.andando})[0];o.ultima_falha=fg?fg.ini:null;if(u.r.andando)o.rodando_desde=u.ini;
+    o.historico=gs.slice(0,7).map(function(g){return {t:g.ini,e:g.r.andando?"rodando":g.r.falhou?"falha":"ok"}});return o}
   /* Central Fiscal: linhas [{t, texto}] (consultas do dia ou entradas retomadas); execuções = linhas até 30 min da primeira. "Indisponível" não é falha da rotina: ela rodou e registrou. */
   function monDeFiscal(rs,agora,unid){var l=(rs||[]).map(function(r){return {t:monMs(r&&r.t),r:r||{}}}).filter(function(x){return x.t}).sort(function(a,b){return b.t-a.t}),o=monVazio(unid||"notas_fiscais");
     o.falhas=null;if(!l.length)return o;var topo=l[0].t,g=l.filter(function(x){return topo-x.t<=30*6e4});
@@ -1535,9 +1540,25 @@
     if(u){var t1=monMs(u.r.updated_at);o.ultima_execucao=u.t;o.ultima_ok=u.r.conclusion==="success";o.duracao=t1!=null&&t1>=u.t?Math.round((t1-u.t)/1000):null;
       if(!o.ultima_ok)o.erro=u.r.conclusion==="timed_out"?"passou do tempo limite":"o GitHub marcou a execução como falha"}
     o.ultimo_sucesso=s?s.t:null;o.falhas=fim.filter(function(x){return MON_GH_FALHA[x.r.conclusion]&&x.t>=agora-MON_JANELA_MS}).length;
+    var f1=fim.filter(function(x){return MON_GH_FALHA[x.r.conclusion]})[0],em=l.filter(function(x){return x.r.status==="in_progress"||x.r.status==="queued"});
+    o.ultima_falha=f1?f1.t:null;if(em.length)o.rodando_desde=em[em.length-1].t;
+    o.historico=l.filter(function(x){return x.r.status!=="completed"||x.r.conclusion==="success"||MON_GH_FALHA[x.r.conclusion]}).slice(0,7).map(function(x){return {t:x.t,e:x.r.status!=="completed"?"rodando":x.r.conclusion==="success"?"ok":"falha"}});
+    o.janela_desde=l.length?l[l.length-1].t:null;o.execucoes_lidas=l.length;
     if([].concat(crons||[]).length===1){var at=l.filter(function(x){return x.r.event==="schedule"}).map(function(x){var c=monMs(x.r.created_at),e=c==null?null:monCronAnterior(crons,c);return e==null?null:(c-e)/6e4}).filter(function(x){return x!=null&&x>=0});
       if(at.length)o.atraso_tipico=Math.round(mediana(at))}
     return o}
+  /* inbox_sincronizacao [{conta_id, ultima_ok_em, ultima_tentativa_em, falhas_seguidas, duracao_ms, erro}] (uma linha por conta e pasta) e inbox_contas
+     [{id, sync_auto}]. Uma rodada = as linhas até 2 min da mais nova; a duração é a soma delas. Contas com a sincronização automática desligada não contam;
+     se todas estão desligadas o processo está desligado. Falhas em 7 dias não são registradas (só as seguidas): fica null. */
+  function monDeInbox(linhas,contas){var o=monVazio("inbox_sincronizacao"),cs=(contas||[]).filter(Boolean),off={};cs.forEach(function(c){if(c.sync_auto===false)off[c.id]=1});
+    var l=(linhas||[]).filter(function(x){return x&&!off[x.conta_id]&&monMs(x.ultima_tentativa_em)}).sort(function(a,b){return monMs(b.ultima_tentativa_em)-monMs(a.ultima_tentativa_em)});
+    if(!l.length){if(cs.length&&cs.every(function(c){return c.sync_auto===false}))o.desligado="a sincronização automática está desligada nas contas";return o}
+    var topo=monMs(l[0].ultima_tentativa_em),g=l.filter(function(x){return topo-monMs(x.ultima_tentativa_em)<=2*6e4}),ruim=g.filter(function(x){return +x.falhas_seguidas>0}),
+      oks=l.map(function(x){return monMs(x.ultima_ok_em)}).filter(function(x){return x!=null}),soma=0,tem=true;
+    g.forEach(function(x){if(x.duracao_ms==null||!isFinite(+x.duracao_ms))tem=false;else soma+=+x.duracao_ms});
+    o.ultima_execucao=topo;o.ultima_ok=!ruim.length;o.ultimo_sucesso=oks.length?Math.max.apply(null,oks):null;o.duracao=tem?Math.round(soma/100)/10:null;
+    o.registros=g.length+(g.length===1?" pasta sincronizada":" pastas sincronizadas");
+    o.erro=ruim.length?(String(ruim[0].erro||"").slice(0,160)||ruim[0].falhas_seguidas+" falhas seguidas"):"";return o}
   /* os JSON dos robôs [{nome, d, campo, idadeMax (h)}]: itens, fontes fora do ar e o que está velho (os mesmos limites do painel antigo) */
   function monRobos(l,agora){var partes=[],avisos=[],ult=null;(l||[]).forEach(function(x){var d=x.d,t=d&&monMs(d.coletado),n=d&&Array.isArray(d[x.campo])?d[x.campo].length:0;
       if(!d){partes.push(x.nome+": não consegui ler");avisos.push(x.nome+" (sem arquivo)");return}
@@ -1550,19 +1571,34 @@
   function monAvaliar(p,d,agora){d=d||{};agora=+agora;
     var o={processo:p.id,nome:p.nome,area:p.area,onde:p.onde,arquivo:p.arquivo,crons:p.crons.slice(),rotulo:p.rotulo,ultima_execucao:d.ultima_execucao||null,ultimo_sucesso:d.ultimo_sucesso||null,
       duracao:d.duracao!=null?d.duracao:null,registros:d.registros||"",falhas:d.falhas!=null?d.falhas:null,erro:d.erro||"",proxima_prevista:monCronProxima(p.crons,agora),esperada:null,
-      estado:"ok",motivo:"",rodando:!!d.rodando,atraso_tipico:d.atraso_tipico!=null?d.atraso_tipico:null,origem:d.origem||""};
+      estado:"ok",motivo:"",rodando:!!d.rodando,atraso_tipico:d.atraso_tipico!=null?d.atraso_tipico:null,origem:d.origem||"",
+      ultima_falha:d.ultima_falha||null,historico:d.historico||[],janela_desde:d.janela_desde||null,execucoes_lidas:d.execucoes_lidas!=null?d.execucoes_lidas:null,rodando_desde:d.rodando_desde||null,
+      workflow:p.workflow||"",recuperou:false},
+      rod=!!d.rodando&&!(d.rodando_desde&&agora-d.rodando_desde>MON_RODANDO_MAX);
+    o.recuperou=d.ultima_ok!==false&&!!(o.ultima_falha&&o.ultimo_sucesso&&o.ultimo_sucesso>o.ultima_falha&&o.ultima_falha>=agora-MON_JANELA_MS);
     function fim(e,m){o.estado=e;o.motivo=m;return o}
     if(d.desligado)return fim("desligado",d.desligado);
     if(d.erroLeitura)return fim("desconhecido","não consegui ler ("+d.erroLeitura+")");
     if(!o.ultima_execucao)return fim("desconhecido",p.semRegistro?"nenhum registro (só registra quando há o que ler)":"nenhum registro encontrado");
     if(d.ultima_ok===false)return fim("falhou",o.erro||"a última execução falhou");
+    if(d.rodando&&!rod)return fim("atrasado","execução em andamento há mais de 2 h (pode ter travado)");
     if(p.limite==="cron"){o.esperada=monCronAnterior(p.crons,agora-(p.tolerancia||0)*6e4);
-      if(o.esperada!=null&&o.ultima_execucao<o.esperada)return p.semRegistro?fim("desconhecido","sem registro no último horário previsto (pode não ter havido o que ler)"):fim("atrasado","não rodou no último horário previsto")}
-    else if(agora-o.ultima_execucao>p.limite*6e4)return fim("atrasado","sem "+(p.rotulo||"execução").toLowerCase()+" há mais de "+(p.limite>=2880?Math.round(p.limite/1440)+" dias":Math.round(p.limite/60)+" h"));
+      if(!rod&&o.esperada!=null&&o.ultima_execucao<o.esperada)return p.semRegistro?fim("desconhecido","sem registro no último horário previsto (pode não ter havido o que ler)"):fim("atrasado","não rodou no último horário previsto")}
+    else if(!rod&&agora-o.ultima_execucao>p.limite*6e4)return fim("atrasado","sem "+(p.rotulo||"execução").toLowerCase()+" há mais de "+(p.limite>=2880?Math.round(p.limite/1440)+" dias":p.limite>=90?Math.round(p.limite/60)+" h":p.limite+" min"));
     if(d.avisos&&d.avisos.length)return fim("atrasado","coleta parada ou incompleta: "+d.avisos.join("; "));
     return o}
   /* ordem de gravidade para resumir o painel */
   var MON_ORDEM={falhou:0,atrasado:1,desligado:2,desconhecido:3,ok:4};
+  /* os quatro cartões do painel: normais (ok), exigem atenção (falhou e atrasado), sem verificação (desligado e desconhecido). Cada alerta traz o que aconteceu,
+     quando, onde o processo roda e a fonte que acusou; "info" é o que não é erro (sem registro, desligado). Nada é calculado sem evidência. */
+  var MON_CAT={ok:"normais",atrasado:"atencao",falhou:"atencao",desligado:"semverif",desconhecido:"semverif"};
+  function monFiltro(l,chave){return (l||[]).filter(function(x){return !chave||chave==="todos"||MON_CAT[x.estado]===chave})}
+  function monPainel(l){l=l||[];var c={todos:l.length,normais:0,atencao:0,semverif:0},al=[];
+    l.forEach(function(x){c[MON_CAT[x.estado]]++});
+    l.filter(function(x){return x.estado!=="ok"}).sort(function(a,b){return MON_ORDEM[a.estado]-MON_ORDEM[b.estado]}).forEach(function(x){
+      al.push({processo:x.processo,nome:x.nome,estado:x.estado,nivel:x.estado==="falhou"?"falha":x.estado==="atrasado"?"atraso":"info",motivo:x.motivo,erro:x.estado==="falhou"?"":x.erro,
+        componente:x.onde==="github"?"GitHub Actions":"Supabase",quando:x.estado==="falhou"?(x.ultima_falha||x.ultima_execucao):x.ultima_execucao,fonte:x.origem||""})});
+    return {cartoes:c,alertas:al}}
   function monResumo(l){var c={};(l||[]).forEach(function(x){c[x.estado]=(c[x.estado]||0)+1});return {contagem:c,pior:(l||[]).slice().sort(function(a,b){return MON_ORDEM[a.estado]-MON_ORDEM[b.estado]})[0]||null}}
   /* ===== RAC Hoje (docs/hoje.md): as regras do dia, sem tela e sem banco. O coletor (js/hoje.js) entrega cada fonte como
      {ok, v, quando} ou {ok:false, erro}; aqui se decide o que pede atenção, o que mudou, o que falta e o pacote de fatos que vai
@@ -4687,7 +4723,7 @@
     atuFormSujo:atuFormSujo,atuPode:atuPode,atuRelerPessoal:atuRelerPessoal,atuUrlFresca:atuUrlFresca,atuHora:atuHora,atuConferir:atuConferir,atuEstado:atuEstado,
     ATU_VOLTAR_MS:ATU_VOLTAR_MS,atuVoltar:atuVoltar,NOTIF_VALIDADE_MS:NOTIF_VALIDADE_MS,notifHash:notifHash,notifFresco:notifFresco,
     MON_PROCESSOS:MON_PROCESSOS,MON_JANELA_MS:MON_JANELA_MS,monCron:monCron,monCronProxima:monCronProxima,monCronAnterior:monCronAnterior,monDeRotina:monDeRotina,monDeNewsletter:monDeNewsletter,
-    monDeRadar:monDeRadar,monDeFiscal:monDeFiscal,monDeGithub:monDeGithub,monRobos:monRobos,monAvaliar:monAvaliar,monResumo:monResumo,
+    monDeRadar:monDeRadar,monDeFiscal:monDeFiscal,monDeInbox:monDeInbox,monDeGithub:monDeGithub,MON_RODANDO_MAX:MON_RODANDO_MAX,MON_CAT:MON_CAT,monPainel:monPainel,monFiltro:monFiltro,monRobos:monRobos,monAvaliar:monAvaliar,monResumo:monResumo,
     TREINO_OCULTOS:TREINO_OCULTOS,HOJE_FONTES:HOJE_FONTES,hojeReais:hojeReais,hojeEstadoFontes:hojeEstadoFontes,hojePrioridade:hojePrioridade,hojeNivel:hojeNivel,PRI_VALIDADE_CALC:PRI_VALIDADE_CALC,priPontos:priPontos,priNivel:priNivel,priId:priId,priFollowup:priFollowup,priItem:priItem,priOportunidade:priOportunidade,priOrdenar:priOrdenar,priSelecionar:priSelecionar,priSaude:priSaude,hojeItem:hojeItem,hojeDedup:hojeDedup,hojeOrdenar:hojeOrdenar,
     hojeFinancas:hojeFinancas,hojeSaude:hojeSaude,hojeVagas:hojeVagas,hojeItens:hojeItens,hojeMudancas:hojeMudancas,hojeLimpar:hojeLimpar,hojeContexto:hojeContexto,hojeChave:hojeChave,hojeTextoChave:hojeTextoChave,hojeRuido:hojeRuido,hojeSemHoras:hojeSemHoras,hojeFontesUteis:hojeFontesUteis,hojeQualidadeFontes:hojeQualidadeFontes,HOJE_PESSOAIS:HOJE_PESSOAIS,
     IA_AVISOS_PADRAO:IA_AVISOS_PADRAO,iaCustoChamada:iaCustoChamada,iaUsdFino:iaUsdFino,iaDiaBR:iaDiaBR,iaMonitor:iaMonitor,iaClasse:iaClasse,iaInformadoProvedor:iaInformadoProvedor,iaStatusCustos:iaStatusCustos,iaOpcoes:iaOpcoes,iaHistorico:iaHistorico,IA_CLASSES:IA_CLASSES,hojeDefasagem:hojeDefasagem,hojeCitados:hojeCitados,

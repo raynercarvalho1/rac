@@ -309,67 +309,109 @@
       add(regs.filter(function(x){return x.quem==="rede"&&x.tipo==="contato"&&!(x.dados||{}).perfil}).length,"contatos da Rede sem o link do perfil","#rede");
       l7(achados.length?"aviso":"ok",achados.length?"Toque para corrigir:":"Nada incompleto encontrado.",achados.length?h("ul",{class:"clean"},achados):null)});
     return p}
-  /* ===== Monitor de integrações (Fase 1, M1 e M2): cada rotina agendada com estado, última execução, último sucesso, falhas em 7 dias e
-     a próxima prevista pelo horário real (NUCLEO.MON_PROCESSOS; tests/monitor.test.mjs confere com os .sql e .yml). Lê só registros que
-     já existem. As execuções dos robôs vêm da API pública do GitHub (sem login; 60 consultas por hora por rede), guardadas 15 min neste
-     aparelho; só as execuções da main (as de PR não contam); sem ela, vale a data do próprio arquivo do robô. Incorpora o antigo painel "Robôs de coleta" (itens, fontes, mesmos limites). ===== */
-  var SIS_GH="https://api.github.com/repos/raynercarvalho1/rac/actions/";
+  /* ===== Monitor de integrações (M1 e M2; docs/planejamento/05-integracoes-e-automacoes.md, seção 4). A página #monitor (renderMonitor) e o resumo
+     da página Sistema leem a MESMA coleta (sisMonColetar, guardada 60 s). Só leitura: rotina_log, newsletter_edicoes, radar_coletas,
+     notas_fiscais_entradas, inbox_sincronizacao (só o dono), garmin_dia, os JSON dos robôs e as execuções públicas do GitHub (só as da main,
+     sem login, 4 consultas guardadas 15 min neste aparelho; o limite é de 60 por hora). Cada processo mostra o estado e DE ONDE vem cada dado;
+     sem evidência, diz "não registrado" em vez de inventar. Horários sempre no fuso de Brasília. ===== */
+  var SIS_GH="https://api.github.com/repos/raynercarvalho1/rac/actions/",SIS_MON={quando:0,p:null};
   function sisGithub(){var k="rac-monitor-gh",c=null;try{c=JSON.parse(localStorage.getItem(k)||"null")}catch(e){}
-    if(c&&c.dados&&Date.now()-c.quando<15*6e4)return Promise.resolve(c.dados);
+    if(c&&c.dados&&Date.now()-c.quando<15*6e4){c.dados.cache=true;return Promise.resolve(c.dados)}
     function pedir(u){return fetch(SIS_GH+u).then(function(r){if(!r.ok)throw new Error(r.status===403||r.status===429?"limite de consultas do GitHub":"GitHub HTTP "+r.status);return r.json()})}
     var wfs=NUCLEO.MON_PROCESSOS.filter(function(p){return p.workflow});
     return Promise.all([pedir("workflows?per_page=50")].concat(wfs.map(function(p){return pedir("workflows/"+p.workflow+"/runs?branch=main&per_page=30")}))).then(function(r){
       var dados={quando:Date.now(),estados:{},runs:{}};((r[0]||{}).workflows||[]).forEach(function(w){dados.estados[String(w.path||"").split("/").pop()]=w.state});
       wfs.forEach(function(p,i){dados.runs[p.workflow]=((r[i+1]||{}).workflow_runs||[]).map(function(x){return {status:x.status,conclusion:x.conclusion,event:x.event,created_at:x.created_at,run_started_at:x.run_started_at,updated_at:x.updated_at}})});
-      try{localStorage.setItem(k,JSON.stringify({quando:dados.quando,dados:dados}))}catch(e){}return dados},
-    /* sem resposta agora: a cópia deste aparelho, se for do mesmo dia (o painel diz de quando é) */
-    function(e){if(c&&c.dados&&Date.now()-c.quando<24*36e5)return c.dados;throw e})}
-  function sisQuando(ms){return ms?new Date(ms).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}
-  function sisMin(m){return m<90?Math.round(m)+"\u00a0min":Math.round(m/60)+"\u00a0h"}
-  function sisMonitor(){
-    var p=panel("Monitor de integrações","Cada rotina agendada: estado, última execução, último sucesso, falhas em 7 dias e a próxima execução prevista pelo horário real do agendamento. Os robôs rodam no GitHub, que costuma atrasar e às vezes pula rodadas."),
-      res=h("p",{class:"sub",text:"Conferindo…"}),ul=h("ul",{class:"wl sissaude monint"}),lis={},agora=Date.now(),PROC=NUCLEO.MON_PROCESSOS;
-    p.appendChild(res);p.appendChild(ul);
-    PROC.forEach(function(pr){lis[pr.id]=h("li",null,h("span",{class:"sisdot",text:"…"}),h("span",{class:"grow"},h("b",{text:pr.nome}),h("span",{class:"sub",text:"Conferindo…"})));ul.appendChild(lis[pr.id])});
-    p.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
+      try{localStorage.setItem(k,JSON.stringify({quando:dados.quando,dados:dados}))}catch(e){}dados.cache=false;return dados},
+    /* sem resposta agora: a cópia deste aparelho, se for do mesmo dia (a tela diz de quando é) */
+    function(e){if(c&&c.dados&&Date.now()-c.quando<24*36e5){c.dados.cache=true;c.dados.antigo=true;return c.dados}throw e})}
+  function sisQuando(ms){return ms?new Date(ms).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}
+  function sisMin(m){return m<90?Math.round(m)+" min":Math.round(m/60)+" h"}
+  function sisDur(s){return s<90?String(s%1?s:Math.round(s)).replace(".",",")+" s":sisMin(s/60)}
+  /* uma coleta única: lê tudo, normaliza e classifica. Cada fonte é isolada (a que falhar vira "sem informação", as outras seguem) */
+  function sisMonColetar(forcar){
+    if(!forcar&&SIS_MON.p&&Date.now()-SIS_MON.quando<60e3)return SIS_MON.p;
+    var agora=Date.now(),dono=isOwner(),PROC=NUCLEO.MON_PROCESSOS.filter(function(pr){return !pr.donoSo||dono}),nada=Promise.resolve({ok:true,v:[]});
     function json(a){return getJson(a+"?v="+Date.now()).then(function(d){return d},function(){return null})}
-    Promise.all([
+    var pr=Promise.all([
       atuLer(function(){return SB.from("rotina_log").select("quando,ok,resumo").order("quando",{ascending:false}).limit(40).then(sbOk)}),
       atuLer(function(){return SB.from("newsletter_edicoes").select("data,turno,origem,criado_em,atualizado_em").order("atualizado_em",{ascending:false}).limit(6).then(sbOk)}),
       atuLer(function(){return SB.from("radar_coletas").select("iniciada_em,terminada_em,status,ofertas_lidas,precos_gravados,falhas,erro_mensagem").eq("origem","rotina").order("iniciada_em",{ascending:false}).limit(80).then(sbOk)}),
       atuLer(function(){return SB.from("notas_fiscais_entradas").select("atualizado_em").order("atualizado_em",{ascending:false}).limit(60).then(sbOk)}),
       atuLer(function(){return SB.from("garmin_dia").select("atualizado").order("atualizado",{ascending:false}).limit(1).then(sbOk)}),
       atuLer(sisGithub),
-      Promise.all(["noticias.json","tecdados.json","rumores.json","newsletter.json","vagas.json"].map(json))]).then(function(r){
+      Promise.all(["noticias.json","tecdados.json","rumores.json","newsletter.json","vagas.json"].map(json)),
+      dono?atuLer(function(){return SB.from("inbox_sincronizacao").select("conta_id,ultima_ok_em,ultima_tentativa_em,falhas_seguidas,duracao_ms,erro").order("ultima_tentativa_em",{ascending:false}).limit(40).then(sbOk)}):nada,
+      dono?atuLer(function(){return SB.from("inbox_contas").select("id,sync_auto").limit(20).then(sbOk)}):nada]).then(function(r){
       var gh=r[5].ok?r[5].v:null,js=r[6],dados={};
       dados.rotina=r[0].ok?NUCLEO.monDeRotina(r[0].v,agora):{erroLeitura:r[0].erro};
       dados.newsletter=r[1].ok?NUCLEO.monDeNewsletter(r[1].v):{erroLeitura:r[1].erro};
       dados.radar=r[2].ok?NUCLEO.monDeRadar(r[2].v,agora):{erroLeitura:r[2].erro};
       dados.fiscal_entradas=r[3].ok?NUCLEO.monDeFiscal(r[3].v.map(function(x){return {t:x.atualizado_em}}),agora,"notas_fiscais_entradas"):{erroLeitura:r[3].erro};
+      dados.inbox=r[7].ok?NUCLEO.monDeInbox(r[7].v,r[8].ok?r[8].v:[]):{erroLeitura:r[7].erro};
       var robos={noticias:NUCLEO.monRobos([{nome:"Sorocaba",d:js[0],campo:"noticias",idadeMax:8},{nome:"tecnologia",d:js[1],campo:"noticias",idadeMax:8},{nome:"rumores da MLB",d:js[2],campo:"liga",idadeMax:8},{nome:"Newsletter",d:js[3],campo:"grupos",idadeMax:14}],agora),
         vagas:NUCLEO.monRobos([{nome:"vagas",d:js[4],campo:"vagas",idadeMax:30}],agora)};
-      PROC.filter(function(pr){return pr.onde==="github"}).forEach(function(pr){var rb=robos[pr.id],runs=gh&&gh.runs[pr.workflow],d;
-        if(runs&&runs.length)d=NUCLEO.monDeGithub(runs,pr.crons,agora,gh.estados[pr.workflow]);
+      PROC.filter(function(p){return p.onde==="github"}).forEach(function(p){var rb=robos[p.id],runs=gh&&gh.runs[p.workflow],d;
+        if(runs&&runs.length)d=NUCLEO.monDeGithub(runs,p.crons,agora,gh.estados[p.workflow]);
         else if(rb&&rb.ultimo)d={ultima_execucao:rb.ultimo,ultimo_sucesso:rb.ultimo,ultima_ok:true,origem:"arquivo"};
         else d={erroLeitura:"execuções do GitHub indisponíveis"+(r[5].erro?": "+r[5].erro:"")};
-        if(rb){d.registros=rb.texto;d.avisos=rb.avisos}dados[pr.id]=d});
-      var lista=PROC.map(function(pr){return NUCLEO.monAvaliar(pr,dados[pr.id],agora)}),s=NUCLEO.monResumo(lista).contagem;
-      var ICO={ok:"✓",atrasado:"⚠",falhou:"✗",desligado:"○",desconhecido:"?"},NOME={ok:"ok",atrasado:"atrasado",falhou:"falhou",desligado:"desligado",desconhecido:"sem informação"};
-      res.textContent=lista.length+" rotinas agendadas: "+["falhou","atrasado","desligado","desconhecido","ok"].filter(function(k){return s[k]}).map(function(k){return s[k]+" "+NOME[k]}).join(", ")+".";
-      lista.forEach(function(x){var li=lis[x.processo],g=li.querySelector(".grow"),t=[],gd=r[4].ok&&r[4].v[0]&&r[4].v[0].atualizado,b=x.processo==="rotina"&&dados.rotina.backup;
-        li.className=x.estado==="ok"?null:"alerta";li.querySelector(".sisdot").textContent=ICO[x.estado];g.innerHTML="";
-        g.appendChild(h("b",{text:x.nome+" · "+NOME[x.estado]+(x.rodando?" (rodando agora)":"")}));
-        if(x.motivo)t.push(x.motivo+(x.esperada?" (previsto para "+sisQuando(x.esperada)+")":""));
-        t.push(x.rotulo+": "+(x.ultima_execucao?sisQuando(x.ultima_execucao)+" ("+sisHa(new Date(x.ultima_execucao).toISOString())+")":"—")+(x.duracao!=null?" · duração "+(x.duracao<90?x.duracao+"\u00a0s":sisMin(x.duracao/60)):"")+(x.registros?" · "+x.registros:""));
-        t.push("Último sucesso: "+sisQuando(x.ultimo_sucesso)+" · falhas em 7 dias: "+(x.falhas==null?"não registradas":x.falhas));
-        if(x.erro&&x.estado!=="falhou")t.push("Erro: "+x.erro);
-        if(x.processo==="rotina"&&gd)t.push("Relógio: último dado "+sisHa(gd));
-        if(b)t.push("Backup de domingo: "+sisQuando(b.quando)+(b.ok?" ok":" com falha ("+b.erro+")"));
-        t.push("Próxima prevista: "+(x.onde==="github"?"a partir de ":"")+sisQuando(x.proxima_prevista)+(x.onde!=="github"?"":x.atraso_tipico!=null?" (nas últimas, o GitHub começou cerca de "+sisMin(x.atraso_tipico)+" depois do horário)":" (o GitHub pode atrasar ou pular rodadas)"));
-        t.push("Agendamento: "+x.crons.join(" e ")+" (UTC) · "+x.arquivo+(x.origem==="arquivo"?" · sem as execuções do GitHub agora: vale a data do arquivo do robô":x.onde==="github"&&gh&&agora-gh.quando>15*6e4?" · execuções do GitHub de "+sisQuando(gh.quando):""));
-        t.forEach(function(z){g.appendChild(h("span",{class:"sub",style:"display:block",text:z}))})})})
-    .catch(function(e){res.textContent="Não consegui montar o monitor ("+(e&&e.message||e)+").";logErro("monitor de integrações",e)});
-    return p}
+        if(rb){d.registros=rb.texto;d.avisos=rb.avisos}dados[p.id]=d});
+      var lista=PROC.map(function(p){var x=NUCLEO.monAvaliar(p,dados[p.id],agora);x.oque=p.oque;x.fonte=p.fonte;return x}),rot=dados.rotina&&dados.rotina.backup;
+      return {quando:agora,lista:lista,gh:gh,ghErro:r[5].ok?"":r[5].erro,relogio:r[4].ok&&r[4].v[0]?r[4].v[0].atualizado:null,backup:rot||null}});
+    SIS_MON={quando:Date.now(),p:pr};pr.then(null,function(){SIS_MON={quando:0,p:null}});return pr}
+  var SIS_MON_NOME={ok:"ok",atrasado:"atrasado",falhou:"falhou",desligado:"desligado",desconhecido:"sem informação"},SIS_MON_ICO={ok:"✓",atrasado:"⚠",falhou:"✗",desligado:"○",desconhecido:"?"};
+  /* "falhas em 7 dias" só quando as execuções lidas cobrem os 7 dias; senão o rótulo diz a janela real (o GitHub devolve as 30 mais novas) */
+  function sisMonFalhas(x,agora){if(x.falhas==null)return "falhas em 7 dias: não registradas";
+    if(x.onde==="github"&&x.janela_desde&&x.execucoes_lidas>=30&&x.janela_desde>agora-NUCLEO.MON_JANELA_MS)return "falhas nas últimas "+x.execucoes_lidas+" execuções (desde "+sisQuando(x.janela_desde)+"): "+x.falhas;
+    return "falhas em 7 dias: "+x.falhas}
+  function sisMonLinha(x,R){var agora=R.quando,t=[],det=[],b=x.processo==="rotina"&&R.backup,li=h("li",x.estado==="ok"?null:{class:"alerta"+(x.estado==="falhou"?" falhou":"")}),g=h("span",{class:"grow"}),link=x.workflow?"https://github.com/raynercarvalho1/rac/actions/workflows/"+x.workflow:"";
+    li.appendChild(h("span",{class:"sisdot",text:SIS_MON_ICO[x.estado]}));li.appendChild(g);
+    g.appendChild(h("b",{text:x.nome+" · "+SIS_MON_NOME[x.estado]+(x.rodando?" (rodando agora)":"")}));
+    g.appendChild(h("span",{class:"sub",style:"display:block",text:x.oque}));
+    if(x.motivo)g.appendChild(h("span",{class:"sub",style:"display:block",text:x.motivo+(x.esperada?" (previsto para "+sisQuando(x.esperada)+")":"")}));
+    g.appendChild(h("span",{class:"sub",style:"display:block",text:x.rotulo+": "+(x.ultima_execucao?sisQuando(x.ultima_execucao)+" ("+sisHa(new Date(x.ultima_execucao).toISOString())+")":"não registrada")+(x.duracao!=null?" · duração "+sisDur(x.duracao):"")+(x.registros?" · "+x.registros:"")}));
+    if(x.historico&&x.historico.length){var fita=h("span",{class:"monhist",role:"img","aria-label":"Últimas "+x.historico.length+" execuções: "+x.historico.map(function(e){return e.e}).reverse().join(", ")});
+      x.historico.slice().reverse().forEach(function(e){var s=h("i",{class:"mh "+e.e});racDica.ligar(s,function(){return [sisQuando(e.t),({ok:"execução com sucesso",falha:"execução com falha",rodando:"em execução"})[e.e]]});fita.appendChild(s)});g.appendChild(fita)}
+    t.push("Último sucesso: "+(x.ultimo_sucesso?sisQuando(x.ultimo_sucesso):"não registrado")+" · "+sisMonFalhas(x,agora));
+    if(x.estado==="falhou")t.push("Falha em "+sisQuando(x.ultima_falha||x.ultima_execucao)+(x.ultimo_sucesso?"; o último sucesso foi antes dela, sem execução bem-sucedida depois":"; sem nenhum sucesso registrado")+".");
+    else if(x.recuperou)t.push("Falhou em "+sisQuando(x.ultima_falha)+" e recuperou em "+sisQuando(x.ultimo_sucesso)+".");
+    if(x.erro&&x.estado!=="falhou")t.push("Erro: "+x.erro);
+    if(x.processo==="rotina"&&R.relogio)t.push("Relógio: último dado "+sisHa(R.relogio));
+    if(b)t.push("Backup de domingo: "+sisQuando(b.quando)+(b.ok?" ok":" com falha ("+b.erro+")")+" (vale o resumo da rotina; o arquivo no Storage não é conferido aqui)");
+    t.push("Próxima prevista: "+(x.onde==="github"?"a partir de ":"")+sisQuando(x.proxima_prevista)+(x.onde!=="github"?"":x.atraso_tipico!=null?" (nas últimas, o GitHub começou cerca de "+sisMin(x.atraso_tipico)+" depois do horário)":" (o GitHub pode atrasar ou pular rodadas)"));
+    t.push("Onde roda: "+(x.onde==="github"?"GitHub Actions":"Supabase (pg_cron)")+" · fonte da informação: "+x.fonte+(x.origem==="arquivo"?" · sem as execuções do GitHub agora: vale a data do arquivo do robô":""));
+    t.push("Agendamento: "+x.crons.join(" e ")+" (UTC) · "+x.arquivo+(x.onde==="github"&&R.gh&&R.gh.cache?" · execuções do GitHub de "+sisQuando(R.gh.quando):""));
+    t.forEach(function(z){det.push(h("span",{class:"sub",style:"display:block",text:z}))});
+    if(link)det.push(h("span",{class:"sub",style:"display:block"},ext(link,"Ver este robô no GitHub","ghostbtn")));
+    g.appendChild(h("details",{class:"mondet"},[h("summary",{text:"Detalhes"})].concat(det)));return li}
+  function sisMonitor(){
+    var p=panel("Monitor de integrações","Cada rotina agendada: estado, última e próxima execução e de onde vem cada informação. Os robôs rodam no GitHub, que costuma atrasar e às vezes pula rodadas. Sem evidência, o painel diz que não dá para verificar."),
+      barra=h("div",{class:"monbar"}),cards=h("div",{class:"moncards"}),alertas=h("div",{class:"monalertas"}),ul=h("ul",{class:"wl sissaude monint"}),filtro="todos",R=null;
+    p.appendChild(barra);p.appendChild(cards);p.appendChild(alertas);p.appendChild(ul);
+    p.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
+    function desenhar(){var P=NUCLEO.monPainel(R.lista),c=P.cartoes,gh=R.gh,bt=h("button",{type:"button",class:"ghostbtn",text:"Atualizar"});
+      bt.onclick=function(){barra.textContent="Conferindo…";carregar(true)};
+      barra.innerHTML="";barra.appendChild(h("span",{class:"sub",text:"Consultado em "+sisQuando(R.quando)+" · GitHub: "+(gh?(gh.cache?"cópia de "+sisQuando(gh.quando)+(gh.antigo?" (a consulta nova falhou)":" (renovada a cada 15 min)"):"consulta nova"):"indisponível"+(R.ghErro?" ("+R.ghErro+")":""))}));barra.appendChild(bt);
+      cards.innerHTML="";[["todos","Monitoradas",c.todos,"processos agendados"],["normais","Normais",c.normais,"no horário, sem falha"],["atencao","Exigem atenção",c.atencao,"falhas e atrasos"],["semverif","Sem verificação",c.semverif,"desligados ou sem registro"]].forEach(function(x){
+        var b=h("button",{type:"button",class:"moncard "+x[0]+(filtro===x[0]?" on":""),"aria-pressed":filtro===x[0]?"true":"false"},h("span",{class:"kl",text:x[1]}),h("b",{class:"kv",text:String(x[2])}),h("span",{class:"ksub",text:x[3]}));
+        b.onclick=function(){filtro=filtro===x[0]?"todos":x[0];desenhar()};cards.appendChild(b)});
+      alertas.innerHTML="";if(P.alertas.length){var ua=h("ul",{class:"wl sissaude monalert"});
+        P.alertas.forEach(function(a){var rp=R.lista.filter(function(x){return x.processo===a.processo})[0],lk=rp&&rp.workflow?"https://github.com/raynercarvalho1/rac/actions/workflows/"+rp.workflow:"";
+          ua.appendChild(h("li",{class:a.nivel},h("span",{class:"sisdot",text:a.nivel==="falha"?"✗":a.nivel==="atraso"?"⚠":"ℹ"}),h("span",{class:"grow"},h("b",{text:a.nome}),
+            h("span",{class:"sub",style:"display:block",text:(a.nivel==="falha"?"Falhou em "+sisQuando(a.quando)+": ":"")+a.motivo}),a.erro?h("span",{class:"sub",style:"display:block",text:"Erro: "+a.erro}):null,
+            h("span",{class:"sub",style:"display:block",text:"Onde: "+a.componente+" · fonte: "+a.fonte+(a.nivel==="info"?"":" · última execução registrada: "+sisQuando(a.quando))}),lk?ext(lk,"Investigar no GitHub","ghostbtn"):null)))});
+        alertas.appendChild(h("h3",{class:"monh",text:"Alertas e observações"}));alertas.appendChild(ua)}
+      ul.innerHTML="";var l=NUCLEO.monFiltro(R.lista,filtro);if(!l.length)ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhum processo nesta categoria."})));
+      l.forEach(function(x){ul.appendChild(sisMonLinha(x,R))})}
+    function carregar(forcar){sisMonColetar(forcar).then(function(r){R=r;desenhar()},function(e){barra.textContent="Não consegui montar o monitor ("+(e&&e.message||e)+").";logErro("monitor de integrações",e)})}
+    barra.appendChild(h("span",{class:"sub",text:"Conferindo…"}));carregar(false);return p}
+  /* o resumo de uma linha na página Sistema: a mesma coleta, sem repetir a leitura */
+  function sisMonitorResumo(){var p=panel("Monitor de integrações","As rotinas agendadas do RAC, uma a uma."),t=h("p",{class:"sub",text:"Conferindo…"});p.appendChild(t);
+    p.appendChild(h("div",{class:"vfil"},h("a",{class:"ghostbtn",href:"#monitor",text:"Abrir o Monitor"})));
+    sisMonColetar(false).then(function(r){var c=NUCLEO.monPainel(r.lista).cartoes;t.textContent=c.todos+" processos: "+c.normais+" normais, "+c.atencao+" exigem atenção, "+c.semverif+" sem verificação."},
+      function(){t.textContent="Não consegui conferir agora. Abra o Monitor para tentar de novo."});return p}
+  function renderMonitor(){var root=$("#monitor-view");root.innerHTML="";root.appendChild(h("a",{class:"ghostbtn",href:"#sistema",text:"← Sistema"}));
+    try{root.appendChild(sisMonitor())}catch(e){logErro("monitor de integrações",e)}}
   /* baixa o backup automático mais novo e confere se ele restauraria tudo (sem gravar nada): JSON íntegro, todas as tabelas, sem ids repetidos e com a quantidade de hoje */
   function sisTesteRestauracao(arq){
     return SB.storage.from("backups").download(EU.id+"/"+arq.name).then(function(r){if(r.error)throw r.error;return r.data.text()}).then(function(txt){
@@ -568,7 +610,7 @@
     /* a versão que este aparelho está usando: se não for a mais nova, é só fechar e abrir o site de novo */
     root.appendChild(h("p",{class:"sub sisversao",text:"Versão do site neste aparelho: "+MOD_VERSAO}));
     try{root.appendChild(sisSaude())}catch(e){logErro("saúde do RAC",e)}
-    try{root.appendChild(sisMonitor())}catch(e){logErro("monitor de integrações",e)}
+    try{root.appendChild(sisMonitorResumo())}catch(e){logErro("monitor de integrações",e)}
     if(typeof iaLigada==="function"&&iaLigada())try{root.appendChild(sisIA())}catch(e){logErro("RAC Intelligence",e)}
     /* sincronização e conflitos */
     var ps=panel("Sincronização","Os dados pessoais ficam na sua conta e com uma cópia neste aparelho. Se o mesmo dado mudar em dois lugares, você escolhe qual vale.");

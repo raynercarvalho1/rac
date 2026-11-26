@@ -1,4 +1,6 @@
--- PROPOSTA, NÃO APLICADA (o dono roda no SQL Editor, com autorização própria, DEPOIS de: 054 aplicada + função rac-inbox v3 publicada COM verify_jwt=true + Worker e secrets do canal funcionando
+-- ESTADO (conferido em 26/11/2026 por leitura de cron.job): o agendamento inbox-sync está ATIVO em produção (*/10 * * * *). O texto abaixo não foi comparado com o que foi aplicado.
+-- O arquivo continua em propostas/ porque os testes do Inbox o tratam assim; o Monitor de integrações (nucleo.js, tests/monitor.test.mjs) lê o horário daqui.
+-- PROPOSTA ORIGINAL, hoje já aplicada (o dono roda no SQL Editor, com autorização própria, DEPOIS de: 054 aplicada + função rac-inbox v3 publicada COM verify_jwt=true + Worker e secrets do canal funcionando
 -- + o segredo rac_chave_publica criado no Vault, como abaixo).
 -- RAC Inbox · agendamento da sincronização automática (docs/inbox.md, "Automático"). Pode rodar de novo sem criar agendamento duplicado (desagenda o mesmo nome e agenda de novo).
 -- A cada 10 minutos o pg_cron chama a função rac-inbox no modo rotina ("rotina_sync") com DUAS autenticações:

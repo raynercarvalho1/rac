@@ -12,16 +12,16 @@ const app = lerArq("js/app.js"), html = lerArq("index.html");
 const antes = (() => { const c = {}; vm.createContext(c); vm.runInContext(ANTES_JS.replace(/function route\(\)\{[\s\S]*$/, ""), c); return JSON.parse(JSON.stringify({ tabs: c.tabs, DA_CASA: c.DA_CASA, ROTA_MODS: c.ROTA_MODS })); })();
 const ordenado = (l) => [...l].sort();
 /* Fase 3 · DS-1: a rota nova "componentes" (só do dono, sem item no menu) e, desde o RAC Inbox I1, o "inbox" e, com o RAC Knowledge, o "conhecimento" (só do dono, com item no menu); o resto tem de ser igual */
-const NOVAS = ["componentes", "inbox", "conhecimento"], semNovas = (l) => l.filter((x) => !NOVAS.includes(x));
+const NOVAS = ["componentes", "inbox", "conhecimento", "monitor"], semNovas = (l) => l.filter((x) => !NOVAS.includes(x));
 
 test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (antes × depois)", () => {
-  assert.equal(R.tabs.length, 33); assert.deepEqual(ordenado(semNovas(R.tabs)), ordenado(antes.tabs), "todas as rotas de antes, só a página de componentes a mais");
+  assert.equal(R.tabs.length, 34); assert.deepEqual(ordenado(semNovas(R.tabs)), ordenado(antes.tabs), "todas as rotas de antes, só a página de componentes a mais");
   assert.ok(R.tabs.includes("componentes") && !R.DA_CASA.includes("componentes"), "a página de componentes existe e a casa não a vê");
   assert.ok(R.tabs.includes("inbox") && !R.DA_CASA.includes("inbox"), "o Inbox existe e a Fernanda (casa) não o vê"); assert.deepEqual(R.ROTA_MODS.inbox, ["inbox"]);
   assert.ok(R.tabs.includes("conhecimento") && !R.DA_CASA.includes("conhecimento"), "o RAC Knowledge existe e a Fernanda (casa) não o vê"); assert.deepEqual(R.ROTA_MODS.conhecimento, ["conhecimento"]);
   assert.deepEqual(ordenado(R.DA_CASA), ordenado(antes.DA_CASA), "a Fernanda vê exatamente as mesmas páginas");
   assert.deepEqual(ordenado(R.DA_CASA), ["alimentacao", "compras", "documentos", "eddie", "fiscal", "lista", "mercado", "olivia", "rede", "seguranca", "veiculos"]);
-  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, inbox: _i, conhecimento: _k, agenda: _a, saude: _s, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, saude: _s2, ...modsAntesSemAgenda } = antes.ROTA_MODS;
+  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, inbox: _i, conhecimento: _k, monitor: _mo, agenda: _a, saude: _s, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, saude: _s2, ...modsAntesSemAgenda } = antes.ROTA_MODS;
   assert.deepEqual(modsSemNova, modsAntesSemAgenda, "cada rota carrega os mesmos módulos sob demanda");
   /* DS-4.1: a Agenda saiu do Sistema para o próprio módulo (js/agenda.js); ele depende do Sistema, então abrir a Agenda continua carregando o que carregava */
   assert.deepEqual(antes.ROTA_MODS.agenda, ["sistema"]); assert.deepEqual(R.ROTA_MODS.agenda, ["agenda"]);
@@ -54,7 +54,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.match(html, /<nav class="grp" id="navgrp" aria-label="Seções">\n      <h4>Painel<\/h4>/, "o título do grupo continua");
   assert.ok(!/<a class="it" href="#inicio"/.test(html), "o menu não é mais HTML fixo");
   assert.ok(R.rotas.filter((r) => r.grupo).every((r) => r.grupo === "Painel"), "o grupo do registro continua um só (\"Painel\"); as áreas da Fase 3 são o campo area, aplicado por CSS só para o dono");
-  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes", "compras", "inicio"], "só a Busca (como antes), a página de componentes (Fase 3) as entradas de pedido (Alimentação, lote B; Pedidos online, lote C) e o Início (Lote 1 da reestruturação visual) ficam sem item no menu");
+  assert.deepEqual(R.rotas.filter((r) => !r.grupo).map((r) => r.id).sort(), ["alimentacao", "busca", "componentes", "compras", "inicio", "monitor"], "só a Busca (como antes), o Monitor de integrações (subpágina do Sistema, 26/11/2026), a página de componentes (Fase 3) as entradas de pedido (Alimentação, lote B; Pedidos online, lote C) e o Início (Lote 1 da reestruturação visual) ficam sem item no menu");
   const idx = ["js/dados.js", "mercado.js", "js/rotas.js", "js/app.js"].map((s) => html.indexOf(`<script src="${s}"></script>`));
   assert.ok(idx.every((x, i) => x > 0 && (!i || x > idx[i - 1])), "o registro carrega antes do app (a busca lateral lê o menu ao abrir)");
   assert.match(lerArq("sw.js"), /"\.\/js\/rotas\.js"/);
@@ -85,7 +85,7 @@ function juntarSecoes(log, cru) {
   for (let x of log) {
     /* DS-4.1: abrir a Agenda carrega o módulo "agenda" (que traz o "sistema" como dependência) em vez de só o "sistema"; fora do modo cru, é comparado como o mesmo pedido de antes */
     if (!cru && x[0] === "precisa" && x[1] === "agenda") x = ["precisa", "sistema"];
-    if (x[0] === "set" && (x[1] === "#componentes" || x[1] === "#inbox" || x[1] === "#conhecimento")) continue;   // a seção nova (Fase 3) não existia na cópia de antes
+    if (x[0] === "set" && (x[1] === "#componentes" || x[1] === "#inbox" || x[1] === "#conhecimento" || x[1] === "#monitor")) continue;   // a seção nova (Fase 3) não existia na cópia de antes
     if (x[0] === "set" && x[2] === "hidden" && /^#[a-z-]+$/.test(x[1]) && !/^#(sp-|homebtn|voltarbtn)/.test(x[1])) { if (!bloco) { bloco = []; out.push(["seções", bloco]); } bloco.push(x[1] + "=" + x[3]); continue; }
     if (bloco) bloco.sort(); bloco = null; out.push(x);
   }

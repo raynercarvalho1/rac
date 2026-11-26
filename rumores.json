@@ -1,187 +1,197 @@
 {
- "coletado": "2026-11-25T19:13:53.103799+00:00",
+ "coletado": "2026-11-26T03:32:27.851823+00:00",
  "fonte": "MLB Trade Rumors",
  "falhas": [],
  "liga": [
   {
-   "t": "Brewers Sign Antonio Senzatela",
-   "link": "https://www.mlbtraderumors.com/2026/11/brewers-sign-antonio-senzatela.html",
-   "data": "2026-11-25T19:04:17+00:00",
-   "resumo": "The Brewers announced that they have signed right-hander Antonio Senzatela to a one-year contract. The financial terms of the deal for the Republik Sports client have not yet been reported. First baseman/outfielder Tyler Black has been designated for assignment to open a 40-man…",
+   "t": "Twins To Sign Kevin Ginkel",
+   "link": "https://www.mlbtraderumors.com/2026/11/twins-to-sign-kevin-ginkel.html",
+   "data": "2026-11-26T03:23:50+00:00",
+   "resumo": "The Twins are signing reliever Kevin Ginkel to a two-year deal that guarantees $18MM, reports Mark Feinsand of MLB.com. More to come.",
    "tags": [
-    "Milwaukee Brewers",
-    "Transactions",
-    "Antonio Senzatela",
-    "Tyler Black"
-   ]
-  },
-  {
-   "t": "Guardians Sign Kris Bubic",
-   "link": "https://www.mlbtraderumors.com/2026/11/guardians-sign-kris-bubic.html",
-   "data": "2026-11-25T18:45:00+00:00",
-   "resumo": "The Guardians announced that they have signed free-agent lefty Kris Bubic. Ben Nicholson-Smith of Sportsnet reported yesterday that the two sides had agreed to a one-year deal. Bubic will be guaranteed $17.5MM on the deal, ESPN’s Jeff Passan added. Bubic is represented by Apex…",
-   "tags": [
-    "Cleveland Guardians",
+    "Minnesota Twins",
     "Newsstand",
     "Transactions",
-    "Kris Bubic"
+    "Kevin Ginkel"
    ]
   },
   {
-   "t": "Latest On The Blue Jays’ Offseason Plans",
-   "link": "https://www.mlbtraderumors.com/2026/11/latest-on-the-blue-jays-offseason-plans.html",
-   "data": "2026-11-25T17:50:17+00:00",
-   "resumo": "The Blue Jays made one of several notable signings on Tuesday, landing Kaima Taira on a five-year, $80MM agreement. It’s the first big offseason strike for the team after they’ve been linked to basically every notable pitcher on the market. With Taira bolstering a rotation that…",
+   "t": "Rockies, Patrick Sandoval Agree To Three-Year Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/rockies-patrick-sandoval-agree-to-three-year-deal.html",
+   "data": "2026-11-26T02:28:42+00:00",
+   "resumo": "The Rockies are in agreement with free agent starter Patrick Sandoval on a three-year, $42MM contract, reports Jeff Passan of ESPN. The veteran left-hander joins David Peterson, Davis Martin and Luis Castillo in a rotation that has been completely overhauled within the last…",
    "tags": [
-    "Toronto Blue Jays",
-    "Foster Griffin",
-    "Kevin Gausman",
-    "Michael Soroka"
-   ]
-  },
-  {
-   "t": "Yankees To Sign Jonathan Loaisiga",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-to-sign-jonathan-loaisiga.html",
-   "data": "2026-11-25T17:19:18+00:00",
-   "resumo": "Nov. 25: Loaisiga is actually guaranteed $19MM on the deal, rather than $18MM, reports Jorge Castillo of ESPN. The 2029 club option is valued at $9.5MM and comes with a $500K buyout. Loaisiga can earn an additional $750K worth of incentives per season. Nov. 20: Reliever…",
-   "tags": [
-    "New York Yankees",
-    "Newsstand",
-    "Transactions",
-    "Jonathan Loaisiga"
-   ]
-  },
-  {
-   "t": "Yankees To Hire Brandon Hyde As Bench Coach",
-   "link": "https://www.mlbtraderumors.com/2026/11/yankees-hire-brandon-hyde-bench-coach-former-orioles-manager.html",
-   "data": "2026-11-25T16:37:08+00:00",
-   "resumo": "The Yankees are hiring former Orioles skipper Brandon Hyde as their new bench coach, Ken Rosenthal of The Athletic reports. Manager Aaron Boone’s former bench coach, Brad Ausmus, was hired as the Astros’ new skipper earlier this month. Jon Heyman of the New York Post reports…",
-   "tags": [
-    "Baltimore Orioles",
-    "New York Yankees",
-    "Brandon Hyde",
-    "Joe Espada"
-   ]
-  },
-  {
-   "t": "Orioles Interested In Ian Happ, Mauricio Dubón",
-   "link": "https://www.mlbtraderumors.com/2026/11/orioles-rumors-ian-happ-mauricio-dubon-myles-straw.html",
-   "data": "2026-11-25T16:29:35+00:00",
-   "resumo": "The Orioles have solidified their rotation with the addition of right-hander Freddy Peralta, but they’re not finished with their offseason shopping yet. Ken Rosenthal and Will Sammon of The Athletic report that the Orioles are in the market for outfield help and have expressed…",
-   "tags": [
-    "Baltimore Orioles",
-    "Ian Happ",
-    "Mauricio Dubon",
-    "Myles Straw",
-    "Randy Arozarena",
-    "Seiya Suzuki"
-   ]
-  },
-  {
-   "t": "MLBTR Podcast: Skubal’s Deal, Cubs Signings, Starting Pitcher Contracts, And Other Hot Stove Action",
-   "link": "https://www.mlbtraderumors.com/2026/11/mlbtr-podcast-skubals-deal-cubs-signings-starting-pitcher-contracts-and-other-hot-stove-action.html",
-   "data": "2026-11-25T15:42:24+00:00",
-   "resumo": "The latest episode of the MLB Trade Rumors Podcast is now live on Spotify, Apple Podcasts, and wherever you get your podcasts! Make sure you subscribe as well! You can also use the player at this link to listen, if you don’t use Spotify or Apple for podcasts. This week, host…",
-   "tags": [
-    "Baltimore Orioles",
-    "Chicago Cubs",
-    "Chicago White Sox",
-    "Cleveland Guardians",
     "Colorado Rockies",
-    "Kansas City Royals"
-   ]
-  },
-  {
-   "t": "Royals To Sign Alec Bohm",
-   "link": "https://www.mlbtraderumors.com/2026/11/royals-to-sign-alec-bohm.html",
-   "data": "2026-11-25T15:39:56+00:00",
-   "resumo": "9:39 am: It’s a two-year, $20MM deal, reports Ken Rosenthal of The Athletic. The agreement is pending a physical. 9:26 am: The Royals have reached a deal with free agent Alec Bohm, reports Jon Morosi of MLB Network. Bohm is represented by THE-TEAM company. Kansas City shipped…",
-   "tags": [
-    "Kansas City Royals",
     "Newsstand",
     "Transactions",
-    "Alec Bohm"
+    "Patrick Sandoval"
    ]
   },
   {
-   "t": "Surfshark: How Baseball Fans Can Protect Themselves From Online Scams (Sponsored)",
-   "link": "https://www.mlbtraderumors.com/2026/11/surfshark-how-baseball-fans-can-protect-themselves-from-online-scams-sponsored.html",
-   "data": "2026-11-25T15:09:08+00:00",
-   "resumo": "You check Trade Rumors with your morning coffee. You buy the new jersey the minute it drops, and your tickets live in the stadium app. These days, a lot of being a fan happens on your phone. Scammers have noticed. They know fans move fast on deals and share their data with…",
+   "t": "Ben Casparius Undergoes UCL Surgery",
+   "link": "https://www.mlbtraderumors.com/2026/11/ben-casparius-undergoes-ucl-surgery.html",
+   "data": "2026-11-26T01:15:29+00:00",
+   "resumo": "The Dodgers announced that right-hander Ben Casparius underwent a UCL reconstruction (Tommy John surgery). He’ll miss all of next season. It’s essentially a second consecutive lost season. Casparius only pitched in five big league games this year, allowing five runs across 4…",
    "tags": [
-    "Sponsored"
+    "Los Angeles Dodgers",
+    "Ben Casparius"
    ]
   },
   {
-   "t": "The Opener: Sato, Peralta, Taira",
-   "link": "https://www.mlbtraderumors.com/2026/11/the-opener-sato-peralta-taira.html",
-   "data": "2026-11-25T14:41:53+00:00",
-   "resumo": "Big names were flying off the board on Tuesday. More activity could follow today as teams and players try to sort out business before Thanksgiving. 1. Sato to the Cubs Teruaki Sato got the party started yesterday, inking a six-year, $120MM deal with the Cubs. It was…",
+   "t": "Orioles To Re-Sign Luis Robert Jr.",
+   "link": "https://www.mlbtraderumors.com/2026/11/orioles-luis-robert-jr-reportedly-finalizing-contract.html",
+   "data": "2026-11-26T00:55:41+00:00",
+   "resumo": "The Orioles are reportedly in agreement to bring back center fielder Luis Robert Jr. on a one-year deal. It’ll be a $12MM guarantee for the Boras Corporation client, who is expected to be the team’s everyday center fielder. Baltimore’s 40-man roster is at capacity, so they’ll…",
    "tags": [
-    "The Opener"
+    "Baltimore Orioles",
+    "Newsstand",
+    "Transactions",
+    "Luis Robert"
    ]
   },
   {
-   "t": "Mets Sign Paul Goldschmidt",
-   "link": "https://www.mlbtraderumors.com/2026/11/mets-sign-paul-goldschmidt.html",
-   "data": "2026-11-25T13:47:50+00:00",
-   "resumo": "November 25: The Mets have officially announced the Goldschmidt signing. “Over the past two decades Paul has established himself as one of the most distinguished right-handed hitters in baseball,” president of baseball operations David Stearns said in a statement. “We believe…",
+   "t": "Guardians To Re-Sign Foster Griffin",
+   "link": "https://www.mlbtraderumors.com/2026/11/guardians-to-sign-foster-griffin.html",
+   "data": "2026-11-26T00:29:14+00:00",
+   "resumo": "The Guardians and left-hander Foster Griffin have reportedly agreed to a three-year, $48MM deal. Talk Nats first reported that Cleveland was re-signing Griffin, while Robert Murray of FanSided had the contract specifics. Griffin is represented by Excel Sports Management. The…",
+   "tags": [
+    "Cleveland Guardians",
+    "Newsstand",
+    "Transactions",
+    "Foster Griffin"
+   ]
+  },
+  {
+   "t": "Rockies To Sign David Peterson",
+   "link": "https://www.mlbtraderumors.com/2026/11/rockies-to-sign-david-peterson.html",
+   "data": "2026-11-25T23:57:59+00:00",
+   "resumo": "The Rockies and left-hander David Peterson are in agreement on a two-year deal, reports Thomas Harding of MLB.com. It’s a $32MM guarantee for the CAA Sports client, reports Robert Murray of FanSided. Colorado has a full 40-man roster and will need to make a corresponding move…",
+   "tags": [
+    "Colorado Rockies",
+    "Newsstand",
+    "Transactions",
+    "David Peterson"
+   ]
+  },
+  {
+   "t": "Tigers To Sign Kevin Gausman",
+   "link": "https://www.mlbtraderumors.com/2026/11/tigers-to-sign-kevin-gausman.html",
+   "data": "2026-11-25T23:30:50+00:00",
+   "resumo": "The Tigers and right-hander Kevin Gausman have agreed to a one-year, $25MM contract, reports Jeff Passan of ESPN. The righty is represented by Tidal Sports Group. The Tigers have a full 40-man roster and also still need to make their deals with Luis Gil and Ha-Seong Kim…",
+   "tags": [
+    "Detroit Tigers",
+    "Newsstand",
+    "Transactions",
+    "Kevin Gausman"
+   ]
+  },
+  {
+   "t": "Mets Designate Jack Anderson, Yunior Tur For Assignment",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-designate-jack-anderson-yunior-tur-for-assignment.html",
+   "data": "2026-11-25T23:26:52+00:00",
+   "resumo": "The Mets have designated right-hander Jack Anderson and Yunior Tur for assignment, according to the club’s transactions log at MLB.com. Those appear to be the corresponding moves to open 40-man roster spots to officially sign left-handers Tarik Skubal and Darwinzon Hernández.…",
+   "tags": [
+    "New York Mets",
+    "Transactions",
+    "Jack Anderson",
+    "Yunior Tur"
+   ]
+  },
+  {
+   "t": "Mets Sign Tarik Skubal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-to-sign-tarik-skubal.html",
+   "data": "2026-11-25T23:18:27+00:00",
+   "resumo": "The Mets have made another blockbuster addition, as the club announced it has signed two-time AL Cy Young Award winner Tarik Skubal to a nine-year contract. The deal is reportedly a straight nine-year pact with a $450MM guarantee, no opt-outs and a full no-trade clause. Skubal…",
    "tags": [
     "New York Mets",
     "Newsstand",
     "Transactions",
-    "Paul Goldschmidt"
+    "Tarik Skubal"
    ]
   },
   {
-   "t": "Cubs To Sign Teruaki Sato",
-   "link": "https://www.mlbtraderumors.com/2026/11/cubs-to-sign-teruaki-sato.html",
-   "data": "2026-11-25T05:59:59+00:00",
-   "resumo": "The Cubs have agreed to a six-year, $120MM deal with slugger Teruaki Sato. He’s expected to play a corner outfield spot in Chicago. Sato is represented by VC Sports Group. Chicago has dropped $240MM in the span of 12 hours on two massive additions. The club signed left-hander…",
+   "t": "Mets, Darwinzon Hernández Sign Three-Year Deal",
+   "link": "https://www.mlbtraderumors.com/2026/11/mets-darwinzon-hernandez-agree-to-three-year-deal.html",
+   "data": "2026-11-25T23:17:32+00:00",
+   "resumo": "November 25: It appears the deal is official, as it is now listed in the club’s transaction logs. November 19: The Mets are signing lefty reliever Darwinzon Hernández to a three-year, $12MM contract, reports José F. Rivera. The signing is still pending a physical. New York…",
    "tags": [
-    "Chicago Cubs",
+    "New York Mets",
     "Newsstand",
     "Transactions",
-    "Teruaki Sato"
+    "Darwinzon Hernandez"
    ]
   },
   {
-   "t": "Orioles Sign Freddy Peralta",
-   "link": "https://www.mlbtraderumors.com/2026/11/orioles-sign-freddy-peralta.html",
-   "data": "2026-11-25T05:58:25+00:00",
-   "resumo": "The Orioles announced the signing of free agent starter Freddy Peralta to a five-year contract. It’s reportedly a $125MM guarantee that takes the form of a $10MM signing bonus followed by $23MM annual salaries from 2027-31. The deal does not contain any deferred money or…",
+   "t": "Marlins To Sign Gary Sánchez",
+   "link": "https://www.mlbtraderumors.com/2026/11/marlins-to-sign-gary-sanchez.html",
+   "data": "2026-11-25T23:10:15+00:00",
+   "resumo": "The Marlins and catcher Gary Sánchez have agreed to a one-year, $6.5MM deal, reports Jeff Passan of ESPN. Sánchez is represented by MDR Sports Management. Miami has an open 40-man roster spot and won’t need to make a corresponding move to make this deal official. Sánchez, 34…",
    "tags": [
-    "Baltimore Orioles",
+    "Miami Marlins",
     "Newsstand",
     "Transactions",
-    "Freddy Peralta"
+    "Agustin Ramirez",
+    "Gary Sanchez"
    ]
   },
   {
-   "t": "Blue Jays To Sign Kaima Taira",
-   "link": "https://www.mlbtraderumors.com/2026/11/blue-jays-to-sign-kaima-taira.html",
-   "data": "2026-11-25T05:50:45+00:00",
-   "resumo": "The Blue Jays and right-hander Kaima Taira have reportedly agreed to a five-year, $80MM deal. There’s an opt-out after the third year and a $5MM signing bonus for the Boras Corporation client. The Jays will also owe a posting fee of $13.875MM to the Seibu Lions, Taira’s NPB…",
+   "t": "MLB Mailbag: Yankees, Mariners, Robert, Posting System",
+   "link": "https://www.mlbtraderumors.com/2026/11/mlb-mailbag-yankees-mariners-robert-posting-system.html",
+   "data": "2026-11-25T22:40:37+00:00",
+   "resumo": "This week’s MLB Mailbag will take a look at the Yankees’ options for the hot corner, the Mariners’ free agent efforts and payroll outlook, Luis Robert Jr.’s 2027 outlook and some intricacies of the MLB/NPB posting system. (Note: questions are lightly edited for both brevity and…",
+   "tags": [
+    "Front Office Originals",
+    "Steve Adams' MLB Mailbag"
+   ]
+  },
+  {
+   "t": "Padres To Sign JoJo Romero",
+   "link": "https://www.mlbtraderumors.com/2026/11/padres-to-sign-jojo-romero.html",
+   "data": "2026-11-25T21:50:15+00:00",
+   "resumo": "The Padres and left-hander JoJo Romero have reportedly agreed to a three-year deal worth $21MM. Romero is a client of PSI Sports Management. The Padres have multiple 40-man vacancies and won’t need to make a corresponding move to make this official. Romero, 30, isn’t an elite…",
    "tags": [
     "Newsstand",
-    "Toronto Blue Jays",
-    "Transactions",
-    "Kaima Taira"
-   ]
-  },
-  {
-   "t": "Padres Re-Sign Garrett Hawkins To Minor League Deal",
-   "link": "https://www.mlbtraderumors.com/2026/11/padres-re-sign-garrett-hawkins-to-minor-league-deal.html",
-   "data": "2026-11-25T05:44:22+00:00",
-   "resumo": "The Padres re-signed reliever Garrett Hawkins on a minor league contract, according to the MiLB.com transaction tracker. San Diego dropped him from the 40-man roster on Friday when they declined to tender him a contract. Hawkins is still seeking to make his big league debut as…",
-   "tags": [
     "San Diego Padres",
     "Transactions",
-    "Garrett Hawkins"
+    "JoJo Romero"
+   ]
+  },
+  {
+   "t": "The Best Fits For Adrian Morejon",
+   "link": "https://www.mlbtraderumors.com/2026/11/the-best-fits-for-adrian-morejon.html",
+   "data": "2026-11-25T21:17:57+00:00",
+   "resumo": "MLBTR continues our player-by-player look at the top free agents. This time, we’ll examine the suitors for the market’s best reliever. Adrian Morejon is pretty close to the perfect free agent bullpen arm. He has three straight seasons of elite performance, including a 2.83…",
+   "tags": [
+    "Front Office Originals",
+    "Adrian Morejon"
+   ]
+  },
+  {
+   "t": "Mariners Rumors: Vesia, Abreu, Soto, Suzuki",
+   "link": "https://www.mlbtraderumors.com/2026/11/mariners-rumors-vesia-abreu-soto-suzuki.html",
+   "data": "2026-11-25T20:58:32+00:00",
+   "resumo": "The Mariners don’t usually spend a lot on the bullpen but Adam Jude of The Seattle Times reports that they may break that pattern this offseason. He says they have recently met with a number of free agent relievers and it is “believed” that Alex Vesia, Bryan Abreu and Gregory…",
+   "tags": [
+    "Seattle Mariners",
+    "Adrian Morejon",
+    "Alex Vesia",
+    "Bryan Abreu",
+    "Gregory Soto",
+    "Randy Arozarena"
    ]
   }
  ],
  "dodgers": [
+  {
+   "t": "Ben Casparius Undergoes UCL Surgery",
+   "link": "https://www.mlbtraderumors.com/2026/11/ben-casparius-undergoes-ucl-surgery.html",
+   "data": "2026-11-26T01:15:29+00:00",
+   "resumo": "The Dodgers announced that right-hander Ben Casparius underwent a UCL reconstruction (Tommy John surgery). He’ll miss all of next season. It’s essentially a second consecutive lost season. Casparius only pitched in five big league games this year, allowing five runs across 4…",
+   "tags": [
+    "Los Angeles Dodgers",
+    "Ben Casparius"
+   ]
+  },
   {
    "t": "Latest Details On Tarik Skubal Bidding",
    "link": "https://www.mlbtraderumors.com/2026/11/latest-details-on-tarik-skubal-bidding.html",
@@ -357,20 +367,6 @@
     "Colorado Rockies",
     "Los Angeles Dodgers",
     "New York Yankees"
-   ]
-  },
-  {
-   "t": "Dodgers Reportedly Prefer Short-Term Deal In Skubal Bidding",
-   "link": "https://www.mlbtraderumors.com/2026/11/dodgers-reportedly-prefer-short-term-deal-in-skubal-bidding.html",
-   "data": "2026-11-11T18:38:29+00:00",
-   "resumo": "The Dodgers are in the mix for free agent Tarik Skubal but the framework of his eventual deal could be very important. Katie Woo of The Athletic reports that their interest would be contingent on Skubal being open to a short-term deal. Jeff Passan of ESPN reports that Skubal…",
-   "tags": [
-    "Boston Red Sox",
-    "Chicago White Sox",
-    "Los Angeles Dodgers",
-    "Newsstand",
-    "Freddy Peralta",
-    "Tarik Skubal"
    ]
   }
  ]

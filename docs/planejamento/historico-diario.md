@@ -1950,10 +1950,11 @@ Família e da Casa.
 - Núcleo (`nucleo.js`): catálogo com 8 processos (`inbox`), `monDeInbox`, `monPainel` e `monFiltro`, última falha e "recuperou", histórico de execuções, janela real do GitHub, execução em andamento nunca é atraso (passou de 2 h vira alerta) e limite curto em minutos.
 - Tela (`js/sistema.js`, `js/rotas.js`, `index.html`): subpágina `#monitor` com quatro cartões que filtram, alertas e observações, lista com detalhes, fita de 7 execuções (`racDica`), hora da consulta e estado do cache; a página Sistema mantém só um resumo. Horários em Brasília. Corrigido: "falhas em 7 dias" do GitHub contava só 30 execuções (cerca de 1 dia no robô de notícias).
 - Testes: `tests/monitor.test.mjs` ampliado (22 testes: divergência com o `inbox-sync`, inbox, janela, em andamento, recuperação, painel, filtro, cache, GitHub indisponível, resposta incompleta, fuso e ligações). Sem migration, tabela, Edge Function, IA ou mudança nos robôs.
+- Entrega verificada: suíte completa local (2341 passando, 0 falhas; banco 73 de 73) e capturas em 390, 768 e 1280 px nos dois temas sem rolagem horizontal; PR #105 com CI verde e mesclado (`b3a140e`); Pages #484 com sucesso; Testes da `main` #406 com sucesso; o domínio serve `sw.js`/`MOD_VERSAO` `2026-11-26.1`, o `index.html` com `#monitor-view` e os arquivos novos (`sisMonColetar`, rota `monitor`, `monDeInbox`). O host do site foi liberado no ambiente "RAC" para essa conferência.
 - Decisões do dono: tema escuro como referência visual, subpágina própria, quatro cartões sem "% de sucesso" nem "tempo médio", fita de histórico, janela do GitHub rotulada pela janela real.
 
 ### 2. O que estamos fazendo
-- Suíte completa, PR, CI e merge. **Não conferido:** a versão servida pelo site, as capturas em 390 px, 768 px e desktop e o visual no iPhone.
+- Nada em aberto no código. **Não conferido:** só o visual no iPhone (validação do dono).
 
 ### 3. O que vamos fazer
 - Dono: validar no iPhone (Sistema → Abrir o Monitor): cartões, filtros, alertas, detalhes e a hora da consulta. Depois, com M3 e M4 (F6), o alerta proativo e a visão no servidor.

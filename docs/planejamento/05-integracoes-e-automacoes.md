@@ -178,7 +178,7 @@ não registra as tentativas sem edição (falhas "não registradas").
 
 ### 4.4 Conclusão de M1 e M2 (26/11/2026)
 
-Estado: **implementado e testado na branch** `claude/serene-carson-wl4e5a`; PR, CI, merge e publicação do site `2026-11-26.1` são registrados no [histórico diário](historico-diario.md) só depois de verificados. Sem migration, tabela, Edge Function, IA ou mudança nos robôs.
+Estado: **concluído, mesclado (PR #105, `b3a140e`) e publicado** em 26/11/2026; o site servido pelo domínio está na versão `2026-11-26.1` (verificado). Falta só a validação visual do dono no iPhone ([histórico diário](historico-diario.md)). Sem migration, tabela, Edge Function, IA ou mudança nos robôs.
 
 [Fato] Conferência com a produção (leitura de `cron.job`, 26/11/2026): cinco jobs ativos, `rac-rotina`, `rac-newsletter`, `radar-rotina`, `fiscal-entradas` e `inbox-sync`, todos com o horário do catálogo. `fiscal-validacao` (061) **não** existe em produção (proposta reservada). O `inbox-sync` estava fora do catálogo: o arquivo `supabase/propostas/055_inbox_agendamento.sql` seguia marcado "não aplicada", embora o job esteja ativo (o texto aplicado não foi comparado com o arquivo). O arquivo fica em `propostas/` porque os testes do Inbox o tratam assim; o teste do Monitor tem uma lista explícita (`APLICADAS_EM_PROPOSTAS`) para lê-lo.
 

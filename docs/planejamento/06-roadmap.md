@@ -61,7 +61,7 @@ Classificação pedida: **Funciona** (já existe e funciona) · **Parcial** (exi
 |---|---|---|---|---|---|---|---|
 | Documentação oficial (Documento 1) | Parcial → feito nesta etapa | Alto | Baixa | Baixo | — | Alta | Documentos mesclados; teste `tests/planejamento.test.mjs` passando |
 | Reconciliar estado dos documentos | Corrigir | Médio | Baixa | Baixo | Conferência só leitura pelo dono | Alta | Nenhuma divergência da lista do [Documento 07](07-decisoes-e-pendencias.md#inconsistências-de-estado-encontradas) |
-| Monitor de integrações M1–M2 | Implementado em 26/11/2026 (em PR) | Alto | Média | Baixo | — | **Alta** | Todo processo agendado aparece com estado, última execução, sucesso, falhas e próxima prevista; teste de divergência de horários |
+| Monitor de integrações M1–M2 | Concluído e publicado em 26/11/2026 (PR #105; falta o iPhone do dono) | Alto | Média | Baixo | — | **Alta** | Todo processo agendado aparece com estado, última execução, sucesso, falhas e próxima prevista; teste de divergência de horários |
 | Monitor M3–M4 (view e alerta) | Novo | Alto | Média | Médio (SQL) | M1, sinais | Média | Processo parado vira sinal e aparece uma vez no resumo diário |
 | Clique na notificação das 6h abre o destino que ela traz | Corrigir | Alto | Baixa | Baixo | Teste no iPhone | **Alta** | Tocar no push abre a página indicada pelo aviso (hoje Agenda, Resumo ou Lista) com o app aberto, fechado e recém-atualizado (3 cenários no aparelho). Trocar o destino é a questão D-05 |
 | Comprovar os robôs depois da proteção da `main` | Funciona (a comprovar) | Alto | Baixa | Baixo | Próximas execuções dos robôs | **Alta** | Um push bem-sucedido de cada robô (Notícias e Vagas) na `main` depois da criação da ruleset, registrado no histórico diário |
@@ -106,7 +106,7 @@ mesclado nem publicado, e dois critérios dependem de evidência de fora (o iPho
 
 | Item | Situação | O que falta para concluir |
 |---|---|---|
-| Monitor M1 e M2 | **Concluído e testado na branch em 26/11/2026** (8 processos, subpágina `#monitor`, cartões e alertas; [Documento 05](05-integracoes-e-automacoes.md#44-conclusão-de-m1-e-m2-26112026)) | PR, CI, merge e publicação a registrar no histórico; conferir no iPhone (dono) |
+| Monitor M1 e M2 | **Concluído e publicado em 26/11/2026** (PR #105, site `2026-11-26.1`; 8 processos, subpágina `#monitor`, cartões e alertas; [Documento 05](05-integracoes-e-automacoes.md#44-conclusão-de-m1-e-m2-26112026)) | Conferir no iPhone (dono) |
 | Clique na notificação abre o destino | **Implementado na branch**; testes automáticos do service worker e da página | Merge e publicação; os 3 cenários no iPhone (aberto, fechado, recém-atualizado). O destino não mudou (D-05 em aberto) |
 | Atualizar ao voltar à aba | **Implementado na branch**, só para o dono; testes dos cenários pedidos | Merge e publicação; uso real. Se vale para a casa é a questão D-15 |
 | Busca lateral (P-19) | **Corrigido na branch**; teste com Esportes carregado e não carregado | Merge e publicação |

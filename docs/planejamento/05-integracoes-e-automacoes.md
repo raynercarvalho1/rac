@@ -59,6 +59,7 @@ Supabase limita arquivos a 50 MB.
 | `rac-newsletter` | pg_cron (`023`) → função `rac-newsletter` | `50 0-2,9-23 * * *` | de hora em hora | Edição base de cada turno (6h, 12h, 18h), resumo com IA (só REAL validado), no máximo um aviso por dia |
 | `radar-rotina` | pg_cron (`045`) → função `radar` | `20 9,21 * * *` | 6h20 e 18h20 | Coleta de ofertas, descoberta (se ligada), aviso de oportunidade |
 | `fiscal-entradas` | pg_cron (`060`) → função SQL `nf_rotina_fiscal_sql` | `10 */6 * * *` | a cada 6 h | Central Fiscal: retoma sozinha a entrada no Mercado das notas confirmadas que falharam (intervalo crescente, até 6 tentativas) e liga notas antigas a compras que já existem (proposta, não aplicada) |
+| `inbox-sync` | pg_cron (`055`, job ativo em produção) → função `rac-inbox` | `*/10 * * * *` | a cada 10 min | RAC Inbox: sincroniza as caixas conectadas e avisa as mensagens novas (só do dono); grava `inbox_sincronizacao` |
 | Atualizar notícias | GitHub (`noticias.yml`) | `15 */3 * * *` e `40 * * * *` | a cada 3 h (+ Newsletter de hora em hora, só se preciso) | Notícias, tecnologia, rumores e Newsletter; commit na `main` |
 | Atualizar vagas | GitHub (`vagas.yml`) | `0 10 * * *` | 7h | `vagas.json`; commit na `main` |
 | Testes | GitHub (`testes.yml`) | push e PR na `main` (exceto os `.json` dos robôs) e `30 10 * * 1` | segunda, 7h30 | Grupo 1 e Grupo 2 |
@@ -132,7 +133,7 @@ Para o aviso por push de M4 é preciso uma Edge Function que envie (a `garmin` �
 
 ### 4.3 Implementação de M1 e M2 (Fase 1, 13/11/2026)
 
-Estado: **na branch** `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1; **sem merge e sem publicação**. Sem migration, sem SQL
+[Histórico, 13/11/2026; a conclusão está na seção 4.4] Estado: **na branch** `claude/fase-1-confiabilidade-rac-dhwm7a`, no PR da Fase 1; **sem merge e sem publicação**. Sem migration, sem SQL
 em produção, sem Edge Function. A proposta das seções 4.1 e 4.2 fica como estava; esta seção registra o que foi feito.
 
 [Fato] O que foi feito:
@@ -174,6 +175,41 @@ Diferenças em relação à proposta da seção 4.2, e por quê:
 mudar direto no SQL Editor, o monitor só saberá pelo arquivo. Conferência só leitura, pelo dono, quando quiser:
 `select jobname, schedule, active from cron.job order by jobname;`. A rotina das 6h não registra o início (sem duração) e a Newsletter
 não registra as tentativas sem edição (falhas "não registradas").
+
+### 4.4 Conclusão de M1 e M2 (26/11/2026)
+
+Estado: **implementado e testado na branch** `claude/serene-carson-wl4e5a`; PR, CI, merge e publicação do site `2026-11-26.1` são registrados no [histórico diário](historico-diario.md) só depois de verificados. Sem migration, tabela, Edge Function, IA ou mudança nos robôs.
+
+[Fato] Conferência com a produção (leitura de `cron.job`, 26/11/2026): cinco jobs ativos, `rac-rotina`, `rac-newsletter`, `radar-rotina`, `fiscal-entradas` e `inbox-sync`, todos com o horário do catálogo. `fiscal-validacao` (061) **não** existe em produção (proposta reservada). O `inbox-sync` estava fora do catálogo: o arquivo `supabase/propostas/055_inbox_agendamento.sql` seguia marcado "não aplicada", embora o job esteja ativo (o texto aplicado não foi comparado com o arquivo). O arquivo fica em `propostas/` porque os testes do Inbox o tratam assim; o teste do Monitor tem uma lista explícita (`APLICADAS_EM_PROPOSTAS`) para lê-lo.
+
+**Matriz de cobertura** (o que o Monitor consegue provar):
+
+| Processo | Origem | Agendamento (UTC) | Evidência | Falha identificável | Limite de observabilidade |
+|---|---|---|---|---|---|
+| Rotina das 6h | pg_cron `008` → `garmin` | `0 9 * * *` | `rotina_log` (comprova a execução) | sim (`ok=false`, erro por passo) | não registra o início: sem duração; backup e relógio são só sub-linhas |
+| Newsletter | pg_cron `023` → `rac-newsletter` | `50 0-2,9-23 * * *` | `newsletter_edicoes` (comprova só a edição gravada) | não | tentativa sem edição não deixa registro; vale a idade (14 h) |
+| Radar | pg_cron `045` → `radar` | `20 9,21 * * *` | `radar_coletas` | sim, quando registra | sem oferta não há registro: "sem informação", nunca falha |
+| Central Fiscal (entrada) | pg_cron `060` | `10 */6 * * *` | `notas_fiscais_entradas` (comprova só dados) | não | só registra quando há o que tratar |
+| Inbox (sincronização) | pg_cron `055` → `rac-inbox` | `*/10 * * * *` | `inbox_sincronizacao` (comprova a execução) | sim (`falhas_seguidas`, erro) | só do dono; falhas em 7 dias não registradas; uma sincronização manual recente também atualiza |
+| Robô de notícias | GitHub `noticias.yml` | `15 */3 * * *` e `40 * * * *` | execuções da `main` + JSON | sim | cota de 60 consultas/h por IP; as 30 execuções lidas cobrem cerca de 1 dia |
+| Robô de vagas | GitHub `vagas.yml` | `0 10 * * *` | execuções da `main` + `vagas.json` | sim | o GitHub atrasa e pula rodadas |
+| Testes | GitHub `testes.yml` | `30 10 * * 1` (+ push e PR) | execuções da `main` | sim | só as execuções da `main` |
+
+Fora do catálogo, de propósito: backup (passo da rotina; vale o resumo em `rotina_log`, o arquivo no Storage não prova o sucesso), último dado da Garmin (sub-linha da rotina), `ia_uso` (registra chamadas, não é rotina agendada), push (passo da rotina), publicação do Pages (mecanismo nativo, sem arquivo no repositório), `garmin-publicar.yml`, `rac-inbox-worker-publicar.yml` e `icloud-auth-probe.yml` (manuais, sem cron) e `fiscal-validacao` (não existe em produção).
+
+[Fato] Decisões de apresentação (conferidas com o dono em 26/11/2026):
+
+- **Subpágina `#monitor`** aberta a partir da página Sistema, que mantém só um resumo de uma linha; as duas leem a mesma coleta (`sisMonColetar`, guardada 60 s).
+- **Quatro cartões**: monitoradas, normais, exigem atenção (falhou e atrasado) e sem verificação (desligado e desconhecido); tocar num cartão filtra a lista. Sem "% de sucesso", sem "tempo médio" e sem gráficos de atividade: as fontes não são comparáveis e quatro processos não registram duração. A referência visual (duas imagens, números ilustrativos) foi adaptada ao design system, não copiada.
+- **Alertas e observações** no topo (falha, atraso e "info": sem registro ou desligado), cada um com o que aconteceu, quando, onde o processo roda e a fonte que acusou. Causa externa só quando a evidência a indica; senão a tela diz o componente e a fonte.
+- **Falha** é a execução mais recente terminada com erro; um sucesso posterior volta o estado a ok e o detalhe diz "falhou em X e recuperou em Y".
+- **Em andamento** nunca é atraso; passou de 2 h vira alerta ("pode ter travado"); a falha continua valendo até um sucesso.
+- **Janela do GitHub**: o rótulo diz "falhas em 7 dias" só quando as 30 execuções lidas cobrem 7 dias; senão diz "nas últimas N execuções (desde dd/mm hh:mm)". O erro anterior era contar só 30 execuções e rotular "7 dias".
+- **Fita de 7 execuções** (com `racDica`, data e resultado) só nos processos que têm histórico (rotina, Radar e os três do GitHub).
+- **Horários em Brasília** (`America/Sao_Paulo`), não no fuso do aparelho. A tela mostra a hora da consulta e se o GitHub veio do cache (15 min) ou da cópia de até 24 h.
+- **Inbox** só para o dono (a tabela é por dono); com a sincronização automática desligada em todas as contas, o estado é "desligado".
+
+Continua fora do escopo: cartão no RAC Hoje, M3 e M4 (F6), listagem do Storage e qualquer fonte nova.
 
 ## 5. Automações futuras
 

@@ -18,6 +18,9 @@ const H = 36e5, MIN = 6e4;
 const copia = (x) => JSON.parse(JSON.stringify(x));
 
 /* ----- os agendamentos reais ----- */
+/* Agendamentos APLICADOS em produção cujo arquivo ficou em supabase/propostas/ (o job está ativo em cron.job, conferido em 26/11/2026; os testes do
+   Inbox tratam esse arquivo como proposta). Qualquer outra proposta continua sem contar. */
+const APLICADAS_EM_PROPOSTAS = ["055_inbox_agendamento.sql"];
 function agendamentosReais() {
   const workflows = {};
   for (const f of fs.readdirSync(new URL(".github/workflows/", raiz)).filter((x) => /\.ya?ml$/.test(x)).sort()) {
@@ -26,11 +29,12 @@ function agendamentosReais() {
   }
   /* pg_cron: na ordem das migrations, sem comentários; unschedule tira, schedule põe (a última vale). Propostas não contam. */
   const jobs = {};
-  const sqls = fs.readdirSync(new URL("supabase/", raiz)).filter((x) => /^\d{3}_.*\.sql$/.test(x)).sort();
-  for (const f of sqls) {
-    const txt = ler("supabase/" + f).split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  const sqls = fs.readdirSync(new URL("supabase/", raiz)).filter((x) => /^\d{3}_.*\.sql$/.test(x)).map((f) => ({ f, caminho: "supabase/" + f }))
+    .concat(APLICADAS_EM_PROPOSTAS.map((f) => ({ f, caminho: "supabase/propostas/" + f }))).sort((a, b) => (a.f < b.f ? -1 : 1));
+  for (const { f, caminho } of sqls) {
+    const txt = ler(caminho).split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
     for (const m of txt.matchAll(/cron\.(unschedule|schedule)\(\s*'([^']+)'(?:\s*,\s*'([^']+)')?/g)) {
-      if (m[1] === "unschedule") delete jobs[m[2]]; else jobs[m[2]] = { arquivo: "supabase/" + f, crons: [m[3].trim()] };
+      if (m[1] === "unschedule") delete jobs[m[2]]; else jobs[m[2]] = { arquivo: caminho, crons: [m[3].trim()] };
     }
   }
   return { workflows, jobs };
@@ -60,7 +64,7 @@ test("divergência: todo processo agendado (pg_cron e GitHub) aparece no monitor
   const real = agendamentosReais();
   assert.ok(Object.keys(real.jobs).length >= 3 && Object.keys(real.workflows).length >= 3, "achou os agendamentos");
   assert.deepEqual(divergencias(N.MON_PROCESSOS, real), []);
-  assert.deepEqual(Object.keys(real.jobs).sort(), ["fiscal-entradas", "rac-newsletter", "rac-rotina", "radar-rotina"]);
+  assert.deepEqual(Object.keys(real.jobs).sort(), ["fiscal-entradas", "inbox-sync", "rac-newsletter", "rac-rotina", "radar-rotina"]);
   assert.deepEqual(Object.keys(real.workflows).sort(), ["noticias.yml", "testes.yml", "vagas.yml"]);
 });
 
@@ -199,7 +203,7 @@ test("estado: ok, atrasado (pelo horário previsto ou pela idade), falhou, desli
   const P = (id) => N.MON_PROCESSOS.find((p) => p.id === id), agora = T("2026-11-13T12:00:00Z"), A = N.monAvaliar;
   const ok = A(P("rotina"), { ultima_execucao: T("2026-11-13T09:01:00Z"), ultima_ok: true }, agora);
   assert.equal(ok.estado, "ok"); assert.equal(ok.proxima_prevista, T("2026-11-14T09:00:00Z"));
-  assert.deepEqual(Object.keys(ok).sort(), ["area", "arquivo", "atraso_tipico", "crons", "duracao", "erro", "esperada", "estado", "falhas", "motivo", "nome", "onde", "origem", "processo", "proxima_prevista", "registros", "rodando", "rotulo", "ultima_execucao", "ultimo_sucesso"].sort(), "o contrato do Documento 05");
+  assert.deepEqual(Object.keys(ok).sort(), ["area", "arquivo", "atraso_tipico", "crons", "duracao", "erro", "esperada", "estado", "execucoes_lidas", "falhas", "historico", "janela_desde", "motivo", "nome", "onde", "origem", "processo", "proxima_prevista", "recuperou", "registros", "rodando", "rodando_desde", "rotulo", "ultima_execucao", "ultima_falha", "ultimo_sucesso", "workflow"].sort(), "o contrato do Documento 05");
   const at = A(P("rotina"), { ultima_execucao: T("2026-11-12T09:01:00Z"), ultima_ok: true }, agora);
   assert.equal(at.estado, "atrasado"); assert.equal(at.esperada, T("2026-11-13T09:00:00Z"));
   assert.equal(A(P("rotina"), { ultima_execucao: T("2026-11-12T09:01:00Z"), ultima_ok: true }, T("2026-11-13T09:59:00Z")).estado, "ok", "dentro da tolerância de 60 min");
@@ -216,6 +220,72 @@ test("estado: ok, atrasado (pelo horário previsto ou pela idade), falhou, desli
   assert.equal(A(P("noticias"), { desligado: "desligado no GitHub (disabled_manually)", ultima_execucao: agora }, agora).estado, "desligado");
   assert.equal(A(P("newsletter"), { ultima_execucao: agora - 15 * H, ultima_ok: true }, agora).estado, "atrasado");
   const r = N.monResumo([at, ok, rd]); assert.equal(r.pior.estado, "atrasado"); assert.deepEqual(copia(r.contagem), { atrasado: 1, ok: 1, desconhecido: 1 });
+});
+
+
+/* ----- M1/M2 concluídos: inbox-sync, janela, rodando, recuperou, histórico e o painel ----- */
+test("inbox-sync (inbox_sincronizacao): rodada, duração somada, falha com erro, conta desligada, sem registro e limite de 30 min", () => {
+  const agora = T("2026-11-26T12:00:00Z"), P = N.MON_PROCESSOS.find((p) => p.id === "inbox"), A = N.monAvaliar, iso = (m) => new Date(agora - m * MIN).toISOString();
+  const L = (m, o = {}) => ({ conta_id: "a", ultima_ok_em: iso(m), ultima_tentativa_em: iso(m), falhas_seguidas: 0, duracao_ms: 400, erro: null, ...o });
+  assert.deepEqual([P.job, P.crons, P.limite, P.donoSo], ["inbox-sync", ["*/10 * * * *"], 30, true]);
+  const d = N.monDeInbox([L(5), L(5, { conta_id: "b", duracao_ms: 1600 }), L(15)], [{ id: "a", sync_auto: true }, { id: "b", sync_auto: true }]);
+  assert.equal(d.ultima_execucao, agora - 5 * MIN); assert.equal(d.duracao, 2, "soma da rodada (400 + 1600 ms), sem a rodada anterior"); assert.equal(d.registros, "2 pastas sincronizadas");
+  assert.equal(d.falhas, null, "falhas em 7 dias não são registradas"); assert.equal(d.ultima_ok, true);
+  const ok = A(P, d, agora); assert.equal(ok.estado, "ok"); assert.equal(ok.proxima_prevista, T("2026-11-26T12:10:00Z"));
+  const f = A(P, N.monDeInbox([L(5, { falhas_seguidas: 3, erro: "AUTHENTICATIONFAILED", ultima_ok_em: iso(300) })], []), agora);
+  assert.equal(f.estado, "falhou"); assert.equal(f.motivo, "AUTHENTICATIONFAILED"); assert.equal(f.ultimo_sucesso, agora - 300 * MIN);
+  assert.equal(N.monDeInbox([L(5, { duracao_ms: null })], []).duracao, null, "sem a duração de uma pasta não há duração da rodada");
+  const off = A(P, N.monDeInbox([L(5)], [{ id: "a", sync_auto: false }]), agora); assert.equal(off.estado, "desligado"); assert.match(off.motivo, /desligada nas contas/);
+  assert.equal(A(P, N.monDeInbox([], []), agora).estado, "desconhecido");
+  assert.equal(A(P, N.monDeInbox([L(29)], []), agora).estado, "ok"); const at = A(P, N.monDeInbox([L(31)], []), agora);
+  assert.equal(at.estado, "atrasado"); assert.match(at.motivo, /há mais de 30 min/, "limite curto em minutos, não em horas");
+});
+
+test("execução em andamento nunca é atraso; passou de 2 h vira alerta; falha continua falha; cancelada não conta", () => {
+  const agora = T("2026-11-26T12:00:00Z"), P = (id) => N.MON_PROCESSOS.find((p) => p.id === id), A = N.monAvaliar, base = { ultima_execucao: agora - 40 * H, ultima_ok: true };
+  assert.equal(A(P("vagas"), base, agora).estado, "atrasado");
+  const r1 = A(P("vagas"), { ...base, rodando: true, rodando_desde: agora - 10 * MIN }, agora); assert.equal(r1.estado, "ok"); assert.equal(r1.rodando, true);
+  const r2 = A(P("vagas"), { ...base, rodando: true, rodando_desde: agora - 3 * H }, agora); assert.equal(r2.estado, "atrasado"); assert.match(r2.motivo, /andamento há mais de 2 h/);
+  assert.equal(A(P("rotina"), { ultima_execucao: agora - 30 * H, ultima_ok: true, rodando: true, rodando_desde: agora - MIN }, agora).estado, "ok", "pelo horário também");
+  assert.equal(A(P("vagas"), { ...base, ultima_ok: false, rodando: true, rodando_desde: agora - MIN, erro: "x" }, agora).estado, "falhou", "a falha vale até um sucesso");
+  const run = (m, st, c) => ({ status: st, conclusion: c, event: "schedule", created_at: new Date(agora - m * MIN).toISOString(), run_started_at: new Date(agora - m * MIN).toISOString(), updated_at: new Date(agora - m * MIN + 60e3).toISOString() });
+  const g = N.monDeGithub([run(5, "in_progress", null), run(100, "completed", "cancelled"), run(200, "completed", "success")], ["0 10 * * *"], agora);
+  assert.equal(g.rodando, true); assert.equal(g.rodando_desde, agora - 5 * MIN); assert.deepEqual(copia(g.historico.map((x) => x.e)), ["rodando", "ok"], "a cancelada não entra no histórico");
+});
+
+test("GitHub: janela real das execuções lidas, histórico de 7, última falha e respostas incompletas sem quebrar", () => {
+  const agora = T("2026-11-26T12:00:00Z"), run = (m, c) => ({ status: "completed", conclusion: c, event: "schedule", created_at: new Date(agora - m * MIN).toISOString(), run_started_at: new Date(agora - m * MIN).toISOString(), updated_at: new Date(agora - m * MIN + 30e3).toISOString() });
+  const runs = Array.from({ length: 30 }, (_, i) => run(30 + i * 60, i === 9 ? "failure" : "success"));
+  const g = N.monDeGithub(runs, ["15 */3 * * *", "40 * * * *"], agora);
+  assert.equal(g.execucoes_lidas, 30); assert.equal(g.janela_desde, agora - (30 + 29 * 60) * MIN, "as 30 mais novas cobrem ~1 dia, não 7");
+  assert.equal(g.ultima_falha, agora - (30 + 9 * 60) * MIN); assert.equal(g.historico.length, 7); assert.equal(g.historico[0].t, agora - 30 * MIN);
+  assert.equal(g.falhas, 1); assert.equal(g.ultima_ok, true);
+  const v = N.monDeGithub([{}, null, { status: "completed" }, { status: "completed", conclusion: "success", created_at: "lixo" }], ["0 10 * * *"], agora);
+  assert.equal(v.ultima_execucao, null); assert.deepEqual(copia(v.historico), []); assert.equal(v.janela_desde, null);
+  assert.equal(N.monAvaliar(N.MON_PROCESSOS.find((p) => p.id === "vagas"), v, agora).estado, "desconhecido", "resposta incompleta não é falha");
+});
+
+test("rotina: última falha, recuperou (sucesso depois da falha) e histórico com horário; falha sem sucesso depois continua falhou", () => {
+  const agora = T("2026-11-26T12:00:00Z"), P = N.MON_PROCESSOS.find((p) => p.id === "rotina"), iso = (m) => new Date(agora - m * MIN).toISOString();
+  const d = N.monDeRotina([{ quando: iso(180), ok: true, resumo: {} }, { quando: iso(25 * 60), ok: false, resumo: {} }, { quando: iso(49 * 60), ok: true, resumo: {} }], agora);
+  assert.equal(d.ultima_falha, agora - 25 * 60 * MIN); assert.deepEqual(copia(d.historico.map((x) => x.e)), ["ok", "falha", "ok"]);
+  const a = N.monAvaliar(P, d, agora); assert.equal(a.estado, "ok"); assert.equal(a.recuperou, true);
+  const f = N.monAvaliar(P, N.monDeRotina([{ quando: iso(180), ok: false, resumo: {} }, { quando: iso(25 * 60), ok: true, resumo: {} }], agora), agora);
+  assert.equal(f.estado, "falhou"); assert.equal(f.recuperou, false);
+  assert.equal(N.monAvaliar(P, N.monDeRotina([{ quando: iso(180), ok: true, resumo: {} }], agora), agora).recuperou, false, "sem falha, nada a recuperar");
+});
+
+test("painel: quatro cartões, alertas por gravidade com componente e fonte, e o filtro de cada cartão", () => {
+  const agora = T("2026-11-26T12:00:00Z"), P = (id) => N.MON_PROCESSOS.find((p) => p.id === id), A = N.monAvaliar;
+  const lista = [A(P("rotina"), { ultima_execucao: agora - H, ultima_ok: true }, agora),
+    A(P("testes"), { ultima_execucao: agora - H, ultima_ok: false, ultima_falha: agora - H, erro: "o GitHub marcou a execução como falha", origem: "GitHub" }, agora),
+    A(P("vagas"), { ultima_execucao: agora - 40 * H, ultima_ok: true, origem: "GitHub" }, agora),
+    A(P("radar"), {}, agora), A(P("noticias"), { desligado: "desligado no GitHub (disabled_manually)", ultima_execucao: agora }, agora)];
+  const pn = N.monPainel(lista); assert.deepEqual(copia(pn.cartoes), { todos: 5, normais: 1, atencao: 2, semverif: 2 });
+  assert.deepEqual(pn.alertas.map((a) => [a.processo, a.nivel]), [["testes", "falha"], ["vagas", "atraso"], ["noticias", "info"], ["radar", "info"]], "falha primeiro, depois atraso, depois o que não é erro");
+  assert.equal(pn.alertas[0].componente, "GitHub Actions"); assert.equal(pn.alertas[0].quando, agora - H); assert.equal(pn.alertas[3].componente, "Supabase");
+  assert.deepEqual(N.monFiltro(lista, "atencao").map((x) => x.processo), ["testes", "vagas"]); assert.equal(N.monFiltro(lista, "todos").length, 5); assert.equal(N.monFiltro(lista, "semverif").length, 2);
+  assert.deepEqual(copia(N.monPainel([]).cartoes), { todos: 0, normais: 0, atencao: 0, semverif: 0 }); assert.deepEqual(N.monPainel(null).alertas, []);
 });
 
 /* ----- a tela: o bloco "Monitor de integrações" de js/sistema.js num DOM falso ----- */
@@ -239,27 +309,33 @@ const BLOCO = SIS.slice(SIS.indexOf("  /* ===== Monitor de integrações"), SIS.
 const SISHA = /^  function sisHa\(iso\)\{.*$/m.exec(SIS)[0];
 const espera = () => new Promise((r) => setTimeout(r, 30));
 
-function tela({ resp = {}, gh = "ok", cache = null } = {}) {
-  const ops = [], buscas = [], guardado = {};
+
+const todos = (el, f, acc = []) => { if (f(el)) acc.push(el); for (const c of el.children || []) todos(c, f, acc); return acc; };
+const comClasse = (el, k) => todos(el, (x) => String(x.className || "").split(" ").includes(k));
+
+function tela({ resp = {}, gh = "ok", cache = null, dono = true } = {}) {
+  const ops = [], buscas = [], guardado = {}, dicas = [], raiz = new El("div");
   if (cache) guardado["rac-monitor-gh"] = JSON.stringify(cache);
   const consulta = (t) => { const st = { t, ops: [] }; ops.push(st); const p = new Proxy({}, { get(_, k) {
     if (k === "then") { const r = Promise.resolve(typeof resp[t] === "function" ? resp[t]() : resp[t]).then((x) => (x && x.erro ? { data: null, error: { message: x.erro } } : { data: x || [], error: null })); return r.then.bind(r); }
     return (...a) => { st.ops.push(k); return p; }; } }); return p; };
   const ctx = {
     NUCLEO: N, h, panel: (t, s) => h("div", { class: "panel" }, h("h2", { text: t }), h("p", { class: "sub", text: s })), ext: (u, t, c) => h("a", { class: c, href: u, text: t }),
-    SB: { from: consulta, rpc: (n) => consulta("rpc:" + n) }, sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; },
+    SB: { from: consulta, rpc: (n) => consulta("rpc:" + n) }, sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, isOwner: () => dono, $: () => raiz,
+    racDica: { ligar: (el, f) => dicas.push([el, f]) },
     atuLer: (f) => Promise.resolve().then(f).then((v) => ({ ok: true, v }), (e) => ({ ok: false, erro: e && e.message || String(e) })),
     getJson: (u) => { const x = resp["json:" + u.replace(/\?.*$/, "")]; return x ? Promise.resolve(x) : Promise.reject(new Error("HTTP 404")); },
     fetch: (u, o) => { buscas.push({ u, o }); if (gh !== "ok") return Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) });
       const wf = /workflows\/([^/]+)\/runs/.exec(u); return Promise.resolve({ ok: true, json: () => Promise.resolve(wf ? { workflow_runs: resp["gh:" + wf[1]] || [] } : { workflows: resp["gh:workflows"] || [] }) }); },
     localStorage: { getItem: (k) => guardado[k] ?? null, setItem: (k, v) => { guardado[k] = v; } },
-    logErro() {}, Date, JSON, Promise, Object, Array, String, Math, console,
+    logErro() {}, Date, JSON, Promise, Object, Array, String, Math, Error, console,
   };
   vm.createContext(ctx);
   vm.runInContext(SISHA + "\n" + BLOCO, ctx, { filename: "sistema.js (monitor)" });
   const p = ctx.sisMonitor();
-  const linhas = () => p.children[3].children.map((li) => ({ dot: li.children[0].textContent, cls: li.className, txt: li.children[1].children.map((c) => c.textContent) }));
-  return { p, linhas, ops, buscas, guardado };
+  const linhas = () => comClasse(p, "monint")[0].children.map((li) => ({ dot: li.children[0].textContent, cls: li.className, nome: li.children[1] && li.children[1].children[0] ? li.children[1].children[0].textContent : li.textContent, txt: li.textContent }));
+  const cartoes = () => comClasse(p, "moncards")[0].children;
+  return { p, ctx, linhas, cartoes, ops, buscas, guardado, dicas, raiz, barra: () => comClasse(p, "monbar")[0].textContent, alertas: () => comClasse(p, "monalert").length ? comClasse(p, "monalert")[0].children.map((li) => li.textContent) : [] };
 }
 function dadosBons() {
   const agora = Date.now(), iso = (ms) => new Date(ms).toISOString();
@@ -271,6 +347,9 @@ function dadosBons() {
     radar_coletas: [{ iniciada_em: iso(rad), terminada_em: iso(rad + 30e3), status: "ok", ofertas_lidas: 3, precos_gravados: 1, falhas: 0 }],
     garmin_dia: [{ atualizado: iso(agora - 3 * H) }],
     notas_fiscais_entradas: [{ atualizado_em: iso(N.monCronAnterior("10 */6 * * *", agora - 90 * MIN) + MIN) }],
+    inbox_sincronizacao: [{ conta_id: "a", ultima_ok_em: iso(agora - 5 * MIN), ultima_tentativa_em: iso(agora - 5 * MIN), falhas_seguidas: 0, duracao_ms: 385, erro: null },
+      { conta_id: "b", ultima_ok_em: iso(agora - 5 * MIN), ultima_tentativa_em: iso(agora - 5 * MIN), falhas_seguidas: 0, duracao_ms: 1459, erro: null }],
+    inbox_contas: [{ id: "a", sync_auto: true }, { id: "b", sync_auto: true }],
     "json:noticias.json": { coletado: iso(agora - H), noticias: [1, 2] }, "json:tecdados.json": { coletado: iso(agora - H), noticias: [1] },
     "json:rumores.json": { coletado: iso(agora - H), liga: [1] }, "json:newsletter.json": { coletado: iso(agora - H), grupos: [1], fontes: [{ n: "A", ok: true }] },
     "json:vagas.json": { coletado: iso(agora - 5 * H), vagas: [1, 2, 3] },
@@ -278,75 +357,129 @@ function dadosBons() {
     "gh:noticias.yml": [run(agora - H, 20)], "gh:vagas.yml": [run(agora - 5 * H, 47)], "gh:testes.yml": [run(agora - 2 * 24 * H, 200)],
   };
 }
+const NOMES8 = ["Rotina das 6h", "Newsletter (edições)", "Radar de Preços (coleta)", "Robô de notícias", "Robô de vagas", "Testes automáticos", "Central Fiscal (entrada no Mercado)", "Inbox (sincronização)"];
 
-test("tela: os 7 processos agendados aparecem com estado, última execução, último sucesso, falhas, próxima prevista e o agendamento real", async () => {
+test("tela (dono): 8 processos, 4 cartões, estado, última e próxima execução, duração, registros, fonte e o agendamento real", async () => {
   const t = tela({ resp: dadosBons() });
   await espera();
-  assert.match(t.p.children[2].textContent, /^7 rotinas agendadas: 7 ok\.$/);
+  assert.deepEqual(t.cartoes().map((c) => c.children[1].textContent), ["8", "8", "0", "0"]);
+  assert.deepEqual(t.cartoes().map((c) => c.children[0].textContent), ["Monitoradas", "Normais", "Exigem atenção", "Sem verificação"]);
+  assert.equal(t.alertas().length, 0, "tudo normal: sem bloco de alertas");
+  assert.match(t.barra(), /Consultado em \d\d\/\d\d,? \d\d:\d\d · GitHub: consulta nova/);
   const l = t.linhas();
-  assert.deepEqual(l.map((x) => x.txt[0]), ["Rotina das 6h · ok", "Newsletter (edições) · ok", "Radar de Preços (coleta) · ok", "Robô de notícias · ok", "Robô de vagas · ok", "Testes automáticos · ok", "Central Fiscal (entrada no Mercado) · ok"]);
+  assert.deepEqual(l.map((x) => x.nome), NOMES8.map((n) => n + " · ok"));
   for (const x of l) {
     assert.equal(x.dot, "✓");
-    const tudo = x.txt.join("\n");
-    assert.match(tudo, /Último sucesso: \d\d\/\d\d,? \d\d:\d\d · falhas em 7 dias: (0|não registradas)/);
-    assert.match(tudo, /Próxima prevista: (a partir de )?\d\d\/\d\d,? \d\d:\d\d/);
-    assert.match(tudo, /Agendamento: .+ \(UTC\) · (supabase|\.github)\//);
+    assert.match(x.txt, /Último sucesso: \d\d\/\d\d,? \d\d:\d\d · falhas (em 7 dias|nas últimas \d+ execuções \(desde [^)]+\)): (\d+|não registradas)/);
+    assert.match(x.txt, /Próxima prevista: (a partir de )?\d\d\/\d\d,? \d\d:\d\d/);
+    assert.match(x.txt, /Onde roda: (GitHub Actions|Supabase \(pg_cron\)) · fonte da informação: .+/);
+    assert.match(x.txt, /Agendamento: .+ \(UTC\) · (supabase|\.github)\//);
   }
-  const rot = l[0].txt.join("\n");
-  assert.match(rot, /Agendamento: 0 9 \* \* \* \(UTC\) · supabase\/008_sistema\.sql/);
-  assert.match(rot, /2 dias da Garmin, 1 avisos/); assert.match(rot, /Relógio: último dado há 3 h/);
-  assert.match(l[4].txt.join("\n"), /duração 47\u00a0s · vagas: 3 itens/);
-  assert.match(l[3].txt.join("\n"), /Agendamento: 15 \*\/3 \* \* \* e 40 \* \* \* \* \(UTC\) · \.github\/workflows\/noticias\.yml/);
-  assert.match(l[1].txt.join("\n"), /Última edição gravada: .*edição da manhã/);
-  assert.match(l[1].txt.join("\n"), /falhas em 7 dias: não registradas/);
+  assert.match(l[0].txt, /Agendamento: 0 9 \* \* \* \(UTC\) · supabase\/008_sistema\.sql/); assert.match(l[0].txt, /2 dias da Garmin, 1 avisos/); assert.match(l[0].txt, /Relógio: último dado há 3 h/);
+  assert.match(l[0].txt, /fonte da informação: rotina_log/); assert.doesNotMatch(l[0].txt, /duração/, "a rotina não registra o início: sem duração");
+  assert.match(l[4].txt, /duração 47\u00a0s · vagas: 3 itens/); assert.match(l[3].txt, /Agendamento: 15 \*\/3 \* \* \* e 40 \* \* \* \* \(UTC\) · \.github\/workflows\/noticias\.yml/);
+  assert.match(l[1].txt, /Última edição gravada: .*edição da manhã/); assert.match(l[1].txt, /falhas em 7 dias: não registradas/);
+  assert.match(l[7].txt, /Última sincronização: .*duração 1,8\u00a0s · 2 pastas sincronizadas/); assert.match(l[7].txt, /Agendamento: \*\/10 \* \* \* \* \(UTC\) · supabase\/propostas\/055_inbox_agendamento\.sql/);
+  assert.match(l[4].txt, /Ver este robô no GitHub/); assert.doesNotMatch(l[0].txt, /Ver este robô/, "link só dos robôs do GitHub");
+  assert.match(l[3].txt, /falhas nas últimas 1 execuções|falhas em 7 dias: 0/);
 });
 
-test("tela: só lê (nenhuma gravação no banco), a API do GitHub é a pública sem login e fica guardada 15 min", async () => {
+test("tela: só lê (nenhuma gravação), o GitHub é a API pública sem login, as 4 consultas ficam 15 min e a tela diz que é cópia", async () => {
   const d = dadosBons(), t = tela({ resp: d });
   await espera();
-  const tabelas = t.ops.map((o) => o.t).sort();
-  assert.deepEqual(tabelas, ["garmin_dia", "newsletter_edicoes", "notas_fiscais_entradas", "radar_coletas", "rotina_log"]);
+  assert.deepEqual(t.ops.map((o) => o.t).sort(), ["garmin_dia", "inbox_contas", "inbox_sincronizacao", "newsletter_edicoes", "notas_fiscais_entradas", "radar_coletas", "rotina_log"]);
   for (const o of t.ops) for (const k of o.ops) assert.ok(["select", "order", "limit", "eq"].includes(k), o.t + ": " + k);
   assert.equal(t.buscas.length, 4, "workflows + 3 listas de execuções");
   assert.equal(t.buscas.filter((b) => /\/runs\?branch=main&per_page=30$/.test(b.u)).length, 3, "só as execuções da main: um PR com teste falhando não vira falha do processo");
-  for (const b of t.buscas) { assert.match(b.u, /^https:\/\/api\.github\.com\/repos\/raynercarvalho1\/rac\/actions\/workflows/); assert.equal(b.o, undefined, "sem cabeçalho, sem token"); }
+  for (const b of t.buscas) { assert.match(b.u, /^https:\/\/api\.github\.com\/repos\/raynercarvalho1\/rac\/actions\/workflows/); assert.equal(b.o, undefined, "sem cabeçalho, sem credencial"); }
   const salvo = JSON.parse(t.guardado["rac-monitor-gh"]);
   const t2 = tela({ resp: d, cache: salvo });
   await espera();
   assert.equal(t2.buscas.length, 0, "dentro de 15 min usa a cópia deste aparelho");
+  assert.match(t2.barra(), /GitHub: cópia de \d\d\/\d\d,? \d\d:\d\d \(renovada a cada 15 min\)/);
+  const velho = { quando: Date.now() - 16 * MIN, dados: salvo.dados }, t3 = tela({ resp: d, cache: velho, gh: "403" });
+  await espera();
+  assert.match(t3.barra(), /cópia de .* \(a consulta nova falhou\)/, "limite do GitHub: vale a cópia do mesmo dia, dita como tal");
 });
 
-test("tela: sem a API do GitHub (limite de consultas), os robôs usam a data do próprio arquivo e os testes ficam 'sem informação'", async () => {
+test("tela: sem a API do GitHub (limite de consultas), os robôs usam a data do arquivo e os testes ficam 'sem informação'", async () => {
   const t = tela({ resp: dadosBons(), gh: "403" });
   await espera();
   const l = t.linhas();
-  assert.equal(l[3].txt[0], "Robô de notícias · ok");
-  assert.match(l[3].txt.join("\n"), /sem as execuções do GitHub agora: vale a data do arquivo do robô/);
-  assert.equal(l[5].txt[0], "Testes automáticos · sem informação");
-  assert.match(l[5].txt.join("\n"), /execuções do GitHub indisponíveis: limite de consultas do GitHub/);
-  assert.equal(l[5].dot, "?"); assert.equal(l[5].cls, "alerta");
+  assert.equal(l[3].nome, "Robô de notícias · ok"); assert.match(l[3].txt, /sem as execuções do GitHub agora: vale a data do arquivo do robô/);
+  assert.equal(l[5].nome, "Testes automáticos · sem informação"); assert.match(l[5].txt, /execuções do GitHub indisponíveis: limite de consultas do GitHub/);
+  assert.equal(l[5].dot, "?"); assert.equal(l[5].cls, "alerta"); assert.match(t.barra(), /GitHub: indisponível \(limite de consultas do GitHub\)/);
+  assert.deepEqual(t.cartoes().map((c) => c.children[1].textContent), ["8", "7", "0", "1"], "ausência de informação não é falha");
 });
 
-test("tela: rotina com falha, Radar sem registro, robô parado e tabela ilegível aparecem como tal, sem quebrar as outras linhas", async () => {
+test("tela: falha, Radar sem registro, robô parado e tabela ilegível aparecem como tal; alertas, cartões e a recuperação", async () => {
   const d = dadosBons(), agora = Date.now(), iso = (ms) => new Date(ms).toISOString();
-  d.rotina_log = [{ quando: iso(agora - 3 * H), ok: false, resumo: { garmin_token: { erro: "a Garmin recusou a chave" } } }];
+  d.rotina_log = [{ quando: iso(agora - 3 * H), ok: false, resumo: { garmin_token: { erro: "a Garmin recusou a chave" } } }, { quando: iso(agora - 30 * H), ok: true, resumo: {} }];
   d.radar_coletas = [];
   d["json:rumores.json"] = { coletado: iso(agora - 20 * H), liga: [1] };
   d.newsletter_edicoes = { erro: "permission denied" };
   const t = tela({ resp: d });
   await espera();
   const l = t.linhas();
-  assert.equal(l[0].txt[0], "Rotina das 6h · falhou"); assert.equal(l[0].dot, "✗"); assert.match(l[0].txt[1], /garmin_token: a Garmin recusou a chave/);
-  assert.equal(l[1].txt[0], "Newsletter (edições) · sem informação"); assert.match(l[1].txt[1], /não consegui ler \(permission denied\)/);
-  assert.equal(l[2].txt[0], "Radar de Preços (coleta) · sem informação"); assert.match(l[2].txt[1], /só registra quando há o que ler/);
-  assert.equal(l[3].txt[0], "Robô de notícias · atrasado"); assert.match(l[3].txt[1], /rumores da MLB parado/);
-  assert.equal(l[4].txt[0], "Robô de vagas · ok");
-  assert.match(t.p.children[2].textContent, /7 rotinas agendadas: 1 falhou, 1 atrasado, 2 sem informação, 3 ok\./);
+  assert.equal(l[0].nome, "Rotina das 6h · falhou"); assert.equal(l[0].dot, "✗"); assert.match(l[0].txt, /garmin_token: a Garmin recusou a chave/); assert.match(l[0].txt, /Falha em \d\d\/\d\d,? \d\d:\d\d; o último sucesso foi antes dela/);
+  assert.equal(l[1].nome, "Newsletter (edições) · sem informação"); assert.match(l[1].txt, /não consegui ler \(permission denied\)/);
+  assert.equal(l[2].nome, "Radar de Preços (coleta) · sem informação"); assert.match(l[2].txt, /só registra quando há o que ler/);
+  assert.equal(l[3].nome, "Robô de notícias · atrasado"); assert.match(l[3].txt, /rumores da MLB parado/); assert.equal(l[4].nome, "Robô de vagas · ok");
+  assert.deepEqual(t.cartoes().map((c) => c.children[1].textContent), ["8", "4", "2", "2"]);
+  const al = t.alertas(); assert.equal(al.length, 4); assert.match(al[0], /Rotina das 6h.*Falhou em .*Onde: Supabase · fonte: rotina_log/); assert.match(al[1], /Robô de notícias.*Onde: GitHub Actions/);
+  assert.match(al[1], /Investigar no GitHub/); assert.doesNotMatch(al[0], /Investigar/, "a rotina roda no banco: sem link do GitHub");
+  assert.match(al[2] + al[3], /Radar de Preços/);
+  const d2 = dadosBons(); d2.rotina_log = [{ quando: iso(Date.now() - 2 * H), ok: true, resumo: {} }, { quando: iso(Date.now() - 26 * H), ok: false, resumo: {} }];
+  const r = tela({ resp: d2 }); await espera();
+  assert.match(r.linhas()[0].txt, /Falhou em \d\d\/\d\d,? \d\d:\d\d e recuperou em \d\d\/\d\d,? \d\d:\d\d\./); assert.equal(r.linhas()[0].nome, "Rotina das 6h · ok", "falha resolvida não deixa o painel vermelho");
 });
 
-test("ligações: o Sistema mostra o monitor logo depois da Saúde do RAC; o painel antigo dos robôs saiu (sem duplicar); ES5", () => {
-  assert.match(SIS, /try\{root\.appendChild\(sisSaude\(\)\)\}catch\(e\)\{logErro\("saúde do RAC",e\)\}\n\s+try\{root\.appendChild\(sisMonitor\(\)\)\}/);
+test("tela: o filtro dos cartões, a fita de execuções com dica fixa e o rótulo da janela real do GitHub", async () => {
+  const d = dadosBons(), agora = Date.now(), iso = (ms) => new Date(ms).toISOString();
+  d["json:vagas.json"] = { coletado: iso(agora - 40 * H), vagas: [1] }; d["gh:vagas.yml"] = [];
+  const mk = (ms, c) => ({ status: "completed", conclusion: c, event: "schedule", created_at: iso(ms), run_started_at: iso(ms), updated_at: iso(ms + 30e3) });
+  d["gh:noticias.yml"] = Array.from({ length: 30 }, (_, i) => mk(agora - (i + 1) * H, i === 4 ? "failure" : "success"));
+  const t = tela({ resp: d });
+  await espera();
+  const l = t.linhas();
+  assert.match(l[3].txt, /falhas nas últimas 30 execuções \(desde \d\d\/\d\d,? \d\d:\d\d\): 1/, "30 execuções horárias não cobrem 7 dias: o rótulo diz a janela real");
+  assert.match(l[5].txt, /falhas em 7 dias: 0/, "com poucas execuções (todas as da main) vale 7 dias");
+  const fita = comClasse(t.p, "monhist"); assert.ok(fita.length >= 2); const f0 = fita.find((x) => x.children.length === 7);
+  assert.ok(f0, "o robô de notícias tem 30 execuções: fita de 7"); assert.match(f0.attrs["aria-label"], /^Últimas 7 execuções: /);
+  assert.equal(t.dicas.length, fita.reduce((n, x) => n + x.children.length, 0), "cada barra tem a dica (racDica) com data e resultado");
+  const [titulo, linha] = t.dicas[0][1](); assert.match(titulo, /\d\d\/\d\d,? \d\d:\d\d/); assert.match(linha, /execução com (sucesso|falha)|em execução/);
+  t.cartoes()[2].onclick(); await espera();
+  assert.deepEqual(t.linhas().map((x) => x.nome), ["Robô de vagas · atrasado"]); assert.match(t.cartoes()[2].className, /\bon\b/); assert.equal(t.cartoes()[2].attrs["aria-pressed"], "true");
+  t.cartoes()[2].onclick(); await espera(); assert.equal(t.linhas().length, 8, "tocar de novo volta a todos");
+  t.cartoes()[3].onclick(); await espera(); assert.equal(t.cartoes()[3].children[1].textContent, "0"); assert.match(comClasse(t.p, "monint")[0].textContent, /Nenhum processo nesta categoria/, "categoria vazia diz que está vazia");
+});
+
+test("tela (casa): sem o Inbox (só do dono): 7 processos e nenhuma leitura do Inbox", async () => {
+  const t = tela({ resp: dadosBons(), dono: false });
+  await espera();
+  assert.deepEqual(t.linhas().map((x) => x.nome), NOMES8.slice(0, 7).map((n) => n + " · ok"));
+  assert.ok(!t.ops.some((o) => /inbox/.test(o.t)), "nem consulta");
+});
+
+test("resumo no Sistema e página #monitor: a mesma coleta (sem ler de novo) e só rótulos reais", async () => {
+  const t = tela({ resp: dadosBons() });
+  await espera();
+  const antes = t.ops.length, r = t.ctx.sisMonitorResumo();
+  await espera();
+  assert.equal(t.ops.length, antes, "usa a coleta guardada por 60 s");
+  assert.equal(r.children[2].textContent, "8 processos: 8 normais, 0 exigem atenção, 0 sem verificação.");
+  assert.equal(r.children[3].children[0].attrs.href, "#monitor");
+  t.ctx.renderMonitor(); await espera();
+  assert.equal(t.raiz.children[0].attrs.href, "#sistema"); assert.ok(comClasse(t.raiz, "monint").length === 1);
+  assert.match(t.ctx.sisQuando(Date.parse("2026-11-13T09:00:00Z")), /^13\/11,? 06:00$/, "sempre o horário de Brasília, mesmo com o aparelho em outro fuso");
+});
+
+test("ligações: rota #monitor (subpágina de Sistema), seção, resumo no Sistema, sem gravação nem credencial, ES5", () => {
+  assert.match(ler("js/rotas.js"), /\{id:"monitor",titulo:"Monitor de integrações",grupo:null,mods:\["sistema"\],abrir:function\(\)\{\$\("#ptitle"\)\.textContent="Monitor de integrações";renderMonitor\(\)\}\}/);
+  assert.match(ler("index.html"), /<section id="monitor" hidden><div id="monitor-view" class="stack"><\/div><\/section>/);
+  assert.match(SIS, /try\{root\.appendChild\(sisSaude\(\)\)\}catch\(e\)\{logErro\("saúde do RAC",e\)\}\n\s+try\{root\.appendChild\(sisMonitorResumo\(\)\)\}/);
   assert.ok(!/panel\("Robôs de coleta"/.test(SIS), "um lugar só para os robôs");
   assert.ok(!/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(|Authorization|token/i.test(BLOCO), "só leitura, sem credencial");
   assert.ok(!/\bconst |\blet |=>/.test(BLOCO), "ES5 puro");
+  assert.ok(/\.monhist i\{/.test(ler("index.html")) && /\.moncards\{/.test(ler("index.html")), "o CSS do painel está no index.html");
 });

@@ -258,7 +258,16 @@ a.nllink{color:var(--ink);text-decoration:none}a.nllink:hover{text-decoration:un
 .segprev .tblwrap{margin-top:8px}.segprev label{display:flex;gap:8px;align-items:flex-start;margin-top:10px;line-height:1.35}.segprev label input{margin-top:3px;flex:none}.segprev .alerta{color:var(--warn);font-weight:700}.segprev details{margin-top:6px}.segprev details .wl .grow,.segprev details .wl .sub{white-space:normal}
 .sissaude li{align-items:flex-start}
 /* Monitor de integrações (Sistema): cada linha quebra em vez de cortar com reticências (horários, motivos e arquivos inteiros) */
-.wl.monint .grow b,.wl.monint .grow .sub{white-space:normal;overflow:visible;overflow-wrap:anywhere}.sisdot{width:22px;flex:none;font-weight:800;text-align:center}.sissaude li.alerta .sisdot{color:var(--warn)}.sissaude .clean{margin:4px 0 0;padding-left:0}
+.wl.monint .grow b,.wl.monint .grow .sub,.wl.monalert .grow b,.wl.monalert .grow .sub{white-space:normal;overflow:visible;overflow-wrap:anywhere}.moncards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}@media(min-width:768px){.moncards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.moncard{display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px;min-height:44px;border-radius:12px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;cursor:pointer}
+.moncard .kl{font:600 calc(12px + var(--fz)) var(--f-ui);color:var(--muted)}.moncard .kv{font:700 calc(26px + var(--fz))/1.1 var(--f-ui);font-variant-numeric:tabular-nums}.moncard .ksub{font-size:calc(12px + var(--fz));color:var(--muted)}
+.moncard.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.moncard.normais .kv{color:var(--good)}.moncard.atencao .kv{color:var(--warn)}
+.monbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.monh{margin:14px 0 4px;font:700 calc(14px + var(--fz)) var(--f-ui)}
+.sissaude.monalert li.falha .sisdot,.sissaude.monint li.falhou .sisdot{color:var(--bad)}.monalert li.atraso .sisdot{color:var(--warn)}.monalert li.info .sisdot{color:var(--muted)}
+.monhist{display:inline-flex;gap:4px;margin-top:6px}.monhist i{display:block;width:14px;height:22px;border-radius:3px;background:var(--good)}.monhist i.falha{background:var(--bad)}.monhist i.rodando{background:var(--warn)}
+details.mondet>summary{cursor:pointer;color:var(--muted);font-size:calc(13px + var(--fz));padding:8px 0;min-height:32px}
+@media(min-width:1000px){ul.wl.monint{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}}
+.sisdot{width:22px;flex:none;font-weight:800;text-align:center}.sissaude li.alerta .sisdot{color:var(--warn)}.sissaude .clean{margin:4px 0 0;padding-left:0}
 #impressao{position:absolute;inset:0;z-index:200;background:#fff;color:#111;padding:16px;min-height:100vh}
 html.imprimindo .app,html.imprimindo .capbtn,html.imprimindo .menuflut{display:none}
 .impbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:800px;margin:0 auto 16px}.impbar .sub{flex:1}
@@ -1189,7 +1198,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-25.4">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-26.1">
 </head>
 <body>
 
@@ -1265,6 +1274,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
   <section id="lista" hidden><div id="lista-view" class="stack"></div></section>
   <section id="agenda" hidden><div id="agenda-view" class="stack"></div></section>
   <section id="inbox" hidden><div id="inbox-view" class="stack"></div></section>
+  <section id="monitor" hidden><div id="monitor-view" class="stack"></div></section>
   <section id="busca" hidden><div id="busca-view" class="stack"></div></section>
   <section id="sistema" hidden><div id="sistema-view" class="stack"></div></section>
   <section id="seguranca" hidden><div id="seguranca-view" class="stack"></div></section>

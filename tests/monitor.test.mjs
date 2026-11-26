@@ -39,11 +39,15 @@ function agendamentosReais() {
   }
   return { workflows, jobs };
 }
+/* agendamentos que NÃO entram no catálogo, cada um com o motivo: o vigia (monitor-alerta, 069) é o próprio Monitor e não tem como se avisar da própria falha (precisaria de um
+   serviço externo, fora do escopo); a Edge Function e os incidentes dele são vistos em Sistema → Monitor → Ocorrências recentes */
+const FORA_DO_CATALOGO = { "monitor-alerta": "o vigia do próprio Monitor (M4, 069)" };
 /* o que diverge entre o catálogo do monitor e os agendamentos reais (lista vazia = tudo igual) */
 function divergencias(catalogo, real) {
   const d = [], igual = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
   for (const [job, r] of Object.entries(real.jobs)) {
     const p = catalogo.find((x) => x.job === job);
+    if (!p && FORA_DO_CATALOGO[job]) continue;
     if (!p) d.push(`pg_cron "${job}" (${r.arquivo}) não aparece no monitor`);
     else { if (!igual(p.crons, r.crons)) d.push(`"${job}": monitor ${p.crons} × real ${r.crons}`); if (p.arquivo !== r.arquivo) d.push(`"${job}": monitor cita ${p.arquivo}, o agendamento vigente está em ${r.arquivo}`); }
   }
@@ -64,7 +68,7 @@ test("divergência: todo processo agendado (pg_cron e GitHub) aparece no monitor
   const real = agendamentosReais();
   assert.ok(Object.keys(real.jobs).length >= 3 && Object.keys(real.workflows).length >= 3, "achou os agendamentos");
   assert.deepEqual(divergencias(N.MON_PROCESSOS, real), []);
-  assert.deepEqual(Object.keys(real.jobs).sort(), ["fiscal-entradas", "inbox-sync", "rac-newsletter", "rac-rotina", "radar-rotina"]);
+  assert.deepEqual(Object.keys(real.jobs).sort(), ["fiscal-entradas", "inbox-sync", "monitor-alerta", "rac-newsletter", "rac-rotina", "radar-rotina"]);
   assert.deepEqual(Object.keys(real.workflows).sort(), ["noticias.yml", "testes.yml", "vagas.yml"]);
 });
 
@@ -387,7 +391,7 @@ test("tela (dono): 8 processos, 4 cartões, estado, última e próxima execuçã
 test("tela: só lê (nenhuma gravação), o GitHub é a API pública sem login, as 4 consultas ficam 15 min e a tela diz que é cópia", async () => {
   const d = dadosBons(), t = tela({ resp: d });
   await espera();
-  assert.deepEqual(t.ops.map((o) => o.t).sort(), ["garmin_dia", "inbox_contas", "inbox_sincronizacao", "newsletter_edicoes", "notas_fiscais_entradas", "radar_coletas", "rotina_log"]);
+  assert.deepEqual(t.ops.map((o) => o.t).sort(), ["garmin_dia", "inbox_contas", "inbox_sincronizacao", "newsletter_edicoes", "notas_fiscais_entradas", "radar_coletas", "rotina_log", "sinais"]);
   for (const o of t.ops) for (const k of o.ops) assert.ok(["select", "order", "limit", "eq"].includes(k), o.t + ": " + k);
   assert.equal(t.buscas.length, 4, "workflows + 3 listas de execuções");
   assert.equal(t.buscas.filter((b) => /\/runs\?branch=main&per_page=30$/.test(b.u)).length, 3, "só as execuções da main: um PR com teste falhando não vira falha do processo");
@@ -454,11 +458,34 @@ test("tela: o filtro dos cartões, a fita de execuções com dica fixa e o rótu
   t.cartoes()[3].onclick(); await espera(); assert.equal(t.cartoes()[3].children[1].textContent, "0"); assert.match(comClasse(t.p, "monint")[0].textContent, /Nenhum processo nesta categoria/, "categoria vazia diz que está vazia");
 });
 
+test("tela (dono): Ocorrências recentes: incidentes de sinais, se já foi avisado por push ou espera o próximo envio, a sequência e a recuperação", async () => {
+  const d = dadosBons(), q = (m) => new Date(Date.now() - m * MIN).toISOString();
+  d.sinais = [
+    { entidade: "inbox", estado: "aberto", severidade: "urgente", fatos: { nome: "Inbox (sincronização)", estado: "falhou", motivo: "autenticacao" }, historico: [{ estado: "atrasado" }, { estado: "falhou" }], detectado_em: q(90), encerrado_em: null, encerramento: null, notificado_em: null },
+    { entidade: "rotina", estado: "aberto", severidade: "atencao", fatos: { nome: "Rotina das 6h", estado: "atrasado", motivo: "sem execução há mais de 25 h" }, historico: [{ estado: "atrasado" }], detectado_em: q(300), encerrado_em: null, encerramento: null, notificado_em: q(290) },
+    { entidade: "vagas", estado: "fechado", severidade: "atencao", fatos: { nome: "Robô de vagas", estado: "atrasado" }, historico: [{ estado: "atrasado" }, { estado: "recuperou" }], detectado_em: q(1000), encerrado_em: q(800), encerramento: "recuperou", notificado_em: null },
+    { entidade: "noticias", estado: "fechado", severidade: "urgente", fatos: { nome: "Robô de notícias", estado: "falhou" }, historico: [{ estado: "falhou" }, { estado: "desligado" }], detectado_em: q(2000), encerrado_em: q(1900), encerramento: "desligado", notificado_em: q(1990) }];
+  const t = tela({ resp: d }); await espera();
+  const oco = comClasse(t.p, "monocor")[0];
+  assert.equal(oco.children[0].textContent, "Ocorrências recentes"); const lis = oco.children[1].children;
+  assert.equal(lis.length, 4); assert.deepEqual(lis.map((li) => li.className), ["falha", "atraso", "", ""]);
+  assert.deepEqual(lis.map((li) => li.children[0].textContent), ["✗", "⚠", "✓", "✓"]);
+  assert.match(lis[0].textContent, /Inbox \(sincronização\) · falhou[\s\S]*Aberta em \d\d\/\d\d,? \d\d:\d\d · ainda aberta[\s\S]*ainda não enviado \(silêncio das 22h às 7h ou limite de 3 por dia\)[\s\S]*autenticacao[\s\S]*Sequência: atrasado → falhou/);
+  assert.match(lis[1].textContent, /Rotina das 6h · atrasado[\s\S]*Aviso por push em \d\d\/\d\d,? \d\d:\d\d/); assert.doesNotMatch(lis[1].textContent, /Sequência/, "uma situação só: sem sequência");
+  assert.match(lis[2].textContent, /Robô de vagas · resolvida[\s\S]*resolvida em \d\d\/\d\d,? \d\d:\d\d[\s\S]*Sem push: resolvida antes do aviso[\s\S]*Sequência: atrasado → recuperou/);
+  assert.match(lis[3].textContent, /\(processo desligado\)/); assert.doesNotMatch(lis[3].textContent, /Sem push/, "esta foi avisada antes de fechar");
+  /* sem ocorrência: diz que está vazio; tabela ilegível (migration ainda não aplicada): o bloco some, sem erro na tela */
+  const v = tela({ resp: dadosBons() }); await espera(); assert.match(comClasse(v.p, "monocor")[0].textContent, /Nenhuma ocorrência registrada pelo vigia/);
+  const e = dadosBons(); e.sinais = { erro: "relation \"public.sinais\" does not exist" }; const x = tela({ resp: e }); await espera();
+  assert.equal(comClasse(x.p, "monocor")[0].children.length, 0); assert.equal(x.linhas().length, 8, "o resto do Monitor segue normal");
+});
+
 test("tela (casa): sem o Inbox (só do dono): 7 processos e nenhuma leitura do Inbox", async () => {
   const t = tela({ resp: dadosBons(), dono: false });
   await espera();
   assert.deepEqual(t.linhas().map((x) => x.nome), NOMES8.slice(0, 7).map((n) => n + " · ok"));
-  assert.ok(!t.ops.some((o) => /inbox/.test(o.t)), "nem consulta");
+  assert.ok(!t.ops.some((o) => /inbox|sinais/.test(o.t)), "nem consulta (o Inbox e os sinais são só do dono)");
+  assert.equal(comClasse(t.p, "monocor")[0].children.length, 0, "a casa não vê o bloco de ocorrências");
 });
 
 test("resumo no Sistema e página #monitor: a mesma coleta (sem ler de novo) e só rótulos reais", async () => {

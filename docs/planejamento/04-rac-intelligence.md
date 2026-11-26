@@ -107,6 +107,7 @@ A "camada 1" já existe em pedaços, sem um formato comum:
     Edge Function para detectar. O envio do push precisa de uma Edge Function (decisão do dono, ver
     [Documento 07](07-decisoes-e-pendencias.md)).
 - **Regra de ouro**: o número é calculado uma vez, por regra testada. A IA nunca soma, compara ou projeta.
+- [Fato, 26/11/2026] A **etapa B existe para o Monitor de integrações**: a tabela genérica `sinais` (migration 067: incidente com `chave` única, estado aberto/fechado, `fatos`, `porque`, histórico, `detectado_em`/`encerrado_em`, aviso por push) já está em produção, só com o tipo `monitor.processo` e sem IA, sem adiar e sem a etapa A (regras no navegador). O RAC Hoje e as demais áreas entram nela com tipos novos ([Documento 05](05-integracoes-e-automacoes.md#45-m3-e-m4-tabela-sinais-visão-no-servidor-e-o-vigia-26112026)).
 
 ### 3.2 Camada 2: interpretação inteligente
 

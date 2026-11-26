@@ -126,7 +126,7 @@ test("os registros do repositório: todos válidos, refs únicas, relações exi
 
 test("a ferramenta em linha de comando: 'antes' traz regras, estado e o relacionado à tarefa; 'verificar' passa; comando desconhecido dá erro", () => {
   const saida = []; const log = console.log, err = console.error; console.log = (...a) => saida.push(a.join(" ")); console.error = () => {};
-  try { assert.equal(principal(["antes", "migration nova tabela pessoal"]), 0); assert.equal(principal(["verificar"]), 0); assert.equal(principal(["buscar", "garmin"]), 0); assert.equal(principal(["ver", "erro/radar-falhava-com-42501-no-service-role"]), 0); assert.equal(principal(["ver", "regra/nao-existe"]), 1); assert.equal(principal(["xpto"]), 2); }
+  try { assert.equal(principal(["antes", "migration nova tabela pessoal SQL em produção"]), 0); assert.equal(principal(["verificar"]), 0); assert.equal(principal(["buscar", "garmin"]), 0); assert.equal(principal(["ver", "erro/radar-falhava-com-42501-no-service-role"]), 0); assert.equal(principal(["ver", "regra/nao-existe"]), 1); assert.equal(principal(["xpto"]), 2); }
   finally { console.log = log; console.error = err; }
   const t = saida.join("\n"); assert.match(t, /## Regras permanentes/); assert.match(t, /## Estado atual do projeto/); assert.match(t, /## Relacionados à tarefa[\s\S]*SQL novo até a produção/); assert.match(t, /intocável/); assert.match(t, /42501/);
 });

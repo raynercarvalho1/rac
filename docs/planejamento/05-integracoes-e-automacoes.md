@@ -60,6 +60,7 @@ Supabase limita arquivos a 50 MB.
 | `radar-rotina` | pg_cron (`045`) → função `radar` | `20 9,21 * * *` | 6h20 e 18h20 | Coleta de ofertas, descoberta (se ligada), aviso de oportunidade |
 | `fiscal-entradas` | pg_cron (`060`) → função SQL `nf_rotina_fiscal_sql` | `10 */6 * * *` | a cada 6 h | Central Fiscal: retoma sozinha a entrada no Mercado das notas confirmadas que falharam (intervalo crescente, até 6 tentativas) e liga notas antigas a compras que já existem (proposta, não aplicada) |
 | `inbox-sync` | pg_cron (`055`, job ativo em produção) → função `rac-inbox` | `*/10 * * * *` | a cada 10 min | RAC Inbox: sincroniza as caixas conectadas e avisa as mensagens novas (só do dono); grava `inbox_sincronizacao` |
+| `monitor-alerta` | pg_cron (`069`) → função `monitor-alerta` | `*/30 * * * *` | a cada 30 min | O vigia do Monitor (M4): abre, atualiza e fecha incidentes em `sinais` e manda um push consolidado quando um processo atrasa ou falha (só o dono; silêncio das 22h às 7h; no máximo 3 por dia) |
 | Atualizar notícias | GitHub (`noticias.yml`) | `15 */3 * * *` e `40 * * * *` | a cada 3 h (+ Newsletter de hora em hora, só se preciso) | Notícias, tecnologia, rumores e Newsletter; commit na `main` |
 | Atualizar vagas | GitHub (`vagas.yml`) | `0 10 * * *` | 7h | `vagas.json`; commit na `main` |
 | Testes | GitHub (`testes.yml`) | push e PR na `main` (exceto os `.json` dos robôs) e `30 10 * * 1` | segunda, 7h30 | Grupo 1 e Grupo 2 |
@@ -125,8 +126,8 @@ Fases [Recomendação]:
 |---|---|---|---|
 | M1 | Regras puras no núcleo (`NUCLEO.mon*`): normalizar cada fonte no contrato acima, calcular "próxima prevista" a partir das expressões cron e classificar o estado; tela "Monitor de integrações" no Sistema e um cartão no RAC Hoje só quando algo estiver vermelho. Um teste lê os `.yml` e os `.sql` e falha se o horário do monitor divergir do agendamento real | Não | Todos os processos da tabela aparecem com estado; teste de divergência de horários |
 | M2 | Robôs gravam no JSON também `duracao_s`, `itens` e `falhas` (Python, sem segredo); o monitor lê as execuções do GitHub pela API pública (leitura, sem token, limite de 60 consultas por hora, com cache) | Não | Duração e contagem de cada robô visíveis |
-| M3 | Uma view no banco (`security_invoker`) que junta `rotina_log`, `radar_coletas`, `newsletter_edicoes` e `ia_uso` no formato do contrato, para o servidor e a IA lerem o mesmo que a tela | Sim (pequena) | Mesmo resultado na tela e na view (teste PGlite) |
-| M4 | Alerta proativo: uma função agendada no banco detecta processo atrasado e cria um **sinal** ([Documento 04](04-rac-intelligence.md)); o aviso sai no resumo diário | Sim | Robô parado aparece como sinal e no aviso das 6h, uma vez |
+| M3 | Uma view no banco (`security_invoker`) que junta `rotina_log`, `radar_coletas`, `newsletter_edicoes` e `ia_uso` no formato do contrato, para o servidor e a IA lerem o mesmo que a tela | Sim (pequena) | Mesmo resultado na tela e na view (teste PGlite) **Concluído em 26/11/2026 (seção 4.5)** |
+| M4 | Alerta proativo: uma função agendada no banco detecta processo atrasado e cria um **sinal** ([Documento 04](04-rac-intelligence.md)); o aviso sai no resumo diário | Sim | Robô parado aparece como sinal e no aviso das 6h, uma vez **Concluído em 26/11/2026 (seção 4.5)** |
 
 Para o aviso por push de M4 é preciso uma Edge Function que envie (a `garmin` é editável pelo agente desde 23/11/2026): decisão do dono
 ([Documento 07](07-decisoes-e-pendencias.md)).
@@ -209,7 +210,49 @@ Fora do catálogo, de propósito: backup (passo da rotina; vale o resumo em `rot
 - **Horários em Brasília** (`America/Sao_Paulo`), não no fuso do aparelho. A tela mostra a hora da consulta e se o GitHub veio do cache (15 min) ou da cópia de até 24 h.
 - **Inbox** só para o dono (a tabela é por dono); com a sincronização automática desligada em todas as contas, o estado é "desligado".
 
-Continua fora do escopo: cartão no RAC Hoje, M3 e M4 (F6), listagem do Storage e qualquer fonte nova.
+Continua fora do escopo: cartão no RAC Hoje, listagem do Storage e qualquer fonte nova. M3 e M4 estão na seção 4.5.
+
+### 4.5 M3 e M4: tabela `sinais`, visão no servidor e o vigia (26/11/2026)
+
+Estado: **aplicado em produção em 26/11/2026** (migrations `067`, `068` e `069`, conferidas por leitura; função `monitor-alerta` versão 1 ativa, `verify_jwt` desligado e autenticação pela senha da rotina, como as outras). **Primeira rodada real (26/11/2026, 14:00 UTC, pelo pg_cron):** resposta 200, 2 incidentes abertos em `sinais` (Newsletter e Robô de notícias, atrasados de verdade: os JSON dos robôs tinham 10 h e 15 h, e o `noticias.yml` não rodava no GitHub desde as 05:23 UTC) e **1 push consolidado aceito pelo serviço de push** (os dois incidentes marcados como avisados no mesmo lote). A chegada no aparelho é confirmada pelo dono; a publicação do site `2026-11-26.2` fica no [histórico diário](historico-diario.md), só depois de verificada. A função `garmin` **não foi tocada**; sem IA, sem Telegram, sem chave nova.
+
+[Fato] O que o desenho precisou respeitar:
+
+- O servidor só enxerga o que grava no banco. Os robôs do GitHub (notícias e vagas) deixam rastro só nos JSON publicados; o vigia usa a **data real de coleta** deles (os mesmos arquivos e limites da tela).
+- O banco não interpreta cron. Na view, "atrasado" é pela **idade da última execução** (Rotina 25 h = 24 h + 60 min, Newsletter 14 h, Inbox 30 min); a tela continua pelo horário do cron, mais preciso. Os dois concordam nos casos claros (teste de paridade no PGlite) e podem divergir por até a tolerância em casos de borda.
+- O `service_role` não tinha SELECT em `rotina_log`, `inbox_contas`, `inbox_sincronizacao` e `notas_fiscais_entradas`: o ensaio em produção respondeu 500. A `068` concede SELECT **só nas colunas** que o Monitor usa (não libera o `resumo` da rotina nem o endereço de e-mail das contas).
+
+**O que existe agora**
+
+| Peça | O que é |
+|---|---|
+| `public.sinais` (067) | Tabela genérica de sinais do [Documento 04](04-rac-intelligence.md), reutilizável pelo RAC Hoje: um incidente por linha (`tipo`, `area`, `origem`, `entidade`, `chave` única, `severidade`, `estado` aberto/fechado, `fatos`, `porque`, `historico`, `detectado_em`, `encerrado_em`, `encerramento`, `notificado_em`, `lote_push`). RLS só do dono (mais a trava `mfa`); só o `service_role` grava, pelas funções. No máximo **um incidente aberto** por tipo e entidade (índice único parcial). Não entra no backup do site (dado derivado). Para o Monitor, `entidade` é o id do processo |
+| `monitor_processos_em(agora)` e a view `monitor_processos` (067) | O contrato do Monitor dos processos que gravam no banco (Rotina, Newsletter, Inbox, Radar, Central Fiscal), `security_invoker`: quem lê vê só o que as políticas das tabelas deixam |
+| `monitor_sinais_sincronizar/_pendentes/_marcar` (067) | O ciclo de incidentes; só o `service_role` executa |
+| Edge Function `monitor-alerta` (069 agenda a cada 30 min) | Lê a view e os JSON dos robôs, atualiza os incidentes, decide e manda o push |
+| Bloco "Ocorrências recentes" em `#monitor` | Mostra os incidentes de `sinais` (abertos e resolvidos), se já foram avisados por push ou esperam o próximo envio |
+
+**Quem alerta e quem não alerta**
+
+| Processo | Fonte no servidor | Alerta quando |
+|---|---|---|
+| Rotina das 6h | `rotina_log` | última execução falhou, ou sem execução há mais de 25 h |
+| Newsletter (edições) | `newsletter_edicoes` | sem edição gravada há mais de 14 h |
+| Inbox (sincronização) | `inbox_sincronizacao` | falha seguida, ou sem sincronização há mais de 30 min; desligado se a sincronização automática está desligada em todas as contas |
+| Robô de notícias | JSON (`noticias`, `tecdados`, `rumores`: 8 h; `newsletter`: 14 h) | atraso (coleta velha) ou falha (coleta recente, mas vazia, ou todas as fontes fora do ar) |
+| Robô de vagas | `vagas.json` (30 h) | idem |
+| Radar, Central Fiscal | view | **nunca**: só registram quando há o que fazer; sem registro é "desconhecido" |
+| Testes automáticos | GitHub | **nunca** (a falha já aparece no GitHub e no Monitor) |
+
+Arquivo que não deu para ler é **indisponível** (sem evidência, sem alarme); falha parcial de fontes de um robô não alarma.
+
+**Ciclo do incidente.** Atrasado ou falhou abre o incidente; se já houver um aberto, **atualiza o mesmo** (atrasado vira falhou sem novo registro nem novo push, e o histórico guarda a sequência); a recuperação **fecha sozinha** (`recuperou`), preservando o histórico; processo desligado fecha como `desligado`; desconhecido e indisponível não abrem nem fecham.
+
+**Quando avisar.** Verificação a cada 30 min; **um push por incidente**, consolidado (todos os pendentes numa mensagem só, com a hora em que cada um abriu), no máximo **3 por dia** (dia de Brasília) e **silêncio das 22h às 7h**. O limite e o silêncio **nunca descartam** incidente: ele fica em `sinais` sem aviso e sai no próximo envio permitido; o que abriu e já se resolveu antes do aviso só aparece como "já resolvida" dentro de um push que de qualquer forma sairia (resolvido sozinho nunca gera push) e, sempre, em "Ocorrências recentes". Sem push de recuperação. O aviso leva só o nome do processo e a situação. Se o push falhar, o incidente continua pendente e a próxima rodada tenta de novo (no pior caso um aviso repetido, nunca um perdido).
+
+[Fato] Limites conhecidos: (1) **o vigia não avisa da própria falha** (um aviso disso exigiria um serviço externo, fora do escopo); o `cron.job` e a função são vistos pela leitura de produção; (2) a falha do **workflow** em si (execução vermelha no GitHub) não é visível ao servidor, que só vê a data de coleta dos JSON; ela continua visível na tela do Monitor; (3) o aviso depende de o aparelho ter as notificações ativas (Sistema → Notificações) e das chaves VAPID da função `garmin`.
+
+**Operação.** Ensaio, que só lê e não grava, não envia e não marca nada: chamar a função com `{"tipo":"ensaio"}` pelo banco (`net.http_post` com a senha do Vault, sem expô-la) e ler a resposta em `net._http_response`. Desligar: `select cron.unschedule('monitor-alerta');`. O job fica fora do catálogo do Monitor de propósito (`FORA_DO_CATALOGO` em `tests/monitor.test.mjs`).
 
 ## 5. Automações futuras
 

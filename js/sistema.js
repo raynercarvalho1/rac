@@ -342,7 +342,8 @@
       atuLer(sisGithub),
       Promise.all(["noticias.json","tecdados.json","rumores.json","newsletter.json","vagas.json"].map(json)),
       dono?atuLer(function(){return SB.from("inbox_sincronizacao").select("conta_id,ultima_ok_em,ultima_tentativa_em,falhas_seguidas,duracao_ms,erro").order("ultima_tentativa_em",{ascending:false}).limit(40).then(sbOk)}):nada,
-      dono?atuLer(function(){return SB.from("inbox_contas").select("id,sync_auto").limit(20).then(sbOk)}):nada]).then(function(r){
+      dono?atuLer(function(){return SB.from("inbox_contas").select("id,sync_auto").limit(20).then(sbOk)}):nada,
+      dono?atuLer(function(){return SB.from("sinais").select("entidade,estado,severidade,fatos,historico,detectado_em,encerrado_em,encerramento,notificado_em").eq("tipo","monitor.processo").order("detectado_em",{ascending:false}).limit(12).then(sbOk)}):nada]).then(function(r){
       var gh=r[5].ok?r[5].v:null,js=r[6],dados={};
       dados.rotina=r[0].ok?NUCLEO.monDeRotina(r[0].v,agora):{erroLeitura:r[0].erro};
       dados.newsletter=r[1].ok?NUCLEO.monDeNewsletter(r[1].v):{erroLeitura:r[1].erro};
@@ -357,7 +358,7 @@
         else d={erroLeitura:"execuções do GitHub indisponíveis"+(r[5].erro?": "+r[5].erro:"")};
         if(rb){d.registros=rb.texto;d.avisos=rb.avisos}dados[p.id]=d});
       var lista=PROC.map(function(p){var x=NUCLEO.monAvaliar(p,dados[p.id],agora);x.oque=p.oque;x.fonte=p.fonte;return x}),rot=dados.rotina&&dados.rotina.backup;
-      return {quando:agora,lista:lista,gh:gh,ghErro:r[5].ok?"":r[5].erro,relogio:r[4].ok&&r[4].v[0]?r[4].v[0].atualizado:null,backup:rot||null}});
+      return {quando:agora,lista:lista,gh:gh,ghErro:r[5].ok?"":r[5].erro,sinais:dono&&r[9].ok?r[9].v:null,relogio:r[4].ok&&r[4].v[0]?r[4].v[0].atualizado:null,backup:rot||null}});
     SIS_MON={quando:Date.now(),p:pr};pr.then(null,function(){SIS_MON={quando:0,p:null}});return pr}
   var SIS_MON_NOME={ok:"ok",atrasado:"atrasado",falhou:"falhou",desligado:"desligado",desconhecido:"sem informação"},SIS_MON_ICO={ok:"✓",atrasado:"⚠",falhou:"✗",desligado:"○",desconhecido:"?"};
   /* "falhas em 7 dias" só quando as execuções lidas cobrem os 7 dias; senão o rótulo diz a janela real (o GitHub devolve as 30 mais novas) */
@@ -384,10 +385,20 @@
     t.forEach(function(z){det.push(h("span",{class:"sub",style:"display:block",text:z}))});
     if(link)det.push(h("span",{class:"sub",style:"display:block"},ext(link,"Ver este robô no GitHub","ghostbtn")));
     g.appendChild(h("details",{class:"mondet"},[h("summary",{text:"Detalhes"})].concat(det)));return li}
+  /* uma ocorrência (incidente da tabela sinais): quando abriu, se já fechou, e se o push já saiu ou está esperando (silêncio das 22h às 7h ou limite de 3 por dia) */
+  function sisMonOcorrencia(o){var f=o.fatos||{},fechada=o.estado==="fechado",t=[],q=function(x){return sisQuando(Date.parse(x))},urgente=o.severidade==="urgente",
+      li=h("li",{class:fechada?"":urgente?"falha":"atraso"}),g=h("span",{class:"grow"});
+    li.appendChild(h("span",{class:"sisdot",text:fechada?"✓":urgente?"✗":"⚠"}));li.appendChild(g);
+    g.appendChild(h("b",{text:(f.nome||o.entidade)+" · "+(fechada?"resolvida":f.estado==="falhou"?"falhou":"atrasado")}));
+    t.push("Aberta em "+q(o.detectado_em)+(fechada?" · resolvida em "+q(o.encerrado_em)+(o.encerramento==="desligado"?" (processo desligado)":""):" · ainda aberta"));
+    t.push(o.notificado_em?"Aviso por push em "+q(o.notificado_em):fechada?"Sem push: resolvida antes do aviso":"Aviso por push ainda não enviado (silêncio das 22h às 7h ou limite de 3 por dia): sai no próximo envio permitido");
+    if(f.motivo)t.push(f.motivo);
+    if((o.historico||[]).length>1)t.push("Sequência: "+o.historico.map(function(e){return e.estado}).join(" → "));
+    t.forEach(function(z){g.appendChild(h("span",{class:"sub",style:"display:block",text:z}))});return li}
   function sisMonitor(){
     var p=panel("Monitor de integrações","Cada rotina agendada: estado, última e próxima execução e de onde vem cada informação. Os robôs rodam no GitHub, que costuma atrasar e às vezes pula rodadas. Sem evidência, o painel diz que não dá para verificar."),
-      barra=h("div",{class:"monbar"}),cards=h("div",{class:"moncards"}),alertas=h("div",{class:"monalertas"}),ul=h("ul",{class:"wl sissaude monint"}),filtro="todos",R=null;
-    p.appendChild(barra);p.appendChild(cards);p.appendChild(alertas);p.appendChild(ul);
+      barra=h("div",{class:"monbar"}),cards=h("div",{class:"moncards"}),alertas=h("div",{class:"monalertas"}),ul=h("ul",{class:"wl sissaude monint"}),oco=h("div",{class:"monocor"}),filtro="todos",R=null;
+    p.appendChild(barra);p.appendChild(cards);p.appendChild(alertas);p.appendChild(ul);p.appendChild(oco);
     p.appendChild(h("div",{class:"vfil"},ext("https://github.com/raynercarvalho1/rac/actions","Ver os robôs no GitHub","ghostbtn")));
     function desenhar(){var P=NUCLEO.monPainel(R.lista),c=P.cartoes,gh=R.gh,bt=h("button",{type:"button",class:"ghostbtn",text:"Atualizar"});
       bt.onclick=function(){barra.textContent="Conferindo…";carregar(true)};
@@ -402,7 +413,10 @@
             h("span",{class:"sub",style:"display:block",text:"Onde: "+a.componente+" · fonte: "+a.fonte+(a.nivel==="info"?"":" · última execução registrada: "+sisQuando(a.quando))}),lk?ext(lk,"Investigar no GitHub","ghostbtn"):null)))});
         alertas.appendChild(h("h3",{class:"monh",text:"Alertas e observações"}));alertas.appendChild(ua)}
       ul.innerHTML="";var l=NUCLEO.monFiltro(R.lista,filtro);if(!l.length)ul.appendChild(h("li",null,h("span",{class:"sub",text:"Nenhum processo nesta categoria."})));
-      l.forEach(function(x){ul.appendChild(sisMonLinha(x,R))})}
+      l.forEach(function(x){ul.appendChild(sisMonLinha(x,R))});
+      oco.innerHTML="";if(R.sinais){oco.appendChild(h("h3",{class:"monh",text:"Ocorrências recentes"}));
+        if(!R.sinais.length)oco.appendChild(h("p",{class:"sub",text:"Nenhuma ocorrência registrada pelo vigia."}));
+        else{var uo=h("ul",{class:"wl sissaude monalert"});R.sinais.forEach(function(o){uo.appendChild(sisMonOcorrencia(o))});oco.appendChild(uo)}}}
     function carregar(forcar){sisMonColetar(forcar).then(function(r){R=r;desenhar()},function(e){barra.textContent="Não consegui montar o monitor ("+(e&&e.message||e)+").";logErro("monitor de integrações",e)})}
     barra.appendChild(h("span",{class:"sub",text:"Conferindo…"}));carregar(false);return p}
   /* o resumo de uma linha na página Sistema: a mesma coleta, sem repetir a leitura */

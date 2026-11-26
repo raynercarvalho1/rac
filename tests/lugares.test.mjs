@@ -55,7 +55,7 @@ test("telas: só do dono, respeita esconder o local, marcação só em PESSOAL (
   assert.ok(!/fetch\(|googleapis|api\./i.test(f + sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeNominatim"))), "fora da busca por endereço, nenhuma consulta de rede");
   assert.ok(!/\.(insert|upsert|update|delete)\(/.test(sa.slice(sa.indexOf("function saudeLugaresLer"), sa.indexOf("function saudeMapaGeral"))), "o site só lê compras e rotas");
   assert.match(hub, /var lu=shLugares\(fil,C\)/);
-  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[8-9]_/.test(x)); assert.deepEqual(m, [], "nenhuma migration do Lote 5 (a 066 é do Lote 6)");
+  const m = fs.readdirSync(new URL("../supabase/", import.meta.url)).filter((x) => /^06[7-9]_/.test(x) && !/^06[7-9]_monitor_/.test(x)); assert.deepEqual(m, [], "nenhuma migration do Lote 5 (a 066 é do Lote 6; a 067 a 069 são do Monitor, M3 e M4)");
 });
 
 test("busca por CEP ou endereço (24/11/2026): CEP de 8 dígitos, endereço do ViaCEP; só 2 serviços, só ao tocar em Buscar, só com o texto digitado", () => {

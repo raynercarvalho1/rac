@@ -1954,7 +1954,7 @@ Família e da Casa.
 - Decisões do dono: tema escuro como referência visual, subpágina própria, quatro cartões sem "% de sucesso" nem "tempo médio", fita de histórico, janela do GitHub rotulada pela janela real.
 
 ### 2. O que estamos fazendo
-- Nada em aberto no código. **Não conferido:** só o visual no iPhone (validação do dono).
+- Nada em aberto. A validação no iPhone foi confirmada pelo dono depois da entrega (mensagem "Validado", sem detalhes). **Não conferido por mim:** o visual no aparelho, por ser do dono.
 
 ### 3. O que vamos fazer
-- Dono: validar no iPhone (Sistema → Abrir o Monitor): cartões, filtros, alertas, detalhes e a hora da consulta. Depois, com M3 e M4 (F6), o alerta proativo e a visão no servidor.
+- Frente do Monitor M1 e M2 encerrada. Próximo: M3 e M4 (view no servidor e detecção proativa, F6), quando o dono priorizar; e, se aparecer algo estranho no uso real (processo que roda aparecendo "sem informação"), ajustar a regra daquele processo. Depois, com M3 e M4 (F6), o alerta proativo e a visão no servidor.

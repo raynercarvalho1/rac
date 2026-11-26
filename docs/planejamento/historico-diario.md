@@ -1970,7 +1970,7 @@ Família e da Casa.
 - **Publicação verificada:** PR #108 com CI verde e mesclado (`b850491`); Pages #487 com sucesso; o domínio serve `sw.js` e `MOD_VERSAO` `2026-11-26.2`, `js/sistema.js` com `sisMonOcorrencia` e a leitura de `sinais`, e o CSS novo no `index.html`.
 
 ### 2. O que estamos fazendo
-- Nada em aberto no código. **Não conferido por mim:** a chegada do push no aparelho e o bloco "Ocorrências recentes" no iPhone (validação do dono).
+- Nada em aberto no código. O dono validou no iPhone ("3 passos feitos, todos funcionam": o push, o bloco "Ocorrências recentes" e a conferência do `noticias.yml`; sem mais detalhes). **Não conferido por mim:** o visual no aparelho, por ser do dono. Às 14:43 UTC os JSON dos robôs seguiam com 11 h e os 2 incidentes abertos, como esperado.
 
 ### 3. O que vamos fazer
-- Dono: confirmar se o push "RAC Monitor" chegou e se o toque abriu o Monitor; abrir Sistema → Monitor e ver "Ocorrências recentes". Investigar por que o GitHub parou de rodar o `noticias.yml` (o vigia vai avisar de novo se continuar parado). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.
+- Frente do Monitor M3 e M4 encerrada. O `noticias.yml` do GitHub segue sem rodar (causa não registrada); o vigia mantém os incidentes abertos e fecha sozinho quando os robôs voltarem (rodar o workflow à mão em Actions é o caminho mais rápido de ver a recuperação). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.

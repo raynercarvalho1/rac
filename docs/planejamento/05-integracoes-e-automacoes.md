@@ -214,7 +214,7 @@ Continua fora do escopo: cartão no RAC Hoje, listagem do Storage e qualquer fon
 
 ### 4.5 M3 e M4: tabela `sinais`, visão no servidor e o vigia (26/11/2026)
 
-Estado: **aplicado em produção em 26/11/2026** (migrations `067`, `068` e `069`, conferidas por leitura; função `monitor-alerta` versão 1 ativa, `verify_jwt` desligado e autenticação pela senha da rotina, como as outras). O que o primeiro push real mostrou e a publicação do site `2026-11-26.2` ficam no [histórico diário](historico-diario.md), só depois de verificados. A função `garmin` **não foi tocada**; sem IA, sem Telegram, sem chave nova.
+Estado: **aplicado em produção em 26/11/2026** (migrations `067`, `068` e `069`, conferidas por leitura; função `monitor-alerta` versão 1 ativa, `verify_jwt` desligado e autenticação pela senha da rotina, como as outras). **Primeira rodada real (26/11/2026, 14:00 UTC, pelo pg_cron):** resposta 200, 2 incidentes abertos em `sinais` (Newsletter e Robô de notícias, atrasados de verdade: os JSON dos robôs tinham 10 h e 15 h, e o `noticias.yml` não rodava no GitHub desde as 05:23 UTC) e **1 push consolidado aceito pelo serviço de push** (os dois incidentes marcados como avisados no mesmo lote). A chegada no aparelho é confirmada pelo dono; a publicação do site `2026-11-26.2` fica no [histórico diário](historico-diario.md), só depois de verificada. A função `garmin` **não foi tocada**; sem IA, sem Telegram, sem chave nova.
 
 [Fato] O que o desenho precisou respeitar:
 

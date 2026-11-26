@@ -1958,3 +1958,18 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Frente do Monitor M1 e M2 encerrada. Próximo: M3 e M4 (view no servidor e detecção proativa, F6), quando o dono priorizar; e, se aparecer algo estranho no uso real (processo que roda aparecendo "sem informação"), ajustar a regra daquele processo. Depois, com M3 e M4 (F6), o alerta proativo e a visão no servidor.
+
+## 26/11/2026 · Monitor M3 e M4: tabela sinais, view e o vigia monitor-alerta (site `2026-11-26.2`)
+
+### 1. O que fizemos
+- Decisões do dono (Q1 a Q5): tabela genérica `sinais` do Documento 04; função independente `monitor-alerta` por pg_cron, sem tocar na `garmin`, push só ao dono e sem Telegram; alertam Rotina, Newsletter, Inbox e os robôs de notícias e vagas (Radar, Central Fiscal e testes nunca); a cada 30 min, um aviso por incidente, até 3 por dia, silêncio das 22h às 7h, sem push de recuperação; limite e silêncio nunca descartam incidente.
+- **Em produção, conferido por leitura:** migration `067` (tabela `sinais` com RLS do dono e trava `mfa`, view `monitor_processos` `security_invoker`, ciclo de incidentes só para o `service_role`), `068` (SELECT por coluna ao `service_role`) e `069` (job `monitor-alerta` `*/30`; os outros 5 jobs intactos); função `monitor-alerta` v1 (`verify_jwt` desligado, conteúdo conferido).
+- **Erro achado e corrigido:** o primeiro ensaio respondeu 500 porque o `service_role` não tinha SELECT em `rotina_log`, `inbox_contas`, `inbox_sincronizacao` e `notas_fiscais_entradas`; a `068` concede só as colunas usadas (sem `resumo` nem endereço de e-mail) e o harness do PGlite passou a imitar a produção. O ensaio seguinte respondeu 200 sem gravar nada.
+- **Primeira rodada real (14:00 UTC):** 2 incidentes abertos (Newsletter e Robô de notícias, atrasados de verdade: o `noticias.yml` não rodava desde as 05:23 UTC) e 1 push consolidado aceito pelo serviço de push.
+- Tela: bloco "Ocorrências recentes" em `#monitor`. Testes novos (`monitor_sinais_sql`, `monitor_alerta`, ampliação de `monitor`) e cinco testes de guarda ajustados para as migrations 067 a 069. Documentos 04, 05, 06, 07, mapa e RAC Knowledge atualizados. A `garmin` não foi tocada; sem IA.
+
+### 2. O que estamos fazendo
+- Suíte completa, PR, CI e merge; depois conferir a versão servida do site (`2026-11-26.2`). **Não conferido:** a chegada do push no aparelho e o bloco "Ocorrências recentes" no iPhone (validação do dono).
+
+### 3. O que vamos fazer
+- Dono: confirmar se o push "RAC Monitor" chegou e se o toque abriu o Monitor; abrir Sistema → Monitor e ver "Ocorrências recentes". Investigar por que o GitHub parou de rodar o `noticias.yml` (o vigia vai avisar de novo se continuar parado). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.

@@ -173,7 +173,7 @@ de vez; o layout continua só layout. (3) Teste obrigatório do Lote 1: nenhuma 
 
 - **S-1.** A página é um documento visível a todos os membros do espaço; por isso **configuração só guarda referências**, e títulos de widget são os do catálogo (ou texto livre do usuário **avisado** de que é visível ao espaço).
 - **S-2.** **O layout nunca concede acesso a dado.** Todo widget lê com a sessão de quem vê e o RLS decide; o motor não usa `service_role` nem cache compartilhado entre usuários.
-- **S-3.** Papéis do espaço: **visualizador** (vê, oculta para si), **editor** (adiciona, move, configura, remove), **administrador** (tudo, inclusive desativar tipos, convidar e arquivar páginas). Página pessoal: só o dono.
+- **S-3.** Papéis do espaço: **leitor** (vê, oculta para si; antes chamado visualizador), **editor** (adiciona, move, configura, remove), **administrador** (tudo, inclusive desativar tipos, convidar e arquivar páginas) e **proprietário** (o dono do espaço). Página pessoal: só o dono.
 - **S-4.** Tabelas novas: RLS ligado, `revoke all ... from anon`, trava `mfa`, backup, catálogo de segurança e teste em `tests/seguranca.test.mjs`.
 - **S-5.** Validação no servidor: `layout` com `jsonb_typeof`, limite de tamanho e de itens (ex.: 60 instâncias por página), `tipo` com padrão `^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`, `col` de 1 a 12 (restrições `check`, no molde de `sinais`).
 - **S-6.** A Fernanda mantém **exatamente** a navegação e as telas de hoje até a Fase 8 (a página dela é gerada por código a partir de `casa: true`); personalizar para ela entra na Fase 8, por decisão posterior do dono (N-13).
@@ -189,3 +189,19 @@ de vez; o layout continua só layout. (3) Teste obrigatório do Lote 1: nenhuma 
 
 Criar página, adicionar widget do catálogo, configurar, mover, redimensionar, ocultar, remover, desativar, desfazer, salvar e reabrir em outro aparelho com o mesmo resultado; layout correto em desktop, tablet e celular;
 widget com fonte falha ou tipo desconhecido não derruba a página; nenhuma operação altera dado de negócio; a Fernanda não vê mudança; testes (motor puro em `nucleo.js` + RLS em PGlite + tela).
+
+## Estado de implementação (Lote 1, 27/11/2026)
+
+**Funciona e está testado** (`tests/workspace_nucleo.test.mjs`, 18 casos; `tests/workspace_tela.test.mjs`, no Chromium, 6 fluxos; `tests/espacos_sql.test.mjs`): páginas com criar, renomear, ordenar, página inicial (por pessoa), arquivar (e excluir só página já arquivada, por administração),
+título único por espaço, histórico das 30 últimas versões e restaurar uma versão; layout JSON versionado, validado **igualmente** no banco (`ws_layout_valido`) e no navegador (`NUCLEO.wsValidar`, comparados caso a caso); concorrência otimista por `versao`, com tentativa
+automática quando só mudou título ou ordem e, em conflito de verdade, escolha entre "aplicar minhas alterações sobre a versão nova" (as operações são repetidas) e "usar a do outro aparelho"; rascunho no aparelho; modo de edição com adicionar (catálogo com busca e motivo quando um tipo
+não pode entrar), configurar, **mover** (arrastar com o mouse ou toque longo, setas na alça e menu), **redimensionar** (canto, Shift + setas e menu), ocultar, desativar, duplicar, remover da página, seções (adicionar, renomear, recolher, mover, remover sem perder componentes),
+"esconder no celular", desfazer e refazer; grade de 12, 8 e 1 colunas pelo mesmo documento; widgets que sumiram do catálogo ou são de versão futura viram um cartão informativo sem perder a configuração; falha de um widget fica no cartão (tempo-limite de 15 s e "Tentar de novo").
+**Catálogo:** `js/widgets.js` (registro e contêiner) e 4 widgets de referência em `js/widgets-base.js` (Nota fixa, Atalhos, Hoje e Agenda: próximos, este último lendo pela fonte "agenda" e **privado**: bloqueado em espaço compartilhado).
+**Rota:** `#workspace`, só do dono (a Fernanda não a vê; as telas dela não mudaram). **Banco:** migration 070, aplicada. **Fora deste lote:** os widgets dos módulos e a Minha Casa (Lote 2), `espaco_modulos`, permissões por módulo, modelos prontos além do "Dia a dia", pré-visualização de widget no catálogo.
+
+**Visual e UX (adendo do dono, 27/11/2026):** a tela segue o Design System (faixa azul com o nome da página, abas num contêiner, barra fixa só no modo personalizar, componentes com alça, chip de tamanho e menu, catálogo em cartões, fantasma e indicador ao arrastar, toast de avisos, estados vazios com ícone), validada por medição em `tests/workspace_visual.test.mjs`; auditoria, decisões, capturas e problemas resolvidos em [20 · Auditoria visual e UX](20-auditoria-visual-e-ux.md).
+
+**Diferenças em relação ao desenho acima:** (1) "Ocultar" em espaço compartilhado tem dois caminhos: no modo de edição marca o estado `oculto` do layout (afeta todos); fora dele, o botão "Ocultar" de cada componente grava só em `workspace_pessoal` (afeta só a pessoa, também para o leitor);
+(2) recolher uma seção na vista é só da pessoa (fica no aparelho) e não altera o layout compartilhado; (3) o limite de configuração é de 3000 caracteres no navegador contra 4096 bytes no banco, de propósito, para o que passa no navegador sempre passar no banco;
+(4) a configuração de texto livre (Nota fixa) mostra o aviso "quem vê esta página vê este texto".

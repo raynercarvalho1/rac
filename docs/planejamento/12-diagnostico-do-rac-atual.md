@@ -119,8 +119,7 @@ histórico. As propostas `041`, `044`, `055` (arquivo ainda em `supabase/propost
   7 chaves (`radar-*`, `mercado-*`).
 - **Compartilhamento por registro:** não existe. Não há `espaco_id`, grupo, convite, papel de leitura ou compartilhamento de um item específico. O backup e a restauração conhecem as tabelas pessoais (`NUCLEO.SEG_TABELAS`).
 - **Preferências:** `PESSOAL` (JSON em `pessoal`) para o dono; a casa não tem preferências próprias fora das 7 chaves compartilhadas e do `localStorage` do aparelho.
-- **[Hipótese]** O cadastro aberto de novas contas está desligado em Authentication (há 2 usuários); não confirmado, porque o conector não lê essa configuração. Se estivesse aberto, qualquer conta nova seria tratada como `dono`
-  da própria casa (sem acesso aos dados de outros por causa do RLS, mas com acesso às funções). Verificar antes do Lote 1.
+- **[Fato, confirmado pelo dono em 27/11/2026]** O cadastro público do Supabase está **desativado** (há 2 usuários). Antes isto era uma hipótese não verificável pelo conector; fica registrado como informação confirmada. A arquitetura nova não cria nenhum caminho de cadastro ou associação que contorne a autenticação.
 - **Limitações para o novo RAC:** (1) preferência de interface não resolve propriedade; (2) só uma casa por dono; (3) um conteúdo é "do dono" ou "da casa", nunca "de um espaço" ou "compartilhado com fulano";
   (4) o papel é binário e vive no cliente (o banco decide pelo RLS, mas a tela escolhe o que mostrar); (5) a tabela `sinais` e as funções de IA, push e Inbox só conhecem o dono.
 
@@ -173,3 +172,14 @@ O RAC atual é um produto de **módulos fortes e independentes**, com uma boa ba
 `sinais`, `rac-ia`, Inbox, Garmin). O que **falta** para o conceito novo não é visual: é (1) um **modelo de espaços e propriedade** que vá além de "dono e casa", (2) um **motor de composição**
 (páginas e widgets) para o usuário organizar a própria tela, (3) uma **camada cronológica** e uma **entrada universal** que cruzem módulos sem copiar dados, e (4) **localização** estruturada. A arquitetura
 está nos documentos [13](13-visao-e-arquitetura-do-novo-rac.md) a [19](19-registro-de-decisoes.md).
+
+## 11. Atualização do Lote 1 (27/11/2026): o que mudou no estado real
+
+Conferido por leitura no Supabase de produção depois das aplicações do lote:
+- **Migration 050 aplicada** (`seguranca_catalogo` existe; 47 linhas da própria 050, mais 12 das tabelas criadas depois dela, mais 5 da 070: 64 linhas; nenhuma tabela fora do catálogo). A 050 deixa de ser pendência; segue pendente a **058** no histórico, embora o **efeito** dela já esteja em produção
+  (`fiscal.nota` consta em `acoes_casa` da configuração de IA, aplicado por fora do histórico do conector).
+- **Migration 070 aplicada** (espaços, permissões e Workspace): 5 tabelas, 14 funções, seed de 2 espaços pessoais e 1 espaço da Casa (derivada de `membros`). Total de tabelas em `public`: **64** (as 58 de antes, o catálogo da 050 e as 5 da 070).
+- A seção 6 (identidade) deste diagnóstico descreve o modelo **antes** do Lote 1; o modelo atual está no [Documento 16, "Estado de implementação"](16-arquitetura-de-identidade-e-compartilhamento.md#estado-de-implementação-lote-1-27112026).
+- Rotas: 35 (nova `#workspace`, só do dono). Funções Edge: sem mudança. Site `2026-11-27.2`.
+- Advisors de segurança do Supabase depois do lote: nenhum achado novo além do esperado (as funções do site, de propósito executáveis por `authenticated`, aparecem na lista de "SECURITY DEFINER executável por quem entrou", como `dono_da_casa` e `rac_aal_ok`). Achados que **já existiam** e não foram tocados:
+  `public.rls_auto_enable()` executável por `anon`, `public.ping` sem `search_path` fixo, extensão `pg_net` em `public`, proteção contra senhas vazadas desligada em Authentication, `rac_segredos` e `seguranca_catalogo` com RLS e sem política (de propósito).

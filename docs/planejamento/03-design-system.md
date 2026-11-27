@@ -279,3 +279,7 @@ escuro como direção principal) e a proposta de DS-2 "tema" ficam **substituíd
   menu do dono por área e barra inferior no celular (pelo registro de rotas); piloto no RAC Hoje. Classificação do que foi mantido, refinado e substituído em [`docs/design-system.md`](../design-system.md#classificação-do-ds-1-anterior-auditoria-desta-etapa).
 - **Diferença em relação à seção 3**: os tokens `--rac-*` apontam para os atuais onde existem; as superfícies novas (papel 1/2/3, tintas) e o degradê de marca são novos. Breakpoints seguem como convenção (480/860/1180 px).
 - **Não feito ainda**: DS-4 (demais módulos, um por vez), DS-5 (telas da casa, só com autorização), cores por área nos gráficos, `<symbol>` de ícones.
+
+## Atualização de 27/11/2026 · Auditoria visual e padrão do novo RAC
+
+A auditoria visual do Lote 1 (adendo do dono: qualidade visual e de UX como critério de conclusão), os princípios do padrão visual, as decisões e a lista de consolidação das telas antigas estão no [Documento 20](20-auditoria-visual-e-ux.md). Nada deste documento foi alterado: o Design System da Fase 3 é a base do novo padrão.

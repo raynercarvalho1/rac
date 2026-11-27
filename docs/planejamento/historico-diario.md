@@ -2061,3 +2061,38 @@ Família e da Casa.
 - **Lote 1:** espaços e permissões no banco + motor de Workspace (Documento 18), com prévia, testes por papel (PGlite) e validação do dono no iPhone.
 - Ordem entre o Lote 1 e as frentes paralelas (migração do `gmApi`, RAC Financeiro Inteligente): decisão do dono.
 
+## 27/11/2026 (noite, 2) · Novo RAC, Lote 1: espaços, permissões e Workspace (site `2026-11-27.2`)
+
+### 1. O que fizemos
+- **Brainstorm e Grill Me** aplicados em modo autônomo (o skill interativo não foi executado até o fim; ver `19-registro-de-decisoes.md`, seção 5): alternativas, 15 perguntas de segurança e decisões N-25 a N-35.
+- **Migration 050 aplicada em produção** (`20261127163831`): hash do corpo de `seguranca_estado()` idêntico ao arquivo; 47 linhas; as 12 tabelas criadas depois dela foram catalogadas (59); sem tabela fora do catálogo, sem tabela sem a trava, nada legível por `anon`.
+- **Migration 070 aplicada em produção** (`20261127165238`): `espacos`, `espaco_membros`, `workspace_paginas`, `workspace_versoes`, `workspace_pessoal` e 14 funções (hash de cada uma conferido contra o arquivo; `anon` sem execução); seed de 2 espaços pessoais e 1 Casa derivada de `membros`; catálogo em 64 linhas; advisors sem achado novo.
+  A primeira tentativa de aplicar falhou com Bad Gateway (resultado desconhecido): conferido por leitura que não tinha sido aplicada, e o segundo envio funcionou (erro registrado no RAC Knowledge).
+- **Motor e tela do Workspace** (site `2026-11-27.2`, rota `#workspace`, só do dono): motor puro em `nucleo.js` (`ws*`), catálogo `js/widgets.js` com 4 widgets de referência, `js/workspace.js` (páginas, seções, catálogo, configurar, arrastar/teclado/menu, redimensionar, ocultar, desativar, remover da página, desfazer/refazer, histórico, conflito entre aparelhos, rascunho), CSS de 12/8/1 colunas.
+- **Testes novos:** `espacos_sql` (18, PGlite: isolamento, escalada de privilégio, MFA, casa ao vivo, páginas), `workspace_nucleo` (18, inclui banco × navegador caso a caso) e `workspace_tela` (7, Chromium em 1280, 1000 e 390 px). Testes legados ajustados só nas listas de rotas, migrations e versão.
+- **Suíte completa local** (`scripts/nuvem_testes.sh`, como o CI): Grupo 1 e Grupo 2 verdes na última rodada, depois de corrigir 6 testes legados que contavam rotas, módulos e migrations.
+- Documentos 12, 13, 14, 16, 18, 19, `docs/mapa.md` e `docs/seguranca.md` atualizados; 3 registros novos no RAC Knowledge.
+
+### 2. O que estamos fazendo
+- PR do lote: CI do PR, merge, deploy do Pages e verificação do site publicado. **Não declarado publicado antes dessa verificação.**
+- Validação do dono no iPhone e no computador (arrastar com toque longo não foi testado em aparelho real).
+
+### 3. O que vamos fazer
+- **Lote 2:** Minha Casa configurável: extrair os blocos do RAC Hoje como widgets (sem mudar regra nem dado), catálogo inicial, página padrão, modelos, navegação por cinco ambientes (com protótipo da barra do celular).
+- Pendências para lotes futuros: tela de membros e convite (Lote 8), `espaco_id` nas tabelas legadas (Lote 8), `concessoes`, `espaco_modulos` e `usuario_prefs` junto do primeiro consumidor.
+
+## 27/11/2026 (noite, 3) · Lote 1: adendo de qualidade visual e UX do Workspace
+
+### 1. O que fizemos
+- **Adendo do dono:** qualidade visual e de experiência passou a ser critério de conclusão (regra em `CLAUDE.md` e no RAC Knowledge). O merge do PR #118 (CI verde na versão anterior) foi **segurado** até a elevação visual.
+- **Auditoria visual** do Design System e das telas (claro e escuro, computador e celular) e **Documento 20** (princípios, Brainstorm de 4 alternativas de edição, Grill Me das 8 perguntas do adendo, antes e depois, problemas achados e resolvidos, lista de consolidação das telas antigas). 21 capturas em `docs/planejamento/img/`.
+- **Workspace redesenhado no Design System:** faixa azul com nome da página e "Personalizar", abas em contêiner, **barra fixa** só no modo personalizar (5 controles, o resto no menu), chrome por componente (alça, chip n/12, menu, canto), catálogo em cartões com ícone e motivo de bloqueio, fantasma + indicador de destino + rótulo de tamanho ao mover, toast de avisos, estados vazios com ícone.
+- **Teste visual medido** (`tests/workspace_visual.test.mjs`: 3 larguras × 2 temas): rolagem lateral, sobreposição, alvos de 44 px, barra fixa ao rolar e contraste WCAG. Achou e corrigiu: botão de seção com 33 px, barra que não ficava fixa, catálogo espremido, widget com configuração incompleta que quebrava, nome truncado no celular.
+
+### 2. O que estamos fazendo
+- Suíte completa, CI do PR #118 atualizado, merge, deploy do Pages e verificação do site publicado (`2026-11-27.2`).
+- Validação do dono no iPhone e no computador (critério final).
+
+### 3. O que vamos fazer
+- **Lote 2:** Minha Casa configurável com a consolidação visual combinada (kit de janelas e menus, abas padronizadas, tokens unificados, barra do celular com protótipo) e a migração das telas antigas uma a uma.
+

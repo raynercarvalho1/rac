@@ -332,7 +332,8 @@ test("todo módulo com dados em memória está ligado ao botão (os nove da Etap
     "fiscal.js": "só a trava de \"lendo\" e os documentos já lidos nesta tela, identificados pelo conteúdo (Lote 1.4); não guarda leitura do banco, então nada fica velho",
     "dados.js": "camada de dados (Fase 2 · A1): guarda só o cliente do Supabase (a conexão), nenhuma leitura do banco",
     "inbox-servico.js": "RAC Inbox I1: só a chave INBS.publicado (função rac-inbox publicada); não guarda leitura do banco nem da rede" };
-  const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js", "saude-hub.js"]));   /* o hub da Saúde (DS-4.3) é a tela do módulo "saude", registrado em saude.js */
+  const ligados = new Set(Object.values(ETAPA_B).map((a) => a + ".js").concat(["bebe.js", "saude-hub.js", "workspace.js"]));   /* o Workspace (Lote 1 do novo RAC) se liga por atuModulo("workspace") e recusa atualizar com alterações não salvas (ocupado) */
+  assert.match(ler("js/workspace.js"), /atuModulo\("workspace",\{/);   /* o hub da Saúde (DS-4.3) é a tela do módulo "saude", registrado em saude.js */
   /* o RAC Hoje ainda não tem página: a coleta vale 10 minutos e o ↻ (ATU.fresco) faz ler de novo (tests/hoje.test.mjs) */
   ligados.add("hoje.js"); assert.match(ler("js/hoje.js"), /typeof ATU!=="undefined"&&ATU\.fresco/);
   for (const f of fs.readdirSync(new URL("../js/", import.meta.url))) {

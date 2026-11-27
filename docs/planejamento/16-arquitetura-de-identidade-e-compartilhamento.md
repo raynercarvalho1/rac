@@ -100,3 +100,24 @@ A tela **continua** só escondendo o que o RLS já recusa; a regra de segurança
 | Função `security definer` mal escrita vaza dados | `search_path` fixo, sem SQL dinâmico, teste de política em PGlite para cada papel (visualizador, editor, administrador, de fora) |
 | Backup e restauração de tabelas de espaço | Entram em `NUCLEO.SEG_TABELAS`; restauração nunca sobrescreve sem marcar e nunca recria permissões sem prévia (regra existente) |
 | IA e push enxergando espaço errado | P-1 e P-5, com teste que simula dois espaços e dois usuários |
+
+## Estado de implementação (Lote 1, 27/11/2026)
+
+O modelo desta página foi implementado no Lote 1 pela migration `supabase/070_espacos_e_workspace.sql` (**aplicada em produção em 27/11/2026**, hash do corpo das 14 funções conferido contra o arquivo; testes: `tests/espacos_sql.test.mjs`, 18 casos em Postgres de verdade).
+O que mudou em relação à proposta de 27/11/2026 (Lote 0) e por quê:
+
+| Proposta (Lote 0) | Implementado (Lote 1) | Motivo |
+|---|---|---|
+| Papéis administrador, editor, **visualizador** | **proprietário** (o `dono` do espaço, nunca em `espaco_membros`), administrador, editor e **leitor** | pedido do dono no Lote 1; o proprietário é intocável e não depende de uma linha que alguém possa apagar |
+| Casa legada com participantes copiados de `membros` | **Derivada ao vivo**: em `espacos.casa_de`, a Fernanda é editora enquanto existir a linha em `membros`; nenhuma cópia, nenhum sincronismo | tirar a linha de `membros` tira o acesso na mesma leitura (testado); sem janela de acesso velho |
+| Tabelas `concessoes`, `espaco_modulos` e `usuario_prefs` | **Adiadas**: ainda não há quem as use. As preferências por pessoa moram em `workspace_pessoal` | "não criar tabelas desnecessárias"; entram junto do primeiro consumidor (Lotes 4, 7 e 8) |
+| Alterar participantes por funções | Idêntico: `rac_espaco_criar`, `rac_espaco_membro_definir`, `rac_espaco_membro_remover`, `rac_espaco_arquivar`, `rac_iniciar_espacos` e `rac_espaco_membros` (leitura); nenhuma tabela de espaço aceita INSERT, UPDATE ou DELETE direto do site | a regra fica numa porta só, testada |
+
+**Regras que o banco impõe (todas com teste):** (1) quem é de fora não vê espaço, página, versão nem preferência alheia, e "sem acesso" é igual a "não existe"; (2) ninguém altera o próprio papel; (3) o administrador não cria, rebaixa nem remove outro administrador;
+(4) o proprietário não pode ser alterado nem removido; (5) o espaço pessoal e a Casa legada não aceitam participantes explícitos e não são arquivados; (6) espaço arquivado é só leitura; (7) cada função exige login **e** a segunda etapa (MFA), porque funções `security definer`
+não passam pela trava restritiva das tabelas; (8) no máximo 10 espaços compartilhados por proprietário e 30 páginas ativas por espaço; (9) a página nunca muda de espaço nem de autor; (10) `espacos.dono` e `workspace_paginas.criado_por` usam `on delete restrict`:
+apagar um usuário que ainda é dono de espaço é recusado pelo banco (decisão consciente: nada some por efeito colateral; exige destino explícito).
+**Cadastro público do Supabase: DESATIVADO** (confirmado pelo dono em 27/11/2026; a hipótese do diagnóstico está resolvida). Nenhum caminho novo de cadastro ou de convite por e-mail foi criado: participantes entram por `user_id` de contas já existentes.
+
+**Ainda não existe (próximos lotes):** convite por e-mail e tela de membros (Lote 8), compartilhamento de um recurso específico (`concessoes`), `espaco_id` nas tabelas legadas e fim do `PAPEL` fixo no cliente (Lote 8), transferência de propriedade.
+**Risco residual:** o cliente ainda decide o que mostrar pelo `PAPEL` (legado); os widgets novos dependem só do RLS. Remover contas em `auth.users` que sejam donas de espaço exige antes mover ou arquivar o espaço.

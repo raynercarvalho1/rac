@@ -2096,3 +2096,17 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - **Lote 2:** Minha Casa configurável com a consolidação visual combinada (kit de janelas e menus, abas padronizadas, tokens unificados, barra do celular com protótipo) e a migração das telas antigas uma a uma.
 
+## 27/11/2026 (noite, 4) · Lote 1: publicação verificada
+
+### 1. O que fizemos
+- **PR #118 mesclado na `main`** (merge `34c2186`) com o CI do PR verde na cabeça final (Testes, incluindo os testes de banco em PGlite e os de Chromium do Workspace).
+- **CI da `main`** (Testes #433, commit `34c2186`): `success`. **GitHub Pages** do mesmo commit: `success`.
+- **Site no domínio, verificado por leitura:** `sw.js` com `VERSAO = "2026-11-27.2"`, `js/app.js` com `MOD_VERSAO="2026-11-27.2"`, `index.html` com `#workspace-view` e `rac.css?v=2026-11-27.2`, e os arquivos `js/workspace.js`, `js/widgets.js`, `js/widgets-base.js` e `css/rac.css` servidos (HTTP 200).
+- Banco: migrations 050 e 070 aplicadas antes do merge e conferidas por leitura (ver os registros anteriores de hoje).
+
+### 2. O que estamos fazendo
+- Nada em aberto no código. **Validação do dono** no iPhone e no computador (critério final), com atenção ao toque longo para arrastar, que só foi testado em Chromium.
+
+### 3. O que vamos fazer
+- Lote 2 (Minha Casa configurável e consolidação visual), na ordem do Documento 18 e da seção 8 do Documento 20; a ordem entre o Lote 2 e as frentes paralelas (migração do `gmApi`, RAC Financeiro Inteligente) segue sendo decisão do dono.
+

@@ -4791,6 +4791,7 @@
     if(def.versao>1&&typeof def.migrarConfig!=="function")er("versão acima de 1 exige migrarConfig");
     if(typeof def.renderizar!=="function")er("renderizar ausente");
     if(def.exige!==undefined&&!wsObj(def.exige))er("exige deve ser um objeto");
+    if(def.icone!==undefined&&(typeof def.icone!=="string"||def.icone.length>8))er("icone deve ser um texto curto (um emoji)");
     if(typeof def.compartilhavel!=="boolean")er("compartilhavel deve ser true ou false (saúde, e-mail e custos são false)");
     return {ok:erros.length===0,erros:erros}}
   /* a configuração de uma instância: valores válidos ficam, os inválidos ou ausentes voltam ao padrão e as chaves desconhecidas são PRESERVADAS (compatibilidade com versões futuras) */

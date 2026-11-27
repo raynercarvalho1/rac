@@ -93,13 +93,13 @@ const W = (n) => "w_" + String(n).padStart(6, "0");
 test("computador (1280): sem páginas → criar pelo modelo → personalizar (catálogo, configurar, setas, menu, ocultar, desativar, remover) → desfazer → concluir → reabrir com a composição preservada", { skip: pular, timeout: 120000 }, async () => {
   const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL, CASA] });
   try {
-    assert.match(await pag.textContent(".wk-vazio"), /Nenhuma página ainda/);
-    await pag.click("text=Criar a partir do modelo");
+    assert.match(await pag.textContent(".wk-vazio"), /Monte a sua tela/);
+    await pag.click("text=Começar com o modelo");
     await pag.fill('input[aria-label="Nome da página"]', "Dia a dia"); await pag.click(".wk-folha button:text-is('Criar página')");
     await pag.waitForSelector(".wk-edicao", { timeout: 5000 });   // criou e já abre para personalizar
     const tipos = await pag.$$eval(".wk-item", (l) => l.map((e) => e.getAttribute("data-id")));
     assert.ok(tipos.length >= 2, "o modelo trouxe componentes: " + tipos.length);
-    assert.match(await pag.textContent(".wk-barra"), /Personalizando/);
+    assert.match(await pag.textContent(".wk-editbar"), /Personalizando/);
     /* a grade tem 12 colunas */
     assert.equal(await pag.$eval(".wk-grade", (g) => getComputedStyle(g).gridTemplateColumns.split(" ").length), 12);
     /* adicionar pelo catálogo, com busca */

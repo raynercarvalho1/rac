@@ -2081,3 +2081,18 @@ Família e da Casa.
 - **Lote 2:** Minha Casa configurável: extrair os blocos do RAC Hoje como widgets (sem mudar regra nem dado), catálogo inicial, página padrão, modelos, navegação por cinco ambientes (com protótipo da barra do celular).
 - Pendências para lotes futuros: tela de membros e convite (Lote 8), `espaco_id` nas tabelas legadas (Lote 8), `concessoes`, `espaco_modulos` e `usuario_prefs` junto do primeiro consumidor.
 
+## 27/11/2026 (noite, 3) · Lote 1: adendo de qualidade visual e UX do Workspace
+
+### 1. O que fizemos
+- **Adendo do dono:** qualidade visual e de experiência passou a ser critério de conclusão (regra em `CLAUDE.md` e no RAC Knowledge). O merge do PR #118 (CI verde na versão anterior) foi **segurado** até a elevação visual.
+- **Auditoria visual** do Design System e das telas (claro e escuro, computador e celular) e **Documento 20** (princípios, Brainstorm de 4 alternativas de edição, Grill Me das 8 perguntas do adendo, antes e depois, problemas achados e resolvidos, lista de consolidação das telas antigas). 21 capturas em `docs/planejamento/img/`.
+- **Workspace redesenhado no Design System:** faixa azul com nome da página e "Personalizar", abas em contêiner, **barra fixa** só no modo personalizar (5 controles, o resto no menu), chrome por componente (alça, chip n/12, menu, canto), catálogo em cartões com ícone e motivo de bloqueio, fantasma + indicador de destino + rótulo de tamanho ao mover, toast de avisos, estados vazios com ícone.
+- **Teste visual medido** (`tests/workspace_visual.test.mjs`: 3 larguras × 2 temas): rolagem lateral, sobreposição, alvos de 44 px, barra fixa ao rolar e contraste WCAG. Achou e corrigiu: botão de seção com 33 px, barra que não ficava fixa, catálogo espremido, widget com configuração incompleta que quebrava, nome truncado no celular.
+
+### 2. O que estamos fazendo
+- Suíte completa, CI do PR #118 atualizado, merge, deploy do Pages e verificação do site publicado (`2026-11-27.2`).
+- Validação do dono no iPhone e no computador (critério final).
+
+### 3. O que vamos fazer
+- **Lote 2:** Minha Casa configurável com a consolidação visual combinada (kit de janelas e menus, abas padronizadas, tokens unificados, barra do celular com protótipo) e a migração das telas antigas uma a uma.
+

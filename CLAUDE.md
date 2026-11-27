@@ -62,6 +62,11 @@ Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs
   o que fizemos (concluído, testes, commits, PRs, publicações confirmadas, decisões), o que estamos fazendo (andamento, bloqueios,
   dependências) e o que vamos fazer (próximos passos, prioridades, critérios). Planejado nunca é registrado como concluído (há teste).
 
+## Qualidade visual e UX (decisão do dono, 27/11/2026)
+- Toda funcionalidade relevante só está **concluída** com três qualidades: **funcional**, **técnica** e **visual e de experiência** (hierarquia clara, composição coerente com o Design System, estados vazio/carregando/erro/sucesso desenhados, desktop, tablet e celular, tema claro e escuro equivalentes).
+- Tela nova usa o Design System (`css/rac.css`, `js/kit.js`: faixa, `rkBtn`, `rkCard`, `rkEstado`, `rkSelo`, tokens), nunca `panel()`/`ghostbtn` para código novo; sem reformulação indiscriminada das telas antigas (a consolidação é por tela, com antes × depois).
+- A validação visual é parte do lote: capturas (computador, tablet, celular, claro e escuro, modo normal e de edição), medição (rolagem lateral, sobreposição, alvos de 44 px, contraste) e correção do que aparecer; o relatório traz uma seção "Qualidade visual e UX". Referência e método: `docs/planejamento/20-auditoria-visual-e-ux.md`, exemplo de teste: `tests/workspace_visual.test.mjs`.
+
 ## Código
 - JavaScript ES5 puro, sem framework, sem build e sem dependências novas no site. Bibliotecas só de CDN com versão exata.
 - Tudo é global: antes de criar uma função ou variável de topo, procure se o nome já existe (`tests/estrutura` falha se repetir).

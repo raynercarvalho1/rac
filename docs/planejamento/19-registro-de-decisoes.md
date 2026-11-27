@@ -177,3 +177,16 @@ e o Brainstorm foi feito do mesmo modo (alternativas comparadas por escrito). As
 | Remover um usuário que é proprietário de espaço é recusado pelo banco | por desenho; precisa mover ou arquivar antes | Lote 8 (transferência de propriedade) |
 | Widgets dos módulos ainda não existem | só 4 de referência | Lote 2 |
 | `public.rls_auto_enable()` executável por `anon` (achado pré-existente dos advisors) | não é do RAC nem foi alterado; vale conferir | acompanhamento de segurança |
+
+## 6. Adendo do Lote 1: padrão visual e de UX
+
+Origem: adendo do dono ao Lote 1 (27/11/2026): a aparência atual ainda se mostra aquém do padrão profissional desejado; qualidade visual passa a ser **critério de conclusão**. Auditoria, princípios, Brainstorm, Grill Me, antes e depois e validação medida: [20 · Auditoria visual e UX](20-auditoria-visual-e-ux.md).
+
+- **N-36 · Edição por barra fixa** (só no modo personalizar) + controles contextuais por componente; descartados os botões sempre visíveis em cada cartão, o botão flutuante e o editor em tela cheia. 5 controles na barra; o resto no menu ⋯.
+- **N-37 · Catálogo visual** em folha: cartões com ícone, nome, descrição, categoria, tamanho padrão e o motivo quando um tipo não pode entrar; busca e categorias em chips; seção de destino.
+- **N-38 · Feedback de movimento:** fantasma do componente, indicador do destino, rótulo "n de 12 colunas · altura", toast de salvamento; alternativas por teclado (setas na alça, Shift para o tamanho) e por menu continuam.
+- **N-39 · O Workspace usa só o Design System existente** (faixa azul, `rkBtn`, `rkSelo`, `rkEstado`, tokens, tema escuro); sem reconstrução visual geral e sem mexer nas telas antigas (N-12 mantida).
+- **N-40 · Todo widget recebe a configuração normalizada** com os padrões (o layout não é alterado): configuração incompleta de outro aparelho ou de uma versão antiga não quebra o widget.
+- **N-41 · Validação visual é teste:** `tests/workspace_visual.test.mjs` mede rolagem lateral, sobreposição, alvos de 44 px, barra fixa e contraste WCAG nos dois temas e nas três larguras; as capturas ficam em `docs/planejamento/img/`.
+- **N-42 · Critério permanente de conclusão:** funcional + técnico + visual/UX, com seção específica no relatório do lote (regra em `CLAUDE.md`).
+- **N-43 · Consolidação das telas antigas fica em backlog** priorizado (seção 8 do Documento 20), tela a tela, sem reformulação indiscriminada.

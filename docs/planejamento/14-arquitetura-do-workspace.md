@@ -200,6 +200,8 @@ não pode entrar), configurar, **mover** (arrastar com o mouse ou toque longo, s
 **Catálogo:** `js/widgets.js` (registro e contêiner) e 4 widgets de referência em `js/widgets-base.js` (Nota fixa, Atalhos, Hoje e Agenda: próximos, este último lendo pela fonte "agenda" e **privado**: bloqueado em espaço compartilhado).
 **Rota:** `#workspace`, só do dono (a Fernanda não a vê; as telas dela não mudaram). **Banco:** migration 070, aplicada. **Fora deste lote:** os widgets dos módulos e a Minha Casa (Lote 2), `espaco_modulos`, permissões por módulo, modelos prontos além do "Dia a dia", pré-visualização de widget no catálogo.
 
+**Visual e UX (adendo do dono, 27/11/2026):** a tela segue o Design System (faixa azul com o nome da página, abas num contêiner, barra fixa só no modo personalizar, componentes com alça, chip de tamanho e menu, catálogo em cartões, fantasma e indicador ao arrastar, toast de avisos, estados vazios com ícone), validada por medição em `tests/workspace_visual.test.mjs`; auditoria, decisões, capturas e problemas resolvidos em [20 · Auditoria visual e UX](20-auditoria-visual-e-ux.md).
+
 **Diferenças em relação ao desenho acima:** (1) "Ocultar" em espaço compartilhado tem dois caminhos: no modo de edição marca o estado `oculto` do layout (afeta todos); fora dele, o botão "Ocultar" de cada componente grava só em `workspace_pessoal` (afeta só a pessoa, também para o leitor);
 (2) recolher uma seção na vista é só da pessoa (fica no aparelho) e não altera o layout compartilhado; (3) o limite de configuração é de 3000 caracteres no navegador contra 4096 bytes no banco, de propósito, para o que passa no navegador sempre passar no banco;
 (4) a configuração de texto livre (Nota fixa) mostra o aviso "quem vê esta página vê este texto".

@@ -187,7 +187,7 @@ test("pela rota assinada: marcar lida e mover passam por assinatura, nonce (repl
   const s1 = servidorFalso({ pastas: LISTA, caixas: caixas() }), r1 = await tratar(await req(lida()), dep(s1)), t1 = await r1.text(), j1 = JSON.parse(t1);
   assert.deepEqual([r1.status, j1.ok, j1.operacao, j1.dados.resultado], [200, true, "marcar_lida", "aplicada"]); assert.ok(!t1.includes(SENHA) && !t1.includes(USUARIO));
   const rep = await req(lida(), "nonceFixo0000000001"); const d2 = dep(servidorFalso({ pastas: LISTA, caixas: caixas() })); assert.equal((await tratar(rep.clone(), d2)).status, 200); assert.equal((await tratar(rep.clone(), d2)).status, 409, "replay");
-  const cenarios = [[mover(), { capacidade: "IMAP4rev1", copiaRecusa: true }, 422, "acao_recusada"], [mover(), { capacidade: "IMAP4rev1", recusarMarca: true }, 409, "acao_parcial"], [mover(), { cortar: true }, 504, "acao_incerta"], [lida({ uidvalidity_esperado: 5 }), {}, 409, "uidvalidity_mudou"], [lida({ message_id_esperado: "<x@y.z>" }), {}, 409, "identidade_divergente"],
+  const cenarios = [[mover(), { capacidade: "IMAP4rev1", copiaRecusa: true }, 422, "copia_cannot"], [mover(), { capacidade: "IMAP4rev1", recusarMarca: true }, 409, "acao_parcial"], [mover(), { cortar: true }, 504, "acao_incerta"], [lida({ uidvalidity_esperado: 5 }), {}, 409, "uidvalidity_mudou"], [lida({ message_id_esperado: "<x@y.z>" }), {}, 409, "identidade_divergente"],
     [lida(), { recusar: true }, 422, "acao_recusada"], [lida({ uid: 77 }), {}, 404, "mensagem_inexistente"], [lida({ senha: "wxyz-wxyz-wxyz-wxyz" }), {}, 422, "autenticacao_recusada"]];
   for (const [c, op, status, erro] of cenarios) { const r = await tratar(await req(c), dep(servidorFalso({ pastas: LISTA, caixas: caixas(), ...op }))); const j = await r.json(); assert.deepEqual([r.status, j], [status, { ok: false, erro }], erro); }
 });
@@ -242,7 +242,7 @@ test("repetição depois do sucesso: com UIDPLUS a original não existe mais ('m
 
 test("COPY recusado: 'acao_recusada' e nada mais é enviado; COPY 'OK' sem a cópia aparecer: 'acao_incerta' e a original NÃO é marcada", async () => {
   let cx = caixas(), a = await rodar(mover(), { capacidade: SEM_MOVE, copiaRecusa: true }, { caixas: cx });
-  assert.deepEqual([a.r.ok, a.r.erro], [false, "acao_recusada"]); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c))); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 2, 3]); assert.equal(cx.Archive.msgs.length, 0);
+  assert.deepEqual([a.r.ok, a.r.erro], [false, "copia_cannot"], "o [CANNOT] do servidor vira código fechado"); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c))); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 2, 3]); assert.equal(cx.Archive.msgs.length, 0);
   cx = caixas(); a = await rodar(mover(), { capacidade: SEM_MOVE, copiaSumida: true }, { caixas: cx });
   assert.deepEqual([a.r.ok, a.r.erro], [false, "acao_incerta"]); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c)), "sem a cópia confirmada a original fica intacta"); assert.ok(!cx.INBOX.msgs.some((m) => m.flags.some((f) => /deleted/i.test(f))));
 });
@@ -252,7 +252,7 @@ test("identidade e destino valem também sem MOVE: UIDVALIDITY, UID, Message-ID 
     const x = await rodar(mover(extra), { capacidade: SEM_MOVE }); assert.deepEqual([x.r.ok, x.r.erro], [false, erro], JSON.stringify(extra)); assert.ok(!x.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "nada foi alterado: " + JSON.stringify(extra));
   }
   const cx = caixas(); cx.INBOX.msgs[1].cab = cx.INBOX.msgs[1].cab.replace(/Message-ID: [^\r]*\r\n/, "");
-  const y = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx }); assert.deepEqual([y.r.ok, y.r.erro], [false, "acao_recusada"]); assert.ok(!y.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "sem Message-ID não há como evitar duplicata");
+  const y = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx }); assert.deepEqual([y.r.ok, y.r.erro], [false, "sem_message_id"]); assert.ok(!y.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "sem Message-ID não há como evitar duplicata");
 });
 
 test("arquivar e excluir têm destinos DISTINTOS e nunca se misturam: Archive recebe só o arquivado, Deleted Messages só o excluído", async () => {
@@ -261,4 +261,14 @@ test("arquivar e excluir têm destinos DISTINTOS e nunca se misturam: Archive re
   assert.deepEqual([a.r.ok, e.r.ok], [true, true]);
   assert.deepEqual(cx.Archive.msgs.map((m) => m.cab.match(/Message-ID: <m(\d+)@/)[1]), ["1"], "no Archive só a 1"); assert.deepEqual(cx["Deleted Messages"].msgs.map((m) => m.cab.match(/Message-ID: <m(\d+)@/)[1]), ["2"], "na Lixeira só a 2");
   assert.ok(!a.cmds.some((c) => c.includes("Deleted Messages")) && !e.cmds.some((c) => c.includes('"Archive"')), "cada comando mira só o seu destino"); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [3]);
+});
+
+
+test("recusa do COPY: a causa sai como código FECHADO (nunca o texto do servidor): [OVERQUOTA], [TRYCREATE], [NOPERM], NO e BAD sem código", async () => {
+  for (const [texto, esperado] of [["NO [OVERQUOTA] sem espaço", "copia_overquota"], ["NO [TRYCREATE] destino", "copia_trycreate"], ["NO texto livre com segredo-xyz", "copia_no"], ["BAD comando", "copia_bad"], ["NO [NOPERM] x", "copia_noperm"]]) {
+    const s = servidorFalso({ pastas: LISTA, caixas: caixas(), capacidade: SEM_MOVE, copiaRecusa: true, copiaRecusaTexto: texto });
+    const r = await executarOperacao({ abrir: async () => s.socket })(mover());
+    assert.deepEqual([r.ok, r.erro], [false, esperado], texto); assert.ok(!JSON.stringify(r).includes("segredo-xyz"), "o texto do servidor nunca sai");
+    assert.ok(!s.log.some((l) => /Deleted|EXPUNGE/.test(l)), "nada foi marcado nem expurgado");
+  }
 });

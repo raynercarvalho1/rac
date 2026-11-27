@@ -98,6 +98,7 @@ export async function organizarPuro(a: EntradaOrganizar): Promise<ResultadoOrgan
     } else {
       if (AUTENTICACAO_RECUSADA.includes(r.erro)) { await a.credencialRecusada(); return falha("credencial_invalida"); }
       if (CANAL_RECUSADO.includes(r.erro)) return falha("canal_recusado", r.erro);   // a assinatura foi recusada: o Worker não executou
+      if (/^(sem_message_id|copia_[a-z]{2,12})$/.test(r.erro)) return falha("acao_recusada", r.erro);   // 27/11/2026: a causa exata da recusa vai ao registro (código fechado do Worker); o usuário vê a mesma mensagem
       if (r.erro === "acao_indisponivel") return falha("acao_indisponivel", await detalheSemMove(worker, conta, credencial));   // diagnóstico: o iCloud tem UIDPLUS? (só leitura; vai ao registro como código fechado)
       if (FALHA_CONFIRMADA[r.erro]) return falha(FALHA_CONFIRMADA[r.erro], r.erro);
       // incerto: acao_incerta, confirmacao_ausente, falha do canal, erro interno ou código desconhecido → o estado REAL é consultado, nunca repetido

@@ -229,3 +229,17 @@ test("regras do núcleo: só página deste site; destino guardado vale 5 minutos
   assert.equal(F({ url: "x", quando: t + 10 }, t), false, "do futuro não vale");
   assert.equal(F({ quando: t }, t), false); assert.equal(F(null, t), false);
 });
+
+/* Correção (27/11/2026): tocar na notificação com o app em segundo plano abria a ÚLTIMA página (a atualização automática ao voltar ao site
+   redesenhava a página antiga por cima do destino do aviso). A atualização espera o destino guardado, não roda logo após um toque em
+   notificação e desiste se a página mudou enquanto o banco respondia. */
+test("atualização automática ao voltar não sobrepõe o destino da notificação", () => {
+  const app = ler("js/app.js");
+  assert.match(app, /var NOTIF_ULT=0;/);
+  assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs\)NOTIF_ULT=Date\.now\(\)/);
+  assert.match(app, /var pend=notifPendente\(true\);notifDiag\(\);if\(!saiu\)return;/);
+  assert.match(app, /pend\.then\(function\(foi\)\{if\(foi\|\|Date\.now\(\)-NOTIF_ULT<15000\)return;/);
+  assert.match(app, /if\(auto&&Date\.now\(\)-NOTIF_ULT<15000\)return Promise\.resolve\(false\)/);
+  assert.match(app, /if\(location\.hash!==hash\|\|\(document\.documentElement\.getAttribute\("data-sec"\)\|\|"inicio"\)!==sec\)\{mudou=true;return 0\}/);
+  assert.match(app, /if\(mudou\)\{atuAviso\(""\);return false\}/);
+});

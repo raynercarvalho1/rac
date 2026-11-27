@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-26.2",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-27.1",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -1319,14 +1319,18 @@
     var tarefa=Object.keys(ATU.tarefas).map(function(k){return ATU.tarefas[k]})[0]||(m.ocupado&&m.ocupado())||"";
     var pode=NUCLEO.atuPode({rodando:ATU.rodando,online:navigator.onLine,ocupado:tarefa,sujo:NUCLEO.atuFormSujo(atuCampos(raiz).concat(atuCampos($("#capfundo"))))});
     if(!pode.ok){if(pode.motivo!=="rodando"&&!auto)atuAviso(pode.texto,"aviso");return Promise.resolve(false)}
+    if(auto&&Date.now()-NOTIF_ULT<15000)return Promise.resolve(false);   /* acabou de abrir outra página por uma notificação */
     ATU.rodando=true;atuBotao();atuAviso("Atualizando…","");
-    var hash=location.hash,y=window.scrollY,buscas=atuBuscas(raiz);
+    var hash=location.hash,y=window.scrollY,buscas=atuBuscas(raiz),mudou=false;
     /* antes de tocar na tela: o banco responde? Se não, nada muda */
     return atuPrazo(Promise.resolve().then(function(){return SB.rpc("ping")}).then(sbOk),8000).then(function(){
+      /* a página mudou enquanto o banco respondia (toque numa notificação, outro link): não redesenha a página que saiu */
+      if(location.hash!==hash||(document.documentElement.getAttribute("data-sec")||"inicio")!==sec){mudou=true;return 0}
       ATU.fresco=true;ATU.semExternos=true;
       var reler=NUCLEO.atuRelerPessoal({dono:isOwner(),semTabela:SEM_TABELA,pendentes:pendentes().length,conflitos:Object.keys(SIS.conflitos).length});
       return (reler?pessoalCarregar():Promise.resolve()).then(function(){return m.atualizar?m.atualizar().then(function(f){return f||0}):atuPadrao(raiz)})})
     .then(function(falhas){
+      if(mudou){atuAviso("");return false}
       if(location.hash===hash){atuReporBuscas(raiz,buscas);window.scrollTo(0,y)}
       ATU.ultima[sec]=Date.now();var hr=NUCLEO.atuHora(ATU.ultima[sec]);
       atuAviso(falhas?"Atualizado às "+hr+", mas "+(falhas===1?"um bloco não carregou":falhas+" blocos não carregaram")+" (veja na página).":"Atualizado às "+hr+".",falhas?"aviso":"ok");return true},
@@ -1406,7 +1410,9 @@
      aqui. Três caminhos: o aviso do service worker (app aberto), o endereço da janela (app fechado) e o destino guardado por alguns
      minutos (iPhone que abre o início, página que estava congelada). Só páginas deste site (NUCLEO.notifHash). ===== */
   var NOTIF_CHAVE="__rac-destino";
-  function notifIr(url){var hs=NUCLEO.notifHash(url,location.href);if(hs&&location.hash!==hs)location.hash=hs;return !!hs}
+  /* NOTIF_ULT: quando o toque numa notificação levou a outra página. A atualização automática ao voltar ao site (atuAtualizar) não pode rodar por cima: ela era da página ANTERIOR e a redesenhava (era o "abre a última página") */
+  var NOTIF_ULT=0;
+  function notifIr(url){var hs=NUCLEO.notifHash(url,location.href);if(hs)NOTIF_ULT=Date.now();if(hs&&location.hash!==hs)location.hash=hs;return !!hs}
   /* o destino guardado vale uma vez só: sempre é apagado; com aplicar=true, ainda leva até ele se não venceu */
   function notifPendente(aplicar){if(!window.caches)return Promise.resolve(false);var k=new URL(NOTIF_CHAVE,location.href).href;
     return caches.open("rac-dados").then(function(c){return c.match(k).then(function(r){if(!r)return false;
@@ -1440,9 +1446,11 @@
     if(document.visibilityState==="hidden"){if(!VOLTA.saiu)VOLTA.saiu=Date.now();return}
     if(ev&&ev.type==="pageshow"&&!ev.persisted)return;
     if(typeof inboxBarraAtualizar==="function")inboxBarraAtualizar();   /* o selo do Inbox na barra (só o dono) */
-    var saiu=VOLTA.saiu;VOLTA.saiu=0;notifPendente(true);notifDiag();if(!saiu)return;
-    var sec=document.documentElement.getAttribute("data-sec")||"inicio";
-    if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)}
+    var saiu=VOLTA.saiu;VOLTA.saiu=0;var pend=notifPendente(true);notifDiag();if(!saiu)return;
+    /* espera o destino guardado da notificação: se o toque levou a outra página, a atualização automática da página antiga não roda */
+    pend.then(function(foi){if(foi||Date.now()-NOTIF_ULT<15000)return;
+      var sec=document.documentElement.getAttribute("data-sec")||"inicio";
+      if(NUCLEO.atuVoltar({logado:!!PAPEL,dono:isOwner(),saiu:saiu,agora:Date.now(),ultima:ATU.ultima[sec],foco:voltaFoco(),aberto:!!$("#capfundo")}).ok)atuAtualizar(true)})}
   document.addEventListener("visibilitychange",voltaOlhar);
   window.addEventListener("pageshow",voltaOlhar);
   window.addEventListener("pagehide",function(){if(!VOLTA.saiu)VOLTA.saiu=Date.now()});

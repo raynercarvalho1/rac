@@ -369,3 +369,10 @@ Detalhes: `docs/central-areas.md`.
 - **Ordem do Hoje:** faixa fina de indicadores, Prioridades e Gastos, Saúde, E-mails, Newsletter, Esportes, Sorocaba, análise da IA (a pedido). Lote 2: MBA, Últimas compras e Saúde/Garmin no topo. Sem IA paga automática no Hoje (o resumo de esportes é o dos times e manchetes, não o da IA).
 - **Barra de baixo:** Hoje, MBA, Saúde, Compras, Inbox (a Agenda sai da barra e continua no menu). **Botão +:** ações da própria tela, só para o dono (lote 3); a Fernanda mantém o dela.
 - **Fora de escopo, por decisão do dono:** horário da newsletter e e-mails externos das 6h/9h (o RAC não envia e-mail; o selo "Atualizada às HH:MM" já mostra a hora da coleta).
+
+## 27/11/2026 · RAC Inbox — iCloud sem MOVE: decisão pendente do dono
+
+- **Fato (validação manual do dono, 27/11/2026, contas reais):** Gmail e Outlook completos (enviar, responder a todos, encaminhar, excluir, arquivar); iCloud faz enviar, responder a todos e encaminhar, e falha em excluir e arquivar. Não são testes automatizados.
+- **Causa confirmada (função `rac-inbox`, registro `acao_indisponivel`, e `inbox_pastas`):** o iCloud não anuncia MOVE depois do login; e a pasta `Archive` chega sem atributo especial. Detalhes em `docs/inbox.md`, "Validação funcional do dono e iCloud sem MOVE".
+- **Feito em código (`rac-inbox@i4.4`, não publicado):** classificação por nome de Archive, Junk e Deleted Messages quando o servidor não informa o uso; registro de `sem_move_com_uidplus` / `sem_move_sem_uidplus`.
+- **Decisão que cabe ao dono:** a regra da I3.2 proíbe `COPY` + `\Deleted` + `EXPUNGE`. Uma alternativa segura existe **se** o iCloud anunciar UIDPLUS: `UID COPY` (conferindo o `COPYUID`), `UID STORE \Deleted` e `UID EXPUNGE` só daquele UID, nunca o EXPUNGE global; a cópia só é apagada depois de confirmada. Sem UIDPLUS não há caminho seguro e a opção é manter excluir e arquivar do iCloud indisponíveis (a tela já avisa). Recomendação: publicar a função `i4.4`, o dono tentar excluir uma mensagem de teste no iCloud uma vez, e o código fechado no registro decide qual dos dois caminhos vale. Nada disso foi alterado no Worker.

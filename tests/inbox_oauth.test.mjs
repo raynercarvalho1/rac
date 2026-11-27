@@ -88,7 +88,7 @@ test("contrato: oauth_iniciar e oauth_concluir têm esquema fechado; o código d
   for (const ruim of [{ state: "curto", code: CODIGO }, { state: "S".repeat(43), code: "curto" }, { state: "S".repeat(43), code: "com espaço no código" }, { state: "S".repeat(43), code: "x".repeat(4097) }, { state: "S".repeat(43) }]) assert.equal(validarPedido({ operacao: "oauth_concluir", ...ruim }).ok, false);
   assert.equal(validarPedido({ operacao: "oauth_concluir", state: "S".repeat(43), code: CODIGO, conta_id: G1 }).erro, "campos_inesperados", "a conta vem do state guardado no servidor, nunca do navegador");
   for (const c of ["oauth_nao_configurado", "oauth_estado_invalido", "oauth_recusado", "oauth_conta_divergente", "oauth_indisponivel", "provedor_invalido", "provedor_sem_leitura"]) assert.ok(ERROS[c] >= 400, c);
-  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.3");
+  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.4");
 });
 
 /* ---------- serviço: cofre, banco e rede de mentira ---------- */

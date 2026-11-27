@@ -2,6 +2,7 @@
 
 Data da decisão: 13/11/2026  
 Estado: **proposta aprovada pelo dono; I1 (fundação) implementada em código e testes em 14/11/2026, sem migration aplicada e sem leitura de e-mail** (ver [docs/inbox.md](../inbox.md)).  
+Estado atual (27/11/2026, acrescentado; a linha acima é o registro de 14/11): **I1 a I3 em produção para iCloud, Gmail e Outlook** (migrations 051 a 056 e 063 aplicadas, função `rac-inbox` v20, 4 contas sincronizando a cada 10 min). Validação do dono em 27/11/2026: Gmail e Outlook OK em enviar, responder a todos, encaminhar, excluir e arquivar; iCloud OK em enviar, responder a todos e encaminhar, **excluir e arquivar falham** (o iCloud não anuncia MOVE; ver `docs/inbox.md`, "Validação funcional do dono e iCloud sem MOVE"). I4 (inteligência) não iniciada; I5 parcial (Compras e Carreira ainda leem o Gmail no navegador, `gmApi`); I6 não validada pelo dono.  
 Prioridade: **próxima grande frente após a conclusão da modernização da Saúde (S1–S5)**.  
 Objetivo de produto: tornar o RAC o cliente principal de e-mail do dono e permitir que o Spark seja desinstalado somente depois de uma substituição comprovada no uso real.
 

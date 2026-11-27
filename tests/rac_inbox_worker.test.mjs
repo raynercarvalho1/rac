@@ -308,7 +308,8 @@ test("código do Worker de produto: sem console, sem env, sem eval, sem armazena
     assert.ok(!/\bconsole\b|process\.env|\beval\s*\(|new Function|\bimport\s*\(|\brequire\s*\(|localStorage|\bKV\b|\bD1\b|\bR2\b|service_role|SUPABASE/.test(t), a + ": sem log, env, eval, armazenamento nem service_role");
     const semCriar = t.replace(/CREATE TABLE IF NOT EXISTS[^"]*/g, "");
     if (a !== "imap.mjs") assert.ok(!/["'`](?:SELECT|STORE|COPY|MOVE|APPEND|EXPUNGE|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CREATE)["'`]/.test(semCriar), a + ": nenhum verbo IMAP de escrita (só a seção de gerenciamento do imap.mjs, I3.2, tem a lista fechada)");
-    assert.ok(!/["'`](?:EXPUNGE|COPY|APPEND|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CLOSE|UNSELECT)["'`]|\\Deleted/i.test(semCriar), a + ": EXPUNGE, COPY, APPEND, DELETE, CLOSE e a flag Deleted não existem em arquivo nenhum do Worker");
+    assert.ok(!/["'`](?:EXPUNGE|COPY|APPEND|DELETE|RENAME|SUBSCRIBE|IDLE|AUTHENTICATE|CLOSE|UNSELECT)["'`]/i.test(semCriar), a + ": EXPUNGE, COPY, APPEND, DELETE e CLOSE não existem como verbo solto em arquivo nenhum do Worker");
+    if (a !== "imap.mjs") assert.ok(!/\\Deleted/i.test(semCriar), a + ": a flag Deleted só existe no fluxo sem MOVE do imap.mjs (conferido por experimentos/rac-inbox-worker-ferramenta/inspecionar-verbos.mjs)");
     if (a !== "smtp.mjs") assert.ok(!/["'`]STARTTLS["'`]/.test(t), a + ": STARTTLS só no cliente SMTP (o IMAP é TLS implícito)");
     if (a !== "index.mjs") assert.ok(!/cloudflare:/.test(t), a + " não importa módulo da Cloudflare");
   }

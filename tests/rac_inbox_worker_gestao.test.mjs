@@ -28,9 +28,9 @@ async function rodar(c, opcoes = {}, ambiente = {}) {
 const verbos = (cmds) => cmds.map((c) => c.split(" ")[0] + (c.startsWith("UID ") ? " " + c.split(" ")[1] : ""));
 const semAlteracao = (cmds) => assert.ok(!cmds.some((c) => /^(SELECT|UID STORE|UID MOVE)/.test(c)), "nenhum comando que altera a caixa foi enviado: " + cmds.join(" | "));
 const semSenhaFora = (s) => assert.equal(s.log.filter((l) => l.includes(SENHA)).length, 1, "a senha só aparece no LOGIN");
-const PERMITIDOS = /^(CAPABILITY|LOGIN|LOGOUT|LIST|EXAMINE|SELECT|FETCH|UID FETCH|UID SEARCH|UID STORE|UID MOVE)\b/;
+const PERMITIDOS = /^(CAPABILITY|LOGIN|LOGOUT|LIST|EXAMINE|SELECT|FETCH|UID FETCH|UID SEARCH|UID STORE|UID MOVE|UID COPY|UID EXPUNGE)\b/;
 const sempreNaLista = (cmds) => assert.ok(cmds.every((c) => PERMITIDOS.test(c)), "só comandos da lista fechada: " + cmds.join(" | "));
-const naoExiste = (cmds) => assert.ok(!cmds.some((c) => /EXPUNGE|^CLOSE|^UNSELECT|^COPY|UID COPY|\\Deleted|APPEND|^DELETE/i.test(c)), "nunca expurgo, cópia, \\Deleted, fechar caixa ou apagar: " + cmds.join(" | "));
+const naoExiste = (cmds) => assert.ok(!cmds.some((c) => /EXPUNGE|^CLOSE|^UNSELECT|^COPY|UID COPY|\\Deleted|APPEND|^DELETE/i.test(c)), "com MOVE: nunca expurgo, cópia, \\Deleted, fechar caixa ou apagar: " + cmds.join(" | "));
 
 /* ---------- marcar como lida / não lida ---------- */
 test("marcar lida e não lida: SELECT, identidade conferida, UM UID STORE da flag \\Seen e confirmação pelas flags devolvidas; o estado do servidor muda e nada mais", async () => {
@@ -97,12 +97,10 @@ test("mover: só com MOVE anunciado DEPOIS do login, destino comprovado pela lis
   const sem = await rodar(mover(), { semCopyuid: true }); assert.equal(sem.r.ok, true); assert.equal(sem.r.dados.destino, undefined, "sem COPYUID não se inventa o UID novo");
 });
 
-test("mover sem MOVE no servidor (como o iCloud anunciou na P6): 'acao_indisponivel' e NENHUM SELECT/MOVE/STORE; o que vale é a lista de DEPOIS do login", async () => {
-  let x = await rodar(mover(), { capacidade: "IMAP4rev1 NAMESPACE" }); assert.deepEqual([x.r.ok, x.r.erro], [false, "acao_indisponivel"]); semAlteracao(x.cmds); assert.ok(!x.cmds.some((c) => c.startsWith("LIST")), "nem lista pastas");
-  assert.deepEqual(x.cx.INBOX.msgs.map((m) => m.uid), [1, 2, 3]);
-  x = await rodar(mover(), { capacidade: "IMAP4rev1 UIDPLUS" }); assert.equal(x.r.erro, "acao_indisponivel", "UIDPLUS sozinho NÃO autoriza: não há fallback COPY+STORE+EXPUNGE"); semAlteracao(x.cmds); naoExiste(x.cmds);
-  x = await rodar(mover(), { capacidade: "IMAP4rev1", capacidadeDepois: "IMAP4rev1 MOVE" }); assert.equal(x.r.ok, true, "MOVE só apareceu depois do login: vale");
-  x = await rodar(mover(), { capacidade: "IMAP4rev1 MOVE", capacidadeDepois: "IMAP4rev1" }); assert.equal(x.r.erro, "acao_indisponivel", "anunciou antes e retirou depois: vale o de depois"); semAlteracao(x.cmds);
+test("mover sem MOVE no servidor (como o iCloud real): NÃO é mais 'acao_indisponivel'; segue o caminho COPY + \\Deleted (testes abaixo). O que vale é a lista de DEPOIS do login; marcar lida nunca depende de MOVE", async () => {
+  let x = await rodar(mover(), { capacidade: "IMAP4rev1 NAMESPACE" }); assert.equal(x.r.ok, true); assert.ok(x.cmds.some((c) => c.startsWith("UID COPY")) && !x.cmds.some((c) => c.startsWith("UID MOVE")), "sem MOVE: cópia, nunca MOVE");
+  x = await rodar(mover(), { capacidade: "IMAP4rev1", capacidadeDepois: "IMAP4rev1 MOVE" }); assert.equal(x.r.ok, true, "MOVE só apareceu depois do login: vale e usa MOVE"); assert.ok(x.cmds.some((c) => c.startsWith("UID MOVE")) && !x.cmds.some((c) => c.startsWith("UID COPY")));
+  x = await rodar(mover(), { capacidade: "IMAP4rev1 MOVE", capacidadeDepois: "IMAP4rev1" }); assert.equal(x.r.ok, true, "anunciou antes e retirou depois: vale o de depois (sem MOVE)"); assert.ok(x.cmds.some((c) => c.startsWith("UID COPY")) && !x.cmds.some((c) => c.startsWith("UID MOVE")));
   const m = await rodar(lida(), { capacidade: "IMAP4rev1" }); assert.equal(m.r.ok, true, "marcar lida não depende de MOVE");
 });
 
@@ -135,22 +133,26 @@ test("capacidades: lista o que o servidor anuncia antes e depois do login e se M
 
 /* ---------- a lista fechada de comandos ---------- */
 test("comandos de alteração: fora do gerenciamento NADA passa; dentro dele só SELECT, UID STORE da flag \\Seen e UID MOVE de UM UID; EXPUNGE, UID EXPUNGE, CLOSE, COPY, \\Deleted e injeção são barrados antes do socket", async () => {
-  const ESCRITA = [["SELECT", ' "INBOX"'], ["UID", " STORE 1 +FLAGS (\\Seen)"], ["UID", ' MOVE 1 "Archive"']];
+  const ESCRITA = [["SELECT", ' "INBOX"'], ["UID", " STORE 1 +FLAGS (\\Seen)"], ["UID", ' MOVE 1 "Archive"'], ["UID", ' COPY 1 "Archive"'], ["UID", " STORE 1 +FLAGS (\\Deleted)"], ["UID", " EXPUNGE 1"], ["UID", ' SEARCH HEADER Message-ID "<a@x.com>"']];
   for (const [v, a] of ESCRITA) { assert.equal(comandoPermitido(v, a), false, "o modo leitura não aceita " + v + a); assert.equal(comandoGestaoPermitido(v, a), true, v + a); }
-  const ruim = [["EXPUNGE", ""], ["UID", " EXPUNGE 1"], ["CLOSE", ""], ["UNSELECT", ""], ["COPY", ' 1 "Archive"'], ["UID", ' COPY 1 "Archive"'], ["APPEND", ' "INBOX" {1}'], ["DELETE", ' "x"'], ["RENAME", ' "a" "b"'],
-    ["UID", " STORE 1 +FLAGS (\\Deleted)"], ["UID", " STORE 1 FLAGS (\\Seen)"], ["UID", " STORE 1 +FLAGS.SILENT (\\Seen)"], ["UID", " STORE 1 +FLAGS (\\Seen \\Deleted)"], ["UID", " STORE 1:* +FLAGS (\\Seen)"], ["UID", " STORE 1,2 +FLAGS (\\Seen)"],
+  const ruim = [["EXPUNGE", ""], ["UID", " EXPUNGE 1:*"], ["UID", " EXPUNGE 1,2"], ["UID", " EXPUNGE *"], ["UID", " EXPUNGE 0"], ["UID", " EXPUNGE"], ["CLOSE", ""], ["UNSELECT", ""], ["COPY", ' 1 "Archive"'], ["UID", ' COPY 1:* "Archive"'], ["UID", ' COPY 1,2 "Archive"'], ["UID", ' COPY 1 "a"b"'], ["UID", ' COPY 1 ""'], ["UID", ' COPY 1 "Archive"\r\na9 EXPUNGE'], ["APPEND", ' "INBOX" {1}'], ["DELETE", ' "x"'], ["RENAME", ' "a" "b"'],
+    ["UID", " STORE 1 +FLAGS (\\Deleted \\Seen)"], ["UID", " STORE 1 -FLAGS (\\Deleted)"], ["UID", " STORE 1 FLAGS (\\Deleted)"], ["UID", " STORE 1:* +FLAGS (\\Deleted)"], ["UID", " STORE 1 +FLAGS.SILENT (\\Deleted)"], ["UID", " STORE 1 +FLAGS (\\Deleted)\r\na9 EXPUNGE"],
+    ["UID", " SEARCH ALL"], ["UID", ' SEARCH HEADER Subject "x"'], ["UID", ' SEARCH HEADER Message-ID "sem-colchetes"'], ["UID", ' SEARCH HEADER Message-ID "<a"b@x>"'], ["UID", ' SEARCH HEADER Message-ID "<a@x>" OR ALL'], ["UID", ' SEARCH HEADER Message-ID "<a b@x>"'],
+    ["UID", " STORE 1 FLAGS (\\Seen)"], ["UID", " STORE 1 +FLAGS.SILENT (\\Seen)"], ["UID", " STORE 1 +FLAGS (\\Seen \\Deleted)"], ["UID", " STORE 1:* +FLAGS (\\Seen)"], ["UID", " STORE 1,2 +FLAGS (\\Seen)"],
     ["UID", " STORE * +FLAGS (\\Seen)"], ["UID", " STORE 0 +FLAGS (\\Seen)"], ["UID", " STORE 99999999999 +FLAGS (\\Seen)"], ["UID", " MOVE 1:* \"Archive\""], ["UID", ' MOVE 1,2 "Archive"'], ["UID", ' MOVE 1 "a"b"'], ["UID", ' MOVE 1 "a\\b"'],
     ["UID", ' MOVE 1 ""'], ["UID", ' MOVE 1 "Archive"\r\na9 EXPUNGE'], ["SELECT", ' "a"b"'], ["SELECT", ' ""'], ["SELECT", ' "INBOX"\r\na9 EXPUNGE'], ["STORE", " 1 +FLAGS (\\Seen)"], ["MOVE", ' 1 "Archive"'], ["IDLE", ""], ["STARTTLS", ""]];
   for (const [v, a] of ruim) { assert.equal(comandoGestaoPermitido(v, a), false, "gerenciamento: " + v + a); assert.equal(comandoPermitido(v, a), false, "leitura: " + v + a); }
+  for (const a of [' COPY 1 "x"', " STORE 1 +FLAGS (\\Deleted)", " EXPUNGE 1"]) assert.equal(GESTAO.muta("UID", a), true, "altera a caixa: " + a);
+  assert.equal(GESTAO.muta("UID", ' SEARCH HEADER Message-ID "<a@x.com>"'), false, "a busca só lê");
   assert.deepEqual(GESTAO.muta("UID", " STORE 1 +FLAGS (\\Seen)"), true); assert.deepEqual(GESTAO.muta("UID", ' MOVE 1 "x"'), true); assert.deepEqual([GESTAO.muta("SELECT", ' "x"'), GESTAO.muta("UID", " FETCH 1 (UID FLAGS)")], [false, false]);
 
   // pela sessão de verdade: o que for barrado nem chega ao servidor
   const tentar = async (verbo, args, gestao) => { const s = servidorFalso({ pastas: LISTA, caixas: caixas() }); const r = await comSessao({ abrir: async () => s.socket, usuario: USUARIO, senha: SENHA, gestao }, (ctx) => executarComando(ctx, verbo, args, 1024).then(() => ({}))); return { r, cmds: s.log.map((l) => l.replace(/^a\d+ /, "")) }; };
-  for (const [v, a] of [["EXPUNGE", ""], ["UID", " EXPUNGE 1"], ["CLOSE", ""], ["UID", " STORE 1 +FLAGS (\\Deleted)"]]) {
+  for (const [v, a] of [["EXPUNGE", ""], ["UID", " EXPUNGE 1:*"], ["CLOSE", ""], ["UID", " STORE 1:* +FLAGS (\\Deleted)"]]) {
     const t = await tentar(v, a, GESTAO); assert.deepEqual([t.r.ok, t.r.erro], [false, "comando_nao_permitido"], v + a); assert.ok(!t.cmds.some((c) => /EXPUNGE|CLOSE|Deleted/.test(c)), "nada saiu: " + t.cmds.join("|"));
   }
   const sem = await tentar("SELECT", ' "INBOX"', null); assert.deepEqual([sem.r.ok, sem.r.erro], [false, "comando_nao_permitido"], "sessão de LEITURA não tem o gancho"); assert.ok(!sem.cmds.some((c) => c.startsWith("SELECT")));
-  assert.ok(["acao_recusada", "identidade_divergente", "acao_indisponivel", "pasta_somente_leitura", "acao_incerta", "confirmacao_ausente"].every((c) => ERROS_IMAP.includes(c)));
+  assert.ok(["acao_recusada", "identidade_divergente", "acao_indisponivel", "pasta_somente_leitura", "acao_incerta", "confirmacao_ausente", "acao_parcial"].every((c) => ERROS_IMAP.includes(c)));
 });
 
 test("as operações de LEITURA continuam só lendo: listar, ler e baixar nunca enviam SELECT, STORE ou MOVE (EXAMINE e BODY.PEEK), e a flag \\Seen não muda", async () => {
@@ -185,7 +187,78 @@ test("pela rota assinada: marcar lida e mover passam por assinatura, nonce (repl
   const s1 = servidorFalso({ pastas: LISTA, caixas: caixas() }), r1 = await tratar(await req(lida()), dep(s1)), t1 = await r1.text(), j1 = JSON.parse(t1);
   assert.deepEqual([r1.status, j1.ok, j1.operacao, j1.dados.resultado], [200, true, "marcar_lida", "aplicada"]); assert.ok(!t1.includes(SENHA) && !t1.includes(USUARIO));
   const rep = await req(lida(), "nonceFixo0000000001"); const d2 = dep(servidorFalso({ pastas: LISTA, caixas: caixas() })); assert.equal((await tratar(rep.clone(), d2)).status, 200); assert.equal((await tratar(rep.clone(), d2)).status, 409, "replay");
-  const cenarios = [[mover(), { capacidade: "IMAP4rev1" }, 422, "acao_indisponivel"], [mover(), { cortar: true }, 504, "acao_incerta"], [lida({ uidvalidity_esperado: 5 }), {}, 409, "uidvalidity_mudou"], [lida({ message_id_esperado: "<x@y.z>" }), {}, 409, "identidade_divergente"],
+  const cenarios = [[mover(), { capacidade: "IMAP4rev1", copiaRecusa: true }, 422, "acao_recusada"], [mover(), { capacidade: "IMAP4rev1", recusarMarca: true }, 409, "acao_parcial"], [mover(), { cortar: true }, 504, "acao_incerta"], [lida({ uidvalidity_esperado: 5 }), {}, 409, "uidvalidity_mudou"], [lida({ message_id_esperado: "<x@y.z>" }), {}, 409, "identidade_divergente"],
     [lida(), { recusar: true }, 422, "acao_recusada"], [lida({ uid: 77 }), {}, 404, "mensagem_inexistente"], [lida({ senha: "wxyz-wxyz-wxyz-wxyz" }), {}, 422, "autenticacao_recusada"]];
   for (const [c, op, status, erro] of cenarios) { const r = await tratar(await req(c), dep(servidorFalso({ pastas: LISTA, caixas: caixas(), ...op }))); const j = await r.json(); assert.deepEqual([r.status, j], [status, { ok: false, erro }], erro); }
+});
+
+
+/* ---------- 27/11/2026 · servidor SEM MOVE (iCloud real): COPY confirmada + \\Deleted + UID EXPUNGE só com UIDPLUS ---------- */
+const SEM_MOVE = "IMAP4rev1 UIDPLUS NAMESPACE", SEM_MOVE_SEM_UIDPLUS = "IMAP4rev1 NAMESPACE";
+const so = (cmds, re) => cmds.filter((c) => re.test(c));
+const nuncaGlobal = (cmds) => assert.ok(!cmds.some((c) => /^EXPUNGE|^CLOSE|^UNSELECT|^APPEND|^DELETE|UID EXPUNGE [^ ]*[:,*]/i.test(c)), "nunca EXPUNGE global nem conjunto: " + cmds.join(" | "));
+
+test("sem MOVE, COM UIDPLUS: busca a cópia, UID COPY de UM UID, confirma a cópia, marca \\Deleted e UID EXPUNGE só daquele UID; as outras mensagens ficam", async () => {
+  const { r, s, cx, cmds } = await rodar(mover(), { capacidade: SEM_MOVE });
+  assert.deepEqual([r.ok, r.dados.resultado, r.dados.limpeza, r.dados.copia], [true, "aplicada", "feita", "nova"]);
+  assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 3], "a original saiu da origem; as outras ficaram"); assert.deepEqual(cx.Archive.msgs.map((m) => m.uid), [20], "UMA cópia no destino");
+  assert.ok(cmds.includes('UID COPY 2 "Archive"') && cmds.includes("UID STORE 2 +FLAGS (\\Deleted)") && cmds.includes("UID EXPUNGE 2"));
+  assert.equal(so(cmds, /UID COPY/).length, 1); assert.equal(so(cmds, /EXPUNGE/).length, 1); nuncaGlobal(cmds); sempreNaLista(cmds); semSenhaFora(s);
+  const iCopy = cmds.findIndex((c) => c.startsWith("UID COPY")), iDel = cmds.findIndex((c) => c.includes("\\Deleted")), iExp = cmds.findIndex((c) => c.startsWith("UID EXPUNGE"));
+  assert.ok(iCopy < iDel && iDel < iExp, "ordem: copiar, marcar, expurgar"); assert.ok(cmds.slice(iCopy, iDel).some((c) => c.startsWith("UID SEARCH HEADER Message-ID")), "a cópia é CONFIRMADA por busca antes de marcar a original");
+});
+
+test("sem MOVE e SEM UIDPLUS (o pior caso): a cópia é feita, a original fica marcada \\Deleted e NENHUM expurgo é enviado; a original some da lista e da verificação", async () => {
+  const cx = caixas(), { r, cmds } = await rodar(mover(), { capacidade: SEM_MOVE_SEM_UIDPLUS }, { caixas: cx });
+  assert.deepEqual([r.ok, r.dados.resultado, r.dados.limpeza], [true, "aplicada", "indisponivel"]); assert.equal(r.dados.destino, undefined, "sem COPYUID não se inventa o UID novo");
+  assert.ok(!cmds.some((c) => /EXPUNGE/i.test(c)), "sem UIDPLUS não há expurgo nenhum");
+  assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 2, 3], "a original continua no servidor, marcada"); assert.ok(cx.INBOX.msgs.find((m) => m.uid === 2).flags.some((f) => /deleted/i.test(f))); assert.equal(cx.Archive.msgs.length, 1);
+  const v = await rodar(corpo("verificar_mensagem", { pasta: "INBOX", uid: 2, uidvalidity_esperado: 700 }), { capacidade: SEM_MOVE_SEM_UIDPLUS }, { caixas: cx }); assert.equal(v.r.dados.existe, false, "marcada \\Deleted = já saiu");
+  const l = await rodar(corpo("listar_mensagens", { pasta: "INBOX", ultimas: 10 }), {}, { caixas: cx }); assert.deepEqual(l.r.dados.mensagens.map((m) => m.uid), [3, 1], "a lista não mostra a marcada");
+});
+
+test("falha ENTRE a cópia e a marca: 'acao_parcial' (recusa) ou 'acao_incerta' (queda); repetir NÃO duplica a cópia e conclui", async () => {
+  for (const [opcao, erro] of [[{ recusarMarca: true }, "acao_parcial"], [{ cortarNaMarca: true }, "acao_incerta"]]) {
+    const cx = caixas(), a = await rodar(mover(), { capacidade: SEM_MOVE, ...opcao }, { caixas: cx });
+    assert.deepEqual([a.r.ok, a.r.erro], [false, erro], JSON.stringify(opcao)); assert.equal(cx.Archive.msgs.length, 1, "a cópia existe"); assert.ok(!cx.INBOX.msgs.find((m) => m.uid === 2).flags.some((f) => /deleted/i.test(f)), "a original NÃO foi marcada"); assert.ok(!a.cmds.some((c) => /EXPUNGE/.test(c)), "nada foi expurgado");
+    const b = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx });   // repetição (o servidor voltou ao normal)
+    assert.deepEqual([b.r.ok, b.r.dados.resultado, b.r.dados.copia], [true, "aplicada", "ja_existia"], "recupera sem copiar de novo"); assert.equal(so(b.cmds, /UID COPY/).length, 0);
+    assert.equal(cx.Archive.msgs.length, 1, "uma cópia só, mesmo depois de duas tentativas"); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 3]);
+  }
+});
+
+test("queda NO COPY (a cópia pode ter sido feita): resultado incerto, nenhuma marca é enviada; a repetição não duplica", async () => {
+  const cx = caixas(), a = await rodar(mover(), { capacidade: SEM_MOVE, cortarNaCopia: true }, { caixas: cx });
+  assert.deepEqual([a.r.ok, a.r.erro], [false, "acao_incerta"]); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c)), "sem confirmação da cópia, a original não é tocada"); assert.equal(cx.Archive.msgs.length, 1);
+  const b = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx }); assert.equal(b.r.ok, true); assert.equal(cx.Archive.msgs.length, 1, "continua uma cópia só"); assert.equal(so(b.cmds, /UID COPY/).length, 0);
+});
+
+test("repetição depois do sucesso: com UIDPLUS a original não existe mais ('mensagem_inexistente'); sem UIDPLUS a marcada é reconhecida e NADA é copiado nem marcado de novo", async () => {
+  let cx = caixas(); await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx });
+  let b = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx }); assert.deepEqual([b.r.ok, b.r.erro], [false, "mensagem_inexistente"]); assert.ok(!b.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c))); assert.equal(cx.Archive.msgs.length, 1);
+  cx = caixas(); await rodar(mover(), { capacidade: SEM_MOVE_SEM_UIDPLUS }, { caixas: cx });
+  b = await rodar(mover(), { capacidade: SEM_MOVE_SEM_UIDPLUS }, { caixas: cx }); assert.deepEqual([b.r.ok, b.r.dados.resultado], [true, "aplicada"]); assert.ok(!b.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "nada de novo foi enviado"); assert.equal(cx.Archive.msgs.length, 1);
+});
+
+test("COPY recusado: 'acao_recusada' e nada mais é enviado; COPY 'OK' sem a cópia aparecer: 'acao_incerta' e a original NÃO é marcada", async () => {
+  let cx = caixas(), a = await rodar(mover(), { capacidade: SEM_MOVE, copiaRecusa: true }, { caixas: cx });
+  assert.deepEqual([a.r.ok, a.r.erro], [false, "acao_recusada"]); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c))); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [1, 2, 3]); assert.equal(cx.Archive.msgs.length, 0);
+  cx = caixas(); a = await rodar(mover(), { capacidade: SEM_MOVE, copiaSumida: true }, { caixas: cx });
+  assert.deepEqual([a.r.ok, a.r.erro], [false, "acao_incerta"]); assert.ok(!a.cmds.some((c) => /Deleted|EXPUNGE/.test(c)), "sem a cópia confirmada a original fica intacta"); assert.ok(!cx.INBOX.msgs.some((m) => m.flags.some((f) => /deleted/i.test(f))));
+});
+
+test("identidade e destino valem também sem MOVE: UIDVALIDITY, UID, Message-ID diferentes, destino inválido, mensagem sem Message-ID = nada copiado nem marcado", async () => {
+  for (const [extra, erro] of [[{ uidvalidity_esperado: 1 }, "uidvalidity_mudou"], [{ uid: 99 }, "mensagem_inexistente"], [{ message_id_esperado: "<outra@exemplo.com>" }, "identidade_divergente"], [{ destino: "INBOX" }, "pasta_invalida"], [{ destino: "Pai" }, "pasta_invalida"], [{ destino: "Nao Existe" }, "pasta_inexistente"]]) {
+    const x = await rodar(mover(extra), { capacidade: SEM_MOVE }); assert.deepEqual([x.r.ok, x.r.erro], [false, erro], JSON.stringify(extra)); assert.ok(!x.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "nada foi alterado: " + JSON.stringify(extra));
+  }
+  const cx = caixas(); cx.INBOX.msgs[1].cab = cx.INBOX.msgs[1].cab.replace(/Message-ID: [^\r]*\r\n/, "");
+  const y = await rodar(mover(), { capacidade: SEM_MOVE }, { caixas: cx }); assert.deepEqual([y.r.ok, y.r.erro], [false, "acao_recusada"]); assert.ok(!y.cmds.some((c) => /^UID (COPY|STORE|EXPUNGE)/.test(c)), "sem Message-ID não há como evitar duplicata");
+});
+
+test("arquivar e excluir têm destinos DISTINTOS e nunca se misturam: Archive recebe só o arquivado, Deleted Messages só o excluído", async () => {
+  const cx = caixas();
+  const a = await rodar(mover({ destino: "Archive", uid: 1 }), { capacidade: SEM_MOVE }, { caixas: cx }), e = await rodar(mover({ destino: "Deleted Messages", uid: 2 }), { capacidade: SEM_MOVE }, { caixas: cx });
+  assert.deepEqual([a.r.ok, e.r.ok], [true, true]);
+  assert.deepEqual(cx.Archive.msgs.map((m) => m.cab.match(/Message-ID: <m(\d+)@/)[1]), ["1"], "no Archive só a 1"); assert.deepEqual(cx["Deleted Messages"].msgs.map((m) => m.cab.match(/Message-ID: <m(\d+)@/)[1]), ["2"], "na Lixeira só a 2");
+  assert.ok(!a.cmds.some((c) => c.includes("Deleted Messages")) && !e.cmds.some((c) => c.includes('"Archive"')), "cada comando mira só o seu destino"); assert.deepEqual(cx.INBOX.msgs.map((m) => m.uid), [3]);
 });

@@ -212,3 +212,12 @@ test("iCloud real (pastas de 27/11/2026): Archive e Junk, que chegam sem atribut
   assert.equal(completarUsos([{ nome: "Archive", nome_exibicao: "Archive", uso: "outra", selecionavel: false }])[0].uso, "outra");
   assert.equal(completarUsos([{ nome: "Label_123", nome_exibicao: "Archive", uso: "outra", selecionavel: true }])[0].uso, "outra");
 });
+
+test("27/11/2026 · iCloud sem MOVE: 'acao_parcial' do Worker vira código fechado 409 (cache intocado, sem verificação); sucesso com 'limpeza' e SEM novo UID é aceito e move o cache", async () => {
+  const w = workerFalso({ mover_mensagem: er("acao_parcial") }), a = ctx({ worker: w }); const r = await atender(PED("arquivar"), a.c);
+  assert.deepEqual([r.status, r.corpo], [ERROS.acao_parcial, { ok: false, erro: "acao_parcial" }]); assert.equal(ERROS.acao_parcial, 409); nadaGravado(a.banco); assert.equal(chamadasDe(w, "verificar_mensagem").length, 0); semSegredo(r, a.logs);
+  for (const limpeza of ["feita", "indisponivel", "pendente", "feita_pelo_servidor"]) {
+    const w2 = workerFalso({ mover_mensagem: ok({ resultado: "aplicada", limpeza, copia: "nova" }) }), b = ctx({ worker: w2 }); const r2 = await atender(PED("excluir"), b.c);
+    assert.deepEqual([r2.status, r2.corpo.ok, r2.corpo.resultado, r2.corpo.cache], [200, true, "aplicada", "atualizado"], limpeza); assert.equal(b.banco.aplicados.length, 1); assert.equal(b.banco.aplicados[0].destinoUid, undefined, "sem COPYUID não se inventa o UID novo");
+  }
+});

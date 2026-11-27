@@ -16,6 +16,8 @@ export const ERROS_IMAP = Object.freeze([
   "mime_invalido", "mime_limite_excedido", "codificacao_invalida", "codificacao_desconhecida", "parametro_invalido", "falha_inesperada",
   // I3.2 (gerenciamento, seção "I3.2 · GERENCIAMENTO" do imap.mjs): recusa definitiva do servidor, identidade da mensagem diferente, operação que o servidor não oferece, pasta só de leitura, resultado incerto
   "acao_recusada", "identidade_divergente", "acao_indisponivel", "pasta_somente_leitura", "acao_incerta", "confirmacao_ausente",
+  // 27/11/2026 (servidor sem MOVE): a cópia existe mas a original ainda não foi marcada como excluída; repetir é seguro (a cópia não se repete)
+  "acao_parcial",
 ]);
 
 const SEGURO_PARA_COMANDO = /^[^"\\\r\n\u0000]+$/;
@@ -264,7 +266,7 @@ export const OPERACOES = {
       if (uids.length) { const escolhidos = uids.slice(-limite); mais = uids.length > limite; resp = await buscar("UID", " FETCH " + escolhidos.join(",") + " (" + ITENS_LISTA + ")"); }
     }
     const mensagens = [];
-    for (const f of resp) { if (f.uid === null) { falhas.push(f.seq); continue; } mensagens.push(resumoMensagem(f)); }
+    for (const f of resp) { if (f.uid === null) { falhas.push(f.seq); continue; } if (f.flags.includes("\\deleted")) continue; mensagens.push(resumoMensagem(f)); }   // marcada \Deleted = já excluída (cópia + marca, servidor sem MOVE): não aparece na lista
     mensagens.sort((a, b) => b.uid - a.uid);   // mais nova primeiro
     return { exame: { uidvalidity: e.uidvalidity, uidnext: e.uidnext }, mensagens_na_pasta: e.existentes, mensagens, mais };
   },
@@ -334,7 +336,8 @@ export const OPERACOES = {
 //   SELECT "<pasta>"                          abre a pasta para ESCRITA (o EXAMINE dos demais arquivos é só leitura; o SELECT em si não muda flags nem mensagens);
 //   UID STORE <uid> +FLAGS (\Seen) | -FLAGS (\Seen)   marcar como lida / não lida: UMA flag, UMA mensagem, nada mais (nunca \Deleted);
 //   UID MOVE <uid> "<destino>"                mover UMA mensagem (RFC 6851; só se o servidor anunciar MOVE DEPOIS do login).
-// NUNCA existem aqui: EXPUNGE (global), UID EXPUNGE, CLOSE, COPY, STORE de \Deleted, APPEND, DELETE. Sem MOVE no servidor, mover/arquivar/excluir/spam NÃO são feitos (erro "acao_indisponivel"): não há alternativa destrutiva.
+//   SEM MOVE no servidor (iCloud, 27/11/2026): UID COPY <uid> "<destino>" (cópia CONFIRMADA por busca do Message-ID no destino), UID STORE <uid> +FLAGS (\Deleted) na original e, só com UIDPLUS, UID EXPUNGE <uid> (UM UID).
+// NUNCA existem aqui: EXPUNGE global (sem UID), UID EXPUNGE de conjunto, CLOSE, COPY de conjunto, \Deleted fora desse fluxo, APPEND, DELETE. Sem UIDPLUS a original fica só marcada (escondida da lista e da verificação); nunca se expurga a pasta.
 // Antes de qualquer alteração: UIDVALIDITY conferido na abertura e IDENTIDADE da mensagem conferida (UID existe; Message-ID e tamanho iguais aos do cache, quando informados).
 // Depois: a resposta ETIQUETADA do servidor é a confirmação (OK = feito; NO/BAD = recusado; nada ou resposta quebrada depois do envio = "acao_incerta", nunca "feito").
 // Nenhum comando livre do navegador chega aqui: o navegador pede uma ação; o Worker monta o comando a partir de UID/UIDVALIDITY numéricos e nomes de pasta que a LISTAGEM do servidor comprovou.
@@ -344,18 +347,27 @@ export const OPERACOES = {
 // QUEM é a mensagem: o UID existe nesta geração da pasta e (se o cache informou) Message-ID e tamanho conferem
 // flags atuais de UMA mensagem (só leitura); null = não existe mais nesta pasta
 const RE_STORE = /^ STORE ([1-9]\d{0,9}) ([+-])FLAGS \(\\Seen\)$/, RE_MOVE = /^ MOVE ([1-9]\d{0,9}) "(.*)"$/, RE_SELECT = /^ "(.*)"$/;
+// servidor SEM MOVE (iCloud): cópia de UM UID, \Deleted em UM UID, UID EXPUNGE de UM UID (só com UIDPLUS) e a busca da cópia pelo Message-ID. Nunca EXPUNGE global, nunca conjunto de UIDs.
+const RE_COPY = /^ COPY ([1-9]\d{0,9}) "(.*)"$/;
+const RE_STORE_DEL = /^ STORE ([1-9]\d{0,9}) \+FLAGS \(\\Deleted\)$/;
+const RE_EXPUNGE_UID = /^ EXPUNGE ([1-9]\d{0,9})$/;
+const RE_BUSCA_MID = /^ SEARCH HEADER Message-ID "(<[^<>"\\\s\u0000-\u001f\u007f-\uffff]{1,250}>)"$/;
 
 // comandos EXTRAS (além da lista de leitura do imap.mjs) que uma sessão de gerenciamento aceita; conferidos a cada envio, antes de escrever no socket
 export function comandoGestaoPermitido(verbo, args) {
   if (verbo === "SELECT") { const m = RE_SELECT.exec(args); return !!m && NOME_PASTA.test(m[1]); }
   if (verbo === "UID") {
     let m = RE_STORE.exec(args); if (m) return uidOk(Number(m[1]));
-    m = RE_MOVE.exec(args); return !!m && uidOk(Number(m[1])) && NOME_PASTA.test(m[2]);
+    m = RE_MOVE.exec(args); if (m) return uidOk(Number(m[1])) && NOME_PASTA.test(m[2]);
+    m = RE_COPY.exec(args); if (m) return uidOk(Number(m[1])) && NOME_PASTA.test(m[2]);
+    m = RE_STORE_DEL.exec(args); if (m) return uidOk(Number(m[1]));
+    m = RE_EXPUNGE_UID.exec(args); if (m) return uidOk(Number(m[1]));
+    return RE_BUSCA_MID.test(args);
   }
   return false;
 }
 // o gancho entregue à sessão: `permitido` (lista fechada) e `muta` (este comando altera a caixa: a partir dele, falha de transporte é INCERTA)
-export const GESTAO = Object.freeze({ permitido: comandoGestaoPermitido, muta: (verbo, args) => verbo === "UID" && /^ (?:STORE|MOVE) /.test(args) });
+export const GESTAO = Object.freeze({ permitido: comandoGestaoPermitido, muta: (verbo, args) => verbo === "UID" && /^ (?:STORE|MOVE|COPY|EXPUNGE) /.test(args) });
 
 // SELECT (escrita) com a mesma conferência de UIDVALIDITY do EXAMINE; recusa pasta só de leitura
 async function selecionar(ctx, pasta, uidvalidityEsperado) {
@@ -387,6 +399,58 @@ async function flagsDe(ctx, uid) {
 }
 const COPYUID = /\[COPYUID (\d{1,10}) (\d{1,10}) (\d{1,10})\]/i;
 
+// ---- servidor SEM MOVE (iCloud, 27/11/2026): mover = copiar, CONFIRMAR a cópia, marcar a original como \Deleted e, só se o servidor anunciar UIDPLUS, UID EXPUNGE daquele UID.
+// Nunca EXPUNGE global (sem UIDPLUS a original fica marcada, escondida da lista e da verificação, e a limpeza é do próprio iCloud). A cópia só se repete se NÃO existir no destino (busca por Message-ID),
+// então uma falha entre as etapas pode ser repetida sem duplicar: o que sobrou vira "acao_parcial" (cópia feita, original ainda não marcada).
+const RE_MID_BUSCA = /^<[^<>"\\\s\u0000-\u001f\u007f-\uffff]{1,250}>$/;
+async function achouCopia(ctx, destino, mid) {   // EXAMINE do destino e busca do Message-ID; devolve quantas mensagens do destino têm esse Message-ID
+  const ab = await executarComando(ctx, "EXAMINE", ' "' + conferirPasta(destino) + '"', 1024);
+  if (ab.status !== "OK") throw new ErroImap("examine_recusado");
+  const b = await executarComando(ctx, "UID", ' SEARCH HEADER Message-ID "' + mid + '"', 1024);
+  if (b.status !== "OK") throw new ErroImap("busca_falhou");
+  return b.soltas.flatMap((x) => (/^\* SEARCH((?: \d{1,10})*)$/i.exec(x.texto) || [, ""])[1].split(" ").filter(Boolean)).length;
+}
+async function copiarEExcluir(ctx, p) {
+  await selecionar(ctx, p.pasta, p.uidvalidity_esperado);
+  const f = await conferirIdentidade(ctx, p);
+  const mid = lerCabecalhos(f.cabecalho)["message-id"];
+  if (typeof mid !== "string" || !RE_MID_BUSCA.test(mid.trim())) throw new ErroImap("acao_recusada");   // sem Message-ID confiável não há como evitar duplicata: nada é copiado
+  const id = mid.trim();
+  if (f.flags.includes("\\deleted") && (await achouCopia(ctx, p.destino, id)) > 0) return { resultado: "aplicada", limpeza: "feita_pelo_servidor" };   // já copiada e marcada numa tentativa anterior
+  let existe = await achouCopia(ctx, p.destino, id);
+  let copiada = false;
+  if (existe === 0) {
+    await selecionar(ctx, p.pasta, p.uidvalidity_esperado);   // a busca abriu o destino: volta à origem (mesma conferência de UIDVALIDITY)
+    const c = await executarComando(ctx, "UID", " COPY " + p.uid + ' "' + p.destino + '"', ctx.politica.imap.maxLiteralCabecalho);
+    if (c.status !== "OK") throw new ErroImap("acao_recusada");   // NO/BAD etiquetado: nada foi copiado
+    copiada = true;
+    existe = await achouCopia(ctx, p.destino, id);   // confirmação INDEPENDENTE da cópia
+    if (existe === 0) throw new ErroImap("acao_incerta");   // o servidor disse OK e a cópia não aparece: não se apaga a original
+  }
+  try {
+    await selecionar(ctx, p.pasta, p.uidvalidity_esperado);
+    await conferirIdentidade(ctx, p);
+    const m = await executarComando(ctx, "UID", " STORE " + p.uid + " +FLAGS (\\Deleted)", ctx.politica.imap.maxLiteralCabecalho);
+    if (m.status !== "OK") throw new ErroImap("acao_recusada");
+    const g = lerFetch(m.soltas, ctx.politica.imap.maxItensSexp).find((x) => x.uid === p.uid);
+    let flags = g && g.flagsInformadas ? g.flags : null;
+    if (flags === null) flags = await flagsDe(ctx, p.uid);
+    if (flags === null || !flags.includes("\\deleted")) throw new ErroImap("confirmacao_ausente");
+  } catch (e) {
+    // a cópia existe (feita agora ou antes) e a original NÃO foi marcada: parcial e recuperável; incerteza de transporte continua incerteza
+    if (e instanceof ErroImap && ["acao_recusada", "confirmacao_ausente", "mensagem_inexistente", "identidade_divergente", "uidvalidity_mudou", "pasta_somente_leitura"].includes(e.codigo)) throw new ErroImap("acao_parcial");
+    throw e;
+  }
+  let limpeza = "pendente";
+  if (ctx.capDepois.includes("UIDPLUS")) {
+    try {
+      const x = await executarComando(ctx, "UID", " EXPUNGE " + p.uid, ctx.politica.imap.maxLiteralCabecalho);
+      if (x.status === "OK") { let resta = null; try { resta = await flagsDe(ctx, p.uid); } catch (_) { resta = null; } limpeza = resta === null ? "feita" : "pendente"; }
+    } catch (_) { limpeza = "pendente"; }   // a original segue marcada \Deleted (escondida): a operação em si está feita
+  } else limpeza = "indisponivel";   // sem UIDPLUS não há expurgo que alcance só esta mensagem: fica marcada
+  return { resultado: "aplicada", limpeza, copia: copiada ? "nova" : "ja_existia" };
+}
+
 export const OPERACOES_GESTAO = {
   // p: { pasta, uid, uidvalidity_esperado, lida, message_id_esperado?, tamanho_esperado? }
   async marcar_lida(ctx, p) {
@@ -409,12 +473,14 @@ export const OPERACOES_GESTAO = {
     if (!uidOk(p.uid) || !uidOk(p.uidvalidity_esperado) || typeof p.destino !== "string") throw new ErroImap("parametro_invalido");
     conferirPasta(p.pasta); conferirPasta(p.destino);
     if (p.destino === p.pasta) throw new ErroImap("pasta_invalida");
-    if (!Array.isArray(ctx.capDepois) || !ctx.capDepois.includes("MOVE")) throw new ErroImap("acao_indisponivel");   // sem MOVE (RFC 6851) não há forma segura sem expurgo global: não se faz
+    if (!Array.isArray(ctx.capDepois)) throw new ErroImap("acao_indisponivel");   // sem saber o que o servidor anuncia depois do login, nada se altera
+    const semMove = !ctx.capDepois.includes("MOVE");   // sem MOVE (RFC 6851) vale o caminho COPY confirmada + \Deleted + UID EXPUNGE só com UIDPLUS (copiarEExcluir); nunca o EXPUNGE global
     const { pastas } = await OPERACOES.listar_pastas(ctx);
     const origem = pastas.find((x) => x.nome === p.pasta), destino = pastas.find((x) => x.nome === p.destino);
     if (!origem) throw new ErroImap("pasta_inexistente");
     if (!destino) throw new ErroImap("pasta_inexistente");
     if (!destino.selecionavel || !origem.selecionavel) throw new ErroImap("pasta_invalida");
+    if (semMove) return copiarEExcluir(ctx, p);
     await selecionar(ctx, p.pasta, p.uidvalidity_esperado);
     await conferirIdentidade(ctx, p);
     const r = await executarComando(ctx, "UID", " MOVE " + p.uid + ' "' + p.destino + '"', ctx.politica.imap.maxLiteralCabecalho);
@@ -435,7 +501,7 @@ export const OPERACOES_GESTAO = {
     if (!uidOk(p.uid) || !uidOk(p.uidvalidity_esperado)) throw new ErroImap("parametro_invalido");
     await examinar(ctx, p.pasta, p.uidvalidity_esperado);
     const flags = await flagsDe(ctx, p.uid);
-    return flags === null ? { existe: false } : { existe: true, lida: flags.includes("\\seen") };
+    return flags === null || flags.includes("\\deleted") ? { existe: false } : { existe: true, lida: flags.includes("\\seen") };   // marcada \Deleted = já saiu (cópia + exclusão lógica)
   },
 
   // o que o servidor anuncia ANTES e DEPOIS do login (a decisão de mover usa o de DEPOIS). Só leitura.

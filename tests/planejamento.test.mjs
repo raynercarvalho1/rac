@@ -9,7 +9,10 @@ import fs from "node:fs";
 const raiz = new URL("../", import.meta.url);
 const pasta = new URL("docs/planejamento/", raiz);
 const ESPERADOS = ["01-visao-e-mapa-mestre.md", "02-auditoria-arquitetural.md", "03-design-system.md", "04-rac-intelligence.md",
-  "05-integracoes-e-automacoes.md", "06-roadmap.md", "07-decisoes-e-pendencias.md", "08-frentes-funcionais.md", "historico-diario.md"];
+  "05-integracoes-e-automacoes.md", "06-roadmap.md", "07-decisoes-e-pendencias.md", "08-frentes-funcionais.md", "historico-diario.md",
+  /* Novo RAC (Lote 0, 27/11/2026) */
+  "12-diagnostico-do-rac-atual.md", "13-visao-e-arquitetura-do-novo-rac.md", "14-arquitetura-do-workspace.md", "15-arquitetura-de-integracao.md",
+  "16-arquitetura-de-identidade-e-compartilhamento.md", "17-arquitetura-de-inteligencia.md", "18-roadmap-tecnico.md", "19-registro-de-decisoes.md"];
 const docs = fs.readdirSync(pasta).filter((f) => f.endsWith(".md")).sort();
 const ler = (nome) => fs.readFileSync(new URL(nome, pasta), "utf8");
 
@@ -35,7 +38,7 @@ function ancorasDe(texto) {
   return out;
 }
 
-test("planejamento: os nove documentos existem", () => {
+test("planejamento: os documentos esperados existem", () => {
   for (const f of ESPERADOS) assert.ok(docs.includes(f), `falta docs/planejamento/${f}`);
 });
 

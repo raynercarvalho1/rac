@@ -1974,3 +1974,21 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Frente do Monitor M3 e M4 encerrada. O `noticias.yml` do GitHub segue sem rodar (causa não registrada); o vigia mantém os incidentes abertos e fecha sozinho quando os robôs voltarem (rodar o workflow à mão em Actions é o caminho mais rápido de ver a recuperação). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.
+
+## 27/11/2026 · RAC Inbox: auditoria, validação funcional do dono e investigação do iCloud
+
+### 1. O que fizemos
+- **Auditoria (somente leitura):** `main` em `ebf7763` (só dados dos robôs; último código `7377e09`, PR #110); site `2026-11-26.2` conferido no domínio; Testes da `main` e Pages com sucesso; PRs abertos só #15 e #17 (antigos). Banco conferido: migrations 051 a 056 e 063 aplicadas (055 também: job `inbox-sync` ativo), `rac-inbox` v20 ativa, 4 contas sincronizando a cada 10 min sem falhas, Vault coerente, 289 mensagens em cache.
+- **Incidentes do Monitor:** Newsletter e Notícias de 26/11 fechados como "recuperou" com a prova das execuções do GitHub; novo incidente `noticias` aberto às 10:00 UTC de 27/11 (JSON de notícias com 9 h; o GitHub não rodou a coleta completa nas rodadas de 03:15, 06:15 e 09:15 UTC). Não foi fechado à mão: fecha sozinho na próxima coleta completa.
+- **Validação funcional do dono (manual, contas reais):** Gmail e Outlook OK em enviar, responder a todos, encaminhar, excluir e arquivar; iCloud OK em enviar, responder a todos e encaminhar; iCloud falha em excluir e arquivar.
+- **Causa das falhas do iCloud (confirmada):** o iCloud não anuncia MOVE depois do login (`acao_indisponivel` 422 no registro da função; único ponto de origem no Worker) e a pasta `Archive` vem sem atributo especial (`uso='outra'` em produção; daria `destino_ausente`). Excluir e arquivar não estavam confundidos: usam o mesmo `mover_mensagem`, com destinos diferentes.
+- **Código (`rac-inbox@i4.4`, NÃO publicado):** `sync.ts` (`completarUsos`, classificação fechada por nome de Archive, Junk e Deleted Messages) e `organizar.ts` (diagnóstico de UIDPLUS no registro). Testes: `tests/inbox_organizar_servico.test.mjs` (16 de 16, 3 novos) e os 6 arquivos de teste do Inbox que conferem o carimbo, todos verdes.
+- **Documentação (lote A):** `docs/inbox.md` (estado atual e seção nova), `docs/planejamento/06-roadmap.md`, `10-rac-inbox.md`, `07-decisoes-e-pendencias.md`, `docs/mapa.md` (054, 055, 056 e 063 aplicadas, conferido em `list_migrations`). Os cabeçalhos dos arquivos `.sql` 054, 056 e 063 ainda dizem "pendente": não foram alterados porque `tests/banco.test.mjs` depende deles. RAC Knowledge: 1 estado, 1 erro e 1 procedimento novos.
+- **Lote C (auditoria, sem migração):** o Gmail direto no navegador (`gmApi`, escopo `gmail.readonly`, token de 1 h no aparelho) ainda é usado em três lugares: alertas de vagas (`js/app.js:734`), Carreira (`js/carreira.js:78`) e o bloco Gmail da Central Fiscal em Compras (`js/compras.js`, `ccGmailBloco`). Todos só leem.
+
+### 2. O que estamos fazendo
+- Aguardando a decisão do dono sobre o caminho do iCloud sem MOVE (`07-decisoes-e-pendencias.md`, 27/11/2026). A função `i4.4` não foi publicada (deploy de 14 arquivos pelo Supabase MCP); o iCloud continua sem excluir e arquivar em produção.
+
+### 3. O que vamos fazer
+- Publicar a função `i4.4` e pedir ao dono uma tentativa de excluir no iCloud para ler `sem_move_com_uidplus` ou `sem_move_sem_uidplus` no registro; só então decidir o Worker (COPY + UID EXPUNGE com UIDPLUS) ou manter as duas ações indisponíveis.
+- Lote C: planejar a troca do `gmApi` por leitura no servidor (cache de cabeçalhos do Inbox para vagas e Carreira; leitura de mensagem e anexo pela função para as notas fiscais), preservando o comportamento atual e removendo `gmToken`/`gmApi`/`gmConectar` só depois da equivalência provada.

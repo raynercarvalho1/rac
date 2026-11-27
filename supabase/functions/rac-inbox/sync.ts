@@ -81,7 +81,20 @@ export function filtrarPastas(v: unknown): PastaWorker[] | null {
     if (!o || !nome || exib === null || typeof o.selecionavel !== "boolean") return null;
     r.push({ nome, nome_exibicao: exib, uso: usoDoBanco(o.uso), selecionavel: o.selecionavel });
   }
-  return r;
+  return completarUsos(r);
+}
+// O iCloud só marca com atributo especial algumas pastas (Entrada, Enviados, Lixeira); Archive e Junk chegam como "outra" (conferido em produção em 27/11/2026) e arquivar/spam falhavam com "destino_ausente".
+// Fallback FECHADO por nome, só para o uso que a lista não trouxe e só em pasta selecionável; o atributo do servidor sempre vence. Dois nomes iguais em maiúsculas/minúsculas ou duas candidatas: vale a primeira da lista de preferência.
+const NOMES_POR_USO: Record<string, string[]> = { arquivo: ["archive", "archives", "arquivo"], spam: ["junk", "junk e-mail", "junk email", "spam"], lixo: ["deleted messages", "trash"] };
+export function completarUsos(pastas: PastaWorker[]): PastaWorker[] {
+  for (const uso of Object.keys(NOMES_POR_USO)) {
+    if (pastas.some((p) => p.uso === uso)) continue;
+    for (const nome of NOMES_POR_USO[uso]) {
+      const c = pastas.find((p) => p.uso === "outra" && p.selecionavel && p.nome.toLowerCase() === nome);
+      if (c) { c.uso = uso; break; }
+    }
+  }
+  return pastas;
 }
 const RE_BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 export function filtrarLeitura(dados: Record<string, unknown>): Record<string, unknown> | null {

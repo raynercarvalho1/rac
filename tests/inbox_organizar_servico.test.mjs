@@ -40,7 +40,7 @@ const nadaGravado = (banco) => assert.equal(banco.aplicados.length, 0, "o cache 
 
 /* ---------- contrato ---------- */
 test("validarPedido: esquema fechado; só as sete ações; destino só em 'mover' e só como UUID; nenhum nome de pasta nem comando vem do navegador", () => {
-  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.3"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
+  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.4"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
   for (const a of ACOES_ORGANIZAR) { const v = validarPedido(a === "mover" ? PED(a, { destino_pasta_id: ARQ }) : PED(a)); assert.equal(v.ok, true, a); assert.deepEqual(Object.keys(v.pedido).sort(), (a === "mover" ? ["acao", "conta_id", "destino_pasta_id", "operacao", "pasta_id", "uid"] : ["acao", "conta_id", "operacao", "pasta_id", "uid"]), a); }
   const ruim = [[PED("apagar_tudo"), "acao_invalida"], [PED("expunge"), "acao_invalida"], [PED(undefined), "acao_invalida"], [PED("mover"), "destino_invalido"], [PED("mover", { destino_pasta_id: "Archive" }), "destino_invalido"], [PED("arquivar", { destino_pasta_id: ARQ }), "campos_inesperados"],
     [PED("excluir", { destino_pasta_id: LIX }), "campos_inesperados"], [PED("marcar_lida", { uid: 0 }), "id_invalido"], [PED("marcar_lida", { uid: "7" }), "id_invalido"], [PED("marcar_lida", { uid: 4294967296 }), "id_invalido"], [PED("marcar_lida", { pasta_id: "INBOX" }), "id_invalido"],
@@ -181,4 +181,34 @@ test("identidade: sem Message-ID válido no cache só o tamanho confere; Message
     const w = workerFalso({ marcar_lida: ok({ resultado: "aplicada", lida: true }) }), a = ctx({ worker: w, banco: bancoFalso({ ref }) }); await atender(PED("marcar_lida"), a.c);
     assert.deepEqual(Object.keys(w.chamadas[0][1]).filter((k) => k.endsWith("_esperado") && k !== "uidvalidity_esperado").sort(), chaves.sort(), JSON.stringify(ref));
   }
+});
+
+/* ---------- 27/11/2026 · iCloud real: sem MOVE (log acao_indisponivel) e pastas Archive/Junk sem atributo especial ---------- */
+test("sem MOVE: a resposta ao usuário continua 'acao_indisponivel' e o registro ganha um código FECHADO dizendo se há UIDPLUS (pergunta só de leitura; nada muda)", async () => {
+  for (const [caps, esperado] of [[ok({ uidplus: true, mover: false }), "sem_move_com_uidplus"], [ok({ uidplus: false, mover: false }), "sem_move_sem_uidplus"], [er("falha_inesperada"), "acao_indisponivel"], [new Error("canal_falhou"), "acao_indisponivel"]]) {
+    const w = workerFalso({ mover_mensagem: er("acao_indisponivel"), capacidades: caps }), a = ctx({ worker: w }); const r = await atender(PED("excluir"), a.c);
+    assert.deepEqual([r.status, r.corpo], [ERROS.acao_indisponivel, { ok: false, erro: "acao_indisponivel" }]);
+    assert.equal(a.logs[a.logs.length - 1].detalhe, esperado, "detalhe do registro"); nadaGravado(a.banco); semSegredo(r, a.logs);
+    assert.deepEqual(chamadasDe(w, "capacidades").map((c) => Object.keys(c[1])), [["conta_id"]]);   // só leitura, só a conta
+    assert.equal(chamadasDe(w, "verificar_mensagem").length, 0); assert.equal(chamadasDe(w, "mover_mensagem").length, 1, "o MOVE não é repetido");
+  }
+});
+
+test("o diagnóstico de capacidades só roda no 'acao_indisponivel' (nenhum outro erro faz a pergunta extra)", async () => {
+  for (const e of ["acao_recusada", "uidvalidity_mudou", "mensagem_inexistente"]) { const w = workerFalso({ mover_mensagem: er(e), capacidades: ok({ uidplus: true }) }); await atender(PED("arquivar"), ctx({ worker: w }).c); assert.equal(chamadasDe(w, "capacidades").length, 0, e); }
+});
+
+import { completarUsos, filtrarPastas } from "../supabase/functions/rac-inbox/sync.ts";
+test("iCloud real (pastas de 27/11/2026): Archive e Junk, que chegam sem atributo especial, viram arquivo e spam; o atributo do servidor sempre vence", () => {
+  const brutas = [["INBOX", "entrada"], ["Sent Messages", "enviados"], ["Deleted Messages", "lixeira"], ["Archive", "outra"], ["Drafts", "outra"], ["Itens Exclu&AO0-dos", "outra"], ["Junk", "outra"], ["Lixo Eletr&APQ-nico", "outra"], ["Notes", "outra"], ["Sent Items", "outra"]]
+    .map(([nome, uso]) => ({ nome, nome_exibicao: nome, uso, selecionavel: true }));
+  const r = Object.fromEntries(filtrarPastas(brutas).map((p) => [p.nome, p.uso]));
+  assert.deepEqual([r["Archive"], r["Junk"], r["Deleted Messages"], r["INBOX"]], ["arquivo", "spam", "lixo", "entrada"]);
+  assert.deepEqual(["Drafts", "Notes", "Sent Items", "Itens Exclu&AO0-dos", "Lixo Eletr&APQ-nico"].map((n) => r[n]), ["outra", "outra", "outra", "outra", "outra"], "nada além dos nomes fechados muda");
+  // o servidor já informou o uso: o nome não decide
+  const p2 = filtrarPastas([{ nome: "Arquivo Morto", nome_exibicao: "x", uso: "arquivo", selecionavel: true }, { nome: "Archive", nome_exibicao: "Archive", uso: "outra", selecionavel: true }]);
+  assert.deepEqual(p2.map((p) => p.uso), ["arquivo", "outra"]);
+  // pasta não selecionável nunca é destino; Gmail/Outlook (nome = ID) não casam com os nomes fechados
+  assert.equal(completarUsos([{ nome: "Archive", nome_exibicao: "Archive", uso: "outra", selecionavel: false }])[0].uso, "outra");
+  assert.equal(completarUsos([{ nome: "Label_123", nome_exibicao: "Archive", uso: "outra", selecionavel: true }])[0].uso, "outra");
 });

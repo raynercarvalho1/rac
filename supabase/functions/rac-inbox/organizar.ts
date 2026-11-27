@@ -28,6 +28,15 @@ const FALHA_CONFIRMADA: Record<string, string> = {
   acao_indisponivel: "acao_indisponivel", acao_recusada: "acao_recusada", pasta_somente_leitura: "pasta_somente_leitura", parametro_invalido: "acao_recusada",
 };
 const detalheDe = (e: unknown): string => { const m = e instanceof Error ? e.message : ""; return /^(canal_falhou|resposta_invalida|resposta_grande_demais|http_\d{3})$/.test(m) ? m : "servico_indisponivel"; };
+// O servidor não oferece MOVE: pergunta (SÓ LEITURA, a operação "capacidades" do Worker) se ao menos anuncia UIDPLUS. A resposta vira um código FECHADO para o registro da função; qualquer falha da pergunta mantém o código simples.
+// Serve para decidir, com evidência real, se existe um caminho seguro além do MOVE. Nada é alterado e a pergunta não muda a resposta ao usuário.
+async function detalheSemMove(worker: Worker, conta: string, credencial: { usuario: string; senha: string }): Promise<string> {
+  try {
+    const c = await worker.executar("capacidades", { conta_id: conta }, credencial);
+    if (c.ok && typeof c.dados.uidplus === "boolean") return c.dados.uidplus ? "sem_move_com_uidplus" : "sem_move_sem_uidplus";
+  } catch (_) { /* a pergunta é só diagnóstico */ }
+  return "acao_indisponivel";
+}
 const USO_DESTINO: Partial<Record<AcaoOrganizar, string>> = { arquivar: "arquivo", excluir: "lixo", spam: "spam", nao_spam: "entrada" };
 
 export async function organizarPuro(a: EntradaOrganizar): Promise<ResultadoOrganizar> {
@@ -89,6 +98,7 @@ export async function organizarPuro(a: EntradaOrganizar): Promise<ResultadoOrgan
     } else {
       if (AUTENTICACAO_RECUSADA.includes(r.erro)) { await a.credencialRecusada(); return falha("credencial_invalida"); }
       if (CANAL_RECUSADO.includes(r.erro)) return falha("canal_recusado", r.erro);   // a assinatura foi recusada: o Worker não executou
+      if (r.erro === "acao_indisponivel") return falha("acao_indisponivel", await detalheSemMove(worker, conta, credencial));   // diagnóstico: o iCloud tem UIDPLUS? (só leitura; vai ao registro como código fechado)
       if (FALHA_CONFIRMADA[r.erro]) return falha(FALHA_CONFIRMADA[r.erro], r.erro);
       // incerto: acao_incerta, confirmacao_ausente, falha do canal, erro interno ou código desconhecido → o estado REAL é consultado, nunca repetido
     }

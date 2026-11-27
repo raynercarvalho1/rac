@@ -3,7 +3,7 @@
 // Toda falha vira um CÓDIGO FECHADO de ERROS: nunca texto do banco, do Worker ou do provedor (e nunca o valor recebido).
 
 export const OPERACOES_CREDENCIAL = ["credencial_guardar", "credencial_remover", "credencial_estado"] as const;
-export const VERSAO_FUNCAO = "rac-inbox@i4.3";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
+export const VERSAO_FUNCAO = "rac-inbox@i4.4";   // carimbo do código publicado (vem na resposta de testar_canal); mudar a cada alteração publicável
 export const OPERACOES_OAUTH = ["oauth_iniciar", "oauth_concluir"] as const;   // I4: conexão OAuth do Gmail/Outlook (oauth.ts); o token vai ao Vault, nunca ao navegador
 export const OAUTH_CORPO_MAX = 6144;   // o código do provedor pode ter mais de 2 KiB (Microsoft)
 export const OPERACOES_SAIDA = ["smtp_prova", "enviar_mensagem"] as const;   // SMTP (I3): as ÚNICAS operações que escrevem no mundo; só o dono, só com a ação explícita do navegador

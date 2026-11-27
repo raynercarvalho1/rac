@@ -860,7 +860,10 @@
     {t:"inbox_sincronizacao",pk:["id"],dono:"dono",fk:{conta_id:"inbox_contas",pasta_id:"inbox_pastas"},so:"exportar",dep:"051"},
     {t:"inbox_mensagens_ref",pk:["id"],dono:"dono",fk:{conta_id:"inbox_contas",pasta_id:"inbox_pastas"},opc:{pasta_id:1},so:"exportar",dep:"051"},
     /* RAC Knowledge (062): memória técnica do projeto; só exporta (o histórico e a importação do repositório já guardam o que importa, e restaurar apagaria versões). */
-    {t:"conhecimento",pk:["id"],dono:"dono",so:"exportar",dep:"062"},{t:"conhecimento_historico",pk:["id"],dono:"dono",so:"exportar",dep:"062"}];
+    {t:"conhecimento",pk:["id"],dono:"dono",so:"exportar",dep:"062"},{t:"conhecimento_historico",pk:["id"],dono:"dono",so:"exportar",dep:"062"},
+    /* Novo RAC, Lote 1 (070): espaços, participações e Workspace (layouts e preferências); só exportam: espaços e permissões se refazem pelas funções rac_* e restaurar apagaria o histórico de acesso. O histórico de versões fica de fora. */
+    {t:"espacos",pk:["id"],dono:"dono",so:"exportar",dep:"070"},{t:"espaco_membros",pk:["espaco_id","user_id"],dono:"user_id",fk:{espaco_id:"espacos"},so:"exportar",dep:"070"},
+    {t:"workspace_paginas",pk:["id"],dono:"criado_por",fk:{espaco_id:"espacos"},so:"exportar",dep:"070"},{t:"workspace_pessoal",pk:["pagina_id"],fk:{pagina_id:"workspace_paginas"},so:"exportar",dep:"070"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
   var SEG_SEGREDO=/senha|password|passwd|token|secret|segredo|api_?key|apikey|chave_?api|private_?key|access_?key|p256dh|vapid/i;
@@ -4708,7 +4711,228 @@
     function sec(tipo,tit,n){var l=at.filter(function(x){return x.tipo===tipo}).sort(function(a,b){return String(b.atualizado_em||b.data_ref||"").localeCompare(String(a.atualizado_em||a.data_ref||""))});if(n)l=l.slice(0,n);
       return l.length?"## "+tit+"\n"+l.map(function(x){return "- "+x.titulo+(x.conteudo?": "+String(x.conteudo).replace(/\s+/g," ").slice(0,220):"")}).join("\n"):""}
     return ["# RAC Knowledge · resumo",sec("regra","Regras permanentes"),sec("estado","Estado do projeto"),sec("decisao","Decisões recentes",max),sec("erro","Erros e como evitar",max)].filter(Boolean).join("\n\n")+"\n"}
-  raiz.RACnucleo={KN_TIPOS:KN_TIPOS,KN_ESTADOS:KN_ESTADOS,KN_SECOES:KN_SECOES,knSegredo:knSegredo,knTipo:knTipo,knEstado:knEstado,knTags:knTags,knSlug:knSlug,knValidar:knValidar,knLerArquivo:knLerArquivo,knParaArquivo:knParaArquivo,knDoBanco:knDoBanco,knBusca:knBusca,knFacetas:knFacetas,knPlano:knPlano,knLinha:knLinha,knResumoAgente:knResumoAgente,inbCartao:inbCartao,inbAcoesConta:inbAcoesConta,inbEstadoConta:inbEstadoConta,inbUltimaSync:inbUltimaSync,INB_ACOES:INB_ACOES,inbRespostaOrganizacao:inbRespostaOrganizacao,inbFraseOrganizacao:inbFraseOrganizacao,inbDestinosMover:inbDestinosMover,inbAcoesDisponiveis:inbAcoesDisponiveis,inbEnderecosDe:inbEnderecosDe,inbPrefixoAssunto:inbPrefixoAssunto,inbRotuloEnd:inbRotuloEnd,inbCitar:inbCitar,inbMontarRascunho:inbMontarRascunho,inbValidarRascunho:inbValidarRascunho,inbClasseEnvio:inbClasseEnvio,inbRespostaEnvio:inbRespostaEnvio,inbRespostaProva:inbRespostaProva,INB_MODOS_ENVIO:INB_MODOS_ENVIO,INB_LIM_ENVIO:INB_LIM_ENVIO,INB_ETAPAS_PROVA:INB_ETAPAS_PROVA,inbFraseSync:inbFraseSync,inbRespostaCanal:inbRespostaCanal,inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,inbProvedorEscreve:inbProvedorEscreve,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbContadorBarra:inbContadorBarra,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
+  /* ===== Workspace (Lote 1 do novo RAC; docs/planejamento/14-arquitetura-do-workspace.md): o motor PURO de páginas, seções e widgets. Sem tela e sem banco: tudo recebe e devolve dados (o layout é um
+     documento JSON; cada operação devolve um documento NOVO, o de entrada nunca é alterado). A tela (js/workspace.js) só chama estas funções e grava o resultado; o banco confere o mesmo formato
+     (public.ws_layout_valido, supabase/070_espacos_e_workspace.sql) e tests/workspace_nucleo.test.mjs compara as duas validações caso a caso.
+     Documento: { schema:1, secoes:[ { id, titulo, recolhida, itens:[ { id "w_…", tipo "dominio.nome", v, col 1..12, lin 0..12, estado ativo|oculto|desativado, config:{}, mobile? } ] } ] }
+     Ocultar, remover da página, desativar e excluir o dado são coisas DIFERENTES (docs/planejamento/14, seção 6): aqui só existem as três primeiras, e nenhuma toca em dado de negócio. ===== */
+  var WS_SCHEMA=1,WS_COLUNAS=12,WS_MAX_SECOES=12,WS_MAX_ITENS=60,WS_MAX_LAYOUT=60000,WS_MAX_CONFIG=3000,WS_MAX_TITULO=60,WS_MAX_PAGINAS=30,
+      WS_ESTADOS=["ativo","oculto","desativado"],WS_PAPEIS=["proprietario","administrador","editor","leitor"],WS_AMBIENTES=["casa","biblioteca","projetos","descobrir","vida"],
+      WS_PERIODOS=["hoje","7d","30d","mes","12m"],WS_CAMPOS=["periodo","selecao","numero","texto-curto","booleano"],WS_RE_ID=/^w_[a-z0-9]{6,32}$/,WS_RE_SECAO=/^[a-z0-9_-]{1,40}$/,WS_RE_TIPO=/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+  function wsInt(x,a,b){return typeof x==="number"&&isFinite(x)&&Math.floor(x)===x&&x>=a&&x<=b}
+  function wsObj(x){return x!==null&&typeof x==="object"&&!Array.isArray(x)}
+  function wsClonar(x){return x===undefined?x:JSON.parse(JSON.stringify(x))}
+  /* ids: "w_" + letras minúsculas e números; rnd (opcional) devolve um número em [0,1) para o teste ser repetível */
+  function wsNovoId(rnd,prefixo){rnd=rnd||Math.random;var s="",c="abcdefghijklmnopqrstuvwxyz0123456789",i;for(i=0;i<10;i++)s+=c.charAt(Math.floor(rnd()*c.length));return (prefixo||"w_")+s}
+  function wsVazio(){return {schema:WS_SCHEMA,secoes:[{id:"principal",titulo:"",itens:[]}]}}
+  /* a mesma conferência do banco (e as mesmas mensagens para a tela): {ok, erros:[texto]}. O limite de tamanho da configuração é um pouco menor que o do banco (3000 × 4096 bytes do jsonb) de propósito: o que passa aqui sempre passa lá. */
+  function wsValidar(l){
+    var erros=[],ids={},sids={},n=0;
+    function er(m){erros.push(m);return false}
+    if(!wsObj(l))return {ok:false,erros:["o layout não é um documento"]};
+    if(JSON.stringify(l).length>WS_MAX_LAYOUT)er("o layout passou do tamanho máximo");
+    if(!wsInt(l.schema,1,1000))er("schema inválido");
+    if(!Array.isArray(l.secoes))return {ok:false,erros:erros.concat(["secoes não é uma lista"])};
+    if(l.secoes.length>WS_MAX_SECOES)er("mais de "+WS_MAX_SECOES+" seções");
+    l.secoes.forEach(function(s,i){
+      if(!wsObj(s))return er("seção "+(i+1)+" inválida");
+      if(typeof s.id!=="string"||!WS_RE_SECAO.test(s.id))er("seção "+(i+1)+" com id inválido");
+      else if(sids[s.id])er("seção repetida: "+s.id);else sids[s.id]=1;
+      if(s.titulo!==undefined&&(typeof s.titulo!=="string"||s.titulo.length>WS_MAX_TITULO))er("título da seção "+(i+1)+" inválido");
+      if(s.recolhida!==undefined&&typeof s.recolhida!=="boolean")er("recolhida da seção "+(i+1)+" inválida");
+      if(!Array.isArray(s.itens))return er("itens da seção "+(i+1)+" não é uma lista");
+      s.itens.forEach(function(it){
+        n++;if(n>WS_MAX_ITENS)return n===WS_MAX_ITENS+1&&er("mais de "+WS_MAX_ITENS+" componentes na página");
+        if(!wsObj(it))return er("componente inválido");
+        if(typeof it.id!=="string"||!WS_RE_ID.test(it.id))er("id de componente inválido");
+        else if(ids[it.id])er("componente repetido: "+it.id);else ids[it.id]=1;
+        if(typeof it.tipo!=="string"||it.tipo.length>60||!WS_RE_TIPO.test(it.tipo))er("tipo inválido: "+it.tipo);
+        if(!wsInt(it.v,1,1000))er("versão do componente inválida ("+it.id+")");
+        if(!wsInt(it.col,1,WS_COLUNAS))er("largura inválida ("+it.id+")");
+        if(!wsInt(it.lin,0,12))er("altura inválida ("+it.id+")");
+        if(typeof it.estado!=="string"||WS_ESTADOS.indexOf(it.estado)<0)er("estado inválido ("+it.id+")");
+        if(!wsObj(it.config))er("configuração inválida ("+it.id+")");else if(JSON.stringify(it.config).length>WS_MAX_CONFIG)er("configuração grande demais ("+it.id+")");
+        if(it.mobile!==undefined&&typeof it.mobile!=="boolean")er("mobile inválido ("+it.id+")")})});
+    return {ok:erros.length===0,erros:erros}}
+  /* versões do documento: hoje só existe a 1. Um documento de versão MAIS NOVA que o app (aparelho com app antigo) não é tocado: futuro=true e a tela só mostra, sem gravar. */
+  var WS_MIGRACOES={};   /* { 1: function(doc){…→ doc da versão 2} } quando existir a versão 2 */
+  function wsMigrar(doc){
+    if(!wsObj(doc))return {doc:wsVazio(),migrou:true,futuro:false};
+    var d=wsClonar(doc),v=wsInt(d.schema,1,1000)?d.schema:1,migrou=false;
+    if(v>WS_SCHEMA)return {doc:d,migrou:false,futuro:true};
+    while(v<WS_SCHEMA){var f=WS_MIGRACOES[v];if(!f)break;d=f(d);v=d.schema;migrou=true}
+    if(!Array.isArray(d.secoes)){d.secoes=[];migrou=true}
+    if(!wsInt(d.schema,1,1000)){d.schema=WS_SCHEMA;migrou=true}
+    return {doc:d,migrou:migrou,futuro:false}}
+  /* a migração das CONFIGURAÇÕES: cada tipo sabe levar a sua configuração de uma versão antiga à atual (def.migrarConfig); tipo ausente do catálogo não é mexido */
+  function wsMigrarConfigs(l,catalogo){var d=wsClonar(l),avisos=[];
+    d.secoes.forEach(function(s){s.itens.forEach(function(it){var def=catalogo&&catalogo[it.tipo];if(!def)return;
+      if(it.v>def.versao){avisos.push({id:it.id,motivo:"versao_futura"});return}
+      if(it.v<def.versao){try{it.config=def.migrarConfig?def.migrarConfig(wsClonar(it.config),it.v):it.config;it.v=def.versao}catch(e){avisos.push({id:it.id,motivo:"migracao_falhou"})}}})});
+    return {layout:d,avisos:avisos}}
+  /* o contrato de um tipo de widget (docs/planejamento/14, seção 4.1): confere antes de entrar no catálogo */
+  function wsDefValida(def){
+    var erros=[];function er(m){erros.push(m)}
+    if(!wsObj(def))return {ok:false,erros:["a definição não é um objeto"]};
+    if(typeof def.tipo!=="string"||!WS_RE_TIPO.test(def.tipo)||def.tipo.length>60)er("tipo inválido");
+    if(!wsInt(def.versao,1,1000))er("versao inválida");
+    ["titulo","categoria","descricao","dominio"].forEach(function(k){if(typeof def[k]!=="string"||!def[k])er(k+" ausente")});
+    var t=def.tamanhos;
+    if(!wsObj(t)||!Array.isArray(t.min)||!Array.isArray(t.padrao)||!Array.isArray(t.max))er("tamanhos ausentes");
+    else{["min","padrao","max"].forEach(function(k){if(!wsInt(t[k][0],1,WS_COLUNAS)||!wsInt(t[k][1],0,12))er("tamanhos."+k+" inválido")});
+      if(!erros.length&&(t.min[0]>t.padrao[0]||t.padrao[0]>t.max[0]||t.min[1]>t.padrao[1]||t.padrao[1]>t.max[1]))er("tamanhos fora de ordem (min ≤ padrão ≤ max)")}
+    if(!Array.isArray(def.config))er("config deve ser uma lista de campos");
+    else{var cs={};def.config.forEach(function(c){
+      if(!wsObj(c)||typeof c.chave!=="string"||!/^[a-z][a-zA-Z0-9]{0,30}$/.test(c.chave))return er("campo de configuração sem chave válida");
+      if(cs[c.chave])er("campo repetido: "+c.chave);cs[c.chave]=1;
+      if(typeof c.rotulo!=="string"||!c.rotulo)er("campo "+c.chave+" sem rótulo");
+      if(WS_CAMPOS.indexOf(c.tipo)<0)er("campo "+c.chave+" com tipo inválido");
+      if(c.tipo==="selecao"&&(!Array.isArray(c.opcoes)||!c.opcoes.length))er("campo "+c.chave+" sem opções")})}
+    if(def.versao>1&&typeof def.migrarConfig!=="function")er("versão acima de 1 exige migrarConfig");
+    if(typeof def.renderizar!=="function")er("renderizar ausente");
+    if(def.exige!==undefined&&!wsObj(def.exige))er("exige deve ser um objeto");
+    if(typeof def.compartilhavel!=="boolean")er("compartilhavel deve ser true ou false (saúde, e-mail e custos são false)");
+    return {ok:erros.length===0,erros:erros}}
+  /* a configuração de uma instância: valores válidos ficam, os inválidos ou ausentes voltam ao padrão e as chaves desconhecidas são PRESERVADAS (compatibilidade com versões futuras) */
+  function wsConfigNormalizar(def,config){
+    var out=wsObj(config)?wsClonar(config):{},erros=[];
+    (def&&def.config||[]).forEach(function(c){var v=out[c.chave],ok=true;
+      if(c.tipo==="periodo")ok=WS_PERIODOS.indexOf(v)>=0;
+      else if(c.tipo==="selecao"){var vals=(c.opcoes||[]).map(function(o){return o&&typeof o==="object"?o.valor:o});
+        ok=c.multiplo?(Array.isArray(v)&&v.length<=(c.max||12)&&v.every(function(x){return vals.indexOf(x)>=0})):vals.indexOf(v)>=0}
+      else if(c.tipo==="numero")ok=typeof v==="number"&&isFinite(v)&&(c.min==null||v>=c.min)&&(c.max==null||v<=c.max);
+      else if(c.tipo==="texto-curto"){ok=typeof v==="string";if(ok&&v.length>(c.max||120)){v=v.slice(0,c.max||120);out[c.chave]=v}}
+      else if(c.tipo==="booleano")ok=typeof v==="boolean";
+      if(!ok){if(v!==undefined)erros.push({chave:c.chave,motivo:"valor inválido"});out[c.chave]=c.padrao!==undefined?c.padrao:(c.tipo==="selecao"&&c.multiplo?[]:c.tipo==="booleano"?false:c.tipo==="texto-curto"?"":c.tipo==="numero"?(c.min!=null?c.min:0):c.tipo==="periodo"?"7d":(c.opcoes&&c.opcoes[0]&&typeof c.opcoes[0]==="object"?c.opcoes[0].valor:c.opcoes&&c.opcoes[0]))}});
+    return {config:out,erros:erros}}
+  function wsLimitar(def,col,lin){var t=def&&def.tamanhos,c=col,l=lin;
+    if(t){c=Math.max(t.min[0],Math.min(t.max[0],c));l=Math.max(t.min[1],Math.min(t.max[1],l))}
+    return [Math.max(1,Math.min(WS_COLUNAS,Math.round(c))),Math.max(0,Math.min(12,Math.round(l)))]}
+  /* ---- achar ---- */
+  function wsAcharItem(l,id){var i,j;for(i=0;i<l.secoes.length;i++)for(j=0;j<l.secoes[i].itens.length;j++)if(l.secoes[i].itens[j].id===id)return {si:i,ii:j,item:l.secoes[i].itens[j]};return null}
+  function wsSecaoIdx(l,id){var i;for(i=0;i<l.secoes.length;i++)if(l.secoes[i].id===id)return i;return -1}
+  function wsTotalItens(l){return l.secoes.reduce(function(n,s){return n+s.itens.length},0)}
+  /* ---- operações (cada uma devolve {layout, ...}; ok:false + motivo quando não pode, sem alterar nada) ---- */
+  function wsNao(l,motivo){return {ok:false,layout:l,motivo:motivo}}
+  function wsAdicionar(l,def,o){o=o||{};var d=wsClonar(l),si=o.secao?wsSecaoIdx(d,o.secao):0;
+    if(!def||!def.tipo)return wsNao(l,"tipo_desconhecido");
+    if(si<0||!d.secoes[si])return wsNao(l,"secao_inexistente");
+    if(wsTotalItens(d)>=WS_MAX_ITENS)return wsNao(l,"limite_de_componentes");
+    var id=o.id||wsNovoId(o.rnd),tam=wsLimitar(def,def.tamanhos.padrao[0],def.tamanhos.padrao[1]);
+    if(wsAcharItem(d,id))return wsNao(l,"id_repetido");
+    var cfg=wsConfigNormalizar(def,o.config||{}).config,it={id:id,tipo:def.tipo,v:def.versao,col:tam[0],lin:tam[1],estado:"ativo",config:cfg},ix=o.indice==null?d.secoes[si].itens.length:Math.max(0,Math.min(d.secoes[si].itens.length,o.indice));
+    d.secoes[si].itens.splice(ix,0,it);return {ok:true,layout:d,id:id}}
+  /* remover da página: tira a instância do layout; NADA do dado de negócio (nem do módulo) é tocado */
+  function wsRemover(l,id){var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");d.secoes[a.si].itens.splice(a.ii,1);return {ok:true,layout:d,removido:a.item}}
+  function wsMover(l,id,secaoId,indice){var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");
+    var sj=secaoId==null?a.si:wsSecaoIdx(d,secaoId);if(sj<0)return wsNao(l,"secao_inexistente");
+    var it=d.secoes[a.si].itens.splice(a.ii,1)[0],alvo=d.secoes[sj].itens,ix=indice==null?alvo.length:Math.max(0,Math.min(alvo.length,indice));
+    alvo.splice(ix,0,it);return {ok:true,layout:d,secao:d.secoes[sj].id,indice:ix}}
+  /* mover um passo (alternativa por teclado e por menu ao arrastar): delta -1 sobe, +1 desce; no começo ou no fim de uma seção, passa para a vizinha */
+  function wsMoverPasso(l,id,delta){var a=wsAcharItem(l,id);if(!a)return wsNao(l,"componente_inexistente");
+    var si=a.si,ii=a.ii+delta;
+    if(ii<0){if(si===0)return wsNao(l,"ja_no_inicio");si--;ii=l.secoes[si].itens.length}
+    else if(ii>=l.secoes[si].itens.length){if(si===l.secoes.length-1)return wsNao(l,"ja_no_fim");si++;ii=0}
+    return wsMover(l,id,l.secoes[si].id,ii)}
+  function wsRedimensionar(l,id,col,lin,def){var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");
+    var t=wsLimitar(def,col==null?a.item.col:col,lin==null?a.item.lin:lin);a.item.col=t[0];a.item.lin=t[1];return {ok:true,layout:d,col:t[0],lin:t[1]}}
+  function wsConfigurar(l,id,config,def){var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");
+    var r=wsConfigNormalizar(def,config);if(JSON.stringify(r.config).length>WS_MAX_CONFIG)return wsNao(l,"configuracao_grande");
+    a.item.config=r.config;return {ok:true,layout:d,erros:r.erros}}
+  /* ativo | oculto | desativado: só muda o estado; posição, tamanho e configuração ficam */
+  function wsEstado(l,id,estado){if(WS_ESTADOS.indexOf(estado)<0)return wsNao(l,"estado_invalido");
+    var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");a.item.estado=estado;return {ok:true,layout:d}}
+  /* mostrar ou não em tela de celular (só afeta a vista; a instância continua na página) */
+  function wsMobile(l,id,mostrar){var d=wsClonar(l),a=wsAcharItem(d,id);if(!a)return wsNao(l,"componente_inexistente");if(mostrar===false)a.item.mobile=false;else delete a.item.mobile;return {ok:true,layout:d}}
+  function wsDuplicar(l,id,def,rnd){var a=wsAcharItem(l,id);if(!a)return wsNao(l,"componente_inexistente");
+    if(wsTotalItens(l)>=WS_MAX_ITENS)return wsNao(l,"limite_de_componentes");var d=wsClonar(l),b=wsAcharItem(d,id),c=wsClonar(b.item);c.id=wsNovoId(rnd);d.secoes[b.si].itens.splice(b.ii+1,0,c);return {ok:true,layout:d,id:c.id}}
+  function wsSecaoAdicionar(l,titulo,id){var d=wsClonar(l);if(d.secoes.length>=WS_MAX_SECOES)return wsNao(l,"limite_de_secoes");
+    var sid=id||("s"+Math.floor(Date.now()%1e8).toString(36)+Math.floor(Math.random()*1e4).toString(36));if(!WS_RE_SECAO.test(sid)||wsSecaoIdx(d,sid)>=0)return wsNao(l,"id_repetido");
+    d.secoes.push({id:sid,titulo:String(titulo||"").slice(0,WS_MAX_TITULO),itens:[]});return {ok:true,layout:d,id:sid}}
+  function wsSecaoRenomear(l,id,titulo){var d=wsClonar(l),i=wsSecaoIdx(d,id);if(i<0)return wsNao(l,"secao_inexistente");d.secoes[i].titulo=String(titulo||"").slice(0,WS_MAX_TITULO);return {ok:true,layout:d}}
+  function wsSecaoRecolher(l,id,recolhida){var d=wsClonar(l),i=wsSecaoIdx(d,id);if(i<0)return wsNao(l,"secao_inexistente");d.secoes[i].recolhida=!!recolhida;return {ok:true,layout:d}}
+  function wsSecaoMover(l,id,delta){var d=wsClonar(l),i=wsSecaoIdx(d,id),j=i+delta;if(i<0)return wsNao(l,"secao_inexistente");if(j<0||j>=d.secoes.length)return wsNao(l,"limite");
+    var s=d.secoes.splice(i,1)[0];d.secoes.splice(j,0,s);return {ok:true,layout:d}}
+  /* remover uma seção NUNCA perde componentes: eles vão para outra seção (a vizinha, ou a indicada); a última seção não se remove */
+  function wsSecaoRemover(l,id,paraId){var d=wsClonar(l),i=wsSecaoIdx(d,id);if(i<0)return wsNao(l,"secao_inexistente");if(d.secoes.length<=1)return wsNao(l,"ultima_secao");
+    var j=paraId?wsSecaoIdx(d,paraId):(i>0?i-1:1);if(j<0||j===i)return wsNao(l,"secao_inexistente");
+    var s=d.secoes.splice(i,1)[0];if(j>i)j--;d.secoes[j].itens=d.secoes[j].itens.concat(s.itens);return {ok:true,layout:d,movidos:s.itens.length}}
+  /* uma operação em forma de dado: o histórico de desfazer e a repetição sobre uma versão mais nova do servidor usam este formato */
+  function wsAplicarOp(l,op,catalogo){var def=catalogo&&op.tipo?catalogo[op.tipo]:null;
+    switch(op.op){
+      case "adicionar":return wsAdicionar(l,def,{secao:op.secao,indice:op.indice,id:op.id,config:op.config});
+      case "remover":return wsRemover(l,op.id);
+      case "mover":return wsMover(l,op.id,op.secao,op.indice);
+      case "redimensionar":return wsRedimensionar(l,op.id,op.col,op.lin,catalogo&&op.tipo?catalogo[op.tipo]:null);
+      case "configurar":return wsConfigurar(l,op.id,op.config,def);
+      case "estado":return wsEstado(l,op.id,op.estado);
+      case "mobile":return wsMobile(l,op.id,op.mostrar);
+      case "secao-adicionar":return wsSecaoAdicionar(l,op.titulo,op.id);
+      case "secao-renomear":return wsSecaoRenomear(l,op.id,op.titulo);
+      case "secao-recolher":return wsSecaoRecolher(l,op.id,op.recolhida);
+      case "secao-remover":return wsSecaoRemover(l,op.id,op.para);
+      case "secao-mover":return wsSecaoMover(l,op.id,op.delta)}
+    return wsNao(l,"operacao_desconhecida")}
+  /* repete as operações do usuário sobre o layout que o servidor tem agora (conflito de versão): as que não cabem mais (o componente sumiu) são devolvidas em "ignoradas", nunca em silêncio */
+  function wsAplicarOps(l,ops,catalogo){var cur=l,aplicadas=0,ignoradas=[];
+    (ops||[]).forEach(function(op){var r=wsAplicarOp(cur,op,catalogo);if(r.ok){cur=r.layout;aplicadas++}else ignoradas.push({op:op,motivo:r.motivo})});
+    return {layout:cur,aplicadas:aplicadas,ignoradas:ignoradas}}
+  /* o que mudou entre dois layouts, por id de componente (para dizer ao usuário o que o outro aparelho fez) */
+  function wsDiff(a,b){var ia={},ib={},out={adicionados:[],removidos:[],alterados:[]};
+    a.secoes.forEach(function(s,i){s.itens.forEach(function(it,j){ia[it.id]={it:it,s:s.id,j:j}})});b.secoes.forEach(function(s){s.itens.forEach(function(it,j){ib[it.id]={it:it,s:s.id,j:j}})});
+    Object.keys(ib).forEach(function(k){if(!ia[k])out.adicionados.push(k);else if(JSON.stringify(ia[k].it)!==JSON.stringify(ib[k].it)||ia[k].s!==ib[k].s)out.alterados.push(k)});
+    Object.keys(ia).forEach(function(k){if(!ib[k])out.removidos.push(k)});return out}
+  /* ---- responsividade: 12 colunas no computador, 8 no tablet, 1 no celular; um único documento serve aos três ---- */
+  function wsColunasPara(largura){return largura>=1181?12:largura>=861?8:1}
+  function wsEscala(col,colunas){if(colunas>=WS_COLUNAS)return col;if(colunas<=1)return 1;return Math.max(1,Math.min(colunas,Math.round(col*colunas/WS_COLUNAS)))}
+  /* o que desenhar: respeita ocultos (do layout e os pessoais), desativados (só no modo de edição), tipo fora do catálogo ("indisponivel": a configuração continua no layout) e permissão do tipo.
+     opcoes: {edicao, ocultosPessoais:[ids], mostrarPessoais (traz de volta, marcados, os que a pessoa ocultou para si), catalogo:{tipo:def}, permite:function(def)→bool|{ok,motivo}, mobile:true} */
+  function wsVisao(l,o){o=o||{};var cat=o.catalogo||{},pess={};(o.ocultosPessoais||[]).forEach(function(i){pess[i]=1});
+    return l.secoes.map(function(s){var itens=[];
+      s.itens.forEach(function(it){var def=cat[it.tipo]||null,sit="ok";
+        if(!def)sit="indisponivel";
+        else if(it.v>def.versao)sit="versao_futura";
+        else if(o.permite){var p=o.permite(def);if(p===false||(p&&p.ok===false))sit="sem_permissao"}
+        var oc=it.estado==="oculto",po=!!pess[it.id];
+        if(oc||po){if(!o.edicao&&!(po&&!oc&&o.mostrarPessoais))return;sit=sit==="ok"?"oculto":sit}
+        else if(it.estado==="desativado"){if(!o.edicao)return;sit="desativado"}
+        if(o.mobile&&it.mobile===false&&!o.edicao)return;
+        itens.push({item:it,def:def,situacao:sit,oculto:it.estado==="oculto",pessoalOculto:!!pess[it.id]})});
+      return {id:s.id,titulo:s.titulo||"",recolhida:!!s.recolhida,itens:itens}})}
+  /* ---- permissões (a mesma tabela do banco: rac_pode_no_espaco; o banco decide, isto só esconde o que ele recusaria) ---- */
+  function wsPodeNoEspaco(papel,nivel,arquivado){
+    if(WS_PAPEIS.indexOf(papel)<0)return false;if(nivel==="ler")return true;if(arquivado)return false;
+    if(nivel==="editar")return papel!=="leitor";if(nivel==="administrar")return papel==="proprietario"||papel==="administrador";if(nivel==="proprietario")return papel==="proprietario";return false}
+  /* um tipo pode entrar numa página? ctx: {tipoEspaco, papel, modulos:[ids que o usuário tem], dono:bool}. Tipo privado (saúde, e-mail, custos: compartilhavel=false) nunca entra em espaço compartilhado. */
+  function wsPodeUsarTipo(def,ctx){ctx=ctx||{};var e=def&&def.exige||{};
+    if(!def)return {ok:false,motivo:"tipo_desconhecido"};
+    if(ctx.tipoEspaco==="compartilhado"&&def.compartilhavel!==true)return {ok:false,motivo:"tipo_privado"};
+    if(e.espacos&&ctx.tipoEspaco&&e.espacos.indexOf(ctx.tipoEspaco)<0)return {ok:false,motivo:"espaco_nao_suportado"};
+    if(e.papeis&&ctx.papel&&e.papeis.indexOf(ctx.papel)<0)return {ok:false,motivo:"papel_insuficiente"};
+    if(e.modulo&&(ctx.modulos||[]).indexOf(e.modulo)<0)return {ok:false,motivo:"modulo_indisponivel"};
+    if(e.dono&&!ctx.dono)return {ok:false,motivo:"so_do_dono"};
+    return {ok:true}}
+  /* ---- páginas ---- */
+  function wsTitulo(t){return String(t==null?"":t).replace(/\s+/g," ").trim()}
+  /* o mesmo título (sem diferença de maiúsculas nem de espaços) só uma vez por espaço entre as ativas: igual ao índice único do banco */
+  function wsTituloOk(titulo,existentes,ignorarId){var t=wsTitulo(titulo);
+    if(!t)return {ok:false,motivo:"vazio"};if(t.length>WS_MAX_TITULO)return {ok:false,motivo:"longo"};
+    var dup=(existentes||[]).some(function(p){return p.id!==ignorarId&&!p.arquivada_em&&wsTitulo(p.titulo).toLowerCase()===t.toLowerCase()});
+    return dup?{ok:false,motivo:"repetido"}:{ok:true,titulo:t}}
+  function wsOrdenarPaginas(ps){return (ps||[]).filter(function(p){return !p.arquivada_em}).slice().sort(function(a,b){return (a.ordem||0)-(b.ordem||0)||String(a.criado_em||"").localeCompare(String(b.criado_em||""))||String(a.titulo).localeCompare(String(b.titulo))})}
+  /* a página inicial de cada pessoa: a que ela marcou (favorita) se ainda existe e é visível; senão a primeira */
+  function wsPaginaInicial(ps,prefs){var l=wsOrdenarPaginas(ps),i;for(i=0;i<(prefs||[]).length;i++)if(prefs[i].favorita)for(var j=0;j<l.length;j++)if(l[j].id===prefs[i].pagina_id)return l[j];return l[0]||null}
+  /* reordenar: devolve só as páginas que mudam de número ({id, ordem}) */
+  function wsMoverPagina(ps,id,delta){var l=wsOrdenarPaginas(ps),i=-1,k;for(k=0;k<l.length;k++)if(l[k].id===id)i=k;
+    if(i<0)return [];var j=i+delta;if(j<0||j>=l.length)return [];var p=l.splice(i,1)[0];l.splice(j,0,p);
+    return l.map(function(x,n){return {id:x.id,ordem:n,antes:x.ordem||0}}).filter(function(x){return x.ordem!==x.antes}).map(function(x){return {id:x.id,ordem:x.ordem}})}
+  /* os ocultos pessoais de uma página: só ids que ainda existem no layout (o resto é lixo de uma versão antiga e sai) */
+  function wsOcultosValidos(l,ocultos){var ids={};l.secoes.forEach(function(s){s.itens.forEach(function(it){ids[it.id]=1})});return (ocultos||[]).filter(function(i){return ids[i]}).slice(0,WS_MAX_ITENS)}
+  /* a página padrão de quem ainda não personalizou nada: gerada por código (nada para configurar do zero) */
+  function wsLayoutPadrao(catalogo,tipos,rnd){var l=wsVazio();(tipos||[]).forEach(function(t){var def=catalogo&&catalogo[t];if(!def)return;var r=wsAdicionar(l,def,{rnd:rnd});if(r.ok)l=r.layout});return l}
+
+  raiz.RACnucleo={WS_SCHEMA:WS_SCHEMA,WS_COLUNAS:WS_COLUNAS,WS_MAX_SECOES:WS_MAX_SECOES,WS_MAX_ITENS:WS_MAX_ITENS,WS_MAX_LAYOUT:WS_MAX_LAYOUT,WS_MAX_CONFIG:WS_MAX_CONFIG,WS_MAX_TITULO:WS_MAX_TITULO,WS_MAX_PAGINAS:WS_MAX_PAGINAS,WS_ESTADOS:WS_ESTADOS,WS_PAPEIS:WS_PAPEIS,WS_AMBIENTES:WS_AMBIENTES,WS_PERIODOS:WS_PERIODOS,WS_CAMPOS:WS_CAMPOS,WS_MIGRACOES:WS_MIGRACOES,wsInt:wsInt,wsObj:wsObj,wsClonar:wsClonar,wsNovoId:wsNovoId,wsVazio:wsVazio,wsValidar:wsValidar,wsMigrar:wsMigrar,wsMigrarConfigs:wsMigrarConfigs,wsDefValida:wsDefValida,wsConfigNormalizar:wsConfigNormalizar,wsLimitar:wsLimitar,wsAcharItem:wsAcharItem,wsSecaoIdx:wsSecaoIdx,wsTotalItens:wsTotalItens,wsNao:wsNao,wsAdicionar:wsAdicionar,wsRemover:wsRemover,wsMover:wsMover,wsMoverPasso:wsMoverPasso,wsRedimensionar:wsRedimensionar,wsConfigurar:wsConfigurar,wsEstado:wsEstado,wsMobile:wsMobile,wsDuplicar:wsDuplicar,wsSecaoAdicionar:wsSecaoAdicionar,wsSecaoRenomear:wsSecaoRenomear,wsSecaoRecolher:wsSecaoRecolher,wsSecaoMover:wsSecaoMover,wsSecaoRemover:wsSecaoRemover,wsAplicarOp:wsAplicarOp,wsAplicarOps:wsAplicarOps,wsDiff:wsDiff,wsColunasPara:wsColunasPara,wsEscala:wsEscala,wsVisao:wsVisao,wsPodeNoEspaco:wsPodeNoEspaco,wsPodeUsarTipo:wsPodeUsarTipo,wsTitulo:wsTitulo,wsTituloOk:wsTituloOk,wsOrdenarPaginas:wsOrdenarPaginas,wsPaginaInicial:wsPaginaInicial,wsMoverPagina:wsMoverPagina,wsOcultosValidos:wsOcultosValidos,wsLayoutPadrao:wsLayoutPadrao,
+    KN_TIPOS:KN_TIPOS,KN_ESTADOS:KN_ESTADOS,KN_SECOES:KN_SECOES,knSegredo:knSegredo,knTipo:knTipo,knEstado:knEstado,knTags:knTags,knSlug:knSlug,knValidar:knValidar,knLerArquivo:knLerArquivo,knParaArquivo:knParaArquivo,knDoBanco:knDoBanco,knBusca:knBusca,knFacetas:knFacetas,knPlano:knPlano,knLinha:knLinha,knResumoAgente:knResumoAgente,inbCartao:inbCartao,inbAcoesConta:inbAcoesConta,inbEstadoConta:inbEstadoConta,inbUltimaSync:inbUltimaSync,INB_ACOES:INB_ACOES,inbRespostaOrganizacao:inbRespostaOrganizacao,inbFraseOrganizacao:inbFraseOrganizacao,inbDestinosMover:inbDestinosMover,inbAcoesDisponiveis:inbAcoesDisponiveis,inbEnderecosDe:inbEnderecosDe,inbPrefixoAssunto:inbPrefixoAssunto,inbRotuloEnd:inbRotuloEnd,inbCitar:inbCitar,inbMontarRascunho:inbMontarRascunho,inbValidarRascunho:inbValidarRascunho,inbClasseEnvio:inbClasseEnvio,inbRespostaEnvio:inbRespostaEnvio,inbRespostaProva:inbRespostaProva,INB_MODOS_ENVIO:INB_MODOS_ENVIO,INB_LIM_ENVIO:INB_LIM_ENVIO,INB_ETAPAS_PROVA:INB_ETAPAS_PROVA,inbFraseSync:inbFraseSync,inbRespostaCanal:inbRespostaCanal,inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,inbProvedorEscreve:inbProvedorEscreve,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbContadorBarra:inbContadorBarra,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
     sauRecomendacao:sauRecomendacao,sauResumoSemana:sauResumoSemana,sauScoreSono:sauScoreSono,sauRotuloQual:sauRotuloQual,sauFaixaScore:sauFaixaScore,lugNotas:lugNotas,lugCep:lugCep,lugCnpj:lugCnpj,lugEnderecoCnpj:lugEnderecoCnpj,lugNomeCidade:lugNomeCidade,lugEnderecoViaCep:lugEnderecoViaCep,lugMercados:lugMercados,lugPontosDia:lugPontosDia,lugSugerir:lugSugerir,lugPasseios:lugPasseios,lugValida:lugValida,hojeIaJanela:hojeIaJanela,hojeIaAutoPode:hojeIaAutoPode,hojeIaMarcar:hojeIaMarcar,hojeMudouProntidao:hojeMudouProntidao,mbaHojeResumo:mbaHojeResumo,mkUltimasNotas:mkUltimasNotas,hojeTreinoLinha:hojeTreinoLinha,fonteContrato:fonteContrato,SAU_LIMITE:SAU_LIMITE,sauVals:sauVals,SAU_METAS:SAU_METAS,SAU_METRICAS:SAU_METRICAS,SAU_CAMPOS:SAU_CAMPOS,sauNum:sauNum,sauMedia:sauMedia,sauArred:sauArred,sauPor:sauPor,sauJanela:sauJanela,sauBase:sauBase,sauMinNoite:sauMinNoite,sauHora:sauHora,sauRegularidade:sauRegularidade,sauQualidade:sauQualidade,sauAvaliar:sauAvaliar,sauTextoSinal:sauTextoSinal,sauHistoricoSinais:sauHistoricoSinais,sauSinais:sauSinais,sauIndicadores:sauIndicadores,sauFrase:sauFrase,sauAssociacao:sauAssociacao,sauSonoVfc:sauSonoVfc,sauCargaSemanal:sauCargaSemanal,sauCargaVariacao:sauCargaVariacao,sauMusculacao:sauMusculacao,sauResumoAtiv:sauResumoAtiv,sauVo2:sauVo2,sauMinutosSemana:sauMinutosSemana,sauEficiencia:sauEficiencia,sauCargaDia:sauCargaDia,sauRecuperacaoTreino:sauRecuperacaoTreino,sauMudancas:sauMudancas,sauAgrupar:sauAgrupar,sauPrefs:sauPrefs,SAU_NAO_TREINO:SAU_NAO_TREINO,sauContaTreino:sauContaTreino,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,famDiagnostico:famDiagnostico,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaMaterialPendente:mbaMaterialPendente,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmCategoriasOn:cmCategoriasOn,cmCategoriaOnDefinir:cmCategoriaOnDefinir,cmRenomearOn:cmRenomearOn,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuDeDelivery:cuDeDelivery,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,AR_AREAS_PADRAO:AR_AREAS_PADRAO,AR_MAPA_PADRAO:AR_MAPA_PADRAO,arConfig:arConfig,arRaw:arRaw,arAreaDe:arAreaDe,arNomeArea:arNomeArea,arAssociar:arAssociar,arAreaCriar:arAreaCriar,arAreaRemover:arAreaRemover,arCategoriaCriar:arCategoriaCriar,arCategoriaRemover:arCategoriaRemover,arCompras:arCompras,arResumo:arResumo,arCategorias:arCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkTodasCategorias:mkTodasCategorias,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,MK_CAT_REVISAR:MK_CAT_REVISAR,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,mkTokensCasar:mkTokensCasar,mkSimilaridade:mkSimilaridade,mkCasarProduto:mkCasarProduto,mkCasarEstabelecimento:mkCasarEstabelecimento,MK_CASAR_CORTE:MK_CASAR_CORTE,nfUnidadeMercado:nfUnidadeMercado,nfEntradaDecisoes:nfEntradaDecisoes,nfEntradaPayload:nfEntradaPayload,nfEstadosNota:nfEstadosNota,nfConsultaTexto:nfConsultaTexto,nfResultadoConfirmar:nfResultadoConfirmar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlNovos:nlNovos,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,
     nlFontes:nlFontes,nlSnap:nlSnap,nlTodos:nlTodos,nlIds:nlIds,nlEdicao:nlEdicao,nlResumoRegras:nlResumoRegras,nlEntradaIA:nlEntradaIA,nlAplicarIA:nlAplicarIA,nlConteudoOk:nlConteudoOk,nlFiltrar:nlFiltrar,nlSemana:nlSemana,nlSalvo:nlSalvo,

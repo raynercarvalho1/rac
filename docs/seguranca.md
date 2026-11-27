@@ -174,12 +174,17 @@ de toda tabela do catálogo com `trava_mfa` e ganha dois itens informativos: `fo
 aparece na Auditoria do dono como pendência e **não** entra sozinha na conferência, porque uma tabela não é confiável só por existir) e
 `catalogo_sem_tabela`. RLS, visitante sem login, cofres e funções abertas continuam conferidos do mesmo jeito.
 
-**Situação: preparada e testada, NÃO aplicada em produção** (testes com Postgres de verdade no PGlite: `tests/seguranca_catalogo.test.mjs`).
-Aplicar é livre ao agente (política de autonomia de 23/11/2026; antes era passo do dono): rodar a 050 inteira (Supabase MCP ou SQL Editor) (pode rodar de novo sem estragar nada), depois a
-conferência só de leitura `supabase/conferencias/050_conferir_producao.sql` (tudo `true`), tirar a linha `-- status: pendente` do arquivo e
-conferir a Auditoria no site (a linha "Catálogo da auditoria" aparece com ✓). Antes da 050 o site funciona igual: a linha só aparece quando
-a função nova responde, e a Fernanda não vê a Auditoria. Desfazer: recriar `seguranca_estado()` com o texto da 048 e depois
-`drop table public.seguranca_catalogo`.
+**Situação: APLICADA EM PRODUÇÃO em 27/11/2026** (migration `20261127163831`, Lote 1 do novo RAC; testes com Postgres de verdade no PGlite: `tests/seguranca_catalogo.test.mjs`).
+Conferido por leitura: o hash do corpo de `seguranca_estado()` em produção é igual ao do arquivo; 47 linhas da própria 050 (44 com a trava "mfa", 35 no backup); o catálogo ficou sem privilégio de ninguém;
+as 12 tabelas criadas depois da 050 (Inbox, Fiscal, RAC Knowledge, rotas do Garmin e sinais do Monitor) foram catalogadas com os mesmos blocos que as próprias migrations já traziam
+(59 linhas), e depois a migration 070 acrescentou as 5 tabelas de espaços e Workspace (64 linhas). Nenhuma tabela fora do catálogo, nenhuma sem a trava, nenhuma legível por `anon`.
+A conferência só de leitura é `supabase/conferencias/050_conferir_producao.sql` (a verificação 3 conta só as 47 da 050; as seguintes entram pelas suas migrations).
+Desfazer: recriar `seguranca_estado()` com o texto da 048 e depois `drop table public.seguranca_catalogo`.
+
+### Espaços e Workspace (070, Lote 1 do novo RAC, 27/11/2026)
+`espacos`, `espaco_membros`, `workspace_paginas`, `workspace_versoes` e `workspace_pessoal`: RLS, trava "mfa" e nada para `anon`; `espacos`, `espaco_membros` e `workspace_versoes` sem escrita direta para o site
+(só as funções `rac_*` e um gatilho gravam); quem pode o quê vem de `rac_papel_no_espaco` / `rac_pode_no_espaco` (derivadas de `auth.uid()`, nunca de parâmetro do cliente). Detalhe no
+[Documento 16](planejamento/16-arquitetura-de-identidade-e-compartilhamento.md#estado-de-implementação-lote-1-27112026) e no teste `tests/espacos_sql.test.mjs`.
 
 **Tabela nova, depois da 050** (na própria migration que cria a tabela):
 

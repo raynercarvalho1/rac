@@ -13,9 +13,9 @@ verificacoes(ordem, verificacao, ok, encontrado) as (
          coalesce((select string_agg(r.p || ':' || q.k, ', ') from (values ('anon'), ('authenticated'), ('service_role')) r(p), (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) q(k)
                     where pg_catalog.has_table_privilege(r.p, 'public.seguranca_catalogo', q.k)), 'nenhum')
   union all
-  select 3, '47 linhas no catálogo, 44 com a trava "mfa" (as mesmas da 048)',
-         (select count(*) from public.seguranca_catalogo) = 47 and (select count(*) from public.seguranca_catalogo where trava_mfa) = 44,
-         (select count(*) || ' linhas, ' || count(*) filter (where trava_mfa) || ' com trava' from public.seguranca_catalogo)
+  select 3, '47 linhas da própria 050 no catálogo (origem schema ou até 050), 44 com a trava "mfa" (as mesmas da 048); as das migrations seguintes entram por elas',
+         (select count(*) from public.seguranca_catalogo where origem ~ '^(schema|0[0-4][0-9]|050)$') = 47 and (select count(*) from public.seguranca_catalogo where trava_mfa and origem ~ '^(schema|0[0-4][0-9]|050)$') = 44,
+         (select count(*) || ' linhas no total, ' || count(*) filter (where trava_mfa) || ' com trava' from public.seguranca_catalogo)
   union all
   select 4, 'nenhuma tabela de public fora do catálogo',
          not exists (select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace

@@ -1,5 +1,5 @@
 // Auditoria de segurança sem lista fixa (Fase 2 · A6; docs/planejamento/02-auditoria-arquitetural.md, P-11; docs/seguranca.md, "Catálogo da
-// auditoria"). A migration 050 (PREPARADA, NÃO APLICADA) cria o catálogo public.seguranca_catalogo e recria seguranca_estado() lendo dele.
+// auditoria"). A migration 050 (APLICADA EM PRODUÇÃO em 27/11/2026) cria o catálogo public.seguranca_catalogo e recria seguranca_estado() lendo dele.
 // Duas partes:
 //  · texto e cobertura (sem banco): o catálogo tem as mesmas 44 tabelas da 048 com a trava, o backup do site (NUCLEO.SEG_TABELAS) e o teste de
 //    segurança com o banco real cobrem as pessoais, toda tabela criada pelas migrations está catalogada, e migration nova não escapa do catálogo;
@@ -32,8 +32,8 @@ test("no CI o PGlite está instalado: os testes de banco desta migration não po
 });
 
 test("050 (texto): pendente (não aplicada), uma transação, reexecutável, nada destrutivo, e a função é a da 048 com o catálogo no lugar da lista", () => {
-  assert.equal(S50.split("\n")[0], "-- status: pendente", "o banco real ainda não tem: tests/banco.test.mjs a trata como pendente (todo)");
-  assert.match(S50, /NÃO APLICADA/); assert.match(S50, /\nbegin;[\s\S]*\ncommit;/);
+  assert.ok(!/^-- status: pendente/.test(S50), "aplicada em 27/11/2026: tests/banco.test.mjs passa a exigir o catálogo no banco real");
+  assert.match(S50, /APLICADA EM PRODUÇÃO em 27\/11\/2026/); assert.match(S50, /\nbegin;[\s\S]*\ncommit;/);
   const s = semComent(S50);
   assert.match(s, /create table if not exists public\.seguranca_catalogo \(/); assert.match(s, /on conflict \(tabela\) do nothing;/); assert.match(s, /create or replace function public\.seguranca_estado\(\)/);
   assert.ok(!/\b(drop\s+(table|policy|function)|truncate|delete\s+from|update\s+public\.|alter\s+table\s+public\.(?!seguranca_catalogo))/i.test(s), "não apaga nem altera nada que já existe");
@@ -53,7 +53,7 @@ test("o catálogo: as 44 tabelas da 048 com a trava, ia_precos e rac_segredos de
   assert.equal(CATALOGO.length, 47);
   assert.deepEqual(CATALOGO.filter((c) => c.trava).map((c) => c.tabela), PESSOAIS_048, "as mesmas 44, na mesma ordem");
   assert.deepEqual(CATALOGO.filter((c) => !c.trava).map((c) => c.tabela), ["ia_precos", "rac_segredos", "seguranca_catalogo"]);
-  const seg = N.SEG_TABELAS.filter((d) => d.dep !== "051" && d.dep !== "059" && d.dep !== "060" && d.dep !== "062" && d.dep !== "065").map((d) => d.t);   // as 4 tabelas do Inbox (051) entram no catálogo pela própria 051, não por esta lista da 050
+  const seg = N.SEG_TABELAS.filter((d) => d.dep !== "051" && d.dep !== "059" && d.dep !== "060" && d.dep !== "062" && d.dep !== "065" && d.dep !== "070").map((d) => d.t);   // as 4 tabelas do Inbox (051) entram no catálogo pela própria 051, não por esta lista da 050
   assert.deepEqual(CATALOGO.filter((c) => c.backup).map((c) => c.tabela).sort(), [...seg].sort(), "backup = true exatamente nas tabelas do backup do site (NUCLEO.SEG_TABELAS)");
   assert.ok(CATALOGO.every((c) => !c.backup || c.trava), "o que vai para o backup tem a trava");
   /* a origem de cada linha é a migration que criou a tabela */
@@ -73,7 +73,7 @@ test("cobertura: toda tabela criada pelas migrations está no catálogo; toda ta
     }
   }
   const listaMfa = (txt) => [...(/foreach t in array array\[([\s\S]*?)\] loop/.exec(txt) || [, ""])[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-  const comMfa = new Set(["022_seguranca.sql", "033_seguranca_compras_fiscal.sql", "037_notas_fiscais_foto_pdf.sql", "043_radar_precos.sql", "048_radar_descoberta.sql", "051_inbox_fundacao.sql", "052_inbox_cofre.sql", "056_inbox_envios.sql", "059_central_fiscal_entrada_unica.sql", "060_central_fiscal_rotinas.sql", "062_conhecimento.sql", "065_garmin_rotas.sql"].flatMap((a) => listaMfa(ler("supabase/" + a))));
+  const comMfa = new Set(["022_seguranca.sql", "033_seguranca_compras_fiscal.sql", "037_notas_fiscais_foto_pdf.sql", "043_radar_precos.sql", "048_radar_descoberta.sql", "051_inbox_fundacao.sql", "052_inbox_cofre.sql", "056_inbox_envios.sql", "059_central_fiscal_entrada_unica.sql", "060_central_fiscal_rotinas.sql", "062_conhecimento.sql", "065_garmin_rotas.sql", "070_espacos_e_workspace.sql"].flatMap((a) => listaMfa(ler("supabase/" + a))));
   comMfa.add("seguranca_eventos");   // a 022 cria a trava dela à parte (create policy "mfa" on public.seguranca_eventos)
   assert.match(ler("supabase/022_seguranca.sql"), /create policy "mfa" on public\.seguranca_eventos as restrictive/);
   const testeReal = JSON.parse(/for \(const t of (\[[^\]]+\])\)/.exec(ler("tests/seguranca.test.mjs"))[1]);

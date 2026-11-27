@@ -1,7 +1,7 @@
--- status: pendente
+-- 050 · APLICADA EM PRODUÇÃO em 27/11/2026 (migration 20261127163831, Lote 1 do novo RAC; hash do corpo da função conferido contra este arquivo; as 12 tabelas criadas depois dela foram catalogadas com os blocos de 051, 052, 056, 059, 060, 062, 065 e 067: 59 linhas).
 -- ============================================================================================================================================
 -- 050 · AUDITORIA DE SEGURANÇA SEM LISTA FIXA (Fase 2 · A6; docs/planejamento/02-auditoria-arquitetural.md, P-11; docs/seguranca.md, "Catálogo
--- da auditoria"). PREPARADA E TESTADA (PGlite, tests/seguranca_catalogo.test.mjs), NÃO APLICADA. Só o dono roda no SQL Editor, com autorização
+-- da auditoria"). PREPARADA E TESTADA (PGlite, tests/seguranca_catalogo.test.mjs) e, desde 27/11/2026, APLICADA. Foi aplicada pelo agente (política de 23/11/2026), com autorização
 -- própria para isso; o site funciona igual antes e depois (a página Segurança só ganha uma linha na Auditoria quando a função nova existir).
 -- O que faz:
 --   1. cria public.seguranca_catalogo: a lista CONFIÁVEL das tabelas do esquema public e de como cada uma entra na auditoria

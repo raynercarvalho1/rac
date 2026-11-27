@@ -2164,3 +2164,16 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - **Lote 4:** Captura universal e Biblioteca básica (Documento 18). A Timeline poderá ganhar provedores de Captura e Biblioteca pelo mesmo contrato.
 - Se a regex da busca ficar lenta com o crescimento dos dados: `unaccent` com índice trigram (migration aditiva), só com medição.
+
+## 27/11/2026 (noite, 8) · Lote 3: publicação verificada
+
+### 1. O que fizemos
+- **PR #122 mesclado na `main`** (merge `3de0244`) com o CI do PR verde na cabeça `88d9de0`. **CI da `main` (run 442) vermelho nas duas tentativas, com um teste de Chromium diferente em cada uma:** tentativa 1, `navegador.test.mjs` (Newsletter 375 px, `page.goto` com 30 s esgotados); tentativa 2, `workspace_tela.test.mjs` (1º teste do computador, `waitForFunction` com 30 s esgotados). Os dois são testes antigos, sem relação com os arquivos do Lote 3, passam no CI do PR (mesmo código) e na máquina local; causa-raiz **não confirmada** (hipótese: lentidão do executor ao abrir o primeiro navegador do arquivo, sob carga). Sem pular teste nem aumentar tempo-limite; a verificação seguinte é o CI desta própria PR de documentação, que roda a suíte inteira sobre o mesmo código. Antes do PR, a suíte completa local rodou duas vezes: a primeira achou 4 falhas legadas do Lote 3 (o título do cabeçalho a 375 px apertado pelo novo ícone de busca; um provedor que lia o relógio fora da fonte única; dependências de módulo não declaradas; arquivos novos com memória fora da lista do botão de atualizar); todas corrigidas por causa, sem pular teste nem aumentar tempo-limite; a segunda rodada passou (Grupo 1: 2538 aprovados e 0 falhas; Grupo 2: 73/73 localmente).
+- **GitHub Pages** do commit `3de0244`: `success`. **Domínio verificado por leitura:** `sw.js` com `VERSAO = "2026-11-27.4"`, `js/app.js` com `MOD_VERSAO="2026-11-27.4"`, `index.html` com `rac.css?v=2026-11-27.4`, `#buscalateral` e `#timeline-view`; 20 arquivos do site idênticos aos da `main`. Teste de fumaça no Chromium contra o site real (sem login), em 1280 e 390 px: 14 provedores registrados, 11 widgets de Hoje, Saúde, Compras e Timeline sem recusa, as funções `renderTimeline` e `renderBuscaGlobal` carregam, nenhum erro de página e a barra inferior com Casa, Hoje, MBA, Saúde, Compras e Inbox.
+- Banco: nenhuma migration; nada foi gravado em produção neste lote (só leituras para medir índices e planos).
+
+### 2. O que estamos fazendo
+- Nada em aberto no código. **Validação do dono** no iPhone e no computador, com os dados reais (o agente não tem sessão do app): Timeline, Busca (página e barra lateral), o ícone de busca no cabeçalho do celular e o Início que saiu do cabeçalho do celular do dono (a barra tem a Casa).
+
+### 3. O que vamos fazer
+- **Lote 4:** Captura universal e Biblioteca básica (Documento 18), com provedores de Captura e Biblioteca na Timeline pelo mesmo contrato.

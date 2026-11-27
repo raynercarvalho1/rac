@@ -155,7 +155,8 @@ test("computador (1280): sem páginas → criar pelo modelo → personalizar (ca
 });
 
 test("computador: arrastar com o mouse pela alça reordena (entre seções também) e o canto redimensiona; o que passa dos limites é limitado", { skip: pular, timeout: 120000 }, async () => {
-  const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL], paginas: [pg("p1", "Casa", lay([it(1), it(2), it(3)], [it(4)]))] });
+  /* janela alta de propósito: arrastar para perto da borda de baixo (70 px) liga a rolagem automática da página, e a posição dos componentes depende das fontes de cada máquina; sem rolagem, o teste mede só a regra de soltar (instabilidade vista no CI do Lote 2 com a janela de 900 px) */
+  const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL], paginas: [pg("p1", "Casa", lay([it(1), it(2), it(3)], [it(4)]))] }, { altura: 1400 });
   try {
     await barra(pag, "Personalizar").click(); await pag.waitForSelector(".wk-edicao");
     const centro = async (sel) => { const b = await pag.locator(sel).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, b }; };

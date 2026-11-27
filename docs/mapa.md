@@ -82,3 +82,9 @@ Legenda: ✅ concluído (verde) · 🟡 em andamento (amarelo) · ⚪ planejado 
 | ⚪ DS-5 · telas da casa (Mercado, Lista, Família, Veículos) | Pendente de **autorização expressa** do dono | — |
 | ⚪ Início (`#inicio`) como painel único ou convivendo com o RAC Hoje (D-12) | Pendente de decisão do dono | — |
 | ⚪ Fase 4 · Família e Casa (medicamentos, encomendas, contas) alimentam o painel | Planejado; o painel só mostra o que existir | — |
+
+## Novo RAC (Lote 0, 27/11/2026): auditoria e arquitetura (só documentação; nada implementado)
+Conjunto em `docs/planejamento/`: `12-diagnostico-do-rac-atual.md` (inventário de rotas, módulos, dados, identidade, integrações e qualidade, **estado real de 27/11/2026**: 34 rotas, 6 Edge Functions, 58 tabelas, 6 jobs `pg_cron`; supera os números do Documento 01 e a lista de "pendentes" desta página),
+`13-visao-e-arquitetura-do-novo-rac.md` (conceito, cinco ambientes, mapa de rotas), `14-arquitetura-do-workspace.md` (páginas, widgets, grade, persistência, edição), `15-arquitetura-de-integracao.md` (Timeline, Captura, Biblioteca, Busca, Mapa, Projetos),
+`16-arquitetura-de-identidade-e-compartilhamento.md` (espaços e permissões), `17-arquitetura-de-inteligencia.md`, `18-roadmap-tecnico.md` (Lotes 1 a 8) e `19-registro-de-decisoes.md`. Teste: `tests/planejamento.test.mjs`. Sem código, SQL, função nem versão do site nova.
+Migrations aplicadas em produção (conferido em 27/11/2026 por `list_migrations`): 051 a 057, 059, 060, 062 a 069; **pendentes:** 050 (catálogo de segurança), 058 e as propostas 041, 044, 061.

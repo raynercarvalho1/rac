@@ -2043,3 +2043,21 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Migração de Compras e Carreira do `gmApi` para o Inbox (auditada em 27/11/2026, não iniciada): três pontos de leitura do Gmail no navegador (`js/app.js` alertas de vagas, `js/carreira.js`, `js/compras.js` bloco Gmail da Central Fiscal). Depois do Inbox, o RAC Financeiro Inteligente.
+
+## 27/11/2026 (noite) · Novo RAC, Lote 0: auditoria integral e arquitetura (só documentação)
+
+### 1. O que fizemos
+- **Auditoria do repositório e do banco (leitura):** rotas, módulos, Design System, dados, identidade, integrações e qualidade. Produção conferida por leitura no conector Supabase (`list_migrations`, `list_tables`, `list_edge_functions` e um `select` em `cron.job`, `storage.buckets`, `pg_views` e `auth.users`): 17 migrations no histórico (051 a 069), 58 tabelas com RLS, 7 views, 6 jobs `pg_cron`, 6 Edge Functions ativas (`garmin` v25), 2 cofres privados, 2 usuários; `seguranca_catalogo` (050) **não existe** em produção.
+- **Oito documentos novos** em `docs/planejamento/`: 12 diagnóstico, 13 visão e arquitetura, 14 Workspace, 15 integração (Timeline, Captura, Biblioteca, Busca, Mapa, Projetos), 16 identidade e compartilhamento, 17 inteligência, 18 roadmap técnico (Lotes 1 a 8) e 19 registro de decisões (N-01 a N-24, Brainstorm e Grill Me). Atualizados: Documento 01 (tabela de documentos), 06 (seção 3.8), 07 (decisões e pendências), `docs/mapa.md` e `tests/planejamento.test.mjs` (lista de documentos esperados).
+- **Achado principal:** o modelo de identidade é "dono + casa" (uma casa por dono, papel calculado no navegador); não há espaços nem compartilhamento por registro. Por isso a fundação de espaços entra no Lote 1 (única mudança de sequência).
+- **Nenhum código do produto, SQL, função, secret ou versão do site foi alterado.** Nada foi publicado em produção.
+
+### 2. O que estamos fazendo
+- Integração dos documentos na `main` por PR, com o CI do PR e da `main` verificados.
+- Aguardando do dono apenas decisões de prioridade (seção 4 do Documento 19); não bloqueiam o Lote 1.
+
+### 3. O que vamos fazer
+- **Pré-requisitos do Lote 1:** confirmar em Authentication que o cadastro aberto está desligado (hipótese não verificável pelo conector) e aplicar a migration 050.
+- **Lote 1:** espaços e permissões no banco + motor de Workspace (Documento 18), com prévia, testes por papel (PGlite) e validação do dono no iPhone.
+- Ordem entre o Lote 1 e as frentes paralelas (migração do `gmApi`, RAC Financeiro Inteligente): decisão do dono.
+

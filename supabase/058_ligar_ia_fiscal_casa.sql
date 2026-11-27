@@ -1,4 +1,4 @@
--- PROPOSTA 058 · NÃO APLICADA EM PRODUÇÃO (decisão do dono em 16/11/2026: "Sim, liberar" a leitura de nota por IA para a Fernanda).
+-- APLICADA EM PRODUCAO (decisão do dono em 16/11/2026: "Sim, liberar" a leitura de nota por IA para a Fernanda). O efeito já estava em produção; em 27/11/2026 (Lote 2 do novo RAC) a migration foi reconciliada: estado conferido por leitura (fiscal.nota em acoes_reais_casa e acoes_casa) e registrada no histórico do Supabase como 058_ligar_ia_fiscal_casa (versão 20261127204346), com o mesmo texto idempotente (nada mudou além de atualizado_em).
 -- LIGA a ação fiscal.nota (Claude Sonnet, paga) para a casa. É a única parte do acesso igual que gera custo, por isso fica num arquivo à parte e só o dono roda.
 -- Rode DEPOIS de: 057 aplicada, função rac-ia republicada (acoes.ts com o papel "casa") e site publicado. Pode rodar de novo sem duplicar nada.
 -- O que faz: acrescenta 'fiscal.nota' em acoes_casa e em acoes_reais_casa da linha da casa, SÓ se o modo já for REAL e a ação já estiver em acoes_reais

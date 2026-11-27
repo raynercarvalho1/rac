@@ -146,3 +146,7 @@ CONFIRMAÇÃO do usuário → o item vira registro no módulo destino (usando a 
 - **Foto com dado sensível** na Captura? → privada ao autor; cofre com `mfa`; nunca enviada a IA sem ação explícita do usuário.
 - **Anexo grande no celular?** → compressão antes de subir e limite claro, com mensagem.
 - **Busca revelando existência de algo privado** a outro membro? → provedor filtra por permissão; resultado "sem acesso" não é listado.
+
+## Estado de implementação (Lote 2, 27/11/2026): widgets como consumidores das fontes
+
+Os widgets de Hoje, Saúde e Compras (Documento 14, "Estado de implementação (Lote 2)") são os primeiros consumidores do contrato de fontes fora do RAC Hoje: Agenda e Saúde pela fonte (`fonteLer`, com opções de janela), Compras e Lista pelas tabelas que a Central e a Lista já leem. Nenhum dado é copiado e nenhuma tabela foi criada; a Timeline (Lote 3) usará os mesmos provedores.

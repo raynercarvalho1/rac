@@ -211,7 +211,7 @@ test("PGlite · ia_config: antes da 057 o banco proíbe fiscal.nota para a casa;
 
 test("058: liga fiscal.nota para a casa só em REAL e com a ação já liberada; preserva as outras; idempotente; não toca hoje.analise nem newsletter", () => {
   const t = ler("supabase/058_ligar_ia_fiscal_casa.sql"), s2 = semComent(t);
-  assert.match(t, /^-- PROPOSTA 058 · NÃO APLICADA EM PRODUÇÃO/);
+  assert.match(t, /^-- APLICADA EM PRODUCAO/); assert.match(t.split("\n")[0], /058_ligar_ia_fiscal_casa/, "reconciliada no histórico do Supabase em 27/11/2026 (Lote 2 do novo RAC)");
   assert.match(s2, /where modo = 'REAL' and 'fiscal\.nota' = any \(acoes_reais\)/);
   assert.doesNotMatch(s2, /limite_brl|cambio|margem|hoje\.analise|newsletter|insert into|delete from|drop /i);
   assert.match(t, /--\s+update public\.ia_config\s*\n--\s+set acoes_casa = array_remove/, "o comando de desligar está comentado");

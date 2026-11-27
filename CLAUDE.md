@@ -73,6 +73,7 @@ Os agentes não têm acesso ao banco: o conhecimento chega por arquivos em `docs
 - Funções puras e testáveis vão em `nucleo.js` (expostas em `window.RACnucleo`, usadas como `NUCLEO.x`), com teste em `tests/nucleo.test.mjs`.
   Nada de tela nem de banco no núcleo.
 - Siga o estilo dos arquivos vizinhos: `h(tag, attrs, ...filhos)`, `panel()`, `wCard()`, textos em português, comentários curtos.
+- Minha Casa (Lote 2, 27/11/2026): é a tela inicial do dono (`#workspace`). Widget novo de módulo entra por `widgetRegistrar` em `js/widgets-modulos.js`: só leitura, pelas fontes ou pelas tabelas que o módulo já lê, com estado vazio e erro, ação de navegação (`acoes`) e `compartilhavel:false` para saúde, e-mail e custos. Nada de tabela de cópia nem de escrita em widget (`tests/workspace_casa_nucleo.test.mjs` varre o arquivo).
 - Todo gráfico novo usa `racDica.ligar`/`racDica.em`, com valor e rótulo fixos em cada barra (há teste).
 - Em edições por script Python: caminho e regex como string crua (`r"..."`), senão `\b` vira caractere de controle (há teste).
 

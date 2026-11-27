@@ -26,13 +26,14 @@ function instalar(cfg) {
   const ativa = (p) => !p.arquivada_em, chave = (p) => p.espaco_id + "|" + String(p.titulo).replace(/\s+/g, " ").trim().toLowerCase();
   (cfg.paginas || []).forEach((p) => db.workspace_paginas.push(Object.assign({ versao: 1, ordem: 0, criado_em: new Date().toISOString(), arquivada_em: null, schema_versao: 1 }, clone(p))));
   function exec(st) {
-    const t = st.t, tabela = db[t];
+    const t = st.t, tabela = db[t] || (cfg.tabelas && cfg.tabelas[t]);   // tabelas de módulos (compras, lista, garmin…): só leitura, para os widgets da Minha Casa
     db.chamadas.push(t + "." + st.op);
     if (st.op !== "select" && db.falhar && (t === "workspace_paginas" || t === "workspace_pessoal")) return res(null, { message: db.falhar, code: "XX000" });
+    if (cfg.falharTabela === t && st.op === "select") return res(null, { message: "tabela fora: " + t, code: "XX000" });
     if (!tabela) return res(st.op === "select" ? [] : null);
-    const casa = (r) => st.f.every((f) => (f[0] === "eq" ? r[f[1]] === f[2] : r[f[1]] === null || r[f[1]] === undefined));
+    const casa = (r) => st.f.every((f) => (f[0] === "eq" ? r[f[1]] === f[2] : f[0] === "gte" ? String(r[f[1]]) >= f[2] : f[0] === "lte" ? String(r[f[1]]) <= f[2] : f[0] === "in" ? f[2].indexOf(r[f[1]]) >= 0 : r[f[1]] === null || r[f[1]] === undefined));
     if (st.op !== "select") db.escritas.push(t + "." + st.op);
-    if (st.op === "select") { let l = tabela.filter(casa).map(clone); if (st.ord) l.sort((a, b) => (a[st.ord[0]] > b[st.ord[0]] ? 1 : a[st.ord[0]] < b[st.ord[0]] ? -1 : 0) * st.ord[1]); if (st.lim) l = l.slice(0, st.lim); return res(l); }
+    if (st.op === "select") { let l = tabela.filter(casa).map(clone); if (st.ord) l.sort((a, b) => { for (const [c, d] of st.ord) { const r = (a[c] > b[c] ? 1 : a[c] < b[c] ? -1 : 0) * d; if (r) return r; } return 0; }); if (st.rg) l = l.slice(st.rg[0], st.rg[1] + 1); if (st.lim) l = l.slice(0, st.lim); return res(l); }
     if (t === "workspace_paginas") {
       const valido = (p) => window.RACnucleo.wsValidar(p.layout).ok;
       if (st.op === "insert") { const p = Object.assign({ versao: 1, ordem: 0, criado_em: new Date().toISOString(), arquivada_em: null, schema_versao: 1, layout: { schema: 1, secoes: [] } }, clone(st.payload));
@@ -53,8 +54,8 @@ function instalar(cfg) {
     return res(st.ret ? [] : null);
   }
   function B(t) { const st = { t, op: "select", f: [], ord: null, lim: null, payload: null, ret: false }, q = {
-    select: () => { if (st.op !== "select") st.ret = true; return q; }, eq: (c, v) => { st.f.push(["eq", c, v]); return q; }, is: (c) => { st.f.push(["is", c]); return q; }, in: () => q, gte: () => q, range: () => q, maybeSingle: () => q,
-    order: (c, o) => { st.ord = [c, o && o.ascending === false ? -1 : 1]; return q; }, limit: (n) => { st.lim = n; return q; },
+    select: () => { if (st.op !== "select") st.ret = true; return q; }, eq: (c, v) => { st.f.push(["eq", c, v]); return q; }, is: (c) => { st.f.push(["is", c]); return q; }, in: (c, v) => { st.f.push(["in", c, v]); return q; }, gte: (c, v) => { st.f.push(["gte", c, v]); return q; }, lte: (c, v) => { st.f.push(["lte", c, v]); return q; }, range: (a, b) => { st.rg = [a, b]; return q; }, maybeSingle: () => q,
+    order: (c, o) => { (st.ord = st.ord || []).push([c, o && o.ascending === false ? -1 : 1]); return q; }, limit: (n) => { st.lim = n; return q; },
     insert: (p) => { st.op = "insert"; st.payload = p; return q; }, update: (p) => { st.op = "update"; st.payload = p; return q; }, upsert: (p) => { st.op = "upsert"; st.payload = p; return q; }, delete: () => { st.op = "delete"; return q; },
     then: (ok, no) => exec(st).then(ok, no) }; return q; }
   window.SB = { from: B, rpc: (n) => (n === "rac_iniciar_espacos" ? res(clone(cfg.espacos)) : res(true)), storage: { from: () => ({ list: () => res([]) }) }, functions: { invoke: () => res(null) } };
@@ -76,6 +77,7 @@ async function abrir(cfg, { largura = 1280, altura = 900 } = {}) {
   });
   await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
   const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador(), pag = await nav.newPage({ viewport: { width: largura, height: altura }, hasTouch: false }), erros = [];
+  { const esperar = pag.waitForFunction.bind(pag); pag.waitForFunction = (fn, arg, opt) => esperar(fn, arg, { polling: 100, ...opt }); }   // sondagem por intervalo, não por requestAnimationFrame: sob carga (vários navegadores em paralelo) o rAF de uma página pode não disparar e a espera ficava pendurada até o limite (instabilidade do waitForFunction no CI do Lote 1)
   pag.on("pageerror", (e) => erros.push("erro: " + e.message));
   pag.on("console", (m) => { if (m.type() === "error" && (m.location().url || base).startsWith(base)) erros.push("console: " + m.text()); });
   pag.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Meus atalhos" : undefined));
@@ -93,10 +95,10 @@ const W = (n) => "w_" + String(n).padStart(6, "0");
 test("computador (1280): sem páginas → criar pelo modelo → personalizar (catálogo, configurar, setas, menu, ocultar, desativar, remover) → desfazer → concluir → reabrir com a composição preservada", { skip: pular, timeout: 120000 }, async () => {
   const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL, CASA] });
   try {
-    assert.match(await pag.textContent(".wk-vazio"), /Monte a sua tela/);
-    await pag.click("text=Começar com o modelo");
-    await pag.fill('input[aria-label="Nome da página"]', "Dia a dia"); await pag.click(".wk-folha button:text-is('Criar página')");
-    await pag.waitForSelector(".wk-edicao", { timeout: 5000 });   // criou e já abre para personalizar
+    assert.match(await pag.textContent(".wk-bemvindo"), /Bem-vindo à sua casa/);
+    await pag.click('.wk-modelo:has-text("Meu dia") button');   // a primeira página nasce "Minha Casa", sem perguntar o nome
+    await pag.waitForSelector(".wk-item", { timeout: 5000 }); assert.match(await pag.textContent(".wk-hero h2"), /Minha Casa/);
+    await pag.click('button[aria-label="Personalizar esta página"]'); await pag.waitForSelector(".wk-edicao", { timeout: 5000 });
     const tipos = await pag.$$eval(".wk-item", (l) => l.map((e) => e.getAttribute("data-id")));
     assert.ok(tipos.length >= 2, "o modelo trouxe componentes: " + tipos.length);
     assert.match(await pag.textContent(".wk-editbar"), /Personalizando/);
@@ -104,7 +106,7 @@ test("computador (1280): sem páginas → criar pelo modelo → personalizar (ca
     assert.equal(await pag.$eval(".wk-grade", (g) => getComputedStyle(g).gridTemplateColumns.split(" ").length), 12);
     /* adicionar pelo catálogo, com busca */
     await pag.click(".wk-add"); await pag.waitForSelector(".wk-catalogo");
-    await pag.fill(".wk-busca", "nota"); assert.equal(await pag.locator(".wk-cat-it").count(), 1, await pag.textContent(".wk-catalogo"));
+    await pag.fill(".wk-busca", "nota fixa"); assert.equal(await pag.locator(".wk-cat-it").count(), 1, await pag.textContent(".wk-catalogo"));
     await pag.click(".wk-cat-it button:has-text('Adicionar')"); await pag.waitForSelector(".wk-catalogo", { state: "detached" });
     const nova = (await ordem(pag)).pop(); assert.equal(await pag.locator(`.wk-item[data-id="${nova}"]`).count(), 1);
     /* o foco vai para a alça do componente novo; setas movem (alternativa ao arrastar), com aviso para leitores de tela */
@@ -153,7 +155,8 @@ test("computador (1280): sem páginas → criar pelo modelo → personalizar (ca
 });
 
 test("computador: arrastar com o mouse pela alça reordena (entre seções também) e o canto redimensiona; o que passa dos limites é limitado", { skip: pular, timeout: 120000 }, async () => {
-  const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL], paginas: [pg("p1", "Casa", lay([it(1), it(2), it(3)], [it(4)]))] });
+  /* janela alta de propósito: arrastar para perto da borda de baixo (70 px) liga a rolagem automática da página, e a posição dos componentes depende das fontes de cada máquina; sem rolagem, o teste mede só a regra de soltar (instabilidade vista no CI do Lote 2 com a janela de 900 px) */
+  const { pag, erros, fechar } = await abrir({ espacos: [PESSOAL], paginas: [pg("p1", "Casa", lay([it(1), it(2), it(3)], [it(4)]))] }, { altura: 1400 });
   try {
     await barra(pag, "Personalizar").click(); await pag.waitForSelector(".wk-edicao");
     const centro = async (sel) => { const b = await pag.locator(sel).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, b }; };
@@ -240,7 +243,7 @@ test("permissões na tela: o leitor não vê 'Personalizar'; em espaço comparti
   const LEITOR = { ...CASA, id: "e-leitor", nome: "Reforma", papel: "leitor", casa: false };
   const l = await abrir({ espacos: [PESSOAL, LEITOR] , paginas: [pg("p1", "Reforma", lay([it(1), it(2)]), { espaco_id: "e-leitor" })] });
   try {
-    await l.pag.selectOption(".wk-sel-espaco", "e-leitor"); await l.pag.waitForSelector(".wk-item");
+    await l.pag.click(".wk-outros button:has-text('Reforma')"); await l.pag.waitForSelector(".wk-item");   // sem página no espaço pessoal, os outros espaços aparecem na boas-vindas
     assert.equal(await l.pag.locator("button:has-text('Personalizar')").count(), 0, "o leitor só vê");
     await l.pag.click(`.wk-item[data-id="${W(1)}"] button:has-text('Ocultar')`); await l.pag.waitForFunction((i) => !document.querySelector(`.wk-item[data-id="${i}"]`), W(1));
     assert.equal(await l.pag.evaluate(() => JSON.stringify(window.__db.workspace_pessoal.map((x) => x.ocultos))), JSON.stringify([[W(1)]]), "a preferência é só da pessoa (workspace_pessoal), o layout não mudou");

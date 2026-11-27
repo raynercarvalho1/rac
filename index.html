@@ -62,7 +62,7 @@
 :root[data-sec="x"]{--accent:var(--c-x);--accent-ink:var(--side)}
 :root[data-sec="mercado"]{--accent:var(--c-mercado)}
 :root[data-sec="newsletter"]{--accent:var(--c-inicio)}
-:root[data-sec="rachoje"]{--accent:var(--c-inicio)}
+:root[data-sec="rachoje"],:root[data-sec="workspace"]{--accent:var(--c-inicio)}
 :root[data-sec="iacustos"]{--accent:var(--c-saude)}
 :root[data-sec="conhecimento"]{--accent:var(--c-inicio)}
 
@@ -1198,7 +1198,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-27.2">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-27.3">
 </head>
 <body>
 
@@ -1221,7 +1221,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 <div class="app" id="app">
   <aside class="side" id="side" aria-label="Navegação">
     <div class="sidetop">
-      <a class="logo" href="#rachoje" aria-label="Dia a Dia RAC, início"><span class="w">diaadia</span><span class="r">RAC</span></a>
+      <a class="logo" href="#workspace" aria-label="Dia a Dia RAC, início"><span class="w">diaadia</span><span class="r">RAC</span></a>
       <button type="button" class="iconbtn closebtn" id="closeside" aria-label="Fechar menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
     </div>
     <div class="search">
@@ -1260,7 +1260,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
     <h1 id="ptitle">Esportes</h1>
     <button type="button" class="homebtn" id="voltarbtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Voltar</button>
     <button type="button" class="homebtn atubtn" id="atubtn" aria-label="Atualizar esta página" title="Atualizar esta página"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="atuh"></span></button>
-    <a class="homebtn" id="homebtn" href="#rachoje" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>Início</a>
+    <a class="homebtn" id="homebtn" href="#workspace" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>Início</a>
     <span class="date" id="hoje"></span>
   </div>
   <p class="atust" id="atust" role="status" aria-live="polite" hidden></p>

@@ -92,7 +92,7 @@ test("menu por área: o registro de rotas tem a área de cada item, a ordem do r
   assert.deepEqual(areas, ["hoje", "vida", "fin", "carreira", "info", "sis"]);
   for (const r of com) assert.ok(areas.includes(r.area), r.id);
   const ordem = [...R.menu.matchAll(/<a class="it" href="#([a-z-]+)"/g)].map((m) => m[1]); assert.deepEqual(ordem, com.map((r) => r.id), "o menu da casa (sem grupos) segue a ordem de sempre");
-  const barra = [...registroBarra().matchAll(/<a href="#([a-z]+)"/g)].map((m) => m[1]); assert.deepEqual(barra, ["rachoje", "mba", "saude", "mercado", "inbox"], "na ordem do campo barra (o Inbox é o 5º atalho)");
+  const barra = [...registroBarra().matchAll(/<a href="#([a-z]+)"/g)].map((m) => m[1]); assert.deepEqual(barra, ["workspace", "rachoje", "mba", "saude", "mercado", "inbox"], "na ordem do campo barra (a Casa abre a barra, acrescentada no Lote 2; os cinco de antes seguem na mesma ordem)");
   assert.match(registroBarra(), /id="barramenu"/); assert.ok(barra.every((id) => com.some((r) => r.id === id)), "a barra só aponta para rotas do registro");
 });
 function registroBarra() { const ctx = { console, Object, Array, JSON, String, document: { getElementById: () => null } }; ctx.window = ctx; vm.createContext(ctx); vm.runInContext(lerArq("js/rotas.js"), ctx); return ctx.rotasBarraHtml(); }

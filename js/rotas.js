@@ -16,7 +16,7 @@
     {id:"inicio",area:"hoje",titulo:"Início",grupo:null,cor:"c-inicio",abrir:function(){renderInicio()},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>'},
     {id:"newsletter",area:"info",titulo:"Newsletter",grupo:"Painel",cor:"c-inicio",mods:["newsletter"],abrir:function(p){renderNewsletter(p[1],decodeURIComponent(p.slice(2).join("/")||""))},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"/><path d="M17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5M8 16h3"/></svg>'},
     {id:"rachoje",acoes:[CAP_COMPRA,CAP_LEMBRETE,CAP_GASTO],area:"hoje",curto:"Hoje",barra:1,titulo:"RAC Hoje",grupo:"Painel",cor:"c-inicio",mods:["hoje"],abrir:function(){renderHoje()},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>'},
-    {id:"workspace",area:"hoje",titulo:"Workspace",grupo:"Painel",cor:"c-inicio",mods:["workspace"],abrir:function(p){renderWorkspace(p[1])},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>'},
+    {id:"workspace",area:"hoje",curto:"Casa",barra:.5,titulo:"Minha Casa",grupo:"Painel",cor:"c-inicio",mods:["workspace"],abrir:function(p){renderWorkspace(p[1])},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>'},
     {id:"iacustos",area:"sis",titulo:"Custos de IA",grupo:"Painel",cor:"c-saude",mods:["iacustos"],abrir:function(){renderCustosIa()},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.8-2.5 1.8-1.2 0-2.1-.5-2.6-1.3M12 6.5V8m0 8v1.5"/></svg>'},
     {id:"componentes",titulo:"Componentes",grupo:null,mods:["componentes"],abrir:function(){renderComponentes()}},
     {id:"conexoes",acoes:[CAP_IDEIA,CAP_LINK],area:"carreira",titulo:"Conexões do dia",grupo:"Painel",cor:"c-mercado",mods:["conexoes"],abrir:function(p){renderConexoes(p[1],decodeURIComponent(p[2]||""))},ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>'},
@@ -65,10 +65,22 @@
   /* as listas que route() (js/app.js) usa, todas tiradas do registro */
   var ROTAS={},tabs=[],DA_CASA=[],ROTA_MODS={};
   RAC_ROTAS.forEach(function(r){ROTAS[r.id]=r;tabs.push(r.id);if(r.casa)DA_CASA.push(r.id);if(r.mods&&r.mods.length)ROTA_MODS[r.id]=r.mods});
+
+  /* Novo RAC · os ambientes (Lote 2): o registro de rotas continua único; cada rota ganha o campo "ambiente" (mapa do Documento 13, seção 3.1). Só a Minha Casa existe como ambiente pronto neste lote;
+     os outros nomes já estão aqui para o menu crescer sem mexer nas rotas: quando "pronto" virar true e houver "rota", o item aparece sozinho em rotasAmbientes(). Nenhum endereço, área, permissão (casa) ou módulo mudou. */
+  var RAC_AMBIENTES=[{id:"casa",nome:"Minha Casa",rota:"workspace",pronto:true},{id:"biblioteca",nome:"Minha Biblioteca",rota:null,pronto:false},{id:"projetos",nome:"Meus Projetos",rota:null,pronto:false},
+    {id:"descobrir",nome:"Descobrir",rota:null,pronto:false},{id:"vida",nome:"Minha Vida",rota:null,pronto:false},{id:"sistema",nome:"Sistema",rota:"sistema",pronto:true,fora:true}];
+  var RAC_AMBIENTE_DE={inicio:"casa",rachoje:"casa",workspace:"casa",agenda:"casa",aniversarios:"casa",lista:"casa",resumo:"casa",painel:"casa",
+    olivia:"vida",eddie:"vida",documentos:"vida",veiculos:"vida",saude:"vida",mercado:"vida",fiscal:"vida",compras:"vida",alimentacao:"vida",inbox:"vida",mba:"vida",carreira:"vida",estudos:"vida",conexoes:"vida",rede:"vida",
+    vagas:"descobrir",newsletter:"descobrir",esportes:"descobrir",x:"descobrir",sistema:"sistema",monitor:"sistema",seguranca:"sistema",iacustos:"sistema",conhecimento:"sistema",componentes:"sistema","em-breve":"sistema",busca:"casa"};
+  RAC_ROTAS.forEach(function(r){r.ambiente=RAC_AMBIENTE_DE[r.id]||"casa"});
+  function ambienteDe(id){return ROTAS[id]?ROTAS[id].ambiente:"casa"}
+  /* os ambientes que já podem aparecer na navegação (hoje só a Minha Casa; o Sistema fica no menu de configuração) */
+  function rotasAmbientes(){return RAC_AMBIENTES.filter(function(a){return a.pronto&&a.rota&&!a.fora})}
   /* Fase 3 · as áreas do menu do dono (a ordem aqui é a ordem dos grupos). O registro de rotas continua na MESMA ordem de antes: o menu da casa (que não tem
      grupos) segue por ela; o do dono é agrupado só por CSS (order), a partir de data-area e --o (area*100 + posição no registro). Um registro só, nenhum menu paralelo. */
-  /* a página em que o app abre: o dono abre no Hoje (reestruturação visual, 22/11/2026); a casa não tem o Início nem o Hoje e route() a leva ao Mercado */
-  function rotaInicial(){return isOwner()?"rachoje":"inicio"}
+  /* a página em que o app abre: o dono abre na Minha Casa (Lote 2 do novo RAC, 27/11/2026; antes abria no RAC Hoje, que segue no menu e na barra); a casa não tem o Início nem o Hoje e route() a leva ao Mercado */
+  function rotaInicial(){return isOwner()?"workspace":"inicio"}
   var RAC_AREAS=[["hoje","Hoje"],["vida","Vida e família"],["fin","Finanças e compras"],["carreira","Carreira e estudos"],["info","Informação"],["sis","Sistema"]];
   /* o menu lateral: os itens com grupo, na ordem do registro (o mesmo HTML que estava no index.html; data-casa marca o que a casa vê) */
   function rotasMenuHtml(){var pos=0;return RAC_AREAS.map(function(a,i){return "\n      <h4 class=\"areat\" data-area=\""+a[0]+"\" style=\"--o:"+(i*100)+"\">"+a[1]+"</h4>"}).join("")+RAC_ROTAS.filter(function(r){return r.grupo}).map(function(r){

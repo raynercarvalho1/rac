@@ -205,3 +205,32 @@ não pode entrar), configurar, **mover** (arrastar com o mouse ou toque longo, s
 **Diferenças em relação ao desenho acima:** (1) "Ocultar" em espaço compartilhado tem dois caminhos: no modo de edição marca o estado `oculto` do layout (afeta todos); fora dele, o botão "Ocultar" de cada componente grava só em `workspace_pessoal` (afeta só a pessoa, também para o leitor);
 (2) recolher uma seção na vista é só da pessoa (fica no aparelho) e não altera o layout compartilhado; (3) o limite de configuração é de 3000 caracteres no navegador contra 4096 bytes no banco, de propósito, para o que passa no navegador sempre passar no banco;
 (4) a configuração de texto livre (Nota fixa) mostra o aviso "quem vê esta página vê este texto".
+
+## Estado de implementação (Lote 2, 27/11/2026): Minha Casa
+
+**O que é:** a Minha Casa é o Workspace do Lote 1 usado como tela inicial do dono: rota `#workspace` (título "Minha Casa", atalho "Casa" na barra do celular, primeiro item da área Hoje do menu), `rotaInicial()` do dono. Nenhuma estrutura paralela: modelos, seções, modo Personalizar, histórico, desfazer e conflito são os do Lote 1.
+
+**Primeira utilização:** sem página, a tela traz boas-vindas e três modelos (`NUCLEO.WS_MODELOS`, montados por `NUCLEO.wsModeloLayout` só com tipos que a pessoa pode usar): **Meu dia**, **Casa completa** (Meu dia, Saúde, Compras) e **Em branco** (abre o catálogo). A primeira página nasce "Minha Casa". Outros espaços do usuário aparecem como botões discretos. Com uma página só não há abas; "Nova página…" e a troca de espaço ficam no menu ⋯; o seletor de espaço só aparece dentro de espaço compartilhado.
+
+**Catálogo (`js/widgets-modulos.js`, carregado com o Workspace):**
+
+| Tipo | Origem e dados | Configuração | Permissão | Ao tocar |
+|---|---|---|---|---|
+| `hoje.resumo` Resumo do dia | fonte `agenda` (contagens: hoje, amanhã, 7 dias) + `lista` (tarefas abertas, até 50) | itens de hoje (0–6), contar tarefas | privado, dono, módulo agenda | `#agenda`, `#lista/tarefas`, `#rachoje` |
+| `hoje.tarefas` Tarefas da casa | `lista` tipo tarefa, abertas | limite (1–15) | privado, dono, módulo lista | `#lista/tarefas` |
+| `agenda.proximos` (Lote 1) | fonte `agenda` | dias, limite | privado, dono | item da Agenda |
+| `saude.indicadores` Indicadores da semana | fonte `saude` (70 dias), `NUCLEO.sauResumoSemana` | indicadores (sono, passos, VFC, FC, estresse), treinos | **privado**, dono, módulo saude; respeita "ocultar valores" | `#saude` |
+| `saude.atividades` Atividades recentes | fonte `saude` só treinos (`semDias`, limite) | quantidade (1–10) | **privado**, dono | `#saude/treino/<id>` |
+| `saude.evolucao` Evolução | fonte `saude`, `NUCLEO.wmSaudeSerie` (dia sem registro = branco) | indicador, janela 7/14/30 | **privado**, dono; respeita "ocultar valores" | `#saude` |
+| `compras.gastos` Gasto do período | tabela `compras` (linhas), `wsPeriodo`, `wmGasto`, `wmGastoSerie` | período, categoria, gráfico | compartilhável, módulo mercado | `#mercado` |
+| `compras.recentes` Notas recentes | `compras`, `mkUltimasNotas` | quantidade, resumida/detalhada | compartilhável | `#mercado` |
+| `compras.categorias` Por categoria | `compras`, `mkcCategorias` (+ "Outras") | período, quantidade | compartilhável | `#mercado/categorias` |
+| `compras.lojas` Últimos estabelecimentos | `compras`, `wmLojasRecentes` | quantidade | compartilhável | `#mercado` |
+| `compras.lista` Lista a comprar | `lista` tipo compra, abertas | limite | compartilhável, módulo lista | `#lista` |
+| `nota.fixa`, `atalhos.rotas`, `data.hoje` (Lote 1) | — | — | compartilháveis | — |
+
+Cada definição traz id estável, versão, nome, descrição, categoria, tamanhos (mín., padrão e máx.), configuração, estados vazio, carregando e erro (contêiner `widgetCorpo`), ação de navegação (`acoes`) e `exige`. **Regras:** só leitura (teste varre o arquivo: nada de insert/update/upsert/delete/rpc/IA/armazenamento; só `compras` e `lista` por `SB.from`); nenhum widget faz operação de negócio, marcar tarefa ou comprar continua no módulo; contas puras em `nucleo.js` (`wsPeriodo`, `wmGasto`, `wmGastoSerie`, `wmCategoriasTop`, `wmLojasRecentes`, `wmDiaResumo`, `wmSaudeSerie`); leituras de Compras que se cobrem dividem uma consulta por 60 s (o ↻ do app descarta). O motor ganhou `ctx.ler(nome, opções)` (a Saúde lê só a janela de que precisa) e a busca do catálogo ignora acento.
+
+**Migration 058 (reconciliação, 27/11/2026):** o arquivo `supabase/058_ligar_ia_fiscal_casa.sql` liga `fiscal.nota` para a casa em `ia_config`. Evidência: o efeito estava em produção (`acoes_reais_casa` = `{fiscal.nota}`; `acoes_casa` com `abastecimento.interpretar`, `fiscal.nota`, `mercado.nota`; modo REAL; uma linha), mas `list_migrations` não a trazia (a lista saltava de 057 para 059; também a 050 consta fora de ordem, aplicada no Lote 1). A migration é **idempotente e aditiva** (união distinta de arrays, só se `fiscal.nota` já está em `acoes_reais`; muda apenas `atualizado_em`), então a reconciliação foi reaplicá-la com o mesmo texto pelo `apply_migration`, o que a registrou como `058_ligar_ia_fiscal_casa` (versão `20261127204346`). Conferência por leitura antes e depois: arrays idênticos. Hipótese (não provada) sobre a causa original: o SQL foi rodado direto no editor pelo dono em 16/11/2026, sem passar pelo histórico de migrations. Cabeçalho do arquivo atualizado.
+
+**Fora deste lote (continua):** Timeline, Captura, Biblioteca, Intelligence, Mapa, Projetos, Descobrir, páginas por espaço para a Fernanda (Lote 8), consolidação visual das telas antigas.

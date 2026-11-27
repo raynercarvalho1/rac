@@ -137,3 +137,23 @@ Mais `tests/workspace_tela.test.mjs` (comportamento) e `tests/design_system.test
 
 As capturas usam um banco simulado e dados de exemplo; o contraste foi medido por cálculo (não por simulação de daltonismo); o toque longo para arrastar no iPhone **não foi validado em aparelho real** (a alternativa por menu e setas existe e está testada);
 a faixa azul em degradê foi conferida por texto branco sobre azul escuro e por inspeção, não por amostragem de pixels. A validação do dono no iPhone e no computador continua sendo o critério final.
+
+## 10. Lote 2: Minha Casa (27/11/2026)
+
+**Método:** `tests/workspace_casa_visual.test.mjs` (Chromium, 3 larguras × 2 temas): primeira utilização, página "Casa completa" no modo ver, modo Personalizar e catálogo, com as medições do Lote 1 (rolagem lateral, sobreposição, alvos de 44 px, contraste WCAG, barra fixa) e mais **texto cortado** nos cartões e a **barra do celular** (7 itens). Capturas feitas com dados simulados (`RAC_CAPTURAS=1`), olhadas uma a uma. **Isto é validação em navegador automatizado; não houve teste em iPhone real.**
+
+**Capturas** (`docs/planejamento/img/`): `lote2-primeira-vez-claro-1440.png`, `lote2-primeira-vez-claro-390.png`, `lote2-primeira-vez-escuro-1000.png`, `lote2-casa-completa-claro-1440.png`, `lote2-casa-completa-claro-1000.png`, `lote2-casa-completa-claro-390.png`, `lote2-casa-completa-escuro-1440.png`, `lote2-casa-completa-escuro-1000.png`, `lote2-casa-completa-escuro-390.png`, `lote2-personalizando-claro-1440.png`, `lote2-personalizando-escuro-390.png`, `lote2-catalogo-claro-390.png`, `lote2-barra-celular-claro-390.png`.
+
+**Decisões visuais:** a vista normal só mostra a faixa azul (nome da página, saudação, data, "Personalizar" e "⋯"), os rótulos de seção e os cartões; resumo do dia em largura total com um indicador em destaque (azul) e três secundários; pares de cartões por seção; listas com alvo de 44 px; gráficos com valor e rótulo em cada barra (`racDica`); estados vazios com texto próprio; o mesmo kit (`rkCard`, `rkKpi`, `rkLista`, `rkEstado`) nos três módulos, sem estilo por widget (só o grid `.wm-kpis`).
+
+**O que a medição e a olhada acharam, e foi corrigido:**
+1. Boas-vindas com título e texto soltos sobre a foto de fundo: contraste 1,09 no tema claro. Passou para dentro de um cartão (regra: texto novo nunca solto sobre a foto).
+2. Barra de seletor de espaço aparecendo na primeira tela e na vista de uma página só: ruído sem função. O seletor passou a existir só em espaço compartilhado; no pessoal a troca fica no menu ⋯ e, sem página, em botões discretos.
+3. Três modelos em 2 colunas deixavam um cartão órfão: grade com colunas de 200 px (3 colunas no computador, 1 no celular).
+4. O aviso "Sua casa está pronta" ficava espremido no celular (`left:50%` limitava a largura a metade da tela): largura por conteúdo.
+5. No celular, o chip de tamanho (`6/12`) cortava o título do cartão no modo Personalizar; como a grade é de 1 coluna, o chip some abaixo de 861 px.
+6. A busca do catálogo não achava "saude" (sem acento) e, dependendo do caso, nem "saúde": passou a ignorar acento e maiúscula.
+
+**Barra do celular:** com a Casa na frente, 7 itens em 390 px (55 px cada), rótulos sem corte e alvos de 44 px, medidos. **Pendente para o dono (iPhone):** aprovar a Casa na barra, toque longo para arrastar, e a leitura dos cartões ao ar livre.
+
+**Limites:** dados simulados (o dono verá os dele); gráfico de 12 meses com poucos dados parece vazio, o que é o dado; o contraste sobre degradê (faixa azul e indicador em destaque) foi conferido visualmente, não por número.

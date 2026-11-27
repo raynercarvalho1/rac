@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-27.2",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-27.3",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -36,7 +36,7 @@
      o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. A página Agenda é o módulo próprio "agenda" (DS-4.1): ele declara o Sistema
      (régua da Próxima melhor ação e ações rápidas), o kit e os gráficos. */
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],saude:["fonte-saude"],"saude-hub":["saude","kit","graficos"],"fonte-saude":["fontes"],agenda:["sistema","kit","graficos"],inbox:["kit","inbox-servico"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
-    workspace:["kit","fontes","widgets","widgets-base"],"widgets-base":["widgets","kit"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
+    workspace:["kit","fontes","widgets","widgets-base","widgets-modulos"],"widgets-base":["widgets","kit"],"widgets-modulos":["widgets","kit","graficos","fontes","fonte-agenda","fonte-saude"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
   /* Um <script> que não chega NÃO é sempre "sem internet": a hospedagem pode responder erro, a rede pode estar acordando (app aberto por uma notificação com o aparelho parado). Por isso:
      tenta de novo até 2 vezes (com "&t=", que o service worker ignora ao procurar a cópia guardada) e o erro sai identificável: codigo, modulo, tentativas e se o aparelho se diz online. */
   var MOD_TENTATIVAS=3;

@@ -756,7 +756,7 @@ body.wk-no-arrasto{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .wk-checks{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow:auto}
 .wk-check{display:flex;align-items:center;gap:8px;min-height:var(--rac-alvo)}
 /* avisos */
-.wk-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--rac-barra-h,64px) + 16px + env(safe-area-inset-bottom,0px));z-index:var(--rac-z-aviso);display:flex;align-items:center;gap:var(--rac-esp-3);max-width:min(560px,calc(100vw - 24px));padding:var(--rac-esp-3) var(--rac-esp-4);border-radius:var(--rac-raio-3);background:var(--rac-papel);color:var(--rac-texto);box-shadow:var(--rac-sombra-3);border-left:4px solid var(--rac-info)}
+.wk-toast{position:fixed;width:max-content;left:50%;transform:translateX(-50%);bottom:calc(var(--rac-barra-h,64px) + 16px + env(safe-area-inset-bottom,0px));z-index:var(--rac-z-aviso);display:flex;align-items:center;gap:var(--rac-esp-3);max-width:min(560px,calc(100vw - 24px));padding:var(--rac-esp-3) var(--rac-esp-4);border-radius:var(--rac-raio-3);background:var(--rac-papel);color:var(--rac-texto);box-shadow:var(--rac-sombra-3);border-left:4px solid var(--rac-info)}
 .wk-toast--ok{border-left-color:var(--rac-ok)}.wk-toast--erro{border-left-color:var(--rac-erro)}.wk-toast--aviso{border-left-color:var(--rac-aviso)}
 .wk-toast-ico{font-weight:700}.wk-toast--ok .wk-toast-ico{color:var(--rac-ok)}.wk-toast--erro .wk-toast-ico{color:var(--rac-erro)}.wk-toast--aviso .wk-toast-ico{color:var(--rac-aviso)}
 .wk-toast-x{background:none;border:0;min-width:var(--rac-alvo);min-height:var(--rac-alvo);font-size:20px;color:var(--rac-texto-2);cursor:pointer}
@@ -773,4 +773,23 @@ body.wk-no-arrasto{user-select:none;-webkit-user-select:none;cursor:grabbing}
   .wk-editbar .wk-rot-m{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.wk-editbar .wk-barra .rac-btn--sec:has(.wk-rot-m){width:var(--rac-alvo);padding:0}
 }
 @media(max-width:520px){.wk-cont{display:none}}
+@media(max-width:860px){.wk-tam{display:none}}   /* no celular a grade é de 1 coluna: o chip de tamanho não informa nada e roubava o título */
+
+/* ===== Minha Casa (Lote 2 do novo RAC; js/widgets-modulos.js e js/workspace.js): widgets dos módulos e primeira utilização. Só tokens do Design System; nada de cor própria. ===== */
+.wm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:var(--rac-esp-3)}
+.wm-kpis .rac-kpi{min-width:0}
+.wm-mais{display:flex;justify-content:flex-end;margin-top:var(--rac-esp-1)}
+.wk-item .rac-lista--leve .rac-linha-item{min-height:var(--rac-alvo)}
+.wk-item .rac-grafico{min-width:0}
+.wk-bemvindo{display:flex;flex-direction:column;gap:var(--rac-esp-5)}
+.wk-bv-cab{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
+.wk-bv-cab p{margin:0;max-width:72ch}
+.wk-modelos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:var(--rac-esp-4)}
+.wk-modelo{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
+.wk-modelo p{margin:0}
+.wk-modelo .wk-linha-btn{margin-top:auto;padding-top:var(--rac-esp-2)}
+.wk-outros{flex-direction:row;flex-wrap:wrap;align-items:center;gap:var(--rac-esp-2) var(--rac-esp-3)}
+.wk-modelo-itens{color:var(--rac-texto-2)}
+.wk-secao+.wk-secao{margin-top:var(--rac-esp-2)}
+
 @media(prefers-reduced-motion:reduce){.wk-item,.wk-alca{transition:none}}

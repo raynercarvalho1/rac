@@ -33,6 +33,7 @@ async function abrir(tema, largura, altura) {
   });
   await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
   const base = `http://127.0.0.1:${servidor.address().port}`, nav = await abrirNavegador(), ctx = await nav.newContext({ viewport: { width: largura, height: altura }, colorScheme: tema }), pag = await ctx.newPage(), erros = [];
+  { const esperar = pag.waitForFunction.bind(pag); pag.waitForFunction = (fn, arg, opt) => esperar(fn, arg, { polling: 100, ...opt }); }   // sondagem por intervalo, não por requestAnimationFrame (ver tests/workspace_tela.test.mjs)
   pag.on("pageerror", (e) => erros.push("erro: " + e.message));
   await pag.goto(base + "/"); await pag.waitForSelector("#gate", { state: "visible", timeout: 20000 });
   await pag.evaluate(new Function("return " + instalar)(), CFG); await pag.evaluate((t) => document.documentElement.setAttribute("data-theme", t), tema);

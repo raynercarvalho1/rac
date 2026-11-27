@@ -190,3 +190,49 @@ Origem: adendo do dono ao Lote 1 (27/11/2026): a aparência atual ainda se mostr
 - **N-41 · Validação visual é teste:** `tests/workspace_visual.test.mjs` mede rolagem lateral, sobreposição, alvos de 44 px, barra fixa e contraste WCAG nos dois temas e nas três larguras; as capturas ficam em `docs/planejamento/img/`.
 - **N-42 · Critério permanente de conclusão:** funcional + técnico + visual/UX, com seção específica no relatório do lote (regra em `CLAUDE.md`).
 - **N-43 · Consolidação das telas antigas fica em backlog** priorizado (seção 8 do Documento 20), tela a tela, sem reformulação indiscriminada.
+
+## 7. Lote 2 (27/11/2026): Minha Casa, Brainstorm, Grill Me e decisões
+
+### 7.1 Como foram usados
+Mesmo método do Lote 1 (seção 5.1): o skill interativo não entrevistou o dono, porque o briefing dispensou a rodada ("resolver as lacunas tecnicamente e registrar"). Brainstorm e Grill Me foram feitos por escrito, com evidência do código, dos Documentos 12 a 20 e do banco de produção (só leitura). Cada lacuna virou regra com teste (`tests/workspace_casa_*.test.mjs`).
+
+### 7.2 Brainstorm: alternativas comparadas
+| Tema | Alternativas | Escolha e motivo |
+|---|---|---|
+| O que é a Minha Casa | (a) tela nova e fixa montada com cartões do Hoje; (b) o Workspace do Lote 1 com widgets dos módulos e modelos; (c) copiar o RAC Hoje inteiro para um cartão | **(b)**: um motor só, nada paralelo; o Hoje continua no menu e na barra como módulo completo |
+| Hierarquia da página | grade solta × seções com título | **seções com título** (Meu dia, Saúde, Compras, ou as do usuário); o resumo do dia abre a página em largura total, depois pares de cartões |
+| Primeira utilização | página padrão criada sozinha × tela vazia × boas-vindas com escolha | **boas-vindas com três jeitos** (Meu dia, Casa completa, Em branco); nada é criado sem a escolha; a página nasce "Minha Casa" sem perguntar o nome |
+| Modo de edição | edição sempre ligada × modo "Personalizar" explícito | **modo Personalizar** (Lote 1, Documento 20): a vista normal não mostra alça, chip de tamanho nem barra |
+| Seções | prompt do navegador para o nome × campo no próprio título | **campo no título** com foco automático; seção vazia não aparece na vista normal |
+| Navegação | trocar o menu inteiro para 5 ambientes × campo `ambiente` no registro e Minha Casa como entrada | **campo `ambiente`** no registro único (mapa do Documento 13, 3.1); só a Minha Casa aparece; os outros nomes entram quando existirem |
+| Barra do celular | substituir um atalho × acrescentar a Casa | **acrescentar a Casa na frente** (7 itens com o Menu, medidos em 390 px); nenhum atalho saiu; decisão a validar pelo dono no iPhone |
+| Widgets do Hoje | os 4 blocos do Hoje inteiros × peças com utilidade própria | **Resumo do dia** e **Tarefas da casa** (mais Agenda: próximos, do Lote 1); não copiam a tela, não chamam IA, Gmail nem Garmin |
+| Dados | tabela de cópia/cache × leitura pelas fontes e tabelas que os módulos já leem | **leitura direta**, sem tabela nova e sem migration; memória curta de 60 s só em Compras |
+
+### 7.3 Grill Me: perguntas, respostas e onde está a prova
+| Pergunta | Resposta (regra) | Prova |
+|---|---|---|
+| A página transmite espaço pessoal? | Faixa com nome da página, saudação e data; seções do usuário; sem aparência de painel administrativo; abas só quando há mais de uma página | capturas `lote2-*` (Documento 20, seção 10) |
+| O usuário entende como personalizar? | Botão "Personalizar" sempre à vista na faixa; na primeira vez a boas-vindas explica; aviso "Toque em Personalizar para mudar o que quiser" | `workspace_casa_tela` |
+| Widgets independentes? | Configuração é do item (id próprio), nunca da posição; o mesmo tipo pode entrar várias vezes | `workspace_casa_nucleo` ("independência das instâncias"), `workspace_casa_tela` (duplicar e configurar) |
+| Sem dados? | Cada widget devolve estado vazio com texto próprio; nunca "undefined"/"NaN" | `workspace_casa_nucleo`, `workspace_casa_tela` ("estados") |
+| Integração falha? | O erro fica no cartão com "Tentar de novo"; os outros seguem; tempo-limite de 15 s | `workspace_casa_tela` (compras fora, tarefas funcionando) |
+| Informação redundante? | Cada tipo tem uma finalidade; o modelo não repete tipo; Agenda: próximos e Resumo do dia contam coisas diferentes (lista × contagens) | modelos em `WS_MODELOS` |
+| Saúde fora do espaço autorizado? | `compartilhavel:false` e `exige.dono`: o motor recusa **antes de ler** (nenhuma consulta a `garmin_*`); a mensagem explica e oferece o espaço pessoal; o catálogo mostra o motivo; os modelos nem trazem o tipo; no banco, `garmin_dia` e `garmin_ativ` só respondem ao próprio dono (RLS `so o dono` + `mfa`, lida em produção em 27/11/2026) | `workspace_casa_tela` (PRIVACIDADE ×2), `workspace_casa_nucleo`, `espacos_sql` |
+| Administrador de espaço vê saúde alheia? | Não: o widget lê com a sessão de quem vê; a RLS devolve só as linhas do próprio dono; papel de espaço não existe nas políticas das tabelas de saúde | leitura de `pg_policies` (garmin_dia, garmin_ativ, garmin_rotas) |
+| Configuração entre aparelhos? | Layout no banco (`workspace_paginas`), concorrência otimista (Lote 1); só o recolher da seção e o rascunho ficam no aparelho | `workspace_tela` (conflito), `workspace_casa_tela` (recarregar) |
+| Widget que deixa de existir? | Cartão "não existe mais nesta versão"; a configuração fica guardada | `workspace_casa_tela` |
+| Poucos widgets? | Seção vazia some da vista; página vazia mostra convite e botão "Adicionar componentes"; uma página só não mostra abas | `workspace_casa_tela` |
+| Telas pequenas? | 1 coluna, menu em vez de arrastar, chip de tamanho escondido, barra de 7 itens com alvos de 44 px | `workspace_casa_visual` |
+| Modo de edição atrapalha a leitura? | O conteúdo segue inteiro e legível (opacidade 1); controles só no modo Personalizar | `workspace_casa_visual` |
+| Excesso de controles? | Na vista: "Personalizar" e "⋯"; seletor de espaço só dentro de espaço compartilhado | `workspace_casa_visual` |
+| Excluir seção apaga dado? | Remove só o layout; os componentes vão para a seção vizinha; dados dos módulos não são tocados | `workspace_nucleo`, `workspace_casa_tela` |
+
+### 7.4 Decisões do Lote 2
+- **D-L2-1 · A Minha Casa é a tela inicial do dono.** `rotaInicial()` passa de `rachoje` para `workspace` (id técnico mantido; título "Minha Casa"). O RAC Hoje segue no menu, na barra e pelo endereço. A Fernanda não muda (entra pelo Início/Mercado, sem Minha Casa até o Lote 8).
+- **D-L2-2 · Sem migration.** Os widgets leem as fontes (`agenda`, `saude`) e as tabelas `compras` e `lista` com a sessão de quem vê; nenhuma tabela de cópia. A migration 070 do Lote 1 basta.
+- **D-L2-3 · Dez widgets em `js/widgets-modulos.js`** (Documento 14, "Minha Casa"). Saúde e Hoje são privados; Compras é dado da casa.
+- **D-L2-4 · Ambientes.** `RAC_AMBIENTES` e o campo `ambiente` em toda rota (testado); só a Minha Casa aparece como ambiente pronto.
+- **D-L2-5 · Barra do celular:** Casa acrescentada na frente (7 itens); aguarda validação do dono no iPhone.
+- **D-L2-6 · Migration 058 reconciliada** (seção 8 do Documento 14, "Migration 058").
+- **D-L2-7 · "Atividades recentes" da Saúde incluem caminhada**, como o RAC Hoje (decisão do dono de 23/11/2026: a caminhada não conta como *treino*, mas aparece nas atividades); o que `NUCLEO.TREINO_OCULTOS` esconde no Hoje fica fora também aqui.

@@ -6,6 +6,7 @@
   var WK={seq:0,raiz:null,espacos:null,espaco:null,paginas:[],prefs:[],pagina:null,layout:null,salvo:null,edicao:false,sujo:false,futuro:false,undo:[],redo:[],ops:[],opsRedo:[],
     foco:null,anuncio:null,recolhidas:{},mostrarOcultos:false,arrastando:null,menu:null,salvando:false,larg:0};
   var WK_CHAVE_ESPACO="rac-ws-espaco:",WK_CHAVE_RASCUNHO="rac-ws-rascunho:";
+  function wkNorm(t){return String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}   /* a busca do catálogo ignora acento e maiúscula: "saude" acha "Saúde" */
   function wkLS(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){}return null}
   function wkMsg(e){var m=String(e&&e.message||e||"");
     if(/row-level security|42501|permission denied/i.test(m))return "Você não tem permissão para isso neste espaço.";
@@ -19,7 +20,7 @@
   function wkPode(nivel){return !!WK.espaco&&NUCLEO.wsPodeNoEspaco(WK.espaco.papel,nivel,WK.espaco.arquivado)}
   function wkAcessivel(id){return isOwner()||DA_CASA.indexOf(id)>=0}
   function wkCtxTipo(){return {tipoEspaco:WK.espaco&&WK.espaco.tipo,papel:wkPapel(),modulos:tabs.filter(wkAcessivel),dono:isOwner()}}
-  function wkLer(nome){return fonteOuErro(nome,{})}
+  function wkLer(nome,c){return fonteOuErro(nome,c||{})}
   function wkCtxWidget(it){return {config:NUCLEO.wsConfigNormalizar(WIDGETS[it.tipo],it.config).config,tamanho:{col:it.col,lin:it.lin},edicao:WK.edicao,usuario:{id:EU&&EU.id},espaco:WK.espaco,ler:wkLer,acessivel:wkAcessivel,abrir:function(a){location.hash=a}}}
   function wkAnunciar(t){if(WK.anuncio)WK.anuncio.textContent=t}
   function wkOcultosPessoais(){var p=WK.pagina,r=null;WK.prefs.forEach(function(x){if(p&&x.pagina_id===p.id)r=x});return r?r.ocultos||[]:[]}
@@ -34,7 +35,7 @@
     wkCarregar(a).then(function(){if(seq!==WK.seq)return;wkDesenhar()},function(e){if(seq!==WK.seq)return;root.innerHTML="";root.appendChild(h("div",{class:"panel"},failed(function(){renderWorkspace(a)},e)))})}
   /* o botão ↻ (js/app.js, atuModulo): relê os espaços; se há alteração não salva a atualização espera (ocupado) e nada é descartado. Depois da troca a página é desenhada de novo (renderWorkspace relê as páginas). */
   atuModulo("workspace",{ocupado:function(){return WK.edicao&&WK.sujo?"Você está personalizando esta página: salve ou cancele antes de atualizar.":""},
-    buscar:function(){return atuLer(function(){return SB.rpc("rac_iniciar_espacos").then(sbOk)}).then(function(r){return {espacos:r}})},
+    buscar:function(){if(typeof wmEsquecer==="function")wmEsquecer();return atuLer(function(){return SB.rpc("rac_iniciar_espacos").then(sbOk)}).then(function(r){return {espacos:r}})},
     antes:function(){return WK.espacos?{espacos:{ok:true}}:{}},
     trocar:function(n){WK.espacos=n.espacos.v}});
   function wkCarregar(paginaId){
@@ -66,7 +67,7 @@
   function wkCriarPagina(titulo,modelo){
     var t=NUCLEO.wsTituloOk(titulo,WK.paginas);if(!t.ok)return Promise.reject(new Error(t.motivo==="repetido"?"Já existe uma página com este nome.":t.motivo==="vazio"?"Dê um nome à página.":"Nome grande demais (máximo 60)."));
     if(WK.paginas.length>=NUCLEO.WS_MAX_PAGINAS)return Promise.reject(new Error("Este espaço já tem o máximo de 30 páginas ativas."));
-    var lay=NUCLEO.wsLayoutPadrao(WIDGETS,modelo==="dia"?["data.hoje","atalhos.rotas"].concat(wkPodeTipo(WIDGETS["agenda.proximos"])?["agenda.proximos"]:[]):[]);
+    var lay=NUCLEO.wsModeloLayout(modelo,WIDGETS,{permite:function(def){return NUCLEO.wsPodeUsarTipo(def,wkCtxTipo())}});
     return SB.from("workspace_paginas").insert({id:novoId(),espaco_id:WK.espaco.id,titulo:t.titulo,ordem:WK.paginas.length,layout:lay}).select("*").then(sbOk).then(function(rows){
       WK.paginas.push(rows[0]);wkAbrirPagina(rows[0]);return rows[0]})}
   function wkPodeTipo(def){return !!def&&NUCLEO.wsPodeUsarTipo(def,wkCtxTipo()).ok}
@@ -166,41 +167,60 @@
       aviso.appendChild(rkEstado("aviso","Há alterações não salvas desta página neste aparelho.",h("span",{class:"wk-linha-btn"},c,d)))}
     if(WK.futuro)aviso.appendChild(rkEstado("aviso","Esta página foi salva por uma versão mais nova do app. Atualize o app para editar; por enquanto ela só pode ser vista."));
     wkDesenharGrade();wkBarra()}
+  /* primeira vez (o espaço ainda não tem página): boas-vindas e três jeitos de começar. Nada é criado até a pessoa escolher; "Em branco" é um jeito de primeira classe, não um canto escondido. */
   function wkVazio(){
-    var pode=wkPode("editar"),box=h("div",{class:"rac-card wk-vazio"});
-    box.appendChild(h("div",{class:"wk-vazio-ico","aria-hidden":"true",text:"🧩"}));
-    box.appendChild(h("h2",{class:"rac-t-secao",text:"Monte a sua tela"}));
-    box.appendChild(h("p",{class:"rac-t-sec",text:pode?"Crie uma página e escolha os componentes, o tamanho e a ordem. Você muda quando quiser, sem depender de ninguém, e nada do que você guarda nos módulos é apagado por isso.":"Este espaço ainda não tem páginas e você só pode ver."}));
-    if(pode){var m=rkBtn("pri","Começar com o modelo “Dia a dia”"),v=rkBtn("sec","Página em branco");m.onclick=function(){wkNovaPagina("dia")};v.onclick=function(){wkNovaPagina("vazia")};box.appendChild(h("div",{class:"wk-linha-btn"},m,v))}
+    var pode=wkPode("editar"),box=h("div",{class:"wk-bemvindo"});
+    box.appendChild(h("div",{class:"rac-card wk-bv-cab"},h("h2",{class:"rac-t-secao",text:"Bem-vindo à sua casa"}),
+      h("p",{class:"rac-t-sec",text:pode?"Este é o seu espaço: você escolhe o que aparece aqui, em que ordem e com que tamanho. Comece por um modelo e ajuste depois, ou monte do zero. Nada do que você guarda nos módulos é apagado por mudar esta página.":"Este espaço ainda não tem páginas e você só pode ver."})));
+    if(!pode)return box;
+    var grade=h("div",{class:"wk-modelos",role:"list"});
+    NUCLEO.WS_MODELOS.forEach(function(m){
+      var lay=NUCLEO.wsModeloLayout(m.id,WIDGETS,{permite:function(def){return NUCLEO.wsPodeUsarTipo(def,wkCtxTipo())}}),nomes=[];
+      lay.secoes.forEach(function(sx){sx.itens.forEach(function(x){if(WIDGETS[x.tipo])nomes.push(WIDGETS[x.tipo].titulo)})});
+      var b=rkBtn(m.id==="completa"?"pri":"sec",m.id==="vazia"?"Começar em branco":"Começar com este");b.onclick=function(){wkNovaPagina(m.id)};
+      grade.appendChild(h("article",{class:"rac-card wk-modelo",role:"listitem"},h("h3",{class:"rac-t-cartao",text:m.nome}),h("p",{class:"rac-t-sec",text:m.descricao}),
+        nomes.length?h("p",{class:"rac-t-legenda wk-modelo-itens",text:"Traz: "+nomes.slice(0,6).join(" · ")+(nomes.length>6?" …":"")}):null,h("div",{class:"wk-linha-btn"},b)))});
+    box.appendChild(grade);
+    var outros=(WK.espacos||[]).filter(function(e){return WK.espaco&&e.id!==WK.espaco.id});   /* sem página aqui, o único caminho para outro espaço seria o menu ⋯, que ainda não existe: botões discretos */
+    if(outros.length){var linha=h("div",{class:"rac-card wk-outros"},h("span",{class:"rac-t-sec",text:"Ou abra outro espaço seu:"}));
+      outros.forEach(function(e){var bt=rkBtn("ter",(e.tipo==="pessoal"?"🔒 ":"👥 ")+e.nome);bt.onclick=function(){wkTrocarEspaco(e.id)};linha.appendChild(bt)});box.appendChild(linha)}
     return box}
   function wkNovaPagina(modelo){
-    var corpo=h("div",{class:"stack"}),inp=h("input",{type:"text",maxlength:"60",placeholder:"Ex.: Minha Casa, Trabalho, Fim de semana","aria-label":"Nome da página",class:"rac-campo-entrada"}),st=h("p",{class:"rac-t-sec",role:"status"}),ok=rkBtn("pri","Criar página");
-    inp.value=modelo==="dia"?"Dia a dia":(WK.paginas.length?"":"Minha Casa");
-    corpo.appendChild(h("label",null,"Nome da página",inp));if(modelo==="dia")corpo.appendChild(h("p",{class:"rac-t-sec",text:"O modelo traz a data de hoje, atalhos e a Agenda (se você puder ver). Depois é só ajustar."}));
-    corpo.appendChild(h("div",{class:"wk-linha-btn"},ok));corpo.appendChild(st);
-    var f=wkFolha(modelo==="dia"?"Nova página (modelo Dia a dia)":"Nova página",corpo);
-    function criar(){ok.disabled=true;st.textContent="Criando…";wkCriarPagina(inp.value,modelo).then(function(){f.fechar(true);wkDesenhar();wkEntrarEdicao()},function(e){ok.disabled=false;st.textContent=wkMsg(e)})}
+    var primeira=!WK.paginas.length;
+    /* a primeira página nasce já com o nome "Minha Casa", sem perguntar nada: o nome pode ser trocado depois no menu ⋯ */
+    if(primeira){wkCriarPagina("Minha Casa",modelo).then(function(){wkDesenhar();if(modelo==="vazia"){wkEntrarEdicao();wkCatalogo(WK.layout.secoes[0].id)}else wkAviso("Sua casa está pronta. Toque em Personalizar para mudar o que quiser.","ok")},function(e){wkAviso(wkMsg(e),"erro")});return}
+    var corpo=h("div",{class:"stack"}),inp=h("input",{type:"text",maxlength:"60",placeholder:"Ex.: Trabalho, Fim de semana","aria-label":"Nome da página",class:"rac-campo-entrada"}),st=h("p",{class:"rac-t-sec",role:"status"}),ok=rkBtn("pri","Criar página"),sel=h("select",{"aria-label":"Começar com",class:"rac-campo-entrada"});
+    NUCLEO.WS_MODELOS.forEach(function(m){sel.appendChild(h("option",{value:m.id,text:m.id==="vazia"?"Página em branco":"Modelo: "+m.nome,selected:m.id===modelo?"":null}))});
+    corpo.appendChild(h("label",null,"Nome da página",inp));corpo.appendChild(h("label",null,"Começar com",sel));corpo.appendChild(h("div",{class:"wk-linha-btn"},ok));corpo.appendChild(st);
+    var f=wkFolha("Nova página",corpo);
+    function criar(){ok.disabled=true;st.textContent="Criando…";wkCriarPagina(inp.value,sel.value).then(function(){f.fechar(true);wkDesenhar();if(sel.value==="vazia")wkEntrarEdicao()},function(e){ok.disabled=false;st.textContent=wkMsg(e)})}
     ok.onclick=criar;inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();criar()}})}
+  function wkTrocarEspaco(id){wkLS(WK_CHAVE_ESPACO+EU.id,id);WK.edicao=false;WK.sujo=false;WK.raiz.innerHTML="";WK.raiz.appendChild(h("div",{class:"panel"},rkEstado("carregando","Trocando de espaço…")));var s2=++WK.seq;
+    wkCarregar().then(function(){if(s2===WK.seq)wkDesenhar()},function(e){WK.raiz.innerHTML="";WK.raiz.appendChild(h("div",{class:"panel"},failed(function(){renderWorkspace()},e)))})}
   /* o topo: no modo ver, a faixa azul + abas; no modo personalizar, a barra fixa */
   function wkTopo(cab){
     var p=WK.pagina,esp=WK.espaco,dataTxt=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"});
     if(WK.edicao){cab.appendChild(h("div",{class:"wk-editbar",role:"region","aria-label":"Personalizando a página"},
       h("div",{class:"wk-edit-info"},rkSelo("aviso","Personalizando"),h("strong",{class:"wk-edit-nome",text:p?p.titulo:""}),h("span",{class:"wk-cont rac-t-legenda"})),
       h("div",{class:"wk-barra"})));return}
-    var hero=h("div",{class:"rh-hero wk-hero"},h("div",null,
-      h("h2",{text:p?p.titulo:"Workspace"}),
-      h("p",{class:"rh-hero-data",text:(esp?(esp.tipo==="pessoal"?"🔒 ":"👥 ")+esp.nome+" · ":"")+dataTxt})),
+    var hora=new Date().getHours(),saud=hora<5?"Boa madrugada":hora<12?"Bom dia":hora<18?"Boa tarde":"Boa noite",
+      hero=h("div",{class:"rh-hero wk-hero"},h("div",null,
+      h("h2",{text:p?p.titulo:"Minha Casa"}),
+      h("p",{class:"rh-hero-data",text:saud+" · "+dataTxt+(esp&&WK.espacos&&WK.espacos.length>1?" · "+(esp.tipo==="pessoal"?"🔒 ":"👥 ")+esp.nome:"")})),
       h("div",{class:"wk-barra"}));
     cab.appendChild(hero);
     var nav=h("div",{class:"wk-nav"});
-    if(WK.espacos&&WK.espacos.length>1){var sel=h("select",{"aria-label":"Espaço",class:"wk-sel-espaco rac-campo-entrada"});WK.espacos.forEach(function(e){sel.appendChild(h("option",{value:e.id,text:(e.tipo==="pessoal"?"🔒 ":"👥 ")+e.nome+(e.papel!=="proprietario"?" ("+e.papel+")":""),selected:e.id===WK.espaco.id?"":null}))});
-      sel.onchange=function(){wkLS(WK_CHAVE_ESPACO+EU.id,sel.value);WK.edicao=false;WK.sujo=false;WK.raiz.innerHTML="";WK.raiz.appendChild(h("div",{class:"panel"},rkEstado("carregando","Trocando de espaço…")));var s2=++WK.seq;wkCarregar().then(function(){if(s2===WK.seq)wkDesenhar()},function(e){WK.raiz.innerHTML="";WK.raiz.appendChild(h("div",{class:"panel"},failed(function(){renderWorkspace()},e)))})};
-      nav.appendChild(sel)}
+    /* o seletor de espaço só aparece quando faz falta (dentro de um espaço compartilhado); no espaço pessoal a troca fica no menu ⋯ */
+    if(WK.espacos&&WK.espacos.length>1&&esp.tipo!=="pessoal"){var sel=h("select",{"aria-label":"Espaço",class:"wk-sel-espaco rac-campo-entrada"});
+      WK.espacos.forEach(function(e){sel.appendChild(h("option",{value:e.id,text:(e.tipo==="pessoal"?"🔒 ":"👥 ")+e.nome+(e.papel!=="proprietario"?" ("+e.papel+")":""),selected:e.id===WK.espaco.id?"":null}))});
+      sel.onchange=function(){wkTrocarEspaco(sel.value)};nav.appendChild(sel)}
     var abas=h("div",{class:"wk-abas",role:"tablist","aria-label":"Páginas"});
+    var paginasN=NUCLEO.wsOrdenarPaginas(WK.paginas).length;
     NUCLEO.wsOrdenarPaginas(WK.paginas).forEach(function(q){var b=h("button",{type:"button",role:"tab",class:"wk-aba","aria-selected":p&&p.id===q.id?"true":"false",text:(wkFavorita(q.id)?"★ ":"")+q.titulo});
       b.onclick=function(){if(p&&p.id===q.id)return;WK.edicao=false;wkAbrirPagina(q);wkDesenhar()};abas.appendChild(b)});
-    if(wkPode("editar")){var n=h("button",{type:"button",class:"wk-aba wk-aba-nova",text:"+ Nova página","aria-label":"Criar nova página"});n.onclick=function(){wkNovaPagina("vazia")};abas.appendChild(n)}
-    nav.appendChild(abas);cab.appendChild(nav)}
+    if(paginasN>1&&wkPode("editar")){var n=h("button",{type:"button",class:"wk-aba wk-aba-nova",text:"+ Nova página","aria-label":"Criar nova página"});n.onclick=function(){wkNovaPagina("vazia")};abas.appendChild(n)}
+    if(paginasN>1)nav.appendChild(abas);   /* com uma página só, as abas não aparecem: nada de controle que não serve a nada (nova página fica no menu ⋯) */
+    if(nav.childNodes.length)cab.appendChild(nav)}
   /* os botões do modo atual (o contêiner .wk-barra já está na tela) */
   function wkIcone(txt,rot){return [h("span",{class:"wk-ic","aria-hidden":"true",text:txt}),h("span",{class:"sr-only",text:rot})]}
   function wkBarra(){
@@ -211,7 +231,7 @@
       bt("icone",wkIcone("↶","Desfazer"),"Desfazer",wkDesfazer,{disabled:WK.undo.length?null:""});bt("icone",wkIcone("↷","Refazer"),"Refazer",wkRefazer,{disabled:WK.redo.length?null:""});
       bt("sec",[h("span",{class:"wk-ic","aria-hidden":"true",text:"＋"}),h("span",{class:"wk-rot-m",text:"Adicionar"})],"Adicionar componente",function(){wkCatalogo(WK.layout.secoes[WK.layout.secoes.length-1].id)});
       var mais=rkBtn("icone","",{"aria-label":"Mais ações da personalização",title:"Mais ações da personalização","aria-haspopup":"menu"});mais.textContent="";mais.appendChild(h("span",{class:"wk-ic","aria-hidden":"true",text:"⋯"}));
-      mais.onclick=function(){wkMenu(mais,[{rotulo:"+ Seção",acao:function(){var t=prompt("Nome da nova seção (pode ficar em branco):","");if(t===null)return;wkOp({op:"secao-adicionar",titulo:t},"Seção adicionada.")}},{rotulo:"Histórico de versões…",acao:wkHistorico}])};
+      mais.onclick=function(){wkMenu(mais,[{rotulo:"+ Seção",acao:function(){var r=wkOp({op:"secao-adicionar",titulo:""},"Seção adicionada. Dê um nome a ela.");if(r&&r.ok){var u=WK.layout.secoes[WK.layout.secoes.length-1];WK.foco="secao:"+u.id;wkDesenharGrade()}}},{rotulo:"Histórico de versões…",acao:wkHistorico}])};
       mais.classList.add("wk-mais");var info=WK.raiz.querySelector(".wk-edit-info");if(info)info.appendChild(mais);
       bt("sec",[h("span",{text:"Cancelar"})],"Cancelar",function(){if(WK.sujo&&!confirm("Descartar as alterações não salvas desta página?"))return;wkSair(true)});
       bt("pri",[h("span",{text:WK.salvando?"Salvando…":"Concluir"})],"Concluir",function(){wkSalvar()},{disabled:WK.salvando?"":null,"aria-busy":WK.salvando?"true":null}).classList.add("wk-concluir")
@@ -224,12 +244,14 @@
   function wkMenuPagina(botao){
     var p=WK.pagina,pode=wkPode("editar");
     wkMenu(botao,[{rotulo:wkFavorita(p.id)?"✓ É minha página inicial":"Definir como minha página inicial",acao:function(){wkPrefGravar(p.id,{favorita:true}).then(wkDesenhar,function(e){wkAviso(wkMsg(e),"erro")})},desligado:wkFavorita(p.id)},
-      "-",{rotulo:"Renomear página…",acao:function(){var t=prompt("Novo nome da página:",p.titulo);if(t===null)return;wkRenomear(p,t).then(wkDesenhar,function(e){wkAviso(e.conflito?"A página mudou em outro aparelho. Atualize e tente de novo.":wkMsg(e),"erro")})},desligado:!pode},
+      {rotulo:"Nova página…",acao:function(){wkNovaPagina("vazia")},desligado:!pode},"-",{rotulo:"Renomear página…",acao:function(){var t=prompt("Novo nome da página:",p.titulo);if(t===null)return;wkRenomear(p,t).then(wkDesenhar,function(e){wkAviso(e.conflito?"A página mudou em outro aparelho. Atualize e tente de novo.":wkMsg(e),"erro")})},desligado:!pode},
       {rotulo:"Mover página para a esquerda",acao:function(){wkMoverPagina(p,-1).then(wkDesenhar,function(e){wkAviso(wkMsg(e),"erro")})},desligado:!pode},
       {rotulo:"Mover página para a direita",acao:function(){wkMoverPagina(p,1).then(wkDesenhar,function(e){wkAviso(wkMsg(e),"erro")})},desligado:!pode},
-      {rotulo:"Histórico de versões",acao:wkHistorico,desligado:!pode},"-",
+      {rotulo:"Histórico de versões",acao:wkHistorico,desligado:!pode},"-"].concat(
+      (WK.espacos||[]).filter(function(e){return e.id!==WK.espaco.id}).map(function(e){return {rotulo:"Ir para o espaço: "+(e.tipo==="pessoal"?"🔒 ":"👥 ")+e.nome,acao:function(){wkTrocarEspaco(e.id)}}}),
+      (WK.espacos||[]).length>1?["-"]:[],[
       {rotulo:"Arquivar página…",perigo:true,titulo:"A página sai da lista; os dados dos módulos não são tocados.",desligado:!wkPode("administrar")&&!(WK.espaco&&WK.espaco.tipo==="pessoal"),
-        acao:function(){if(!confirm("Arquivar a página “"+p.titulo+"”? Ela deixa de aparecer, mas nenhum dado dos módulos é apagado."))return;wkArquivar(p).then(wkDesenhar,function(e){wkAviso(wkMsg(e),"erro")})}}])}
+        acao:function(){if(!confirm("Arquivar a página “"+p.titulo+"”? Ela deixa de aparecer, mas nenhum dado dos módulos é apagado."))return;wkArquivar(p).then(wkDesenhar,function(e){wkAviso(wkMsg(e),"erro")})}}]))}
   /* histórico: as últimas versões salvas; escolher uma abre a edição já com aquele layout (a pessoa confere e conclui) */
   function wkHistorico(){
     var p=WK.pagina,corpo=h("div",{class:"stack"},loading()),f=wkFolha("Histórico de versões",corpo);
@@ -245,14 +267,17 @@
     var y=window.scrollY;alvo.innerHTML="";
     var vis=NUCLEO.wsVisao(WK.layout,{edicao:WK.edicao,ocultosPessoais:wkOcultosPessoais(),mostrarPessoais:WK.mostrarOcultos,catalogo:WIDGETS,mobile:window.innerWidth<=860,permite:function(def){return NUCLEO.wsPodeUsarTipo(def,wkCtxTipo())}});
     var total=0;
-    vis.forEach(function(s,si){total+=s.itens.length;alvo.appendChild(wkSecao(s,si,vis.length))});
-    if(!total&&!WK.edicao){alvo.appendChild(h("div",{class:"panel wk-vazio"},h("h2",{text:"Esta página está vazia"}),h("p",{class:"sub",text:wkPode("editar")?"Toque em Personalizar para adicionar componentes.":"Ainda não há nada aqui."})))}
+    vis.forEach(function(s,si){total+=s.itens.length;if(!WK.edicao&&!s.itens.length)return;alvo.appendChild(wkSecao(s,si,vis.length))});   /* na vista, seção sem componente visível não ocupa espaço */
+    if(!total&&!WK.edicao){var box=h("div",{class:"rac-card wk-vazio"},h("div",{class:"wk-vazio-ico","aria-hidden":"true",text:"🧩"}),h("h2",{class:"rac-t-secao",text:"Esta página ainda não tem componentes"}),
+        h("p",{class:"rac-t-sec",text:wkPode("editar")?"Escolha o que você quer ver aqui: resumo do dia, agenda, saúde, compras… Você muda quando quiser.":"Ainda não há nada aqui."}));
+      if(wkPode("editar")&&!WK.futuro){var ad=rkBtn("pri","Adicionar componentes");ad.onclick=function(){wkEntrarEdicao();wkCatalogo(WK.layout.secoes[0].id)};box.appendChild(h("div",{class:"wk-linha-btn"},ad))}
+      alvo.appendChild(box)}
     window.scrollTo(0,y);
     if(WK.foco){var el=alvo.querySelector('[data-foco="'+WK.foco+'"]');if(el)el.focus();WK.foco=null}}
   function wkSecao(s,si,n){
     var box=h("section",{class:"wk-secao","data-secao":s.id,"aria-label":s.titulo||"Seção "+(si+1)});
     if(s.titulo||WK.edicao){var cab=h("div",{class:"wk-secao-cab"});
-      if(WK.edicao){var t=h("input",{type:"text",class:"wk-secao-titulo rac-campo-entrada",value:s.titulo,maxlength:"60","aria-label":"Nome da seção "+(si+1),placeholder:"Nome da seção"});
+      if(WK.edicao){var t=h("input",{type:"text",class:"wk-secao-titulo rac-campo-entrada",value:s.titulo,maxlength:"60","aria-label":"Nome da seção "+(si+1),placeholder:"Nome da seção","data-foco":"secao:"+s.id});
         t.onchange=function(){wkOp({op:"secao-renomear",id:s.id,titulo:t.value})};cab.appendChild(t);
         var mn=h("button",{type:"button",class:"rac-btn rac-btn--icone wk-mini","aria-haspopup":"menu","aria-label":"Ações da seção "+(si+1),text:"⋯"});
         mn.onclick=function(){wkMenu(mn,[{rotulo:"+ Adicionar componente",acao:function(){wkCatalogo(s.id)}},"-",{rotulo:s.recolhida?"Expandir seção":"Recolher seção",acao:function(){wkOp({op:"secao-recolher",id:s.id,recolhida:!s.recolhida})}},
@@ -291,7 +316,9 @@
     if(sit==="indisponivel"){var r=h("button",{type:"button",class:"ghostbtn",text:"Remover da página"});r.onclick=function(){wkOp({op:"remover",id:it.id},"Componente removido da página.")};
       corpo.appendChild(rkEstado("aviso","Este componente ("+it.tipo+") não existe mais nesta versão do app. A configuração dele foi guardada.",WK.edicao?r:null))}
     else if(sit==="versao_futura")corpo.appendChild(rkEstado("aviso","Salvo por uma versão mais nova do app. Atualize o app para usar este componente."));
-    else if(sit==="sem_permissao")corpo.appendChild(rkEstado("aviso","Você não tem acesso a este conteúdo."));
+    else if(sit==="sem_permissao"){var pm=NUCLEO.wsPodeUsarTipo(def,wkCtxTipo()),txt=pm.motivo==="tipo_privado"?"Este componente é privado e não aparece em espaços compartilhados. Nenhum dado foi lido.":pm.motivo==="so_do_dono"?"Este componente é só do dono da conta.":pm.motivo==="modulo_indisponivel"?"Você não tem acesso ao módulo deste componente.":"Você não tem acesso a este conteúdo.",pessoal=WK.espacos&&WK.espacos.filter(function(e){return e.tipo==="pessoal"})[0],ir=null;
+      if(pm.motivo==="tipo_privado"&&pessoal&&WK.espaco&&pessoal.id!==WK.espaco.id){ir=rkBtn("sec","Abrir no meu espaço pessoal");ir.onclick=function(){wkLS(WK_CHAVE_ESPACO+EU.id,pessoal.id);renderWorkspace()}}
+      corpo.appendChild(rkEstado("aviso",txt,ir))}
     else if(sit==="desativado")corpo.appendChild(rkEstado("aviso","Componente desativado: não consulta dados nem gera avisos. Reative no menu ⋯."));
     else if(sit==="oculto"&&WK.edicao)corpo.appendChild(rkEstado("aviso","Oculto: não aparece na vista. Mostre pelo menu ⋯."));
     else corpo.appendChild(widgetCorpo(def,it,wkCtxWidget(it)));
@@ -344,8 +371,8 @@
     if(WK.layout.secoes.length>1){secaoSel=h("select",{"aria-label":"Seção de destino",class:"rac-campo-entrada"});WK.layout.secoes.forEach(function(sx,k){secaoSel.appendChild(h("option",{value:sx.id,text:"Adicionar em: "+(sx.titulo||"Seção "+(k+1)),selected:sx.id===secaoId?"":null}))});corpo.appendChild(secaoSel)}
     corpo.appendChild(busca);corpo.appendChild(chips);corpo.appendChild(lista);var f=wkFolha("Adicionar componente",corpo);
     function pintarChips(){chips.innerHTML="";["Todos"].concat(cats).forEach(function(c){var b=h("button",{type:"button",class:"rac-chip","aria-pressed":((c==="Todos"&&!cat)||c===cat)?"true":"false",text:c});b.onclick=function(){cat=c==="Todos"?"":c;pintarChips();pintar()};chips.appendChild(b)})}
-    function pintar(){lista.innerHTML="";var q=NUCLEO.norm?NUCLEO.norm(busca.value):busca.value.toLowerCase(),n=0;
-      widgetLista().forEach(function(d){var txt=(d.titulo+" "+d.descricao+" "+d.categoria).toLowerCase();if(q&&txt.indexOf(q)<0)return;if(cat&&d.categoria!==cat)return;n++;
+    function pintar(){lista.innerHTML="";var q=wkNorm(busca.value).trim(),n=0;
+      widgetLista().forEach(function(d){var txt=wkNorm(d.titulo+" "+d.descricao+" "+d.categoria);if(q&&txt.indexOf(q)<0)return;if(cat&&d.categoria!==cat)return;n++;
         var pode=NUCLEO.wsPodeUsarTipo(d,wkCtxTipo()),b=rkBtn(pode.ok?"sec":"sec","Adicionar",{disabled:pode.ok?null:"","aria-label":"Adicionar "+d.titulo}),
           why={tipo_privado:"Privado: não pode ficar em espaço compartilhado.",modulo_indisponivel:"Você não tem acesso a este módulo.",so_do_dono:"Só do dono.",papel_insuficiente:"Seu papel neste espaço não permite.",espaco_nao_suportado:"Não disponível neste tipo de espaço."}[pode.motivo];
         b.onclick=function(){var r=wkOp({op:"adicionar",tipo:d.tipo,secao:secaoSel?secaoSel.value:secaoId},d.titulo+" adicionado.");if(r.ok){WK.foco="alca:"+r.id;f.fechar(true);wkDesenharGrade();var el=WK.raiz.querySelector('[data-id="'+r.id+'"]');if(el&&el.scrollIntoView)el.scrollIntoView({block:"nearest"})}};

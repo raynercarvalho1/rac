@@ -110,3 +110,7 @@ antes do que a sequência de fases sugeria.
 
 Nenhuma rota é removida; nenhum dado é movido no Lote 0; o `PAPEL` continua valendo até a consolidação familiar; as regras de IA (só `rac-ia`, nunca grava), de segurança (RLS, `mfa`, backup) e de código (ES5, global com prefixo, testes)
 seguem integralmente.
+
+## Estado de implementação da navegação (Lote 2, 27/11/2026)
+
+`RAC_ROTAS` ganhou o campo `ambiente` em **todas** as rotas (mapa da seção 3.1, testado em `tests/workspace_casa_tela.test.mjs`), e `js/rotas.js` traz `RAC_AMBIENTES` (os cinco nomes aprovados mais o Sistema), `ambienteDe(id)` e `rotasAmbientes()`. Só a **Minha Casa** está pronta e aparece; os demais entram com `pronto:true` e uma `rota` quando existirem. A Minha Casa (`#workspace`) é a rota inicial do dono e o primeiro atalho da barra do celular, que ganhou a Casa na frente e **manteve** Hoje, MBA, Saúde, Compras e Inbox (7 itens com o Menu, medidos em 390 px). O menu lateral segue agrupado pelas seis áreas de antes (nenhum item saiu). Pendente de validação do dono no iPhone; a barra com 4 ambientes e o botão central de Captura é do Lote 4.

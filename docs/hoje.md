@@ -325,3 +325,6 @@ guardada quando a página continua aberta, mensagens que dizem "incerta" ou "nã
 
 
 **Perguntas fora da tela (24/11/2026, decisão do dono).** O cartão "Pergunte sobre o seu dia" foi retirado do Hoje: o dono só lê a análise. O motor de perguntas (`hojeAnalisar({pergunta})`, cache e cobrança) continua no código e nos testes, sem botão nem campo; análises antigas com pergunta seguem aparecendo no histórico. Para voltar, reponha o cartão em `renderHoje` (`js/hoje.js`).
+
+## Minha Casa (Lote 2 do novo RAC, 27/11/2026)
+O RAC Hoje continua inteiro (menu, barra do celular e `#rachoje`). A tela inicial do dono passou a ser a Minha Casa (`#workspace`), que traz **peças** do Hoje como widgets (Resumo do dia e Tarefas da casa, mais Agenda: próximos), sem copiar a tela, sem IA, Gmail nem Garmin; a análise com IA, os interruptores e o histórico seguem só aqui. Detalhes: `docs/planejamento/14-arquitetura-do-workspace.md`.

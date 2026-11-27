@@ -63,9 +63,9 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
 
 /* ---------- route(): o código de antes e o de agora no mesmo ambiente falso, registrando tudo o que cada um faz ---------- */
 const RENDER = ["renderX", "renderInicio", "renderEstudos", "renderMba", "renderFamilia", "renderRede", "renderCarreira", "renderLista", "renderAgenda", "renderResumo", "renderPainel",
-  "renderAlimentacao", "renderCompras", "renderFiscal", "renderHoje", "renderCustosIa", "renderConhecimento", "renderBusca", "renderSistema", "renderSeguranca", "renderConexoes", "renderNewsletter", "renderSaude",
+  "renderAlimentacao", "renderCompras", "renderFiscal", "renderHoje", "renderWorkspace", "renderCustosIa", "renderConhecimento", "renderBusca", "renderSistema", "renderSeguranca", "renderConexoes", "renderNewsletter", "renderSaude",
   "renderVeiculos", "renderCentral", "renderMlb", "renderEspn", "vgAlertas", "abrirCaptura", "sideMark", "mark", "atuBotao", "atuAviso", "fundoPagina", "marcarProfundidade", "setSide", "logErro"];
-const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "saude-hub", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos"];
+const TODOS_MODS = ["esportes", "esportes-central", "familia", "mba", "saude", "saude-hub", "conexoes", "newsletter", "sistema", "agenda", "lista", "carreira", "resumo", "rede", "seguranca", "painel", "alimentacao", "compras", "fiscal", "hoje", "iacustos", "workspace"];
 function rodar(codigo, { papel, hash, carregados, cru }) {
   const log = [], el = (nome) => new Proxy({}, { set(_, k, v) { log.push(["set", nome, k, v]); return true; }, get(_, k) { if (k === "insertAdjacentHTML") return () => {}; if (k === "insertBefore") return () => log.push(["erro na tela", nome]); return undefined; } });
   const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, ROTA_REFRESH: false, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
@@ -129,17 +129,17 @@ test("destinos das notificações (Agenda, Resumo, Lista e outros do site) abrem
     assert.deepEqual(rodar(NOVO, { papel, hash, carregados: true }), rodar(ANTES_JS, { papel, hash, carregados: true }), papel + " " + hash);
 });
 
-test("Reestruturação visual (Lote 1): o dono abre no Hoje; a casa nunca cai nele; #inicio continua abrindo o Início", () => {
+test("Reestruturação visual (Lote 1): o dono abre na Minha Casa (Lote 2 do novo RAC; antes abria no Hoje); a casa nunca cai nela; #inicio continua abrindo o Início", () => {
   const ver = (papel, hash) => rodar(NOVO, { papel, hash, carregados: true });
   const abre = (l, n) => l.some((x) => x[0] === n);
-  for (const h of ["", "#", "#inexistente"]) { const l = ver("dono", h); assert.ok(abre(l, "renderHoje") && !abre(l, "renderInicio"), `dono em "${h}" abre o Hoje`); assert.equal(l.estado.VOLTAR_PAI, "", "no Hoje não há para onde subir"); }
-  const cap = ver("dono", "#captura"); assert.deepEqual(cap.filter((x) => x[0] === "replaceState"), [["replaceState", "#rachoje"]], "a captura rápida volta ao Hoje"); assert.ok(abre(cap, "renderHoje"));
+  for (const h of ["", "#", "#inexistente"]) { const l = ver("dono", h); assert.ok(abre(l, "renderWorkspace") && !abre(l, "renderInicio") && !abre(l, "renderHoje"), `dono em "${h}" abre a Minha Casa`); assert.equal(l.estado.VOLTAR_PAI, "", "na Minha Casa não há para onde subir"); }
+  const cap = ver("dono", "#captura"); assert.deepEqual(cap.filter((x) => x[0] === "replaceState"), [["replaceState", "#workspace"]], "a captura rápida volta à Minha Casa"); assert.ok(abre(cap, "renderWorkspace"));
   for (const h of ["", "#", "#inexistente", "#rachoje", "#inicio"]) { const l = ver("casa", h); assert.ok(abre(l, "RACmercado.render") && !abre(l, "renderHoje") && !abre(l, "renderInicio"), `a casa em "${h}" vai ao Mercado`); }
   const capCasa = ver("casa", "#captura"); assert.ok(abre(capCasa, "renderLista") && !abre(capCasa, "renderHoje") && !abre(capCasa, "renderInicio"), "a captura da casa continua indo à Lista (o teste de equivalência acima prova que é igual a antes)");
-  const ini = ver("dono", "#inicio"); assert.ok(abre(ini, "renderInicio"), "o Início ainda abre pelo endereço"); assert.equal(ini.estado.VOLTAR_PAI, "#rachoje", "do Início se volta ao Hoje");
+  const ini = ver("dono", "#inicio"); assert.ok(abre(ini, "renderInicio"), "o Início ainda abre pelo endereço"); assert.equal(ini.estado.VOLTAR_PAI, "#workspace", "do Início se volta à Minha Casa");
   assert.ok(ini.some((x) => x[0] === "set" && x[1] === "#homebtn" && x[2] === "hidden" && x[3] === false), "no Início o botão de casa aparece");
-  assert.ok(ver("dono", "#rachoje").some((x) => x[0] === "set" && x[1] === "#homebtn" && x[2] === "hidden" && x[3] === true), "no Hoje o botão de casa some");
-  assert.equal(ver("dono", "#agenda").estado.VOLTAR_PAI, "#rachoje", "as outras páginas sobem para o Hoje");
+  assert.ok(ver("dono", "#workspace").some((x) => x[0] === "set" && x[1] === "#homebtn" && x[2] === "hidden" && x[3] === true), "na Minha Casa o botão de casa some"); assert.ok(abre(ver("dono", "#rachoje"), "renderHoje"), "o RAC Hoje continua abrindo pelo endereço, no menu e na barra");
+  assert.equal(ver("dono", "#agenda").estado.VOLTAR_PAI, "#workspace", "as outras páginas sobem para a Minha Casa");
   assert.equal(ver("casa", "#mercado").estado.VOLTAR_PAI, "", "a casa continua sem botão de subir ao Início");
-  assert.match(html, /<a class="logo" href="#rachoje"/); assert.match(html, /id="homebtn" href="#rachoje"/);
+  assert.match(html, /<a class="logo" href="#workspace"/); assert.match(html, /id="homebtn" href="#workspace"/);
 });

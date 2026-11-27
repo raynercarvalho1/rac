@@ -2110,3 +2110,23 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Lote 2 (Minha Casa configurável e consolidação visual), na ordem do Documento 18 e da seção 8 do Documento 20; a ordem entre o Lote 2 e as frentes paralelas (migração do `gmApi`, RAC Financeiro Inteligente) segue sendo decisão do dono.
 
+
+## 27/11/2026 (noite, 5) · Lote 2: Minha Casa configurável
+
+### 1. O que fizemos
+- **Minha Casa** (`#workspace`, tela inicial do dono): primeira utilização com boas-vindas e três modelos (Meu dia, Casa completa, Em branco), página "Minha Casa" criada só depois da escolha, seções com nome digitado no próprio título, "Nova página…" e troca de espaço no menu ⋯, seletor de espaço só em espaço compartilhado, aviso de recusa com convite ao espaço pessoal, busca do catálogo sem acento.
+- **10 widgets** em `js/widgets-modulos.js` (Hoje: Resumo do dia e Tarefas da casa; Saúde: Indicadores da semana, Atividades recentes e Evolução; Compras: Gasto do período, Notas recentes, Por categoria, Últimos estabelecimentos e Lista a comprar), só leitura, pelas fontes `agenda` e `saude` e pelas tabelas `compras` e `lista`; **sem migration e sem tabela de cópia**; contas puras no núcleo (`wsPeriodo`, `wm*`, `WS_MODELOS`).
+- **Navegação:** campo `ambiente` em toda rota, `RAC_AMBIENTES`, Minha Casa como rota inicial do dono e Casa na frente da barra do celular (os cinco atalhos de antes seguem, 7 itens medidos em 390 px).
+- **Migration 058 reconciliada:** efeito já em produção (`fiscal.nota` em `acoes_reais_casa` e `acoes_casa`), ausente do histórico; migration idempotente e aditiva reaplicada pelo `apply_migration` com o mesmo texto (`058_ligar_ia_fiscal_casa`, versão `20261127204346`); conferência por leitura antes e depois idêntica; cabeçalho do arquivo e teste atualizados.
+- **Privacidade conferida:** RLS de `garmin_dia`, `garmin_ativ` e `garmin_rotas` só do dono (`so o dono` + `mfa`), lida em produção; o motor recusa Saúde e Hoje em espaço compartilhado antes de consultar (teste prova que nenhuma tabela do relógio é lida).
+- **Testes:** `workspace_casa_nucleo` (17), `workspace_casa_tela` (9, Chromium), `workspace_casa_visual` (7, Chromium: 3 larguras × 2 temas + barra), ajustes em testes legados (rotas, barra, versão, 058, Lote 1). Grupo 2 (banco): 73/73. Grupo 1: 4 falhas legadas esperadas, corrigidas e reexecutadas.
+- **Visual:** capturas olhadas uma a uma; 6 problemas achados e corrigidos (Documento 20, seção 10). **Instabilidade do `waitForFunction`:** uma falha em ~12 execuções sob carga, sem reprodução; hipótese e mitigação (sondagem por intervalo, sem aumentar timeout) no RAC Knowledge.
+- Documentos 13, 14, 15, 18, 19 (seção 7: Brainstorm, Grill Me e decisões), 20 (seção 10), `docs/mapa.md`, `docs/hoje.md`, `docs/saude.md`, `CLAUDE.md` e RAC Knowledge (4 registros).
+
+### 2. O que estamos fazendo
+- Suíte completa final, PR, CI, merge, deploy do Pages e verificação do site `2026-11-27.3` (resultado no relatório e no registro de publicação).
+- Validação do dono no iPhone e no computador (critério final): Casa na barra, toque longo para arrastar e a leitura dos cartões.
+
+### 3. O que vamos fazer
+- **Lote 3:** Timeline e Busca global sobre os mesmos provedores (fontes), com o widget `timeline.recente`.
+- Atenção do dono: aprovar a Casa na barra do celular; decidir se o RAC Hoje deve continuar como item da barra.

@@ -37,9 +37,10 @@ function banco(tabelas, rls, quem) {
 function ambiente({ tabelas = {}, usuario = { id: "dono", dono: true, casa: true }, politica, pessoal = {}, agenda = [], falhar = null, desligarRls = false } = {}) {
   const atual = { u: usuario }, rls = { politica: desligarRls ? {} : (politica || {}), falhar }, b = banco(tabelas, rls, () => atual.u);
   const ctx = { NUCLEO: N, SB: b.SB, PESSOAL: pessoal, console, setTimeout, clearTimeout, Promise, JSON, Object, Array, String, Date, Number, Math, RegExp, isFinite, logErro() {}, hojeISO: () => HOJE, dataBR: (d) => d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4),
-    sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, isOwner: () => atual.u.dono, precisa: () => Promise.resolve(), fonteOuErro: (n) => (n === "agenda" ? Promise.resolve({ v: agenda }) : Promise.reject(new Error("fonte " + n))),
-    fonteRegistrar() {}, buscaMontar: () => Promise.resolve({ idx: pessoal.idx || [] }) };
-  vm.createContext(ctx); vm.runInContext(ler("js/fonte-familia.js"), ctx); ARQS.forEach((a) => vm.runInContext(ler(a), ctx));
+    sbOk: (r) => { if (r.error) throw new Error(r.error.message); return r.data; }, isOwner: () => atual.u.dono, precisa: () => Promise.resolve(), fonteOuErro: (n, c) => Promise.resolve().then(() => { if (!FONTES[n]) throw new Error("fonte " + n); return FONTES[n](c || {}); }).then(N.fonteContrato),
+    fonteRegistrar: (n, f) => { FONTES[n] = f; }, dadosPaginar: () => Promise.resolve([]), buscaMontar: () => Promise.resolve({ idx: pessoal.idx || [] }) };
+  const FONTES = {}; FONTES.agenda = () => ({ v: agenda });   // a Agenda vem pronta (o teste dela é do núcleo); a Saúde passa pela fonte REAL (js/fonte-saude.js) sobre o banco simulado
+  vm.createContext(ctx); vm.runInContext(ler("js/fonte-familia.js"), ctx); vm.runInContext(ler("js/fonte-saude.js"), ctx); ARQS.forEach((a) => vm.runInContext(ler(a), ctx));
   return { ctx, log: b.log, como: (u) => { atual.u = u; }, rodar: (t) => vm.runInContext(t, ctx), janela: (op) => ctx.provJanela(op).then(J), buscar: (op) => ctx.provBuscar(op).then(J), proximos: (op) => ctx.provProximos(op).then(J) };
 }
 /* a política de cada tabela = a do banco real (RLS): quem lê o quê */

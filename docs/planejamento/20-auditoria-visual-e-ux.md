@@ -168,4 +168,6 @@ a faixa azul em degradê foi conferida por texto branco sobre azul escuro e por 
 
 **Achados corrigidos nesta rodada:** (1) a página `#busca` antiga nunca aparecia (o campo lateral e a `<section>` tinham o mesmo `id`; o roteador mostrava o campo); (2) "dia todo" repetido em dezenas de linhas; (3) "agendado" repetido na meta e no selo; (4) origem repetida em cada resultado já agrupado; (5) ícone de busca aparecendo dentro da própria tela de busca; (6) estado de erro total aparecia junto com um aviso parcial redundante.
 
+**Cabeçalho do celular:** o ícone de busca (44 px) entrou ao lado de Voltar e ↻; para o título continuar inteiro a 375 px (teste da Newsletter, Olivia e Segurança) o botão Início sai do cabeçalho do celular do dono, porque a barra inferior já traz a Casa, e a distância entre os itens diminui a 480 px ou menos. A barra inferior não mudou.
+
 **Limites:** gráficos não se aplicam; o contraste sobre a faixa azul (degradê) foi conferido visualmente; a lista longa de eventos idênticos das capturas é dado de teste.

@@ -160,7 +160,7 @@ Os widgets de Hoje, Saúde e Compras (Documento 14, "Estado de implementação (
 | Domínio | Fonte real | Chave | Data | Categoria · tipo | Espaço e permissão | Rota original | Busca |
 |---|---|---|---|---|---|---|---|
 | `registros` | `registros` (RLS casa) | `id` | `data` (dia) | família ou casa · `familia.*`, `veiculos.*`, `documentos.*` | casa, compartilhável | `#olivia`, `#eddie`, `#veiculos/<x>`, `#documentos` | título, detalhes, valor |
-| `saude` | `garmin_ativ` (RLS só do dono + mfa) | `id` | `inicio` (hora local), só de 01/01/2026 | saúde · `saude.atividade` | pessoal, **privado**, dono; respeita "ocultar valores" e "esconder local" | `#saude/treino/<id>` | tipo, nome, local |
+| `saude` | `garmin_ativ` **pela fonte única** `js/fonte-saude.js` (opções novas `ateAtiv` e `buscaAtiv`; RLS só do dono + mfa) | `id` | `inicio` (hora local), só de 01/01/2026 | saúde · `saude.atividade` | pessoal, **privado**, dono; respeita "ocultar valores" e "esconder local" | `#saude/treino/<id>` | tipo, nome, local |
 | `fiscal` | `notas_fiscais` + `notas_fiscais_vinculos` | `id` | `data_emissao` | finanças · `fiscal.nota` (prioridade 1) | casa, compartilhável | `#fiscal` | emitente, número |
 | `compras` | `compras_online` | `id` | `data` | finanças · `compras.pedido` (prioridade 2) | casa, compartilhável | `#compras` | vendedor, categoria, número |
 | `mercado` | `notas` (+ `mercados`) e `produtos` | `id` | `data` | finanças · `mercado.nota` (prioridade 2) | casa, compartilhável | `#mercado`, `#mercado/precos` | loja, número, produto |

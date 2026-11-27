@@ -4713,7 +4713,7 @@
     return ["# RAC Knowledge · resumo",sec("regra","Regras permanentes"),sec("estado","Estado do projeto"),sec("decisao","Decisões recentes",max),sec("erro","Erros e como evitar",max)].filter(Boolean).join("\n\n")+"\n"}
   /* ===== Workspace (Lote 1 do novo RAC; docs/planejamento/14-arquitetura-do-workspace.md): o motor PURO de páginas, seções e widgets. Sem tela e sem banco: tudo recebe e devolve dados (o layout é um
      documento JSON; cada operação devolve um documento NOVO, o de entrada nunca é alterado). A tela (js/workspace.js) só chama estas funções e grava o resultado; o banco confere o mesmo formato
-     (public.ws_layout_valido, supabase/070_espacos_e_workspace.sql) e tests/workspace_nucleo.test.mjs compara as duas validações caso a caso.
+     (public.ws_layout_valido, migration 070 do banco) e tests/workspace_nucleo.test.mjs compara as duas validações caso a caso.
      Documento: { schema:1, secoes:[ { id, titulo, recolhida, itens:[ { id "w_…", tipo "dominio.nome", v, col 1..12, lin 0..12, estado ativo|oculto|desativado, config:{}, mobile? } ] } ] }
      Ocultar, remover da página, desativar e excluir o dado são coisas DIFERENTES (docs/planejamento/14, seção 6): aqui só existem as três primeiras, e nenhuma toca em dado de negócio. ===== */
   var WS_SCHEMA=1,WS_COLUNAS=12,WS_MAX_SECOES=12,WS_MAX_ITENS=60,WS_MAX_LAYOUT=60000,WS_MAX_CONFIG=3000,WS_MAX_TITULO=60,WS_MAX_PAGINAS=30,

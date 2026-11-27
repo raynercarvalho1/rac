@@ -66,7 +66,7 @@ test("workflow: a inspeção antiga (que reprovava SELECT, STORE e MOVE) foi tro
   assert.ok(!/grep -qE '"\(SELECT\|STORE/.test(WF), "o grep antigo saiu");
   assert.match(WF, /inspecionar-verbos\.mjs" "\$BUNDLE" \|\| fail "O pacote contém verbo IMAP fora da política de gerenciamento restrito/);
   assert.ok(!/SOMENTE LEITURA|IMAP sem verbo de escrita|continua SOMENTE/i.test(WF), "nenhum texto afirma que o Worker é só de leitura");
-  assert.match(WF, /UID STORE de \\\\Seen, UID MOVE de um UID com MOVE anunciado; nunca COPY, APPEND, EXPUNGE, DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE, CLOSE nem \\\\Deleted/, "o resumo diz a política real");
+  assert.match(WF, /UID STORE de \\\\Seen, UID MOVE de um UID com MOVE anunciado e, só sem MOVE, UID COPY \+ UID STORE \\\\Deleted \+ UID EXPUNGE de UM UID com UIDPLUS; nunca EXPUNGE global, APPEND, DELETE, RENAME, SUBSCRIBE, IDLE, AUTHENTICATE nem CLOSE/, "o resumo diz a política atual");
   assert.match(WF, /wrangler\.js" deploy --dry-run --outdir/, "o empacotamento sem publicar continua");
   assert.ok(WF.indexOf("inspecionar-verbos.mjs") > WF.indexOf("--dry-run --outdir") && WF.indexOf("inspecionar-verbos.mjs") < WF.indexOf("A classe NonceUnico"), "a inspeção roda sobre o pacote gerado, antes da aprovação");
   assert.match(WF, /rac_inbox_worker_gestao\.test\.mjs/, "os testes do gerenciamento rodam no job sem secrets");

@@ -16,7 +16,7 @@ export const ERROS_IMAP = Object.freeze([
   "mime_invalido", "mime_limite_excedido", "codificacao_invalida", "codificacao_desconhecida", "parametro_invalido", "falha_inesperada",
   // I3.2 (gerenciamento, seção "I3.2 · GERENCIAMENTO" do imap.mjs): recusa definitiva do servidor, identidade da mensagem diferente, operação que o servidor não oferece, pasta só de leitura, resultado incerto
   "acao_recusada", "identidade_divergente", "acao_indisponivel", "pasta_somente_leitura", "acao_incerta", "confirmacao_ausente",
-  // 27/11/2026 (servidor sem MOVE): a cópia existe mas a original ainda não foi marcada como excluída; repetir é seguro (a cópia não se repete)
+  // 27/11/2026 (servidor sem o comando de mover): a cópia existe mas a original ainda não foi marcada como excluída; repetir é seguro (a cópia não se repete)
   "acao_parcial",
 ]);
 

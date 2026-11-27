@@ -2028,3 +2028,18 @@ Família e da Casa.
 - **Teste real do dono no iPhone (10:19, manual):** arquivar e excluir no iCloud **continuaram falhando**. Arquivar: mensagem do próprio app ("O iCloud não identificou a pasta de Arquivo"): `Archive` seguia sem tipo porque o app só lista as pastas uma vez. Excluir: `acao_recusada` (422, 2 vezes, registro da função): o Worker novo respondeu, mas sem causa.
 - **Feito:** UPDATE em produção de 2 linhas (`Archive`→`arquivo`, `Junk`→`spam`, conta iCloud). Código: Worker `p9.2` e função `i4.5` com a causa da recusa em código fechado (`sem_message_id`, `copia_*`); nada publicado ainda.
 - **Em andamento / próximo:** pedir ao dono nova tentativa de arquivar (já deve funcionar até o `COPY`) e excluir; a causa aparece no registro depois da publicação da `p9.2` e da `i4.5`. O iCloud segue NÃO corrigido.
+
+## 27/11/2026 (noite) · Inbox: encerramento da frente do iCloud
+
+### 1. O que fizemos
+- **CI da `main`:** Testes #418, #422, #424 e o do commit `fa26afa` (PR #115), todos `success`.
+- **Publicado (confirmado por leitura):** Worker `p9.1` (run 7) e `p9.2` (run 8), ambos aprovados pelo dono; função `rac-inbox` v21 (`i4.4`), publicada pelo dono pela CLI. A função `i4.5` está só no repositório.
+- **Estratégia sem MOVE no iCloud real:** `COPY` confirmada por busca do Message-ID, `\Deleted` e `UID EXPUNGE` só com UIDPLUS (sem EXPUNGE global). **Arquivar funciona** (validação manual do dono; registro `ok`).
+- **Ajuste de dados:** `Archive`→`arquivo` e `Junk`→`spam` na conta iCloud (2 linhas).
+- **Erros achados e registrados:** inspetor de pacote do Worker lendo comentário com "MOVE" (run 6, corrigido no PR #114); lista de pastas lida uma só vez pelo app (PR #115).
+
+### 2. O que estamos fazendo
+- Nada em aberto nesta frente. **Excluir no iCloud não funciona e ficou fora do escopo por decisão do dono** ("tudo bem não excluir"). Causa não identificada; para retomar: publicar a função `i4.5` (CLI ou segredo `SUPABASE_ACCESS_TOKEN` no Environment `supabase-producao` para um workflow) e ler o `detalhe` no registro.
+
+### 3. O que vamos fazer
+- Migração de Compras e Carreira do `gmApi` para o Inbox (auditada em 27/11/2026, não iniciada): três pontos de leitura do Gmail no navegador (`js/app.js` alertas de vagas, `js/carreira.js`, `js/compras.js` bloco Gmail da Central Fiscal). Depois do Inbox, o RAC Financeiro Inteligente.

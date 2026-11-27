@@ -2017,3 +2017,8 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Depois da validação real do iCloud: migração de Compras e Carreira do `gmApi` (não iniciada) e, concluído o Inbox, o RAC Financeiro Inteligente.
+
+### 27/11/2026 (tarde, continuação) · Publicação do Worker p9.1 e da função i4.4
+- **CI da `main`:** Testes #418 (commit `f2c3bc6`, PR #111) e #422 (commit `49d3476`, PR #113), ambos `success`.
+- **Função `rac-inbox` i4.4: NÃO publicada (impedimento real).** Três tentativas pelo conector do Supabase (`deploy_edge_function`) falharam na montagem (a função tem 14 arquivos, ≈200 KB, e a chamada precisa levar todo o conteúdo; o pacote minificado ainda tem 106 KB). Nada foi alterado: a v20 segue ativa. Caminho que resolve: o dono rodar `npx supabase@<versão exata> functions deploy rac-inbox --use-api --project-ref hofnhbxnfebfnncwxrds` (sem `--no-verify-jwt`) na `main`, ou criar o segredo `SUPABASE_ACCESS_TOKEN` no Environment `supabase-producao` para um workflow de publicação.
+- **Worker `p9.1`:** o workflow `rac-inbox-worker-publicar` (run 6, commit `49d3476`) **reprovou antes de publicar**, como projetado: o inspetor achou "MOVE" em um comentário que o esbuild preserva no bundle (erro registrado no RAC Knowledge). Corrigido e verificado com o Wrangler real em cópia temporária (inspeção aprovada; classe `NonceUnico` e carimbo único conferidos).

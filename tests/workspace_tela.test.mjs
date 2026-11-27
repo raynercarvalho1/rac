@@ -117,8 +117,8 @@ test("computador (1280): sem páginas → criar pelo modelo → personalizar (ca
     /* configurar */
     await pag.click(`.wk-item[data-id="${nova}"] button[aria-label^="Ações de"]`); await pag.click(".wk-menu-it:has-text('Configurar')");
     await pag.fill('.wk-folha textarea', "Comprar pão\nLigar para a escola"); await pag.fill('.wk-folha input[type=text]', "Recados"); await pag.click(".wk-folha button:has-text('Aplicar')");
+    await pag.waitForFunction((i) => document.querySelector(`.wk-item[data-id="${i}"]`).textContent.includes("Comprar pão"), nova);   /* o corpo do widget se desenha de forma assíncrona */
     assert.match(await pag.textContent(`.wk-item[data-id="${nova}"]`), /Recados/);
-    await pag.waitForFunction((i) => document.querySelector(`.wk-item[data-id="${i}"]`).textContent.includes("Comprar pão"), nova);
     /* ocultar, desativar e remover são coisas diferentes; nenhuma toca em dado de negócio */
     const primeiro = (await ordem(pag))[0];
     await pag.click(`.wk-item[data-id="${primeiro}"] button[aria-label^="Ações de"]`); await pag.click(".wk-menu-it:has-text('Ocultar')");
@@ -145,6 +145,7 @@ test("computador (1280): sem páginas → criar pelo modelo → personalizar (ca
     /* reabrir (outra “abertura” da tela, lendo do banco): a composição é a mesma */
     const antesOrdem = await ordem(pag);
     await pag.evaluate(async () => { renderWorkspace(); }); await pag.waitForSelector(".wk-item"); assert.deepEqual(await ordem(pag), antesOrdem);
+    await pag.waitForFunction((i) => document.querySelector(`.wk-item[data-id="${i}"]`).textContent.includes("Comprar pão"), nova);
     assert.match(await pag.textContent(`.wk-item[data-id="${nova}"]`), /Recados/); assert.match(await pag.textContent(`.wk-item[data-id="${nova}"]`), /Comprar pão/);
     assert.equal(await pag.locator(".wk-alca").count(), 0, "fora da edição não há alças"); assert.equal(await pag.locator("button:has-text('Personalizar')").count(), 1);
     assert.deepEqual(erros, [], "nenhum erro no navegador");

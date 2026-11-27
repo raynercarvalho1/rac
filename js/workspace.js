@@ -32,9 +32,11 @@
     WK.edicao=false;WK.sujo=false;
     root.appendChild(h("div",{class:"panel"},loading()));
     wkCarregar(a).then(function(){if(seq!==WK.seq)return;wkDesenhar()},function(e){if(seq!==WK.seq)return;root.innerHTML="";root.appendChild(h("div",{class:"panel"},failed(function(){renderWorkspace(a)},e)))})}
-  /* a mesma leitura do botão ↻ (js/app.js): se há alteração não salva, a atualização espera */
-  atuRegistrar("workspace",{ocupado:function(){return WK.edicao&&WK.sujo?"Você está personalizando esta página: salve ou cancele antes de atualizar.":""},
-    atualizar:function(){return wkCarregar(WK.pagina&&WK.pagina.id).then(function(){if(document.documentElement.getAttribute("data-sec")==="workspace")wkDesenhar();return 0})}});
+  /* o botão ↻ (js/app.js, atuModulo): relê os espaços; se há alteração não salva a atualização espera (ocupado) e nada é descartado. Depois da troca a página é desenhada de novo (renderWorkspace relê as páginas). */
+  atuModulo("workspace",{ocupado:function(){return WK.edicao&&WK.sujo?"Você está personalizando esta página: salve ou cancele antes de atualizar.":""},
+    buscar:function(){return atuLer(function(){return SB.rpc("rac_iniciar_espacos").then(sbOk)}).then(function(r){return {espacos:r}})},
+    antes:function(){return WK.espacos?{espacos:{ok:true}}:{}},
+    trocar:function(n){WK.espacos=n.espacos.v}});
   function wkCarregar(paginaId){
     return Promise.resolve().then(function(){return SB.rpc("rac_iniciar_espacos")}).then(sbOk).then(function(lista){
       WK.espacos=lista||[];var id=wkLS(WK_CHAVE_ESPACO+EU.id),achou=null,pess=null;

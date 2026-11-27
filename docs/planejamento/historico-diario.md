@@ -2130,3 +2130,18 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - **Lote 3:** Timeline e Busca global sobre os mesmos provedores (fontes), com o widget `timeline.recente`.
 - Atenção do dono: aprovar a Casa na barra do celular; decidir se o RAC Hoje deve continuar como item da barra.
+
+## 27/11/2026 (noite, 6) · Lote 2: publicação verificada
+
+### 1. O que fizemos
+- **PR #120 mesclado na `main`** (merge `c4273ca`). O CI do PR ficou verde na cabeça `f0c0391`. A primeira execução (cabeça `3a7ad56`) tinha uma falha: o teste de arrastar do Workspace (Lote 1), que dependia da altura da janela e das fontes da máquina (a rolagem automática perto da borda de baixo mudava o ponto de soltar). Reproduzido localmente com janela baixa; o teste passou a usar janela alta e a margem extra que eu tinha posto entre seções saiu. Nenhum teste foi pulado nem teve limite aumentado.
+- **GitHub Pages** do commit `c4273ca`: `success`. **Domínio verificado por leitura:** `sw.js` com `VERSAO = "2026-11-27.3"`, `js/app.js` com `MOD_VERSAO="2026-11-27.3"`, `index.html` com `rac.css?v=2026-11-27.3` e logo em `#workspace`, e `js/widgets-modulos.js`, `js/workspace.js`, `js/rotas.js`, `js/app.js`, `css/rac.css`, `index.html` e `nucleo.js` idênticos aos da `main`. Teste de fumaça no Chromium contra o domínio (sem login): 14 widgets registrados, 10 de Hoje, Saúde e Compras, nenhum recusado, nenhum erro de página, barra com Casa, Hoje, MBA, Saúde, Compras, Inbox e Menu.
+- Banco: nenhuma migration nova; a 058 foi reconciliada no histórico do Supabase antes do merge (ver a entrada anterior).
+
+### 2. O que estamos fazendo
+- Nada em aberto no código. **Validação do dono** no iPhone e no computador (critério final): a Minha Casa como tela inicial, a Casa na frente da barra do celular (7 itens), o toque longo para arrastar (só testado em Chromium) e a leitura dos cartões com os dados reais.
+- A rodada de testes com login real (dados do dono) não foi feita: o agente não tem sessão do app.
+
+### 3. O que vamos fazer
+- **Lote 3:** Timeline e Busca global, na ordem do Documento 18.
+- Decisão do dono quando validar: manter a Casa na barra do celular e se o RAC Hoje continua nela.

@@ -18,6 +18,8 @@ export const ERROS_IMAP = Object.freeze([
   "acao_recusada", "identidade_divergente", "acao_indisponivel", "pasta_somente_leitura", "acao_incerta", "confirmacao_ausente",
   // 27/11/2026 (servidor sem o comando de mover): a cópia existe mas a original ainda não foi marcada como excluída; repetir é seguro (a cópia não se repete)
   "acao_parcial",
+  // 27/11/2026: causas distintas da recusa na copia (o iCloud real recusou o excluir): sem identificador confiavel da mensagem ou resposta etiquetada do servidor
+  "sem_message_id", "copia_no", "copia_bad", "copia_trycreate", "copia_overquota", "copia_cannot", "copia_nonexistent", "copia_limit", "copia_noperm", "copia_toobig", "copia_unavailable",
 ]);
 
 const SEGURO_PARA_COMANDO = /^[^"\\\r\n\u0000]+$/;
@@ -403,6 +405,12 @@ const COPYUID = /\[COPYUID (\d{1,10}) (\d{1,10}) (\d{1,10})\]/i;
 // Nunca EXPUNGE global (sem UIDPLUS a original fica marcada, escondida da lista e da verificação, e a limpeza é do próprio iCloud). A cópia só se repete se NÃO existir no destino (busca por Message-ID),
 // então uma falha entre as etapas pode ser repetida sem duplicar: o que sobrou vira "acao_parcial" (cópia feita, original ainda não marcada).
 const RE_MID_BUSCA = /^<[^<>"\\\s\u0000-\u001f\u007f-\uffff]{1,250}>$/;
+// a resposta etiquetada do servidor a recusa vira um codigo FECHADO (so as palavras-chave padrao [RFC 5530]; o texto livre nunca sai)
+const RE_CODIGO_RESPOSTA = /\[(TRYCREATE|OVERQUOTA|CANNOT|NONEXISTENT|LIMIT|NOPERM|TOOBIG|UNAVAILABLE)\]/i;
+function codigoDaCopia(r) {
+  const m = RE_CODIGO_RESPOSTA.exec(r.resto || "");
+  return "copia_" + (m ? m[1].toLowerCase() : String(r.status).toUpperCase() === "BAD" ? "bad" : "no");
+}
 async function achouCopia(ctx, destino, mid) {   // EXAMINE do destino e busca do Message-ID; devolve quantas mensagens do destino têm esse Message-ID
   const ab = await executarComando(ctx, "EXAMINE", ' "' + conferirPasta(destino) + '"', 1024);
   if (ab.status !== "OK") throw new ErroImap("examine_recusado");
@@ -414,7 +422,7 @@ async function copiarEExcluir(ctx, p) {
   await selecionar(ctx, p.pasta, p.uidvalidity_esperado);
   const f = await conferirIdentidade(ctx, p);
   const mid = lerCabecalhos(f.cabecalho)["message-id"];
-  if (typeof mid !== "string" || !RE_MID_BUSCA.test(mid.trim())) throw new ErroImap("acao_recusada");   // sem Message-ID confiável não há como evitar duplicata: nada é copiado
+  if (typeof mid !== "string" || !RE_MID_BUSCA.test(mid.trim())) throw new ErroImap("sem_message_id");   // sem Message-ID confiável não há como evitar duplicata: nada é copiado
   const id = mid.trim();
   if (f.flags.includes("\\deleted") && (await achouCopia(ctx, p.destino, id)) > 0) return { resultado: "aplicada", limpeza: "feita_pelo_servidor" };   // já copiada e marcada numa tentativa anterior
   let existe = await achouCopia(ctx, p.destino, id);
@@ -422,7 +430,7 @@ async function copiarEExcluir(ctx, p) {
   if (existe === 0) {
     await selecionar(ctx, p.pasta, p.uidvalidity_esperado);   // a busca abriu o destino: volta à origem (mesma conferência de UIDVALIDITY)
     const c = await executarComando(ctx, "UID", " COPY " + p.uid + ' "' + p.destino + '"', ctx.politica.imap.maxLiteralCabecalho);
-    if (c.status !== "OK") throw new ErroImap("acao_recusada");   // NO/BAD etiquetado: nada foi copiado
+    if (c.status !== "OK") throw new ErroImap(codigoDaCopia(c));   // NO/BAD etiquetado: nada foi copiado; o código diz POR QUE (lista fechada, nunca o texto do servidor)
     copiada = true;
     existe = await achouCopia(ctx, p.destino, id);   // confirmação INDEPENDENTE da cópia
     if (existe === 0) throw new ErroImap("acao_incerta");   // o servidor disse OK e a cópia não aparece: não se apaga a original

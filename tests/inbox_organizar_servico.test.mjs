@@ -40,7 +40,7 @@ const nadaGravado = (banco) => assert.equal(banco.aplicados.length, 0, "o cache 
 
 /* ---------- contrato ---------- */
 test("validarPedido: esquema fechado; só as sete ações; destino só em 'mover' e só como UUID; nenhum nome de pasta nem comando vem do navegador", () => {
-  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.4"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
+  assert.equal(VERSAO_FUNCAO, "rac-inbox@i4.5"); assert.deepEqual([...ACOES_ORGANIZAR], ["marcar_lida", "marcar_nao_lida", "arquivar", "excluir", "spam", "nao_spam", "mover"]);
   for (const a of ACOES_ORGANIZAR) { const v = validarPedido(a === "mover" ? PED(a, { destino_pasta_id: ARQ }) : PED(a)); assert.equal(v.ok, true, a); assert.deepEqual(Object.keys(v.pedido).sort(), (a === "mover" ? ["acao", "conta_id", "destino_pasta_id", "operacao", "pasta_id", "uid"] : ["acao", "conta_id", "operacao", "pasta_id", "uid"]), a); }
   const ruim = [[PED("apagar_tudo"), "acao_invalida"], [PED("expunge"), "acao_invalida"], [PED(undefined), "acao_invalida"], [PED("mover"), "destino_invalido"], [PED("mover", { destino_pasta_id: "Archive" }), "destino_invalido"], [PED("arquivar", { destino_pasta_id: ARQ }), "campos_inesperados"],
     [PED("excluir", { destino_pasta_id: LIX }), "campos_inesperados"], [PED("marcar_lida", { uid: 0 }), "id_invalido"], [PED("marcar_lida", { uid: "7" }), "id_invalido"], [PED("marcar_lida", { uid: 4294967296 }), "id_invalido"], [PED("marcar_lida", { pasta_id: "INBOX" }), "id_invalido"],
@@ -219,5 +219,14 @@ test("27/11/2026 · iCloud sem MOVE: 'acao_parcial' do Worker vira código fecha
   for (const limpeza of ["feita", "indisponivel", "pendente", "feita_pelo_servidor"]) {
     const w2 = workerFalso({ mover_mensagem: ok({ resultado: "aplicada", limpeza, copia: "nova" }) }), b = ctx({ worker: w2 }); const r2 = await atender(PED("excluir"), b.c);
     assert.deepEqual([r2.status, r2.corpo.ok, r2.corpo.resultado, r2.corpo.cache], [200, true, "aplicada", "atualizado"], limpeza); assert.equal(b.banco.aplicados.length, 1); assert.equal(b.banco.aplicados[0].destinoUid, undefined, "sem COPYUID não se inventa o UID novo");
+  }
+});
+
+
+test("27/11/2026 · causas da recusa do iCloud: os códigos fechados do Worker (sem_message_id, copia_*) viram 'acao_recusada' ao usuário e vão ao registro como detalhe; nenhuma verificação nem cache", async () => {
+  for (const cod of ["sem_message_id", "copia_cannot", "copia_overquota", "copia_no", "copia_bad", "copia_trycreate"]) {
+    const w = workerFalso({ mover_mensagem: er(cod) }), a = ctx({ worker: w }); const r = await atender(PED("excluir"), a.c);
+    assert.deepEqual([r.status, r.corpo], [ERROS.acao_recusada, { ok: false, erro: "acao_recusada" }], cod); assert.equal(a.logs[a.logs.length - 1].detalhe, cod, "o detalhe do registro é a causa");
+    nadaGravado(a.banco); assert.equal(chamadasDe(w, "verificar_mensagem").length, 0, cod); semSegredo(r, a.logs);
   }
 });

@@ -16,7 +16,7 @@ const HTTP_IMAP = { autenticacao_recusada: 422, parametro_invalido: 400, pasta_i
   // SMTP (I3): recusa do servidor é 422; resultado incerto é 504; o resto é indisponibilidade (502)
   smtp_autenticacao_recusada: 422, remetente_recusado: 422, destinatario_recusado: 422, dados_recusados: 422, envio_recusado: 422, envio_incerto: 504, smtp_autenticacao_nao_suportada: 502,
   // I3.2 (gerenciamento): operação que o servidor não oferece, recusa definitiva, identidade diferente, pasta só de leitura e resultado incerto (504)
-  acao_indisponivel: 422, acao_recusada: 422, identidade_divergente: 409, pasta_somente_leitura: 422, acao_incerta: 504, confirmacao_ausente: 502, acao_parcial: 409,
+  acao_indisponivel: 422, acao_recusada: 422, identidade_divergente: 409, pasta_somente_leitura: 422, acao_incerta: 504, confirmacao_ausente: 502, acao_parcial: 409, sem_message_id: 422, copia_no: 422, copia_bad: 422, copia_trycreate: 422, copia_overquota: 422, copia_cannot: 422, copia_nonexistent: 422, copia_limit: 422, copia_noperm: 422, copia_toobig: 422, copia_unavailable: 422,
   pedido_invalido: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, message_id_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413 };
 const CODIGOS = [...ERROS_IMAP, ...ERROS_SMTP];
 

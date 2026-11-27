@@ -60,7 +60,7 @@ test("RAC EM SEGUNDO PLANO e ABERTO: reutiliza a janela (foco + aviso à página
 test("destino #inbox preservado e só do site: aviso com URL relativa, absoluta ou de outro site", () => {
   for (const u of ["./#inbox", SITE + "#inbox", SITE + "index.html#inbox"]) assert.equal(N.notifHash(u, SITE), "#inbox", u);
   assert.equal(N.notifHash("https://outro.example/#inbox", SITE), "", "outro site nunca");
-  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
+  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs\)NOTIF_ULT=Date\.now\(\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
 });
 
 /* ---------- o roteador: o destino fica no endereço até haver papel; só então navega ---------- */
@@ -129,8 +129,8 @@ test("sw.js: rede respondendo ERRO (503/429/404) devolve a cópia guardada do ar
   const redir = sw({ fetchFn: async () => ({ ok: false, status: 0, type: "opaqueredirect" }) }); assert.equal((await redir.pedir(SITE, "navigate")).type, "opaqueredirect", "redirecionamento passa como veio");
 });
 
-test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-26.2", () => {
-  assert.match(ler("sw.js"), /const VERSAO = "2026-11-26\.2"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-26\.2"/); assert.ok(ler("index.html").includes("2026-11-26.2"));
+test("versões: VERSAO (sw.js) = MOD_VERSAO (app.js) = ?v= do index.html = 2026-11-27.1", () => {
+  assert.match(ler("sw.js"), /const VERSAO = "2026-11-27\.1"/); assert.match(ler("js/app.js"), /MOD_VERSAO="2026-11-27\.1"/); assert.ok(ler("index.html").includes("2026-11-27.1"));
 });
 
 /* ---------- aviso de e-mail: título = assunto, corpo = remetente, toque abre a MENSAGEM ---------- */
@@ -161,17 +161,17 @@ test("RAC EM SEGUNDO PLANO e JÁ ABERTO: a janela é reutilizada e recebe o dest
 
 test("página: o aviso recebido leva ao hash da mensagem (notifIr) e o roteador entrega conta, pasta e mensagem ao Inbox (rotas.js → renderInbox)", () => {
   const rotas = ler("js/rotas.js"); assert.match(rotas, /renderInbox\(p\[1\],p\[2\],p\[3\],p\.refresh\)/);
-  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
+  const app = ler("js/app.js"); assert.match(app, /function notifIr\(url\)\{var hs=NUCLEO\.notifHash\(url,location\.href\);if\(hs\)NOTIF_ULT=Date\.now\(\);if\(hs&&location\.hash!==hs\)location\.hash=hs;return !!hs\}/);
   const inbox = ler("js/inbox.js"); assert.match(inbox, /function renderInbox\(conta,pasta,msg,refresh\)/); assert.match(inbox, /INB_RE_ID\.test\(msg\|\|""\)/); assert.match(inbox, /inboxAbrirMsg\(m\.id\)/);
 });
 
 
-test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-26.2", () => {
+test("iPhone: a barra inferior e os botões flutuantes têm camada própria; a lista do Inbox recorta sem virar camada rolável; versão 2026-11-27.1", () => {
   const css = ler("css/rac.css");
   assert.match(css, /html\.logado:not\(\.casa\) #barra,\.voltarbtn,\.topobtn,\.capbtn\{-webkit-transform:translate3d\(0,0,0\);transform:translate3d\(0,0,0\)/);
   assert.match(css, /\.inb-linhas\{[^}]*overflow:hidden;overflow:clip/);
   assert.match(css, /html\.logado:not\(\.casa\) #barra\{display:flex;position:fixed;left:0;right:0;bottom:0/, "a barra continua fixa embaixo");
-  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-26.2"), f);
+  for (const f of ["sw.js", "js/app.js", "index.html"]) assert.ok(ler(f).includes("2026-11-27.1"), f);
 });
 
 /* ---------- confirmação da página (rac-ack) e reserva do service worker ---------- */

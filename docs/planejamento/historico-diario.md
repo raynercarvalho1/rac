@@ -1974,3 +1974,15 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - Frente do Monitor M3 e M4 encerrada. O `noticias.yml` do GitHub segue sem rodar (causa não registrada); o vigia mantém os incidentes abertos e fecha sozinho quando os robôs voltarem (rodar o workflow à mão em Actions é o caminho mais rápido de ver a recuperação). Próximos passos possíveis: leitura do `sinais` no RAC Hoje (F5) e sinais de outras áreas.
+
+## 27/11/2026 · Toque na notificação abria a última página (site `2026-11-27.1`)
+
+### 1. O que fizemos
+- Relato do dono: ao tocar na notificação da Newsletter, abria a página que estava aberta antes (o e-mail do Inbox). Causa **provável** (não reproduzida no iPhone): a atualização automática ao voltar ao site (`voltaOlhar` → `atuAtualizar(true)`) redesenhava a página antiga em corrida com o destino da notificação.
+- Correção em `js/app.js`: `NOTIF_ULT` marca o toque; `voltaOlhar` espera o destino guardado (`notifPendente`) e não atualiza se ele foi aplicado ou se houve toque há menos de 15 s; `atuAtualizar` desiste se a página (hash ou seção) mudou enquanto o banco respondia. Versão `2026-11-27.1` (`VERSAO`, `MOD_VERSAO`, `?v=` do CSS). Teste novo em `tests/notificacao.test.mjs`; `tests/inbox_notificacao_abrir.test.mjs` ajustado ao novo texto e à versão.
+
+### 2. O que estamos fazendo
+- Suíte completa em verificação; commit, PR e publicação conforme o resultado. **Não conferido:** o comportamento no iPhone (só o dono valida).
+
+### 3. O que vamos fazer
+- O dono testa no iPhone: abrir um e-mail, sair do app por mais de 5 min e tocar na notificação da Newsletter. Se ainda falhar, ler Sistema → erros ("toque que não chegou…") para o diagnóstico do service worker.

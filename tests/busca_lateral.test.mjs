@@ -16,7 +16,7 @@ function montar({ dono = true, carregado = false, falhaCarga = false } = {}) {
   const ouvintes = {}, pedidos = [], erros = [];
   const busca = { addEventListener: (t, f) => (ouvintes[t] = f) };
   const ctx = {
-    document: { querySelectorAll: () => [] }, XCATS: [], $: (s) => (s === "#busca" ? busca : null),
+    document: { querySelectorAll: () => [] }, XCATS: [], $: (s) => (s === "#buscalateral" ? busca : null),
     isOwner: () => dono, chamadasTimes: 0,
     precisa: (l) => { pedidos.push(l.join(",")); if (falhaCarga) return Promise.reject(new Error("sem internet")); carregar(); return Promise.resolve(); },
   };

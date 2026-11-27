@@ -2145,3 +2145,22 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - **Lote 3:** Timeline e Busca global, na ordem do Documento 18.
 - Decisão do dono quando validar: manter a Casa na barra do celular e se o RAC Hoje continua nela.
+
+## 27/11/2026 (noite, 7) · Lote 3: Timeline e Busca global
+
+### 1. O que fizemos
+- **Provedores** (`js/prov.js` e `js/prov-*.js`): contrato com `lerJanela`, `lerProximos` e `buscar`; orquestrador com tempo-limite por provedor, resultado parcial, validação do evento, espaço e origem impostos, privacidade (provedor privado nunca roda em espaço compartilhado) e cursor por provedor `{quando, vistos}`. 9 provedores de Timeline (registros, saúde, fiscal, pedidos online, Mercado, e-mail, newsletter, lembretes, agenda) e 14 de busca (mais MBA, aniversários, projetos, vagas, notícias, pelo índice de memória que a busca antiga já montava).
+- **Núcleo puro** (`nucleo.js`, `tl*` e `bs*`): contrato do evento, fuso (-03:00), id estável, ordem total, deduplicação por vínculo, cursor, mesclagem, filtros, agrupamentos, períodos e texto da busca (regex do Postgres sem acento, conferida no Postgres real).
+- **Telas:** `#timeline` (período, filtros, agrupamentos, agendado, carregar mais, parcial com nova tentativa, estados) e `#busca` (campo, filtros por origem e espaço, resultados agrupados, consulta nova cancela a anterior); busca rápida da barra lateral pelos provedores; ícone de busca no cabeçalho do celular (só dono); widget `timeline.recente` na Minha Casa. Barra inferior do celular **intacta**.
+- **Bug antigo corrigido:** a página `#busca` nunca aparecia (o campo lateral e a seção tinham o mesmo `id`); o campo virou `#buscalateral`.
+- **Banco:** nenhuma migration. Medido no Supabase de produção (somente leitura): índices existentes cobrem os acessos, volumes pequenos, planos por índice e `get_advisors` sem exigência do lote.
+- **Testes novos:** `timeline_nucleo` (13), `timeline_prov` (15: dois usuários, membro removido, parâmetros manipulados, falha e lentidão, dedup, paginação, 10 mil registros), `timeline_tela` (10, Chromium), `timeline_visual` (7, Chromium, 3 larguras × 2 temas). Ajustados: rotas, menu, versão, busca lateral e a base simulada (`not`, `or`, atraso).
+- Documentos 13, 15 (contratos reais de todos os provedores), 18, 19 (Brainstorm, Grill Me e decisões, seção 8), 20 (seção 11), `docs/mapa.md`, `CLAUDE.md` (premissa dos provedores) e RAC Knowledge.
+
+### 2. O que estamos fazendo
+- Suíte completa, PR, CI, merge, deploy do Pages e verificação do site `2026-11-27.4` (resultado no relatório final e no registro de publicação).
+- Validação do dono: Timeline e Busca com os dados reais, o ícone de busca no iPhone e a barra inferior (que não mudou).
+
+### 3. O que vamos fazer
+- **Lote 4:** Captura universal e Biblioteca básica (Documento 18). A Timeline poderá ganhar provedores de Captura e Biblioteca pelo mesmo contrato.
+- Se a regex da busca ficar lenta com o crescimento dos dados: `unaccent` com índice trigram (migration aditiva), só com medição.

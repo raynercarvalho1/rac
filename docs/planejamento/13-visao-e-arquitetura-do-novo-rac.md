@@ -114,3 +114,7 @@ seguem integralmente.
 ## Estado de implementação da navegação (Lote 2, 27/11/2026)
 
 `RAC_ROTAS` ganhou o campo `ambiente` em **todas** as rotas (mapa da seção 3.1, testado em `tests/workspace_casa_tela.test.mjs`), e `js/rotas.js` traz `RAC_AMBIENTES` (os cinco nomes aprovados mais o Sistema), `ambienteDe(id)` e `rotasAmbientes()`. Só a **Minha Casa** está pronta e aparece; os demais entram com `pronto:true` e uma `rota` quando existirem. A Minha Casa (`#workspace`) é a rota inicial do dono e o primeiro atalho da barra do celular, que ganhou a Casa na frente e **manteve** Hoje, MBA, Saúde, Compras e Inbox (7 itens com o Menu, medidos em 390 px). O menu lateral segue agrupado pelas seis áreas de antes (nenhum item saiu). Pendente de validação do dono no iPhone; a barra com 4 ambientes e o botão central de Captura é do Lote 4.
+
+## Estado de implementação da navegação (Lote 3, 27/11/2026)
+
+A **Timeline** (`#timeline`, ambiente Minha Casa, área Hoje do menu) e a **Busca global** (`#busca`, transversal) entraram. A barra inferior do celular **não mudou** (Casa, Hoje, MBA, Saúde, Compras, Inbox e Menu); a busca no celular é um ícone no cabeçalho (só do dono) que abre a tela de pesquisa, e no computador segue a busca da barra lateral (agora pelos provedores). `RAC_AMBIENTE_DE` ganhou `timeline: casa`. A Fernanda não vê nenhuma das duas (continua com a busca de antes).

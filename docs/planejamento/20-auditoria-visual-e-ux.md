@@ -157,3 +157,15 @@ a faixa azul em degradê foi conferida por texto branco sobre azul escuro e por 
 **Barra do celular:** com a Casa na frente, 7 itens em 390 px (55 px cada), rótulos sem corte e alvos de 44 px, medidos. **Pendente para o dono (iPhone):** aprovar a Casa na barra, toque longo para arrastar, e a leitura dos cartões ao ar livre.
 
 **Limites:** dados simulados (o dono verá os dele); gráfico de 12 meses com poucos dados parece vazio, o que é o dado; o contraste sobre degradê (faixa azul e indicador em destaque) foi conferido visualmente, não por número.
+
+## 11. Lote 3: Timeline, Busca global e widget (27/11/2026)
+
+**Método:** `tests/timeline_visual.test.mjs` (Chromium, 3 larguras × 2 temas): Timeline (normal, filtros abertos, agrupada por categoria, resultado parcial), Busca (inicial, com resultados, sem resultado) e o widget na Minha Casa. Medições: rolagem lateral, sobreposição entre eventos e resultados, alvos de 44 px (chips, selects, botões, cada linha), contraste WCAG e texto cortado. Capturas olhadas uma a uma. **Navegador automatizado com dados simulados; não houve teste em iPhone real.**
+
+**Capturas** (`docs/planejamento/img/lote3-*`): `timeline-{claro,escuro}-{1440,1000,390}`, `timeline-filtros-*-390`, `timeline-parcial-*-390`, `busca-inicial-*`, `busca-resultados-*`, `busca-vazia-*-390`, `widget-claro-1440`, `widget-escuro-390`.
+
+**Decisões visuais:** linha do tempo com coluna de hora, marcador circular com a cor e o ícone da categoria (tracejado quando é agendado), título, resumo e origem; evento de dia inteiro não repete "dia todo" sob o cabeçalho do dia; "Agendado" em cartão recolhível; busca em cartão com o campo grande, filtros discretos (Tudo, Pessoal, Casa e origem) e resultados agrupados por origem (a origem é o título do grupo e não se repete em cada linha); estados inicial, carregando, vazio, curto, parcial e erro com texto próprio; tudo com o kit (`rkCard`, `rkEstado`, `rkAlerta`, `rkSelo`, `rkBtn`) e tokens, sem cor escrita.
+
+**Achados corrigidos nesta rodada:** (1) a página `#busca` antiga nunca aparecia (o campo lateral e a `<section>` tinham o mesmo `id`; o roteador mostrava o campo); (2) "dia todo" repetido em dezenas de linhas; (3) "agendado" repetido na meta e no selo; (4) origem repetida em cada resultado já agrupado; (5) ícone de busca aparecendo dentro da própria tela de busca; (6) estado de erro total aparecia junto com um aviso parcial redundante.
+
+**Limites:** gráficos não se aplicam; o contraste sobre a faixa azul (degradê) foi conferido visualmente; a lista longa de eventos idênticos das capturas é dado de teste.

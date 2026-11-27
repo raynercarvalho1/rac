@@ -12,16 +12,17 @@ const app = lerArq("js/app.js"), html = lerArq("index.html");
 const antes = (() => { const c = {}; vm.createContext(c); vm.runInContext(ANTES_JS.replace(/function route\(\)\{[\s\S]*$/, ""), c); return JSON.parse(JSON.stringify({ tabs: c.tabs, DA_CASA: c.DA_CASA, ROTA_MODS: c.ROTA_MODS })); })();
 const ordenado = (l) => [...l].sort();
 /* Fase 3 · DS-1: a rota nova "componentes" (só do dono, sem item no menu) e, desde o RAC Inbox I1, o "inbox" e, com o RAC Knowledge, o "conhecimento" (só do dono, com item no menu); o resto tem de ser igual */
-const NOVAS = ["componentes", "inbox", "conhecimento", "monitor", "workspace"], semNovas = (l) => l.filter((x) => !NOVAS.includes(x));
+const NOVAS = ["componentes", "inbox", "conhecimento", "monitor", "workspace", "timeline"], semNovas = (l) => l.filter((x) => !NOVAS.includes(x));
 
 test("as mesmas páginas, a mesma lista da casa e os mesmos módulos por rota (antes × depois)", () => {
-  assert.equal(R.tabs.length, 35);   // + workspace (Lote 1 do novo RAC, 27/11/2026: só do dono, com item no menu) assert.deepEqual(ordenado(semNovas(R.tabs)), ordenado(antes.tabs), "todas as rotas de antes, só a página de componentes a mais");
+  assert.equal(R.tabs.length, 36);   // + timeline (Lote 3 do novo RAC, 27/11/2026)
+     // + workspace (Lote 1 do novo RAC, 27/11/2026: só do dono, com item no menu) assert.deepEqual(ordenado(semNovas(R.tabs)), ordenado(antes.tabs), "todas as rotas de antes, só a página de componentes a mais");
   assert.ok(R.tabs.includes("componentes") && !R.DA_CASA.includes("componentes"), "a página de componentes existe e a casa não a vê");
   assert.ok(R.tabs.includes("inbox") && !R.DA_CASA.includes("inbox"), "o Inbox existe e a Fernanda (casa) não o vê"); assert.deepEqual(R.ROTA_MODS.inbox, ["inbox"]);
   assert.ok(R.tabs.includes("conhecimento") && !R.DA_CASA.includes("conhecimento"), "o RAC Knowledge existe e a Fernanda (casa) não o vê"); assert.deepEqual(R.ROTA_MODS.conhecimento, ["conhecimento"]);
   assert.deepEqual(ordenado(R.DA_CASA), ordenado(antes.DA_CASA), "a Fernanda vê exatamente as mesmas páginas");
   assert.deepEqual(ordenado(R.DA_CASA), ["alimentacao", "compras", "documentos", "eddie", "fiscal", "lista", "mercado", "olivia", "rede", "seguranca", "veiculos"]);
-  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, inbox: _i, conhecimento: _k, monitor: _mo, workspace: _ws, agenda: _a, saude: _s, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, saude: _s2, ...modsAntesSemAgenda } = antes.ROTA_MODS;
+  assert.deepEqual(R.ROTA_MODS.componentes, ["componentes"]); const { componentes: _c, inbox: _i, conhecimento: _k, monitor: _mo, workspace: _ws, timeline: _tl, agenda: _a, saude: _s, ...modsSemNova } = R.ROTA_MODS; const { agenda: _b, saude: _s2, ...modsAntesSemAgenda } = antes.ROTA_MODS;
   assert.deepEqual(modsSemNova, modsAntesSemAgenda, "cada rota carrega os mesmos módulos sob demanda");
   /* DS-4.1: a Agenda saiu do Sistema para o próprio módulo (js/agenda.js); ele depende do Sistema, então abrir a Agenda continua carregando o que carregava */
   assert.deepEqual(antes.ROTA_MODS.agenda, ["sistema"]); assert.deepEqual(R.ROTA_MODS.agenda, ["agenda"]);
@@ -41,7 +42,7 @@ test("o menu lateral gerado é o mesmo HTML de antes, item por item e na mesma o
   assert.equal(novoTodos.filter((a) => /data-k="inbox"/.test(a) && !/data-casa/.test(a)).length, 1, "o Inbox está no menu e fora do menu da casa");
   assert.equal(novoTodos.filter((a) => /data-k="conhecimento"/.test(a) && !/data-casa/.test(a)).length, 1, "o RAC Knowledge está no menu do dono e fora do menu da casa");
   assert.equal(novoTodos.filter((a) => /data-k="workspace"/.test(a) && !/data-casa/.test(a)).length, 1, "o Workspace (Lote 1 do novo RAC) está no menu do dono e fora do menu da casa");
-  const novo = novoTodos.filter((a) => !/data-k="inbox"/.test(a) && !/data-k="conhecimento"/.test(a) && !/data-k="workspace"/.test(a));
+  const novo = novoTodos.filter((a) => !/data-k="inbox"/.test(a) && !/data-k="conhecimento"/.test(a) && !/data-k="workspace"/.test(a) && !/data-k="timeline"/.test(a));
   assert.equal(velho.length, 26, "29 menos Alimentação (lote B), Compras online (lote C) e o Início (reestruturação visual, 22/11/2026), que saíram do menu"); assert.equal(R.menu, R.html, "o menu inserido na página é o do registro");
   /* Fase 3: cada item ganhou data-area e --o (o menu do dono é agrupado por CSS); fora isso o HTML é o de antes */
   const semFase3 = (x) => x.replace(' data-casa="1"', "").replace(/ data-area="[a-z]+" style="--o:\d+"/, "");
@@ -71,10 +72,11 @@ function rodar(codigo, { papel, hash, carregados, cru }) {
   const ctx = { console, Promise, Object, Array, JSON, String, decodeURIComponent, PAPEL: papel, ROTA_REFRESH: false, PROF: 0, VOLTAR_PAI: "", ATU: { rodando: false },
     location: { hash }, history: { state: null, replaceState: (s, t, u) => log.push(["replaceState", u]) }, isOwner: () => papel === "dono",
     setTimeout: (f, ms) => log.push(["setTimeout", ms]), scrollTo: (x, y) => log.push(["scrollTo", x, y]), xCats: () => [{ k: "jornalistas" }, { k: "tech" }],
-    MOD_OK: Object.fromEntries((carregados ? TODOS_MODS : []).map((m) => [m, 1])), precisa: (l) => { log.push(["precisa", l.join(",")]); return { then: () => {} }; },
+    MOD_OK: Object.fromEntries((carregados ? TODOS_MODS : []).map((m) => [m, 1])), precisa: (l) => { log.push(["precisa", l.join(",")]); return { then: (ok) => { if (l.join(",") === "busca" && ok) ok(); } }; },   // a Busca global do dono (Lote 3) carrega o módulo "busca" e então desenha
     h: () => ({}), $: (s) => el(s), RACmercado: { render: (...a) => log.push(["RACmercado.render", ...a]) },
     document: { getElementById: (id) => el("#" + id), querySelector: (s) => el(s), documentElement: { setAttribute: (k, v) => log.push(["attr", k, v]) } } };
   for (const n of RENDER) ctx[n] = (...a) => { log.push([n, ...a]); };
+  ctx.renderBuscaGlobal = (...a) => { log.push(["renderBusca", ...a]); };   // para o dono, a página #busca é a Busca global; para o teste de equivalência conta como a busca de antes
   ctx.window = ctx; vm.createContext(ctx); vm.runInContext(codigo, ctx); ctx.route();
   const saida = juntarSecoes(log, cru); Object.defineProperty(saida, "estado", { value: ctx }); return saida;   // o ambiente fica à parte: não entra no deepEqual
 }
@@ -86,7 +88,8 @@ function juntarSecoes(log, cru) {
   for (let x of log) {
     /* DS-4.1: abrir a Agenda carrega o módulo "agenda" (que traz o "sistema" como dependência) em vez de só o "sistema"; fora do modo cru, é comparado como o mesmo pedido de antes */
     if (!cru && x[0] === "precisa" && x[1] === "agenda") x = ["precisa", "sistema"];
-    if (x[0] === "set" && (x[1] === "#componentes" || x[1] === "#inbox" || x[1] === "#conhecimento" || x[1] === "#monitor" || x[1] === "#workspace")) continue;   // a seção nova (Fase 3) não existia na cópia de antes
+    if (x[0] === "precisa" && x[1] === "busca") continue;   // o carregamento do módulo da Busca global (Lote 3 do novo RAC) não existia na cópia de antes
+    if (x[0] === "set" && (x[1] === "#componentes" || x[1] === "#inbox" || x[1] === "#conhecimento" || x[1] === "#monitor" || x[1] === "#workspace" || x[1] === "#timeline" || x[1] === "#buscabtn")) continue;   // a seção nova (Fase 3) não existia na cópia de antes
     if (x[0] === "set" && x[2] === "hidden" && /^#[a-z-]+$/.test(x[1]) && !/^#(sp-|homebtn|voltarbtn)/.test(x[1])) { if (!bloco) { bloco = []; out.push(["seções", bloco]); } bloco.push(x[1] + "=" + x[3]); continue; }
     if (bloco) bloco.sort(); bloco = null; out.push(x);
   }

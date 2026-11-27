@@ -141,3 +141,22 @@
     renderizar:function(ctx){return Promise.resolve().then(function(){return SB.from("lista").select("id,item,qtd,criado").eq("tipo","compra").eq("feito",false).order("criado",{ascending:true}).limit(ctx.config.limite)}).then(sbOk).then(function(l){
       if(!l.length)return {vazio:true,texto:"A lista de compras está vazia."};
       return h("div",{class:"rac-pilha"},rkLista(l.map(function(x){return {titulo:x.item,meta:x.qtd?h("span",{class:"rac-t-sec",text:String(x.qtd)}):null,href:"#lista"}}),true),wmMaisLink("Abrir a Lista de compras","#lista"))})}});
+
+  /* ---------- TIMELINE (Lote 3): os acontecimentos recentes, pelos MESMOS provedores da página Timeline (js/prov.js); nenhuma consulta própria, nenhuma cópia ---------- */
+  var WM_TL_CATS=NUCLEO.TL_CATEGORIAS.map(function(c){return {valor:c,rotulo:NUCLEO.TL_CAT_ROTULO[c]}});
+  widgetRegistrar({tipo:"timeline.recente",icone:"🕒",versao:1,titulo:"Timeline: recentes",categoria:"Timeline",dominio:"timeline",compartilhavel:true,
+    descricao:"Os acontecimentos mais recentes de todos os módulos (treinos, compras, registros, mensagens, compromissos), em ordem, com o caminho para o registro original. Em espaço compartilhado só aparecem fontes da casa.",
+    tamanhos:{min:[4,0],padrao:[6,0],max:[12,8]},acoes:[{rotulo:"Abrir a Timeline",rota:"#timeline"}],
+    config:[{chave:"limite",rotulo:"Quantos eventos",tipo:"numero",min:3,max:12,padrao:6},{chave:"periodo",rotulo:"Período",tipo:"periodo",padrao:"7d"},
+      {chave:"categorias",rotulo:"Só estas categorias (vazio = todas)",tipo:"selecao",multiplo:true,max:10,opcoes:WM_TL_CATS,padrao:[]},{chave:"resumo",rotulo:"Mostrar o resumo",tipo:"booleano",padrao:true},{chave:"data",rotulo:"Mostrar a data",tipo:"booleano",padrao:true}],
+    renderizar:function(ctx){var hoje=hojeISO(),per=NUCLEO.wsPeriodo(ctx.config.periodo,hoje),de=per.valor==="mes"?per.de:per.de,tipo=ctx.espaco&&ctx.espaco.tipo;
+      return provEspacosParaWidget().then(function(esp){return provJanela({de:de,ate:hoje,limite:ctx.config.limite*2,tipoEspaco:tipo,espacos:esp,filtros:{categorias:ctx.config.categorias},tempo:6000})}).then(function(r){
+        var l=NUCLEO.tlDeduplicar(r.eventos).slice(0,ctx.config.limite);
+        if(r.falhas.length&&!l.length)throw new Error("as fontes não responderam")
+        if(!l.length)return {vazio:true,texto:r.falhas.length?"Nada chegou e parte das fontes não respondeu.":"Nada registrado "+(ctx.config.periodo==="hoje"?"hoje":ctx.config.periodo==="mes"?"neste mês":"nos "+per.rotulo)+"."};
+        var corpo=h("div",{class:"rac-pilha wm-tl"},h("div",{class:"tl-lista"},l.map(function(e){return tlLinha(e,{resumo:ctx.config.resumo,data:ctx.config.data,compacto:true})})));
+        if(r.falhas.length)corpo.appendChild(h("p",{class:"rac-t-legenda",text:"Sem resposta: "+r.falhas.map(function(x){return x.rotulo}).join(", ")+"."}));
+        corpo.appendChild(wmMaisLink("Abrir a Timeline","#timeline"));return corpo})}});
+  /* os espaços da pessoa (para o filtro e para dar id real ao "pessoal" e à "casa"); uma leitura por abertura */
+  var WM_ESP=null;
+  function provEspacosParaWidget(){if(WM_ESP)return WM_ESP;WM_ESP=Promise.resolve().then(function(){return SB.rpc("rac_iniciar_espacos")}).then(sbOk).then(function(l){return l||[]},function(){return []});setTimeout(function(){WM_ESP=null},60e3);return WM_ESP}

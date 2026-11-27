@@ -21,6 +21,7 @@ const abrirNavegador = () => pw.chromium.launch(process.env.RAC_CHROMIUM ? { exe
 
 /* o banco simulado, instalado dentro da página */
 function instalar(cfg) {
+  window.__cfg = cfg;
   const db = window.__db = { workspace_paginas: [], workspace_versoes: [], workspace_pessoal: [], falhar: null, escritas: [], chamadas: [] };
   const res = (data, error) => Promise.resolve({ data: data === undefined ? null : data, error: error || null }), clone = (x) => JSON.parse(JSON.stringify(x));
   const ativa = (p) => !p.arquivada_em, chave = (p) => p.espaco_id + "|" + String(p.titulo).replace(/\s+/g, " ").trim().toLowerCase();
@@ -29,9 +30,10 @@ function instalar(cfg) {
     const t = st.t, tabela = db[t] || (cfg.tabelas && cfg.tabelas[t]);   // tabelas de módulos (compras, lista, garmin…): só leitura, para os widgets da Minha Casa
     db.chamadas.push(t + "." + st.op);
     if (st.op !== "select" && db.falhar && (t === "workspace_paginas" || t === "workspace_pessoal")) return res(null, { message: db.falhar, code: "XX000" });
-    if (cfg.falharTabela === t && st.op === "select") return res(null, { message: "tabela fora: " + t, code: "XX000" });
+    if (window.__cfg.falharTabela && (window.__cfg.falharTabela === t || (Array.isArray(window.__cfg.falharTabela) && window.__cfg.falharTabela.includes(t))) && st.op === "select") return res(null, { message: "tabela fora: " + t, code: "XX000" });
     if (!tabela) return res(st.op === "select" ? [] : null);
-    const casa = (r) => st.f.every((f) => (f[0] === "eq" ? r[f[1]] === f[2] : f[0] === "gte" ? String(r[f[1]]) >= f[2] : f[0] === "lte" ? String(r[f[1]]) <= f[2] : f[0] === "in" ? f[2].indexOf(r[f[1]]) >= 0 : r[f[1]] === null || r[f[1]] === undefined));
+    const col = (r, c) => (c.includes("->>") ? ((r[c.split("->>")[0]] || {})[c.split("->>")[1]]) : c.includes(".") ? ((r[c.split(".")[0]] || {})[c.split(".")[1]]) : r[c]);
+    const casa = (r) => st.f.every((f) => (f[0] === "not" ? (f[2] === "is" ? col(r, f[1]) != null : !String(f[3]).replace(/[()]/g, "").split(",").includes(String(col(r, f[1])))) : f[0] === "or" ? f[1].split(/,(?=[a-z_>.-]+\.imatch\.)/).some((x) => { const m = /^(.+?)\.imatch\."(.*)"$/.exec(x); return !!m && new RegExp(m[2], "i").test(String(col(r, m[1]) == null ? "" : col(r, m[1]))); }) : f[0] === "eq" ? r[f[1]] === f[2] : f[0] === "gte" ? String(r[f[1]]) >= f[2] : f[0] === "lte" ? String(r[f[1]]) <= f[2] : f[0] === "in" ? f[2].indexOf(r[f[1]]) >= 0 : r[f[1]] === null || r[f[1]] === undefined));
     if (st.op !== "select") db.escritas.push(t + "." + st.op);
     if (st.op === "select") { let l = tabela.filter(casa).map(clone); if (st.ord) l.sort((a, b) => { for (const [c, d] of st.ord) { const r = (a[c] > b[c] ? 1 : a[c] < b[c] ? -1 : 0) * d; if (r) return r; } return 0; }); if (st.rg) l = l.slice(st.rg[0], st.rg[1] + 1); if (st.lim) l = l.slice(0, st.lim); return res(l); }
     if (t === "workspace_paginas") {
@@ -54,10 +56,10 @@ function instalar(cfg) {
     return res(st.ret ? [] : null);
   }
   function B(t) { const st = { t, op: "select", f: [], ord: null, lim: null, payload: null, ret: false }, q = {
-    select: () => { if (st.op !== "select") st.ret = true; return q; }, eq: (c, v) => { st.f.push(["eq", c, v]); return q; }, is: (c) => { st.f.push(["is", c]); return q; }, in: (c, v) => { st.f.push(["in", c, v]); return q; }, gte: (c, v) => { st.f.push(["gte", c, v]); return q; }, lte: (c, v) => { st.f.push(["lte", c, v]); return q; }, range: (a, b) => { st.rg = [a, b]; return q; }, maybeSingle: () => q,
+    select: () => { if (st.op !== "select") st.ret = true; return q; }, eq: (c, v) => { st.f.push(["eq", c, v]); return q; }, is: (c) => { st.f.push(["is", c]); return q; }, in: (c, v) => { st.f.push(["in", c, v]); return q; }, not: (c, op, v) => { st.f.push(["not", c, op, v]); return q; }, or: (x) => { st.f.push(["or", x]); return q; }, gte: (c, v) => { st.f.push(["gte", c, v]); return q; }, lte: (c, v) => { st.f.push(["lte", c, v]); return q; }, range: (a, b) => { st.rg = [a, b]; return q; }, maybeSingle: () => q,
     order: (c, o) => { (st.ord = st.ord || []).push([c, o && o.ascending === false ? -1 : 1]); return q; }, limit: (n) => { st.lim = n; return q; },
     insert: (p) => { st.op = "insert"; st.payload = p; return q; }, update: (p) => { st.op = "update"; st.payload = p; return q; }, upsert: (p) => { st.op = "upsert"; st.payload = p; return q; }, delete: () => { st.op = "delete"; return q; },
-    then: (ok, no) => exec(st).then(ok, no) }; return q; }
+    then: (ok, no) => { const d = (window.__cfg.atrasos || {})[st.t], p = exec(st); return (d ? p.then((x) => new Promise((r) => setTimeout(() => r(x), d))) : p).then(ok, no); } }; return q; }
   window.SB = { from: B, rpc: (n) => (n === "rac_iniciar_espacos" ? res(clone(cfg.espacos)) : res(true)), storage: { from: () => ({ list: () => res([]) }) }, functions: { invoke: () => res(null) } };
   window.PAPEL = cfg.papel || "dono"; window.EU = { id: "u-dono" }; window.DONO = "u-dono";
   try { localStorage.clear(); } catch (e) { /* sem armazenamento */ }

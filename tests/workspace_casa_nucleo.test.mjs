@@ -131,7 +131,7 @@ test("catálogo: os 10 widgets dos módulos entram, cumprem o contrato do motor,
 });
 test("nenhum widget escreve em tabela de negócio nem lê tabela que não seja a do próprio módulo (sem cópia de dado)", () => {
   const src = ler("js/widgets-modulos.js").replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.doesNotMatch(src, /\.(insert|update|upsert|delete|rpc)\(/, "só leitura"); assert.doesNotMatch(src, /localStorage|sessionStorage|fetch\(|XMLHttpRequest|rac-ia|racIA|\.functions\./, "sem armazenamento, rede própria nem IA");
+  assert.doesNotMatch(src.replace(/SB\.rpc\("rac_iniciar_espacos"\)/g, ""), /\.(insert|update|upsert|delete|rpc)\(/, "só leitura (a única chamada de função é a leitura dos espaços da pessoa, rac_iniciar_espacos, a mesma do Workspace)"); assert.doesNotMatch(src, /localStorage|sessionStorage|fetch\(|XMLHttpRequest|rac-ia|racIA|\.functions\./, "sem armazenamento, rede própria nem IA");
   const tabelas = [...src.matchAll(/SB\.from\("([a-z_]+)"\)/g)].map((m) => m[1]).sort(); assert.deepEqual([...new Set(tabelas)], ["compras", "lista"], "as mesmas tabelas que a Central e a Lista já leem; a Saúde e a Agenda vêm pelas fontes");
   assert.doesNotMatch(src, /=>|\blet\b|\bconst\b|`/, "ES5 puro");
 });

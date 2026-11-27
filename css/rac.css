@@ -792,3 +792,56 @@ body.wk-no-arrasto{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .wk-modelo-itens{color:var(--rac-texto-2)}
 
 @media(prefers-reduced-motion:reduce){.wk-item,.wk-alca{transition:none}}
+
+/* ===== Timeline e Busca global (Lote 3 do novo RAC; js/timeline.js e js/busca.js). Mesmo Design System: faixa azul, cartões, chips, selos, estados. A cor do marcador vem da categoria (--tl-cor, tokens --c-*). ===== */
+.ptitle .buscabtn{min-width:44px;min-height:44px;justify-content:center;padding:6px 10px;margin-left:8px}
+.ptitle .buscabtn svg{width:19px;height:19px}
+@media(min-width:861px){.ptitle .buscabtn{display:none}}
+.tl,.bg{display:flex;flex-direction:column;gap:var(--rac-esp-4)}
+.tl-ctl,.tl-corpo-pagina{display:flex;flex-direction:column;gap:var(--rac-esp-4)}
+.tl-controles{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.tl-linha-chips{display:flex;gap:var(--rac-esp-2);overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.tl-linha-chips .rac-chip{flex:0 0 auto}
+.tl-linha-ctl{display:flex;gap:var(--rac-esp-2);align-items:center;flex-wrap:wrap}
+.tl-linha-ctl .tl-agr{flex:1 1 160px;min-width:0}
+.tl-filtros,.bg-filtros{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.bg-filtros{gap:var(--rac-esp-2)}
+.tl-contagem{margin:0;color:var(--on-img)}
+.tl-grupo{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
+.tl-grupo-tit{margin:0}
+.tl-lista{display:flex;flex-direction:column}
+.tl-ev,.bg-res{position:relative;display:grid;grid-template-columns:52px 34px minmax(0,1fr) auto;gap:var(--rac-esp-3);align-items:start;padding:var(--rac-esp-3) 0;min-height:var(--rac-alvo);text-decoration:none;color:inherit;border-top:1px solid var(--rac-borda)}
+.tl-lista>.tl-ev:first-child,.tl-lista>.bg-res:first-child{border-top:0}
+.bg-res{grid-template-columns:34px minmax(0,1fr) auto}
+.tl-ev::before{content:"";position:absolute;left:calc(52px + var(--rac-esp-3) + 16px);top:0;bottom:0;width:2px;background:var(--rac-borda)}
+.tl-lista>.tl-ev:first-child::before{top:var(--rac-esp-3)}
+.tl-lista>.tl-ev:last-child::before{bottom:calc(100% - var(--rac-esp-3) - 34px)}
+.tl-ev:hover,.bg-res:hover,.tl-ev:focus-visible,.bg-res:focus-visible{background:var(--rac-azul-suave);outline:none}
+.tl-quando{text-align:right;padding-top:7px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl-marca{position:relative;z-index:1;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--rac-papel);border:2px solid var(--tl-cor,var(--rac-borda));font-size:16px;line-height:1}
+.tl-ev--futuro .tl-marca{border-style:dashed}
+.tl-corpo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tl-titulo{overflow-wrap:anywhere}
+.tl-resumo{overflow-wrap:anywhere}
+.tl-meta{color:var(--rac-texto-2)}
+.tl-fim{display:flex;flex-direction:column;align-items:flex-end;gap:var(--rac-esp-1)}
+.tl-icone{font-size:15px;color:var(--rac-texto-2)}
+.tl-agendado{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
+.tl-agendado-cab{display:flex;align-items:center;justify-content:space-between;gap:var(--rac-esp-3);background:none;border:0;padding:0;min-height:var(--rac-alvo);color:inherit;font:inherit;cursor:pointer;text-align:left}
+.tl-agendado-cab .rac-t-legenda{margin-left:auto}
+.tl-mais{display:flex;justify-content:center}
+.tl-fim-lista{text-align:center;margin:0;color:var(--on-img)}
+.tl-ev--compacto{grid-template-columns:44px 30px minmax(0,1fr) auto;padding:var(--rac-esp-2) 0}
+.tl-ev--compacto::before{left:calc(44px + var(--rac-esp-3) + 14px)}
+.tl-ev--compacto .tl-marca{width:30px;height:30px;font-size:14px}
+.bg-topo{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.bg-campo{width:100%;font-size:calc(17px + var(--fz))}
+.bg-rapida{display:flex;flex-direction:column}
+.bg-rapida .bg-res{padding:var(--rac-esp-2) var(--rac-esp-2)}
+@media(max-width:520px){
+  .tl-ev{grid-template-columns:44px 30px minmax(0,1fr) auto;gap:var(--rac-esp-2)}
+  .tl-ev::before{left:calc(44px + var(--rac-esp-2) + 14px)}
+  .tl-marca{width:30px;height:30px;font-size:14px}
+  .bg-res{grid-template-columns:30px minmax(0,1fr) auto}
+}
+.wm-tl .tl-lista{margin:0}

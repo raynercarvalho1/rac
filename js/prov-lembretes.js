@@ -1,0 +1,9 @@
+/* Dia a Dia RAC — provedor "lembretes" (Lote 3 do novo RAC). Fonte: PESSOAL.lembretes (a tabela pessoal, já carregada na sessão; RLS do dono). Chave: id do lembrete ("l…"). Data: data (dia). Espaço: pessoal. PRIVADO.
+   Evento: lembretes.lembrete. Link: #agenda. Os lembretes pendentes também entram na Agenda (NUCLEO.agendaItens); o provedor "agenda" os deixa de fora para não contar duas vezes. Passado vira "feito ou pendente"; futuro é "agendado". Só LÊ. */
+  function pvLembEvento(l){return {id:NUCLEO.tlId("lembretes","pessoal",l.id),quando:NUCLEO.tlQuandoDe(l.data),diaInteiro:true,categoria:"casa",tipo:"lembretes.lembrete",titulo:l.t,resumo:l.feito?"feito":"lembrete",pendente:!l.feito,link:"#agenda"}}
+  function pvLembLista(){return ((typeof PESSOAL!=="undefined"&&PESSOAL.lembretes)||[]).filter(function(l){return l&&l.id&&l.t&&/^\d{4}-\d{2}-\d{2}$/.test(String(l.data||""))})}
+  provRegistrar({dominio:"lembretes",rotulo:"Lembretes",categoria:"casa",tipos:["lembretes.lembrete"],espaco:"pessoal",compartilhavel:false,exige:{dono:true},
+    lerJanela:function(op){var l=pvLembLista().filter(function(x){return x.data<=op.ate&&(!op.de||x.data>=op.de)&&x.data<=provDiaDoCursor(op.cursor,op.ate)}).map(pvLembEvento);
+      l=NUCLEO.tlOrdenar(l).slice(0,op.limite);return Promise.resolve({eventos:l,esgotado:l.length<op.limite})},
+    lerProximos:function(op){var l=pvLembLista().filter(function(x){return !x.feito&&x.data>=op.hoje&&x.data<=op.ate}).map(pvLembEvento);return Promise.resolve({eventos:l})},
+    buscar:function(op){return Promise.resolve({itens:pvLembLista().filter(function(x){return NUCLEO.bsCasa(op.termos,[x.t,x.data,NUCLEO.tlRotuloDia(x.data,x.data)])}).slice(0,op.limite).map(function(x){var e=pvLembEvento(x);return {id:e.id,tipo:e.tipo,titulo:e.titulo,resumo:dataBR(x.data)+(x.feito?" · feito":""),quando:e.quando,link:e.link}})})}});

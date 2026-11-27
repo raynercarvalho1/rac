@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-27.3",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-27.4",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -36,7 +36,7 @@
      o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. A página Agenda é o módulo próprio "agenda" (DS-4.1): ele declara o Sistema
      (régua da Próxima melhor ação e ações rápidas), o kit e os gráficos. */
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],saude:["fonte-saude"],"saude-hub":["saude","kit","graficos"],"fonte-saude":["fontes"],agenda:["sistema","kit","graficos"],inbox:["kit","inbox-servico"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
-    workspace:["kit","fontes","widgets","widgets-base","widgets-modulos"],"widgets-base":["widgets","kit"],"widgets-modulos":["widgets","kit","graficos","fontes","fonte-agenda","fonte-saude"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
+    workspace:["kit","fontes","widgets","widgets-base","widgets-modulos"],"widgets-base":["widgets","kit"],"widgets-modulos":["widgets","kit","graficos","fontes","fonte-agenda","fonte-saude","timeline"],prov:["fontes"],"prov-registros":["prov","fonte-familia"],"prov-saude":["prov","fonte-saude"],"prov-fiscal":["prov"],"prov-compras":["prov"],"prov-inbox":["prov"],"prov-newsletter":["prov"],"prov-lembretes":["prov"],"prov-agenda":["prov","fonte-agenda"],"prov-conteudo":["prov","sistema"],timeline:["kit","prov-registros","prov-saude","prov-fiscal","prov-compras","prov-inbox","prov-newsletter","prov-lembretes","prov-agenda"],busca:["timeline","prov-conteudo","familia"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
   /* Um <script> que não chega NÃO é sempre "sem internet": a hospedagem pode responder erro, a rede pode estar acordando (app aberto por uma notificação com o aparelho parado). Por isso:
      tenta de novo até 2 vezes (com "&t=", que o service worker ignora ao procurar a cópia guardada) e o erro sai identificável: codigo, modulo, tentativas e se o aparelho se diz online. */
   var MOD_TENTATIVAS=3;
@@ -114,6 +114,7 @@
     if(top!=="eddie"&&top!=="olivia"&&top!=="veiculos")fundoPagina(null);
     /* voltar à página inicial (o Hoje, para o dono) em todas as páginas (a esposa não tem página inicial) */
     $("#homebtn").hidden=top===rotaInicial()||PAPEL==="casa";
+    $("#buscabtn").hidden=!isOwner()||top==="busca";   /* o ícone de busca do celular (Lote 3): só o dono tem a Busca global; no computador a busca fica na barra lateral */
     /* Voltar no topo: volta pelo histórico quando ele é deste site; senão, sobe um nível (ex.: da candidatura para a Carreira) */
     marcarProfundidade();VOLTAR_PAI=parts.length>1&&parts[1]?"#"+parts[0]:(top===rotaInicial()?"":PAPEL==="casa"?"":"#"+rotaInicial());
     $("#voltarbtn").hidden=!(PROF>0||VOLTAR_PAI);
@@ -328,29 +329,36 @@
   XCATS.forEach(function(c){if(!c.priv)c.h.forEach(function(x){DEST.push({t:"@"+x+" · "+c.n,href:"https://x.com/"+x,ext:true,av:x})})});
   var teamsAdded=false;
   /* os times da MLB vêm de js/esportes.js, carregado sob demanda: carrega antes de usar (P-19). A casa não tem Esportes: para ela nada muda */
-  $("#busca").addEventListener("focus",function(){
+  $("#buscalateral").addEventListener("focus",function(){
     if(teamsAdded||!isOwner())return;teamsAdded=true;
     precisa(["esportes"]).then(function(){return getTeams()}).then(function(ts){ts.forEach(function(t){DEST.push({t:t.name,href:"#esportes/beisebol/time-"+t.id,logo:logoUrl(t.id)})})}).catch(function(){teamsAdded=false})});
   var buscaVez=0;
   function searchDraw(){
-    var bruto=$("#busca").value.trim(),q=norm(bruto),box=$("#results");box.innerHTML="";var vez=++buscaVez;
+    var bruto=$("#buscalateral").value.trim(),q=norm(bruto),box=$("#results");box.innerHTML="";var vez=++buscaVez;
     if(!q)return;
     /* além das seções, procura no conteúdo (registros, treinos, MBA, vagas, notícias, produtos, datas) */
-    if(q.length>=2&&SB)setTimeout(function(){if(vez!==buscaVez)return;precisa(["sistema"]).then(function(){return buscar(bruto)}).then(function(l){if(vez!==buscaVez)return;
-      var fecha=function(){$("#busca").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)};
+    if(q.length>=2&&SB&&isOwner())setTimeout(function(){if(vez!==buscaVez)return;
+      /* Lote 3: o dono busca pelos provedores dos módulos (js/busca.js); no máximo 3 resultados por origem aqui, o resto na página #busca */
+      precisa(["busca"]).then(function(){return buscaRapida(bruto)}).then(function(r){if(vez!==buscaVez)return;var l=r.itens,fecha=function(){$("#buscalateral").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)};
+        if(l.length){var nada=box.querySelector(".semres");if(nada)nada.remove();box.appendChild(h("p",{class:"sub",style:"padding:6px 8px 2px;margin:0",text:"No conteúdo"}));
+          box.appendChild(h("div",{class:"buscares bg-rapida"},l.slice(0,6).map(function(x){return busgLinha(x,fecha,{aoAbrir:fecha})})))}
+        var todos=h("a",{class:"it",href:"#busca/"+encodeURIComponent(bruto)},h("span",{class:"t",text:l.length?"Ver todos os resultados":"Buscar “"+bruto+"” em tudo"}));
+        todos.addEventListener("click",function(){$("#buscalateral").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)});box.appendChild(todos)})},250);
+    else if(q.length>=2&&SB)setTimeout(function(){if(vez!==buscaVez)return;precisa(["sistema"]).then(function(){return buscar(bruto)}).then(function(l){if(vez!==buscaVez)return;
+      var fecha=function(){$("#buscalateral").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)};
       if(l.length){var nada=box.querySelector(".semres");if(nada)nada.remove();box.appendChild(h("p",{class:"sub",style:"padding:6px 8px 2px;margin:0",text:"No conteúdo"}));
         var ul=h("ul",{class:"wl buscares"},l.slice(0,6).map(function(x){return linhaResultado(x,fecha)}));box.appendChild(ul)}
       var todos=h("a",{class:"it",href:"#busca/"+encodeURIComponent(bruto)},h("span",{class:"t",text:l.length?"Ver todos os "+l.length+" resultados":"Buscar “"+bruto+"” em tudo"}));
-      todos.addEventListener("click",function(){$("#busca").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)});box.appendChild(todos)})},250);
+      todos.addEventListener("click",function(){$("#buscalateral").value="";box.innerHTML="";if(typeof setSide==="function")setSide(false)});box.appendChild(todos)})},250);
     var hits=DEST.filter(function(d){return !(d.el&&d.el.hidden)&&norm(d.t).indexOf(q)>=0}).slice(0,8);
     if(!hits.length){box.appendChild(h("p",{class:"sub semres",style:"padding:4px 8px;margin:0",text:"Nenhuma seção com esse nome."}));return}
     hits.forEach(function(d){
       var icon=d.ico?d.ico.cloneNode(true):d.logo?img(d.logo,"ico"):d.av?avatar(d.av,"ico"):null;
       var a=h("a",{class:"it",href:d.href,role:"listitem",target:d.ext?"_blank":null,rel:d.ext?"noopener":null},icon,h("span",{class:"t",text:d.t}));
-      a.addEventListener("click",function(){$("#busca").value="";box.innerHTML=""});
+      a.addEventListener("click",function(){$("#buscalateral").value="";box.innerHTML=""});
       box.appendChild(a)})}
-  $("#busca").addEventListener("input",searchDraw);
-  $("#busca").addEventListener("keydown",function(e){if(e.key==="Enter"){var f=$("#results a");if(f)f.click()}});
+  $("#buscalateral").addEventListener("input",searchDraw);
+  $("#buscalateral").addEventListener("keydown",function(e){if(e.key==="Enter"){var f=$("#results a");if(f)f.click()}});
 
   /* Tempo em Sorocaba (Open-Meteo, sem chave) */
   var WX={sun:'<svg viewBox="0 0 24 24" fill="none" stroke="#F2A900" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="#FFC83D"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',

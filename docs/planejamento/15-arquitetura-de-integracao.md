@@ -150,3 +150,30 @@ CONFIRMAÇÃO do usuário → o item vira registro no módulo destino (usando a 
 ## Estado de implementação (Lote 2, 27/11/2026): widgets como consumidores das fontes
 
 Os widgets de Hoje, Saúde e Compras (Documento 14, "Estado de implementação (Lote 2)") são os primeiros consumidores do contrato de fontes fora do RAC Hoje: Agenda e Saúde pela fonte (`fonteLer`, com opções de janela), Compras e Lista pelas tabelas que a Central e a Lista já leem. Nenhum dado é copiado e nenhuma tabela foi criada; a Timeline (Lote 3) usará os mesmos provedores.
+
+## Estado de implementação (Lote 3, 27/11/2026): Timeline e Busca global
+
+**Arquivos:** `js/prov.js` (registro, orquestrador, privacidade, tempo-limite, cursor), `js/prov-registros.js`, `prov-saude.js`, `prov-fiscal.js`, `prov-compras.js` (pedidos online e Mercado), `prov-inbox.js`, `prov-newsletter.js`, `prov-lembretes.js`, `prov-agenda.js`, `prov-conteudo.js` (MBA, aniversários, projetos, vagas, notícias: só busca); telas `js/timeline.js` (`#timeline`) e `js/busca.js` (`#busca`); widget `timeline.recente` em `js/widgets-modulos.js`; contas puras em `nucleo.js` (`tl*`, `bs*`).
+
+**Contrato do provedor** (`provRegistrar`): `dominio`, `rotulo`, `categoria` (+ `categorias`), `tipos`, `espaco` (`pessoal` ou `casa`; o orquestrador troca pelo id real do espaço da pessoa), `compartilhavel`, `exige:{dono}`, e as funções `lerJanela({de, ate, cursor, limite, filtros, hoje})`, `lerProximos({ate, limite, hoje})` e `buscar({termos, texto, limite, filtros})`. O orquestrador (`provJanela`, `provProximos`, `provBuscar`) **impõe** `espaco` e `origem`, descarta evento fora do contrato (`NUCLEO.tlEvento`) e conta o descarte, e **nunca** roda provedor privado em espaço compartilhado.
+
+| Domínio | Fonte real | Chave | Data | Categoria · tipo | Espaço e permissão | Rota original | Busca |
+|---|---|---|---|---|---|---|---|
+| `registros` | `registros` (RLS casa) | `id` | `data` (dia) | família ou casa · `familia.*`, `veiculos.*`, `documentos.*` | casa, compartilhável | `#olivia`, `#eddie`, `#veiculos/<x>`, `#documentos` | título, detalhes, valor |
+| `saude` | `garmin_ativ` **pela fonte única** `js/fonte-saude.js` (opções novas `ateAtiv` e `buscaAtiv`; RLS só do dono + mfa) | `id` | `inicio` (hora local), só de 01/01/2026 | saúde · `saude.atividade` | pessoal, **privado**, dono; respeita "ocultar valores" e "esconder local" | `#saude/treino/<id>` | tipo, nome, local |
+| `fiscal` | `notas_fiscais` + `notas_fiscais_vinculos` | `id` | `data_emissao` | finanças · `fiscal.nota` (prioridade 1) | casa, compartilhável | `#fiscal` | emitente, número |
+| `compras` | `compras_online` | `id` | `data` | finanças · `compras.pedido` (prioridade 2) | casa, compartilhável | `#compras` | vendedor, categoria, número |
+| `mercado` | `notas` (+ `mercados`) e `produtos` | `id` | `data` | finanças · `mercado.nota` (prioridade 2) | casa, compartilhável | `#mercado`, `#mercado/precos` | loja, número, produto |
+| `inbox` | `inbox_mensagens_ref` das pastas de entrada (só cabeçalhos) | `id` | `recebida_em` | comunicação · `inbox.mensagem` | pessoal, **privado**, dono | `#inbox/<conta>/<pasta>/<id>` | assunto, remetente |
+| `newsletter` | `newsletter_edicoes` (sem o conteúdo) | `id` | `data` + hora do turno | descoberta · `newsletter.edicao` | pessoal, **privado**, dono | `#newsletter` | (só Timeline) |
+| `lembretes` | `PESSOAL.lembretes` | `id` | `data` | casa · `lembretes.lembrete` | pessoal, **privado**, dono | `#agenda` | texto |
+| `agenda` | fonte `agenda` (`NUCLEO.agendaItens`) | id do item ou tipo+data+título | `data` | casa, família, estudos, carreira, sistema · `agenda.*` | pessoal, **privado**, dono | a do item | título, resumo |
+| `mba`, `aniversarios`, `projetos`, `vagas`, `noticias` | índice de memória e arquivos do site (`buscaMontar`) | — | — | estudos, família, projetos, carreira, descoberta | pessoal, privados, dono | a do item | só busca |
+
+**Timeline:** janela de 7 dias por padrão (hoje, 7, 30, 90 dias, tudo); 40 eventos por provedor por página; cursor `{quando, vistos}` por provedor; tempo-limite de 8 s por provedor; resultado parcial com nova tentativa só dos que falharam; filtros de categoria, espaço, anexo, pendentes e texto; agrupamentos por dia, semana, mês, categoria e pessoa; "Agendado" (próximos 30 dias) à parte; deduplicação pela lista acumulada. **Busca:** termos sem acento (2 letras ou mais, até 6), regex do Postgres no banco, limite de 15 por origem na página e 3 na barra lateral, consulta nova cancela a anterior, filtros por origem e espaço.
+
+**Segurança:** cada provedor lê com a sessão de quem vê; RLS é a autoridade; privado nunca em espaço compartilhado; sem cache entre usuários (a memória de 60 s da Agenda e de 10 min do índice local são da própria aba); erros sem conteúdo do banco; a interface só esconde o que o banco já recusaria.
+
+**Banco (medição em produção, 27/11/2026):** nenhuma migration. Índices existentes cobrem os acessos (`registros_quem_data`, `garmin_ativ_inicio`, `notas_fiscais_casa_data`, `compras_online_casa_data`, `notas_data`, `inbox_ref_lista`, `newsletter_edicoes_dono_data`, `notas_fiscais_vinculos` pelo índice único com `user_id`). Volumes: registros 227, garmin 1000, notas fiscais 24, pedidos online 3, notas do Mercado 61, mensagens 302, edições 77. Planos lidos: `registros` por índice em 1,4 ms; `inbox_mensagens_ref` em 0,8 ms; `garmin_ativ` varredura de 1000 linhas em 60 ms (a leitura é limitada a 40 por página). `get_advisors` (desempenho): só avisos antigos (FKs sem índice, `auth.uid()` sem `select`); nada que o lote exija.
+
+**Desempenho (banco simulado, 10 mil registros em 5 tabelas, sem rede):** primeira página de 50 eventos na janela de 7 dias: 94 linhas transferidas, poucos milissegundos; "tudo" (sem período): 251 linhas de 10 mil; busca: 13 linhas. As linhas por página são no máximo `limite × provedores`. Latência real de rede não foi medida pelo agente.

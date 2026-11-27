@@ -165,7 +165,7 @@
   /* o índice novo no lugar do antigo (vale 10 minutos) */
   function buscaTrocar(m){BUSCA.idx=m.idx;BUSCA.fontes=m.fontes;clearTimeout(BUSCA.tmr);BUSCA.tmr=setTimeout(function(){BUSCA.idx=null},10*60e3)}
   /* monta o índice sem mexer em BUSCA; fontes diz o que cada leitura deu (a busca segue sem a que falhou; o ↻ não troca por um índice com buraco) */
-  function buscaMontar(){
+  function buscaMontar(opc){var semBanco=!!(opc&&opc.semBanco);   /* semBanco (Lote 3): só o que vem da memória e dos arquivos do site; registros, treinos e produtos vêm dos provedores (js/prov-*.js), que consultam o banco */
     var MES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
     function datas(s){if(!s)return "";s=String(s).slice(0,10);var p=s.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]+" "+p[2]+"/"+p[1]+" "+MES[+p[1]-1]+" "+p[0]:""}
     var idx=[];function add(tipo,t,sub,extra,alvo){idx.push(Object.assign({tipo:tipo,t:t,sub:sub||"",txt:norm([tipo,t,sub,extra].join(" "))},alvo))}
@@ -174,9 +174,9 @@
     function tenta(nome,f){var p;try{p=Promise.resolve(f())}catch(e){p=Promise.reject(e)}
       return p.then(function(){fontes[nome]={ok:true}},function(e){logErro("busca",e);fontes[nome]={ok:false,erro:e&&e.message||String(e)}})}
     if(isOwner()){
-      ps.push(tenta("registros",function(){return SB.from("registros").select("id,quem,tipo,data,titulo,detalhes,valor,proxima").then(sbOk).then(function(l){l.forEach(function(r){var F=FAM[r.quem];if(!F)return;
+      if(!semBanco)ps.push(tenta("registros",function(){return SB.from("registros").select("id,quem,tipo,data,titulo,detalhes,valor,proxima").then(sbOk).then(function(l){l.forEach(function(r){var F=FAM[r.quem];if(!F)return;
         add(F.n,r.titulo,tipoInfo(r.tipo)[1]+" · "+dataBR(r.data),[r.detalhes,r.valor,datas(r.data),datas(r.proxima)].join(" "),{reg:r})})})}));
-      ps.push(tenta("treinos",function(){return fonteOuErro("saude",{semDias:true,limiteAtiv:1000}).then(function(c){var esc=NUCLEO.sauPrefs(PESSOAL.saudePrefs).esconderLocal;c.v.ativs.forEach(function(a){var T=ativTipo(a.tipo);   /* só treinos seus; o dono pode esconder o local */
+      if(!semBanco)ps.push(tenta("treinos",function(){return fonteOuErro("saude",{semDias:true,limiteAtiv:1000}).then(function(c){var esc=NUCLEO.sauPrefs(PESSOAL.saudePrefs).esconderLocal;c.v.ativs.forEach(function(a){var T=ativTipo(a.tipo);   /* só treinos seus; o dono pode esconder o local */
         add("Treino",a.dados.nome||T[0],T[0]+" · "+dataBR(a.inicio.slice(0,10)),[T[0],esc?"":a.dados.local,datas(a.inicio)].join(" "),{href:"#saude/treino/"+a.id})})})}));
       mbaAulas().forEach(function(a){add("MBA",a.t,"aula · "+dataBR(a.data)+" "+a.hora,[a.prof,datas(a.data)].join(" "),{href:"#mba"})});
       mbaAvals().forEach(function(a){add("MBA",a.t+(a.disc?" · "+a.disc:""),"avaliação até "+dataBR(a.ate),datas(a.ate),{href:a.link||"#mba",ext:!!a.link})});
@@ -193,7 +193,7 @@
       /* Newsletter: cada acontecimento uma vez (com a categoria e quantos veículos cobriram), link original */
       ps.push(tenta("newsletter",function(){return getJson("newsletter.json").then(function(v){(v.grupos||[]).forEach(function(x){add("Notícia",x.t,x.f+" · "+NUCLEO.nlCat(x.c).n+(x.n>1?" · "+x.n+" veículos":""),[x.r,datas(x.d)].join(" "),{href:x.u,ext:true})})})}))}
     /* Mercado: produtos (todo mundo da casa vê) */
-    ps.push(tenta("produtos",function(){return SB.from("produtos").select("nome,categoria").then(sbOk).then(function(l){l.forEach(function(p){add("Mercado",p.nome,p.categoria||"produto","",{produto:p.nome})})})}));
+    if(!semBanco)ps.push(tenta("produtos",function(){return SB.from("produtos").select("nome,categoria").then(sbOk).then(function(l){l.forEach(function(p){add("Mercado",p.nome,p.categoria||"produto","",{produto:p.nome})})})}));
     return Promise.all(ps).then(function(){return {idx:idx,fontes:fontes}})}
   /* botão de atualizar: o índice inteiro de novo; troca só se nenhuma fonte que respondia passou a falhar, e a busca digitada roda nele */
   atuModulo("busca",{

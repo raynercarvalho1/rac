@@ -90,7 +90,7 @@ test("leitores: todo ponto que lê o relógio passa pela fonte única da Saúde 
   for (const f of ["js/saude.js", "js/saude-hub.js", "js/painel.js", "js/resumo.js"]) assert.ok(!/["']garmin_(dia|ativ)["']/.test(ler(f)), `${f} lê o relógio por conta própria`);
   for (const f of ["js/painel.js", "js/resumo.js"]) assert.match(ler(f), /NUCLEO\.SAU_MARCO/, `${f} não usa o marco`);
   /* quem cita as tabelas diretamente fica na lista conhecida: um leitor novo precisa passar pela fonte */
-  const leem = ARQ_JS.filter((f) => f.startsWith("js/") && /["']garmin_(dia|ativ)["']/.test(ler(f))).sort();
+  const leem = ARQ_JS.filter((f) => f.startsWith("js/") && /["']garmin_(dia|ativ)["']/.test(ler(f).replace(/NUCLEO\.tlId\([^)]*\)/g, ""))).sort();   // o provedor da Timeline só usa o nome da tabela no id estável do evento (saude:garmin_ativ:<id>); a leitura é pela fonte
   assert.deepEqual(leem, ["js/fonte-saude.js", "js/sistema.js"], "leitor novo do relógio: leia pela fonte (fonteLer(\"saude\"))");
   /* o Sistema só cita as tabelas para o Monitor (idade do dado, sem análise) e para a lista de tabelas do diagnóstico */
   const sis = ler("js/sistema.js"); for (const m of sis.matchAll(/from\("garmin_(?:dia|ativ)"\)\.select\("([^"]*)"\)/g)) assert.equal(m[1], "atualizado", "o Sistema só lê a data de atualização, para o Monitor");

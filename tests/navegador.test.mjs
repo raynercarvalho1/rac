@@ -214,15 +214,15 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
     /* cabeçalho em 375 px: o título inteiro, sem passar por baixo de Voltar e Início (que ficam só com o ícone nesta página) */
     const cabecalho = () => pag.evaluate(() => {
       const r = (el) => el.getBoundingClientRect(), t = document.getElementById("ptitle"), v = document.getElementById("voltarbtn"), i = document.getElementById("homebtn");
-      const vis = [v, i].filter((b) => !b.hidden);
+      const vis = [v, i].filter((b) => !b.hidden && b.offsetParent !== null);   // Lote 3: no celular do dono o Início sai do cabeçalho (a barra inferior tem a Casa) e entra o ícone de busca
       return { titulo: t.textContent, cortado: t.scrollWidth > t.clientWidth + 1, direita: r(t).right, botoes: vis.map((b) => ({ esq: r(b).left, dir: r(b).right, texto: b.textContent.trim(), fonte: parseFloat(getComputedStyle(b).fontSize) })),
         largura: document.documentElement.scrollWidth };
     });
     const cab = await cabecalho();
     assert.equal(cab.titulo, "Newsletter"); assert.equal(cab.cortado, false, "título inteiro");
-    assert.equal(cab.botoes.length, 2, "Voltar e Início continuam na tela");
+    assert.ok(cab.botoes.length >= 1, "o Voltar continua na tela (o Início sai no celular do dono: a barra inferior tem a Casa)");
     for (const b of cab.botoes) { assert.ok(b.esq >= cab.direita, `o botão ${b.texto} não cobre o título (${b.esq} < ${cab.direita})`); assert.ok(b.dir <= 375, "dentro da tela"); }
-    assert.deepEqual(cab.botoes.map((b) => b.texto), ["Voltar", "Início"], "o nome dos botões continua para leitores de tela");
+    assert.deepEqual(cab.botoes.map((b) => b.texto), ["Voltar"], "o nome do botão continua para leitores de tela");
     assert.ok(cab.largura <= 375);
     const grav = await pag.evaluate(() => window.__nl.gravacoes.filter((g) => g.nome === "newsletter_edicoes"));
     assert.equal(grav.length, 1); assert.equal(grav[0].op, "insert"); assert.equal(grav[0].v.origem, "regras", "a edição de regras do turno vai para o histórico");
@@ -234,7 +234,7 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
       const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
       return { titulo: t.textContent, cortado: t.scrollWidth > t.clientWidth + 1, reticencias: getComputedStyle(t).textOverflow, pico: getComputedStyle(document.getElementById("pico")).display,
         atu: { w: a.width, h: a.height, visivel: getComputedStyle(document.getElementById("atubtn")).display !== "none" }, hora: document.querySelector("#atubtn .atuh").textContent,
-        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth, largura: document.documentElement.scrollWidth };
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= (i.width ? i.left : innerWidth) + 0.5 && (i.width ? i.right : a.right) <= innerWidth, largura: document.documentElement.scrollWidth };
     });
     await pag.evaluate(() => { SB.rpc = () => ({ then: (ok, no) => Promise.resolve({ data: "pong", error: null }).then(ok, no) }); });
     await pag.click("#atubtn");
@@ -250,7 +250,7 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
       sideMark(k, k); document.documentElement.setAttribute("data-sec", k); document.getElementById("voltarbtn").hidden = false; ATU.ultima[k] = Date.now(); atuBotao();
       const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
       return { k, cortado: t.scrollWidth > t.clientWidth + 1, reticencias: getComputedStyle(t).textOverflow, atu: [a.width, a.height],
-        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth, largura: document.documentElement.scrollWidth };
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= (i.width ? i.left : innerWidth) + 0.5 && (i.width ? i.right : a.right) <= innerWidth, largura: document.documentElement.scrollWidth };
     }));
     for (const p of paginas) {
       assert.ok(p.ordem, p.k + ": nada se sobrepõe"); assert.ok(p.largura <= 375, p.k + ": sem rolagem lateral");
@@ -263,7 +263,7 @@ test("Newsletter: 375 px, destaques com link original, guardar, busca, IA DEMO s
       sideMark(k, k); document.documentElement.setAttribute("data-sec", k); document.getElementById("voltarbtn").hidden = false; ATU.ultima[k] = Date.now(); atuBotao();
       const R = (id) => document.getElementById(id).getBoundingClientRect(), t = document.getElementById("ptitle"), a = R("atubtn"), v = R("voltarbtn"), i = R("homebtn");
       return { k, cortado: t.scrollWidth > t.clientWidth + 1, atu: [a.width, a.height], largura: document.documentElement.scrollWidth,
-        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= i.left + 0.5 && i.right <= innerWidth };
+        ordem: R("ptitle").right <= v.left + 0.5 && v.right <= a.left + 0.5 && a.right <= (i.width ? i.left : innerWidth) + 0.5 && (i.width ? i.right : a.right) <= innerWidth };
     }));
     for (const p of largo) {
       assert.ok(p.ordem, "1024 px, " + p.k + ": nada se sobrepõe"); assert.ok(p.largura <= 1024, "1024 px, " + p.k + ": sem rolagem lateral");

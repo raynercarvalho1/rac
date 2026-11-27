@@ -5,17 +5,19 @@
   /* leituras iguais pedidas ao mesmo tempo (Saúde, Painel e Resumo abrem juntos) usam a mesma consulta; terminada, nada fica guardado */
   var SAUDE_EM_CURSO={};
   var SAUDE_COLUNAS={dia:"data,dados,atualizado",ativ:"id,inicio,tipo,dados"};
-  /* opc: desdeDias e desdeAtiv (AAAA-MM-DD: só do dia em diante), colsDia e colsAtiv (colunas), limiteAtiv (os N treinos mais novos), semDias e semAtiv (não lê a tabela) */
-  function saudeChaveLeitura(o){return JSON.stringify([o.desdeDias||"",o.desdeAtiv||"",o.colsDia||"",o.colsAtiv||"",o.limiteAtiv||0,!!o.semDias,!!o.semAtiv])}
+  /* opc: desdeDias e desdeAtiv (AAAA-MM-DD: só do dia em diante), ateAtiv (limite superior de inicio, para a Timeline paginar por cursor) e buscaAtiv (filtro de texto da Busca global), colsDia e colsAtiv (colunas), limiteAtiv (os N treinos mais novos), semDias e semAtiv (não lê a tabela) */
+  function saudeChaveLeitura(o){return JSON.stringify([o.desdeDias||"",o.desdeAtiv||"",o.colsDia||"",o.colsAtiv||"",o.limiteAtiv||0,!!o.semDias,!!o.semAtiv,o.ateAtiv||"",o.buscaAtiv?JSON.stringify(o.buscaAtiv):""])}
   /* saudeColetarLeitura devolve {dias, ativs, legado:{dias,ativs}, semData, falhas, estado, ultimo, atualizado}: os dias em ordem crescente e os treinos do mais novo ao mais antigo.
      estado: "completa" (tudo lido), "vazia" (tudo lido, sem registros seus), "parcial" (uma tabela falhou; o que veio é utilizável) ou "falha" (nada foi lido). Falha nunca vira vazia. */
   function saudeColetarLeitura(opc){opc=opc||{};var k=saudeChaveLeitura(opc);if(SAUDE_EM_CURSO[k])return SAUDE_EM_CURSO[k];
     var p=saudeLerTabelas(opc).then(function(r){delete SAUDE_EM_CURSO[k];return r},function(e){delete SAUDE_EM_CURSO[k];throw e});SAUDE_EM_CURSO[k]=p;return p}
+  /* buscaAtiv ({termos, colunas}): a Busca global filtra os treinos NO BANCO (cada termo vira uma expressão que ignora acento, NUCLEO.bsRegex; todos os termos precisam aparecer em alguma das colunas), em vez de trazer tudo */
+  function saudeFiltroTexto(q,b){if(!b||!b.termos||!b.termos.length)return q;b.termos.forEach(function(t){var re=NUCLEO.bsRegex(t);q=q.or((b.colunas||["tipo"]).map(function(c){return c+'.imatch."'+re+'"'}).join(","))});return q}
   function saudeLerTabelas(opc){var falhas=[],tentadas=0;
     function falhou(t,e){logErro("saúde",e);falhas.push(t+": "+String(e&&e.message||e).slice(0,100));return null}
     var pD=opc.semDias?Promise.resolve([]):(tentadas++,dadosPaginar(function(f){var q=SB.from("garmin_dia").select(opc.colsDia||SAUDE_COLUNAS.dia);if(opc.desdeDias)q=q.gte("data",opc.desdeDias);return q.order("data",{ascending:true}).range(f,f+999)}).catch(function(e){return falhou("garmin_dia",e)}));
-    var pA=opc.semAtiv?Promise.resolve([]):(tentadas++,(opc.limiteAtiv?Promise.resolve().then(function(){var q=SB.from("garmin_ativ").select(opc.colsAtiv||SAUDE_COLUNAS.ativ);if(opc.desdeAtiv)q=q.gte("inicio",opc.desdeAtiv);return q.order("inicio",{ascending:false}).limit(opc.limiteAtiv)}).then(sbOk)
-      :dadosPaginar(function(f){var q=SB.from("garmin_ativ").select(opc.colsAtiv||SAUDE_COLUNAS.ativ);if(opc.desdeAtiv)q=q.gte("inicio",opc.desdeAtiv);return q.order("inicio",{ascending:false}).range(f,f+999)})).catch(function(e){return falhou("garmin_ativ",e)}));
+    var pA=opc.semAtiv?Promise.resolve([]):(tentadas++,(opc.limiteAtiv?Promise.resolve().then(function(){var q=SB.from("garmin_ativ").select(opc.colsAtiv||SAUDE_COLUNAS.ativ);if(opc.desdeAtiv)q=q.gte("inicio",opc.desdeAtiv);if(opc.ateAtiv)q=q.lte("inicio",opc.ateAtiv);q=saudeFiltroTexto(q,opc.buscaAtiv);return q.order("inicio",{ascending:false}).limit(opc.limiteAtiv)}).then(sbOk)
+      :dadosPaginar(function(f){var q=SB.from("garmin_ativ").select(opc.colsAtiv||SAUDE_COLUNAS.ativ);if(opc.desdeAtiv)q=q.gte("inicio",opc.desdeAtiv);if(opc.ateAtiv)q=q.lte("inicio",opc.ateAtiv);q=saudeFiltroTexto(q,opc.buscaAtiv);return q.order("inicio",{ascending:false}).range(f,f+999)})).catch(function(e){return falhou("garmin_ativ",e)}));
     return Promise.all([pD,pA]).then(function(r){
       /* a ordem é garantida aqui (e não só pelo banco): dias do mais antigo ao mais novo, treinos do mais novo ao mais antigo */
       var c=NUCLEO.sauClassificar((r[0]||[]).slice().sort(function(a,b){return a.data<b.data?-1:a.data>b.data?1:0}),(r[1]||[]).slice().sort(function(a,b){return a.inicio<b.inicio?1:a.inicio>b.inicio?-1:0})),dias=c.meus.dias,ativs=c.meus.ativs,ult=dias.length?dias[dias.length-1].data:ativs.length?String(ativs[0].inicio).slice(0,10):null,at=null;

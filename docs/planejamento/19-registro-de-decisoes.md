@@ -236,3 +236,53 @@ Mesmo método do Lote 1 (seção 5.1): o skill interativo não entrevistou o don
 - **D-L2-5 · Barra do celular:** Casa acrescentada na frente (7 itens); aguarda validação do dono no iPhone.
 - **D-L2-6 · Migration 058 reconciliada** (seção 8 do Documento 14, "Migration 058").
 - **D-L2-7 · "Atividades recentes" da Saúde incluem caminhada**, como o RAC Hoje (decisão do dono de 23/11/2026: a caminhada não conta como *treino*, mas aparece nas atividades); o que `NUCLEO.TREINO_OCULTOS` esconde no Hoje fica fora também aqui.
+
+## 8. Lote 3 (27/11/2026): Timeline e Busca global, Brainstorm, Grill Me e decisões
+
+### 8.1 Como foram usados
+O skill de Grill Me é interativo (rodadas de perguntas com resposta recomendada, árvore de decisões). O briefing do Lote 3 pediu para **não interromper** o trabalho por perguntas que a arquitetura e as evidências já respondem; por isso o método foi aplicado por escrito: árvore de decisões, uma pergunta por ramo, resposta recomendada e **prova** (código, banco de produção em leitura, teste). Nenhuma decisão de produto aprovada foi reaberta (sem tabela de eventos, provedores por módulo, RLS como autoridade). Limitação registrada: o proprietário não foi entrevistado; as escolhas de interface abaixo são propostas dele a validar no iPhone e no computador.
+
+### 8.2 Brainstorm: alternativas comparadas
+| Tema | Alternativas | Escolha e motivo |
+|---|---|---|
+| Fonte dos eventos | (a) tabela central de eventos; (b) view/RPC `security_invoker` unindo as tabelas; (c) composição no navegador por provedores | **(c)** (decisão N-07 mantida): sem cópia e sem migration; (b) fica como evolução só com medição que a exija (seção 10 do Documento 15) |
+| Paginação | offset × keyset único × cursor por provedor | **cursor por provedor** `{quando, vistos}`: nada se perde nem se repete com gravações novas ou empates; offset repetiria ou perderia eventos |
+| Unificar com a Agenda | segunda lista de eventos futuros × reaproveitar `agendaItens` | **reaproveitar**: o provedor `agenda` lê a fonte existente; o futuro vem de `lerProximos` e aparece à parte, marcado |
+| Lembretes × Agenda | os dois contam o lembrete × um só dono | **provedor `lembretes` é o dono**; a Agenda deixa de fora os itens de lembrete (id único) |
+| Deduplicação | por título/valor × por vínculo existente | **por vínculo** (`notas_fiscais_vinculos`): a nota fiscal (prioridade 1) é absorvida pelo pedido/nota do Mercado (prioridade 2) presente na lista; resolvido na lista acumulada, também entre páginas |
+| Busca | índice no navegador × `tsvector` global × consulta aos provedores | **consulta aos provedores** com a sessão da pessoa; texto sem acento por **regex do Postgres** (`imatch`), sem extensão nem índice novo |
+| Busca antiga | descartar × migrar | **migrar sem perder**: o conteúdo de memória (MBA, aniversários, projetos, guardados, vagas, notícias) segue pelo índice antigo (`buscaMontar` com `semBanco`), exposto como provedores |
+| Interface | cartões iguais × linha do tempo com marcadores e agrupamento | **linha do tempo** (hora, marcador por categoria, resumo, origem) agrupada por dia/semana/mês/categoria/pessoa; busca agrupada por origem |
+| Celular | barra nova × ícone de busca no cabeçalho + tela de pesquisa | **ícone no cabeçalho** (só dono) que abre `#busca` com o campo em foco; a barra inferior **não mudou** |
+| Escala | cache global × leitura por página | **leitura por página** (40 eventos por provedor no máximo), sem cache entre usuários |
+
+### 8.3 Grill Me: perguntas, respostas e onde está a prova
+| Pergunta | Resposta (regra) | Prova |
+|---|---|---|
+| Um provedor lento bloqueia a Timeline? | Não: tempo-limite de 8 s por provedor (6 s na busca); o lento entra em `falhas` e os outros entregam | `timeline_prov` ("FALHA ou DEMORA"), `timeline_tela` (parcial) |
+| Um erro esconde os outros? | Não: aviso com o nome de cada fonte ("sem acesso", "demorou demais", "sem conexão"), sem o texto do banco; "Tentar de novo" relê só as que falharam | idem |
+| Como impedir duplicados? | Ids determinísticos; ids repetidos viram um; vínculo existente absorve a nota fiscal; o cursor não reentrega | `timeline_nucleo` (keyset, dedup), `timeline_prov` |
+| IDs estáveis? | `<provedor>:<tabela>:<chave>[:<parte>]`; editar não muda; Agenda usa id do item ou tipo+data+título normalizado, nunca a posição | `timeline_prov` ("ids estáveis") |
+| Datas sem fuso? | `quando` sempre ISO com `-03:00`; só-data vira dia inteiro 00:00; `timestamp` sem fuso (Garmin) é hora local; `timestamptz` converte para Brasília | `timeline_nucleo` (fuso, virada de dia), `timeline_prov` (23:30) |
+| Resultado privado em espaço compartilhado? | Provedor privado nunca roda quando o espaço é compartilhado, nem se a chamada o pedir por nome; o widget usa o espaço da página | `timeline_prov`, `timeline_tela` (nenhuma consulta a garmin/inbox/newsletter) |
+| Registro removido? | Sai da próxima leitura; a mensagem "Registro removido ou sem acesso" é para referências guardadas (Captura, Lote 4); nada a mais é gravado | `timeline_prov` |
+| Registro alterado? | Leitura ao vivo: a edição aparece na próxima abertura; `versaoFonte` acompanha o evento | `timeline_prov` |
+| O cursor perde eventos? | Não: `{quando, vistos}`; gravação nova mais nova que o cursor não desloca nem repete as páginas seguintes; filtro que descarta tudo ainda avança | `timeline_nucleo` (limites 1 a 200 e gravação no meio), `timeline_prov` (270 eventos) |
+| Repetição entre páginas? | A tela junta a lista acumulada e deduplica de novo; nenhum id repete na tela | `timeline_tela` (130 eventos) |
+| Acentos e termo parcial? | Termos sem acento, 2 letras ou mais; a regex do banco trata cada letra como classe acentuada; caracteres especiais escapados | `timeline_nucleo` (inclusive no Postgres real, PGlite), `timeline_prov` |
+| A busca revela a existência de um registro privado? | Não: cada provedor consulta com a sessão; sem acesso, o banco devolve zero linhas e o provedor privado nem roda para quem não é o dono; "sem acesso" não é listado | `timeline_prov` (dois usuários, de fora, membro removido) |
+| Resultados sem confundir origens? | Grupo por origem com contagem, marcador por categoria, espaço e data em cada linha, filtro por origem e por espaço | `timeline_tela`, capturas |
+| Muitos módulos sem carregar tudo? | Módulos por demanda (`MOD_DEPS`): cada provedor é um arquivo leve; leitura por página com limite por provedor | `timeline_prov` (10 mil registros: 94 linhas na primeira página) |
+| Alguns provedores indisponíveis? | A página continua útil com o resto e diz quem faltou | `timeline_tela` |
+| Falha de sessão/MFA? | Erro de acesso vira "sem acesso", sem conteúdo | `timeline_prov` |
+
+### 8.4 Decisões do Lote 3
+- **D-L3-1 · Sem tabela e sem migration.** Plano medido em produção (seção 3 do Documento 15, "Estado de implementação (Lote 3)"): índices existentes cobrem os acessos; nenhuma necessidade demonstrada.
+- **D-L3-2 · Contrato de provedor** (`provRegistrar`): `lerJanela`, `lerProximos`, `buscar`; o orquestrador impõe espaço e origem, valida o evento e aplica a privacidade.
+- **D-L3-3 · Cursor `{quando, vistos}` por provedor**; eventos no mesmo instante podem trocar de ordem entre páginas, nunca somem nem repetem.
+- **D-L3-4 · Timeline e Busca só do dono.** A casa (Fernanda) segue com a busca de antes; as rotas novas não são liberadas a ela.
+- **D-L3-5 · Bug antigo corrigido:** o campo da busca lateral e a `<section>` `#busca` tinham o mesmo `id`; o roteador escondia/mostrava o campo e a página nunca aparecia. O campo virou `#buscalateral`.
+- **D-L3-6 · Barra inferior intacta** (decisão do dono mantida): a Timeline entra no menu lateral (área Hoje); a busca no celular é um ícone no cabeçalho.
+- **D-L3-7 · Cabeçalho do celular do dono:** o ícone de busca ocupa o lugar do botão Início (a barra inferior já traz a Casa, que leva ao mesmo lugar); no celular estreito o cabeçalho ficou compacto para o título caber inteiro (testes `navegador.test.mjs` ajustados: Voltar, ↻ e busca lado a lado). A casa (Fernanda) não muda: não tem a barra nem o Início.
+- **D-L3-8 · A Saúde só é lida pela fonte única** (`js/fonte-saude.js`): ganhou o limite superior `ateAtiv` (cursor) e o filtro de texto `buscaAtiv` (a busca filtra no banco, sem trazer 1000 treinos); o teste de leitores continua valendo.
+- **Risco residual:** a regex `imatch` não usa índice (varredura por tabela); aceitável nos volumes atuais (menos de 1000 linhas por tabela) e com limite por provedor; a evolução, se a medição exigir, é `unaccent` + índice trigram (migration aditiva) ou view `security_invoker`.

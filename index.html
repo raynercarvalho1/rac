@@ -1198,7 +1198,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
 #mercado .mk-linkcompra{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px}#mercado a.plr:hover,#mercado a.mk-linkcompra:hover{background:var(--hover)}#mercado .mkpc a.mk-linkcompra{display:block;padding:2px 4px;margin:0 -4px}#mercado .mkpc a.mk-inline{display:inline;padding:0;margin:0;color:var(--accent);font-weight:600}
 @media (max-width:760px){#mercado .mk-nav{grid-template-columns:repeat(3,minmax(0,1fr))}#mercado .rtd-busca{grid-template-columns:minmax(0,1fr)}#mercado .rtd-grade{grid-template-columns:minmax(0,1fr)}}
 </style>
-<link rel="stylesheet" href="css/rac.css?v=2026-11-27.3">
+<link rel="stylesheet" href="css/rac.css?v=2026-11-27.4">
 </head>
 <body>
 
@@ -1226,7 +1226,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
     </div>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="busca" type="search" placeholder="Buscar em tudo…" aria-label="Buscar no site" autocomplete="off">
+      <input id="buscalateral" type="search" placeholder="Buscar em tudo…" aria-label="Buscar no site" autocomplete="off">
     </div>
     <div class="results" id="results" role="list"></div>
     <nav class="grp" id="navgrp" aria-label="Seções">
@@ -1258,6 +1258,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
     <button type="button" class="sidebtn" id="openside" aria-label="Abrir menu" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <span class="ico" id="pico"></span>
     <h1 id="ptitle">Esportes</h1>
+    <a class="homebtn buscabtn" id="buscabtn" href="#busca" aria-label="Buscar em tudo" title="Buscar em tudo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></a>
     <button type="button" class="homebtn" id="voltarbtn" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Voltar</button>
     <button type="button" class="homebtn atubtn" id="atubtn" aria-label="Atualizar esta página" title="Atualizar esta página"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="atuh"></span></button>
     <a class="homebtn" id="homebtn" href="#workspace" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>Início</a>
@@ -1284,6 +1285,7 @@ details.kn-item summary{cursor:pointer;min-height:44px;display:flex;align-items:
   <section id="iacustos" hidden><div id="iacustos-view" class="stack"></div></section>
   <section id="conhecimento" hidden><div id="conhecimento-view" class="stack"></div></section>
   <section id="componentes" hidden><div id="componentes-view" class="stack"></div></section>
+  <section id="timeline" hidden><div id="timeline-view" class="stack"></div></section>
   <section id="workspace" hidden><div id="workspace-view" class="stack"></div></section>
   <section id="saude" hidden><div id="saude-view" class="stack"></div></section>
   <section id="eddie" hidden><div id="eddie-view" class="stack"></div></section>

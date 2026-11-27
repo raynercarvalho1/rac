@@ -43,6 +43,7 @@ Três pilares, e cada tela do produto deve servir a pelo menos um:
 | Rota atual | Ambiente | Observação |
 |---|---|---|
 | `rachoje` (RAC Hoje), `inicio` | **Minha Casa** | O Hoje vira a primeira página de Workspace (Fase 2); `inicio` é absorvido |
+| `workspace` (criada no Lote 1, 27/11/2026) | **Minha Casa** | O motor de páginas e widgets; hoje só do dono e com 4 widgets de referência; a Minha Casa configurável (Lote 2) é montada sobre ele |
 | `agenda`, `aniversarios`, `lista` | **Minha Casa** | A lista da casa é o destino mais comum da Captura |
 | `olivia`, `eddie`, `documentos`, `veiculos` | **Minha Vida** | Família e patrimônio; seguem liberados à casa |
 | `saude` | **Minha Vida** | Fonte do Mapa e da Timeline |

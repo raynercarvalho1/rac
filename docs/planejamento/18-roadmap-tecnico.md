@@ -24,8 +24,8 @@ Tudo é **[Recomendação]**; nada foi implementado. Regras do `CLAUDE.md` valem
 
 ### 1.1 Pré-requisitos do Lote 1 (verificações, não implementação)
 
-1. Conferir em Authentication que o **cadastro aberto está desligado** (hipótese do diagnóstico; o conector não lê essa configuração).
-2. Aplicar a migration **050** (catálogo de segurança), hoje pendente, porque as tabelas novas entram nele.
+1. ~~Conferir que o cadastro aberto está desligado~~ → **confirmado pelo dono em 27/11/2026** (cadastro público desativado).
+2. ~~Aplicar a migration 050~~ → **aplicada em 27/11/2026** (com o catálogo das 12 tabelas posteriores).
 3. Atualizar `NUCLEO.SEG_TABELAS` e o teste de segurança no padrão de tabela pessoal nova.
 
 ## 2. Modelo de cada lote
@@ -36,6 +36,10 @@ Nomes de arquivos novos seguem padrões (`js/workspace*.js`, `js/prov-*.js`); ar
 ---
 
 ## Lote 1 · Fundação: espaços, permissões e motor de Workspace (Fase 1)
+
+> **Estado (27/11/2026): implementado, com a migration 050 e a 070 aplicadas em produção.** O que foi entregue, o que ficou diferente da especificação abaixo e o que passa para os próximos lotes está em
+> [14 · Workspace, "Estado de implementação"](14-arquitetura-do-workspace.md#estado-de-implementação-lote-1-27112026), [16 · Identidade, "Estado de implementação"](16-arquitetura-de-identidade-e-compartilhamento.md#estado-de-implementação-lote-1-27112026) e [19 · seção 5](19-registro-de-decisoes.md#5-lote-1-27112026-brainstorm-grill-me-e-decisões-de-implementação).
+> Publicação do site e validação do dono no iPhone: ver o relatório do lote e o [histórico diário](historico-diario.md). A especificação original fica abaixo para rastreabilidade.
 
 - **Objetivo:** dar ao RAC o modelo de espaços e o motor que permite ao usuário compor páginas, **sem mudar nenhuma tela existente**.
 - **Escopo:**

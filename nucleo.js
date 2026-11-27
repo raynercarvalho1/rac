@@ -4403,7 +4403,7 @@
     destino_ausente:"O iCloud não identificou a pasta especial (Arquivo, Lixeira ou Spam) desta conta. Toque em Sincronizar para atualizar as pastas. Nada foi alterado.",
     acao_indisponivel:"O iCloud desta conta não oferece mover mensagens por um caminho seguro (comando MOVE). Nada foi alterado, e o RAC não usa alternativa que apague.",
     identidade_divergente:"A mensagem que está na caixa não é mais a mesma do cache. Toque em Sincronizar e tente de novo. Nada foi alterado.",
-    acao_recusada:"O iCloud recusou a ação. Nada foi alterado.",acao_nao_aplicada:"O iCloud confirmou que nada foi alterado. Você pode tentar de novo.",
+    acao_recusada:"O iCloud recusou a ação. Nada foi alterado.",acao_parcial:"O iCloud copiou a mensagem para o destino, mas ainda não conseguiu tirar a original da pasta de origem. Toque de novo para concluir (a cópia não se repete).",acao_nao_aplicada:"A mensagem continua onde estava; nada foi alterado na pasta de origem. Você pode tentar de novo (se o iCloud já tiver copiado, a cópia não se repete).",
     acao_incerta:"Não foi possível confirmar o resultado. A mensagem PODE ter sido alterada: toque em Sincronizar para ver o estado real antes de tentar de novo.",
     acao_em_andamento:"Há outra operação em andamento nesta conta. Aguarde alguns segundos e tente de novo.",pasta_somente_leitura:"Esta pasta está só para leitura no iCloud. Nada foi alterado.",
     confirmacao_ausente:"O iCloud não confirmou a alteração. Toque em Sincronizar para ver o estado real.",uidvalidity_mudou:"A pasta foi reorganizada no iCloud. Toque em Sincronizar e tente de novo."};

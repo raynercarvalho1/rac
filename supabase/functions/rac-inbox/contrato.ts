@@ -24,7 +24,7 @@ export const ERROS: Record<string, number> = {
   /* I3 (envio): falha confirmada = 4xx/422; resultado incerto = 202 (a mensagem PODE ter sido aceita: nunca se repete sozinho) */
   envio_recusado: 422, destinatario_recusado: 422, remetente_recusado: 422, smtp_autenticacao_recusada: 422, smtp_indisponivel: 502, envio_incerto: 202, envio_em_andamento: 409,
   /* I3.2 (gerenciamento): falha confirmada = 4xx; "acao_incerta" = 202 (a caixa PODE ter mudado: nunca se repete sozinho e se consulta o estado antes de decidir) */
-  acao_invalida: 400, destino_invalido: 422, destino_ausente: 422, acao_indisponivel: 422, identidade_divergente: 409, acao_recusada: 422, acao_nao_aplicada: 422, acao_incerta: 202, acao_em_andamento: 409,
+  acao_invalida: 400, destino_invalido: 422, destino_ausente: 422, acao_indisponivel: 422, identidade_divergente: 409, acao_recusada: 422, acao_nao_aplicada: 422, acao_incerta: 202, acao_parcial: 409, acao_em_andamento: 409,
   pasta_somente_leitura: 422, confirmacao_ausente: 502,
   /* I4 (OAuth) */ oauth_nao_configurado: 503, oauth_estado_invalido: 409, oauth_recusado: 422, oauth_conta_divergente: 409, oauth_indisponivel: 502, provedor_invalido: 422, provedor_sem_leitura: 422, provedor_sem_operacao: 422, limite: 429,
   registro_envio_indisponivel: 503, origem_invalida: 400, destinatario_invalido: 400, destinatarios_demais: 400, assunto_invalido: 400, texto_grande_demais: 413, mensagem_grande_demais: 413, modo_invalido: 400,

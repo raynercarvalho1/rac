@@ -13,7 +13,8 @@ export function mensagem({ uid, flags = ["\\Seen"], data = "14-Nov-2026 10:20:30
 // I3.2: capacidade/capacidadeDepois = linha CAPABILITY antes/depois do login; leitura = SELECT responde READ-ONLY; recusar = NO etiquetado no STORE/MOVE; cortar = derruba a conexão ao receber STORE/MOVE
 // (aplicarAntesDeCortar: o servidor FEZ a alteração e a resposta se perdeu); semCopyuid; semFlagsNoStore (o STORE não devolve as flags: o Worker precisa reler)
 export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caixas = {}, literalPrimeiro = false, aoComando = () => {}, capacidade = "IMAP4rev1 UIDPLUS MOVE NAMESPACE", capacidadeDepois = null,
-  leitura = false, recusar = false, cortar = false, aplicarAntesDeCortar = false, semCopyuid = false, semFlagsNoStore = false, moveNaoRemove = false } = {}) {
+  leitura = false, recusar = false, cortar = false, aplicarAntesDeCortar = false, semCopyuid = false, semFlagsNoStore = false, moveNaoRemove = false,
+  copiaRecusa = false, copiaSumida = false, cortarNaMarca = false, recusarMarca = false, cortarNaCopia = false } = {}) {   // 27/11/2026 (servidor sem MOVE): COPY recusado / OK sem criar a cópia / queda ao receber o COPY (cópia feita) / queda ou recusa no STORE \Deleted
   const log = [];
   const c2s = new TransformStream(), s2c = new TransformStream();
   const escritor = s2c.writable.getWriter(), leitor = c2s.readable.getReader();
@@ -76,6 +77,26 @@ export function servidorFalso({ senha = "abcd-efgh-ijkl-mnop", pastas = [], caix
       const mm = /^ (\S+) \((.*)\)$/.exec(resto); let out = "";
       for (const seq of conjunto(mm[1], cx().msgs.length)) { const msg = cx().msgs[seq - 1]; if (msg) out += itens(msg, seq, mm[2]); }
       await env(out + tag + " OK FETCH completed\r\n"); return;
+    }
+    if (verbo === "UID" && /^ (COPY \d+ "(.*)"|STORE \d+ \+FLAGS \(\\Deleted\)|EXPUNGE \d+|SEARCH HEADER Message-ID "(.*)")$/.test(resto)) {   // sem MOVE: cópia, \Deleted, UID EXPUNGE e busca da cópia
+      const cp = /^ COPY (\d+) "(.*)"$/.exec(resto), dl = /^ STORE (\d+) \+FLAGS/.exec(resto), ex = /^ EXPUNGE (\d+)$/.exec(resto), bu = /^ SEARCH HEADER Message-ID "(.*)"$/.exec(resto);
+      if (bu) { const l = cx().msgs.filter((x) => x.cab.includes("Message-ID: " + bu[1] + "\r\n")).map((x) => x.uid); await env("* SEARCH" + (l.length ? " " + l.join(" ") : "") + "\r\n" + tag + " OK SEARCH completed\r\n"); return; }
+      const idx = cx().msgs.findIndex((x) => x.uid === Number((cp || dl || ex)[1])), m = cx().msgs[idx];
+      if (cp) {
+        if (copiaRecusa) { await env(tag + " NO [CANNOT] cópia recusada\r\n"); return; }
+        const dest = caixas[cp[2]]; if (!dest) { await env(tag + " NO [TRYCREATE] destino não existe\r\n"); return; }
+        let novo = null; if (!copiaSumida && m) { novo = dest.uidnext++; dest.msgs.push({ ...m, uid: novo, flags: m.flags.filter((f) => f.toLowerCase() !== "\\deleted") }); }
+        if (cortarNaCopia) { await escritor.close(); return; }
+        await env((novo !== null && /UIDPLUS/.test(logado && capacidadeDepois ? capacidadeDepois : capacidade) ? "* OK [COPYUID " + dest.uidvalidity + " " + m.uid + " " + novo + "] Copied\r\n" : "") + tag + " OK COPY completed\r\n"); return;
+      }
+      if (dl) {
+        if (cortarNaMarca) { await escritor.close(); return; }
+        if (recusarMarca) { await env(tag + " NO [CANNOT] marca recusada\r\n"); return; }
+        if (m && !m.flags.some((f) => f.toLowerCase() === "\\deleted")) m.flags.push("\\Deleted");
+        await env((m ? "* " + (idx + 1) + " FETCH (UID " + m.uid + " FLAGS (" + m.flags.join(" ") + "))\r\n" : "") + tag + " OK STORE completed\r\n"); return;
+      }
+      if (m && m.flags.some((f) => f.toLowerCase() === "\\deleted")) cx().msgs.splice(idx, 1);   // UID EXPUNGE: só a mensagem pedida E marcada
+      await env((m ? "* " + (idx + 1) + " EXPUNGE\r\n" : "") + tag + " OK UID EXPUNGE completed\r\n"); return;
     }
     if (verbo === "UID" && /^ (STORE|MOVE) /.test(resto)) {   // I3.2: alterações (só chegam se o Worker as permitir)
       const mst = /^ STORE (\d+) ([+-])FLAGS \(\\Seen\)$/.exec(resto), mmv = /^ MOVE (\d+) "(.*)"$/.exec(resto);

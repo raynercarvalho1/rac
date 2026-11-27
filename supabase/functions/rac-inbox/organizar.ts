@@ -25,7 +25,7 @@ const AUTENTICACAO_RECUSADA = ["autenticacao_recusada", "autenticacao_falhou", "
 // o Worker recusou SEM ter alterado a caixa: falha confirmada, com o código que o navegador entende
 const FALHA_CONFIRMADA: Record<string, string> = {
   uidvalidity_mudou: "uidvalidity_mudou", mensagem_inexistente: "mensagem_inexistente", pasta_inexistente: "pasta_inexistente", pasta_invalida: "destino_invalido", identidade_divergente: "identidade_divergente",
-  acao_indisponivel: "acao_indisponivel", acao_recusada: "acao_recusada", pasta_somente_leitura: "pasta_somente_leitura", parametro_invalido: "acao_recusada",
+  acao_indisponivel: "acao_indisponivel", acao_parcial: "acao_parcial", acao_recusada: "acao_recusada", pasta_somente_leitura: "pasta_somente_leitura", parametro_invalido: "acao_recusada",
 };
 const detalheDe = (e: unknown): string => { const m = e instanceof Error ? e.message : ""; return /^(canal_falhou|resposta_invalida|resposta_grande_demais|http_\d{3})$/.test(m) ? m : "servico_indisponivel"; };
 // O servidor não oferece MOVE: pergunta (SÓ LEITURA, a operação "capacidades" do Worker) se ao menos anuncia UIDPLUS. A resposta vira um código FECHADO para o registro da função; qualquer falha da pergunta mantém o código simples.

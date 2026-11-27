@@ -1992,3 +1992,16 @@ Família e da Casa.
 ### 3. O que vamos fazer
 - Publicar a função `i4.4` e pedir ao dono uma tentativa de excluir no iCloud para ler `sem_move_com_uidplus` ou `sem_move_sem_uidplus` no registro; só então decidir o Worker (COPY + UID EXPUNGE com UIDPLUS) ou manter as duas ações indisponíveis.
 - Lote C: planejar a troca do `gmApi` por leitura no servidor (cache de cabeçalhos do Inbox para vagas e Carreira; leitura de mensagem e anexo pela função para as notas fiscais), preservando o comportamento atual e removendo `gmToken`/`gmApi`/`gmConectar` só depois da equivalência provada.
+
+## 27/11/2026 (tarde) · Inbox: CI da main, alternativa IMAP sem MOVE (decisão do dono)
+
+### 1. O que fizemos
+- **CI da `main` no commit `f2c3bc6`:** workflow Testes, run #418, `success` (11:06 a 11:13 UTC), verificado separadamente do CI do PR.
+- **Alternativa sem MOVE implementada em código (decisão do dono):** Worker `p9.1` (`imap.mjs`, `copiarEExcluir`; `verificar_mensagem` e `listar_mensagens` passam a tratar `\Deleted` como "já saiu"), função `rac-inbox@i4.4` (`acao_parcial`), mensagens da tela (`nucleo.js`), inspetor de verbos do workflow (`inspecionar-verbos.mjs`) com as formas exatas autorizadas e fixture regenerada do código-fonte. Estratégia e limites em `docs/inbox.md`.
+- **Testes:** `rac_inbox_worker_gestao` (22: sem MOVE com e sem UIDPLUS, falha parcial, queda no COPY, COPY recusado e "OK" sem cópia, repetição, identidade, arquivar × excluir), `rac_inbox_worker_inspecao` (8), `inbox_organizar_servico` (17) e demais do Inbox.
+
+### 2. O que estamos fazendo
+- Publicação da função e do Worker e a validação real do dono no iCloud (arquivar e excluir). Nada é declarado corrigido antes disso.
+
+### 3. O que vamos fazer
+- Depois da validação real do iCloud: migração de Compras e Carreira do `gmApi` (não iniciada) e, concluído o Inbox, o RAC Financeiro Inteligente.

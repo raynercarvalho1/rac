@@ -14,7 +14,7 @@ export const POLITICA = Object.freeze({
   // operações de SAÍDA (SMTP): as únicas que escrevem no mundo; usam smtp, não imap
   saida: Object.freeze(["smtp_prova", "enviar"]),
   // carimbo do código publicado: aparece na resposta do ping, para provar QUAL versão está no ar (mudar a cada alteração publicável)
-  versao: "rac-inbox-worker@p9.0",
+  versao: "rac-inbox-worker@p9.1",
   // IMAP: host e porta fixos no código (TLS implícito). Nunca vêm do cliente.
   imap: Object.freeze({
     host: "imap.mail.me.com", porta: 993, timeoutMs: 25000,

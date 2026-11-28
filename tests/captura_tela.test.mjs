@@ -9,7 +9,7 @@ import fs from "node:fs";
 import { pw, pular, abrir, raiz } from "./_timeline_comum.mjs";
 
 test("no GitHub, o navegador do teste está instalado", { skip: !process.env.CI }, () => assert.ok(pw, "Playwright não foi instalado no testes.yml"));
-const ESP = "aaaaaaaa-0000-4000-8000-0000000000e1", USR = "u-dono";
+const ESP = "aaaaaaaa-0000-4000-8000-0000000000e1", USR = "bbbbbbbb-0000-4000-8000-0000000000d1";   // ids reais são UUID (o caminho do cofre exige)
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 /* o banco simulado: tabelas em memória, as mesmas operações do cliente do Supabase que o site usa, o cofre e o interruptor de rede/erro */
@@ -45,12 +45,12 @@ function instalarBanco(cfg) {
       createSignedUrl: (path, s) => { db.assinadas.push({ b, path, s }); return res({ signedUrl: "https://arquivo.exemplo/" + encodeURIComponent(path) + "?token=t" }); },
       remove: (ps) => { ps.forEach((p) => { delete obj[b + "/" + p]; }); return res([]); }, createSignedUrls: () => res([]) }) }, functions: { invoke: () => res(null) } };
   db.objetos = obj;
-  window.EU = { id: "u-dono", email: "dono@teste" };
+  window.EU = { id: cfg.usuario, email: "dono@teste" };
 }
 const ESPACOS = [{ id: ESP, tipo: "pessoal", nome: "Pessoal", papel: "proprietario", casa: false, arquivado: false }, { id: "bbbbbbbb-0000-4000-8000-0000000000e2", tipo: "compartilhado", nome: "Casa", papel: "editor", casa: true, arquivado: false }];
 async function ambiente(cfg = {}, opc = {}) {
   const a = await abrir({}, { hash: "#componentes", ...opc });
-  await a.pag.evaluate(instalarBanco, { espacos: ESPACOS, ...cfg });
+  await a.pag.evaluate(instalarBanco, { espacos: ESPACOS, usuario: USR, ...cfg });
   await a.pag.evaluate(() => { window.PESSOAL.lembretes = []; window.PESSOAL.salvos = window.PESSOAL.salvos || []; localStorage.removeItem("rac-fila"); });
   await a.pag.evaluate(() => { if (!document.querySelector(".capbtn")) iniciar(); capAtualizar(); });
   return a;
@@ -113,7 +113,7 @@ test("foto e arquivo em 2 toques: + e Foto/Arquivo (a seleção já guarda); sob
 test("SEM INTERNET: texto e foto entram na MESMA fila (com a foto guardada no aparelho); aparecem como 'aguardando'; ao voltar a conexão sobem UMA vez cada (idempotente), mesmo com a fila rodando duas vezes", { skip: pular, timeout: 120000 }, async () => {
   const { pag, erros, fechar } = await ambiente();
   try {
-    await pag.evaluate(() => capAquecer()); await pag.waitForTimeout(300);   /* o espaço fica guardado no aparelho */
+    await pag.evaluate(() => precisa(["captura"]).then(() => capAquecer())); await pag.waitForTimeout(300);   /* o espaço fica guardado no aparelho */
     await pag.context().setOffline(true); await pag.evaluate(() => { window.__bd.rede = false; });
     await abrirFolha(pag); await pag.fill("#capfundo .cap-txt", "ideia: app de receitas"); await pag.click('#capfundo .cap-comp button:text-is("Guardar")');
     await pag.waitForSelector("#capfundo .rac-estado--ok"); assert.match(await pag.textContent("#capfundo .cap-st"), /Sem internet: guardado neste aparelho/);
@@ -125,26 +125,27 @@ test("SEM INTERNET: texto e foto entram na MESMA fila (com a foto guardada no ap
     await pag.keyboard.press("Escape"); await pag.evaluate(() => { location.hash = "#caixa"; }); await pag.waitForSelector("#caixa-view .cx-fila");
     assert.match(await pag.textContent("#caixa-view .cx-fila"), /Aguardando a conexão/); assert.match(await pag.textContent("#caixa-view .cx-fila"), /1 arquivo guardado no aparelho/);
     /* a conexão volta: sobe tudo, e rodar a fila de novo não duplica */
-    await pag.context().setOffline(false); await pag.evaluate(() => { window.__bd.rede = true; return Promise.all([processarFila(), processarFila()]); });
+    await pag.evaluate(() => { window.__bd.rede = true; }); await pag.context().setOffline(false);   /* o evento "online" já dispara a fila sozinho: rodar de novo, ao mesmo tempo, não pode duplicar */
+    await pag.evaluate(() => { processarFila(); processarFila(); });
     await esperar(pag, () => window.__bd.t.captura_itens.length === 2 && JSON.parse(localStorage.getItem("rac-fila") || "[]").length === 0);
     await pag.evaluate(() => { const l = JSON.parse(localStorage.getItem("rac-fila") || "[]"); return l; });
     const b = await bd(pag); assert.equal(b.t.captura_itens.length, 2); assert.ok(Object.keys(b.objetos).some((k) => k.startsWith("captura/" + ESP + "/" + USR + "/")), "a foto subiu"); assert.deepEqual(await idb(pag), [], "e saiu do aparelho");
     /* reenvio da mesma operação (a resposta se perdeu): o banco ignora o repetido */
     await pag.evaluate(() => { const it = window.__bd.t.captura_itens[0]; return executarOp({ t: "captura_itens", acao: "upsert", dados: Object.assign({}, it, { conteudo: "OUTRO" }), reter: true }); });
     assert.equal((await bd(pag)).t.captura_itens.length, 2); assert.notEqual((await bd(pag)).t.captura_itens[0].conteudo, "OUTRO");
-    assert.deepEqual(erros, []);
+    assert.deepEqual(erros.filter((e) => !/Failed to fetch/.test(e)), [], "só sobram os erros de rede que o próprio teste simula");
   } finally { await fechar(); }
 });
 
 test("ERRO que repetir não resolve: o item fica RETIDO na fila com o motivo (nada se perde), para depois de 3 tentativas, aparece como erro e 'Tentar novamente' o envia quando o problema some; 'Descartar da fila' limpa o aparelho", { skip: pular, timeout: 120000 }, async () => {
   const { pag, erros, fechar } = await ambiente();
   try {
-    await pag.evaluate(() => capAquecer()); await pag.waitForTimeout(300);
+    await pag.evaluate(() => precisa(["captura"]).then(() => capAquecer())); await pag.waitForTimeout(300);
     await pag.evaluate(() => { window.__bd.rede = false; }); await pag.context().setOffline(true);
     await abrirFolha(pag); await pag.fill("#capfundo .cap-txt", "texto que o banco vai recusar"); await pag.click('#capfundo .cap-comp button:text-is("Guardar")'); await pag.waitForSelector("#capfundo .rac-estado--ok");
     await pag.keyboard.press("Escape"); await pag.context().setOffline(false);
     await pag.evaluate(() => { window.__bd.rede = true; window.__bd.recusar = { t: "captura_itens", op: "upsert", msg: 'new row violates check constraint "captura_tem_conteudo"' }; });
-    for (let i = 0; i < 4; i++) await pag.evaluate(() => processarFila().then(() => new Promise((r) => setTimeout(r, 120))));
+    for (let i = 0; i < 4; i++) await pag.evaluate(() => { processarFila(); return new Promise((r) => setTimeout(r, 200)); });
     const f = await fila(pag); assert.equal(f.length, 1, "continua na fila"); assert.match(f[0].erro, /captura_tem_conteudo/); assert.equal(f[0].tent, 3, "3 tentativas e para"); assert.equal(f[0].parada, true); assert.equal(f[0].dados.conteudo, "texto que o banco vai recusar", "o conteúdo está inteiro");
     await pag.evaluate(() => { location.hash = "#caixa"; }); await pag.waitForSelector("#caixa-view .cx-fila"); assert.match(await pag.textContent("#caixa-view .cx-fila"), /Não subiu: .*captura_tem_conteudo/); assert.ok(await pag.locator('#caixa-view .rac-selo--erro').count() > 0);
     /* o problema acabou: tentar novamente envia */
@@ -213,7 +214,6 @@ test("compartilhar de outro app (Share Target): o dono ganha um item PENDENTE (o
   try {
     await c.pag.evaluate(() => { history.replaceState(null, "", "/?texto=" + encodeURIComponent("2 leite, pão") + "#componentes"); capturaCompartilhada(); });
     await c.pag.waitForSelector("#capfundo input"); assert.equal(await c.pag.inputValue("#capfundo input"), "2 leite, pão", "a Fernanda: formulário de compra, como antes"); assert.equal(await c.pag.locator("#capfundo .cap-txt").count(), 0, "sem o campo de captura universal"); assert.equal((await bd(c.pag)).t.captura_itens.length, 0);
-    await c.pag.click(".capbtn"); /* a folha completa de sempre */
   } finally { await c.fechar(); }
 });
 

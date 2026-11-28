@@ -106,7 +106,7 @@
     if(!lista.length){if(!CAPX.erro)corpo.appendChild(rkEstado("vazio",CAPX.filtro==="pendente"?"Caixa vazia. Use o botão + para capturar um texto, link, foto ou arquivo.":"Nada aqui por enquanto.",null));return}
     if(CAPX.filtro==="pendente"&&lista.length>1){var tudo=CAPX.confirmaTudo?rkBtn("perigo","Confirmar: arquivar "+lista.length+" itens"):rkBtn("ter","Arquivar tudo");
       tudo.onclick=function(){if(!CAPX.confirmaTudo){CAPX.confirmaTudo=true;cxDesenhar();return}CAPX.confirmaTudo=false;lista.reduce(function(p,i){return p.then(function(){return cxMudar(i,"arquivado")})},Promise.resolve()).then(cxDesenhar)};
-      corpo.appendChild(h("div",{class:"cx-tudo"},tudo))}
+      corpo.appendChild(h("div",{class:"rac-card cx-tudo"},tudo))}
     lista.forEach(function(i){corpo.appendChild(cxCartao(i))})}
   /* o que espera na fila DESTE aparelho: ainda não chegou ao banco (sem internet) ou travou com erro (dá para tentar de novo ou descartar) */
   function cxFila(fila){var lis=fila.map(function(f){var it=f.dados,erro=f.erro,linha=h("div",{class:"cx-fila-item"},h("span",{class:"cx-ico","aria-hidden":"true",text:NUCLEO.CP_TIPO_ICO[it.tipo]||"📝"}),

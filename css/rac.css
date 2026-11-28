@@ -887,3 +887,4 @@ body.wk-no-arrasto{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .bb-doc:hover{background:var(--rac-papel-2)}
 .bb-doc input{width:22px;height:22px;flex:none}
 @media(max-width:560px){.cx-duplo{grid-template-columns:minmax(0,1fr)}}
+.caph .ghostbtn{min-height:var(--rac-alvo);padding:0 var(--rac-esp-4)}

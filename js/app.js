@@ -28,7 +28,7 @@
   var OAUTH_RETORNO=(function(){try{var q=new URLSearchParams(location.search),st=q.get("state"),cd=q.get("code"),er=q.get("error");
     if(!st||!/^[A-Za-z0-9_-]{43}$/.test(st)||(!cd&&!er))return null;
     history.replaceState(null,"",location.pathname+"#inbox");return {state:st,code:cd&&/^[\x21-\x7e]{10,4096}$/.test(cd)?cd:"",erro:er?"recusado":""}}catch(e){return null}})();
-  var MOD_VERSAO="2026-11-27.4",MODULOS={},MOD_OK={};
+  var MOD_VERSAO="2026-11-28.1",MODULOS={},MOD_OK={};
   /* dependências entre módulos: o que cada arquivo usa de outro (carregado antes). Os gráficos moram em js/graficos.js (Fase 2 · A2): Compras, Alimentação e
      Custos de IA não carregam mais o Resumo (nem, por tabela, Saúde, MBA e Família). A Alimentação declara a Família porque envia as fotos por ela (enviarArquivos);
      o Painel declara o que usa de verdade (Saúde, MBA, Família e a Agenda do Sistema), que antes vinha escondido pelo Resumo.
@@ -36,7 +36,7 @@
      o Sistema nem o MBA; a tela da Família, a do Sistema (Agenda) e a da Newsletter usam a mesma fonte do seu domínio. A página Agenda é o módulo próprio "agenda" (DS-4.1): ele declara o Sistema
      (régua da Próxima melhor ação e ações rápidas), o kit e os gráficos. */
   var MOD_DEPS={"esportes-central":["esportes"],conexoes:["mba"],sistema:["familia","mba","saude","fonte-agenda"],saude:["fonte-saude"],"saude-hub":["saude","kit","graficos"],"fonte-saude":["fontes"],agenda:["sistema","kit","graficos"],inbox:["kit","inbox-servico"],carreira:["sistema"],bebe:["familia","oms"],resumo:["graficos","saude","mba","familia"],seguranca:["sistema"],painel:["graficos","sistema","saude","mba","familia"],alimentacao:["graficos","familia"],compras:["graficos"],hoje:["fonte-agenda","fonte-newsletter","fonte-mba","fonte-familia","fonte-saude","kit","graficos"],iacustos:["graficos"],componentes:["kit","graficos"],
-    workspace:["kit","fontes","widgets","widgets-base","widgets-modulos"],"widgets-base":["widgets","kit"],"widgets-modulos":["widgets","kit","graficos","fontes","fonte-agenda","fonte-saude","timeline"],prov:["fontes"],"prov-registros":["prov","fonte-familia"],"prov-saude":["prov","fonte-saude"],"prov-fiscal":["prov"],"prov-compras":["prov"],"prov-inbox":["prov"],"prov-newsletter":["prov"],"prov-lembretes":["prov"],"prov-agenda":["prov","fonte-agenda"],"prov-conteudo":["prov","sistema"],timeline:["kit","prov-registros","prov-saude","prov-fiscal","prov-compras","prov-inbox","prov-newsletter","prov-lembretes","prov-agenda"],busca:["timeline","prov-conteudo","familia"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
+    workspace:["kit","fontes","widgets","widgets-base","widgets-modulos"],"widgets-base":["widgets","kit"],"widgets-modulos":["widgets","kit","graficos","fontes","fonte-agenda","fonte-saude","timeline"],prov:["fontes"],"prov-registros":["prov","fonte-familia"],"prov-saude":["prov","fonte-saude"],"prov-fiscal":["prov"],"prov-compras":["prov"],"prov-inbox":["prov"],"prov-newsletter":["prov"],"prov-lembretes":["prov"],"prov-agenda":["prov","fonte-agenda"],"prov-conteudo":["prov","sistema"],"prov-biblioteca":["prov"],"prov-captura":["prov"],captura:["kit"],biblioteca:["kit","captura"],timeline:["kit","prov-registros","prov-saude","prov-fiscal","prov-compras","prov-inbox","prov-newsletter","prov-lembretes","prov-agenda"],busca:["timeline","prov-conteudo","prov-biblioteca","prov-captura","familia"],widgets:["kit"],familia:["fonte-familia"],newsletter:["fonte-newsletter"],"fonte-familia":["fontes"],"fonte-mba":["fontes"],"fonte-newsletter":["fontes"],"fonte-agenda":["fontes","fonte-familia","fonte-mba"]};
   /* Um <script> que não chega NÃO é sempre "sem internet": a hospedagem pode responder erro, a rede pode estar acordando (app aberto por uma notificação com o aparelho parado). Por isso:
      tenta de novo até 2 vezes (com "&t=", que o service worker ignora ao procurar a cópia guardada) e o erro sai identificável: codigo, modulo, tentativas e se o aparelho se diz online. */
   var MOD_TENTATIVAS=3;
@@ -628,7 +628,7 @@
     var iosAjusteT=null,iosAjuste=function(){clearTimeout(iosAjusteT);iosAjusteT=setTimeout(function(){var ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;var y=window.scrollY||document.documentElement.scrollTop||0;window.scrollTo(0,y+1);window.scrollTo(0,y)},350)};
     document.addEventListener("focusout",iosAjuste);addEventListener("pageshow",iosAjuste);
     if(window.visualViewport)window.visualViewport.addEventListener("resize",iosAjuste);
-    processarFila();setTimeout(capturaCompartilhada,400);
+    processarFila();setTimeout(capturaCompartilhada,400);if(isOwner())setTimeout(function(){precisa(["captura"]).then(function(){capAquecer()},function(){})},3000);
     if(isOwner()){items=SEM_TABELA?lsRead():(PESSOAL.aniversarios||[]);render();montarSideX()}
     else $("#bdalert").hidden=true;
     route();notifPendente(true);notifDiag()}
@@ -1265,8 +1265,12 @@
   function filaLer(){try{return JSON.parse(localStorage.getItem(FILA_LS)||"[]")}catch(e){return []}}
   function filaGravar(l){try{localStorage.setItem(FILA_LS,JSON.stringify(l))}catch(e){}syncSelo()}
   function semRede(e){return !navigator.onLine||/Failed to fetch|NetworkError|Load failed|network|fetch/i.test(String(e&&e.message||e))}
-  function executarOp(op){var q=SB.from(op.t),p=op.acao==="insert"?q.insert(op.dados):op.acao==="update"?q.update(op.dados).eq("id",op.id):q.delete().eq("id",op.id);
+  /* acao "upsert" = gravar de novo é inofensivo (o id nasce no aparelho; se a linha já subiu, o banco ignora): é o que torna o reenvio da Captura idempotente */
+  function executarOpBanco(op){var q=SB.from(op.t),p=op.acao==="insert"?q.insert(op.dados):op.acao==="upsert"?q.upsert(op.dados,{onConflict:"id",ignoreDuplicates:true}):op.acao==="update"?q.update(op.dados).eq("id",op.id):q.delete().eq("id",op.id);
     return p.then(function(r){if(r.error)throw new Error(r.error.message);return r})}
+  /* operação com arquivos guardados NESTE aparelho (foto e arquivo da Captura): sobe os arquivos (de novo é inofensivo) e só então grava a linha, na mesma fila */
+  function executarOp(op){if(!op.arquivos||!op.arquivos.length)return executarOpBanco(op);
+    return precisa(["captura"]).then(function(){return capSubirArquivos(op.arquivos)}).then(function(){return executarOpBanco(op)})}
   /* tenta gravar agora; se for falta de rede, guarda na fila deste aparelho e manda quando a internet voltar */
   function bancoOuFila(op){
     if(!navigator.onLine){filaGravar(filaLer().concat([Object.assign({quando:Date.now()},op)]));return Promise.resolve({enfileirado:true})}
@@ -1274,8 +1278,12 @@
   var filaRodando=false;
   function processarFila(){
     var l=filaLer();if(!l.length||!SB||!navigator.onLine||filaRodando)return;filaRodando=true;var resto=[];
-    l.reduce(function(p,op){return p.then(function(){return executarOp(op).catch(function(e){if(semRede(e))resto.push(op);else logErro("fila",e,{t:op.t,acao:op.acao})})})},Promise.resolve())
+    l.reduce(function(p,op){return p.then(function(){if(op.parada){resto.push(op);return}   /* parou depois de 3 erros: só volta com "Tentar novamente" */
+      return executarOp(op).catch(function(e){if(semRede(e))resto.push(op);else if(op.reter){resto.push(NUCLEO.cpErroFila(op,e&&e.message));logErro("fila",e,{t:op.t,acao:op.acao})}else logErro("fila",e,{t:op.t,acao:op.acao})})})},Promise.resolve())
       .then(function(){filaGravar(resto.concat(filaLer().slice(l.length)));filaRodando=false})}
+  /* a caixa da Captura pede para tentar de novo (id do item) ou descarta da fila a operação que não vai subir; os arquivos guardados no aparelho saem junto */
+  function filaTentarDe(id){filaGravar(filaLer().map(function(op){return op.dados&&op.dados.id===id?Object.assign({},op,{parada:false,tent:0,erro:null}):op}));processarFila()}
+  function filaRemoverDe(id){var sai=filaLer().filter(function(op){return op.dados&&op.dados.id===id});filaGravar(filaLer().filter(function(op){return !(op.dados&&op.dados.id===id)}));return sai}
   window.addEventListener("online",processarFila);setInterval(processarFila,60e3);
 
   /* ===== Botão de atualizar (↻ no topo): só os dados da página atual, sem recarregar o site. Etapa A: a base e o caminho padrão
@@ -1352,10 +1360,13 @@
   var CAP_OBS=false;
   function capSecao(){return document.documentElement.getAttribute("data-sec")||""}
   function capAcoes(sec){var r=ROTAS[sec];return isOwner()&&r&&r.acoes&&r.acoes.length?r.acoes:null}
+  /* Lote 4 (28/11/2026): o dono tem a Captura universal em QUALQUER tela (o botão não some mais); o que muda por tela é só a lista de atalhos que a folha mostra abaixo do campo de captura.
+     A Fernanda (casa) segue com a folha de antes. O número no botão são os itens pendentes na caixa (js/captura.js, capBadge). */
   function capAtualizar(){var b=$(".capbtn");if(!b)return;var a=capAcoes(capSecao()),casa=!isOwner();
-    b.classList.toggle("capoculto",!casa&&!a);
-    b.setAttribute("aria-label",a?"Adicionar nesta tela":"Anotar rápido");
-    b.title=a?"Adicionar nesta tela ("+a.map(function(x){return x[2].toLowerCase()}).join(", ")+")":"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)"}
+    b.classList.toggle("capoculto",false);
+    b.setAttribute("aria-label",casa?"Anotar rápido":a?"Capturar ou adicionar nesta tela":"Capturar");
+    b.title=casa?"Anotar rápido (lista, tarefa, lembrete, ideia, link, peso, gasto, km)":a?"Capturar (texto, link, foto, arquivo) ou adicionar nesta tela ("+a.map(function(x){return x[2].toLowerCase()}).join(", ")+")":"Capturar (texto, link, foto, arquivo, tarefa…)";
+    if(typeof capBadge==="function")capBadge()}
   function capClicar(){abrirCaptura(null,null,capAcoes(capSecao()))}
   /* [cap-ctx:fim] */
   function capOpcoes(){
@@ -1367,9 +1378,14 @@
     fecharCaptura();pre=pre||{};
     var fundo=h("div",{class:"capfundo",id:"capfundo"}),folha=h("div",{class:"capfolha panel",role:"dialog","aria-label":"Captura rápida"});
     fundo.onclick=function(e){if(e.target===fundo)fecharCaptura()};
-    var corpo=h("div");folha.appendChild(h("div",{class:"caph"},h("b",{text:ops?"Adicionar aqui":"Anotar rápido"}),h("button",{type:"button",class:"ghostbtn",text:"Fechar",onclick:null})));
+    var corpo=h("div");folha.appendChild(h("div",{class:"caph"},h("b",{text:isOwner()?"Capturar":ops?"Adicionar aqui":"Anotar rápido"}),h("button",{type:"button",class:"ghostbtn",text:"Fechar",onclick:null})));
     folha.querySelector(".caph button").onclick=fecharCaptura;folha.appendChild(corpo);fundo.appendChild(folha);document.body.appendChild(fundo);
-    function menu(){corpo.innerHTML="";corpo.appendChild(h("div",{class:"capgrid"},(ops||capOpcoes()).map(function(op){var b=h("button",{type:"button",class:"capop"},h("span",{class:"capico",text:op[1]}),h("span",{text:op[2]}));b.onclick=function(){capRodar(op[0])};return b})))}
+    function menu(){corpo.innerHTML="";
+      /* o dono: o campo de Captura universal vem primeiro (js/captura.js); os atalhos de antes ficam logo abaixo, intactos */
+      if(isOwner()){var uni=h("div",{class:"cap-uni"});corpo.appendChild(uni);
+        precisa(["captura"]).then(function(){if(document.getElementById("capfundo")===fundo)capCompositor(uni,{fechar:fecharCaptura})},function(e){logErro("captura",e);uni.appendChild(h("p",{class:"sub",role:"alert",text:"Não consegui abrir a captura agora. Os atalhos abaixo continuam funcionando."}))});
+        corpo.appendChild(h("p",{class:"cap-sep",text:ops?"Ou adicione direto nesta tela":"Ou escolha o destino direto"}))}
+      corpo.appendChild(h("div",{class:"capgrid"},(ops||capOpcoes()).map(function(op){var b=h("button",{type:"button",class:"capop"},h("span",{class:"capico",text:op[1]}),h("span",{text:op[2]}));b.onclick=function(){capRodar(op[0])};return b})))}
     /* o que cada ação faz: endereço de página navega, "inbox-novo" abre a Nova mensagem do Inbox, o resto é um formulário desta folha */
     function capRodar(id){if(id.charAt(0)==="#"){fecharCaptura();location.hash=id;return}
       if(id==="inbox-novo"){fecharCaptura();if(typeof inboxCompor==="function")inboxCompor("novo");return}
@@ -1404,7 +1420,7 @@
       f.appendChild(h("div",{class:"vfil"},ok,volta));f.appendChild(st);corpo.appendChild(f);
       setTimeout(function(){var el=f.querySelector("input,select");if(el)el.focus()},50);
       [a,b].forEach(function(el){el.addEventListener("keydown",function(e){if(e.key==="Enter"&&el.tagName==="INPUT"){e.preventDefault();ok.click()}})})}
-    if(inicial)form(inicial);else if(ops&&ops.length===1)capRodar(ops[0][0]);else menu()}
+    if(inicial)form(inicial);else menu()}
   var FAM_NOMES={eddie:"Eddie",olivia:"Olivia",civic:"Civic",moto:"Moto",c3:"C3"};
   function fecharCaptura(){var f=document.getElementById("capfundo");if(f)f.remove()}
   document.addEventListener("keydown",function(e){if(e.key==="Escape")fecharCaptura()});
@@ -1413,6 +1429,11 @@
     var q=new URLSearchParams(location.search),link=q.get("link")||"",texto=q.get("texto")||"",titulo=q.get("titulo")||"";if(!link&&!texto&&!titulo)return;
     history.replaceState(history.state,"",location.pathname+location.hash);
     var m=/https?:\/\/\S+/.exec(texto);if(!link&&m){link=m[0];texto=texto.replace(link,"").trim()}
+    /* Lote 4: o dono NÃO cai mais num formulário: o que veio de outro app vira um item PENDENTE da Captura (origem "compartilhar") e a caixa abre para ele conferir o destino sugerido.
+       A Fernanda (casa) segue como antes: texto vira itens da lista. */
+    if(isOwner()){var corpo=[titulo&&titulo!==texto?titulo:"",texto,link].filter(Boolean).join("\n");
+      precisa(["captura"]).then(function(){return capCriar({texto:corpo,origem:"compartilhar"})}).then(function(r){atuAviso(r&&r.enfileirado?"⏳ Guardado neste aparelho; sobe quando a internet voltar.":"✓ Guardado na caixa da Captura.","ok");location.hash="#caixa"},
+        function(e){logErro("captura",e);atuAviso("Não consegui guardar o que foi compartilhado ("+(e&&e.message||e)+").","erro");abrirCaptura()});return}
     if(link&&isOwner())abrirCaptura("link",{link:link,titulo:titulo||texto});else abrirCaptura("compra",{texto:[titulo,texto].filter(Boolean).join(", ")})}
   /* ===== Notificação tocada (sw.js): abre a página que o aviso informa. O destino vem do servidor (Agenda, Resumo, Lista…) e não muda
      aqui. Três caminhos: o aviso do service worker (app aberto), o endereço da janela (app fechado) e o destino guardado por alguns

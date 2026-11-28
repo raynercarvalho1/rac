@@ -286,3 +286,39 @@ O skill de Grill Me é interativo (rodadas de perguntas com resposta recomendada
 - **D-L3-7 · Cabeçalho do celular do dono:** o ícone de busca ocupa o lugar do botão Início (a barra inferior já traz a Casa, que leva ao mesmo lugar); no celular estreito o cabeçalho ficou compacto para o título caber inteiro (testes `navegador.test.mjs` ajustados: Voltar, ↻ e busca lado a lado). A casa (Fernanda) não muda: não tem a barra nem o Início.
 - **D-L3-8 · A Saúde só é lida pela fonte única** (`js/fonte-saude.js`): ganhou o limite superior `ateAtiv` (cursor) e o filtro de texto `buscaAtiv` (a busca filtra no banco, sem trazer 1000 treinos); o teste de leitores continua valendo.
 - **Risco residual:** a regex `imatch` não usa índice (varredura por tabela); aceitável nos volumes atuais (menos de 1000 linhas por tabela) e com limite por provedor; a evolução, se a medição exigir, é `unaccent` + índice trigram (migration aditiva) ou view `security_invoker`.
+
+## 9. Lote 4 (28/11/2026): Captura universal, Caixa de entrada e Biblioteca básica, Brainstorm, Grill Me e decisões
+
+### 9.1 Como foram usados
+Como no Lote 3, o briefing pediu não interromper o trabalho com perguntas que a documentação já responde. Brainstorm e Grill Me foram aplicados sobre o código real (não só sobre os documentos) e **nenhuma dúvida dependia do dono**: tudo o que segue ficou decidido e registrado.
+
+### 9.2 Conflitos entre documentação e código encontrados
+| Achado | Resolução |
+|---|---|
+| A rota `#captura` já existe como **atalho do iPhone** (manifesto) e abre a folha | Mantida. A Caixa de entrada é `#caixa` |
+| O botão `+` sumia onde a tela não tinha ação (decisão do Lote 3 da reestruturação visual) | **Muda de propósito**: o dono tem Captura universal em qualquer tela (Documento 15: "a um toque em qualquer ambiente"); a lista de atalhos por tela continua como era |
+| `executarOp` só fazia `insert`/`update`/`delete`; erro que não era de rede **descartava** a operação | Estendida a mesma fila: `upsert` idempotente, arquivos do aparelho e retenção de operações `reter` (só a Captura e a Biblioteca usam) |
+| O share target só aceita texto e link (GET) | Mantido; arquivo pelo sistema fica fora (ver N-48) |
+| `pessoal.salvos` e `biblioteca_itens` seriam duas listas de links | A Biblioteca **lê** os antigos sem copiar; migração com prévia depois |
+
+### 9.3 Decisões (N-44 a N-50)
+| # | Decisão | Motivo |
+|---|---|---|
+| N-44 | Captura em `captura_itens`, privada do autor (RLS por `criado_por`), id gerado no aparelho; Biblioteca em `biblioteca_itens`, por espaço | Privacidade antes do envio; idempotência sem segunda fila |
+| N-45 | **Uma fila só**: `bancoOuFila` ganhou `upsert`, `arquivos` e `reter`; blobs offline em IndexedDB | O pedido proíbe segunda fila; erro de regra não pode destruir a captura |
+| N-46 | Classificação determinística que só sugere; a primeira regra vence e as demais viram alternativas; sem OCR | Previsível, testável em português, sem custo nem risco de privacidade |
+| N-47 | Confirmar usa a gravação que o módulo já tem; Biblioteca usa o **mesmo id** da captura (um item por captura); Desfazer remove só o que foi criado; o item mantém o texto original enquanto está `classificado` (recibo para desfazer) | Movimento, não cópia; reenviar não duplica |
+| N-48 | Share Target segue em GET; arquivo vindo do sistema fica fora | POST exigiria o service worker interceptar a página e poderia quebrar o compartilhamento de texto que funciona; o iOS não suporta |
+| N-49 | Um anexo por captura na interface (o banco aceita até 10) | A Biblioteca guarda uma referência por captura |
+| N-50 | Bucket `captura` próprio (política por espaço e autor, `mfa` próprio) em vez de reaproveitar `familia` | `familia` é pasta por dono da casa; o novo modelo é por espaço e por autor |
+
+### 9.4 Grill Me: perguntas, respostas e prova
+| Pergunta | Resposta | Prova |
+|---|---|---|
+| O mesmo item enviado duas vezes (offline + reenvio) duplica? | Não: `upsert` ignora repetido; a Biblioteca tem índice único por captura | `captura_tela` (reenvio), `captura_sql` |
+| Um erro de regra do banco apaga o que a pessoa escreveu? | Não: a operação fica na fila com o motivo, para em 3 tentativas e a Caixa oferece tentar de novo | `captura_tela` ("ERRO que repetir não resolve") |
+| O dono do espaço compartilhado lê a captura de outra pessoa? | Não, nem ele | `captura_sql` (privada do autor) |
+| Uma referência da Biblioteca abre arquivo de outro espaço? | Não: `bib_ref_valida` e a política de Storage conferem o espaço do caminho | `captura_sql` |
+| Apagar da Biblioteca apaga o arquivo? | Não; e arquivo apontado por item não se apaga no cofre | `captura_sql`, `captura_tela` |
+| Foto grande no iPhone? | `encolher()` (2000 px, JPEG) antes de guardar; limite de 50 MB e formatos conferidos antes | `captura_nucleo`, `captura_tela` |
+| A Fernanda perde alguma coisa? | Não: a folha dela é a de antes (sem campo de captura) e o formulário do compartilhar continua | `captura_tela`, `captura_contextual` |

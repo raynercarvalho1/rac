@@ -3,7 +3,7 @@
    a página #busca (celular e computador; no celular é a "tela de pesquisa", aberta pelo ícone ao lado do título) e a busca rápida da barra lateral (os 6 primeiros). Só do dono; a casa (Fernanda) continua com a busca de antes.
    Consulta nova cancela a anterior (a resposta velha é ignorada); a mesma consulta com os mesmos filtros não repete. Só LÊ. */
   var BUSG={seq:0,chave:"",filtros:{dominios:[],espacos:[]},texto:"",espacos:null,raiz:null,resultado:null,carregando:false};
-  var BUSG_ORDEM=["registros","saude","mercado","compras","fiscal","inbox","agenda","lembretes","mba","aniversarios","projetos","newsletter","vagas","noticias"];
+  var BUSG_ORDEM=["registros","saude","mercado","compras","fiscal","inbox","agenda","lembretes","mba","aniversarios","projetos","biblioteca","captura","newsletter","vagas","noticias"];
   function busgEspacos(){if(BUSG.espacos)return Promise.resolve(BUSG.espacos);
     return Promise.resolve().then(function(){return SB.rpc("rac_iniciar_espacos")}).then(sbOk).then(function(l){BUSG.espacos=l||[];return BUSG.espacos},function(){BUSG.espacos=[];return BUSG.espacos})}
   function busgNomeEspaco(id){var n=null;(BUSG.espacos||[]).forEach(function(e){if(e.id===id)n=(e.tipo==="pessoal"?"🔒 ":"👥 ")+e.nome});return n||(id==="casa"?"👥 Casa":"🔒 Pessoal")}

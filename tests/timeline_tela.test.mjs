@@ -153,6 +153,6 @@ test("compatibilidade: a barra do celular, o menu lateral e a Minha Casa continu
   const { pag, fechar } = await abrir({}, { largura: 390, altura: 844, hash: "#workspace" });
   try {
     const r = await pag.evaluate(() => ({ barra: [...document.querySelectorAll("#barra a")].map((a) => a.getAttribute("data-k")), menu: [...document.querySelectorAll("#navgrp a.it")].map((a) => a.getAttribute("data-k")), amb: ambienteDe("timeline"), inicial: rotaInicial(), v: MOD_VERSAO }));
-    assert.deepEqual(r.barra, ["workspace", "rachoje", "mba", "saude", "mercado", "inbox"], "a barra não mudou"); assert.ok(r.menu.includes("timeline") && r.menu.includes("workspace") && r.menu.includes("rachoje")); assert.equal(r.amb, "casa"); assert.equal(r.v, "2026-11-27.4");
+    assert.deepEqual(r.barra, ["workspace", "rachoje", "mba", "saude", "mercado", "inbox"], "a barra não mudou"); assert.ok(r.menu.includes("timeline") && r.menu.includes("workspace") && r.menu.includes("rachoje")); assert.equal(r.amb, "casa"); assert.equal(r.v, "2026-11-28.1");
   } finally { await fechar(); }
 });

@@ -1,4 +1,4 @@
--- 071 · APLICADA EM PRODUÇÃO em 28/11/2026 (conferida por leitura: 2 tabelas com RLS e trava "mfa", 5 políticas no bucket, bucket "captura" privado de 50 MB, anon sem acesso, nenhum cofre público, 2 linhas no catálogo).
+-- 071 · APLICADA EM PRODUÇÃO em 28/11/2026 (conferida por leitura: 2 tabelas com RLS e trava "mfa", 5 políticas no bucket, bucket "captura" privado de 50 MB, anon sem acesso, nenhum cofre público, 2 linhas no catálogo; depois, o teste do banco real pediu fechar para anon a função bib_ref_valida e os 2 gatilhos: aplicado como 071b e 071c e já incluído neste arquivo).
 -- CAPTURA UNIVERSAL E BIBLIOTECA BÁSICA (Lote 4 do novo RAC; docs/planejamento/15-arquitetura-de-integracao.md seções 3 e 4, 18 e 19).
 -- Aditiva: 2 tabelas novas, 1 bucket privado novo e funções novas; NENHUMA tabela, política ou linha existente muda. Pode rodar de novo sem erro.
 -- Requer a 022 (rac_aal_ok), a 050 (seguranca_catalogo) e a 070 (espacos e rac_pode_no_espaco).
@@ -45,6 +45,7 @@ begin
   new.atualizado_em := now();
   return new;
 end $$;
+revoke all on function public.cap_item_guarda() from public, anon;
 drop trigger if exists cap_item_guarda on public.captura_itens;
 create trigger cap_item_guarda before update on public.captura_itens for each row execute function public.cap_item_guarda();
 
@@ -61,6 +62,9 @@ create or replace function public.bib_ref_valida(r jsonb, esp uuid) returns bool
     and (r->>'bucket' is distinct from 'captura' or (r->>'path') like esp::text || '/%')
     and (r->>'rota' is null or (r->>'rota') ~ '^#[a-z0-9/_-]{1,80}$'))
 $$;
+
+revoke all on function public.bib_ref_valida(jsonb, uuid) from public, anon;
+grant execute on function public.bib_ref_valida(jsonb, uuid) to authenticated;
 
 create table if not exists public.biblioteca_itens (
   id          uuid primary key,
@@ -96,6 +100,7 @@ begin
   new.atualizado_em := now();
   return new;
 end $$;
+revoke all on function public.bib_item_guarda() from public, anon;
 drop trigger if exists bib_item_guarda on public.biblioteca_itens;
 create trigger bib_item_guarda before update on public.biblioteca_itens for each row execute function public.bib_item_guarda();
 

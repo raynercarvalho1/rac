@@ -2177,3 +2177,23 @@ Família e da Casa.
 
 ### 3. O que vamos fazer
 - **Lote 4:** Captura universal e Biblioteca básica (Documento 18), com provedores de Captura e Biblioteca na Timeline pelo mesmo contrato.
+
+## 28/11/2026 · Lote 4 do novo RAC: Captura universal, Caixa de entrada e Biblioteca básica
+
+### 1. O que fizemos
+- **Diagnóstico e decisões** (Documento 19, seção 9): auditoria do código real dos Lotes 1 a 3, conflitos documentação × código resolvidos (rota `#captura` preservada, botão `+` agora em toda tela do dono, fila de sempre estendida, Share Target mantido em GET) e nenhuma dúvida que dependesse do dono.
+- **Captura universal:** campo no botão `+` (texto, link, foto com câmera, arquivo) em 2 toques; item pendente em `captura_itens` com id do aparelho; fila offline **única** (`bancoOuFila` com `upsert`, arquivos no IndexedDB e retenção de erro); classificação determinística em português (`NUCLEO.cp*`); compartilhar de outro app vira item pendente; atalhos de antes e a folha da Fernanda intactos.
+- **Caixa de entrada** (`#caixa`): sugestão com 1 toque, conferência editável, confirmar, **desfazer**, descartar, arquivar, voltar, erros de sincronização com "Tentar novamente"; widget `captura.caixa`; busca (provedores `captura` e `biblioteca`).
+- **Biblioteca** (`#biblioteca`): referências (link, nota, arquivo, documento existente) sem cópia; filtros, etiquetas, abrir por URL temporária; links antigos de Conexões como leitura.
+- **Banco:** migration **071** (2 tabelas, bucket privado `captura`, função `cap_arquivo_pode`, políticas de Storage, trava `mfa`, catálogo) **aplicada em produção e conferida por leitura**; complementos 071b e 071c (fechar para `anon` a função auxiliar e os gatilhos) a pedido do teste do banco real, também aplicados e conferidos.
+- **Testes novos:** `captura_nucleo` (10), `captura_sql` (7, PGlite: RLS, privacidade do autor, Storage, isolamento por espaço, idempotência), `captura_tela` (11, Chromium: 2 toques, offline, erro retido, caixa, compartilhar, Biblioteca, visual em 3 larguras × 2 temas). Testes antigos atualizados onde o comportamento mudou de propósito (botão `+` sempre visível, 2 rotas e 1 ambiente novos, última migration).
+- Corrigido o teste do widget de data, que fixava "27 de novembro".
+
+### 2. O que estamos fazendo
+- PR, CI, merge, Pages e verificação do site `2026-11-28.1` (o resultado entra no registro de publicação). **Nada disto foi dado como concluído antes da verificação.**
+- Falha **anterior ao lote** (confirmada no HEAD limpo): `tests/monitor.test.mjs` ("falha resolvida não deixa o painel vermelho") depende da hora do dia em relação à rotina das 6h; não faz parte do escopo.
+
+### 3. O que vamos fazer
+- Validação do dono no iPhone: câmera, galeria, captura sem internet e a Caixa.
+- Pendências reais: arquivo compartilhado pelo sistema (exige Share Target em POST), migração com prévia de `pessoal.salvos` para a Biblioteca, provedores de Captura e Biblioteca na Timeline.
+- **Lote 5:** Intelligence (sinais, preferências e IA opcional), podendo usar a Caixa para `captura.sugerir`.

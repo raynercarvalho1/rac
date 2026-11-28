@@ -157,6 +157,18 @@
         var corpo=h("div",{class:"rac-pilha wm-tl"},h("div",{class:"tl-lista"},l.map(function(e){return tlLinha(e,{resumo:ctx.config.resumo,data:ctx.config.data,compacto:true})})));
         if(r.falhas.length)corpo.appendChild(h("p",{class:"rac-t-legenda",text:"Sem resposta: "+r.falhas.map(function(x){return x.rotulo}).join(", ")+"."}));
         corpo.appendChild(wmMaisLink("Abrir a Timeline","#timeline"));return corpo})}});
+  /* ---------- CAPTURA (Lote 4): a caixa de entrada. Só LÊ a tabela captura_itens (privada do autor pelo RLS) e a fila deste aparelho; nada de escrita, nada de cópia ---------- */
+  widgetRegistrar({tipo:"captura.caixa",icone:"📥",versao:1,titulo:"Captura: caixa de entrada",categoria:"Captura",dominio:"captura",compartilhavel:false,exige:{dono:true},
+    descricao:"Quantos itens capturados esperam uma decisão, os mais recentes e o que ainda não subiu deste aparelho. Decidir o destino continua na caixa.",
+    tamanhos:{min:[4,0],padrao:[6,0],max:[12,6]},acoes:[{rotulo:"Abrir a caixa",rota:"#caixa"}],
+    config:[{chave:"limite",rotulo:"Quantos itens mostrar",tipo:"numero",min:1,max:8,padrao:3}],
+    renderizar:function(ctx){return Promise.resolve().then(function(){return SB.from("captura_itens").select("id,tipo,conteudo,anexos,criado_em",{count:"exact"}).eq("estado","pendente").order("criado_em",{ascending:false}).limit(ctx.config.limite)}).then(function(r){
+      if(r.error)throw new Error(r.error.message);var fila=NUCLEO.cpFilaItens(filaLer()).length,n=r.count||0,l=r.data||[];
+      if(!n&&!fila)return {vazio:true,texto:"Caixa vazia. Use o botão + para capturar um texto, link, foto ou arquivo."};
+      var corpo=h("div",{class:"rac-pilha"},rkKpi({rotulo:"Pendentes",valor:n,apoio:n===1?"item espera uma decisão":"itens esperam uma decisão",href:"#caixa",destaque:true}));
+      if(fila)corpo.appendChild(h("p",{class:"rac-t-legenda",text:"⏳ "+fila+(fila===1?" item ainda não subiu deste aparelho.":" itens ainda não subiram deste aparelho.")}));
+      if(l.length)corpo.appendChild(rkLista(l.map(function(i){return {titulo:NUCLEO.cpTitulo(i.conteudo,i.anexos,60)||"(anexo)",sub:NUCLEO.CP_TIPO_ROTULO[i.tipo]||"",href:"#caixa"}}),true));
+      corpo.appendChild(wmMaisLink("Abrir a caixa","#caixa"));return corpo})}});
   /* os espaços da pessoa (para o filtro e para dar id real ao "pessoal" e à "casa"); uma leitura por abertura */
   var WM_ESP=null;
   function provEspacosParaWidget(){if(WM_ESP)return WM_ESP;WM_ESP=Promise.resolve().then(function(){return SB.rpc("rac_iniciar_espacos")}).then(sbOk).then(function(l){return l||[]},function(){return []});setTimeout(function(){WM_ESP=null},60e3);return WM_ESP}

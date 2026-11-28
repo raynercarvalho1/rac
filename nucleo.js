@@ -863,7 +863,8 @@
     {t:"conhecimento",pk:["id"],dono:"dono",so:"exportar",dep:"062"},{t:"conhecimento_historico",pk:["id"],dono:"dono",so:"exportar",dep:"062"},
     /* Novo RAC, Lote 1 (070): espaços, participações e Workspace (layouts e preferências); só exportam: espaços e permissões se refazem pelas funções rac_* e restaurar apagaria o histórico de acesso. O histórico de versões fica de fora. */
     {t:"espacos",pk:["id"],dono:"dono",so:"exportar",dep:"070"},{t:"espaco_membros",pk:["espaco_id","user_id"],dono:"user_id",fk:{espaco_id:"espacos"},so:"exportar",dep:"070"},
-    {t:"workspace_paginas",pk:["id"],dono:"criado_por",fk:{espaco_id:"espacos"},so:"exportar",dep:"070"},{t:"workspace_pessoal",pk:["pagina_id"],fk:{pagina_id:"workspace_paginas"},so:"exportar",dep:"070"}];
+    {t:"workspace_paginas",pk:["id"],dono:"criado_por",fk:{espaco_id:"espacos"},so:"exportar",dep:"070"},{t:"workspace_pessoal",pk:["pagina_id"],fk:{pagina_id:"workspace_paginas"},so:"exportar",dep:"070"},
+    {t:"captura_itens",pk:["id"],dono:"criado_por",fk:{espaco_id:"espacos"},so:"exportar",dep:"071"},{t:"biblioteca_itens",pk:["id"],dono:"criado_por",fk:{espaco_id:"espacos"},so:"exportar",dep:"071"}];
   /* nunca saem nem voltam: a chave dos atalhos (restaurar reativaria uma chave já trocada) e a chave do Google Maps */
   var SEG_CHAVES_FORA={atalho:"chave dos atalhos do iPhone",googleMaps:"chave do Google Maps"};
   var SEG_SEGREDO=/senha|password|passwd|token|secret|segredo|api_?key|apikey|chave_?api|private_?key|access_?key|p256dh|vapid/i;
@@ -3432,6 +3433,203 @@
   /* gasto por mês (só meses com compra; mês sem compra não aparece e nada é inventado) */
   function mkcPorMes(rows){var g=mkcAgrupa(rows||[],function(x){return x.data.slice(0,7)});
     return g.o.sort().map(function(k){var l=g.m[k];return {mes:k,total:mkcR(l.reduce(function(s,x){return s+(+x.valor_total||0)},0)),itens:l.length,compras:mkcAgrupa(l,mkcNota).o.length,qtd:mkcQtd(l)}})}
+  /* ===== Captura universal e Biblioteca básica (Lote 4 do novo RAC; docs/planejamento/15, seções 3 e 4). Só funções puras: a classificação é DETERMINÍSTICA (sem IA) e só SUGERE (nada é
+     encaminhado sem a confirmação da pessoa); aqui também ficam as validações (as mesmas conferências do banco, supabase/071), o plano de cada encaminhamento e os filtros da Biblioteca.
+     Nada de tela nem de banco neste bloco. ===== */
+  var CP_TIPOS=["texto","ideia","link","foto","arquivo","tarefa","referencia","observacao"];
+  var CP_TIPO_ROTULO={texto:"Texto",ideia:"Ideia",link:"Link",foto:"Foto",arquivo:"Arquivo",tarefa:"Tarefa",referencia:"Referência",observacao:"Observação"};
+  var CP_TIPO_ICO={texto:"📝",ideia:"💡",link:"🔗",foto:"📷",arquivo:"📎",tarefa:"✅",referencia:"📚",observacao:"🗒️"};
+  var CP_ESTADOS=["pendente","classificado","arquivado","descartado"];
+  var CP_ORIGENS=["app","compartilhar","widget","atalho"];
+  var CP_MAX_TEXTO=20000,CP_MAX_ARQUIVO=52428800,CP_MAX_ANEXOS=10,CP_DIAS_ANTIGO=3;
+  var CP_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /* os formatos que o bucket "captura" aceita (a mesma lista da migration 071) e a extensão que vale quando o aparelho não informa o tipo */
+  var CP_MIMES=["image/jpeg","image/png","image/webp","image/heic","image/heif","image/gif","application/pdf","text/plain","text/markdown","text/csv","application/zip","application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation","video/mp4","video/quicktime"];
+  var CP_EXT={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif",gif:"image/gif",pdf:"application/pdf",txt:"text/plain",md:"text/markdown",csv:"text/csv",zip:"application/zip",
+    doc:"application/msword",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",xls:"application/vnd.ms-excel",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt:"application/vnd.ms-powerpoint",pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",mp4:"video/mp4",mov:"video/quicktime"};
+  function cpMimeDe(nome,tipo){var t=String(tipo||"").toLowerCase().split(";")[0].trim();if(CP_MIMES.indexOf(t)>=0)return t;var m=/\.([a-z0-9]{1,5})$/i.exec(String(nome||""));return m&&CP_EXT[m[1].toLowerCase()]||t}
+  /* o arquivo pode subir? (tamanho e formato, antes de tentar) */
+  function cpArquivoOk(a){a=a||{};var mime=cpMimeDe(a.nome,a.tipo),tam=+a.tamanho;
+    if(!(tam>=0))return {ok:false,motivo:"Não consegui ler o tamanho do arquivo."};
+    if(tam===0)return {ok:false,motivo:"O arquivo está vazio."};
+    if(tam>CP_MAX_ARQUIVO)return {ok:false,motivo:"O arquivo passa de 50 MB, o limite do cofre."};
+    if(CP_MIMES.indexOf(mime)<0)return {ok:false,motivo:"Esse formato de arquivo não é aceito (imagens, PDF, texto, planilhas, documentos, zip e vídeo curto)."};
+    return {ok:true,mime:mime}}
+  /* caminho no cofre: <espaço>/<autor>/<pasta>/<nome seguro>; a política do banco confere o espaço e o autor pelo próprio caminho */
+  function cpNomeSeguro(nome){var n=norm(nome).replace(/[^a-z0-9._-]+/g,"-").replace(/-+/g,"-").replace(/^[-.]+/,"");var m=/(\.[a-z0-9]{1,5})$/.exec(n),ext=m?m[1]:"";var base=(m?n.slice(0,n.length-ext.length):n).replace(/[-.]+$/,"").slice(0,60);return (base||"arquivo")+ext}
+  function cpCaminho(espaco,usuario,pasta,nome){if(!CP_UUID.test(String(espaco))||!CP_UUID.test(String(usuario))||!CP_UUID.test(String(pasta)))return null;return [espaco,usuario,pasta,cpNomeSeguro(nome)].join("/")}
+
+  /* ----- sinais do texto ----- */
+  function cpUrls(t){var r=[],m=String(t||"").match(/(?:https?:\/\/|www\.)[^\s<>"']+/gi)||[];m.forEach(function(u){u=u.replace(/[.,;:!?)\]}]+$/,"");if(/^www\./i.test(u))u="https://"+u;if(/^https?:\/\/[^\s\/]+\.[a-z]{2,}/i.test(u)&&r.indexOf(u)<0)r.push(u)});return r}
+  function cpSemUrls(t){return String(t||"").replace(/(?:https?:\/\/|www\.)[^\s<>"']+/gi," ").replace(/\s+/g," ").trim()}
+  function cpHost(u){var m=/^https?:\/\/([^\/?#:]+)/i.exec(String(u||""));return m?m[1].replace(/^www\./i,""):""}
+  /* #projeto (a hashtag; o que vem depois de # numa URL não conta) */
+  function cpProjetos(t){var r=[],s=cpSemUrls(t),re=/(?:^|\s)#([A-Za-zÀ-ÖØ-öø-ÿ0-9_-]{2,40})/g,m;while((m=re.exec(s))){var k=m[1].toLowerCase();if(r.indexOf(k)<0)r.push(k)}return r}
+  function cpDiaValido(a,m,d){var x=new Date(a,m-1,d,12);return x.getFullYear()===a&&x.getMonth()===m-1&&x.getDate()===d}
+  function cpIso(a,m,d){return a+"-"+(m<10?"0":"")+m+"-"+(d<10?"0":"")+d}
+  function cpMaisDias(iso,n){var d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return cpIso(d.getFullYear(),d.getMonth()+1,d.getDate())}
+  var CP_SEMANA={domingo:0,segunda:1,terca:2,quarta:3,quinta:4,sexta:5,sabado:6};
+  var CP_MESES={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+  function cpHoraDe(n){var m=/\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(n)||/\b([01]?\d|2[0-3])\s?h\s?([0-5]\d)?\b/.exec(n)||/\bas ([01]?\d|2[0-3])\s?horas?\b/.exec(n);
+    return m?((+m[1]<10?"0":"")+(+m[1])+":"+(m[2]||"00")):null}
+  /* data e hora ditas em português ("amanhã", "dia 15", "15/12", "sexta às 14h", "em 3 dias"); hoje = AAAA-MM-DD. Devolve {data, hora|null} ou null */
+  function cpData(texto,hoje){var n=norm(cpSemUrls(texto)),d=null,m,hora=cpHoraDe(n);if(!/^\d{4}-\d{2}-\d{2}$/.test(String(hoje||"")))return null;
+    var ano=+hoje.slice(0,4),mes=+hoje.slice(5,7),dia=+hoje.slice(8,10);
+    if((m=/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}|\d{2}))?\b/.exec(n))){var di=+m[1],me=+m[2],an=m[3]?(+m[3]<100?2000+(+m[3]):+m[3]):ano;
+      if(cpDiaValido(an,me,di)){d=cpIso(an,me,di);if(!m[3]&&d<hoje&&cpDiaValido(an+1,me,di))d=cpIso(an+1,me,di)}}
+    if(!d&&(m=/\b(\d{1,2}) de (janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?: de (\d{4}))?\b/.exec(n))){var an2=m[3]?+m[3]:ano,me2=CP_MESES[m[2]];
+      if(cpDiaValido(an2,me2,+m[1])){d=cpIso(an2,me2,+m[1]);if(!m[3]&&d<hoje&&cpDiaValido(an2+1,me2,+m[1]))d=cpIso(an2+1,me2,+m[1])}}
+    if(!d&&/\bdepois de amanha\b/.test(n))d=cpMaisDias(hoje,2);
+    if(!d&&/\bamanha\b/.test(n))d=cpMaisDias(hoje,1);
+    if(!d&&/\bhoje\b/.test(n))d=hoje;
+    if(!d&&(m=/\bdia (\d{1,2})\b/.exec(n))){var dd=+m[1],a3=ano,m3=mes;if(dd<dia){m3++;if(m3>12){m3=1;a3++}}
+      if(cpDiaValido(a3,m3,dd))d=cpIso(a3,m3,dd);else{m3++;if(m3>12){m3=1;a3++}if(cpDiaValido(a3,m3,dd))d=cpIso(a3,m3,dd)}}
+    if(!d&&(m=/\bem (\d{1,3}) dias?\b/.exec(n)))d=cpMaisDias(hoje,+m[1]);
+    if(!d&&/\b(semana que vem|proxima semana)\b/.test(n))d=cpMaisDias(hoje,7);
+    if(!d&&(m=/\b(segunda|terca|quarta|quinta|sexta|sabado|domingo)(?:-feira| feira)?\b(?! via\b)/.exec(n))){var alvo=CP_SEMANA[m[1]],hj=new Date(hoje+"T12:00:00").getDay(),dif=(alvo-hj+7)%7;d=cpMaisDias(hoje,dif===0?7:dif)}
+    if(!d&&hora)d=hoje;
+    return d?{data:d,hora:hora}:null}
+  /* compra: "comprar leite, pão", "preciso comprar…", "falta café" ou uma lista só de quantidades ("2 leite; 3 kg arroz") */
+  var CP_VERBO_COMPRA=/^(?:preciso comprar|precisamos comprar|temos que comprar|tenho que comprar|comprar|compra de|compras:|lista de compras:?|mercado:|falta|faltam|acabou|acabaram)\s+/i;
+  var CP_QTD=/^\d+(?:[.,]\d+)?\s*(?:x|un|und|unid|unidades?|kg|g|gr|l|lt|ml|pct|pcts|pacotes?|caixas?|cx|dz|duzias?|dúzias?|latas?|garrafas?|litros?)?\.?\s+(?:de\s+)?[A-Za-zÀ-ÿ]/i;
+  function cpLinhas(texto){return String(texto||"").split(/\s*[;\n]\s*|,\s+|,(?=\D)/).map(function(x){return x.replace(/\s+/g," ").trim().replace(/[.!]+$/,"")}).filter(Boolean)}
+  function cpCompra(texto){var t=cpSemUrls(texto).trim();if(!t||t.length>600)return null;var l=cpLinhas(t);if(!l.length||l.length>25)return null;
+    var verbo=CP_VERBO_COMPRA.test(l[0]);if(verbo)l[0]=l[0].replace(CP_VERBO_COMPRA,"");
+    if(!verbo&&(!l.every(function(x){return CP_QTD.test(x)})||cpData(t,"2026-01-01")))return null;
+    /* "leite, pão e café": o "e" também separa, menos quando há número ("1,5 kg de carne e osso" é um item só se vier com quantidade) */
+    var itens=[];l.forEach(function(x){x=x.replace(/^e\s+/i,"");(/\d/.test(x)?[x]:x.split(/\s+e\s+/)).forEach(function(y){y=y.trim().slice(0,200);if(y)itens.push(y)})});return itens.length?{itens:itens}:null}
+  /* possível nota fiscal: chave de acesso de 44 dígitos, ou palavra de nota fiscal no texto ou no nome do arquivo (não há leitura de imagem: sem OCR neste lote) */
+  var CP_FISCAL=/\b(nota fiscal|nf-?e|nfc-?e|nfce|cupom fiscal|cupom|danfe|chave de acesso|nota do mercado|notinha)\b/;
+  function cpAnexoImagem(a){return /^image\//.test(cpMimeDe(a&&a.nome,a&&a.tipo))}
+  function cpFiscal(texto,anexos){var t=String(texto||"");
+    if(/\b\d{4}(?:\s?\d{4}){10}\b/.test(t))return {motivo:"Tem uma chave de acesso de nota fiscal (44 dígitos)"};
+    var nomes=(anexos||[]).map(function(a){return a&&a.nome||""}).join(" ");
+    if(CP_FISCAL.test(norm(t+" "+nomes)))return {motivo:"Parece uma nota fiscal (fala em nota ou cupom fiscal)"};
+    return null}
+  function cpTipoAuto(texto,anexos){anexos=anexos||[];if(anexos.length)return anexos.every(cpAnexoImagem)?"foto":"arquivo";var u=cpUrls(texto);if(u.length&&!cpSemUrls(texto).replace(/[^A-Za-zÀ-ÿ0-9]/g,""))return "link";return u.length?"link":"texto"}
+  /* o título curto de um item: a primeira linha com texto (sem o endereço); sem texto, o nome do arquivo ou o site */
+  function cpTitulo(texto,anexos,max){max=max||120;var s=String(texto||"").split(/\n/).map(function(x){return cpSemUrls(x)}).filter(Boolean)[0]||"";
+    if(!s&&anexos&&anexos.length)s=String(anexos[0].nome||"").replace(/\.[a-z0-9]{1,5}$/i,"").replace(/[-_]+/g," ").trim();
+    if(!s){var u=cpUrls(texto);if(u.length)s=cpHost(u[0])}
+    return s.length>max?s.slice(0,max-1).replace(/\s+\S*$/,"")+"…":s}
+
+  /* ----- classificação: só SUGERE; devolve {tipo, sugestao, alternativas}. entrada = {texto, tipo (o que a pessoa escolheu, "" = automático), anexos, hoje} ----- */
+  var CP_DESTINO_ROTULO={lista:"Lista",lembrete:"Lembrete",biblioteca:"Biblioteca",projeto:"Projeto",fiscal:"Central Fiscal"};
+  function cpCand(destino,rotulo,motivo,dados){return {destino:destino,rotulo:rotulo,motivo:motivo,dados:dados||{}}}
+  function cpPlural(n,um,varios){return n+" "+(n===1?um:varios)}
+  function cpDataBR(iso){return iso.slice(8,10)+"/"+iso.slice(5,7)}
+  function cpClassificar(e){e=e||{};var texto=String(e.texto||"").trim(),anexos=(e.anexos||[]).filter(Boolean),hoje=e.hoje,escolhido=CP_TIPOS.indexOf(e.tipo)>=0&&e.tipo!=="texto"?e.tipo:"";
+    var tipo=escolhido||cpTipoAuto(texto,anexos),urls=cpUrls(texto),tags=cpProjetos(texto),fis=cpFiscal(texto,anexos),compra=cpCompra(texto),data=cpData(texto,hoje),titulo=cpTitulo(texto,anexos);
+    var C={};
+    if(fis)C.fiscal=cpCand("fiscal","Abrir a Central Fiscal",fis.motivo,{});
+    if(urls.length)C.link=cpCand("biblioteca","Guardar na Biblioteca como link","Tem um endereço da internet",{tipo:"link",url:urls[0],titulo:cpSemUrls(texto).slice(0,200)||cpHost(urls[0])});
+    if(compra)C.compra=cpCand("lista","Adicionar à lista de compras ("+cpPlural(compra.itens.length,"item","itens")+")","Parece uma compra",{tipo:"compra",itens:compra.itens});
+    if(data)C.data=cpCand("lembrete","Criar lembrete para "+cpDataBR(data.data)+(data.hora?" às "+data.hora:""),"Tem data"+(data.hora?" e hora":""),{data:data.data,hora:data.hora,titulo:titulo||"Lembrete"});
+    if(tags.length)C.projeto=cpCand("projeto","Guardar no projeto «"+tags[0]+"»","Tem a marca #"+tags[0],{tag:tags[0],titulo:titulo||tags[0]});
+    if(tipo==="tarefa")C.tarefa=cpCand("lista","Adicionar às tarefas da casa","Você marcou como tarefa",{tipo:"tarefa",itens:cpLinhas(texto).slice(0,25).map(function(x){return x.slice(0,200)})});
+    if(anexos.length)C.arquivo=cpCand("biblioteca",tipo==="foto"?"Guardar a foto na Biblioteca":"Guardar o arquivo na Biblioteca","Tem anexo",{tipo:"arquivo",titulo:titulo||"Arquivo"});
+    var nota=tipo==="referencia"?cpCand("biblioteca","Guardar na Biblioteca como referência","Você marcou como referência",{tipo:"referencia",titulo:titulo||"Referência",url:urls[0]||null}):
+      cpCand("biblioteca","Guardar na Biblioteca como nota",tipo==="ideia"?"Você marcou como ideia":"Sem destino específico",{tipo:"nota",titulo:titulo||"Nota",etiquetas:tipo==="ideia"?["ideia"]:[]});
+    var ordem;
+    if(escolhido==="tarefa")ordem=["tarefa","fiscal","data"];
+    else if(escolhido==="ideia"||escolhido==="observacao")ordem=["projeto","nota"];
+    else if(escolhido==="referencia")ordem=["nota"];
+    else if(escolhido==="link")ordem=urls.length?["link"]:["nota"];
+    else if(escolhido==="foto"||escolhido==="arquivo")ordem=["fiscal","arquivo"];
+    else ordem=["fiscal","link","compra","data","projeto","arquivo","nota"];
+    C.nota=nota;
+    var primeiro=null,alt=[],vistos={};
+    function chave(c){return c.destino+":"+(c.dados.tipo||"")+":"+(c.dados.tag||"")}
+    ordem.concat(["fiscal","link","compra","data","projeto","tarefa","arquivo","nota"]).forEach(function(k){var c=C[k];if(!c)return;var ch=chave(c);if(vistos[ch])return;vistos[ch]=1;if(!primeiro&&ordem.indexOf(k)>=0)primeiro=c;else alt.push(c)});
+    if(!primeiro){primeiro=C.nota;alt=alt.filter(function(c){return c!==C.nota})}
+    return {tipo:tipo,sugestao:primeiro,alternativas:alt}}
+
+  /* ----- o item da Captura (a linha que vai ao banco, ou à fila do aparelho) ----- */
+  function cpItem(o){o=o||{};var texto=String(o.texto||"").trim(),anexos=(o.anexos||[]).filter(Boolean),c=cpClassificar({texto:texto,tipo:o.tipo,anexos:anexos,hoje:o.hoje});
+    return {id:o.id,espaco_id:o.espaco,criado_por:o.usuario,tipo:c.tipo,conteudo:texto.slice(0,CP_MAX_TEXTO),anexos:anexos.map(function(a){return {path:a.path,nome:String(a.nome||"").slice(0,200),tipo:a.tipo||"",tamanho:+a.tamanho||0}}),
+      estado:"pendente",sugestao:{destino:c.sugestao.destino,rotulo:c.sugestao.rotulo,motivo:c.sugestao.motivo,dados:c.sugestao.dados},origem:CP_ORIGENS.indexOf(o.origem)>=0?o.origem:"app"}}
+  function cpValidar(it){var er=[];it=it||{};
+    if(!CP_UUID.test(String(it.id)))er.push("id inválido");if(!CP_UUID.test(String(it.espaco_id)))er.push("espaço inválido");
+    if(CP_TIPOS.indexOf(it.tipo)<0)er.push("tipo desconhecido");if(CP_ESTADOS.indexOf(it.estado||"pendente")<0)er.push("estado desconhecido");
+    if(String(it.conteudo||"").length>CP_MAX_TEXTO)er.push("texto passa de "+CP_MAX_TEXTO+" caracteres");
+    var an=it.anexos||[];if(!Array.isArray(an)||an.length>CP_MAX_ANEXOS)er.push("anexos demais");
+    else an.forEach(function(a){if(!a||typeof a.path!=="string"||!a.path||a.path.length>300||a.path.indexOf("..")>=0)er.push("caminho de anexo inválido");else if(a.path.indexOf(it.espaco_id+"/")!==0)er.push("anexo fora da pasta do espaço")});
+    if(!String(it.conteudo||"").trim()&&!(Array.isArray(an)&&an.length))er.push("sem conteúdo");
+    return {ok:!er.length,erros:er}}
+  /* a caixa: do mais novo ao mais antigo, e quantos pendentes já passaram de 3 dias (o lembrete suave da própria página) */
+  function cpOrdenar(l){return (l||[]).slice().sort(function(a,b){return String(b.criado_em||"").localeCompare(String(a.criado_em||""))||(a.id<b.id?-1:1)})}
+  function cpContar(itens,agora){var r={pendente:0,classificado:0,arquivado:0,descartado:0,antigos:0},lim=new Date(agora||Date.now()).getTime()-CP_DIAS_ANTIGO*864e5;
+    (itens||[]).forEach(function(i){if(r[i.estado]!==undefined)r[i.estado]++;if(i.estado==="pendente"&&new Date(i.criado_em).getTime()<lim)r.antigos++});return r}
+  /* operações desta Captura que esperam na fila do aparelho (a mesma fila de sempre, js/app.js): o que a caixa mostra como "aguardando envio" ou "com erro" */
+  function cpFilaItens(fila){return (fila||[]).filter(function(op){return op&&op.t==="captura_itens"&&op.acao==="upsert"&&op.dados&&!Array.isArray(op.dados)}).map(function(op){return {id:op.dados.id,dados:op.dados,quando:op.quando||0,erro:op.erro||null,parada:!!op.parada,tentativas:op.tent||0,arquivos:(op.arquivos||[]).length}})}
+  /* a linha da fila falhou por um motivo que repetir não resolve (regra do banco, formato): fica retida com o erro, até a pessoa mandar tentar de novo ou descartar */
+  var CP_TENTATIVAS=3;
+  function cpErroFila(op,msg){var n=(op.tent||0)+1;return Object.assign({},op,{erro:String(msg||"erro").slice(0,200),tent:n,parada:n>=CP_TENTATIVAS})}
+
+  /* ----- o plano de cada encaminhamento. escolha = {destino, dados} (os dados já editados na conferência); novoId() dá os ids dos registros novos ----- */
+  function cpDestinoRotulo(d){return CP_DESTINO_ROTULO[d&&d.modulo||d]||"Outro"}
+  function cpEtiquetas(v){var l=Array.isArray(v)?v:String(v||"").split(/[,\s]+/),r=[];l.forEach(function(x){var t=String(x||"").replace(/^#/,"").trim().toLowerCase().replace(/\s+/g,"-").replace(/[^a-zà-ÿ0-9_-]/g,"");if(t.length>=2&&t.length<=30&&r.indexOf(t)<0)r.push(t)});return r.slice(0,12)}
+  function cpBibDeCaptura(it,d){d=d||{};var tipo=BIB_TIPOS.indexOf(d.tipo)>=0?d.tipo:"nota",a=(it.anexos||[])[0],txt=String(d.texto!==undefined?d.texto:it.conteudo||"").trim();
+    var r={id:it.id,espaco_id:it.espaco_id,criado_por:it.criado_por,tipo:tipo,titulo:String(d.titulo||cpTitulo(it.conteudo,it.anexos)||"Sem título").slice(0,200),descricao:null,url:null,texto:null,ref:null,etiquetas:cpEtiquetas(d.etiquetas),origem:"captura",captura_id:it.id};
+    if(tipo==="link"){r.url=d.url||cpUrls(it.conteudo)[0]||null;r.descricao=cpSemUrls(it.conteudo).slice(0,2000)||null}
+    else if(tipo==="nota")r.texto=txt;
+    else if(tipo==="referencia"){r.url=d.url||cpUrls(it.conteudo)[0]||null;r.texto=txt||null}
+    else if(tipo==="arquivo"||tipo==="documento"){if(a)r.ref={tabela:"storage",bucket:"captura",path:a.path,nome:a.nome,mime:cpMimeDe(a.nome,a.tipo),tamanho:a.tamanho||0};r.descricao=txt.slice(0,2000)||null}
+    return r}
+  function cpPlano(it,escolha,novoId){escolha=escolha||{};var d=escolha.dados||{},des=escolha.destino;
+    if(["lista","lembrete","biblioteca","projeto","fiscal"].indexOf(des)<0)return {ok:false,erro:"Escolha um destino."};
+    if(des==="lista"){var tipo=d.tipo==="tarefa"?"tarefa":"compra",itens=(Array.isArray(d.itens)?d.itens:cpLinhas(d.texto!==undefined?d.texto:it.conteudo)).map(function(x){return String(x||"").trim().slice(0,200)}).filter(Boolean);
+      if(!itens.length)return {ok:false,erro:"Escreva pelo menos um item."};if(itens.length>25)return {ok:false,erro:"No máximo 25 itens por vez."};
+      var ids=itens.map(function(){return novoId()});return {ok:true,lista:{tipo:tipo,linhas:itens.map(function(x,i){return {id:ids[i],tipo:tipo,item:x}})},destino:{modulo:"lista",tipo:tipo,ids:ids}}}
+    if(des==="lembrete"){var titulo=String(d.titulo||"").trim().slice(0,200);if(!titulo)return {ok:false,erro:"Dê um nome ao lembrete."};
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data||""))||!cpDiaValido(+d.data.slice(0,4),+d.data.slice(5,7),+d.data.slice(8,10)))return {ok:false,erro:"Escolha uma data válida."};
+      var id=novoId();return {ok:true,lembrete:{id:id,data:d.data,t:titulo+(d.hora?" às "+d.hora:"")},destino:{modulo:"lembretes",id:id,data:d.data}}}
+    if(des==="fiscal")return {ok:true,fiscal:{rota:"#fiscal"},destino:{modulo:"fiscal",rota:"#fiscal"}};
+    var base=des==="projeto"?{tipo:"nota",titulo:d.titulo,etiquetas:[d.tag].concat(d.etiquetas||[])}:d,row=cpBibDeCaptura(it,base);
+    var v=bibValidar(row);if(!v.ok)return {ok:false,erro:v.erros[0]};
+    return {ok:true,biblioteca:row,destino:{modulo:"biblioteca",id:row.id,tipo:row.tipo}}}
+
+  /* ===== Biblioteca (referências com metadados; nada de cópia de arquivo nem de documento) ===== */
+  var BIB_TIPOS=["link","nota","documento","arquivo","referencia"];
+  var BIB_ROTULO={link:"Link",nota:"Nota",documento:"Documento",arquivo:"Arquivo",referencia:"Referência"};
+  var BIB_ICO={link:"🔗",nota:"📝",documento:"📄",arquivo:"📎",referencia:"📚"};
+  var BIB_ORIGENS=["manual","captura","descobrir","newsletter","inbox","projetos"];
+  var BIB_REF_TABELAS=["storage","registros","notas_fiscais_docs","notas_fiscais"];
+  /* a mesma conferência do banco (supabase/071: constraint biblioteca_forma, biblioteca_ref_ok e os limites de cada campo) */
+  function bibRefOk(r,espaco){if(r==null)return true;if(typeof r!=="object"||Array.isArray(r))return false;if(JSON.stringify(r).length>2048)return false;
+    if(BIB_REF_TABELAS.indexOf(r.tabela||"storage")<0)return false;if(r.bucket&&r.bucket!=="captura"&&r.bucket!=="familia")return false;
+    if(r.path&&(String(r.path).length>400||String(r.path).indexOf("..")>=0))return false;if(r.bucket==="captura"&&String(r.path||"").indexOf(espaco+"/")!==0)return false;
+    if(r.rota&&!/^#[a-z0-9\/_-]{1,80}$/.test(String(r.rota)))return false;return true}
+  function bibValidar(it){var er=[];it=it||{};
+    if(BIB_TIPOS.indexOf(it.tipo)<0)er.push("tipo desconhecido");
+    var t=String(it.titulo||"").trim();if(!t||t.length>200)er.push("o título precisa ter de 1 a 200 letras");
+    if(it.url!=null&&(String(it.url).length>2000||!/^https?:\/\//i.test(String(it.url))))er.push("o endereço precisa começar com http:// ou https://");
+    if(it.texto!=null&&String(it.texto).length>20000)er.push("texto grande demais");if(it.descricao!=null&&String(it.descricao).length>2000)er.push("descrição grande demais");
+    if(it.tipo==="link"&&!it.url)er.push("link sem endereço");if(it.tipo==="nota"&&(it.texto==null||!String(it.texto).trim()))er.push("a nota está vazia");
+    if((it.tipo==="arquivo"||it.tipo==="documento")&&!it.ref)er.push("falta o arquivo ou o documento de origem");
+    if(!bibRefOk(it.ref,it.espaco_id))er.push("a referência não é válida");
+    if((it.etiquetas||[]).length>12)er.push("etiquetas demais");if(BIB_ORIGENS.indexOf(it.origem||"manual")<0)er.push("origem desconhecida");
+    return {ok:!er.length,erros:er}}
+  /* o que acontece ao abrir um item: um site, um arquivo (por URL temporária), a tela do módulo de origem ou só o texto */
+  function bibAbrir(it){var r=it&&it.ref;if(it&&it.tipo==="link"&&it.url)return {modo:"url",url:it.url};
+    if(r&&r.path&&r.bucket)return {modo:"arquivo",bucket:r.bucket,path:r.path,nome:r.nome||it.titulo};
+    if(r&&r.rota)return {modo:"rota",rota:r.rota};if(it&&it.url)return {modo:"url",url:it.url};return {modo:"texto"}}
+  function bibFiltrar(itens,f){f=f||{};var termos=norm(f.texto||"").split(/\s+/).filter(Boolean),et=f.etiqueta?norm(f.etiqueta):"";
+    return (itens||[]).filter(function(i){
+      if(!f.arquivados&&i.arquivada_em)return false;if(f.arquivados&&!i.arquivada_em)return false;
+      if(f.tipo&&i.tipo!==f.tipo)return false;if(f.origem&&i.origem!==f.origem)return false;if(f.espaco&&i.espaco_id!==f.espaco)return false;
+      if(et&&!(i.etiquetas||[]).some(function(x){return norm(x)===et}))return false;
+      if(termos.length){var s=norm([i.titulo,i.descricao,i.texto,i.url,(i.etiquetas||[]).join(" ")].join(" "));if(!termos.every(function(t){return s.indexOf(t)>=0}))return false}
+      return true}).sort(function(a,b){return String(b.criado_em||"").localeCompare(String(a.criado_em||""))||(a.id<b.id?-1:1)})}
+  function bibEtiquetasDe(itens){var c={};(itens||[]).forEach(function(i){(i.etiquetas||[]).forEach(function(x){c[x]=(c[x]||0)+1})});return Object.keys(c).sort(function(a,b){return c[b]-c[a]||a.localeCompare(b)}).map(function(k){return {etiqueta:k,n:c[k]}})}
+  /* os links guardados no modelo antigo (PESSOAL.salvos, Conexões → Guardados) aparecem na Biblioteca SEM migração e SEM cópia: são só uma leitura, marcada como legado (a migração com prévia fica para depois) */
+  function bibLegado(salvos){return (Array.isArray(salvos)?salvos:[]).filter(function(s){return s&&s.u&&/^https?:\/\//i.test(String(s.u))}).map(function(s,i){
+    return {id:"salvos:"+i+":"+String(s.u).slice(0,80),legado:true,tipo:"link",titulo:String(s.t||s.u).slice(0,200),url:s.u,descricao:null,texto:null,ref:null,etiquetas:[],origem:"manual",criado_em:s.quando?String(s.quando):"",espaco_id:null}})}
+
+
   /* ===== Mercado: exportação de relatórios em CSV (docs/mercado-exportar.md).
      Só monta texto a partir das linhas JÁ carregadas da conta, com os mesmos filtros e as mesmas funções mkc e mkal das telas (nada de tela, banco ou rede aqui).
      Cada relatório aplica o filtro de novo (mkcFiltrar), então linha fora do filtro nunca sai. Só colunas escolhidas: ids, usuário, observação e nº da nota ficam de fora.
@@ -5110,7 +5308,7 @@
     var ks=Object.keys(g).sort(function(a,b){var i=(ordem||[]).indexOf(a),j=(ordem||[]).indexOf(b);return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b)});
     return ks.map(function(k){var l=g[k].slice().sort(function(a,b){return bsPontuar(b,termos)-bsPontuar(a,termos)||String(b.quando||"").localeCompare(String(a.quando||""))||(a.id<b.id?-1:1)});return {dominio:k,rotulo:l[0].origem||k,itens:l}})}
 
-  raiz.RACnucleo={TL_CATEGORIAS:TL_CATEGORIAS,TL_CAT_ROTULO:TL_CAT_ROTULO,TL_PERIODOS:TL_PERIODOS,TL_AGRUPAMENTOS:TL_AGRUPAMENTOS,tlInstante:tlInstante,tlDia:tlDia,tlHora:tlHora,tlQuandoDe:tlQuandoDe,tlId:tlId,tlEvento:tlEvento,tlComparar:tlComparar,tlOrdenar:tlOrdenar,tlDeduplicar:tlDeduplicar,tlFiltrar:tlFiltrar,tlCursorFiltrar:tlCursorFiltrar,tlCursorAvancar:tlCursorAvancar,tlMesclar:tlMesclar,tlPeriodo:tlPeriodo,tlRotuloDia:tlRotuloDia,tlSegunda:tlSegunda,tlAgrupar:tlAgrupar,bsNorm:bsNorm,bsTermos:bsTermos,bsCasa:bsCasa,bsRegex:bsRegex,bsPontuar:bsPontuar,bsAgrupar:bsAgrupar,wsPeriodo:wsPeriodo,wmGasto:wmGasto,wmGastoSerie:wmGastoSerie,wmLojasRecentes:wmLojasRecentes,wmCategoriasTop:wmCategoriasTop,wmDiaResumo:wmDiaResumo,wmSaudeSerie:wmSaudeSerie,WS_MODELOS:WS_MODELOS,wsModeloLayout:wsModeloLayout,WS_SCHEMA:WS_SCHEMA,WS_COLUNAS:WS_COLUNAS,WS_MAX_SECOES:WS_MAX_SECOES,WS_MAX_ITENS:WS_MAX_ITENS,WS_MAX_LAYOUT:WS_MAX_LAYOUT,WS_MAX_CONFIG:WS_MAX_CONFIG,WS_MAX_TITULO:WS_MAX_TITULO,WS_MAX_PAGINAS:WS_MAX_PAGINAS,WS_ESTADOS:WS_ESTADOS,WS_PAPEIS:WS_PAPEIS,WS_AMBIENTES:WS_AMBIENTES,WS_PERIODOS:WS_PERIODOS,WS_CAMPOS:WS_CAMPOS,WS_MIGRACOES:WS_MIGRACOES,wsInt:wsInt,wsObj:wsObj,wsClonar:wsClonar,wsNovoId:wsNovoId,wsVazio:wsVazio,wsValidar:wsValidar,wsMigrar:wsMigrar,wsMigrarConfigs:wsMigrarConfigs,wsDefValida:wsDefValida,wsConfigNormalizar:wsConfigNormalizar,wsLimitar:wsLimitar,wsAcharItem:wsAcharItem,wsSecaoIdx:wsSecaoIdx,wsTotalItens:wsTotalItens,wsNao:wsNao,wsAdicionar:wsAdicionar,wsRemover:wsRemover,wsMover:wsMover,wsMoverPasso:wsMoverPasso,wsRedimensionar:wsRedimensionar,wsConfigurar:wsConfigurar,wsEstado:wsEstado,wsMobile:wsMobile,wsDuplicar:wsDuplicar,wsSecaoAdicionar:wsSecaoAdicionar,wsSecaoRenomear:wsSecaoRenomear,wsSecaoRecolher:wsSecaoRecolher,wsSecaoMover:wsSecaoMover,wsSecaoRemover:wsSecaoRemover,wsAplicarOp:wsAplicarOp,wsAplicarOps:wsAplicarOps,wsDiff:wsDiff,wsColunasPara:wsColunasPara,wsEscala:wsEscala,wsVisao:wsVisao,wsPodeNoEspaco:wsPodeNoEspaco,wsPodeUsarTipo:wsPodeUsarTipo,wsTitulo:wsTitulo,wsTituloOk:wsTituloOk,wsOrdenarPaginas:wsOrdenarPaginas,wsPaginaInicial:wsPaginaInicial,wsMoverPagina:wsMoverPagina,wsOcultosValidos:wsOcultosValidos,wsLayoutPadrao:wsLayoutPadrao,
+  raiz.RACnucleo={CP_TIPOS:CP_TIPOS,CP_TIPO_ROTULO:CP_TIPO_ROTULO,CP_TIPO_ICO:CP_TIPO_ICO,CP_ESTADOS:CP_ESTADOS,CP_ORIGENS:CP_ORIGENS,CP_MAX_TEXTO:CP_MAX_TEXTO,CP_MAX_ARQUIVO:CP_MAX_ARQUIVO,CP_MAX_ANEXOS:CP_MAX_ANEXOS,CP_DIAS_ANTIGO:CP_DIAS_ANTIGO,CP_MIMES:CP_MIMES,CP_TENTATIVAS:CP_TENTATIVAS,CP_DESTINO_ROTULO:CP_DESTINO_ROTULO,cpMimeDe:cpMimeDe,cpArquivoOk:cpArquivoOk,cpNomeSeguro:cpNomeSeguro,cpCaminho:cpCaminho,cpUrls:cpUrls,cpSemUrls:cpSemUrls,cpHost:cpHost,cpProjetos:cpProjetos,cpData:cpData,cpLinhas:cpLinhas,cpCompra:cpCompra,cpFiscal:cpFiscal,cpTipoAuto:cpTipoAuto,cpTitulo:cpTitulo,cpClassificar:cpClassificar,cpItem:cpItem,cpValidar:cpValidar,cpOrdenar:cpOrdenar,cpContar:cpContar,cpFilaItens:cpFilaItens,cpErroFila:cpErroFila,cpDestinoRotulo:cpDestinoRotulo,cpEtiquetas:cpEtiquetas,cpBibDeCaptura:cpBibDeCaptura,cpPlano:cpPlano,BIB_TIPOS:BIB_TIPOS,BIB_ROTULO:BIB_ROTULO,BIB_ICO:BIB_ICO,BIB_ORIGENS:BIB_ORIGENS,bibRefOk:bibRefOk,bibValidar:bibValidar,bibAbrir:bibAbrir,bibFiltrar:bibFiltrar,bibEtiquetasDe:bibEtiquetasDe,bibLegado:bibLegado,TL_CATEGORIAS:TL_CATEGORIAS,TL_CAT_ROTULO:TL_CAT_ROTULO,TL_PERIODOS:TL_PERIODOS,TL_AGRUPAMENTOS:TL_AGRUPAMENTOS,tlInstante:tlInstante,tlDia:tlDia,tlHora:tlHora,tlQuandoDe:tlQuandoDe,tlId:tlId,tlEvento:tlEvento,tlComparar:tlComparar,tlOrdenar:tlOrdenar,tlDeduplicar:tlDeduplicar,tlFiltrar:tlFiltrar,tlCursorFiltrar:tlCursorFiltrar,tlCursorAvancar:tlCursorAvancar,tlMesclar:tlMesclar,tlPeriodo:tlPeriodo,tlRotuloDia:tlRotuloDia,tlSegunda:tlSegunda,tlAgrupar:tlAgrupar,bsNorm:bsNorm,bsTermos:bsTermos,bsCasa:bsCasa,bsRegex:bsRegex,bsPontuar:bsPontuar,bsAgrupar:bsAgrupar,wsPeriodo:wsPeriodo,wmGasto:wmGasto,wmGastoSerie:wmGastoSerie,wmLojasRecentes:wmLojasRecentes,wmCategoriasTop:wmCategoriasTop,wmDiaResumo:wmDiaResumo,wmSaudeSerie:wmSaudeSerie,WS_MODELOS:WS_MODELOS,wsModeloLayout:wsModeloLayout,WS_SCHEMA:WS_SCHEMA,WS_COLUNAS:WS_COLUNAS,WS_MAX_SECOES:WS_MAX_SECOES,WS_MAX_ITENS:WS_MAX_ITENS,WS_MAX_LAYOUT:WS_MAX_LAYOUT,WS_MAX_CONFIG:WS_MAX_CONFIG,WS_MAX_TITULO:WS_MAX_TITULO,WS_MAX_PAGINAS:WS_MAX_PAGINAS,WS_ESTADOS:WS_ESTADOS,WS_PAPEIS:WS_PAPEIS,WS_AMBIENTES:WS_AMBIENTES,WS_PERIODOS:WS_PERIODOS,WS_CAMPOS:WS_CAMPOS,WS_MIGRACOES:WS_MIGRACOES,wsInt:wsInt,wsObj:wsObj,wsClonar:wsClonar,wsNovoId:wsNovoId,wsVazio:wsVazio,wsValidar:wsValidar,wsMigrar:wsMigrar,wsMigrarConfigs:wsMigrarConfigs,wsDefValida:wsDefValida,wsConfigNormalizar:wsConfigNormalizar,wsLimitar:wsLimitar,wsAcharItem:wsAcharItem,wsSecaoIdx:wsSecaoIdx,wsTotalItens:wsTotalItens,wsNao:wsNao,wsAdicionar:wsAdicionar,wsRemover:wsRemover,wsMover:wsMover,wsMoverPasso:wsMoverPasso,wsRedimensionar:wsRedimensionar,wsConfigurar:wsConfigurar,wsEstado:wsEstado,wsMobile:wsMobile,wsDuplicar:wsDuplicar,wsSecaoAdicionar:wsSecaoAdicionar,wsSecaoRenomear:wsSecaoRenomear,wsSecaoRecolher:wsSecaoRecolher,wsSecaoMover:wsSecaoMover,wsSecaoRemover:wsSecaoRemover,wsAplicarOp:wsAplicarOp,wsAplicarOps:wsAplicarOps,wsDiff:wsDiff,wsColunasPara:wsColunasPara,wsEscala:wsEscala,wsVisao:wsVisao,wsPodeNoEspaco:wsPodeNoEspaco,wsPodeUsarTipo:wsPodeUsarTipo,wsTitulo:wsTitulo,wsTituloOk:wsTituloOk,wsOrdenarPaginas:wsOrdenarPaginas,wsPaginaInicial:wsPaginaInicial,wsMoverPagina:wsMoverPagina,wsOcultosValidos:wsOcultosValidos,wsLayoutPadrao:wsLayoutPadrao,
     KN_TIPOS:KN_TIPOS,KN_ESTADOS:KN_ESTADOS,KN_SECOES:KN_SECOES,knSegredo:knSegredo,knTipo:knTipo,knEstado:knEstado,knTags:knTags,knSlug:knSlug,knValidar:knValidar,knLerArquivo:knLerArquivo,knParaArquivo:knParaArquivo,knDoBanco:knDoBanco,knBusca:knBusca,knFacetas:knFacetas,knPlano:knPlano,knLinha:knLinha,knResumoAgente:knResumoAgente,inbCartao:inbCartao,inbAcoesConta:inbAcoesConta,inbEstadoConta:inbEstadoConta,inbUltimaSync:inbUltimaSync,INB_ACOES:INB_ACOES,inbRespostaOrganizacao:inbRespostaOrganizacao,inbFraseOrganizacao:inbFraseOrganizacao,inbDestinosMover:inbDestinosMover,inbAcoesDisponiveis:inbAcoesDisponiveis,inbEnderecosDe:inbEnderecosDe,inbPrefixoAssunto:inbPrefixoAssunto,inbRotuloEnd:inbRotuloEnd,inbCitar:inbCitar,inbMontarRascunho:inbMontarRascunho,inbValidarRascunho:inbValidarRascunho,inbClasseEnvio:inbClasseEnvio,inbRespostaEnvio:inbRespostaEnvio,inbRespostaProva:inbRespostaProva,INB_MODOS_ENVIO:INB_MODOS_ENVIO,INB_LIM_ENVIO:INB_LIM_ENVIO,INB_ETAPAS_PROVA:INB_ETAPAS_PROVA,inbFraseSync:inbFraseSync,inbRespostaCanal:inbRespostaCanal,inbLinhaMensagem:inbLinhaMensagem,inbRespostaPastas:inbRespostaPastas,inbRespostaSincronizacao:inbRespostaSincronizacao,inbRespostaLeitura:inbRespostaLeitura,inbRespostaAnexo:inbRespostaAnexo,inbNomeArquivoSeguro:inbNomeArquivoSeguro,inbTipoDownload:inbTipoDownload,inbParagrafos:inbParagrafos,inbFraseSincronizacao:inbFraseSincronizacao,INB_RE_PARTE:INB_RE_PARTE,INB_RECURSOS:INB_RECURSOS,INB_RECURSO_ROTULOS:INB_RECURSO_ROTULOS,INB_PROVEDORES:INB_PROVEDORES,inbProvedor:inbProvedor,inbProvedorEscreve:inbProvedorEscreve,INB_ESTADOS:INB_ESTADOS,inbEstado:inbEstado,INB_USOS:INB_USOS,inbUsoRotulo:inbUsoRotulo,INB_TIPOS_SINC:INB_TIPOS_SINC,inbCredenciais:inbCredenciais,inbContaValida:inbContaValida,inbCredencialValida:inbCredencialValida,INB_CRED_ROTULOS:INB_CRED_ROTULOS,INB_OPERACOES:INB_OPERACOES,INB_ESCRITA:INB_ESCRITA,inbPedido:inbPedido,inbUidOk:inbUidOk,inbCursor:inbCursor,inbRespostaEstado:inbRespostaEstado,inbArvore:inbArvore,inbUnificada:inbUnificada,inbTelaEstado:inbTelaEstado,INB_ERROS:INB_ERROS,inbErroTexto:inbErroTexto,INB_CATEGORIAS:INB_CATEGORIAS,INB_FILTROS:INB_FILTROS,inbIniciais:inbIniciais,inbHora:inbHora,inbOrdenar:inbOrdenar,inbFiltrar:inbFiltrar,inbNaoLidas:inbNaoLidas,inbContadorBarra:inbContadorBarra,inbGrupoData:inbGrupoData,inbAgrupar:inbAgrupar,inbDataCompleta:inbDataCompleta,
     sauRecomendacao:sauRecomendacao,sauResumoSemana:sauResumoSemana,sauScoreSono:sauScoreSono,sauRotuloQual:sauRotuloQual,sauFaixaScore:sauFaixaScore,lugNotas:lugNotas,lugCep:lugCep,lugCnpj:lugCnpj,lugEnderecoCnpj:lugEnderecoCnpj,lugNomeCidade:lugNomeCidade,lugEnderecoViaCep:lugEnderecoViaCep,lugMercados:lugMercados,lugPontosDia:lugPontosDia,lugSugerir:lugSugerir,lugPasseios:lugPasseios,lugValida:lugValida,hojeIaJanela:hojeIaJanela,hojeIaAutoPode:hojeIaAutoPode,hojeIaMarcar:hojeIaMarcar,hojeMudouProntidao:hojeMudouProntidao,mbaHojeResumo:mbaHojeResumo,mkUltimasNotas:mkUltimasNotas,hojeTreinoLinha:hojeTreinoLinha,fonteContrato:fonteContrato,SAU_LIMITE:SAU_LIMITE,sauVals:sauVals,SAU_METAS:SAU_METAS,SAU_METRICAS:SAU_METRICAS,SAU_CAMPOS:SAU_CAMPOS,sauNum:sauNum,sauMedia:sauMedia,sauArred:sauArred,sauPor:sauPor,sauJanela:sauJanela,sauBase:sauBase,sauMinNoite:sauMinNoite,sauHora:sauHora,sauRegularidade:sauRegularidade,sauQualidade:sauQualidade,sauAvaliar:sauAvaliar,sauTextoSinal:sauTextoSinal,sauHistoricoSinais:sauHistoricoSinais,sauSinais:sauSinais,sauIndicadores:sauIndicadores,sauFrase:sauFrase,sauAssociacao:sauAssociacao,sauSonoVfc:sauSonoVfc,sauCargaSemanal:sauCargaSemanal,sauCargaVariacao:sauCargaVariacao,sauMusculacao:sauMusculacao,sauResumoAtiv:sauResumoAtiv,sauVo2:sauVo2,sauMinutosSemana:sauMinutosSemana,sauEficiencia:sauEficiencia,sauCargaDia:sauCargaDia,sauRecuperacaoTreino:sauRecuperacaoTreino,sauMudancas:sauMudancas,sauAgrupar:sauAgrupar,sauPrefs:sauPrefs,SAU_NAO_TREINO:SAU_NAO_TREINO,sauContaTreino:sauContaTreino,famIntegrantes:famIntegrantes,hojeQuemDe:hojeQuemDe,saudeInsights:saudeInsights,famMeds:famMeds,famDiagnostico:famDiagnostico,mbaAulasDe:mbaAulasDe,mbaAvalsDe:mbaAvalsDe,mbaMaterialPendente:mbaMaterialPendente,mbaFinDe:mbaFinDe,agendaItens:agendaItens,AGD_GRUPOS:AGD_GRUPOS,agdGrupos:agdGrupos,agdQuando:agdQuando,agdResumo:agdResumo,agdFrase:agdFrase,agdSerie:agdSerie,agdAreas:agdAreas,agdFiltrar:agdFiltrar,agdTom:agdTom,cmChaveOn:cmChaveOn,cmEquivalencias:cmEquivalencias,cmJuntar:cmJuntar,cmSeparar:cmSeparar,cmAplicarEquivalencias:cmAplicarEquivalencias,cmCategoriasOn:cmCategoriasOn,cmCategoriaOnDefinir:cmCategoriaOnDefinir,cmRenomearOn:cmRenomearOn,cmSugerirJuncoes:cmSugerirJuncoes,cmLinhas:cmLinhas,cmFiltrar:cmFiltrar,cmPorEstab:cmPorEstab,cmResumoProduto:cmResumoProduto,cmOrdenar:cmOrdenar,cmCategoria:cmCategoria,cmEstabelecimento:cmEstabelecimento,cmComparar:cmComparar,cmOportunidades:cmOportunidades,cmPorMes:cmPorMes,cmExplorar:cmExplorar,CU_PLATAFORMAS:CU_PLATAFORMAS,CU_GRUPOS:CU_GRUPOS,cuCat:cuCat,cuSemCidade:cuSemCidade,cuCanaisValidos:cuCanaisValidos,cuCanalDefinir:cuCanalDefinir,cuNotaChave:cuNotaChave,cuDeNotas:cuDeNotas,cuDeOnline:cuDeOnline,cuDeDelivery:cuDeDelivery,cuUnificar:cuUnificar,cuPeriodo:cuPeriodo,cuFiltrar:cuFiltrar,cuResumo:cuResumo,cuCategoriasDe:cuCategoriasDe,cuComparar:cuComparar,cuItens:cuItens,cuEstabelecimentos:cuEstabelecimentos,cuCategorias:cuCategorias,AR_AREAS_PADRAO:AR_AREAS_PADRAO,AR_MAPA_PADRAO:AR_MAPA_PADRAO,arConfig:arConfig,arRaw:arRaw,arAreaDe:arAreaDe,arNomeArea:arNomeArea,arAssociar:arAssociar,arAreaCriar:arAreaCriar,arAreaRemover:arAreaRemover,arCategoriaCriar:arCategoriaCriar,arCategoriaRemover:arCategoriaRemover,arCompras:arCompras,arResumo:arResumo,arCategorias:arCategorias,MK_CATEGORIAS_EXTRA:MK_CATEGORIAS_EXTRA,MK_SUBCATEGORIAS:MK_SUBCATEGORIAS,mkCategoriaEfetiva:mkCategoriaEfetiva,mkSubEfetiva:mkSubEfetiva,mkOpcoesCategoria:mkOpcoesCategoria,mkTodasCategorias:mkTodasCategorias,mkSubOpcoes:mkSubOpcoes,mkClasseValida:mkClasseValida,mkResumoClasse:mkResumoClasse,rdMedidas:rdMedidas,rdCompararMedidas:rdCompararMedidas,rdSuspeitas:rdSuspeitas,RD_JANELAS:RD_JANELAS,RD_ANOMALIA:RD_ANOMALIA,rdNorm:rdNorm,rdUrlOk:rdUrlOk,rdHostDe:rdHostDe,rdHostCasa:rdHostCasa,rdPontos:rdPontos,rdHistorico:rdHistorico,rdAnomalia:rdAnomalia,rdOportunidades:rdOportunidades,rdChaveAviso:rdChaveAviso,rdNaoAvisadas:rdNaoAvisadas,rdSugerirEquivalencia:rdSugerirEquivalencia,RD_MODALIDADES:RD_MODALIDADES,RD_FRETES:RD_FRETES,rdCent:rdCent,rdCep:rdCep,rdValidarPreco:rdValidarPreco,rdPrecoFinal:rdPrecoFinal,rdChaveSerie:rdChaveSerie,rdVigentes:rdVigentes,rdUltimas:rdUltimas,rdRanking:rdRanking,rdVariacao:rdVariacao,rdJanela:rdJanela,rdEquivalencia:rdEquivalencia,mkxNum:mkxNum,mkxCelula:mkxCelula,mkxCsv:mkxCsv,mkxConsumo:mkxConsumo,mkxComparar:mkxComparar,mkxPainel:mkxPainel,mkxPrecos:mkxPrecos,mkxAlertas:mkxAlertas,MKX_REL:MKX_REL,MKX_LISTAS:MKX_LISTAS,mkcMesmoDia:mkcMesmoDia,MKAL_TIPOS:MKAL_TIPOS,mkalConfig:mkalConfig,mkalGerar:mkalGerar,mkalClassificar:mkalClassificar,mkalMarcarLido:mkalMarcarLido,mkalLimiteSalvar:mkalLimiteSalvar,mkalLimiteRemover:mkalLimiteRemover,mkalOpcoes:mkalOpcoes,mkcAtalho:mkcAtalho,mkcPeriodoInfo:mkcPeriodoInfo,mkcMetric:mkcMetric,mkcComparar:mkcComparar,mkcCompRank:mkcCompRank,mkcChaveProd:mkcChaveProd,mkcPrecos:mkcPrecos,PC_TIPOS_DO_PRODUTO:PC_TIPOS_DO_PRODUTO,pcChave:pcChave,pcVinculos:pcVinculos,pcVincular:pcVincular,pcDesvincular:pcDesvincular,pcItemDe:pcItemDe,pcTokens:pcTokens,pcSugerirItens:pcSugerirItens,pcBase:pcBase,pcComparar:pcComparar,rdDiferenca:rdDiferenca,pcResumoOfertas:pcResumoOfertas,pcCategoria:pcCategoria,pcNotaChave:pcNotaChave,mkcPeriodo:mkcPeriodo,mkcFiltrar:mkcFiltrar,mkcCategorias:mkcCategorias,mkcResumo:mkcResumo,mkcProdutos:mkcProdutos,mkcProduto:mkcProduto,mkcPorMes:mkcPorMes,MK_CATEGORIAS:MK_CATEGORIAS,MK_CAT_REVISAR:MK_CAT_REVISAR,mkCatOficial:mkCatOficial,mkNome:mkNome,mkTexto:mkTexto,mkChave:mkChave,mkClassificar:mkClassificar,mkTokensCasar:mkTokensCasar,mkSimilaridade:mkSimilaridade,mkCasarProduto:mkCasarProduto,mkCasarEstabelecimento:mkCasarEstabelecimento,MK_CASAR_CORTE:MK_CASAR_CORTE,nfUnidadeMercado:nfUnidadeMercado,nfEntradaDecisoes:nfEntradaDecisoes,nfEntradaPayload:nfEntradaPayload,nfEstadosNota:nfEstadosNota,nfConsultaTexto:nfConsultaTexto,nfResultadoConfirmar:nfResultadoConfirmar,norm:norm,urlAbs:urlAbs,lerAbast:lerAbast,TEMAS:TEMAS,temasDe:temasDe,juntarDados:juntarDados,SKILLS:SKILLS,compatVaga:compatVaga,omsZ:omsZ,omsValor:omsValor,percentilDeZ:percentilDeZ,csvLinhas:csvLinhas,napperLer:napperLer,bebeDias:bebeDias,VACINAS_PNI:VACINAS_PNI,vacinasCalendario:vacinasCalendario,mediana:mediana,prontidao:prontidao,SAU_MARCO:SAU_MARCO,sauDataDe:sauDataDe,sauMeu:sauMeu,sauClassificar:sauClassificar,somaDiasISO:somaDiasISO,correlacao:correlacao,chuvaAviso:chuvaAviso,diasEntre:diasEntre,chaveProduto:chaveProduto,previsaoCompras:previsaoCompras,padraoCompras:padraoCompras,itemBate:itemBate,notaItens:notaItens,dividirItens:dividirItens,lerEmailVaga:lerEmailVaga,vagaParecida:vagaParecida,iaAbastTexto:iaAbastTexto,iaNotaTexto:iaNotaTexto,iaNum:iaNum,iaUsd:iaUsd,iaReais:iaReais,iaBrl:iaBrl,iaResumo:iaResumo,iaAlerta:iaAlerta,iaEstados:iaEstados,iaNomeMes:iaNomeMes,iaCompetencias:iaCompetencias,iaModulo:iaModulo,iaUsoLinha:iaUsoLinha,iaValorUsd:iaValorUsd,iaMesIso:iaMesIso,iaMeses:iaMeses,
     NL_CATS:NL_CATS,NL_TIPOS:NL_TIPOS,NL_PESOS:NL_PESOS,NL_LIM:NL_LIM,NL_TURNOS:NL_TURNOS,nlTurno:nlTurno,NL_ATRASO_H:NL_ATRASO_H,nlAtraso:nlAtraso,nlDataDaChave:nlDataDaChave,nlNovos:nlNovos,nlCat:nlCat,nlConfig:nlConfig,nlOculto:nlOculto,nlRelevancia:nlRelevancia,nlDataBRT:nlDataBRT,nlHash:nlHash,nlChaveIA:nlChaveIA,

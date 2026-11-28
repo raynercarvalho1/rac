@@ -847,3 +847,44 @@ body.wk-no-arrasto{user-select:none;-webkit-user-select:none;cursor:grabbing}
   .bg-res{grid-template-columns:30px minmax(0,1fr) auto}
 }
 .wm-tl .tl-lista{margin:0}
+
+/* ===== Captura universal, Caixa de entrada e Biblioteca (Lote 4 do novo RAC; js/captura.js e js/biblioteca.js). Mesmo Design System: faixa azul, cartões, chips, selos, estados. Só tokens --rac-*. ===== */
+.cap-uni{margin-bottom:var(--rac-esp-3)}
+.cap-sep{margin:var(--rac-esp-3) 0 var(--rac-esp-2);font:600 calc(12px + var(--fz)) var(--f-ui);color:var(--rac-texto-2);text-transform:uppercase;letter-spacing:.07em}
+.cap-comp{display:flex;flex-direction:column;gap:var(--rac-esp-2)}
+.cap-txt{resize:vertical;min-height:84px;line-height:1.4}
+.cap-linha{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);align-items:center}
+.cap-linha .cap-tipo{flex:1 1 140px;min-width:0;width:auto}
+.cap-linha .rac-btn{flex:0 0 auto}
+.cap-st:empty{display:none}
+.cap-st .rac-estado{padding:var(--rac-esp-2) 0}
+.capcnt{position:absolute;top:-4px;right:-4px;min-width:22px;height:22px;padding:0 6px;border-radius:var(--rac-raio-pilula);display:grid;place-items:center;background:var(--rac-erro-fill);color:var(--rac-sobre-fill);font:700 12px/1 var(--f-ui);box-shadow:0 0 0 2px var(--bg)}
+.cx-corpo,.bb-corpo{min-width:0}
+.cx-chips{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2)}
+.cx-ctl,.bb-ctl{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.bb-linha{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);align-items:center}
+.bb-linha select{flex:1 1 180px;width:auto;min-width:0}
+.cx-item,.bb-item,.bb-form{display:flex;flex-direction:column;gap:var(--rac-esp-3);min-width:0}
+.cx-cab{display:flex;gap:var(--rac-esp-3);align-items:flex-start;min-width:0}
+.cx-ico{flex:none;width:36px;height:36px;border-radius:var(--rac-raio-1);display:grid;place-items:center;background:var(--rac-papel-2);font-size:18px}
+.cx-corpo-item{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.cx-corpo-item b,.cx-corpo-item span{overflow-wrap:anywhere}
+.cx-texto{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.cx-sug{margin:0;overflow-wrap:anywhere}
+.cx-acoes{display:flex;flex-wrap:wrap;gap:var(--rac-esp-2);align-items:center}
+.cx-acoes .rac-btn{white-space:normal;text-align:center;line-height:1.25;padding-top:8px;padding-bottom:8px;max-width:100%}
+.cx-painel{display:flex;flex-direction:column;gap:var(--rac-esp-3);padding-top:var(--rac-esp-3);border-top:1px solid var(--rac-linha)}
+.cx-campos{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.cx-campo{display:flex;flex-direction:column;gap:var(--rac-esp-1);min-width:0}
+.cx-duplo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--rac-esp-3)}
+.cx-fila{display:flex;flex-direction:column;gap:var(--rac-esp-3)}
+.cx-fila-item{display:flex;gap:var(--rac-esp-3);align-items:flex-start;flex-wrap:wrap}
+.cx-fila-item .cx-acoes{flex-basis:100%}
+.cx-tudo{display:flex;justify-content:flex-end}
+.bb-tags{display:flex;flex-wrap:wrap;gap:var(--rac-esp-1) var(--rac-esp-3)}
+.bb-docs{display:flex;flex-direction:column;gap:var(--rac-esp-1);max-height:300px;overflow:auto}
+.bb-doc{display:flex;gap:var(--rac-esp-3);align-items:center;min-height:var(--rac-alvo);padding:var(--rac-esp-1) var(--rac-esp-2);border-radius:var(--rac-raio-1);cursor:pointer}
+.bb-doc:hover{background:var(--rac-papel-2)}
+.bb-doc input{width:22px;height:22px;flex:none}
+@media(max-width:560px){.cx-duplo{grid-template-columns:minmax(0,1fr)}}
+.caph .ghostbtn{min-height:var(--rac-alvo);padding:0 var(--rac-esp-4)}

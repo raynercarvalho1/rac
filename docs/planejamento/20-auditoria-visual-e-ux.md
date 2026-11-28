@@ -171,3 +171,11 @@ a faixa azul em degradê foi conferida por texto branco sobre azul escuro e por 
 **Cabeçalho do celular:** o ícone de busca (44 px) entrou ao lado de Voltar e ↻; para o título continuar inteiro a 375 px (teste da Newsletter, Olivia e Segurança) o botão Início sai do cabeçalho do celular do dono, porque a barra inferior já traz a Casa, e a distância entre os itens diminui a 480 px ou menos. A barra inferior não mudou.
 
 **Limites:** gráficos não se aplicam; o contraste sobre a faixa azul (degradê) foi conferido visualmente; a lista longa de eventos idênticos das capturas é dado de teste.
+
+## 12. Lote 4: Captura, Caixa de entrada e Biblioteca (28/11/2026)
+
+Telas novas só com o Design System (`css/rac.css`, `js/kit.js`: faixa `rh-hero`, `rkBtn`, `rkCard`, `rkEstado`, `rkSelo`, `rkAlerta`, chips, tokens `--rac-*`). Estados desenhados: carregando (esqueleto), vazio (com o caminho para capturar), erro (com "Tentar de novo"), sucesso (aviso com o destino e como desfazer) e "aguardando envio" (selo "na fila" ou "erro" com o motivo). Texto sempre dentro de cartão; nomes de arquivo e endereços longos quebram (`overflow-wrap:anywhere`).
+
+**Medição** (`tests/captura_tela.test.mjs`, Chromium, celular 390, tablet 768 e computador 1280, claro e escuro, em #caixa com o painel de conferência aberto, #biblioteca, o formulário da Biblioteca e a folha de captura): rolagem lateral ≤ 1 px, nenhum botão ou chip abaixo de 44 px de altura, nenhum cartão fora da tela, nenhuma sobreposição de botões. Capturas em `docs/planejamento/img/lote4-*.png`. No celular o botão `+` leva o número de pendentes (selo no canto, não cobre o rótulo).
+
+**Limite honesto:** o contraste foi herdado dos tokens do Design System (já medido no Lote 1), sem nova medição por componente; a validação no iPhone real (câmera, galeria, teclado) é do dono.

@@ -253,3 +253,9 @@ Não há Edge Function nova nem alterada. Desfazer o 022: `drop policy "mfa" on 
 - `tests/navegador.test.mjs`: a página num iPhone (375 px) com banco simulado: quadros, sem rolagem lateral, backup sem segredos,
   prévia sem gravar, confirmação e só insert, cadastro do app e o código no login.
 - `tests/seguranca.test.mjs`: `seguranca_eventos` fechada para quem não entrou (banco de verdade).
+
+## Captura universal e Biblioteca (Lote 4, 28/11/2026)
+
+- `captura_itens`: caixa de entrada da Captura, **privada do autor** (a política só deixa ler e mexer em `criado_por = auth.uid()`, mesmo em espaço compartilhado e mesmo para o dono do espaço). `biblioteca_itens`: por espaço (lê quem lê o espaço, edita quem edita). As duas têm RLS, nada para `anon`, trava restritiva `mfa`, catálogo da auditoria e backup (só exporta).
+- Bucket **privado** `captura` (50 MB; imagens, PDF, texto, planilhas, documentos, zip e vídeo curto; sem SVG, HTML nem executável). Caminho `<espaço>/<autor>/<pasta>/<arquivo>`; a função `cap_arquivo_pode` decide: só o autor grava (em espaço que edita); quem lê o espaço só abre o arquivo que um item da Biblioteca daquele espaço aponta; arquivo apontado não se apaga; a trava `mfa` vale no bucket. Arquivos abrem só por **URL temporária** (120 s). Nenhuma URL pública, nenhum dado pessoal em log ou serviço externo; nada é enviado a IA.
+- Conferência em produção: `supabase/conferencias/071_conferir_producao.sql`.

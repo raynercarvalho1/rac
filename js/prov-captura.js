@@ -1,0 +1,5 @@
+/* Dia a Dia RAC — provedor "captura" (a caixa de entrada; Lote 4 do novo RAC). Só BUSCA. Fonte: captura_itens, PRIVADA do autor pelo RLS (nem em espaço compartilhado outra pessoa a lê). Só itens pendentes ou já encaminhados, só o texto.
+   Chave: id (uuid). Evento: captura.item. Link: #caixa. Espaço: pessoal; compartilhavel:false. Depende de js/prov.js. Só LÊ. */
+  provRegistrar({dominio:"captura",rotulo:"Caixa de entrada",categoria:"projetos",tipos:["captura.item"],espaco:"pessoal",compartilhavel:false,exige:{dono:true},
+    buscar:function(op){var q=provFiltroBusca(SB.from("captura_itens").select("id,tipo,conteudo,estado,criado_em").in("estado",["pendente","classificado"]),["conteudo"],op.termos);
+      return q.order("criado_em",{ascending:false}).limit(op.limite).then(sbOk).then(function(l){return {itens:l.map(function(i){return {id:NUCLEO.tlId("captura","captura_itens",i.id),tipo:"captura.item",titulo:NUCLEO.cpTitulo(i.conteudo,null,90)||"(anexo)",resumo:(i.estado==="pendente"?"pendente na caixa":"já encaminhado")+" · "+(NUCLEO.CP_TIPO_ROTULO[i.tipo]||"").toLowerCase(),quando:i.criado_em,link:"#caixa"}})}})}});
